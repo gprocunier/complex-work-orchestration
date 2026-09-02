@@ -16,8 +16,12 @@ INCIDENT_PLAYBOOK_URL = f"{REPO_URL}/blob/main/references/incident-response-play
 NATIVE_SUPERVISION_POOL_REFERENCE_URL = (
     f"{REPO_URL}/blob/main/references/native-supervision-pools.md"
 )
+NATIVE_SUPERVISION_REFERENCE_URL = (
+    f"{REPO_URL}/blob/main/references/native-supervision.md"
+)
 SOURCE_BLOB_LINK_ALLOWLIST = {
     INCIDENT_PLAYBOOK_URL,
+    NATIVE_SUPERVISION_REFERENCE_URL,
     NATIVE_SUPERVISION_POOL_REFERENCE_URL,
     f"{REPO_URL}/blob/main/LICENSE",
 }
@@ -27,6 +31,7 @@ REQUIRED_PAGES = [
     "explanation.html",
     "prompt-coach.html",
     "workflows.html",
+    "native-supervision.html",
     "use-cases.html",
     "external-contracting.html",
     "local-workers.html",
@@ -42,6 +47,7 @@ SOURCE_LINK_PATTERNS = [
     REPO_URL,
     f"{REPO_URL}/blob/main/LICENSE",
     INCIDENT_PLAYBOOK_URL,
+    NATIVE_SUPERVISION_REFERENCE_URL,
     NATIVE_SUPERVISION_POOL_REFERENCE_URL,
     "https://github.com/gprocunier/hello-world-contractor-demo",
     "https://gprocunier.github.io/hello-world-contractor-demo/",
@@ -64,6 +70,7 @@ FOOTER_HREFS = [
     "./get-started.html",
     "./prompt-coach.html",
     "./workflows.html",
+    "./native-supervision.html",
     "./use-cases.html",
     "./external-contracting.html",
     "./local-workers.html",
@@ -102,6 +109,7 @@ INDEX_FIRST_SCREEN_FORBIDDEN_TERMS = [
 ]
 INDEX_EXPERT_ROUTE_HREFS = [
     "./workflows.html",
+    "./native-supervision.html",
     "./beads-memory.html",
     "./model-synthesis.html",
     "./zero-trust-consensus.html",
@@ -117,6 +125,7 @@ class SiteParser(HTMLParser):
         super().__init__()
         self.allow_internal_labels = allow_internal_labels
         self.ids: set[str] = set()
+        self.duplicate_ids: set[str] = set()
         self.hrefs: list[str] = []
         self.headings: list[tuple[str, str]] = []
         self.landmarks: set[str] = set()
@@ -133,7 +142,10 @@ class SiteParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attrs_dict = {key: value or "" for key, value in attrs}
         if "id" in attrs_dict:
-            self.ids.add(attrs_dict["id"])
+            element_id = attrs_dict["id"]
+            if element_id in self.ids:
+                self.duplicate_ids.add(element_id)
+            self.ids.add(element_id)
         if tag == "a" and attrs_dict.get("href"):
             self.hrefs.append(attrs_dict["href"])
         if tag in {"main", "nav", "header", "footer"}:
@@ -203,14 +215,28 @@ def validate_html(path: Path) -> list[str]:
 
     if not parser.title.strip():
         errors.append(f"{path.relative_to(ROOT)} missing <title>")
-    if not any(tag == "h1" for tag, _ in parser.headings):
-        errors.append(f"{path.relative_to(ROOT)} missing h1")
+    h1_count = sum(tag == "h1" for tag, _ in parser.headings)
+    if h1_count != 1:
+        errors.append(f"{path.relative_to(ROOT)} must contain exactly one h1; found {h1_count}")
+    for element_id in sorted(parser.duplicate_ids):
+        errors.append(f"{path.relative_to(ROOT)} contains duplicate id: {element_id}")
     if '<aside class="page-nav"' in text:
         errors.append(f"{path.relative_to(ROOT)} uses aside for page navigation instead of nav")
     if '<div class="nav-links">' in text:
         for href in PRIMARY_NAV_HREFS:
             if f'href="{href}"' not in text:
                 errors.append(f"{path.relative_to(ROOT)} missing primary navigation link: {href}")
+        primary_pages = {
+            "index.html",
+            "get-started.html",
+            "workflows.html",
+            "use-cases.html",
+            "reference.html",
+        }
+        if path.name in primary_pages:
+            expected = f'href="./{path.name}" aria-current="page"'
+            if expected not in text:
+                errors.append(f"{path.relative_to(ROOT)} missing current-page navigation state")
     if '<footer class="site-footer">' in text:
         for href in FOOTER_HREFS:
             if f'href="{href}"' not in text:
@@ -230,6 +256,18 @@ def validate_html(path: Path) -> list[str]:
         for href in INDEX_EXPERT_ROUTE_HREFS:
             if f'href="{href}"' not in text:
                 errors.append(f"{path.relative_to(ROOT)} missing expert route link: {href}")
+    if path.name == "get-started.html":
+        ordered_terms = [
+            "manage_instruction_profile.py install --profile operator-e",
+            "manage_instruction_profile.py verify --profile operator-e",
+            'cwo-codex -C "$PWD"',
+            "/plan Use $complex-work-orchestration prompt coach:",
+        ]
+        positions = [text.find(term) for term in ordered_terms]
+        if any(position < 0 for position in positions) or positions != sorted(positions):
+            errors.append(
+                f"{path.relative_to(ROOT)} must present Candidate E install, verify, fresh launch, then coach in order"
+            )
     if path.name in {"external-contracting.html", "local-workers.html"} and "Publication handoff" not in text:
         errors.append(f"{path.relative_to(ROOT)} missing publication handoff note")
     for landmark in ["main", "nav", "header", "footer"]:
@@ -264,6 +302,13 @@ def validate_html(path: Path) -> list[str]:
             continue
         if parsed.path and not target.exists():
             errors.append(f"{path.relative_to(ROOT)} links to missing file: {href}")
+        elif parsed.fragment and target.suffix == ".html":
+            target_text = target.read_text(encoding="utf-8")
+            fragment = re.escape(parsed.fragment)
+            if not re.search(rf'\bid=["\']{fragment}["\']', target_text):
+                errors.append(
+                    f"{path.relative_to(ROOT)} links to missing fragment: {href}"
+                )
 
     for pattern in PRIVATE_PATTERNS:
         if pattern.search(text):

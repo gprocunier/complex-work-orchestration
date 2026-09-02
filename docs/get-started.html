@@ -32,19 +32,20 @@
 
     <main id="main">
       <section class="page-hero">
-        <p class="eyebrow">Tutorial</p>
+        <p class="eyebrow">First task</p>
         <h1>Get Started</h1>
         <p class="lede">
-          Go from an installed skill to one small CWO-guided task with a
-          durable record, a validation note, and enough context for a later
-          session to resume the work.
+          Install CWO, start its Candidate E baseline, and complete one small
+          task with a durable record, supervised execution when needed, and a
+          validation note.
         </p>
       </section>
 
       <section class="section doc-layout">
         <nav class="page-nav" aria-label="Page sections">
           <a href="#install">Install the Skill</a>
-          <a href="#profile">Choose Your Profile</a>
+          <a href="#profile">Start Candidate E</a>
+          <a href="#starting-path">Choose A Path</a>
           <a href="#coach">Run the Coach</a>
           <a href="#core-terms">Core Terms</a>
           <a href="#beads">Record Beads</a>
@@ -118,48 +119,66 @@ bd version</code></pre>
           </section>
 
           <section id="profile">
-            <h2>Choose Your Starting Path</h2>
+            <h2>Start The Candidate E Baseline</h2>
             <p>
-              Start with the connected single-operator path unless you already
-              know the work is restricted, airgapped, or needs outside review.
-              The coach can recommend a larger graph later.
+              Candidate E is CWO's default instruction profile for the Codex
+              session that owns scope, integration, acceptance, and handoff.
+              Install and verify its named profile after the skill is in place:
             </p>
+            <pre><code>python3 scripts/manage_instruction_profile.py install --profile operator-e
+python3 scripts/manage_instruction_profile.py verify --profile operator-e</code></pre>
+            <p>
+              The profile manager writes a hash-bound prompt under
+              <code>$CODEX_HOME</code> and installs the
+              <code>cwo-codex</code> launcher under
+              <code>~/.local/bin</code> by default. It does not edit the global
+              Codex configuration or change ordinary sessions.
+            </p>
+            <p>Start a fresh CWO session from the target project:</p>
+            <pre><code>cwo-codex -C "$PWD"</code></pre>
+            <p>If the launcher directory is not on <code>PATH</code>, use:</p>
+            <pre><code>codex --profile cwo-sol-operator-e -C "$PWD"</code></pre>
+            <div class="callout">
+              <strong>Fresh session required:</strong>
+              Resuming an older thread does not activate the named profile or
+              provide profile-selection evidence. If a fresh process is
+              unavailable, explicitly reading and following the Candidate E
+              prompt is a supported fallback for that thread, not equivalent
+              profile activation. The word <em>profile</em> here means the
+              operator instruction contract; Connected Codex, OpenCode, and
+              local endpoints are execution environments selected later.
+            </div>
+            <p>
+              Candidate C remains an opt-in compatibility alternative. Start a
+              fresh ordinary <code>codex -C "$PWD"</code> session for immediate
+              rollback. Exact profile removal is in
+              <a href="./reference.html#candidate-e">Reference</a>.
+            </p>
+          </section>
+
+          <section id="starting-path">
+            <h2>Choose Your Starting Path</h2>
             <div class="tile-grid">
               <article>
                 <h3>Connected Codex</h3>
-                <p>
-                  Use Codex, one local Beads record, focused validation, and a
-                  closure-memory note. This is the first path to learn.
-                </p>
+                <p>Use Candidate E and keep focused work in its session, adding one supervised Spark worker only when delegation helps.</p>
               </article>
               <article>
                 <h3>Review Needed</h3>
-                <p>
-                  Add outside reviewers or local workers only after the sharing
-                  or local-inference boundary is explicit. Their returns are
-                  evidence until evaluated.
-                </p>
+                <p>Let the coach add bounded review lanes. Reviewer output stays evidence until the evaluator and Candidate E accept it.</p>
               </article>
               <article>
                 <h3>Restricted Or Airgapped</h3>
-                <p>
-                  Keep CWO as the Beads, policy, and validation layer while
-                  OpenCode, a manual operator shell, or an approved local
-                  endpoint performs bounded work.
-                </p>
+                <p>Select the matching execution environment before dispatch. These paths use their own approved shell and model profiles.</p>
               </article>
             </div>
-            <p>
-              Use <a href="./workflows.html#execution-environments">Workflows</a>
-              when you need the full execution-profile comparison.
-            </p>
           </section>
 
           <section id="coach">
             <h2>Run the Coach</h2>
             <p>
-              Start in Codex by default when the right amount of orchestration
-              is unclear. Codex can run the local helper, show the recommended
+              In the fresh Candidate E session, ask the coach to size the work.
+              Codex can run the local helper, show the recommended
               level, and ask any interactive questions before execution starts.
               If you are already in an OpenCode or manual shell profile, run
               the helper directly and choose that execution profile before
@@ -205,6 +224,10 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
                 <p>Complex Work Orchestration: the workflow that sizes, records, reviews, validates, and hands off complex agent work.</p>
               </article>
               <article>
+                <h3>Candidate E</h3>
+                <p>CWO's default instruction profile. Its session owns scope, integration, acceptance, and handoff.</p>
+              </article>
+              <article>
                 <h3>Prompt Coach</h3>
                 <p>Sizes a request before execution so Codex uses the right amount of tracking, review, and validation.</p>
               </article>
@@ -215,6 +238,10 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               <article>
                 <h3>Validation</h3>
                 <p>The checks that prove the work is ready, such as tests, docs validation, install smoke, or Pages deployment.</p>
+              </article>
+              <article>
+                <h3>Native Supervision</h3>
+                <p>The local supervisor outside the worker verifies, binds, and monitors a fresh Spark session for a narrow implementation or validation task.</p>
               </article>
               <article>
                 <h3>Closure Memory</h3>
@@ -295,15 +322,24 @@ EOF
             <p>
               Let the coach decide whether the work stays in the current
               conversation, becomes a lightweight Beads task, or needs a larger
-              work graph. Outside reviewers and local workers are optional
-              paths selected later; they are not the starting point.
+              work graph. Candidate E remains the decision owner. If work is
+              delegated in connected Codex, one supervised native Spark worker
+              is the standard path. Outside reviewers, local workers, and
+              concurrent pools are separate optional paths.
             </p>
             <ol class="check-list">
-              <li>Invoke the skill from Codex when sizing is unclear, or run the helper directly from another approved shell profile.</li>
+              <li>Install and verify Candidate E, then start a fresh <code>cwo-codex</code> session.</li>
+              <li>Invoke the skill when sizing is unclear, or run the helper directly from another approved execution environment.</li>
               <li>Let CWO route non-trivial work against the policy.</li>
               <li>Create a Beads task, or an epic when the goal has several dependent parts.</li>
               <li>Run validation before accepting findings or publishing.</li>
             </ol>
+            <p>
+              Continue with <a href="./workflows.html">Workflows</a> for the
+              end-to-end path or
+              <a href="./native-supervision.html">Native Supervision</a> for
+              the worker control and failure model.
+            </p>
           </section>
 
         </div>
@@ -320,6 +356,7 @@ EOF
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./native-supervision.html">Native Supervision</a>
         <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>

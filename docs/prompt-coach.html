@@ -32,7 +32,7 @@
 
     <main id="main">
       <section class="page-hero">
-        <p class="eyebrow">How-to</p>
+        <p class="eyebrow">Size the work</p>
         <h1>Prompt Coach</h1>
         <p class="lede">
           The coach compiles a user request into the right orchestration shape:
@@ -53,10 +53,11 @@
           <section id="run">
             <h2>Run It</h2>
             <p>
-              In normal use, ask Codex to run the coach from <code>/plan</code>
-              before scaffolding. The shell command is the helper Codex runs
-              behind the scenes or the equivalent for an operator working
-              outside the Codex session.
+              In normal use, start a fresh Candidate E session with
+              <code>cwo-codex -C "$PWD"</code>, then ask it to run the coach
+              from <code>/plan</code> before scaffolding. The shell command is
+              the helper Candidate E runs behind the scenes or the equivalent
+              for an operator working outside the Codex session.
             </p>
             <pre><code>/plan Use $complex-work-orchestration prompt coach:
 Publish-ready docs with validation and editorial review.</code></pre>
@@ -287,10 +288,12 @@ python3 scripts/route_work.py --data-sensitivity redacted "&lt;task text&gt;"</c
               <p>
                 The coach always asks whether to parallelize with subagents and
                 records the answer in <code>workerbee_parallelism</code>.
-                Broad review work can use review-only or heavy review subagents
-                with Codex 5.3 Spark when available, or the smallest available
-                capable review model. Implementation subagents still require
-                explicitly disjoint scopes.
+                In the connected native path, broad review work uses the exact
+                Spark route only when trusted control metadata attests
+                <code>gpt-5.3-codex-spark</code>. Do not silently substitute
+                another model. A separately selected local or contractor route
+                follows its own profile and approval boundary. Implementation
+                subagents still require explicitly disjoint scopes.
               </p>
             </details>
             <div class="callout">
@@ -370,6 +373,7 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./native-supervision.html">Native Supervision</a>
         <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>

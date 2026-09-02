@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Understand the standard CWO native worker supervisor, its live control order, failure handling, and optional concurrent pool."
+    >
+    <title>Native Supervision | Complex Work Orchestration</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html">Get Started</a>
+          <a href="./workflows.html">Workflows</a>
+          <a href="./use-cases.html">Use Cases</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="page-hero">
+        <p class="eyebrow">Delegated work</p>
+        <h1>Native Worker Supervision</h1>
+        <p class="lede">
+          Candidate E keeps the decisions. When CWO delegates a narrow
+          implementation or validation task,
+          the local supervisor—the trusted controller outside the worker—verifies
+          a fresh Spark session, binds the assignment, and watches it until it
+          closes.
+        </p>
+      </section>
+
+      <section class="section doc-layout">
+        <nav class="page-nav" aria-label="Page sections">
+          <a href="#default-path">Default Path</a>
+          <a href="#before-dispatch">Before Dispatch</a>
+          <a href="#control-turn">Live Control Turn</a>
+          <a href="#workspace-authority">Workspace Authority</a>
+          <a href="#failure-recovery">Failure And Recovery</a>
+          <a href="#concurrency-preview">Concurrency Preview</a>
+          <a href="#activation-preview">Separate Activation Preview</a>
+          <a href="#operator-reference">Operator Reference</a>
+        </nav>
+
+        <div class="doc-body">
+          <section id="default-path">
+            <h2>One Worker Is The Default</h2>
+            <p>
+              Native supervision is the normal connected-Codex control when
+              CWO delegates reading, editing, or validation after the important
+              decisions are closed. It is not the same thing as concurrent
+              supervision. Most tasks use one fresh
+              <code>gpt-5.3-codex-spark</code> worker with one policy-checked
+              assignment that fixes the workspace, scope, tools, limits, and
+              required validation.
+            </p>
+            <p>
+              Candidate E owns architecture, scope decisions, integration
+              judgment, and acceptance. The worker may read, edit, or validate
+              only what its assignment permits. Its return is evidence until
+              the Candidate E session checks the result.
+            </p>
+            <div class="workflow-diagram linear" role="img" aria-label="Candidate E prepares one bounded task, the local supervisor checks and supervises Spark, and Candidate E validates the evidence.">
+              <div class="flow-card"><strong>Decide</strong><span>Candidate E</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Bind</strong><span>Plan and limits</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Run</strong><span>Supervised Spark</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Accept</strong><span>Validate and adjudicate</span></div>
+            </div>
+            <ol class="check-list">
+              <li>Record the task, scope, acceptance criteria, and dependencies in Beads.</li>
+              <li>Close architecture and policy decisions before delegating implementation or validation.</li>
+              <li>Verify the worker model and session from trusted control metadata.</li>
+              <li>Supervise the exact assignment and workspace until the worker closes.</li>
+              <li>Validate the result before accepting it or publishing anything.</li>
+            </ol>
+          </section>
+
+          <section id="before-dispatch">
+            <h2>Before Dispatch</h2>
+            <p>
+              CWO estimates the work before it builds a dispatchable packet.
+              A packet is the policy-checked assignment given to a worker: it
+              names the exact workspace, scope, permitted actions, limits, and
+              validation.
+              The estimate records expected behavior, affected contracts,
+              command complexity, reads, mutations, validation, and budget. A
+              separate zero-tool precommit check tests whether the proposed
+              assignment fits those limits.
+            </p>
+            <p>
+              An accepting precommit receipt binds the exact work plan, but it
+              still does not authorize repository work. The release step must
+              also bind the packet, requested model, canary evidence, and
+              adjudication state. A changed work plan needs a fresh worker,
+              prompt, nonce, and receipt.
+            </p>
+            <div class="callout">
+              <strong>Evidence is not authority:</strong>
+              A packet hash, receipt, preflight result, or worker statement
+              cannot widen the task or authorize dispatch by itself.
+            </div>
+          </section>
+
+          <section id="control-turn">
+            <h2>The Live Control Turn</h2>
+            <p>
+              The local supervisor persists supervision state and registers the
+              observer before it sends the task. Arming, submission, receipt
+              binding, polling, interruption, and finalization share one
+              control-turn identity.
+            </p>
+            <ol class="check-list" aria-label="Required native supervision order">
+              <li><strong>Persist:</strong> write the bound supervision state before any triggering action.</li>
+              <li><strong>Arm:</strong> register the observer and prove trusted telemetry is available.</li>
+              <li><strong>Send:</strong> submit the exact released task to the attested session.</li>
+              <li><strong>Bind:</strong> attach the returned submission identifier to this control turn.</li>
+              <li><strong>Check:</strong> compare trusted events with the packet every second.</li>
+              <li><strong>Resolve:</strong> interrupt on a violation or observe a clean terminal state.</li>
+              <li><strong>Finalize:</strong> record terminal, budget, telemetry, and workspace receipts.</li>
+              <li><strong>Close:</strong> end supervision only after the evidence is durable.</li>
+            </ol>
+            <p>
+              No assistant or model round-trip may occur between task
+              submission and the first check. A long passive wait is not live
+              monitoring. If interrupt, close, wait, or trusted telemetry is
+              unavailable, CWO stops before dispatch rather than substituting
+              another route.
+            </p>
+            <p>
+              The supervisor compares trusted events with the packet: model,
+              tools, command results, reads, mutations, validation, tokens,
+              runtime, compaction, terminal state, and workspace drift.
+            </p>
+          </section>
+
+          <section id="workspace-authority">
+            <h2>The Packet Owns The Workspace Boundary</h2>
+            <p>
+              The packet's declared working directory is authoritative. A
+              worker can inherit a different shell directory, but that inherited
+              value cannot widen where it may read or write.
+            </p>
+            <p>
+              CWO records a clean baseline, resolves allowed paths, and checks
+              live changes against the packet. Unexpected untracked files,
+              out-of-scope writes, incomplete comparison, aliased worktrees, or
+              symlinked authority boundaries stop the attempt.
+            </p>
+          </section>
+
+          <section id="failure-recovery">
+            <h2>Failure And Recovery Stay Bounded</h2>
+            <table class="data-table">
+              <caption>Supervisor failure decisions</caption>
+              <thead>
+                <tr><th scope="col">Observation</th><th scope="col">Result</th></tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">Wrong or missing model attestation</th><td>Reject the session and artifact.</td></tr>
+                <tr><th scope="row">Control loss, unsafe tool use, or unattributed mutation</th><td>Interrupt, close, and quarantine.</td></tr>
+                <tr><th scope="row">Context compaction</th><td>Stop the session; Candidate E adjudicates any retained artifact.</td></tr>
+                <tr><th scope="row">Budget-only stop</th><td>At most one fresh independent validation may assess the artifact.</td></tr>
+                <tr><th scope="row">Healthy packet-fit problem</th><td>Refine once within the original scope and aggregate budget.</td></tr>
+                <tr><th scope="row">Material replan</th><td>Checkpoint in Beads and start a fresh worker.</td></tr>
+              </tbody>
+            </table>
+            <p>
+              CWO does not start an automatic salvage chain. Retry is available
+              only for policy-eligible failures, shares the original budget,
+              and requires a fresh session and trusted attestation.
+            </p>
+          </section>
+
+          <section id="concurrency-preview">
+            <h2>Concurrent Supervision Is A Tech Preview</h2>
+            <p>
+              Concurrency is experimental and disabled by default. It does not
+              change the normal one-worker path.
+            </p>
+            <table class="data-table">
+              <caption>Released native supervision capacity</caption>
+              <thead>
+                <tr><th scope="col">Capacity</th><th scope="col">Status</th><th scope="col">Boundary</th></tr>
+              </thead>
+              <tbody>
+                <tr><th scope="row">One worker</th><td>Default</td><td>Normal single-worker controls.</td></tr>
+                <tr><th scope="row">Two workers</th><td>Opt-in Tech Preview</td><td>Fresh same-host capability and safe fixed cohort.</td></tr>
+                <tr><th scope="row">Three workers</th><td>Opt-in Tech Preview</td><td>Released and hard ceiling.</td></tr>
+                <tr><th scope="row">Four or more</th><td>Blocked</td><td>Not represented by the operative contract.</td></tr>
+              </tbody>
+            </table>
+            <p>
+              A concurrent pool requires deterministic admission, an economical
+              and schedulable cohort, immutable child bindings, and either
+              isolated mutable worktrees or a strictly shared read-only
+              topology. Precommit, packet construction, critics, integration,
+              retry, replay, and publication remain single-flight.
+            </p>
+            <p>
+              Do not imitate a pool by running several single-worker supervisors
+              in parallel. Productive concurrency uses the admission-bound
+              version-2 host path and consumes one-use live authority.
+            </p>
+          </section>
+
+          <section id="activation-preview">
+            <h2>The Tool-Boundary Activation Preview Is Separate</h2>
+            <p>
+              Ordinary supervised workers require exact server-side tool
+              allowlisting. A disabled detect-and-contain preview explores a
+              weaker boundary in which an unlisted built-in could act before
+              detection. It is not the normal supervisor and is not equivalent
+              to prevention.
+            </p>
+            <p>
+              The preview accepts only three fixed profiles:
+              <code>n1-read-only</code>, <code>n2-read-only</code>, and
+              <code>n1-mutable</code>. Dry-run validation does not consume the
+              approval. A live attempt needs a signed exact-attempt approval,
+              a permanent one-use claim, explicit risk acceptance, and
+              <code>--enable-tech-preview</code>. Its artifacts prove only that
+              specific certification run.
+            </p>
+          </section>
+
+          <section id="operator-reference">
+            <h2>Operator Reference</h2>
+            <p>
+              Use the detailed references for exact commands, schemas, status
+              fields, leases, and rollback:
+            </p>
+            <ul class="link-list">
+              <li><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md">Single-worker operator reference</a></li>
+              <li><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Concurrent pool operator reference</a></li>
+              <li><a href="./reference.html#native-supervision">Policies, schemas, and scripts</a></li>
+              <li><a href="./workflows.html#native-supervision">End-to-end workflow</a></li>
+            </ul>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div>
+        <strong>Complex Work Orchestration</strong>
+        <p>Public Codex skill for durable multi-agent work.</p>
+      </div>
+      <nav aria-label="Footer">
+        <a href="./index.html">Home</a>
+        <a href="./get-started.html">Get Started</a>
+        <a href="./prompt-coach.html">Prompt Coach</a>
+        <a href="./workflows.html">Workflows</a>
+        <a href="./native-supervision.html">Native Supervision</a>
+        <a href="./use-cases.html">Use Cases</a>
+        <a href="./external-contracting.html">Contractors</a>
+        <a href="./local-workers.html">Local Workers</a>
+        <a href="./contractor-demo.html">Demo</a>
+        <a href="./reference.html">Reference</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
+        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
+      </nav>
+    </footer>
+  </body>
+</html>

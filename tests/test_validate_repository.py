@@ -30,18 +30,36 @@ from cwo_core.waivers import require_waiver_reason  # noqa: E402
 
 
 class ValidateRepositoryTests(unittest.TestCase):
+    # Independent golden fixture: the positive test is not allowed to read the
+    # page that the production validator checks.
     NATIVE_SUPERVISION_TECH_PREVIEW_COPY = """
-        <nav class="page-nav">
-          <a href="#native-supervision-tech-preview">Native Supervision Tech Preview</a>
-        </nav>
-        <section id="native-supervision-tech-preview">
-          <p>A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default; every concurrent run requires explicit opt-in.</p>
-          <p>Concurrent execution requires one fresh same-host capability receipt, a fixed cohort, and either isolated mutable worktrees or a shared read-only topology. The currently released and hard ceilings are both three workers. N&gt;=4 remains blocked pending Phase 2 architecture and recertification. Precommit, critics, integration, retry, replay, and publication remain single-flight.</p>
-          <p>Exact server-side tool allowlisting remains the operative default. A serialized <code>trusted-detect-and-contain</code> override is audit-only intent, not dispatch authority. The one-shot activation runner is disabled by default and accepts only <code>n1-read-only</code>, <code>n2-read-only</code>, and <code>n1-mutable</code>. Non-consuming validation uses <code>--dry-run</code>. Live execution requires the exact <code>unlisted-built-ins-may-act-before-detection</code> risk acknowledgement and <code>--enable-tech-preview</code>.</p>
-          <p>Each fixed activation profile requires its exact ordered two-call trace. Every failed, retried, extra, reordered, wrong-argument, unknown-result, or contradictory call counts and makes the pool and result non-accepting. Only a durable successful terminal event can finalize required trace cardinality. A non-null <code>task_complete.error</code> is failed terminal control loss. The controller closes only authorized implementation child Beads, once and in task order. It never closes the parent or publication Bead, retries a close, or rolls back a partial close. Accepted activation result v2 binds the private exact-trace and Bead-closure artifact hashes.</p>
-          <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Operator reference</a>
-          <p><code>git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy.</p>
-        </section>
+      <nav>
+        <a href="#default-path">Default</a>
+        <a href="#concurrency-preview">Concurrency</a>
+      </nav>
+      <section id="default-path">
+        <p>Native supervision is the normal connected-Codex control when CWO delegates reading, editing, or validation.</p>
+        <p><code>gpt-5.3-codex-spark</code>. Candidate E owns architecture.</p>
+        <p>A worker statement cannot widen the task.</p>
+      </section>
+      <section id="control-turn">
+        <p>The host persists supervision state and registers the observer before it sends the task.</p>
+        <p>All actions share one control-turn identity.</p>
+      </section>
+      <section id="workspace-authority"><p>The packet's declared working directory is authoritative.</p></section>
+      <section id="failure-recovery"><p>Control loss, unsafe tool use, or unattributed mutation stops the attempt.</p></section>
+      <section id="concurrency-preview">
+        <p>Concurrency is experimental and disabled by default.</p>
+        <table><tr><th scope="row">Two workers</th><td>Opt-in Tech Preview</td></tr>
+        <tr><th scope="row">Three workers</th><td>Opt-in Tech Preview</td></tr>
+        <tr><th scope="row">Four or more</th><td>Blocked</td></tr></table>
+        <p>Fresh same-host capability and a safe fixed cohort use isolated mutable worktrees or shared read-only topology.</p>
+        <p>Precommit, packet construction, critics, integration, retry, replay, and publication remain single-flight.</p>
+      </section>
+      <p>Ordinary supervised workers require exact server-side tool allowlisting.</p>
+      <p><code>n1-read-only</code>, <code>n2-read-only</code>, and <code>n1-mutable</code></p>
+      <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md">Single worker</a>
+      <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Pools</a>
     """
 
     def test_repository_control_plane_is_consistent(self) -> None:
@@ -124,75 +142,44 @@ class ValidateRepositoryTests(unittest.TestCase):
 
     def test_native_supervision_tech_preview_copy_rejects_contract_gaps(self) -> None:
         cases = {
-            "section anchor": ('id="native-supervision-tech-preview"', 'id="native-supervision-preview"'),
-            "page navigation link": ('href="#native-supervision-tech-preview"', 'href="#native-supervision-preview"'),
-            "stability/default wording": (
-                "A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default",
-                "Concurrent supervision is available",
+            "default section anchor": ('id="default-path"', 'id="default"'),
+            "default navigation link": ('href="#default-path"', 'href="#default"'),
+            "control-turn section anchor": ('id="control-turn"', 'id="control"'),
+            "workspace section anchor": ('id="workspace-authority"', 'id="workspace"'),
+            "failure section anchor": ('id="failure-recovery"', 'id="failures"'),
+            "concurrency section anchor": ('id="concurrency-preview"', 'id="concurrency"'),
+            "concurrency navigation link": ('href="#concurrency-preview"', 'href="#concurrency"'),
+            "standard single-worker wording": (
+                "normal connected-Codex control",
+                "optional connected-Codex control",
             ),
-            "operator link": (
+            "exact native model wording": (
+                "<code>gpt-5.3-codex-spark</code>",
+                "<code>any-model</code>",
+            ),
+            "concurrency stability wording": (
+                "Concurrency is experimental and disabled by default",
+                "Concurrency is the default",
+            ),
+            "higher-capacity gate wording": (
+                "Four or more</th><td>Blocked",
+                "Four or more</th><td>Available",
+            ),
+            "exact tool boundary wording": (
+                "exact server-side tool",
+                "optional tool",
+            ),
+            "single-worker operator link": (
+                "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md",
+                "./reference.html#single-worker",
+            ),
+            "pool operator link": (
                 "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md",
                 "./reference.html",
             ),
-            "rollback wording": (
-                "git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy",
-                "restore the site later",
-            ),
-            "exact tool boundary wording": (
-                "Exact server-side tool allowlisting remains the operative default",
-                "Tool allowlisting is optional",
-            ),
-            "override authority wording": (
-                "<code>trusted-detect-and-contain</code> override is audit-only intent, not dispatch authority",
-                "<code>trusted-detect-and-contain</code> override grants dispatch authority",
-            ),
-            "activation gate wording": (
-                "The one-shot activation runner is disabled by default",
-                "available through the existing supervisor",
-            ),
             "fixed activation profiles": (
-                "<code>n1-read-only</code>, <code>n2-read-only</code>, and <code>n1-mutable</code>",
-                "arbitrary profiles",
-            ),
-            "non-consuming dry-run wording": (
-                "Non-consuming validation uses <code>--dry-run</code>",
-                "Validation starts workers",
-            ),
-            "exact activation risk wording": (
-                "<code>unlisted-built-ins-may-act-before-detection</code> risk acknowledgement",
-                "generic risk acceptance",
-            ),
-            "explicit activation switch": (
-                "<code>--enable-tech-preview</code>",
-                "<code>--run</code>",
-            ),
-            "exact activation trace wording": (
-                "Each fixed activation profile requires its exact ordered two-call trace",
-                "Each profile may use any successful calls",
-            ),
-            "all attempts count wording": (
-                "Every failed, retried, extra, reordered, wrong-argument, unknown-result, or contradictory call counts",
-                "Only successful calls count",
-            ),
-            "durable terminal trace wording": (
-                "Only a durable successful terminal event can finalize required trace cardinality",
-                "Projected completion finalizes the trace",
-            ),
-            "errored terminal wording": (
-                "<code>task_complete.error</code> is failed terminal control loss",
-                "Errored completion is successful",
-            ),
-            "child-only closure wording": (
-                "closes only authorized implementation child Beads, once and in task order",
-                "closes any related issue",
-            ),
-            "no parent rollback wording": (
-                "It never closes the parent or publication Bead, retries a close, or rolls back a partial close",
-                "It repairs close failures automatically",
-            ),
-            "activation result v2 binding wording": (
-                "Accepted activation result v2 binds the private exact-trace and Bead-closure artifact hashes",
-                "Accepted results use the pool count",
+                "<code>n1-read-only</code>",
+                "<code>arbitrary-profile</code>",
             ),
         }
         for expected_label, (required, replacement) in cases.items():

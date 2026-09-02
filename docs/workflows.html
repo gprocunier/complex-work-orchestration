@@ -32,32 +32,52 @@
 
     <main id="main">
       <section class="page-hero">
-        <p class="eyebrow">How-to</p>
+        <p class="eyebrow">End-to-end</p>
         <h1>Workflows</h1>
         <p class="lede">
-          Codex is the default installed-skill entry point. It runs the coach,
-          turns answers into a Beads-backed plan, and only then opens
-          contractor, local-worker, or review-worker workstreams when the
-          policy says they fit. OpenCode and manual shells use the same CWO
-          controls through selected execution profiles.
+          A fresh Candidate E session is the normal CWO entry point. It runs
+          the coach, turns answers into a Beads-backed plan, and supervises one
+          bounded native Spark worker when delegation is worthwhile. Optional
+          contractor, local-worker, and concurrent lanes remain separate.
         </p>
       </section>
 
       <section class="section doc-layout">
         <nav class="page-nav" aria-label="Page sections">
+          <a href="#candidate-e">Start Candidate E</a>
           <a href="#invoke-codex">Invoke From Codex</a>
           <a href="#coach-decide">Coach And Decide</a>
           <a href="#beads-graph">Beads Task Graph</a>
           <a href="#run-readiness">Run Readiness</a>
+          <a href="#native-supervision">Native Supervision</a>
           <a href="#optional-lanes">Optional Workstreams</a>
           <a href="#execution-environments">Execution Environments</a>
-          <a href="#native-supervision-tech-preview">Native Supervision Tech Preview</a>
           <a href="./use-cases.html">Use Cases</a>
           <a href="#contractor-demo">Contractor Demo</a>
           <a href="#validate-handoff">Validate And Handoff</a>
           <a href="./explanation.html">Why this structure</a>
         </nav>
         <div class="doc-body">
+          <section id="candidate-e">
+            <h2>Start Candidate E</h2>
+            <p>
+              After the one-time profile setup in
+              <a href="./get-started.html#profile">Get Started</a>, start a
+              fresh session in the repository that owns the work:
+            </p>
+            <pre><code>cwo-codex -C "$PWD"</code></pre>
+            <p>
+              Candidate E is CWO's default instruction profile for the Codex
+              session that owns scope, integration, acceptance, and handoff.
+              The profile is selected at process startup, so resuming an older
+              Codex thread does not activate the named profile or provide its
+              selection evidence. Explicitly reading and following the prompt
+              remains a distinguishable fallback when a fresh process is unavailable. See
+              <a href="./get-started.html#profile">Get Started</a> for install,
+              rollback, and explicit-profile details.
+            </p>
+          </section>
+
           <section id="invoke-codex">
             <h2>Invoke From Codex</h2>
             <p>
@@ -94,9 +114,10 @@
 Publish-ready documentation pass.</code></pre>
             <div class="callout">
               <strong>First-class path:</strong>
-              Stay in Codex for the default connected conversation, choices,
-              plan, and execution. Use direct shell commands for automation,
-              CI, troubleshooting, OpenCode, or a separate operator workflow.
+              Stay in the fresh Candidate E session for the default connected
+              conversation, choices, plan, and execution. Use direct shell
+              commands for automation, CI, troubleshooting, OpenCode, or a
+              separate operator workflow.
             </div>
             <div class="callout">
               <strong>Profile gate:</strong>
@@ -316,6 +337,50 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
             </p>
           </section>
 
+          <section id="native-supervision">
+            <h2>Delegate Through Native Supervision</h2>
+            <p>
+              Candidate E can keep narrow work in its own session. When a narrow
+              implementation or validation task merits delegation, the normal
+              connected path uses one fresh native Spark worker. The local
+              supervisor—the trusted controller outside the worker—verifies the
+              session, binds the exact assignment and limits, arms observation
+              before submission, and watches the task until it closes.
+            </p>
+            <div class="workflow-diagram linear" role="img" aria-label="Candidate E sets scope and acceptance, the local supervisor binds and supervises one Spark worker, and Candidate E validates the result.">
+              <div class="flow-card"><strong>Candidate E</strong><span>Set scope and acceptance</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Bind</strong><span>Assignment and limits</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Supervise</strong><span>One Spark worker</span></div>
+              <div class="flow-arrow" aria-hidden="true">→</div>
+              <div class="flow-card"><strong>Validate</strong><span>Accept or contain</span></div>
+            </div>
+            <ol class="check-list">
+              <li>Record acceptance criteria, scope, dependencies, and validation in Beads.</li>
+              <li>Use trusted no-tools attestation; a model self-report is not identity proof.</li>
+              <li>Persist and arm supervision before sending the task.</li>
+              <li>Submit, bind the receipt, and begin one-second checks in one uninterrupted control turn.</li>
+              <li>Interrupt and contain on model, tool, budget, workspace, telemetry, or control failure.</li>
+              <li>Validate the artifact before Candidate E accepts it.</li>
+            </ol>
+            <p>
+              The <a href="./native-supervision.html">Native Supervision guide</a>
+              explains the lifecycle, workspace authority, recovery rules, and
+              operator references. Concurrent pools of two or three workers are
+              an explicit opt-in Tech Preview; capacity four and above is
+              blocked. Concurrency is not the default path.
+            </p>
+            <section id="native-supervision-tech-preview">
+              <h3>Concurrent Supervision Tech Preview</h3>
+              <p>
+                See the
+                <a href="./native-supervision.html#concurrency-preview">current
+                concurrency limits and prerequisites</a> before opting in.
+              </p>
+            </section>
+          </section>
+
           <section id="optional-lanes">
             <h2>Optional Workstreams</h2>
             <p>
@@ -433,67 +498,6 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               OpenAI-compatible endpoints can use the same envelope, evaluator,
               and architect-adjudication pattern.
             </p>
-            <section id="native-supervision-tech-preview">
-              <h3>Native Supervision Tech Preview</h3>
-              <p>
-                A single worker is the default. Concurrent native supervision
-                remains an experimental Tech Preview and is disabled by
-                default; every concurrent run requires explicit opt-in.
-              </p>
-              <p>
-                Concurrent execution also requires one fresh same-host
-                capability receipt, a fixed cohort, and either isolated mutable
-                worktrees or a shared read-only topology. The currently
-                released and hard ceilings are both three workers. N&gt;=4
-                remains blocked pending Phase 2 architecture and
-                recertification. Precommit, critics, integration, retry,
-                replay, and publication remain single-flight.
-              </p>
-              <div class="callout">
-                <strong>Tool boundary:</strong>
-                Exact server-side tool allowlisting remains the operative
-                default. A serialized
-                <code>trusted-detect-and-contain</code> override is audit-only
-                intent, not dispatch authority. It cannot start the
-                single-worker supervisor. The one-shot activation runner is
-                disabled by default and accepts only the fixed
-                <code>n1-read-only</code>, <code>n2-read-only</code>, and
-                <code>n1-mutable</code> profiles. Non-consuming validation uses
-                <code>--dry-run</code>. Live execution requires the fixed plan,
-                signed approval, exact
-                <code>unlisted-built-ins-may-act-before-detection</code> risk
-                acknowledgement, and explicit
-                <code>--enable-tech-preview</code>.
-              </div>
-              <div class="callout">
-                <strong>Exact activation trace:</strong>
-                Each fixed activation profile requires its exact ordered
-                two-call trace. Every failed, retried, extra, reordered,
-                wrong-argument, unknown-result, or contradictory call counts
-                and makes the pool and result non-accepting. Only a durable
-                successful terminal event can finalize required trace
-                cardinality. A non-null
-                <code>task_complete.error</code> is failed terminal control
-                loss, never a successful completion missing its final token,
-                required calls, or expected mutation. After the pool and trace
-                accept, the controller closes only authorized implementation
-                child Beads, once and in task order. It never closes the parent
-                or publication Bead, retries a close, or rolls back a partial
-                close. Accepted activation result v2 binds the private
-                exact-trace and Bead-closure artifact hashes.
-              </div>
-              <p>
-                Before opting in, read the
-                <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">native supervision pool operator reference</a>
-                for the full prerequisites, limits, failure rules, and deferred
-                hardening.
-              </p>
-              <div class="callout">
-                <strong>Rollback:</strong>
-                <code>git revert</code> the documentation commit, then start a
-                fresh Pages deployment to restore the prior published copy.
-              </div>
-            </section>
             <table class="data-table">
               <caption>Execution Profile Comparison</caption>
               <thead>
@@ -664,6 +668,7 @@ python3 scripts/evaluate_return.py \
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./native-supervision.html">Native Supervision</a>
         <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>

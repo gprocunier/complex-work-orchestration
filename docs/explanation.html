@@ -32,7 +32,7 @@
 
     <main id="main">
       <section class="page-hero">
-        <p class="eyebrow">Explanation</p>
+        <p class="eyebrow">Operating model</p>
         <h1>Why The Workflow Is Structured This Way</h1>
         <p class="lede">
           A coding-agent shell can do real project work, not just answer
@@ -45,6 +45,7 @@
         <nav class="page-nav" aria-label="Page sections">
           <a href="#shells">From Chat To Shell</a>
           <a href="#roles">Role Separation</a>
+          <a href="#supervision">Why Supervise</a>
           <a href="#memory">Durable Memory</a>
           <a href="#evidence">Evidence Boundaries</a>
           <a href="#publication">Publication Quality</a>
@@ -75,11 +76,12 @@
           <section id="roles">
             <h2>Role Separation</h2>
             <p>
-              The main Codex thread acts as the decision owner. It owns scope,
-              design tradeoffs, integration, validation judgment, and release
-              decisions. For larger work, project-management coordination keeps
-              the work graph current and makes sure each lane has a clear
-              assignment and handoff.
+              Candidate E is CWO's default instruction profile for the Codex
+              session that owns scope, integration, acceptance, and handoff.
+              That session also resolves design tradeoffs, validation judgment,
+              and release decisions. For larger work,
+              project-management coordination keeps the work graph current and
+              makes sure each lane has a clear assignment and handoff.
             </p>
             <p>
               Review workers, outside models, and local models are deliberately
@@ -87,6 +89,28 @@
               bounded patch. Their output is useful because it is focused, but
               it is not authority. The main thread still decides what to
               accept.
+            </p>
+          </section>
+
+          <section id="supervision">
+            <h2>Why Native Work Is Supervised</h2>
+            <p>
+              Delegation should not transfer decision authority. In the normal
+              connected path, Candidate E can assign a narrow implementation or
+              validation task to one fresh Spark worker. The local supervisor—the
+              trusted controller outside the worker—verifies the model, binds
+              the assignment, watches tools and workspace changes, and enforces
+              time and token limits.
+            </p>
+            <p>
+              The order matters: persist the supervision state and register the
+              observer before sending work, then observe the task before cleanup.
+              If identity, telemetry, interruption, workspace attribution, or a
+              required receipt is missing, CWO stops rather than treating worker
+              prose as proof. The
+              <a href="./native-supervision.html">Native Supervision guide</a>
+              separates this standard single-worker path from the optional
+              concurrent Tech Preview.
             </p>
           </section>
 
@@ -180,6 +204,7 @@
             <ol class="check-list">
               <li>Starting a large task without a durable work graph.</li>
               <li>Letting contractor output become implementation authority.</li>
+              <li>Sending native work before the supervisor and observer are ready.</li>
               <li>Publishing docs that expose internal planning language.</li>
               <li>Repeating the same workflow across several pages until they drift.</li>
               <li>Claiming validation, sync, or share-boundary behavior that did not happen.</li>
@@ -207,6 +232,7 @@
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./native-supervision.html">Native Supervision</a>
         <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>

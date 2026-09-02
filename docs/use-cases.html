@@ -35,9 +35,9 @@
         <p class="eyebrow">Use cases</p>
         <h1>Simple And Complex Paths</h1>
         <p class="lede">
-          Start with a small prompt-coach invocation when you need durable
-          structure. Escalate to a multi-expert review pattern only when the
-          plan needs independent outside critique and explicit sharing approval.
+          Start in a fresh Candidate E session and keep focused work small.
+          Add one supervised Spark worker when delegation helps; add concurrent,
+          local, or outside review lanes only when their extra controls fit.
         </p>
       </section>
 
@@ -62,8 +62,9 @@
             <pre><code>/plan Use $complex-work-orchestration prompt coach:
 Clean up installer docs, tests, and handoff notes.</code></pre>
             <ol class="check-list">
-              <li>Codex runs the prompt coach and asks only execution-changing questions.</li>
-              <li>The work stays in the main thread unless the coach recommends review lanes.</li>
+              <li>Start <code>cwo-codex -C "$PWD"</code> so Candidate E owns the decisions.</li>
+              <li>Candidate E runs the prompt coach and asks only execution-changing questions.</li>
+              <li>The work stays in the decision thread unless bounded delegation is worthwhile.</li>
               <li>One Beads task captures scope, evidence, validation, and handoff.</li>
               <li>The close reason stays short; the final comment preserves the reusable context.</li>
             </ol>
@@ -136,7 +137,11 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
             <div class="reference-table compact" role="table" aria-label="Use case to execution profile mapping">
               <div role="row">
                 <span role="cell">Small connected fix</span>
-                <span role="cell">Connected single-operator Codex path; one Beads task is often enough.</span>
+                <span role="cell">Candidate E decision thread; one Beads task is often enough.</span>
+              </div>
+              <div role="row">
+                <span role="cell">Bounded connected implementation</span>
+                <span role="cell">Candidate E plus one supervised native Spark worker; validate before acceptance.</span>
               </div>
               <div role="row">
                 <span role="cell">High-risk plan review</span>
@@ -155,6 +160,12 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               Contractors, local workers, and synthesis lanes do not approve or
               merge work. They produce evidence that must pass the evaluator and
               be accepted by the architect.
+            </p>
+            <p>
+              Two- and three-worker native pools are an experimental opt-in,
+              not a faster version of the default. Read
+              <a href="./native-supervision.html#concurrency-preview">the
+              concurrency prerequisites</a> before selecting that path.
             </p>
           </section>
 
@@ -232,6 +243,7 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./native-supervision.html">Native Supervision</a>
         <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
