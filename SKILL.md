@@ -22,13 +22,12 @@ Use CWO when any of these are true:
 - release, lab, production, publication, or security risk needs final architect
   judgment
 
-Do not use the full harness for a narrow single-thread fix. Use normal local
-implementation flow for coherent execution, but keep one Beads task when the
-project uses Beads. Beads tracking is mandatory for non-trivial work stories.
+For a narrow fix, work locally in-thread rather than using the full harness.
+Keep one Bead; Beads tracking is mandatory for non-trivial work.
 
 ## Operating Defaults
 
-- The main thread decides; worker and contractor outputs are evidence.
+- Candidate E (`prompts/cwo-sol-operator-e.md`) is the selected default; post-v5 protocol repair is deterministically validated, not model-requalified. C remains opt-in; main thread decides.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
 - Prefer review-only workers before implementation unless write ownership is disjoint.
 - In connected Codex work, Sol handles architecture and adjudication while Spark handles operative work. Sol is an external critic only when explicitly requested.
@@ -98,7 +97,8 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 
 Use `scripts/evaluate_proportional_execution.py --brief <path>` only for one ignored, ephemeral, or non-publishable artifact under 500 lines, 12 calls, and 600 seconds when identity, model, tool scope, deterministic checks, false mutation/access flags, and closed architecture/security/policy decisions are explicit. Otherwise use standard native supervision.
 
-Implementation packets use `operative-readiness:v2`: hashed path/selector context units and content-aware mutation evidence. Three units or six pre-mutation reads warn; four units or eleven reads require replanning.
+`operative-readiness:v2` bounds hashed context units and mutation evidence:
+three units or six reads warn; four or eleven require replanning.
 
 ## Bootstrap Policy Controls
 
@@ -120,6 +120,7 @@ Implementation packets use `operative-readiness:v2`: hashed path/selector contex
 - Healthy packet-contract failures allow one PM refinement and one bounded Sol replan within the original budget; recursive salvage and budget reset remain forbidden.
 - `interrupt` or `control-lost` requires native interrupt, close, and receipts.
 - Before packet build, evaluate operative work with semantic work-estimate contract v2. The estimate separates architect authority from operative routing and includes diff, behavior, state/schema, self-hosting/live-control, contract/CLI/policy/telemetry surfaces, test construction, command complexity, expected reads, mutations, and their ratio.
+- Before release, require `references/pre-dispatch-readiness.md`; frozen experiments require `references/frozen-protocol-lock.md`, which steering cannot replace.
 - Before packet build, use the trusted precommit supervisor and receipt-derived commitment v2; FSH.2 candidates remain non-operative until FSH.3. See `references/execution-environments.md`.
 - During execution, use `scripts/cwo_core/native_progress.py` to compare planned and observed calls, runtime, tokens, reads, mutations, tests, and artifacts. Retained productive artifacts are not pure waste.
 - The PM may autonomously refine a packet, ask the current architect one bounded reasoning question, or split material work within the original objective and aggregate allowance. These routine corrections do not require operator approval.

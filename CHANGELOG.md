@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add Candidate E as the named default CWO operator profile, retain the exact
+  v5-qualified prompt as immutable evidence, add a post-v5 frozen-protocol
+  repair with deterministic lock validation, and include prompts in portable
+  installs and installed-copy drift checks.
 - Treat `task_complete` events with non-null errors as failed terminal control
   loss instead of successful completion. Exact-trace cardinality, final-token,
   and expected-mutation obligations now finalize only on durable successful
