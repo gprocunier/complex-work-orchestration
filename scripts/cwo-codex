@@ -1,0 +1,4 @@
+#!/usr/bin/env sh
+set -eu
+
+exec codex --profile cwo-sol-operator-e "$@"

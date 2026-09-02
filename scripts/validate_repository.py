@@ -72,6 +72,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "types", "util"},
+    "frozen_protocol": set(),
     "packets": {"errors", "paths", "policy", "return_language", "util"},
     "return_common": {"policy"},
     "return_language": {"errors", "policy", "return_common", "types"},

@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/frozen-protocol-lock.schema.json",
+  "title": "frozen-protocol-lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "protocol_id",
+    "governing_prompt",
+    "execution_bindings",
+    "run_contract",
+    "authoring_provenance",
+    "lock_sha256"
+  ],
+  "properties": {
+    "schema_version": {"const": "cwo-frozen-protocol-lock:v1"},
+    "protocol_id": {"type": "string", "minLength": 1},
+    "governing_prompt": {"$ref": "#/$defs/fileBinding"},
+    "execution_bindings": {
+      "type": "array",
+      "minItems": 2,
+      "items": {"$ref": "#/$defs/fileBinding"}
+    },
+    "run_contract": {"$ref": "#/$defs/runContract"},
+    "authoring_provenance": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/fileBinding"}
+    },
+    "lock_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "relativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!.*//)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)(?!.*\u0000)(?!.*\/$).+$"
+    },
+    "fileBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "path", "sha256"],
+      "properties": {
+        "label": {"type": "string", "minLength": 1},
+        "path": {"$ref": "#/$defs/relativePath"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "runContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scenario_count",
+        "arms",
+        "initial_cells",
+        "compatibility_smoke_cells",
+        "confirmation_max_cells",
+        "retry_limit",
+        "decision_rule_sha256",
+        "immutable_fields",
+        "forbidden_substitutions"
+      ],
+      "properties": {
+        "scenario_count": {"type": "integer", "minimum": 1},
+        "arms": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "initial_cells": {"type": "integer", "minimum": 1},
+        "compatibility_smoke_cells": {"type": "integer", "minimum": 0},
+        "confirmation_max_cells": {"type": "integer", "minimum": 0},
+        "retry_limit": {"type": "integer", "minimum": 0},
+        "decision_rule_sha256": {"$ref": "#/$defs/sha256"},
+        "immutable_fields": {
+          "type": "array",
+          "minItems": 8,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        },
+        "forbidden_substitutions": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

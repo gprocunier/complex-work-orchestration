@@ -22,6 +22,7 @@ ALLOWED_IMPORTS = {
     "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "types", "util"},
+    "frozen_protocol": set(),
     "epic_convergence": set(),
     "packets": {"errors", "paths", "policy", "return_language", "util"},
     "return_common": {"policy"},

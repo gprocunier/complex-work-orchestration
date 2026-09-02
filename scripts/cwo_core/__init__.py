@@ -17,6 +17,7 @@ __all__ = [
     "errors",
     "execution_enhancement_metrics",
     "execution_status_report",
+    "frozen_protocol",
     "harness",
     "native_authority",
     "native_activation_ledger",

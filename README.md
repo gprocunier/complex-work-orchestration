@@ -119,6 +119,25 @@ one trusted host while the rest of the workflow stays controlled. Capacity two
 is an opt-in Tech Preview, disabled by default; see the [operator
 reference](references/native-supervision-pools.md) for prerequisites and limits.
 
+Candidate E is the selected default architect contract for substantive CWO
+work. The
+[Candidate E CWO operator profile](references/cwo-candidate-e-operator-profile.md)
+documents its production prompt, verified installer, `cwo-codex` fresh-session
+launcher, and rollback; ordinary Codex sessions remain unchanged. In the final
+no-retry C/E/F qualification, all three arms matched on completion, safety,
+recovery, handoff, and process, while E used the fewest recorded tokens and the
+least wall time. The result supports E as the repository default; it does not
+claim that E was safer than C or F. The exact v5-qualified prompt is archived;
+the active prompt includes a post-v5 frozen-protocol repair and is labeled as
+deterministically validated rather than silently inheriting the old prompt hash.
+See the [qualification summary](references/candidate-e-qualification-summary.md)
+and [frozen protocol reference](references/frozen-protocol-lock.md).
+
+Candidate C remains available as a compact opt-in alternative. The
+[C Sol operator profile reference](references/cwo-sol-operator-profile.md)
+documents its prompt, verified installer, explicit fresh-session launch, and
+rollback.
+
 For automation or troubleshooting, the same coach can be run directly:
 
 ```bash
