@@ -63,6 +63,24 @@ class ValidateSiteTests(unittest.TestCase):
         rendered = "\n".join(internal_copy_errors(errors))
         self.assertIn(phrase, rendered)
 
+    def test_rejects_publication_rollback_monologue_in_public_narrative(self) -> None:
+        phrase = "documentation" + " commit"
+        errors = self.validate_snippet(
+            "workflows.html",
+            f"<section id='flow'><p><strong>Rollback:</strong> <code>git revert</code> the {phrase}, then start a fresh Pages deployment to restore the prior published copy.</p></section>",
+        )
+        rendered = "\n".join(errors)
+        self.assertIn(phrase, rendered)
+        self.assertIn("fresh Pages deployment", rendered)
+        self.assertIn("prior published copy", rendered)
+
+    def test_allows_specific_operational_rollback_guidance(self) -> None:
+        errors = self.validate_snippet(
+            "workflows.html",
+            "<section id='flow'><p>Revert the documentation commit if its generated links fail validation. Start a fresh Pages deployment after the corrected source passes.</p></section>",
+        )
+        self.assertEqual(internal_copy_errors(errors), [])
+
     def test_rejects_design_source_as_public_reference_copy(self) -> None:
         errors = self.validate_snippet(
             "index.html",
@@ -83,6 +101,54 @@ class ValidateSiteTests(unittest.TestCase):
         )
         self.assertFalse(any("non-source external URL" in error for error in errors), errors)
         self.assertFalse(any("GitHub markdown/source blob" in error for error in errors), errors)
+
+    def test_allows_single_worker_supervision_operator_source_link(self) -> None:
+        url = (
+            "https://github.com/gprocunier/complex-work-orchestration/"
+            "blob/main/references/native-supervision.md"
+        )
+        errors = self.validate_snippet(
+            "native-supervision.html",
+            f"<section id='reference'><p><a href='{url}'>Operator reference</a></p></section>",
+        )
+        self.assertFalse(any("non-source external URL" in error for error in errors), errors)
+        self.assertFalse(any("GitHub markdown/source blob" in error for error in errors), errors)
+
+    def test_rejects_duplicate_h1_and_ids(self) -> None:
+        errors = self.validate_snippet(
+            "workflows.html",
+            "<section id='repeat'><h1>Second</h1></section><section id='repeat'></section>",
+        )
+        rendered = "\n".join(errors)
+        self.assertIn("must contain exactly one h1; found 2", rendered)
+        self.assertIn("contains duplicate id: repeat", rendered)
+
+    def test_rejects_missing_cross_page_fragment(self) -> None:
+        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
+            directory = Path(tmpdir)
+            target = directory / "target.html"
+            target.write_text("<section id='present'></section>", encoding="utf-8")
+            source = directory / "workflows.html"
+            source.write_text(
+                """<!doctype html><html lang="en"><head><title>Test</title></head>
+<body><header></header><nav></nav><main><h1>Test</h1>
+<a href="./target.html#missing">Broken fragment</a></main><footer></footer></body></html>""",
+                encoding="utf-8",
+            )
+            errors = validate_html(source)
+        self.assertTrue(any("links to missing fragment" in error for error in errors), errors)
+
+    def test_candidate_e_onboarding_order_is_enforced(self) -> None:
+        correct = """
+<p>manage_instruction_profile.py install --profile operator-e</p>
+<p>manage_instruction_profile.py verify --profile operator-e</p>
+<p>cwo-codex -C "$PWD"</p>
+<p>/plan Use $complex-work-orchestration prompt coach:</p>
+"""
+        errors = self.validate_snippet("get-started.html", correct)
+        self.assertFalse(any("must present Candidate E" in error for error in errors), errors)
+        errors = self.validate_snippet("get-started.html", "\n".join(reversed(correct.splitlines())))
+        self.assertTrue(any("must present Candidate E" in error for error in errors), errors)
 
     def test_rejects_unapproved_operator_source_blob(self) -> None:
         url = (
@@ -142,6 +208,7 @@ class ValidateSiteTests(unittest.TestCase):
 <section id="top"><p>Beads, model synthesis, sabotage, malpractice, quarantine, and adjudication make this powerful.</p></section>
 <section id="walk"><p>Now explain the ramp.</p></section>
 <a href="./workflows.html">Workflows</a>
+<a href="./native-supervision.html">Native Supervision</a>
 <a href="./beads-memory.html">Beads Memory</a>
 <a href="./model-synthesis.html">Model Synthesis</a>
 <a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
@@ -184,6 +251,7 @@ class ValidateSiteTests(unittest.TestCase):
 <section id="crawl"><p>A web chat answers questions. A coding shell works in the project.</p></section>
 <section id="walk"><p>Now introduce the workflow.</p></section>
 <a href="./workflows.html">Workflows</a>
+<a href="./native-supervision.html">Native Supervision</a>
 <a href="./beads-memory.html">Beads Memory</a>
 <a href="./model-synthesis.html">Model Synthesis</a>
 <a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>

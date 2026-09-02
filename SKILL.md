@@ -7,27 +7,27 @@ metadata:
 
 # Complex Work Orchestration
 
-Use this skill to decide how much orchestration a task needs, then keep the
-work durable through Beads, evidence, validation, and handoff.
+Use this skill to scale orchestration while keeping work durable through Beads,
+evidence, validation, and handoff.
 
 ## When To Use
 
-Use CWO when any of these are true:
+Use CWO when:
 
-- the work spans multiple sessions, repos, environments, or agents
+- work spans sessions, repos, environments, or agents
 - the user asks for a coach, PM, architect, workerbee, contractor, model
   synthesis, prompt review, or handoff setup
-- the work needs durable state beyond chat history
-- multiple independent investigations can run in parallel
-- release, lab, production, publication, or security risk needs final architect
+- work needs durable state beyond chat history
+- independent investigations can run in parallel
+- release, lab, production, publication, or security risk needs architect
   judgment
 
-For a narrow fix, work locally in-thread rather than using the full harness.
-Keep one Bead; Beads tracking is mandatory for non-trivial work.
+For narrow fixes, work in-thread with one Bead; Beads tracking is mandatory for
+non-trivial work.
 
 ## Operating Defaults
 
-- Candidate E (`prompts/cwo-sol-operator-e.md`) is the selected default; post-v5 protocol repair is deterministically validated, not model-requalified. C remains opt-in; main thread decides.
+- Candidate E (`prompts/cwo-sol-operator-e.md`) is the default; post-v5 repair is deterministically validated, not model-requalified. Named-profile activation requires a fresh session. Reading it in an unprofiled thread is a fallback without profile-selection evidence. C remains opt-in; main thread decides.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
 - Prefer review-only workers before implementation unless write ownership is disjoint.
 - In connected Codex work, Sol handles architecture and adjudication while Spark handles operative work. Sol is an external critic only when explicitly requested.
@@ -72,9 +72,8 @@ reduced. Do not claim local Beads state is synced without a Dolt remote.
 
 ## Scaffold Choices
 
-Use one manual Bead for narrow work. Use tight-chain scaffolds when the task
-needs architecture, implementation, validation, and wrap-up without optional
-fan-out:
+Use one manual Bead for narrow work. Use a tight-chain scaffold for
+architecture, implementation, validation, and wrap-up without optional fan-out:
 
 ```bash
 python3 scripts/scaffold_workgraph.py \
@@ -83,8 +82,8 @@ python3 scripts/scaffold_workgraph.py \
   --scaffold-size tight
 ```
 
-Use the full graph for broad, risky, multi-lane, contractor-reviewed,
-synthesized, or release-sensitive work:
+Use the full graph for broad, risky, multi-lane, reviewed, synthesized, or
+release-sensitive work:
 
 ```bash
 python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
@@ -114,7 +113,8 @@ three units or six reads warn; four or eleven require replanning.
 - Fix -> reload -> resume means reinstall/reload this skill, then resume from Beads. Never resume the operative agent session.
 - Hard-stop returns for bootstrap policy are `needs-architect-realignment`, `budget-exhausted`, and `model-mismatch`.
 - Native operative packets are emitted as version 2. Version 1 remains readable for historical inspection but is dispatch-forbidden.
-- Every native operative worker requires `scripts/supervise_native_worker.py`. After trusted no-tools attestation, create and arm supervision before sending the task.
+- Every native worker requires `scripts/supervise_native_worker.py`; no unsupervised mode or opt-out exists. Arm supervision after trusted no-tools attestation and before dispatch. One worker is standard; N=2/N=3 concurrency is the capability-bound Tech Preview; N>=4 is blocked.
+- Productive concurrency must use admission-bound version-2 `run_admitted_native_pool`; direct coordinator calls and serialized evidence cannot authorize work.
 - Bind `arm`, native `send_input`, `mark-dispatched`, one-second checks, interrupt, close, and receipts to one control-turn ID and one uninterrupted tool-orchestration turn. No assistant/model round-trip may occur between task submission and the first check.
 - Record dispatch and poll latency. Delay alone warns; missing trusted telemetry or control-turn binding is control loss.
 - Healthy packet-contract failures allow one PM refinement and one bounded Sol replan within the original budget; recursive salvage and budget reset remain forbidden.
@@ -148,7 +148,8 @@ rules.
 - ChatGPT Pro browser lane: `references/chatgpt-pro-browser.md`
 - Execution environments and local inference: `references/execution-environments.md`,
   `references/local-inference.md`
-- Native supervision pools: `references/native-supervision-pools.md`
+- Native supervision: `references/native-supervision.md`
+- Multi-worker concurrency Tech Preview: `references/native-supervision-pools.md`
 - Zero-trust consensus: `references/zero-trust-consensus.md`
 - Run readiness: `references/run-readiness.md`
 - Beads hook display: `references/codex-beads-hooks.md`
@@ -156,16 +157,14 @@ rules.
 - Red Hat expert catalog: `references/redhat-expert-catalog.md`
 - Publishable workflow pages: `docs/workflows.html`, `docs/local-workers.html`
 
-Use `policy/` as the machine-readable control plane, `templates/` for reusable
-Beads bodies, `experts/` for discipline calibration, `schemas/` for helper
-output contracts, and `examples/` for smoke-test artifacts.
+`policy/` is the machine-readable control plane; `templates/`, `experts/`,
+`schemas/`, and `examples/` provide reusable artifacts.
 
 ## Contractor And Local Worker Gates
 
 Outside contractor packets require explicit opt-in, one primary
 `contract-jd-*` label, guard labels, share boundary, provider metadata, packet
-validation, audit, return normalization, evaluation, and architect
-adjudication. Build and dispatch through helpers:
+validation, audit, return normalization, evaluation, and architect adjudication:
 
 ```bash
 python3 scripts/build_contractor_packet.py --bead <id> --executor <executor> --share-boundary redacted-packet --external-ok --format json --output contractor-packet.json
@@ -174,10 +173,9 @@ python3 scripts/normalize_contractor_return.py --bead <id> --dispatch-id <id> --
 python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
 ```
 
-For ChatGPT Pro browser review, use `scripts/chatgpt_browser_review.py` and
-require confirmed model attestation plus a share-link return before using the
-result. For local inference, require `--local-ok`; use `--prefer-local` only for
-low-risk work where a local review lane is intended.
+ChatGPT Pro browser review requires `scripts/chatgpt_browser_review.py`, confirmed
+model attestation, and a share-link return. Local inference requires `--local-ok`;
+use `--prefer-local` only for an intended low-risk local review lane.
 
 Spark is native-only in this policy. Use native subagents with `gpt-5.3-codex-spark`
 and enforce model attestation from trusted control-plane/session metadata.

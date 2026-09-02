@@ -119,6 +119,34 @@
         </div>
       </section>
 
+      <section id="first-step" class="section narrow">
+        <p class="eyebrow">Default CWO path</p>
+        <h2>Start a fresh Candidate E session, then let the coach size the work.</h2>
+        <p>
+          Candidate E is CWO's default instruction profile for the Codex
+          session that owns scope, integration, acceptance, and handoff. After
+          completing the one-time
+          <a href="./get-started.html#profile">profile setup</a>, start
+          <code>cwo-codex</code> from the project you want to work on. This does
+          not change ordinary Codex sessions.
+        </p>
+        <div class="command-panel" aria-label="Candidate E startup example">
+          <pre><code>cwo-codex -C "$PWD"</code></pre>
+        </div>
+        <p>
+          Inside that fresh session, ask for the prompt coach. Candidate E keeps
+          architecture and final judgment; a supervised Spark worker handles a
+          narrow implementation or validation task when delegation helps. Every
+          delegated native worker is supervised; there is no unsupervised mode
+          or opt-out.
+        </p>
+        <div class="command-panel" aria-label="Prompt coach example">
+          <pre><code>/plan Use $complex-work-orchestration prompt coach:
+Describe the work you want to complete.</code></pre>
+        </div>
+        <p><a class="button primary" href="./get-started.html">Run the guided first task</a></p>
+      </section>
+
       <section id="run" class="band">
         <div class="section-heading">
           <p class="eyebrow">Run</p>
@@ -155,7 +183,7 @@
             </p>
           </article>
           <article>
-            <p class="eyebrow">Expert lane</p>
+            <p class="eyebrow">Advanced options</p>
             <h3>Advanced environments</h3>
             <p>
               When needed, CWO can add outside reviewers, model synthesis,
@@ -165,25 +193,6 @@
             <p><a href="./external-contracting.html">See outside review boundaries</a></p>
           </article>
         </div>
-      </section>
-
-      <section id="first-step" class="section narrow">
-        <p class="eyebrow">First step</p>
-        <h2>Start in Codex, then let the coach size the work.</h2>
-        <p>
-          The homepage explains why the workflow exists. The Get Started guide
-          covers installation, required terms, and the smallest useful run.
-        </p>
-        <div class="command-panel" aria-label="Prompt coach example">
-          <pre><code>/plan Use $complex-work-orchestration prompt coach:
-Clean up installer docs, tests, and handoff notes.</code></pre>
-        </div>
-        <p>
-          Paste that into a Codex conversation after the skill is installed.
-          Codex will ask the few decisions that affect execution, then record
-          validation evidence before the work is accepted.
-        </p>
-        <p><a class="button primary" href="./get-started.html">Run the guided first task</a></p>
       </section>
 
       <section id="routes" class="section">
@@ -199,8 +208,13 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
           </article>
           <article class="doc-card">
             <h3>Workflows</h3>
-            <p>Use the full in-Codex flow once a task needs tracking, review, validation, or handoff.</p>
+            <p>Follow Candidate E, Beads, supervised work, validation, and handoff from end to end.</p>
             <a href="./workflows.html">Use the guided workflow</a>
+          </article>
+          <article class="doc-card">
+            <h3>Native Supervision</h3>
+            <p>Understand the normal single-worker control path and the optional concurrency preview.</p>
+            <a href="./native-supervision.html">Open the supervision guide</a>
           </article>
           <article class="doc-card">
             <h3>Use Cases</h3>
@@ -261,6 +275,10 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
             <a role="cell" href="./workflows.html">In-Codex orchestration, optional workstreams, and execution environments</a>
           </div>
           <div role="row">
+            <span role="cell">Native supervision</span>
+            <a role="cell" href="./native-supervision.html">Single-worker controls, failure handling, and concurrent pool limits</a>
+          </div>
+          <div role="row">
             <span role="cell">Reference</span>
             <a role="cell" href="./reference.html">Policies, schemas, helpers, experts, and exact controls</a>
           </div>
@@ -287,6 +305,7 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./native-supervision.html">Native Supervision</a>
         <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>

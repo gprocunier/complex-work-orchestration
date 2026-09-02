@@ -159,33 +159,9 @@ python3 scripts/prepare_native_worker.py build \
   --output "<cwo-temp>/packet.json"
 ```
 
-The normal operative packet requires exact server-side tool allowlisting. The
-optional `--tool-enforcement-override` input is audit-only intent for the
-separately gated temporary tool-boundary preview; its self-hash does not grant
-authority. A packet containing that intent is deliberately rejected by
-dispatchable packet validation and cannot start `supervise_native_worker.py`.
-Activation authority has no JSON or CLI form: it must be an opaque,
-operator-verified, exact-cohort capability consumed by the admitted pool
-launcher. `scripts/run_native_pool_activation_preview.py` serializes only the
-fixed plan and signed approval evidence. Its live process mints and consumes
-the opaque activation capability internally after a permanent claim; it never
-writes that capability to disk or accepts it as an argument. The path remains
-disabled by default: use `--dry-run` for non-consuming validation and
-`--enable-tech-preview` only after the operator explicitly authorizes the exact
-prepared attempt.
-
-Each fixed activation profile also has an exact two-call trace derived by the
-controller, not supplied by the worker. Every failed, retried, extra,
-reordered, wrong-argument, unknown-result, or contradictory call counts and
-makes the pool and result non-accepting. Only durable successful terminal
-telemetry can finalize required trace cardinality. A non-null
-`task_complete.error` is failed terminal control loss and never invokes
-successful-completion final-token, trace-cardinality, or mutation obligations.
-After the pool and trace accept, the controller closes only the authorized
-implementation child Beads, once and in task order; it never closes the parent
-or publication Bead and never retries or rolls back a partial close. Accepted
-activation result v2 binds the private exact-trace and Bead-closure artifact
-hashes. Result v1 remains historical inspection only.
+The normal operative packet requires exact server-side tool allowlisting.
+Temporary detect-and-contain activation is a separate Tech Preview and cannot
+make a packet dispatchable; it is summarized after the standard path below.
 
 Packet version 1 is historical-inspection-only. Rendering or dispatching it
 fails closed. Commitment version 1 is historical-inspection-only; commitment v2
@@ -284,6 +260,40 @@ for historical sessions without a packet. Lookup and status rules are:
   and control receipts, not every poll. The execution dashboard reports
   arm-to-dispatch latency, first-poll latency, maximum poll gap, late polls,
   actual/interrupt/hard usage, reserve stops, and hard overruns.
+
+The end-to-end rationale and failure model are in
+[Native Worker Supervision](native-supervision.md).
+
+### Concurrent admitted pool
+
+Every delegated native worker is supervised; there is no unsupervised mode or
+opt-out. One supervised worker remains the standard path. Running two or three
+workers concurrently is an experimental Tech Preview, disabled by default. It
+requires explicit opt-in, a fresh same-host adapter capability receipt, a fixed
+cohort, safe workspace topology, deterministic admission, and the productive
+admission-bound version-2 launcher, `run_admitted_native_pool`. Capacity four
+and above is blocked.
+
+Do not run several single-worker supervisors in parallel or treat a serialized
+contract, receipt, preflight result, or proportionality assessment as dispatch
+authority. See [Native Supervision Pools](native-supervision-pools.md) for the
+admitted host API, topology, scheduling, leases, and rollback.
+
+### Separate activation preview
+
+The optional `--tool-enforcement-override` input is audit-only intent for a
+separately gated detect-and-contain preview. Its self-hash does not grant
+authority. A packet containing that intent is rejected by dispatchable packet
+validation and cannot start `supervise_native_worker.py`.
+
+Activation authority has no JSON or CLI form. The fixed activation runner
+accepts only `n1-read-only`, `n2-read-only`, and `n1-mutable`; use `--dry-run`
+for non-consuming validation. Live execution requires a signed exact-attempt
+approval and explicit `--enable-tech-preview`. Exact trace and Bead-closure
+artifacts prove only that specific activation. See
+[Native Worker Supervision](native-supervision.md#separate-activation-preview)
+for the boundary and [Native Supervision Pools](native-supervision-pools.md#temporary-audited-tool-boundary)
+for the certification details.
 
 ### Proof-period rubric (canonical native supervisor)
 

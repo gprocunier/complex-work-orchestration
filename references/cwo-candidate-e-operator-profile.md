@@ -1,9 +1,14 @@
-# Default Candidate E CWO operator profile
+# Candidate E baseline operator profile
 
-Candidate E remains the selected default architect contract. The interactive
+Candidate E is the normal architect contract for substantive CWO work. The interactive
 profile preserves normal Codex tools and response formats while adding Candidate
 E's acceptance, semantic-closure, projected-file, temporal-order, recovery,
 quota, and frozen-protocol disciplines.
+
+The normal startup sequence is: install the CWO skill, install and verify the
+`operator-e` profile, then start a fresh session with `cwo-codex`. Candidate C
+is an opt-in compatibility alternative; an ordinary `codex` session is the
+immediate rollback path.
 
 The terminal C/E/F qualification found no safety, completion, recovery, handoff,
 or process advantage for any arm. E remains the default because it used the
@@ -41,7 +46,7 @@ Revalidate it after steering, interruption, or compaction. A
 
 ## Install and verify
 
-From this repository root:
+After installing the CWO skill, run from this repository root:
 
 ```bash
 python3 scripts/manage_instruction_profile.py install --profile operator-e
@@ -74,13 +79,16 @@ The equivalent explicit command is:
 codex --profile cwo-sol-operator-e -C "$PWD"
 ```
 
-Resuming an older thread does not convert it to Candidate E. The next substantive
-CWO task should serve as the adoption canary; record its outcome, interventions,
-scope behavior, validation result, elapsed time, and token use without creating a
-separate synthetic campaign.
+Resuming an older thread does not activate the named Candidate E profile or
+provide profile-selection evidence. If a fresh process is unavailable, explicitly
+reading and following `prompts/cwo-sol-operator-e.md` is a supported fallback for
+that thread, but it must remain distinguishable from named-profile activation.
+The next substantive CWO task should serve as the adoption canary; record its
+outcome, interventions, scope behavior, validation result, elapsed time, and
+token use without creating a separate synthetic campaign.
 
-The CWO skill default is Candidate E. It applies only to a fresh session
-launched with this named profile; ordinary Codex sessions remain unchanged.
+The CWO skill default is Candidate E. The installed named profile applies only
+to a fresh session launched with it; ordinary Codex sessions remain unchanged.
 
 ## Roll back
 

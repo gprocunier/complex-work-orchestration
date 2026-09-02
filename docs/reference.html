@@ -43,8 +43,11 @@
 
       <section class="section doc-layout">
         <nav class="page-nav" aria-label="Page sections">
-          <a href="#policies">Policies</a>
+          <a href="#flow-references">Flow References</a>
+          <a href="#candidate-e">Candidate E</a>
+          <a href="#native-supervision">Native Supervision</a>
           <a href="#operator-controls">Operator Controls</a>
+          <a href="#policies">Policies</a>
           <a href="#schemas">Schemas</a>
           <a href="#activation-artifacts">Activation Artifacts</a>
           <a href="#run-readiness">Run Readiness</a>
@@ -71,7 +74,7 @@
             <div class="reference-table compact" role="table" aria-label="Quick operator paths">
               <div role="row">
                 <span role="cell">Connected single operator</span>
-                <span role="cell"><code>/plan Use $complex-work-orchestration prompt coach:</code> then Beads, validation, and closure memory.</span>
+                <span role="cell">Start <code>cwo-codex</code>, invoke the prompt coach, then use Beads, validation, and closure memory.</span>
               </div>
               <div role="row">
                 <span role="cell">Contractor-assisted</span>
@@ -92,6 +95,77 @@
             </div>
           </section>
 
+          <section id="candidate-e">
+            <h2>Candidate E Baseline</h2>
+            <p>
+              Candidate E is CWO's default instruction profile for the Codex
+              session that owns scope, integration, acceptance, and handoff.
+              Install and verify its named profile, then select it by starting
+              a fresh process. The profile manager does not edit the ordinary
+              Codex configuration.
+            </p>
+            <pre><code>python3 scripts/manage_instruction_profile.py install --profile operator-e
+python3 scripts/manage_instruction_profile.py verify --profile operator-e
+cwo-codex -C "$PWD"
+
+# Equivalent explicit launch
+codex --profile cwo-sol-operator-e -C "$PWD"
+
+# Remove the named profile and launcher
+python3 scripts/manage_instruction_profile.py remove --profile operator-e</code></pre>
+            <div class="reference-table compact" role="table" aria-label="Candidate E prompt evidence">
+              <div role="row"><span role="cell">Active prompt</span><code role="cell">prompts/cwo-sol-operator-e.md</code></div>
+              <div role="row"><span role="cell">Active SHA-256</span><code role="cell">ce85010acb60ea9fafd81f84790524a86f685067b65f86c352e07a5d3367ef67</code></div>
+              <div role="row"><span role="cell">Qualified archive</span><code role="cell">prompts/archive/cwo-sol-operator-e-v5-qualified.md</code></div>
+              <div role="row"><span role="cell">Qualified SHA-256</span><code role="cell">75b3bdf7624d7e3913f2879f4a20306c74805ad8409ce785597da67e1011c3f8</code></div>
+              <div role="row"><span role="cell">Operator guide</span><code role="cell">references/cwo-candidate-e-operator-profile.md</code></div>
+            </div>
+            <p>
+              The archived v5 prompt is the exact prompt tested in the final
+              no-retry comparison. The active prompt adds a deterministic
+              post-v5 frozen-protocol repair and has not been through another
+              model comparison. Candidate C remains an opt-in compatibility
+              profile. Start ordinary <code>codex -C "$PWD"</code> for an
+              immediate session-level rollback.
+            </p>
+          </section>
+
+          <section id="native-supervision">
+            <h2>Native Supervision</h2>
+            <p>
+              Every delegated native worker is supervised; there is no
+              unsupervised mode or opt-out. One supervised native Spark worker
+              is the standard connected delegation path. The packet, precommit
+              receipt, operative release evidence, and live supervisor are
+              separate controls. Persist and arm the supervisor before task
+              submission; bind and poll it in the same uninterrupted control
+              turn.
+            </p>
+            <div class="reference-table compact" role="table" aria-label="Native supervision contracts">
+              <div role="row"><span role="cell">Work estimate</span><code role="cell">schemas/native-work-estimate.schema.json</code></div>
+              <div role="row"><span role="cell">Worker packet</span><code role="cell">schemas/native-worker-packet.schema.json</code></div>
+              <div role="row"><span role="cell">Precommit receipt</span><code role="cell">schemas/native-precommit-receipt.schema.json</code></div>
+              <div role="row"><span role="cell">Release evidence</span><code role="cell">schemas/native-release-evidence.schema.json</code></div>
+              <div role="row"><span role="cell">Supervisor state</span><code role="cell">schemas/native-supervision-state.schema.json</code></div>
+              <div role="row"><span role="cell">Supervisor decision</span><code role="cell">schemas/native-supervision-decision.schema.json</code></div>
+              <div role="row"><span role="cell">Pool contract v2</span><code role="cell">schemas/native-supervision-pool-contract-v2.schema.json</code></div>
+              <div role="row"><span role="cell">Pool preflight v2</span><code role="cell">schemas/native-supervision-pool-preflight-result-v2.schema.json</code></div>
+              <div role="row"><span role="cell">Pool receipt v2</span><code role="cell">schemas/native-supervision-pool-receipt-v2.schema.json</code></div>
+            </div>
+            <p>
+              Productive concurrency uses the admission-bound version-2 host
+              path. Multi-worker concurrency, not supervision, is the
+              experimental feature. Two- and three-worker pools are an explicit
+              opt-in Tech Preview; four or more workers are blocked. The separate
+              detect-and-contain activation preview does not replace exact
+              server-side tool allowlisting for normal operative work.
+            </p>
+            <p>
+              Read <a href="./native-supervision.html">Native Supervision</a>
+              before using the exact single-worker or pool operator references.
+            </p>
+          </section>
+
           <section id="operator-controls">
             <h2>Operator Controls</h2>
             <p>
@@ -104,7 +178,9 @@
             </p>
             <div class="reference-table compact" role="table" aria-label="Core operating terms">
               <div role="row"><span role="cell">CWO</span><span role="cell">The workflow that sizes, records, reviews, validates, and hands off complex agent work.</span></div>
+              <div role="row"><span role="cell">Candidate E</span><span role="cell">The default instruction profile for the Codex session that owns scope, integration, acceptance, and handoff.</span></div>
               <div role="row"><span role="cell">Beads</span><span role="cell">The durable task graph for scope, dependencies, evidence, validation, closure memory, and handoff.</span></div>
+              <div role="row"><span role="cell">Native supervisor</span><span role="cell">The local trusted controller outside the worker that binds and observes a delegated Spark assignment.</span></div>
               <div role="row"><span role="cell">Review worker</span><span role="cell">A bounded helper that gathers evidence while the architect keeps final judgment.</span></div>
               <div role="row"><span role="cell">Contractor packet</span><span role="cell">A policy-checked brief for an outside reviewer, built only after the sharing boundary is approved.</span></div>
               <div role="row"><span role="cell">Evidence lane</span><span role="cell">A contractor, local worker, or peer-review return that must be evaluated before implementation can use it.</span></div>
@@ -172,6 +248,11 @@
               <div role="row"><span role="cell">Model profile</span><code role="cell">schemas/model-profile.schema.json</code></div>
               <div role="row"><span role="cell">Sprint continuation</span><code role="cell">schemas/sprint-continuation.schema.json</code></div>
               <div role="row"><span role="cell">Execution status report</span><code role="cell">schemas/execution-status-report.schema.json</code></div>
+              <div role="row"><span role="cell">Native worker packet</span><code role="cell">schemas/native-worker-packet.schema.json</code></div>
+              <div role="row"><span role="cell">Native precommit receipt</span><code role="cell">schemas/native-precommit-receipt.schema.json</code></div>
+              <div role="row"><span role="cell">Native release evidence</span><code role="cell">schemas/native-release-evidence.schema.json</code></div>
+              <div role="row"><span role="cell">Native supervision state</span><code role="cell">schemas/native-supervision-state.schema.json</code></div>
+              <div role="row"><span role="cell">Native pool contract v2</span><code role="cell">schemas/native-supervision-pool-contract-v2.schema.json</code></div>
               <div role="row"><span role="cell">Activation result v2</span><code role="cell">schemas/native-tool-activation-result-v2.schema.json</code></div>
               <div role="row"><span role="cell">Activation exact trace</span><code role="cell">schemas/native-tool-activation-trace.schema.json</code></div>
               <div role="row"><span role="cell">Activation Bead closure</span><code role="cell">schemas/native-tool-activation-bead-closure.schema.json</code></div>
@@ -439,7 +520,18 @@ python3 scripts/configure_codex_beads_hooks.py \
               <code>design</code>, and <code>notes</code> fields so the work
               graph is queryable instead of relying only on description text.
             </p>
-            <pre><code>python3 scripts/coach_prompt.py "&lt;task text&gt;"
+            <p>
+              Candidate E installation and launch commands are canonical under
+              <a href="#candidate-e">Candidate E</a>. The commands below cover
+              additional helper surfaces.
+            </p>
+            <pre><code>python3 scripts/prepare_native_worker.py build --help
+python3 scripts/supervise_native_precommit.py --help
+python3 scripts/manage_native_release.py --help
+python3 scripts/supervise_native_worker.py --help
+python3 scripts/supervise_native_pool.py --help
+python3 scripts/validate_native_pool_preflight.py --help
+python3 scripts/coach_prompt.py "&lt;task text&gt;"
 python3 scripts/coach_prompt.py --scaffold-size tight "&lt;task text&gt;"
 python3 scripts/route_work.py "&lt;task text&gt;"
 python3 scripts/coach_prompt.py --model-synthesis "&lt;task text&gt;"
@@ -498,10 +590,10 @@ python3 scripts/validate_site.py</code></pre>
               inference boundary.
             </p>
             <p>
-              Three differentiator deep dives explain the concepts most likely
+              Four differentiator deep dives explain the concepts most likely
               to make CWO different from a normal web-chat or shell-only
-              workflow: durable memory, evidence-based synthesis, and
-              zero-trust return handling.
+              workflow: durable memory, native supervision, evidence-based
+              synthesis, and zero-trust return handling.
             </p>
             <p>
               The local-worker deep dive shows the first-class
@@ -525,6 +617,7 @@ python3 scripts/validate_site.py</code></pre>
             </p>
             <ul class="link-list">
               <li><a href="./beads-memory.html">Beads durable memory and closure context</a></li>
+              <li><a href="./native-supervision.html">Native worker supervision and bounded recovery</a></li>
               <li><a href="./model-synthesis.html">Model synthesis and architect adjudication</a></li>
               <li><a href="./zero-trust-consensus.html">Zero-trust consensus and cross-domain divergence</a></li>
               <li><a href="./malpractice-sabotage.html">Malpractice and sabotage guardrails</a></li>
@@ -617,6 +710,7 @@ python3 scripts/validate_site.py</code></pre>
         <a href="./get-started.html">Get Started</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
         <a href="./workflows.html">Workflows</a>
+        <a href="./native-supervision.html">Native Supervision</a>
         <a href="./use-cases.html">Use Cases</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>

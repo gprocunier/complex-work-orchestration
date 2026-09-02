@@ -2,20 +2,23 @@
 
 ## What This Is
 
-This reference is for operators deciding whether to use CWO's bounded native
-worker supervision. Native supervision lets one trusted host control a fixed
+This reference is for operators deciding whether to use CWO's concurrent native
+worker supervision. Start with [Native Worker Supervision](native-supervision.md)
+for the normal single-worker path. A concurrent pool lets one trusted host control a fixed
 cohort of already-created native worker supervisors within the policy ceiling;
 it does not make
 packet construction, precommit, critics, integration, retry, replay, or
 publication concurrent.
 
-One worker remains the default. Concurrent native supervision is an opt-in Tech
-Preview that is experimental and disabled by default. It requires one fresh
-same-host capability receipt, a fixed cohort, and either isolated mutable
-worktrees or a shared read-only topology. The canonical policy releases the
-certified hard ceiling of three; N>=4 remains blocked pending Phase 2
-architecture and recertification. Start with the reader-facing
-[Native Supervision Tech Preview](https://gprocunier.github.io/complex-work-orchestration/workflows.html#native-supervision-tech-preview),
+Every delegated native worker is supervised; there is no unsupervised mode or
+opt-out. One supervised worker remains the standard path. Running two or three
+supervised native workers concurrently is an opt-in Tech Preview that is
+experimental and disabled by default. It requires one fresh same-host capability
+receipt, a fixed cohort, and either isolated mutable worktrees or a shared
+read-only topology. The canonical policy releases the certified hard ceiling of
+three; N>=4 remains blocked pending Phase 2 architecture and recertification.
+Start with the reader-facing
+[Native Supervision guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html#concurrency-preview),
 then review the [deferred hardening](#experimental-status-and-deferred-hardening)
 before opting in.
 
@@ -385,10 +388,20 @@ admission.
 ## Rendering A Contract
 
 Start each ordinary worker supervisor first so its private state is in
-`status=created`. Render each callback-free child control-turn contract, then
-build a strict local render request using
-`schemas/native-supervision-pool-render-request.schema.json`. The render request
-contains local paths and identity fields, but never task text.
+`status=created`. Productive concurrent execution then uses the admission-bound
+version-2 path. It revalidates the exact readiness snapshot, estimates,
+proportionality assessment, fixed cohort, worktrees, capability evidence, and
+leases before consuming a one-use `FixedCohortAdmissionCapability` in
+`cwo_core.native_pool_admitted.run_admitted_native_pool()`.
+
+The version-1 render request and direct coordinator surface remain available
+for strict artifact validation and compatibility inspection. They are not the
+admission-bound version-2 path. A version-2 admitted contract passed directly
+to the coordinator is rejected with `admitted-pool-launcher-required`; a
+serialized request, contract, receipt, hash, or preflight result cannot replace
+the admission capability.
+
+The callback-free rendering interface is:
 
 ```bash
 python3 scripts/supervise_native_pool.py render \
@@ -397,8 +410,8 @@ python3 scripts/supervise_native_pool.py render \
   --output /path/to/private/pool-contract.json
 ```
 
-For any concurrent request, the connected host supplies its fresh capability receipt and
-opts in explicitly:
+For a concurrent artifact, the connected host supplies its fresh capability
+receipt and opts in explicitly:
 
 ```bash
 python3 scripts/supervise_native_pool.py render \
@@ -409,31 +422,31 @@ python3 scripts/supervise_native_pool.py render \
   --output /path/to/private/pool-contract.json
 ```
 
-`HOST_PID` is the long-running process that will own the coordinator. For
-concurrent work it must match the capability receipt's live process identity.
-When rendering and execution happen in one Python host, call
-`cwo_core.native_pool_config.build_pool_contract()` directly and omit
-`owner_pid`; the current process is used for a single worker.
+`HOST_PID` is the long-running process that owns admission and coordination. It
+must match the capability receipt's live process identity.
 
 The connected native adapter callbacks cannot be serialized into a subprocess.
-Execution therefore remains a host API:
+Productive execution therefore remains a trusted host API rather than a CLI
+that accepts serialized authority:
 
 ```python
-from cwo_core.native_pool import NativePoolCoordinator
+from cwo_core.native_pool_admitted import run_admitted_native_pool
 
-coordinator = NativePoolCoordinator(
+receipt = run_admitted_native_pool(
+    reservation_receipt,
+    admission_capability,
     contract,
-    child_control_contracts,
+    preflight_request,
+    preflight_result,
+    child_contracts,
     task_inputs,
-    child_adapter_callbacks,
-    pool_callbacks=trusted_pool_callbacks,
+    child_callbacks,
+    claim_adapter=claim_adapter,
+    live_revalidate=live_revalidate,
+    pool_callbacks=pool_callbacks,
     lease_registry=lease_registry,
     capability_receipt=capability_receipt,
-    state_file=pool_state_file,
-    decision_file=pool_decision_file,
-    control_file=pool_control_file,
 )
-receipt = coordinator.run()
 ```
 
 The task inputs enter only this trusted in-process execution API. They are not

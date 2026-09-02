@@ -31,6 +31,23 @@ class PublicCopyTests(unittest.TestCase):
         rendered = "\n".join(errors)
         self.assertIn(phrase, rendered)
 
+    def test_rejects_publication_rollback_monologue_in_markdown(self) -> None:
+        phrase = "documentation" + " commit"
+        errors = self.validate_markdown(
+            f"Rollback the {phrase}, then start a fresh Pages deployment to restore the prior published copy.\n"
+        )
+        rendered = "\n".join(errors)
+        self.assertIn(phrase, rendered)
+        self.assertIn("fresh Pages deployment", rendered)
+        self.assertIn("prior published copy", rendered)
+
+    def test_allows_specific_operational_rollback_guidance_in_markdown(self) -> None:
+        errors = self.validate_markdown(
+            "Revert the documentation commit if its generated links fail validation.\n"
+            "Start a fresh Pages deployment after the corrected source passes.\n"
+        )
+        self.assertEqual(errors, [])
+
     def test_allows_component_words_without_internal_process_phrase(self) -> None:
         errors = self.validate_markdown(
             "Use the canonical URL in the API walkthrough after setup.\n"

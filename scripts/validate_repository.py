@@ -720,6 +720,10 @@ def validate_repository() -> list[str]:
             "tool_trace_sha256",
             "bead_closure_sha256",
             "v1 result schema remains historical inspection-only",
+            "run_admitted_native_pool",
+            "version-2 admitted contract passed directly",
+            "admitted-pool-launcher-required",
+            "capability_receipt=capability_receipt",
         ],
     )
     require_doc_terms(
@@ -730,17 +734,35 @@ def validate_repository() -> list[str]:
             "audit-only intent",
             "cannot start `supervise_native_worker.py`",
             "Activation authority has no JSON or CLI form",
-            "scripts/run_native_pool_activation_preview.py",
-            "mints and consumes",
             "--dry-run",
             "--enable-tech-preview",
-            "Every failed, retried, extra,",
-            "Only durable successful terminal telemetry can finalize required trace cardinality",
-            "`task_complete.error` is failed terminal control loss",
-            "closes only the authorized implementation child Beads",
-            "never retries or rolls back a partial close",
-            "Accepted activation result v2 binds",
-            "Result v1 remains historical inspection only",
+            "One supervised worker remains the standard path",
+            "Running two or three workers concurrently is an experimental Tech Preview",
+            "productive admission-bound",
+            "run_admitted_native_pool",
+            "Capacity four and above is blocked",
+            "Native Worker Supervision",
+            "Native Supervision Pools",
+        ],
+    )
+    require_doc_terms(
+        errors,
+        "references/native-supervision.md",
+        [
+            "One supervised worker is the default",
+            "fresh Spark session with trusted model attestation",
+            "version-2 native worker packet",
+            "single-worker supervisor armed before task submission",
+            "one uninterrupted control turn",
+            "The packet's `scope.workdir` is the authoritative working directory",
+            "A check that returns exit code `2` means interrupt or control loss",
+            "Running multiple supervised native workers concurrently is experimental and disabled by default",
+            "Two workers",
+            "Three workers",
+            "Four or more",
+            "run_admitted_native_pool",
+            "Exact server-side tool allowlisting",
+            "--enable-tech-preview",
         ],
     )
     require_doc_terms(
@@ -1291,7 +1313,7 @@ def validate_repository() -> list[str]:
             "Crawl",
             "Walk",
             "Run",
-            "Expert lane",
+            "Advanced options",
             "What CWO Adds",
             "Connected And Disconnected Paths",
             "The normal interface is the Codex conversation",
@@ -1332,7 +1354,7 @@ def validate_repository() -> list[str]:
             "Crawl",
             "Walk",
             "Run",
-            "Expert lane",
+            "Advanced options",
             "A web chat can explain code",
             "A coding shell can do the project work with you",
             "Context gets lost",
@@ -1543,8 +1565,9 @@ def validate_repository() -> list[str]:
             "workerbee_parallelism",
             "Subagents",
             "The coach always asks",
-            "Codex 5.3 Spark when available",
-            "smallest available capable review model",
+            "gpt-5.3-codex-spark",
+            "Do not silently substitute",
+            "separately selected local or contractor route",
             "curl",
             "Publish Release",
             "editorial review before publish",
@@ -2337,7 +2360,7 @@ def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -
 def validate_native_supervision_tech_preview_copy(
     errors: list[str],
     content: str | None = None,
-    relative_path: str = "docs/workflows.html",
+    relative_path: str = "docs/native-supervision.html",
 ) -> None:
     if content is None:
         path = REPO_ROOT / relative_path
@@ -2348,98 +2371,69 @@ def validate_native_supervision_tech_preview_copy(
 
     normalized = " ".join(content.split())
     required_fragments = [
-        ("section anchor", 'id="native-supervision-tech-preview"'),
-        ("page navigation link", 'href="#native-supervision-tech-preview"'),
+        ("default section anchor", 'id="default-path"'),
+        ("default navigation link", 'href="#default-path"'),
+        ("control-turn section anchor", 'id="control-turn"'),
+        ("workspace section anchor", 'id="workspace-authority"'),
+        ("failure section anchor", 'id="failure-recovery"'),
+        ("concurrency section anchor", 'id="concurrency-preview"'),
+        ("concurrency navigation link", 'href="#concurrency-preview"'),
         (
-            "stability/default wording",
-            "A single worker is the default. Concurrent native supervision remains an experimental Tech Preview and is disabled by default",
+            "standard single-worker wording",
+            "Native supervision is the normal connected-Codex control when CWO delegates reading, editing, or validation",
         ),
-        ("explicit opt-in wording", "requires explicit opt-in"),
-        ("same-host capability wording", "one fresh same-host capability receipt"),
-        ("fixed-cohort wording", "a fixed cohort"),
+        ("mandatory supervision wording", "Every delegated native worker is supervised"),
+        ("no opt-out wording", "there is no unsupervised mode or opt-out"),
         (
-            "released ceiling wording",
-            "currently released and hard ceilings are both three workers",
+            "preview boundary wording",
+            "Multi-worker concurrency is the experimental part, not supervision",
+        ),
+        ("exact native model wording", "<code>gpt-5.3-codex-spark</code>"),
+        ("decision authority wording", "Candidate E owns architecture"),
+        ("attestation boundary wording", "worker statement cannot widen"),
+        ("persist-before-send wording", "persists supervision state and registers the observer before it sends the task"),
+        ("one-second checks wording", "one control-turn identity"),
+        ("packet workdir wording", "packet's declared working directory is authoritative"),
+        (
+            "control failure wording",
+            "Control loss, unsafe tool use, or unattributed mutation",
         ),
         (
-            "higher-capacity gate wording",
-            "N&gt;=4 remains blocked pending Phase 2 architecture and recertification",
+            "concurrency stability wording",
+            "Running multiple supervised workers concurrently is experimental and disabled by default",
         ),
+        ("two-worker preview wording", "Two workers</th><td>Opt-in Tech Preview"),
+        ("three-worker ceiling wording", "Three workers</th><td>Opt-in Tech Preview"),
+        ("higher-capacity gate wording", "Four or more</th><td>Blocked"),
+        ("same-host capability wording", "Fresh same-host capability"),
+        ("fixed-cohort wording", "safe fixed cohort"),
         ("isolated topology wording", "isolated mutable worktrees"),
-        ("shared topology wording", "shared read-only topology"),
+        ("shared topology wording", "shared read-only"),
         (
             "single-flight boundary wording",
-            "Precommit, critics, integration, retry, replay, and publication remain single-flight",
+            "Precommit, packet construction, critics, integration, retry, replay, and publication remain single-flight",
         ),
         (
             "exact tool boundary wording",
-            "Exact server-side tool allowlisting remains the operative default",
-        ),
-        (
-            "override authority wording",
-            "<code>trusted-detect-and-contain</code> override is audit-only intent, not dispatch authority",
-        ),
-        (
-            "activation gate wording",
-            "The one-shot activation runner is disabled by default",
+            "Ordinary supervised workers require exact server-side tool allowlisting",
         ),
         (
             "fixed activation profiles",
             "<code>n1-read-only</code>, <code>n2-read-only</code>, and <code>n1-mutable</code>",
         ),
         (
-            "non-consuming dry-run wording",
-            "Non-consuming validation uses <code>--dry-run</code>",
+            "single-worker operator link",
+            "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md",
         ),
         (
-            "exact activation risk wording",
-            "<code>unlisted-built-ins-may-act-before-detection</code> risk acknowledgement",
-        ),
-        (
-            "explicit activation switch",
-            "<code>--enable-tech-preview</code>",
-        ),
-        (
-            "exact activation trace wording",
-            "Each fixed activation profile requires its exact ordered two-call trace",
-        ),
-        (
-            "all attempts count wording",
-            "Every failed, retried, extra, reordered, wrong-argument, unknown-result, or contradictory call counts",
-        ),
-        (
-            "durable terminal trace wording",
-            "Only a durable successful terminal event can finalize required trace cardinality",
-        ),
-        (
-            "errored terminal wording",
-            "<code>task_complete.error</code> is failed terminal control loss",
-        ),
-        (
-            "child-only closure wording",
-            "closes only authorized implementation child Beads, once and in task order",
-        ),
-        (
-            "no parent rollback wording",
-            "It never closes the parent or publication Bead, retries a close, or rolls back a partial close",
-        ),
-        (
-            "activation result v2 binding wording",
-            "Accepted activation result v2 binds the private exact-trace and Bead-closure artifact hashes",
-        ),
-        (
-            "operator link",
+            "pool operator link",
             "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md",
-        ),
-        (
-            "rollback wording",
-            "git revert</code> the documentation commit, then start a fresh Pages deployment to restore the prior published copy",
         ),
     ]
     missing = [label for label, fragment in required_fragments if fragment not in normalized]
     if missing:
         errors.append(
-            f"{relative_path} is missing the native-supervision Tech Preview contract: "
+            f"{relative_path} is missing the layered native-supervision contract: "
             + ", ".join(missing)
         )
 
