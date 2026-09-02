@@ -28,6 +28,10 @@ class CheckInstalledSkillTests(unittest.TestCase):
         (root / "VERSION").write_text("1.2.3\n", encoding="utf-8")
         (root / "scripts" / "helper.py").write_text("print('ok')\n", encoding="utf-8")
         (root / "docs" / "index.html").write_text("<!doctype html><title>Docs</title>\n", encoding="utf-8")
+        prompts = root / "prompts" / "archive"
+        prompts.mkdir(parents=True)
+        (root / "prompts" / "cwo-sol-operator-e.md").write_text("Candidate E\n", encoding="utf-8")
+        (prompts / "cwo-sol-operator-e-v5-qualified.md").write_text("Qualified v5\n", encoding="utf-8")
         calibration = root / "calibration"
         calibration.mkdir()
         (calibration / "skl-return-language-contract-v1.json").write_text("{\"artifact_type\": \"skl-corpus-contract\"}\n", encoding="utf-8")
@@ -81,6 +85,21 @@ class CheckInstalledSkillTests(unittest.TestCase):
             self.assertEqual(status["status"], "drift")
             self.assertIn("SKILL.md", status["changed_files"])
             self.assertIn("docs/extra.html", status["extra_files"])
+
+    def test_status_reports_archived_prompt_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source = Path(tmpdir) / "source"
+            installed = Path(tmpdir) / "skills" / "complex-work-orchestration"
+            source.mkdir()
+            self.make_skill_tree(source)
+            shutil.copytree(source, installed)
+            archived = installed / "prompts" / "archive" / "cwo-sol-operator-e-v5-qualified.md"
+            archived.write_text("drifted\n", encoding="utf-8")
+
+            status = installed_status(source, installed)
+
+        self.assertEqual(status["status"], "drift")
+        self.assertIn("prompts/archive/cwo-sol-operator-e-v5-qualified.md", status["changed_files"])
 
     def test_generated_manifest_and_python_caches_are_ignored(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

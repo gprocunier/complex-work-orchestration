@@ -104,6 +104,16 @@ class InstallScriptTests(unittest.TestCase):
             ]:
                 self.assertTrue((target / filename).is_file())
 
+    def test_installer_copies_instruction_prompts_and_qualified_archive(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            skills_dir = Path(tmpdir) / "skills"
+            install = self.run_installer("--skills-dir", str(skills_dir), "--yes")
+            self.assertEqual(install.returncode, 0, install.stderr or install.stdout)
+
+            prompts = skills_dir / "complex-work-orchestration" / "prompts"
+            self.assertTrue((prompts / "cwo-sol-operator-e.md").is_file())
+            self.assertTrue((prompts / "archive" / "cwo-sol-operator-e-v5-qualified.md").is_file())
+
     def test_uninstall_dry_run_keeps_active_install(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             skills_dir = Path(tmpdir) / "skills"

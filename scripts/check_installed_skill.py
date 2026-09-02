@@ -31,6 +31,7 @@ INSTALL_ITEMS = (
     "docs",
     "scripts",
     "calibration",
+    "prompts",
 )
 IGNORED_DIR_NAMES = {"__pycache__"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
