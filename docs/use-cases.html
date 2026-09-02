@@ -36,8 +36,10 @@
         <h1>Simple And Complex Paths</h1>
         <p class="lede">
           Start in a fresh Candidate E session and keep focused work small.
-          Add one supervised Spark worker when delegation helps; add concurrent,
-          local, or outside review lanes only when their extra controls fit.
+          Add one supervised Spark worker when delegation helps. Every delegated
+          native worker is supervised; there is no unsupervised mode or opt-out.
+          Add concurrent, local, or outside review lanes only when their extra
+          controls fit.
         </p>
       </section>
 
@@ -162,8 +164,9 @@ Clean up installer docs, tests, and handoff notes.</code></pre>
               be accepted by the architect.
             </p>
             <p>
-              Two- and three-worker native pools are an experimental opt-in,
-              not a faster version of the default. Read
+              Multi-worker concurrency is experimental; supervision is not.
+              Two- and three-worker native pools require a separate opt-in and
+              are not a faster version of the standard path. Read
               <a href="./native-supervision.html#concurrency-preview">the
               concurrency prerequisites</a> before selecting that path.
             </p>

@@ -39,7 +39,8 @@
           implementation or validation task,
           the local supervisor—the trusted controller outside the worker—verifies
           a fresh Spark session, binds the assignment, and watches it until it
-          closes.
+          closes. Supervision is mandatory for every delegated native worker;
+          multi-worker concurrency is the optional Tech Preview.
         </p>
       </section>
 
@@ -50,19 +51,21 @@
           <a href="#control-turn">Live Control Turn</a>
           <a href="#workspace-authority">Workspace Authority</a>
           <a href="#failure-recovery">Failure And Recovery</a>
-          <a href="#concurrency-preview">Concurrency Preview</a>
+          <a href="#concurrency-preview">Multi-Worker Preview</a>
           <a href="#activation-preview">Separate Activation Preview</a>
           <a href="#operator-reference">Operator Reference</a>
         </nav>
 
         <div class="doc-body">
           <section id="default-path">
-            <h2>One Worker Is The Default</h2>
+            <h2>Supervision Is Mandatory For Delegated Workers</h2>
             <p>
               Native supervision is the normal connected-Codex control when
               CWO delegates reading, editing, or validation after the important
-              decisions are closed. It is not the same thing as concurrent
-              supervision. Most tasks use one fresh
+              decisions are closed. Every delegated native worker is supervised.
+              Once CWO delegates to a native worker, there is no unsupervised
+              mode or opt-out. Multi-worker concurrency is the experimental
+              part, not supervision. Most tasks use one fresh
               <code>gpt-5.3-codex-spark</code> worker with one policy-checked
               assignment that fixes the workspace, scope, tools, limits, and
               required validation.
@@ -188,18 +191,19 @@
           </section>
 
           <section id="concurrency-preview">
-            <h2>Concurrent Supervision Is A Tech Preview</h2>
+            <h2>Multi-Worker Concurrency Is A Tech Preview</h2>
             <p>
-              Concurrency is experimental and disabled by default. It does not
-              change the normal one-worker path.
+              Running multiple supervised workers concurrently is experimental
+              and disabled by default. Supervision remains mandatory for every
+              worker; only the concurrent pool requires a separate opt-in.
             </p>
             <table class="data-table">
-              <caption>Released native supervision capacity</caption>
+              <caption>Released supervised-worker capacity</caption>
               <thead>
                 <tr><th scope="col">Capacity</th><th scope="col">Status</th><th scope="col">Boundary</th></tr>
               </thead>
               <tbody>
-                <tr><th scope="row">One worker</th><td>Default</td><td>Normal single-worker controls.</td></tr>
+                <tr><th scope="row">One worker</th><td>Standard</td><td>Normal mandatory supervision controls.</td></tr>
                 <tr><th scope="row">Two workers</th><td>Opt-in Tech Preview</td><td>Fresh same-host capability and safe fixed cohort.</td></tr>
                 <tr><th scope="row">Three workers</th><td>Opt-in Tech Preview</td><td>Released and hard ceiling.</td></tr>
                 <tr><th scope="row">Four or more</th><td>Blocked</td><td>Not represented by the operative contract.</td></tr>

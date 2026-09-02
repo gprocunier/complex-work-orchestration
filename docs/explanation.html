@@ -107,10 +107,11 @@
               observer before sending work, then observe the task before cleanup.
               If identity, telemetry, interruption, workspace attribution, or a
               required receipt is missing, CWO stops rather than treating worker
-              prose as proof. The
+              prose as proof. Every delegated native worker is supervised; there
+              is no unsupervised mode or opt-out. The
               <a href="./native-supervision.html">Native Supervision guide</a>
-              separates this standard single-worker path from the optional
-              concurrent Tech Preview.
+              separates mandatory supervision from the optional multi-worker
+              concurrency Tech Preview.
             </p>
           </section>
 

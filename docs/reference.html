@@ -133,11 +133,13 @@ python3 scripts/manage_instruction_profile.py remove --profile operator-e</code>
           <section id="native-supervision">
             <h2>Native Supervision</h2>
             <p>
-              One supervised native Spark worker is the standard connected
-              delegation path. The packet, precommit receipt, operative release
-              evidence, and live supervisor are separate controls. Persist and
-              arm the supervisor before task submission; bind and poll it in the
-              same uninterrupted control turn.
+              Every delegated native worker is supervised; there is no
+              unsupervised mode or opt-out. One supervised native Spark worker
+              is the standard connected delegation path. The packet, precommit
+              receipt, operative release evidence, and live supervisor are
+              separate controls. Persist and arm the supervisor before task
+              submission; bind and poll it in the same uninterrupted control
+              turn.
             </p>
             <div class="reference-table compact" role="table" aria-label="Native supervision contracts">
               <div role="row"><span role="cell">Work estimate</span><code role="cell">schemas/native-work-estimate.schema.json</code></div>
@@ -152,8 +154,9 @@ python3 scripts/manage_instruction_profile.py remove --profile operator-e</code>
             </div>
             <p>
               Productive concurrency uses the admission-bound version-2 host
-              path. Two- and three-worker pools are an explicit opt-in Tech
-              Preview; four or more workers are blocked. The separate
+              path. Multi-worker concurrency, not supervision, is the
+              experimental feature. Two- and three-worker pools are an explicit
+              opt-in Tech Preview; four or more workers are blocked. The separate
               detect-and-contain activation preview does not replace exact
               server-side tool allowlisting for normal operative work.
             </p>

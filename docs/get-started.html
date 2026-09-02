@@ -324,8 +324,9 @@ EOF
               conversation, becomes a lightweight Beads task, or needs a larger
               work graph. Candidate E remains the decision owner. If work is
               delegated in connected Codex, one supervised native Spark worker
-              is the standard path. Outside reviewers, local workers, and
-              concurrent pools are separate optional paths.
+              is the standard path. Every delegated native worker is supervised;
+              there is no unsupervised mode or opt-out. Outside reviewers, local
+              workers, and concurrent pools are separate optional paths.
             </p>
             <ol class="check-list">
               <li>Install and verify Candidate E, then start a fresh <code>cwo-codex</code> session.</li>

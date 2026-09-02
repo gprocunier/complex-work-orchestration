@@ -6,6 +6,10 @@ fresh native `gpt-5.3-codex-spark` worker receives one bounded assignment, and
 the trusted host monitors that assignment against its packet, model, tools,
 budget, workspace, telemetry, and completion contract.
 
+Every delegated native worker is supervised. Once CWO delegates to a native
+worker, there is no unsupervised mode or opt-out. Multi-worker concurrency is
+the experimental part, not supervision.
+
 This reference covers the normal single-worker path. Concurrent pool operation
 is documented in [Native Supervision Pools](native-supervision-pools.md).
 
@@ -120,9 +124,11 @@ corrected, quarantined, deferred, or accepted after validation. CWO does not
 turn an interrupted artifact into implementation authority through an automatic
 salvage chain.
 
-## Concurrent Supervision Tech Preview
+## Multi-Worker Concurrency Tech Preview
 
-Concurrent native supervision is experimental and disabled by default.
+Running multiple supervised native workers concurrently is experimental and
+disabled by default. Supervision remains mandatory for every worker; only the
+concurrent pool requires a separate opt-in.
 
 | Capacity | Status | Additional requirements |
 | --- | --- | --- |

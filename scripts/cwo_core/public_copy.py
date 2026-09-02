@@ -78,6 +78,15 @@ PUBLIC_COPY_FORBIDDEN_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(r"\b" + re.escape(_text("maintainer", " checklist")) + r"\b", re.IGNORECASE),
     ),
     (
+        "internal publication-maintenance monologue",
+        re.compile(
+            r"\b" + re.escape(_text("documentation", " commit"))
+            + r"\b.{0,160}\b" + re.escape(_text("fresh Pages", " deployment"))
+            + r"\b.{0,160}\b" + re.escape(_text("prior published", " copy")) + r"\b",
+            re.IGNORECASE,
+        ),
+    ),
+    (
         "internal editorial wording",
         re.compile(
             r"\b(?:contractors?|outside models?)\s+(?:can|may|will|should)\s+"

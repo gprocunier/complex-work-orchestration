@@ -266,12 +266,13 @@ The end-to-end rationale and failure model are in
 
 ### Concurrent admitted pool
 
-One worker remains the default. Concurrent pools of two or three are an
-experimental Tech Preview, disabled by default. They require explicit opt-in,
-a fresh same-host adapter capability receipt, a fixed cohort, safe workspace
-topology, deterministic admission, and the productive admission-bound
-version-2 launcher, `run_admitted_native_pool`. Capacity four and above is
-blocked.
+Every delegated native worker is supervised; there is no unsupervised mode or
+opt-out. One supervised worker remains the standard path. Running two or three
+workers concurrently is an experimental Tech Preview, disabled by default. It
+requires explicit opt-in, a fresh same-host adapter capability receipt, a fixed
+cohort, safe workspace topology, deterministic admission, and the productive
+admission-bound version-2 launcher, `run_admitted_native_pool`. Capacity four
+and above is blocked.
 
 Do not run several single-worker supervisors in parallel or treat a serialized
 contract, receipt, preflight result, or proportionality assessment as dispatch

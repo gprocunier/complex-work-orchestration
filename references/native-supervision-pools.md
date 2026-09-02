@@ -10,12 +10,14 @@ it does not make
 packet construction, precommit, critics, integration, retry, replay, or
 publication concurrent.
 
-One worker remains the default. Concurrent native supervision is an opt-in Tech
-Preview that is experimental and disabled by default. It requires one fresh
-same-host capability receipt, a fixed cohort, and either isolated mutable
-worktrees or a shared read-only topology. The canonical policy releases the
-certified hard ceiling of three; N>=4 remains blocked pending Phase 2
-architecture and recertification. Start with the reader-facing
+Every delegated native worker is supervised; there is no unsupervised mode or
+opt-out. One supervised worker remains the standard path. Running two or three
+supervised native workers concurrently is an opt-in Tech Preview that is
+experimental and disabled by default. It requires one fresh same-host capability
+receipt, a fixed cohort, and either isolated mutable worktrees or a shared
+read-only topology. The canonical policy releases the certified hard ceiling of
+three; N>=4 remains blocked pending Phase 2 architecture and recertification.
+Start with the reader-facing
 [Native Supervision guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html#concurrency-preview),
 then review the [deferred hardening](#experimental-status-and-deferred-hardening)
 before opting in.

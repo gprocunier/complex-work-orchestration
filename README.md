@@ -135,16 +135,19 @@ work can add bounded review and worker lanes without moving final decisions away
 from Candidate E.
 
 When CWO delegates operative work in connected Codex, it uses native Spark.
-Before the task is sent, trusted precommit and release evidence bind the work
-plan, requested model, budget, tools, and workspace. The supervisor is then
-armed before dispatch and observes the live worker in the same uninterrupted
-control turn. Missing or contradictory telemetry, an unexpected model or tool,
-unattributed mutation, budget exhaustion, or control loss stops the attempt.
+Every delegated native worker is supervised; once work is delegated, there is
+no unsupervised mode or opt-out. Before the task is sent, trusted precommit and
+release evidence bind the work plan, requested model, budget, tools, and
+workspace. The supervisor is then armed before dispatch and observes the live
+worker in the same uninterrupted control turn. Missing or contradictory
+telemetry, an unexpected model or tool, unattributed mutation, budget
+exhaustion, or control loss stops the attempt.
 
-One supervised worker is the default. Concurrent capacity of two or three
-workers is an experimental Tech Preview, disabled by default and available only
-with explicit opt-in, a fresh same-host capability receipt, a fixed cohort, and
-safe workspace topology. Capacity four and above is blocked. See
+One supervised worker is the standard path. Multi-worker concurrency, not
+supervision, is the experimental Tech Preview. Concurrent capacity of two or
+three is disabled by default and available only with explicit opt-in, a fresh
+same-host capability receipt, a fixed cohort, and safe workspace topology.
+Capacity four and above is blocked. See
 [Native Supervision](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html)
 and the [pool operator reference](references/native-supervision-pools.md).
 

@@ -63,6 +63,24 @@ class ValidateSiteTests(unittest.TestCase):
         rendered = "\n".join(internal_copy_errors(errors))
         self.assertIn(phrase, rendered)
 
+    def test_rejects_publication_rollback_monologue_in_public_narrative(self) -> None:
+        phrase = "documentation" + " commit"
+        errors = self.validate_snippet(
+            "workflows.html",
+            f"<section id='flow'><p><strong>Rollback:</strong> <code>git revert</code> the {phrase}, then start a fresh Pages deployment to restore the prior published copy.</p></section>",
+        )
+        rendered = "\n".join(errors)
+        self.assertIn(phrase, rendered)
+        self.assertIn("fresh Pages deployment", rendered)
+        self.assertIn("prior published copy", rendered)
+
+    def test_allows_specific_operational_rollback_guidance(self) -> None:
+        errors = self.validate_snippet(
+            "workflows.html",
+            "<section id='flow'><p>Revert the documentation commit if its generated links fail validation. Start a fresh Pages deployment after the corrected source passes.</p></section>",
+        )
+        self.assertEqual(internal_copy_errors(errors), [])
+
     def test_rejects_design_source_as_public_reference_copy(self) -> None:
         errors = self.validate_snippet(
             "index.html",

@@ -346,6 +346,8 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
               supervisor—the trusted controller outside the worker—verifies the
               session, binds the exact assignment and limits, arms observation
               before submission, and watches the task until it closes.
+              Every delegated native worker is supervised; there is no
+              unsupervised mode or opt-out.
             </p>
             <div class="workflow-diagram linear" role="img" aria-label="Candidate E sets scope and acceptance, the local supervisor binds and supervises one Spark worker, and Candidate E validates the result.">
               <div class="flow-card"><strong>Candidate E</strong><span>Set scope and acceptance</span></div>
@@ -367,12 +369,12 @@ python3 scripts/render_execution_status_report.py --format terminal --layout sum
             <p>
               The <a href="./native-supervision.html">Native Supervision guide</a>
               explains the lifecycle, workspace authority, recovery rules, and
-              operator references. Concurrent pools of two or three workers are
-              an explicit opt-in Tech Preview; capacity four and above is
-              blocked. Concurrency is not the default path.
+              operator references. Multi-worker concurrency, not supervision,
+              is the experimental feature. Pools of two or three workers are an
+              explicit opt-in Tech Preview; capacity four and above is blocked.
             </p>
             <section id="native-supervision-tech-preview">
-              <h3>Concurrent Supervision Tech Preview</h3>
+              <h3>Multi-Worker Concurrency Tech Preview</h3>
               <p>
                 See the
                 <a href="./native-supervision.html#concurrency-preview">current

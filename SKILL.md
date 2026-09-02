@@ -113,7 +113,7 @@ three units or six reads warn; four or eleven require replanning.
 - Fix -> reload -> resume means reinstall/reload this skill, then resume from Beads. Never resume the operative agent session.
 - Hard-stop returns for bootstrap policy are `needs-architect-realignment`, `budget-exhausted`, and `model-mismatch`.
 - Native operative packets are emitted as version 2. Version 1 remains readable for historical inspection but is dispatch-forbidden.
-- Every native operative worker requires `scripts/supervise_native_worker.py`. After trusted no-tools attestation, create and arm supervision before sending the task. One worker is standard; N=2 or N=3 is an explicit capability-bound Tech Preview; N>=4 is blocked.
+- Every native worker requires `scripts/supervise_native_worker.py`; no unsupervised mode or opt-out exists. Arm supervision after trusted no-tools attestation and before dispatch. One worker is standard; N=2/N=3 concurrency is the capability-bound Tech Preview; N>=4 is blocked.
 - Productive concurrency must use admission-bound version-2 `run_admitted_native_pool`; direct coordinator calls and serialized evidence cannot authorize work.
 - Bind `arm`, native `send_input`, `mark-dispatched`, one-second checks, interrupt, close, and receipts to one control-turn ID and one uninterrupted tool-orchestration turn. No assistant/model round-trip may occur between task submission and the first check.
 - Record dispatch and poll latency. Delay alone warns; missing trusted telemetry or control-turn binding is control loss.
@@ -149,7 +149,7 @@ rules.
 - Execution environments and local inference: `references/execution-environments.md`,
   `references/local-inference.md`
 - Native supervision: `references/native-supervision.md`
-- Concurrent supervision Tech Preview: `references/native-supervision-pools.md`
+- Multi-worker concurrency Tech Preview: `references/native-supervision-pools.md`
 - Zero-trust consensus: `references/zero-trust-consensus.md`
 - Run readiness: `references/run-readiness.md`
 - Beads hook display: `references/codex-beads-hooks.md`

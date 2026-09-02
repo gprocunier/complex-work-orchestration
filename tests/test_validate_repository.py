@@ -39,6 +39,8 @@ class ValidateRepositoryTests(unittest.TestCase):
       </nav>
       <section id="default-path">
         <p>Native supervision is the normal connected-Codex control when CWO delegates reading, editing, or validation.</p>
+        <p>Every delegated native worker is supervised; there is no unsupervised mode or opt-out.</p>
+        <p>Multi-worker concurrency is the experimental part, not supervision.</p>
         <p><code>gpt-5.3-codex-spark</code>. Candidate E owns architecture.</p>
         <p>A worker statement cannot widen the task.</p>
       </section>
@@ -49,7 +51,7 @@ class ValidateRepositoryTests(unittest.TestCase):
       <section id="workspace-authority"><p>The packet's declared working directory is authoritative.</p></section>
       <section id="failure-recovery"><p>Control loss, unsafe tool use, or unattributed mutation stops the attempt.</p></section>
       <section id="concurrency-preview">
-        <p>Concurrency is experimental and disabled by default.</p>
+        <p>Running multiple supervised workers concurrently is experimental and disabled by default.</p>
         <table><tr><th scope="row">Two workers</th><td>Opt-in Tech Preview</td></tr>
         <tr><th scope="row">Three workers</th><td>Opt-in Tech Preview</td></tr>
         <tr><th scope="row">Four or more</th><td>Blocked</td></tr></table>
@@ -158,8 +160,20 @@ class ValidateRepositoryTests(unittest.TestCase):
                 "<code>any-model</code>",
             ),
             "concurrency stability wording": (
-                "Concurrency is experimental and disabled by default",
+                "Running multiple supervised workers concurrently is experimental and disabled by default",
                 "Concurrency is the default",
+            ),
+            "mandatory supervision wording": (
+                "Every delegated native worker is supervised",
+                "Native workers may be supervised",
+            ),
+            "no opt-out wording": (
+                "there is no unsupervised mode or opt-out",
+                "supervision is optional",
+            ),
+            "preview boundary wording": (
+                "Multi-worker concurrency is the experimental part, not supervision",
+                "Supervision is experimental",
             ),
             "higher-capacity gate wording": (
                 "Four or more</th><td>Blocked",
