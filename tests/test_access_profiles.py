@@ -30,8 +30,10 @@ class AccessProfileTests(unittest.TestCase):
         self.assertIn("codex-connected-shell", profiles)
         self.assertIn("rhoai-glm-bf16", profiles)
         self.assertIn("rhoai-glm-bf16-256k", profiles)
+        self.assertIn("rhoai-glm-5-3-direct", profiles)
         self.assertEqual(profiles["rhoai-glm-bf16"]["status"], "offline")
         self.assertEqual(profiles["rhoai-glm-bf16-256k"]["status"], "offline")
+        self.assertEqual(profiles["rhoai-glm-5-3-direct"]["status"], "experimental")
 
     def test_every_executor_resolves_to_known_access_profile(self) -> None:
         profiles = access_profiles()
@@ -103,6 +105,23 @@ class AccessProfileTests(unittest.TestCase):
             "rhoai-glm-bf16-256k",
         )
 
+    def test_glm53_matching_resolves_to_direct_access_profile(self) -> None:
+        profile_key = "rhoai-architect-GLM-5-3-BF16-compact-critic"
+        self.assertEqual(
+            access_profile_for_model_profile(profile_key, {"provider_key": "openshift_ai_vllm"}),
+            "rhoai-glm-5-3-direct",
+        )
+        self.assertEqual(
+            access_profile_for_executor(
+                {
+                    "provider_key": "openshift_ai_vllm",
+                    "dispatch_mode": "local_secure_review",
+                    "model_profile": profile_key,
+                    "external": False,
+                }
+            ),
+            "rhoai-glm-5-3-direct",
+        )
     def test_runtime_status_reports_env_names_without_values(self) -> None:
         with patch.dict(
             os.environ,

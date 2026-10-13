@@ -1,5 +1,22 @@
 # Zero-Trust Consensus
 
+## Threat Model And Claim Boundaries
+
+The assets are structured security claims, evidence references, trust-domain
+metadata, and the architect's implementation decision. Inputs from models and
+providers are untrusted evidence; the evaluator and architect are the review
+boundary, while the control plane remains responsible for routing and record
+integrity. Consensus compares claims and records divergence; it does not grant
+RBAC, dispatch authority, or proof of a security property.
+
+Hash-bound or immutable fields in a consensus record freeze the contract and
+binding semantics only. They do not prevent a privileged same-user writer,
+compromised control plane, or an operator from creating an unrecorded input.
+The resulting status is therefore evidence for adjudication, not authorization.
+Suspected disclosure or manipulation follows the repository [security
+policy](../SECURITY.md), retaining the relevant claim, evidence, and audit
+identifiers for responsible disclosure.
+
 Use this reference when CWO has multiple accepted model returns and the work
 contains security-sensitive, high-risk, or explicitly requested cross-domain
 agreement checks.

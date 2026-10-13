@@ -29,7 +29,7 @@
     "session_id": {"type": "string", "minLength": 1},
     "session_file": {"type": "string", "minLength": 1},
     "baseline_record_count": {"type": "integer", "minimum": 1},
-    "requested_model": {"enum": ["gpt-5.3-codex-spark", "gpt-5.6-luna"]},
+    "requested_model": {"enum": ["gpt-5.3-codex-spark", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]},
     "budget": {"type": "object"},
     "budget_provenance": {"type": "object"},
     "interrupt_thresholds": {"type": "object"},

@@ -8,7 +8,7 @@ independent review, validation evidence, and recovery-quality handoff.
 The normal CWO path uses **Candidate E** as the architect contract. A fresh
 `cwo-codex` session loads that contract without changing ordinary Codex
 sessions. The Candidate E decision thread owns architecture and final judgment;
-when work is delegated, a supervised native Spark worker performs the bounded
+when work is delegated, a task-sized, qualified Luna-first native worker performs the bounded
 operative task.
 
 Use CWO when the work needs any of these:
@@ -26,6 +26,8 @@ Project site: https://gprocunier.github.io/complex-work-orchestration/
 
 Version: see `VERSION`. Release notes and breaking-change notes live in
 `CHANGELOG.md`; no Git tag is implied by the working-tree version file.
+
+Security: read the [security policy](SECURITY.md) and [threat model](references/security-threat-model.md).
 
 ## Start Here
 
@@ -134,7 +136,7 @@ one Beads task, run validation, and record a closure summary. Broader or riskier
 work can add bounded review and worker lanes without moving final decisions away
 from Candidate E.
 
-When CWO delegates operative work in connected Codex, it uses native Spark.
+When CWO delegates operative work in connected Codex, it uses qualified exact Luna first; Terra requires recorded nonfit or justified escalation. Historical Spark records remain readable but do not authorize new dispatch.
 Every delegated native worker is supervised; once work is delegated, there is
 no unsupervised mode or opt-out. Before the task is sent, trusted precommit and
 release evidence bind the work plan, requested model, budget, tools, and
@@ -210,7 +212,7 @@ flowchart LR
     E --> C[Coach sizes work]
     C --> B[Beads records scope]
     B --> P[Precommit and release checks]
-    P --> S[Supervised Spark work]
+    P --> S[Supervised Luna-first work]
     S --> A[Evidence and adjudication]
     A --> V[Validation and handoff]
 ```
@@ -218,7 +220,7 @@ flowchart LR
 ## Connected And Disconnected Paths
 
 The best-tested path is connected Codex: Candidate E owns architecture and
-adjudication, while supervised native Spark workers perform bounded operative
+adjudication, while supervised task-sized Luna-first workers perform bounded operative
 work when delegation is worthwhile.
 
 CWO's governance model can also be used from restricted or disconnected
@@ -227,7 +229,7 @@ envelopes, and approved local model endpoints can return evidence through
 OpenAI-compatible profiles, including OpenShift AI vLLM deployments. Those
 paths keep the same Beads, evaluator, and
 architect-adjudication rules but do not silently inherit the connected native
-Spark route.
+Luna-first route.
 
 See:
 
@@ -244,7 +246,11 @@ See:
 - `prompts/` - named Candidate E and compatibility operator prompts.
 - `scripts/` - profile management, coach, routing, supervision, dispatch,
   validation, install, and reporting helpers.
-- `policy/` - JSON-compatible YAML registries and control policy.
+- `policy/` - control policy stored in `.yaml` files using a strict
+  JSON-compatible YAML subset (quoted JSON keys, objects, arrays, strings,
+  numbers, booleans, and null). Policy files must be top-level objects,
+  reject duplicate keys, and do not support comments or unquoted keys; this
+  keeps them parseable by `json.load()` with the Python standard library.
 - `schemas/` - JSON schemas for packets, receipts, decisions, and reports.
 - `experts/` - calibrated review profiles.
 - `docs/` - GitHub Pages source.
@@ -252,15 +258,31 @@ See:
 
 ## Validation
 
+The full schema-validation suite uses the pinned test-only packages in
+`requirements-test.txt`. Install them into an isolated test environment:
+
+```bash
+python -m venv /tmp/cwo-test-venv
+. /tmp/cwo-test-venv/bin/activate
+python -m pip install -r requirements-test.txt
+```
+
+These packages are not runtime or installer dependencies.
+
 Before handoff, run:
 
 ```bash
-python -m compileall .
+python -m compileall -j 8 -x '(^|/)(\.git|\.beads|\.orchestration-audit|__pycache__|\.ruff_cache)(/|$)' .
 python scripts/validate_repository.py
 python scripts/validate_public_copy.py
-python -m unittest discover -s tests -v
+python scripts/run_parallel_unittest.py --workers 8 --verbose
 ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run
 ```
+
+The eight-worker compile and unittest fanout is a temporary fixed local policy.
+Stateful Beads, journal, reducer, promotion, and model-dispatch operations remain
+serial. Follow-up Bead `complex-work-orchestration-p4vg.95` owns replacement
+with topology-aware and duration-balanced batching.
 
 For documentation changes, also run:
 
@@ -273,3 +295,31 @@ git diff --check
 ## License
 
 GPL-3.0. See `LICENSE`.
+
+## Explicit self-maintenance authority
+
+CWO can repair itself under an explicitly adopted maintenance mission. The
+trusted operator owns an in-process, one-shot operation capability, with a
+closed installed factory and finite operation reservations. Serialized mission
+records, routing JSON, self-reports and checked subprocess success alone are
+not dispatch grants. Normal finite-budget workflows remain finite.
+
+An explicitly unbounded mission does not require invented allocation ceilings
+or token-quota counts. Operation reservations, context capacity, real provider
+availability, exact-model qualification, tool isolation, scope, cleanup and
+receipt checks still apply. Genuine semantic read-only work has zero mutations;
+it is neither relabeled deterministic nor granted write-capable tools.
+
+Within explicit `full_auto` authority, a routine same-scope failure suspends its
+operation. Diagnose, project, repair, test and rerun the failed gate, then continue
+the next ready operation. Consult an authorized strong adviser for unresolved
+architecture; advice is not gate-waiving authority. Preserve historical unknowns
+and consumed attempts. A current isolated operation may proceed only under its
+actual ownership/safety contract, not by rewriting the historical disposition.
+
+Maintenance transaction plans use explicit version 8 and maintenance releases
+use version 2. Legacy finite plans require a trusted parent-pinned factory before
+import; validate-only never imports an adapter. Installation is accepted-scope
+only, backed up and byte-verified. Completion requires fresh-runtime live
+productive, read-only and successor-operation evidence—not just an import or dry
+run.

@@ -298,6 +298,19 @@ def _operator_approval(
 
 
 class NativeWorkSizingTest(unittest.TestCase):
+    def test_estimator_numbers_survive_beads_json_storage_without_rehash(self):
+        for reads, mutations, ratio in ((4, 2, 2.0), (3, 2, 1.5), (0, 0, 0.0)):
+            payload = _valid_v2_payload()
+            payload["semantic_estimate"].update(expected_context_reads=reads, expected_mutations=mutations, read_to_mutation_ratio=ratio)
+            result = evaluate_work_estimate(payload, policy=_v2_policy())
+            value = result["semantic_estimate"]["read_to_mutation_ratio"]
+            self.assertIs(type(value), int if ratio.is_integer() else float)
+            self.assertEqual(value, ratio)
+            # Reproduce the actual observed bd/Dolt number spelling, not a
+            # Python-equality assertion that conceals changed hash bytes.
+            stored = json.loads(json.dumps(result), parse_float=lambda text: int(float(text)) if float(text).is_integer() else float(text))
+            self.assertEqual(canonical_work_estimate_sha256(result), canonical_work_estimate_sha256(stored))
+
     def setUp(self) -> None:
         self.maxDiff = None
         self._temporary = tempfile.TemporaryDirectory()
@@ -660,7 +673,7 @@ class NativeWorkSizingTest(unittest.TestCase):
                 "full_suite_count": 1,
                 "read_context_count": 1,
                 "commands": [
-                    {"argv": ["python3", "-m", "unittest", "tests.test_native_work_sizing"]},
+                    {"argv": ["git", "status", "--short"]},
                     {"argv": ["git", "diff", "--check"]},
                 ],
             }
@@ -668,6 +681,7 @@ class NativeWorkSizingTest(unittest.TestCase):
         payload["context_manifest"] = [
             {"path": "tests/test_native_work_sizing.py", "selector": "file", "purpose": "validation", "bytes": 1, "sha256": "0" * 64}
         ]
+        payload["semantic_estimate"]["expected_mutations"] = 0
         payload["semantic_estimate"]["expected_context_reads"] = 1
         payload["semantic_estimate"]["read_to_mutation_ratio"] = 1
         result = evaluate_work_estimate(payload)
@@ -677,14 +691,7 @@ class NativeWorkSizingTest(unittest.TestCase):
 
     def test_read_only_validation_command_count_boundary(self) -> None:
         payload = _literal_command_payload()
-        commands = [
-            {"argv": ["python3", "-m", "unittest", "tests.test_native_work_sizing"]},
-            {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_execution_policy"]},
-            {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_planning"]},
-            {"argv": ["python3", "-m", "unittest", "tests.test_supervise_native_worker"]},
-            {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_planning", "--failfast"]},
-            {"argv": ["python3", "-m", "unittest", "tests.test_native_replanning"]},
-        ]
+        commands = [{"argv": ["git", "status", "--short"]} for _ in range(6)]
         payload["task_profile"].update(
             {
                 "task_class": "read-only-validation",
@@ -702,7 +709,7 @@ class NativeWorkSizingTest(unittest.TestCase):
             {"path": "tests/test_native_work_sizing.py", "selector": "file", "purpose": "validation", "bytes": 1, "sha256": "0" * 64}
         ]
         payload["semantic_estimate"]["expected_context_reads"] = 1
-        payload["semantic_estimate"]["expected_mutations"] = 1
+        payload["semantic_estimate"]["expected_mutations"] = 0
         payload["semantic_estimate"]["read_to_mutation_ratio"] = 1
         six = evaluate_work_estimate(payload)
         self.assertEqual(six["fit_mode"], "deterministic")
@@ -713,7 +720,7 @@ class NativeWorkSizingTest(unittest.TestCase):
         seven_payload = copy.deepcopy(payload)
         seven_payload["task_profile"]["command_count"] = 7
         seven_payload["task_profile"]["commands"] = payload["task_profile"]["commands"] + [
-            {"argv": ["python3", "-m", "unittest", "tests.test_native_precommit"]}
+            {"argv": ["git", "status", "--short"]}
         ]
         seven_payload["task_profile"]["check_count"] = 6
         seven = evaluate_work_estimate(seven_payload)

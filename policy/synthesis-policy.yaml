@@ -101,7 +101,7 @@
       "executor": "gemini_architecture_critic"
     },
     "local": {
-      "terms": ["local worker", "local inference", "vllm", "openshift ai", "rhoai", "glm", "glm-5.2", "glm 5.2", "glm52"],
+      "terms": ["local worker", "local inference", "vllm", "openshift ai", "rhoai", "glm", "glm-5.2", "glm 5.2", "glm52", "glm-5.3", "glm 5.3", "glm53"],
       "executor": "rhoai_glm_architecture_critic"
     }
   },

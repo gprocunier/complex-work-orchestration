@@ -19,6 +19,7 @@ from .native_pool_capacity import load_pool_capacity
 from .native_pool_contracts import (
     ADMITTED_POOL_RECEIPT_SCHEMA,
     ADMITTED_POOL_VERSION,
+    CALLBACK_WARNING_THRESHOLD_MS,
     POOL_DECISION_SCHEMA,
     POOL_DECISION_TYPE,
     POOL_RECEIPT_SCHEMA,
@@ -208,9 +209,11 @@ def _callback_name(phase: str) -> str | None:
         "check": "check",
         "waiting": "check",
         "finalize-complete": "finalize",
+        "waiting-close-complete": None,
         "close-complete": "close",
         "interrupt": "interrupt",
         "finalize-interrupt": "finalize",
+        "waiting-close-interrupt": None,
         "close-interrupt": "close",
         "finalize-close": "finalize",
         "finalize-control-failed": "finalize",
@@ -417,6 +420,9 @@ class NativePoolCoordinator:
         self._poll_order: list[str] = []
         self._admission_order: list[str] = []
         self._terminal_order: list[str] = []
+        self._submission_ns: dict[str, int | None] = {
+            child_id: None for child_id in self.child_ids
+        }
         self._last_poll_ns: dict[str, int | None] = {child_id: None for child_id in self.child_ids}
         self._max_poll_gap_ms = 0.0
         self._leases: dict[str, dict[str, Any]] = {}
@@ -502,6 +508,7 @@ class NativePoolCoordinator:
         self._reasons: list[str] = []
         self._first_protected_fault: dict[str, Any] | None = None
         self._protected_fault = False
+        self._workspace_observation_history: list[dict[str, Any]] = []
         self._contained_fault_children: set[str] = set()
         self._classified_fault_children: set[str] = set()
         self._rejected_children: set[str] = set()
@@ -751,12 +758,48 @@ class NativePoolCoordinator:
         }
 
     def _compare_workspaces(self, phase: str) -> dict[str, Any]:
+        value: Any = None
         try:
             value = self.pool_callbacks["compare_workspaces"](contract=self.contract, phase=phase)
             mutation_evidence_sha256(value)
         except (TypeError, ValueError, PoolSchedulingError) as exc:
+            observation = {
+                "sequence": len(self._workspace_observation_history) + 1,
+                "previous_observation_sha256": (
+                    self._workspace_observation_history[-1]["observation_sha256"]
+                    if self._workspace_observation_history
+                    else None
+                ),
+                "phase": phase,
+                "observable": False,
+                "error_type": type(exc).__name__,
+                "error": str(exc),
+                "evidence": copy.deepcopy(value) if isinstance(value, Mapping) else None,
+            }
+            observation["observation_sha256"] = canonical_sha256(observation)
+            self._workspace_observation_history.append(observation)
             raise NativePoolError(f"workspace-comparison-failed:{exc}") from exc
+        observation = {
+            "sequence": len(self._workspace_observation_history) + 1,
+            "previous_observation_sha256": (
+                self._workspace_observation_history[-1]["observation_sha256"]
+                if self._workspace_observation_history
+                else None
+            ),
+            "phase": phase,
+            "observable": True,
+            "error_type": None,
+            "error": None,
+            "evidence": copy.deepcopy(dict(value)),
+        }
+        observation["observation_sha256"] = canonical_sha256(observation)
+        self._workspace_observation_history.append(observation)
         return dict(value)
+
+    def workspace_observations(self) -> list[dict[str, Any]]:
+        """Return all comparison results without allowing caller mutation."""
+
+        return copy.deepcopy(self._workspace_observation_history)
 
     def _invalidate_read_only_fast_path(self) -> None:
         """Contain the optimized cohort and revoke its fast path for this run."""
@@ -1157,6 +1200,7 @@ class NativePoolCoordinator:
             elif progress["status"] != "terminal" and progress.get("phase") not in {
                 "interrupt",
                 "finalize-interrupt",
+                "waiting-close-interrupt",
                 "close-interrupt",
                 "finalize-close",
                 "finalize-control-failed",
@@ -1427,7 +1471,17 @@ class NativePoolCoordinator:
         child = self._child_state(child_id)
         previous = self._last_poll_ns[child_id]
         if previous is None:
-            gap_ms = (now_ns - self._started_ns) / 1_000_000
+            submission_ns = self._submission_ns[child_id]
+            if submission_ns is None:
+                self._enter_fault(
+                    "first-poll-before-submission",
+                    control_failed=True,
+                    requested_stop_scope="execution-path",
+                    scope_policy_rule="execution-integrity",
+                    affected_child_id=child_id,
+                )
+                submission_ns = now_ns
+            gap_ms = (now_ns - submission_ns) / 1_000_000
         else:
             gap_ms = (now_ns - previous) / 1_000_000
         if gap_ms < 0:
@@ -1498,11 +1552,22 @@ class NativePoolCoordinator:
                 )
         elif phase in {"send-input", "mark-dispatched"}:
             child["status"] = "armed"
-        elif phase in {"interrupt", "finalize-interrupt", "close-interrupt", "finalize-close"}:
+        elif phase in {
+            "interrupt",
+            "finalize-interrupt",
+            "waiting-close-interrupt",
+            "close-interrupt",
+            "finalize-close",
+        }:
             child["status"] = "interrupt-pending" if phase != "finalize-close" else "interrupt-confirmed"
-        elif phase in {"finalize-complete", "close-complete"}:
+        elif phase in {
+            "finalize-complete",
+            "waiting-close-complete",
+            "close-complete",
+        }:
             child["status"] = "completed"
-            child["next_deadline_ns"] = None
+            if phase != "waiting-close-complete":
+                child["next_deadline_ns"] = None
         else:
             child["status"] = "running"
 
@@ -1537,18 +1602,66 @@ class NativePoolCoordinator:
             self._enter_fault("more-than-one-adapter-callback-in-step", control_failed=True)
         self._update_child_progress(child_id, result)
         if self._callback_count == 1:
+            if self._last_callback_name == "send_input":
+                # The poll service-level objective begins only after this
+                # child's submission is acknowledged. Pool construction,
+                # admission, and peer pre-arming are not observable worker
+                # runtime and must not consume the post-submission deadline.
+                self._submission_ns[child_id] = ended
             if (
                 self._schedulability_proof is not None
                 and self._last_callback_latency_ms is not None
             ):
-                self._slack_warning_active = (
-                    latency_consumes_slack_fraction(
-                        self._schedulability_proof,
-                        observed_latency_ms=self._last_callback_latency_ms,
-                        warning_fraction=self._slack_warning_fraction,
-                    )
+                warning_threshold = CALLBACK_WARNING_THRESHOLD_MS.get(
+                    self._last_callback_name or ""
                 )
-            self._read_evidence(child_id)
+                if warning_threshold is not None:
+                    # send_input has an explicit nominal/hard contract: the
+                    # nominal 250 ms boundary warns, while the separately
+                    # certified 275 ms maximum remains fail-closed.  Equality
+                    # is accepted at both boundaries.
+                    self._slack_warning_active = (
+                        self._last_callback_latency_ms > warning_threshold
+                    )
+                else:
+                    self._slack_warning_active = (
+                        latency_consumes_slack_fraction(
+                            self._schedulability_proof,
+                            observed_latency_ms=self._last_callback_latency_ms,
+                            warning_fraction=self._slack_warning_fraction,
+                        )
+                    )
+            deferred_archive_transition = (
+                self._last_callback_name in {"finalize", "close"}
+                and result.get("phase")
+                in {"waiting-close-complete", "waiting-close-interrupt"}
+            )
+            if deferred_archive_transition:
+                # The adapter has started its single asynchronous archive
+                # request, or close has observed that it is still pending.
+                # Keep the cooperative control turn schedulable and give the
+                # request another poll interval before close verifies the
+                # archived terminal state. Clearing this deadline strands the
+                # nonterminal child and makes the outer blocking wrapper spin
+                # forever with no selectable work.
+                child = self._child_state(child_id)
+                child["last_deadline_ns"] = child["next_deadline_ns"]
+                child["next_deadline_ns"] = (
+                    ended
+                    + self.contract["scheduler"]["poll_interval_ms"]
+                    * 1_000_000
+                )
+            pre_observation_transition = self._last_callback_name in {
+                "arm",
+                "send_input",
+                "mark_dispatched",
+            }
+            if not deferred_archive_transition and not pre_observation_transition:
+                # The terminal check immediately before finalization already
+                # captured child evidence. Avoid racing a session read against
+                # the single controller-owned active-to-archive transition;
+                # close captures the archived terminal state after settlement.
+                self._read_evidence(child_id)
             if self._last_callback_name == "check":
                 if result.get("phase") in {"waiting", "finalize-complete", "interrupt"}:
                     self._record_poll(child_id, ended)
@@ -1563,7 +1676,14 @@ class NativePoolCoordinator:
                     observed_callback_latency_ms=detail.get("observed_callback_latency_ms"),
                     certified_callback_max_ms=detail.get("certified_callback_max_ms"),
                 )
-            if child_id in self._read_only_fast_path_children:
+            if pre_observation_transition:
+                # Initial snapshots and leases are already established. Keep
+                # send-input -> mark-dispatched -> first-check inside the poll
+                # budget, then perform the full workspace comparison at that
+                # first trusted observation. Any worker or external mutation
+                # remains attributable and fail-closed at the check boundary.
+                pass
+            elif child_id in self._read_only_fast_path_children:
                 self._deferred_read_only_workspace_check = True
             else:
                 try:

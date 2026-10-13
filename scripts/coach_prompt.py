@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
+
+from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.coach import coach_orchestration_prompt
 from cwo_core.errors import CWOError
@@ -10,9 +13,37 @@ from cwo_core.util import read_text_arg
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
+def _load_optional_json(path: str | None) -> dict[str, object] | None:
+    if not path:
+        return None
+    value = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise SystemExit(f"{path} must contain a JSON object")
+    return value
+
+
 def print_human(result: dict[str, object]) -> None:
     print(f"Recommended orchestration: {result['recommended_orchestration_level']}")
     print(f"Beads tracking required: {result['beads_tracking_required']}")
+
+    operative = result.get("operative_route") if isinstance(result.get("operative_route"), dict) else {}
+    if operative:
+        print("\nOperative route:")
+        print(f"- Primary model: {operative.get('primary_model')}")
+        print(f"- Spark availability: {operative.get('availability_status')}")
+        print(f"- Selected model: {operative.get('selected_model') or 'none'}")
+        print(f"- Selection source: {operative.get('selection_source') or 'none'}")
+        print(f"- Dispatch authorized: {operative.get('dispatch_authorized')}")
+        if operative.get("stop_reason"):
+            print(f"- Stop reason: {operative.get('stop_reason')}")
+        fallback = operative.get("fallback") if isinstance(operative.get("fallback"), dict) else {}
+        if fallback.get("decision_required"):
+            print(f"- Recommended fallback: {fallback.get('recommended_model') or 'Wait for Spark'}")
+            print(f"- Recommendation reason: {fallback.get('recommendation_reason')}")
+            for candidate in fallback.get("candidates", []):
+                state = "eligible" if candidate.get("eligible") else "excluded"
+                reasons = candidate.get("inclusion_reasons") if candidate.get("eligible") else candidate.get("exclusion_reasons")
+                print(f"  - {candidate.get('model')}: {state}; {', '.join(str(item) for item in reasons or [])}")
 
     print("\nRationale:")
     for item in result.get("rationale", []):  # type: ignore[assignment]
@@ -63,6 +94,14 @@ def print_brief(result: dict[str, object]) -> None:
     print(f"Sensitivity: {route.get('data_sensitivity')}")
     print(f"Sensitivity source: {route.get('data_sensitivity_source')}")
     print(f"Executor: {executor}")
+    operative = result.get("operative_route") if isinstance(result.get("operative_route"), dict) else {}
+    print(f"Operative primary: {operative.get('primary_model')}")
+    print(f"Spark availability: {operative.get('availability_status')}")
+    print(f"Operative selected model: {operative.get('selected_model') or 'none'}")
+    print(f"Operative dispatch authorized: {operative.get('dispatch_authorized')}")
+    fallback = operative.get("fallback") if isinstance(operative.get("fallback"), dict) else {}
+    if fallback.get("decision_required"):
+        print(f"Recommended fallback: {fallback.get('recommended_model') or 'Wait for Spark'}")
     print(f"Beads context depth: {result.get('beads_context_depth')}")
     print(
         "Execution gate: "
@@ -133,8 +172,16 @@ def main() -> None:
         help="Override the autosized Beads context depth for internal Codex/subagent briefing.",
     )
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    parser.add_argument("--operative-capabilities", help="Trusted live operative capability evidence JSON.")
+    parser.add_argument("--operative-work-estimate", help="Validated native work-estimate v2 JSON.")
+    parser.add_argument("--operative-fallback-fit", help="Strict hash-bound fallback-fitness evidence JSON.")
+    parser.add_argument("--fallback-selection", help="Explicit user fallback selection JSON.")
+    parser.add_argument("--operative-context", help="Current Bead/wave/fresh-segment context JSON.")
+    parser.add_argument("--aggregate-budget", help="Original aggregate budget JSON; never reset on fallback.")
+    parser.add_argument("--operative-evaluated-at", help="ISO-8601 routing evaluation time for deterministic automation.")
     parser.add_argument("--brief", action="store_true", help="Print a compact human summary instead of the launch prompt.")
     add_waiver_reason_argument(parser)
+    parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
     args = parser.parse_args()
     require_waiver_reason(args, ["allow_disclosure_escalation"])
 
@@ -157,6 +204,14 @@ def main() -> None:
             model_synthesis=args.model_synthesis,
             scaffold_size=args.scaffold_size,
             beads_context_depth=args.beads_context_depth,
+            operative_capabilities=_load_optional_json(args.operative_capabilities),
+            operative_work_estimate=_load_optional_json(args.operative_work_estimate),
+            operative_fallback_fit=_load_optional_json(args.operative_fallback_fit),
+            fallback_selection=_load_optional_json(args.fallback_selection),
+            operative_context=_load_optional_json(args.operative_context),
+            aggregate_budget=_load_optional_json(args.aggregate_budget),
+            operative_evaluated_at=args.operative_evaluated_at,
+            **current_authority_file_arguments(args.current_authority),
         )
     except CWOError as exc:
         raise SystemExit(str(exc))

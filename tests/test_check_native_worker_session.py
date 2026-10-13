@@ -572,6 +572,96 @@ class CheckNativeWorkerSessionTests(unittest.TestCase):
             self.assertEqual(payload["segments"][0]["full_suite_runs"], 0)
             self.assertEqual(payload["status"], "within-budget")
 
+    def test_parallel_unittest_wrapper_counts_as_one_full_suite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = Path(tmpdir) / "session.jsonl"
+            records = [
+                spark_record("2026-07-10T21:00:00Z", "parallel-suite", "task_started"),
+                spark_record(
+                    "2026-07-10T21:00:10Z",
+                    "parallel-suite",
+                    "assistant",
+                    response_type="function_call",
+                    command=(
+                        "python scripts/run_parallel_unittest.py "
+                        "--workers 8 --verbose"
+                    ),
+                ),
+                spark_record(
+                    "2026-07-10T21:00:20Z",
+                    "parallel-suite",
+                    "task_complete",
+                    turn_tokens={
+                        "input": 2,
+                        "cached_input": 0,
+                        "output": 2,
+                        "reasoning": 0,
+                        "total": 4,
+                    },
+                ),
+            ]
+            write_records(session_file, records)
+            result = run_cli(
+                "--session-id",
+                "parallel-suite",
+                "--requested-model",
+                "gpt-5.3-codex-spark",
+                "--budget-profile",
+                "implementation",
+                "--session-file",
+                str(session_file),
+                "--json",
+            )
+            self.assertEqual(result.returncode, 2, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["segments"][0]["full_suite_runs"], 1)
+            self.assertIn("max_full_suite_runs", payload["hard_stop_reasons"])
+
+    def test_focused_parallel_unittest_wrapper_is_not_a_full_suite(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            session_file = Path(tmpdir) / "session.jsonl"
+            records = [
+                spark_record("2026-07-10T21:00:00Z", "parallel-focused", "task_started"),
+                spark_record(
+                    "2026-07-10T21:00:10Z",
+                    "parallel-focused",
+                    "assistant",
+                    response_type="function_call",
+                    command=(
+                        "python scripts/run_parallel_unittest.py --workers 8 "
+                        "--start-directory focused_tests"
+                    ),
+                ),
+                spark_record(
+                    "2026-07-10T21:00:20Z",
+                    "parallel-focused",
+                    "task_complete",
+                    turn_tokens={
+                        "input": 2,
+                        "cached_input": 0,
+                        "output": 2,
+                        "reasoning": 0,
+                        "total": 4,
+                    },
+                ),
+            ]
+            write_records(session_file, records)
+            result = run_cli(
+                "--session-id",
+                "parallel-focused",
+                "--requested-model",
+                "gpt-5.3-codex-spark",
+                "--budget-profile",
+                "implementation",
+                "--session-file",
+                str(session_file),
+                "--json",
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["segments"][0]["full_suite_runs"], 0)
+            self.assertEqual(payload["status"], "within-budget")
+
     def test_full_suite_command_with_json_argument_is_counted(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             session_file = Path(tmpdir) / "session.jsonl"

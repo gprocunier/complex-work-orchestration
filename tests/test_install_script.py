@@ -88,6 +88,23 @@ class InstallScriptTests(unittest.TestCase):
             self.assertFalse((skills_dir / "complex-work-orchestration").exists())
             self.assertIn("Would create staging install", dry_run.stdout)
 
+    def test_install_dry_run_uses_lexical_backup_for_missing_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            parent = Path(tmpdir) / "missing parent"
+            skills_dir = parent / "skills"
+            result = self.run_installer("--skills-dir", str(skills_dir), "--yes", "--dry-run")
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            self.assertIn(f"Backup directory: {parent / 'skill-backups'}", result.stdout)
+            self.assertFalse(parent.exists())
+
+    def test_installer_copies_public_security_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            skills_dir = Path(tmpdir) / "skills"
+            result = self.run_installer("--skills-dir", str(skills_dir), "--yes")
+            self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+            target = skills_dir / "complex-work-orchestration" / "SECURITY.md"
+            self.assertEqual(target.read_bytes(), (ROOT / "SECURITY.md").read_bytes())
+
     def test_installer_copies_calibration_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             skills_dir = Path(tmpdir) / "skills"

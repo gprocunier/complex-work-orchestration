@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from .policy import executor_config, load_policy, provider_profile
+from .policy import executor_config, load_policy, local_v2_critic_eligible, provider_profile
 from .return_boundary import (
     is_merge_readiness_go_claim,
     is_packet_only_declared,
@@ -443,6 +443,15 @@ def make_acceptance_decision(
     local_reasoning_malformed: bool = False,
     local_completion_status: str | None = None,
     local_usable_final_content: bool | None = None,
+    local_expected_response_contract: str | None = None,
+    local_response_contract: str | None = None,
+    local_response_contract_status: str | None = None,
+    local_normalized_return_matches: bool | None = None,
+    local_v2_frame_valid: bool | None = None,
+    local_v2_identity_consistent: bool | None = None,
+    local_response_model_status: str | None = None,
+    local_model_preflight_status: str | None = None,
+    local_http_status: int | None = None,
 ) -> AcceptanceDecision:
     policy = load_policy("acceptance-policy")
     provenance = return_provenance(
@@ -503,6 +512,26 @@ def make_acceptance_decision(
         or (local_completion_status is not None and local_completion_status != "completed")
         or local_usable_final_content is False
     )
+    if local_v2_frame_valid is True and (
+        local_response_truncated_by_length or local_reasoning_malformed
+    ):
+        local_v2_frame_valid = False
+    local_v2_eligible = local_v2_critic_eligible(
+        executor=executor,
+        expected_contract=local_expected_response_contract,
+        response_contract=local_response_contract,
+        contract_status=local_response_contract_status,
+        completion_status=local_completion_status,
+        usable_final_content=local_usable_final_content,
+        normalized_return_matches=local_normalized_return_matches,
+        frame_valid=local_v2_frame_valid,
+        identity_consistent=local_v2_identity_consistent,
+        response_model_status=local_response_model_status,
+        model_preflight_status=local_model_preflight_status,
+        http_status=local_http_status,
+    )
+    if local_v2_eligible is False:
+        hard_disqualifiers.append("unusable GLM critic v2 dispatch evidence")
 
     if local_response_truncated_by_length:
         penalty_reasons.append("local response truncation detected; requires confirmation of completeness")
@@ -655,7 +684,7 @@ def make_acceptance_decision(
     score = max(0, min(100, score))
     escalation = re.search(r"^\s*Escalation needed\s*:\s*(yes|true|required)", text, re.I | re.M)
     thresholds = policy.get("score", {}).get("thresholds", {})
-    if sabotage["quarantine_recommended"] or workspace_quarantine:
+    if sabotage["quarantine_recommended"] or workspace_quarantine or local_v2_eligible is False:
         verdict = "quarantine"
     elif hard_disqualifiers:
         verdict = "reject"
@@ -794,7 +823,17 @@ def make_acceptance_decision(
         "recommended_synthesis_use": recommended_synthesis_use,
         "local_completion_status": local_completion_status,
         "local_usable_final_content": local_usable_final_content,
-        "quarantine_recommended": bool(sabotage["quarantine_recommended"] or workspace_quarantine),
+        "local_expected_response_contract": local_expected_response_contract,
+        "local_response_contract": local_response_contract,
+        "local_response_contract_status": local_response_contract_status,
+        "local_normalized_return_matches": local_normalized_return_matches,
+        "local_v2_frame_valid": local_v2_frame_valid,
+        "local_v2_identity_consistent": local_v2_identity_consistent,
+        "local_response_model_status": local_response_model_status,
+        "local_model_preflight_status": local_model_preflight_status,
+        "local_http_status": local_http_status,
+        "local_v2_critic_eligible": local_v2_eligible,
+        "quarantine_recommended": bool(sabotage["quarantine_recommended"] or workspace_quarantine or local_v2_eligible is False),
         "escalation_flagged": bool(escalation),
         "architect_review_required": True,
         "sections": sections,

@@ -40,8 +40,13 @@ Rules:
 Before handoff, run:
 
 ```bash
-python -m compileall .
+python -m compileall -j 8 -x '(^|/)(\.git|\.beads|\.orchestration-audit|__pycache__|\.ruff_cache)(/|$)' .
 python scripts/validate_repository.py
-python -m unittest discover -s tests -v
+python scripts/run_parallel_unittest.py --workers 8 --verbose
 ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run
 ```
+
+The fixed fanout of eight is temporary. Keep Beads, journals, reducers,
+promotion, model dispatch, and other stateful operations serial. Follow-up Bead
+`complex-work-orchestration-p4vg.95` owns topology-aware and duration-balanced
+batching.

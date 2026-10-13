@@ -1,5 +1,28 @@
 # Native Supervision Pools
 
+## Threat Model And Claim Boundaries
+
+Assets are worker-session identities, nonces, control turns, state files,
+worktree paths, budgets, capability evidence, and the audit journal. The
+trusted host/control plane is the authority; workers, packet inputs, adapters,
+and same-user processes are potentially hostile inputs. The trust boundary is
+the host process and its verifier/ledger versus those inputs.
+
+Admission, exact attestation, capability consumption, containment callbacks,
+and path/workspace checks constrain input-to-effect paths. The append-only
+journal is tamper-evident against ordinary append-path or post-write editing
+that does not control its storage owner or hash-chain inputs. It does not
+protect against a privileged same-user writer, a compromised host/control
+plane, or deletion of the evidence store. Immutable wording applies only to
+the frozen contract and binding semantics after rendering; it is not a claim
+that the underlying filesystem or a privileged operator is immutable.
+
+Capability tokens are process-local authority and are not portable RBAC
+credentials. Model agreement, receipts, and consensus are evidence for review,
+not authorization or proof. Suspected disclosure or boundary failure follows
+the repository [security policy](../SECURITY.md), with the affected evidence
+preserved and architect/operator adjudication recorded before remediation.
+
 ## What This Is
 
 This reference is for operators deciding whether to use CWO's concurrent native
@@ -37,8 +60,35 @@ The public contract is deliberately small:
   evidence are immutable after contract rendering.
 - The operative ceiling is read from
   `native_supervision_pool.capacity.released_max_active_workers`. Increasing it
-  requires an explicit operator activation; structural support alone is not
+  requires an explicit operator activation; structural support alone is not an
   operative release.
+
+## Readiness-first transaction launcher
+
+Use `scripts/run_admitted_native_pool_transaction.py` for productive N=1, N=2,
+or N=3 launch composition. The launcher accepts one hash-sealed transaction
+plan and one hash-bound runtime adapter. It reserves the whole transaction's
+session budget before any native start, records allocation intent before every
+session creation, validates each live release dependency against the bounded
+remaining startup path, and permits a zero-model refresh through the supplied
+authorized issuer when the horizon is too short.
+
+All worker sessions are allocated, exactly attested, bound to their immutable
+workspaces, and armed before the launcher calls `run_admitted_native_pool`.
+Native claims and session creation remain sequential; the guarantee is
+effect-atomicity, not unsupported database atomicity: no productive worker turn
+is sent unless the complete cohort is ready. The runtime adapter supplies host
+transport and containment callbacks but cannot replace the admitted-pool
+entrypoint.
+
+The readiness record hashes an execution-authoritative Bead projection: issue
+identity, status/assignee, parent and dependencies, acceptance criteria, labels,
+and declared execution scope. Comments and display-only update history remain
+provenance and do not invalidate a ready transaction. The append-only journal
+hash-chains budget reservation, allocation identities, state transitions,
+containment, and terminal disposition. A first session-consuming infrastructure
+failure permits only the separately authorized diagnosed retry; a second opens
+the spending fuse even if unused budget remains.
 
 See [Pool Capacity Naming Migration](native-pool-capacity-migration.md) for the
 canonical field inventory and the bounded historical-read compatibility window.

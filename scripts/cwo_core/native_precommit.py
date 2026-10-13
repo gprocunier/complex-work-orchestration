@@ -7,6 +7,7 @@ import json
 import os
 import re
 import stat
+import threading
 import uuid
 from contextlib import contextmanager
 from pathlib import Path
@@ -81,6 +82,10 @@ FIT_ALLOWANCE_METADATA_FIELDS = (
 )
 COMPLETION_ACTIONS = {"worker-completed", "interrupt-confirmed", "close-confirmed", "control-failed"}
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
+FIT_SEMANTIC_TEXT_MAX_CHARS = 1000
+FIT_ACCEPTANCE_CHECKS_MAX_ITEMS = 6
+FIT_ABSOLUTE_PATH_RE = re.compile(r"(?:^|\s)(?:/[^\s]+|[A-Za-z]:[\\/][^\s]+)")
+FIT_COMMAND_FRAGMENT_RE = re.compile(r"(?:```|`|\$\(|&&|\|\||;\s*(?:sudo|sh|bash|python\d*|git)\b)")
 
 STATE_FIELDS = {
     "state_type",
@@ -100,6 +105,7 @@ STATE_FIELDS = {
     "attested_model",
     "attestation_source",
     "work_plan_sha256",
+    "operative_routing_sha256",
     "fit_prompt",
     "fit_prompt_sha256",
     "workdir",
@@ -155,6 +161,7 @@ RECEIPT_FIELDS = {
     "control_turn_id",
     "submission_id",
     "work_plan_sha256",
+    "operative_routing_sha256",
     "fit_prompt_sha256",
     "workspace_baseline",
     "baseline",
@@ -267,6 +274,19 @@ def _require_hash(value: Any, field: str) -> str:
     return text
 
 
+def _require_fit_semantic_text(value: Any, field: str) -> str:
+    text = _require_string(value, field)
+    if len(text) > FIT_SEMANTIC_TEXT_MAX_CHARS:
+        raise ValueError(f"{field} exceeds the bounded semantic-text limit")
+    if any(ord(character) < 32 or ord(character) == 127 for character in text):
+        raise ValueError(f"{field} must be a single-line printable string")
+    if FIT_ABSOLUTE_PATH_RE.search(text) is not None:
+        raise ValueError(f"{field} must not contain an absolute path")
+    if FIT_COMMAND_FRAGMENT_RE.search(text) is not None:
+        raise ValueError(f"{field} must not contain code or command fragments")
+    return text
+
+
 def _require_exact_fields(value: Any, fields: set[str], field: str) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError(f"{field} must be an object")
@@ -299,6 +319,8 @@ def _policy() -> dict[str, Any]:
         "operative_dispatch_authorized",
         "release_requires",
         "control_topology",
+        "authorized_models",
+        "fallback_requires_operative_routing",
     }
     source = _require_exact_fields(value, required, "precommit_supervision policy")
     expected = {
@@ -312,10 +334,15 @@ def _policy() -> dict[str, Any]:
         "operative_dispatch_authorized": False,
         "release_requires": "complex-work-orchestration-fsh.3",
         "control_topology": "single-host-process-v1",
+        "fallback_requires_operative_routing": True,
     }
     for field, expected_value in expected.items():
         if source.get(field) != expected_value:
             raise ValueError(f"precommit_supervision.{field} must equal {expected_value!r}")
+    authorized_models = source.get("authorized_models")
+    governance_models = load_policy("native-worker-execution").get("governance", {}).get("native_operative_worker", {}).get("authorized_models")
+    if authorized_models != governance_models or not isinstance(authorized_models, list) or REQUIRED_MODEL not in authorized_models:
+        raise ValueError("precommit_supervision.authorized_models must match native operative governance")
     for field, minimum in (
         ("poll_interval_ms", 100),
         ("poll_lag_tolerance_ms", 0),
@@ -330,6 +357,24 @@ def _policy() -> dict[str, Any]:
 def render_fit_prompt(work_plan: Mapping[str, Any]) -> str:
     plan = dict(work_plan)
     task_class = _require_string(plan.get("task_class"), "work_plan.task_class")
+    primary_outcome = _require_fit_semantic_text(
+        plan.get("primary_outcome"),
+        "work_plan.primary_outcome",
+    )
+    raw_acceptance_checks = plan.get("acceptance_checks")
+    if (
+        not isinstance(raw_acceptance_checks, list)
+        or not raw_acceptance_checks
+        or len(raw_acceptance_checks) > FIT_ACCEPTANCE_CHECKS_MAX_ITEMS
+    ):
+        raise ValueError(
+            "work_plan.acceptance_checks must contain one through "
+            f"{FIT_ACCEPTANCE_CHECKS_MAX_ITEMS} bounded semantic strings"
+        )
+    acceptance_checks = [
+        _require_fit_semantic_text(value, f"work_plan.acceptance_checks[{index}]")
+        for index, value in enumerate(raw_acceptance_checks)
+    ]
     work_sizing = load_policy("native-worker-execution").get("work_sizing")
     if not isinstance(work_sizing, Mapping):
         raise ValueError("native worker work_sizing policy is missing")
@@ -367,13 +412,20 @@ def render_fit_prompt(work_plan: Mapping[str, Any]) -> str:
         raise ValueError("work_plan.aggregate_allowance is missing required numeric hard limits")
     payload = {
         "request_type": "cwo-native-worker-fit-request",
-        "version": 2,
+        "version": 3,
         "work_plan_sha256": canonical_sha256(plan),
         "task_class": task_class,
+        "primary_outcome": primary_outcome,
+        "acceptance_checks": acceptance_checks,
         "complexity_dimensions": dimensions,
         "aggregate_allowance": allowance,
         "decision_vocabulary": list(FIT_DECISIONS),
         "required_numeric_fields": list(FIT_ESTIMATE_FIELDS),
+        "required_numeric_minimum": 1,
+        "self_contained": True,
+        "context_policy": "do-not-read-memory-skills-files-or-other-context",
+        "tool_policy": "do-not-use-tools",
+        "response_policy": "return-exactly-one-json-object-with-no-commentary",
     }
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True) + "\n"
 
@@ -552,17 +604,38 @@ def _registry_root() -> Path:
     return path.resolve()
 
 
-@contextmanager
-def _registry_lock() -> Iterator[Path]:
-    root = _registry_root()
-    lock_path = root / "registry.lock"
-    with lock_path.open("a+", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        try:
-            yield root
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+_REGISTRY_CONTEXT = threading.local()
 
+
+@contextmanager
+def _registration_guard():
+    if getattr(_REGISTRY_CONTEXT, 'registration', None) is not None or getattr(_REGISTRY_CONTEXT, 'locked', False):
+        raise ValueError('reentrant precommit registry mutation')
+    token = object()
+    _REGISTRY_CONTEXT.registration = token
+    try:
+        yield token
+    finally:
+        _REGISTRY_CONTEXT.registration = None
+
+
+@contextmanager
+def _registry_lock(*, registration_token=None) -> Iterator[Path]:
+    active = getattr(_REGISTRY_CONTEXT, 'registration', None)
+    if getattr(_REGISTRY_CONTEXT, 'locked', False) or (active is not None and registration_token is not active):
+        raise ValueError('reentrant precommit registry mutation')
+    _REGISTRY_CONTEXT.locked = True
+    try:
+        root = _registry_root()
+        lock_path = root / "registry.lock"
+        with lock_path.open("a+", encoding="utf-8") as handle:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield root
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    finally:
+        _REGISTRY_CONTEXT.locked = False
 
 def _load_json_default(path: Path, default: Any) -> Any:
     if not path.exists():
@@ -682,8 +755,24 @@ def _terminal_state_file(path_value: str) -> bool:
     return state.get("status") == FINAL_STATE
 
 
-def _register_identity_and_lease(state: Mapping[str, Any]) -> None:
-    with _registry_lock() as root:
+def _register_identity_and_lease(state: Mapping[str, Any], *, maintenance_operation=None, maintenance_verifier=None) -> None:
+    with _registration_guard() as token:
+        _register_identity_and_lease_guarded(state, maintenance_operation=maintenance_operation,
+            maintenance_verifier=maintenance_verifier, registration_token=token)
+
+
+def _register_identity_and_lease_guarded(state: Mapping[str, Any], *, maintenance_operation=None, maintenance_verifier=None, registration_token=None) -> None:
+    maintenance_cap = None
+    if maintenance_operation is not None or maintenance_verifier is not None:
+        from .maintenance_authority import require_maintenance_operation
+        maintenance_cap = require_maintenance_operation(maintenance_operation, verifier=maintenance_verifier)
+        operation = maintenance_cap.evidence()['operation']
+        bound = maintenance_cap.bound_plan()
+        if (operation['workspace'] != state['workdir'] or operation['model'] != state['requested_model']
+                or len(bound.get('children', [])) != 1 or bound['children'][0]['bead_id'] != state['bead_id']
+                or bound['children'][0]['work_plan_sha256'] != state['work_plan_sha256']):
+            raise ValueError('maintenance precommit scope/plan mismatch')
+    with _registry_lock(registration_token=registration_token) as root:
         identities_path = root / "identities.json"
         leases_path = root / "leases.json"
         identities = _load_json_default(identities_path, {"packet_ids": [], "attempt_nonces": []})
@@ -709,7 +798,16 @@ def _register_identity_and_lease(state: Mapping[str, Any]) -> None:
             if not alive and terminal:
                 continue
             if not alive and not terminal:
-                raise ValueError("stale precommit lease owner is dead but recorded state is non-terminal")
+                if (maintenance_cap is None or not isinstance(entry.get('session_file'), str) or not Path(entry['session_file']).is_absolute()
+                        or Path(entry['session_file']).resolve() == Path(state['session_file']).resolve()
+                        or not isinstance(entry.get('workdir'), str) or not Path(entry['workdir']).is_absolute()
+                        or _paths_overlap(entry['workdir'], state['workdir'])):
+                    raise ValueError("stale precommit lease owner is dead but recorded state is non-terminal")
+                # Explicit maintenance permits independently fenced, disjoint
+                # work. Retain the UNKNOWN old lease and consumed identities;
+                # do not reclaim it or silently reset the registry.
+                retained.append(entry)
+                continue
             retained.append(entry)
             if terminal:
                 continue
@@ -717,6 +815,8 @@ def _register_identity_and_lease(state: Mapping[str, Any]) -> None:
                 raise ValueError("duplicate active precommit session")
             if _paths_overlap(str(entry.get("workdir")), str(state["workdir"])):
                 raise ValueError("overlapping active precommit worktree lease")
+        if maintenance_cap is not None:
+            maintenance_cap.revalidate()  # Last observer precedes registry effects.
         retained.append(
             {
                 "state_id": state["state_id"],
@@ -765,8 +865,11 @@ def _reservation_owner_is_current(identity: Any) -> bool:
     return owner["pid"] == os.getpid() and _owner_identity_matches(owner)
 
 
-def reserve_precommit_receipt(receipt: Mapping[str, Any], packet_build_id: str) -> str:
-    receipt_errors = validate_precommit_receipt(receipt, require_accepting=True)
+def reserve_precommit_receipt(receipt: Mapping[str, Any], packet_build_id: str,
+    *,
+    current_authority: Any = None,
+) -> str:
+    receipt_errors = validate_precommit_receipt(receipt, require_accepting=True, current_authority=current_authority)
     if receipt_errors:
         raise ValueError("invalid precommit receipt reservation: " + "; ".join(receipt_errors))
     receipt_sha256 = _require_hash(receipt.get("receipt_sha256"), "receipt_sha256")
@@ -861,8 +964,11 @@ def release_precommit_receipt_reservation(receipt: Mapping[str, Any], reservatio
         _registry_write(path, reservations)
 
 
-def consume_precommit_receipt(receipt: Mapping[str, Any]) -> None:
-    reservation_id = reserve_precommit_receipt(receipt, f"legacy-consume-{uuid.uuid4().hex}")
+def consume_precommit_receipt(receipt: Mapping[str, Any],
+    *,
+    current_authority: Any = None,
+) -> None:
+    reservation_id = reserve_precommit_receipt(receipt, f"legacy-consume-{uuid.uuid4().hex}", current_authority=current_authority)
     commit_precommit_receipt_reservation(receipt, reservation_id, canonical_sha256(dict(receipt)))
 
 
@@ -1036,6 +1142,7 @@ def create_precommit_state(
     session_file: str | Path,
     agent_id: str,
     workdir: str | Path,
+    operative_routing: Mapping[str, Any] | None = None,
     state_file: str | Path | None = None,
     attempt_nonce: str | None = None,
     owner_pid: int | None = None,
@@ -1043,19 +1150,52 @@ def create_precommit_state(
     requested_model: str = REQUIRED_MODEL,
     audit_file: str | Path | None = None,
     now: str | None = None,
+    current_authority: Any = None,
+    maintenance_operation=None,
+    maintenance_verifier=None,
 ) -> dict[str, Any]:
     policy = _policy()
     packet_id = _require_string(packet_id, "packet_id")
     session_id = _require_string(session_id, "session_id")
     agent_id = _require_string(agent_id, "agent_id")
     requested_model = _require_string(requested_model, "requested_model")
-    if requested_model != policy["required_model"]:
-        raise ValueError("precommit requested model must exactly match policy required_model")
+    if requested_model not in policy["authorized_models"]:
+        raise ValueError("precommit requested model must be authorized by native operative policy")
     plan = dict(work_plan)
     work_unit_id = _require_string(plan.get("work_unit_id"), "work_plan.work_unit_id")
     bead_id = _require_string(plan.get("bead_id"), "work_plan.bead_id")
     if plan.get("requested_model") != requested_model:
         raise ValueError("work plan requested_model does not match precommit requested model")
+    routing_sha256: str | None = None
+    if requested_model != REQUIRED_MODEL:
+        # Local import preserves the native_precommit -> work_sizing dependency
+        # boundary while still validating the final route at this decision site.
+        from .operative_routing import validate_operative_route_for_model
+
+        routing_errors = validate_operative_route_for_model(
+            operative_routing,
+            requested_model,
+            work_estimate=plan,
+            current_authority=current_authority,
+        )
+        if routing_errors:
+            raise ValueError(
+                "fallback precommit requires valid operative routing: "
+                + "; ".join(routing_errors)
+            )
+        routing_sha256 = canonical_sha256(dict(operative_routing or {}))
+    elif operative_routing is not None:
+        from .operative_routing import validate_operative_route_for_model
+
+        routing_errors = validate_operative_route_for_model(
+            operative_routing,
+            requested_model,
+            work_estimate=plan,
+            current_authority=current_authority,
+        )
+        if routing_errors:
+            raise ValueError("Spark precommit operative routing is invalid: " + "; ".join(routing_errors))
+        routing_sha256 = canonical_sha256(dict(operative_routing))
     prompt = render_fit_prompt(plan)
     session_path = _secure_input_file(session_file, "session file")
     workspace = Path(workdir).expanduser().resolve()
@@ -1094,6 +1234,7 @@ def create_precommit_state(
         "attested_model": requested_model,
         "attestation_source": TRUSTED_ATTESTATION_SOURCE,
         "work_plan_sha256": canonical_sha256(plan),
+        "operative_routing_sha256": routing_sha256,
         "fit_prompt": prompt,
         "fit_prompt_sha256": _text_sha256(prompt),
         "workdir": str(workspace),
@@ -1153,7 +1294,7 @@ def create_precommit_state(
         if locked_path.exists() or _state_sidecar(locked_path).exists():
             raise ValueError("precommit state artifact already exists")
         state["workspace_baseline"] = _workspace_artifact(locked_path, packet_id, workspace)
-        _register_identity_and_lease(state)
+        _register_identity_and_lease(state, maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
         _audit(state, "native_precommit_created")
         _write_state(locked_path, state)
     result = dict(state)
@@ -1372,6 +1513,7 @@ def _token_telemetry(baseline: Mapping[str, Any], terminal: Mapping[str, Any]) -
 def _expected_accepting(receipt: Mapping[str, Any]) -> bool:
     observed = receipt.get("observed") if isinstance(receipt.get("observed"), Mapping) else {}
     polling = receipt.get("polling") if isinstance(receipt.get("polling"), Mapping) else {}
+    fit_result = receipt.get("fit_result") if isinstance(receipt.get("fit_result"), Mapping) else {}
     actions = [item.get("action") for item in receipt.get("control_receipts", []) if isinstance(item, Mapping)]
     deterministic = receipt.get("submission_id") == "deterministic-policy"
     controls = {"arm", "worker-completed", "close-confirmed"}
@@ -1380,7 +1522,9 @@ def _expected_accepting(receipt: Mapping[str, Any]) -> bool:
     return (
         receipt.get("closure_outcome") == "completed"
         and receipt.get("semantic_status") == "valid"
-        and receipt.get("attested_model") == receipt.get("requested_model") == REQUIRED_MODEL
+        and fit_result.get("decision") == "accept"
+        and receipt.get("attested_model") == receipt.get("requested_model")
+        and receipt.get("requested_model") in _policy()["authorized_models"]
         and receipt.get("attestation_source") == TRUSTED_ATTESTATION_SOURCE
         and observed.get("function_calls") == 0
         and observed.get("custom_tool_calls") == 0
@@ -1398,11 +1542,12 @@ def issue_precommit_receipt(
     state_file: str | Path,
     *,
     receipt_file: str | Path | None = None,
+    current_authority: Any = None,
 ) -> dict[str, Any]:
     with _state_lock(state_file) as state_path:
         _, state = _load_state_unlocked(state_path)
         _require_live_owner_identity(state)
-        return _issue_precommit_receipt_locked(state_path, state, receipt_file=receipt_file)
+        return _issue_precommit_receipt_locked(state_path, state, receipt_file=receipt_file, current_authority=current_authority)
 
 
 def _issue_precommit_receipt_locked(
@@ -1410,6 +1555,7 @@ def _issue_precommit_receipt_locked(
     state: dict[str, Any],
     *,
     receipt_file: str | Path | None = None,
+    current_authority: Any = None,
 ) -> dict[str, Any]:
     if state["status"] != FINAL_STATE:
         raise ValueError("precommit receipt requires a closed state")
@@ -1447,6 +1593,7 @@ def _issue_precommit_receipt_locked(
         "control_turn_id": state["control_turn_id"],
         "submission_id": state["submission_id"],
         "work_plan_sha256": state["work_plan_sha256"],
+        "operative_routing_sha256": state["operative_routing_sha256"],
         "fit_prompt_sha256": state["fit_prompt_sha256"],
         "workspace_baseline": dict(state["workspace_baseline"]),
         "baseline": dict(state["baseline"]),
@@ -1474,7 +1621,7 @@ def _issue_precommit_receipt_locked(
     if not receipt["accepting"] and receipt["disposition"] == "accept":
         receipt["disposition"] = "reject"
     receipt["receipt_sha256"] = canonical_sha256({key: value for key, value in receipt.items() if key != "receipt_sha256"})
-    errors = validate_precommit_receipt(receipt)
+    errors = validate_precommit_receipt(receipt, current_authority=current_authority)
     if errors:
         raise ValueError("invalid precommit receipt: " + "; ".join(errors))
     target = _secure_output_path(receipt_file, packet_id=state["packet_id"], purpose="receipt")
@@ -1631,6 +1778,12 @@ def validate_precommit_state(value: Any) -> list[str]:
         ):
             _require_string(state.get(field), field)
         _require_hash(state.get("work_plan_sha256"), "work_plan_sha256")
+        routing_sha = state.get("operative_routing_sha256")
+        if state.get("requested_model") == REQUIRED_MODEL:
+            if routing_sha is not None:
+                _require_hash(routing_sha, "operative_routing_sha256")
+        else:
+            _require_hash(routing_sha, "fallback operative_routing_sha256")
         _require_hash(state.get("fit_prompt_sha256"), "fit_prompt_sha256")
         owner_identity = _validate_owner_identity_shape(state.get("owner_identity"))
         if state.get("owner_pid") != owner_identity["pid"]:
@@ -1696,19 +1849,20 @@ def _validate_fit_against_plan(receipt: Mapping[str, Any], work_plan: Mapping[st
     estimates = fit_result.get("estimates")
     if not isinstance(estimates, Mapping):
         raise ValueError("receipt fit estimates are missing")
-    if estimates.get("tool_calls_p90", 0) > allowance.get("tool_calls_hard", -1):
-        raise ValueError("receipt fit tool_calls_p90 exceeds aggregate hard allowance")
-    if estimates.get("runtime_seconds_p90", 0) > allowance.get("runtime_seconds_hard", -1):
-        raise ValueError("receipt fit runtime_seconds_p90 exceeds aggregate hard allowance")
+    # The fit model's numeric estimates are advisory.  Admission binds the
+    # operative commitment to the deterministically accepted work plan, whose
+    # actual hard allowances remain controller- and supervisor-enforced.
 
 
 def validate_precommit_receipt(
     value: Any,
     work_plan: Mapping[str, Any] | None = None,
     *,
+    operative_routing: Mapping[str, Any] | None = None,
     expected_packet_id: str | None = None,
     live: bool = False,
     require_accepting: bool = False,
+    current_authority: Any = None,
 ) -> list[str]:
     errors: list[str] = []
     try:
@@ -1742,6 +1896,28 @@ def validate_precommit_receipt(
             _require_string(receipt.get(field), field)
         for field in ("state_sha256", "work_plan_sha256", "fit_prompt_sha256", "final_response_sha256", "receipt_sha256"):
             _require_hash(receipt.get(field), field)
+        routing_sha = receipt.get("operative_routing_sha256")
+        if receipt.get("requested_model") == REQUIRED_MODEL:
+            if routing_sha is not None:
+                _require_hash(routing_sha, "operative_routing_sha256")
+        else:
+            _require_hash(routing_sha, "fallback operative_routing_sha256")
+            if operative_routing is not None:
+                from .operative_routing import validate_operative_route_for_model
+
+                route_errors = validate_operative_route_for_model(
+                    operative_routing,
+                    str(receipt.get("requested_model") or ""),
+                    work_estimate=work_plan,
+                    current_authority=current_authority,
+                )
+                if route_errors:
+                    raise ValueError(
+                        "precommit receipt operative routing is invalid: "
+                        + "; ".join(route_errors)
+                    )
+                if routing_sha != canonical_sha256(dict(operative_routing)):
+                    raise ValueError("precommit receipt operative_routing_sha256 does not match route")
         owner_identity = _validate_owner_identity_shape(receipt.get("owner_identity"))
         if receipt.get("control_execution_handle") != owner_identity["execution_handle"]:
             raise ValueError("receipt control_execution_handle contradicts owner identity")
@@ -1787,8 +1963,8 @@ def validate_precommit_receipt(
             raise ValueError("precommit receipt provenance is invalid")
         if expected_packet_id is not None and receipt["packet_id"] != expected_packet_id:
             raise ValueError("precommit receipt packet_id does not match preallocated packet_id")
-        if receipt["requested_model"] != REQUIRED_MODEL or receipt["attested_model"] != REQUIRED_MODEL:
-            raise ValueError("precommit receipt does not bind exact Spark model attestation")
+        if receipt["requested_model"] not in _policy()["authorized_models"] or receipt["attested_model"] != receipt["requested_model"]:
+            raise ValueError("precommit receipt does not bind an exact authorized model attestation")
         if receipt["attestation_source"] != TRUSTED_ATTESTATION_SOURCE:
             raise ValueError("precommit receipt attestation source is not trusted control-plane metadata")
         if receipt.get("accepting") is not _expected_accepting(receipt):
@@ -1822,6 +1998,7 @@ def validate_precommit_receipt(
                 "control_topology",
                 "owner_identity",
                 "submission_id",
+                "operative_routing_sha256",
             ):
                 if state.get(field) != receipt.get(field):
                     raise ValueError(f"receipt {field} no longer matches bound state")
@@ -1847,6 +2024,7 @@ def make_deterministic_receipt(
     session_file: str | Path,
     agent_id: str,
     workdir: str | Path,
+    operative_routing: Mapping[str, Any] | None = None,
     fit_result: Mapping[str, Any],
     control_turn_id: str,
     state_file: str | Path | None = None,
@@ -1856,6 +2034,8 @@ def make_deterministic_receipt(
     control_execution_handle: str | None = None,
     audit_file: str | Path | None = None,
     now: str | None = None,
+    current_authority: Any = None,
+    requested_model: str | None = None,
 ) -> dict[str, Any]:
     flat = {"decision": fit_result.get("decision")}
     estimates = fit_result.get("estimates")
@@ -1865,17 +2045,20 @@ def make_deterministic_receipt(
     normalized = parse_fit_result(json.dumps(flat, sort_keys=True))
     state_result = create_precommit_state(
         packet_id=packet_id,
+        requested_model=requested_model or str(work_plan.get("requested_model") or REQUIRED_MODEL),
         work_plan=work_plan,
         session_id=session_id,
         session_file=session_file,
         agent_id=agent_id,
         workdir=workdir,
+        operative_routing=operative_routing,
         state_file=state_file,
         attempt_nonce=attempt_nonce,
         owner_pid=owner_pid,
         control_execution_handle=control_execution_handle,
         audit_file=audit_file,
         now=now,
+        current_authority=current_authority,
     )
     with _state_lock(state_result["state_file"]) as state_path:
         _, state = _load_state_unlocked(state_path)
@@ -1902,14 +2085,16 @@ def make_deterministic_receipt(
         _audit(state, "native_precommit_deterministic_closed")
         _write_state(state_path, state)
         _update_lease_state(state)
-    receipt = issue_precommit_receipt(state_path, receipt_file=receipt_file)
+    receipt = issue_precommit_receipt(state_path, receipt_file=receipt_file, current_authority=current_authority)
     payload = {key: value for key, value in receipt.items() if key != "receipt_file"}
     errors = validate_precommit_receipt(
         payload,
         work_plan,
+        operative_routing=operative_routing,
         expected_packet_id=packet_id,
         live=True,
         require_accepting=True,
+        current_authority=current_authority,
     )
     if errors:
         raise ValueError("invalid deterministic precommit receipt: " + "; ".join(errors))

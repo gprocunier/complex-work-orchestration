@@ -139,8 +139,70 @@ profile remains unchanged.
 
 Spark dispatch is native-only. Use native subagents for Spark work and assert
 model attestation from trusted control-plane/session metadata, never from model
-self-report. Hard-stop if actual model attestation is missing or not
-`gpt-5.3-codex-spark`; do not substitute Sol or another model.
+self-report. A Spark packet hard-stops if actual model attestation is missing or
+not `gpt-5.3-codex-spark`; do not reinterpret that mismatch as fallback
+authority.
+
+At the start of each fresh operative segment, supply trusted live capability
+evidence and resolve the operative route separately from critic and peer-review
+routing:
+
+```bash
+python3 scripts/route_work.py \
+  --execution-environment connected-codex \
+  --operative-capabilities "<trusted-capabilities.json>" \
+  --operative-work-estimate "<validated-work-estimate-v2.json>" \
+  --operative-fallback-fit "<strict-fallback-fit.json>" \
+  --operative-context "<bead-wave-context.json>" \
+  --aggregate-budget "<aggregate-budget.json>" \
+  --json \
+  "<task text>"
+```
+
+Fresh evidence must establish the exact Spark model, usable quota and capacity,
+fresh-session and exact-attestation support, interrupt/close/wait controls, and
+workspace and mutation enforcement. Missing or ambiguous telemetry is
+`unknown`, not quota exhaustion. Model mismatch, control fault, contradictory
+validation, security fault, and unattributed mutation are protected stops.
+
+Only `verified-quota-exhausted` and `verified-capacity-unavailable` allow the
+coach to offer live approved operative candidates plus **Wait for Spark**. The
+strict fallback-fit artifact is deterministically rebuilt from the validated
+work estimate, cache or same-lineage telemetry profile, current context, live
+capabilities, policy, risk, sensitivity, and unchanged aggregate budget. Its
+hashes make stale or changed inputs fail closed.
+
+The recommendation order is evidence-bound: GPT-5.5 is first only for proved
+substantial cache-heavy work with independent quota or cached-input accounting,
+headroom, and budget; Terra is preferred for other non-Luna-shaped work; Luna
+is preferred for deterministic narrow or repeatable-high-volume work. Luna may
+remain the last live fallback for other work only with a degraded-task-fit
+warning and acknowledgement. No current availability or price advantage is
+inferred from a model name or policy declaration.
+
+The coach never selects a fallback automatically. After the user explicitly
+chooses any displayed eligible candidate and a scope, record a version-2
+selection JSON with `selection_source=user-explicit-fallback`, exact model and
+executor, reason, `current-bead`, `current-wave`, or `until-spark-restored`
+scope, matching Bead or wave identifier where required, `selected_at`, actor,
+capability/work-estimate/fallback-fit/policy hashes, the selected candidate's
+evidence hash, and any required `degraded_task_fit_acknowledged=true`. Pass that
+file through `--fallback-selection`. Legacy records remain inspection-readable
+but cannot authorize version-2 routing.
+
+Packet preparation, precommit, and operative release then validate the selected
+fallback's exact requested model and route binding. The canary remains
+Spark-specific while Spark is available. When current trusted evidence proves
+Spark quota exhaustion, a fallback canary is permitted only for the exact
+explicitly selected eligible model and route; its receipt and live canary
+release evidence must bind that same model, work plan, packet, attempt, prompt,
+and route. Capacity-only, unknown, mismatch, control, or security failures do
+not open this exception. Normal
+attestation, supervision, evaluation, and architect-adjudication requirements
+apply unchanged. Fallback sessions share the original aggregate budget. Spark
+is checked again at every fresh segment; restoration expires a
+`until-spark-restored` selection, while the current running unit is never
+switched mid-segment.
 
 ### Native packet and live supervisor
 

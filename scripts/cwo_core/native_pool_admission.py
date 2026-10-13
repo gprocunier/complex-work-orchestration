@@ -13,6 +13,7 @@ from dataclasses import dataclass
 import datetime as dt
 import hashlib
 import json
+import re
 from threading import Lock
 from pathlib import Path
 from typing import Any, Callable, Mapping, Protocol, Sequence
@@ -45,7 +46,7 @@ RESERVATION_SCHEMA = "schemas/native-pool-admission-reservation.schema.json"
 DISPATCH_SCHEMA = "schemas/native-pool-admission-dispatch.schema.json"
 RESERVATION_AUTHORITY = "reservation-evidence-only"
 DISPATCH_AUTHORITY = "dispatch-evidence-only"
-CLAIM_MUTABLE_FIELDS = frozenset({"status", "assignee", "updated_at", "started_at"})
+CLAIM_MUTABLE_FIELDS = frozenset({"status", "assignee", "updated_at", "started_at", "revision", "heartbeat_at", "lease_expires_at"})
 CLOSE_MUTABLE_FIELDS = frozenset(
     {
         "status",
@@ -53,6 +54,9 @@ CLOSE_MUTABLE_FIELDS = frozenset(
         "closed_at",
         "close_reason",
         "closed_by_session",
+        "revision",
+        "heartbeat_at",
+        "lease_expires_at",
     }
 )
 CLAIM_OUTCOMES = frozenset(
@@ -566,6 +570,65 @@ class BeadsClaimAdapter:
         return CloseTransition(receipt=receipt, post_issue=post)
 
 
+def _lease_instant(value: Any) -> dt.datetime | None:
+    if type(value) is not str or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z", value) is None:
+        return None
+    try:
+        return dt.datetime.strptime(value, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=dt.timezone.utc)
+    except ValueError:
+        return None
+
+
+def _lease_revision(value: Any) -> bool:
+    return type(value) is str and re.fullmatch(r"-?[0-9]+", value) is not None
+
+
+def _exact_claim_lease_delta(pre: Mapping[str, Any], post: Mapping[str, Any]) -> bool:
+    """Accept only the observed bd 1.3 lease creation or a legacy no-lease claim."""
+    before_heartbeat = pre.get("heartbeat_at")
+    before_expiry = pre.get("lease_expires_at")
+    after_heartbeat = post.get("heartbeat_at")
+    after_expiry = post.get("lease_expires_at")
+    if all(value in (None, "") for value in (before_heartbeat, before_expiry, after_heartbeat, after_expiry)):
+        return pre.get("revision") == post.get("revision")
+    heartbeat = _lease_instant(after_heartbeat)
+    expiry = _lease_instant(after_expiry)
+    return bool(
+        before_heartbeat in (None, "")
+        and before_expiry in (None, "")
+        and heartbeat is not None
+        and expiry is not None
+        and heartbeat < expiry
+        and expiry > dt.datetime.now(dt.timezone.utc)
+        and _lease_revision(pre.get("revision"))
+        and _lease_revision(post.get("revision"))
+        and pre["revision"] != post["revision"]
+    )
+
+
+def _exact_close_lease_delta(pre: Mapping[str, Any], post: Mapping[str, Any]) -> bool:
+    """A close clears the exact current lease; old no-lease records stay parseable."""
+    before_heartbeat = pre.get("heartbeat_at")
+    before_expiry = pre.get("lease_expires_at")
+    after_heartbeat = post.get("heartbeat_at")
+    after_expiry = post.get("lease_expires_at")
+    if all(value in (None, "") for value in (before_heartbeat, before_expiry, after_heartbeat, after_expiry)):
+        return pre.get("revision") == post.get("revision")
+    heartbeat = _lease_instant(before_heartbeat)
+    expiry = _lease_instant(before_expiry)
+    return bool(
+        heartbeat is not None
+        and expiry is not None
+        and heartbeat < expiry
+        and expiry > dt.datetime.now(dt.timezone.utc)
+        and after_heartbeat in (None, "")
+        and after_expiry in (None, "")
+        and _lease_revision(pre.get("revision"))
+        and _lease_revision(post.get("revision"))
+        and pre["revision"] != post["revision"]
+    )
+
+
 def _claim_immutable_projection(issue: Mapping[str, Any]) -> dict[str, Any]:
     return {
         key: value for key, value in issue.items() if key not in CLAIM_MUTABLE_FIELDS
@@ -575,15 +638,28 @@ def _claim_immutable_projection(issue: Mapping[str, Any]) -> dict[str, Any]:
 def _is_exact_claim_transition(
     pre: Mapping[str, Any], post: Mapping[str, Any], *, actor: str
 ) -> bool:
-    """Accept only the documented CAS delta, including Beads ``started_at``."""
+    """Accept only the documented CAS delta, including Beads ``started_at``.
+
+    A first claim populates ``started_at``.  Beads preserves that historical
+    value when an item is returned to open, so a later exact claim may preserve
+    it but must never clear or change it.
+    """
+
+    pre_started_at = pre.get("started_at")
+    post_started_at = post.get("started_at")
+    started_at_transition_is_exact = (
+        pre_started_at in (None, "") and _nonempty(post_started_at)
+    ) or (
+        _nonempty(pre_started_at) and post_started_at == pre_started_at
+    )
 
     return (
         pre.get("status") == "open"
         and pre.get("assignee") in (None, "")
-        and pre.get("started_at") in (None, "")
         and post.get("status") == "in_progress"
         and post.get("assignee") == actor
-        and _nonempty(post.get("started_at"))
+        and started_at_transition_is_exact
+        and _exact_claim_lease_delta(pre, post)
         and _claim_immutable_projection(pre) == _claim_immutable_projection(post)
     )
 
@@ -643,6 +719,7 @@ def _is_exact_close_transition(
         and post.get("started_at") == pre.get("started_at")
         and _nonempty(post.get("closed_at"))
         and post.get("close_reason") == reason
+        and _exact_close_lease_delta(pre, post)
         and _close_immutable_projection(pre)
         == _close_immutable_projection(post)
     )

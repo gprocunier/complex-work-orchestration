@@ -140,7 +140,7 @@ class NativePoolSchedulerTests(unittest.TestCase):
     def test_schedulability_proof_has_exact_current_capacity_arithmetic(self) -> None:
         callbacks = {
             "arm": 100,
-            "send_input": 250,
+            "send_input": 275,
             "mark_dispatched": 100,
             "check": 200,
             "interrupt": 250,
@@ -148,9 +148,9 @@ class NativePoolSchedulerTests(unittest.TestCase):
             "finalize": 100,
         }
         expected = {
-            2: (750, 250, True),
-            3: (950, 50, True),
-            4: (1150, -150, False),
+            2: (775, 225, True),
+            3: (975, 25, True),
+            4: (1175, -175, False),
         }
         for workers, outcome in expected.items():
             with self.subTest(workers=workers):

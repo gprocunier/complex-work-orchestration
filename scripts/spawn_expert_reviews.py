@@ -4,6 +4,8 @@ from __future__ import annotations
 import argparse
 import json
 
+from cwo_core.routing import current_authority_file_arguments
+
 from cwo_core.errors import CWOError
 from cwo_core.routing import (
     classify_work,
@@ -202,6 +204,7 @@ def main() -> None:
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--top-n", type=int, default=3)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
     args = parser.parse_args()
 
     text = read_text_arg(" ".join(args.text).strip() or None, args.file)
@@ -215,6 +218,7 @@ def main() -> None:
             share_boundary=args.share_boundary,
             data_sensitivity=args.data_sensitivity,
             requested_roles=args.requested_role,
+            **current_authority_file_arguments(args.current_authority),
         )
     except CWOError as exc:
         raise SystemExit(str(exc))

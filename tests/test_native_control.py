@@ -76,6 +76,51 @@ class FakeAdapter:
         return self._call("check", kwargs, {"decision": decision})
 
 
+class DeferredCloseAdapter(FakeAdapter):
+    def callbacks(self) -> dict:
+        callbacks = super().callbacks()
+
+        def finalize(**kwargs):
+            control_action = kwargs["control_action"]
+            return self._call(
+                "finalize",
+                kwargs,
+                {
+                    "ack": control_action,
+                    "close_wait_required": control_action
+                    in {"worker-completed", "interrupt-confirmed"},
+                },
+            )
+
+        callbacks["finalize"] = finalize
+        return callbacks
+
+
+class RepeatedDeferredCloseAdapter(DeferredCloseAdapter):
+    def __init__(self, decisions: list[str], *, pending_closes: int) -> None:
+        super().__init__(decisions)
+        self.pending_closes = pending_closes
+
+    def callbacks(self) -> dict:
+        callbacks = super().callbacks()
+
+        def close(**kwargs):
+            pending = self.pending_closes > 0
+            if pending:
+                self.pending_closes -= 1
+            return self._call(
+                "close",
+                kwargs,
+                {
+                    "ack": "close-pending" if pending else "closed",
+                    "close_wait_required": pending,
+                },
+            )
+
+        callbacks["close"] = close
+        return callbacks
+
+
 class NativeControlTest(unittest.TestCase):
     def test_terminal_receipt_is_strict_and_control_contract_bound(self) -> None:
         control = contract()
@@ -209,6 +254,66 @@ class NativeControlTest(unittest.TestCase):
         )
         final_actions = [kwargs["control_action"] for name, kwargs in adapter.calls if name == "finalize"]
         self.assertEqual(final_actions, ["interrupt-confirmed", "close-confirmed"])
+
+    def test_deferred_close_yields_cooperatively_after_finalization(self) -> None:
+        adapter = DeferredCloseAdapter(["complete"])
+        runner = NativeControlTurn(contract(), adapter.callbacks())
+        progress = runner.step(TASK)
+        while progress["phase"] != "waiting-close-complete":
+            progress = runner.step()
+
+        self.assertTrue(progress["wait_required"])
+        self.assertEqual([name for name, _kwargs in adapter.calls][-1], "finalize")
+        self.assertNotIn("close", [name for name, _kwargs in adapter.calls])
+        call_count = len(adapter.calls)
+
+        resumed = runner.resume_after_wait()
+        self.assertEqual(resumed["phase"], "close-complete")
+        self.assertEqual(len(adapter.calls), call_count)
+        terminal = runner.step()
+        self.assertEqual(terminal["status"], "terminal")
+        self.assertEqual(terminal["receipt"]["terminal_state"], "completed")
+        self.assertEqual([name for name, _kwargs in adapter.calls][-1], "close")
+        self.assertNotIn("sleep", [name for name, _kwargs in adapter.calls])
+
+    def test_deferred_interrupt_close_resumes_before_close_confirmation(self) -> None:
+        adapter = DeferredCloseAdapter(["interrupt"])
+        runner = NativeControlTurn(contract(), adapter.callbacks())
+        progress = runner.step(TASK)
+        while progress["phase"] != "waiting-close-interrupt":
+            progress = runner.step()
+
+        self.assertTrue(progress["wait_required"])
+        runner.resume_after_wait()
+        progress = runner.step()
+        self.assertEqual(progress["phase"], "finalize-close")
+        terminal = runner.step()
+        self.assertEqual(terminal["receipt"]["terminal_state"], "closed")
+        self.assertEqual(
+            [
+                kwargs["control_action"]
+                for name, kwargs in adapter.calls
+                if name == "finalize"
+            ],
+            ["interrupt-confirmed", "close-confirmed"],
+        )
+
+    def test_close_can_defer_repeatedly_without_losing_control(self) -> None:
+        adapter = RepeatedDeferredCloseAdapter(
+            ["complete"],
+            pending_closes=2,
+        )
+        result = run_control_turn(contract(), TASK, adapter.callbacks())
+
+        self.assertEqual(result["terminal_state"], "completed")
+        self.assertEqual(
+            [name for name, _kwargs in adapter.calls].count("close"),
+            3,
+        )
+        self.assertEqual(
+            [name for name, _kwargs in adapter.calls].count("sleep"),
+            3,
+        )
 
     def test_control_lost_uses_same_fail_closed_native_actions(self) -> None:
         adapter = FakeAdapter(["control-lost"])

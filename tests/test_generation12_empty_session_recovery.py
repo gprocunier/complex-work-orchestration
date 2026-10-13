@@ -617,7 +617,11 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
             process.stdout = io.StringIO()
             process.stderr = io.StringIO()
             fake_thread = mock.Mock()
-            with mock.patch.object(
+            with mock.patch.dict(
+                os.environ, {"CODEX_HOME": str(root / "codex-home")}
+            ), mock.patch.object(
+                LIVE, "_codex_binary", return_value=root / "codex"
+            ), mock.patch.object(
                 LIVE.subprocess, "Popen", return_value=process
             ) as popen, mock.patch.object(
                 LIVE.threading, "Thread", return_value=fake_thread
@@ -628,6 +632,9 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
             ), mock.patch.object(LIVE.AppServer, "notify"):
                 LIVE.AppServer()
             self.assertEqual(popen.call_args.kwargs["umask"], 0o077)
+            self.assertEqual(
+                popen.call_args.kwargs["env"]["CODEX_HOME"], str(root / "codex-home")
+            )
 
             control = root / "world-visible-parent" / "control.json"
             LIVE.write_private_artifact(control, {"accepted": True})

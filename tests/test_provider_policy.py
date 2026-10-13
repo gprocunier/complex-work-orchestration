@@ -285,6 +285,72 @@ class ProviderPolicyTests(unittest.TestCase):
         )
         self.assertEqual(executor["transport"]["thinking_parser"], "glm-think-tags")
 
+    def test_glm53_compact_critic_is_exact_no_auth_and_evidence_only(self) -> None:
+        executor = load_policy("executor-registry")["executors"]["rhoai_glm_compact_architecture_critic"]
+
+        self.assertFalse(executor["external"])
+        self.assertEqual(executor["provider_key"], "openshift_ai_vllm")
+        self.assertEqual(executor["dispatch_mode"], "local_secure_review")
+        self.assertEqual(executor["codex_pickup"], "forbidden")
+        self.assertTrue(executor["supports_repo_read"])
+        self.assertFalse(executor["supports_repo_write"])
+        self.assertFalse(executor["supports_shell"])
+        self.assertFalse(executor["supports_web"])
+        transport = executor["transport"]
+        self.assertEqual(transport["api_key_env"], "")
+        self.assertEqual(transport["auth_mode"], "none")
+        self.assertEqual(transport["required_model"], "glm-5.3-bf16")
+        self.assertTrue(transport["model_preflight_required"])
+        self.assertTrue(transport["response_model_required"])
+        self.assertEqual(transport["required_finish_reason"], "stop")
+        self.assertEqual(transport["required_reasoning_effort"], "low")
+        self.assertEqual(transport["response_contract"], "cwo-glm-critic-v2")
+        self.assertEqual(
+            transport["request_options"],
+            {"reasoning_effort": "low", "include_reasoning": True, "max_tokens": 8192},
+        )
+        self.assertEqual(transport["max_output_tokens"], 8192)
+        self.assertEqual(transport["max_final_chars"], 6000)
+        self.assertEqual(
+            transport["allowed_request_options"],
+            ["reasoning_effort", "include_reasoning", "max_tokens"],
+        )
+        self.assertTrue(transport["quarantine_unusable_content"])
+        self.assertEqual(
+            transport["server_structured_outputs_status"],
+            "disabled-current-host-enforcement-failed",
+        )
+        self.assertEqual(
+            transport["forbidden_request_options"],
+            [
+                "response_format",
+                "structured_outputs",
+                "guided_json",
+                "guided_regex",
+                "guided_grammar",
+                "guided_choice",
+                "guided_decoding_backend",
+                "guided_whitespace_pattern",
+            ],
+        )
+
+    def test_explicit_glm53_architecture_critic_routes_to_exact_generation(self) -> None:
+        route = classify_work(
+            "Use GLM-5.3 BF16 as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-glm-5-3-direct",
+            requested_roles=["architecture"],
+        )
+
+        self.assertEqual(route["route"], "local-worker")
+        self.assertEqual(route["recommended_executor"], "rhoai_glm_compact_architecture_critic")
+        self.assertEqual(route["access_profile"], "rhoai-glm-5-3-direct")
+        self.assertEqual(route["selected_executor"]["transport"]["required_model"], "glm-5.3-bf16")
+        self.assertEqual(
+            route["requested_architecture_critic_executors"],
+            ["rhoai_glm_compact_architecture_critic"],
+        )
+
     def test_glm_bf16_primary_architect_is_read_only_local_architect(self) -> None:
         executors = load_policy("executor-registry")["executors"]
         executor = executors["rhoai_glm_primary_architect"]

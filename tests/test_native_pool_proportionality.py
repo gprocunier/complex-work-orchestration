@@ -91,13 +91,18 @@ def _fixture(
     *,
     writes: bool = False,
     policy: dict | None = None,
+    requested_model: str | None = None,
 ) -> tuple[dict, dict[str, dict], list[dict], dict]:
     document = deepcopy(policy or load_policy("native-worker-execution"))
     items: list[dict] = []
     for index, runtime in enumerate(runtimes):
         bead_id = f"bead-{chr(ord('a') + index)}"
         paths = [f"src/{bead_id}.py"] if writes else []
-        item = ready_item(bead_id, write_paths=paths)
+        item = ready_item(
+            bead_id,
+            write_paths=paths,
+            requested_model=requested_model or "gpt-5.3-codex-spark",
+        )
         items.append(_set_runtime(item, runtime, policy=document))
     readiness = build_ready_set_evidence(
         items,
@@ -403,8 +408,8 @@ class NativePoolProportionalityTests(unittest.TestCase):
             n3["economics"]["total_orchestration_overhead_ms"],
             n2["economics"]["total_orchestration_overhead_ms"],
         )
-        self.assertEqual(n3["economics"]["overhead"]["schedulability_ms"], 950)
-        self.assertEqual(n2["economics"]["overhead"]["schedulability_ms"], 750)
+        self.assertEqual(n3["economics"]["overhead"]["schedulability_ms"], 975)
+        self.assertEqual(n2["economics"]["overhead"]["schedulability_ms"], 775)
 
     def test_measured_overhead_never_undercuts_conservative_floor(self) -> None:
         readiness, estimates, _, policy = _fixture([480, 480])

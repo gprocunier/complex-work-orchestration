@@ -12,6 +12,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 from cwo_core.errors import CWOPolicyError  # noqa: E402
+from tests.historical_policy_fixtures import historical_v2_policy  # noqa: E402
+from tests.test_routing_current_authority import synthetic_authority, NOW  # noqa: E402
+from cwo_core.operative_routing import TERRA_MODEL, build_task_selected_fit  # noqa: E402
+from cwo_core.routing import classify_work  # noqa: E402
 
 RETIRED_FIELD = "beads_" + "briefing_depth"
 RETIRED_FLAG = "--beads-" + "briefing-depth"
@@ -141,6 +145,26 @@ def _schema_accepts(instance: Any, schema: dict[str, Any], root: dict[str, Any],
     except SchemaValidationError:
         return False
     return True
+
+
+def qualified_current_coach(prompt: str, **kwargs):
+    """Current evaluator plus synthetic evidence; no live allocation authority."""
+    classification = classify_work(prompt, **kwargs)
+    authority = synthetic_authority()
+    if classification["risk_level"] == "high":
+        authority = synthetic_authority(TERRA_MODEL)
+        fit = build_task_selected_fit(
+            **authority["fit_inputs"], risk_level=classification["risk_level"],
+            data_sensitivity=classification["data_sensitivity"], evaluated_at=NOW,
+        )
+        authority["escalation"] = {
+            "kind": "risk", "reason": "Synthetic high-risk review fixture.",
+            "evidence_sha256": "c" * 64, "fit_sha256": fit["fit_sha256"],
+            "attempt_id": authority["attempt"]["attempt_id"],
+        }
+    return coach_orchestration_prompt(
+        prompt, current_authority=authority, operative_evaluated_at=NOW, **kwargs,
+    )
 
 
 class PromptCoachTests(unittest.TestCase):
@@ -695,16 +719,18 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(validation_questions[0]["options"][0]["value"], "publish-grade")
 
     def test_parallelizable_work_asks_for_workerbees(self) -> None:
-        result = coach_orchestration_prompt(
+        result = qualified_current_coach(
             "Do a deep second pass on docs, GitHub Pages flow, routing policy, and tests."
         )
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
-        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.3-codex-spark")
+        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.6-luna")
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
-        self.assertIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
-        self.assertIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
-        self.assertIn("Codex 5.3 Spark natively", result["paste_ready_prompt"])
+        self.assertNotIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
+        self.assertIn("workerbee-dispatch-route=task-selected-v3", result["enabled_levers"])
+        self.assertNotIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
+        self.assertIn("gpt-5.6-luna", result["paste_ready_prompt"])
+        self.assertNotIn("Codex 5.3 Spark", result["paste_ready_prompt"])
         worker_questions = [
             item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
         ]
@@ -714,8 +740,8 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("heavy-review-subagents", [option["value"] for option in worker_questions[0]["options"]])
 
     def test_workerbee_planned_delegation_is_recorded_on_prompt_result(self) -> None:
-        result = coach_orchestration_prompt(
-            "Heavily parallelize docs, terminology, web design, validation, and publish review lanes."
+        result = qualified_current_coach(
+            "Heavily parallelize documentation, terminology, and validation review lanes."
         )
         planned = result["workerbee_planned_delegation"]
         self.assertIsInstance(planned, dict)
@@ -725,15 +751,16 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(result["route"]["workerbee_planned_delegation"], planned)
 
     def test_explicit_workerbee_request_still_prompts_for_parallelism(self) -> None:
-        result = coach_orchestration_prompt(
+        result = qualified_current_coach(
             "Use $complex-work-orchestration to scaffold this project with PM coordination and workerbee validation."
         )
         self.assertEqual(result["recommended_orchestration_level"], "full-harness")
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
-        self.assertIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
-        self.assertIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
+        self.assertNotIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
+        self.assertIn("workerbee-dispatch-route=task-selected-v3", result["enabled_levers"])
+        self.assertNotIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
         worker_questions = [
             item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
         ]
@@ -741,8 +768,8 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(worker_questions[0]["options"][0]["value"], "review-subagents")
 
     def test_heavy_parallelization_recommends_heavy_review_subagents(self) -> None:
-        result = coach_orchestration_prompt(
-            "Heavily parallelize docs, terminology, web design, validation, and publish review lanes."
+        result = qualified_current_coach(
+            "Heavily parallelize documentation, terminology, and validation review lanes."
         )
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "heavy-review")
         self.assertIn("workerbee-parallelism=heavy-review", result["enabled_levers"])
@@ -755,8 +782,32 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("review-subagents", [option["value"] for option in worker_questions[0]["options"]])
         self.assertIn("no-subagents", [option["value"] for option in worker_questions[0]["options"]])
 
-    def test_implementation_subagent_request_recommends_split_implementation(self) -> None:
+    def test_current_high_risk_publication_does_not_bypass_worker_risk_limit(self) -> None:
+        result = qualified_current_coach(
+            "Heavily parallelize docs, terminology, web design, validation, and publish review lanes."
+        )
+        self.assertEqual(result["route"]["risk_level"], "high")
+        self.assertEqual(result["operative_route"]["stop_reason"],
+                         "current-authority-bound-model-not-qualified")
+        self.assertFalse(result["operative_route"]["dispatch_authorized"])
+        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "blocked")
+        self.assertIsNone(result["workerbee_parallelism"]["recommended_model"])
+        self.assertEqual(result["workerbee_parallelism"]["suggested_lanes"], [])
+
+    def test_active_default_missing_authority_is_not_native_spark_advice(self) -> None:
         result = coach_orchestration_prompt(
+            "Use Spark workerbees for docs and validation."
+        )
+        self.assertEqual(result["operative_route"]["version"], 3)
+        self.assertFalse(result["operative_route"]["dispatch_authorized"])
+        self.assertEqual(result["operative_route"]["stop_reason"], "current-authority-missing")
+        self.assertEqual(result["workerbee_planned_delegation"]["mode"], "blocked")
+        self.assertIsNone(result["workerbee_planned_delegation"]["model"])
+        self.assertNotIn("Native Spark dispatch is the preferred route", result["paste_ready_prompt"])
+        self.assertNotIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
+
+    def test_implementation_subagent_request_recommends_split_implementation(self) -> None:
+        result = qualified_current_coach(
             "Spawn implementation-workerbees for disjoint files and keep main-thread integration."
         )
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "implementation-capable")
@@ -768,6 +819,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("heavy-review-subagents", [option["value"] for option in worker_questions[0]["options"]])
         self.assertIn("no-subagents", [option["value"] for option in worker_questions[0]["options"]])
 
+    @historical_v2_policy()
     def test_spark_absence_rejection_and_mismatch_phrases_hard_stop(self) -> None:
         cases = [
             (
@@ -943,8 +995,10 @@ class PromptCoachTests(unittest.TestCase):
                 )
                 emitted = json.dumps(result).lower()
                 self.assertNotIn("bridge", emitted)
-                self.assertNotIn("fallback", emitted)
+                self.assertIsNone(result["operative_route"]["fallback"]["selected_model"])
+                self.assertFalse(result["operative_route"]["fallback"]["decision_required"])
 
+    @historical_v2_policy()
     def test_unqualified_direct_spark_execution_subjects_hard_stop(self) -> None:
         cases = [
             ("Spark tooling is unavailable.", "spark_native_tool_absent"),
@@ -983,6 +1037,7 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertFalse(planned["registry_tool_mismatch"])
                 self.assertEqual(planned["spark_dispatch"]["status"], "hard-stop")
 
+    @historical_v2_policy()
     def test_provider_scoped_spark_failures_keep_native_route_eligible(self) -> None:
         prompts = [
             "Plan docs work. Codex 5.3 Spark may not be available in ChatGPT Pro.",
@@ -1011,8 +1066,10 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
                 emitted = json.dumps(result).lower()
                 self.assertNotIn("bridge", emitted)
-                self.assertNotIn("fallback", emitted)
+                self.assertIsNone(result["operative_route"]["fallback"]["selected_model"])
+                self.assertFalse(result["operative_route"]["fallback"]["decision_required"])
 
+    @historical_v2_policy()
     def test_provider_scoped_direct_spark_failures_are_non_blocking(self) -> None:
         prompts = [
             "Spark tooling is unavailable in ChatGPT Pro.",
@@ -1041,6 +1098,7 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertTrue(planned["lanes"])
                 self.assertEqual(planned["spark_dispatch"]["status"], "native-first")
 
+    @historical_v2_policy()
     def test_explicit_native_scoping_overrides_provider_scope(self) -> None:
         prompts = [
             "ChatGPT Pro is available, but native Spark tooling is unavailable.",
@@ -1075,6 +1133,7 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertEqual(planned["hard_stop_reason"], expected_hard_stop_reasons[prompt])
                 self.assertEqual(planned["spark_dispatch"]["status"], "hard-stop")
 
+    @historical_v2_policy()
     def test_same_clause_unrelated_rejection_and_mismatch_do_not_bind_to_spark(self) -> None:
         prompts = [
             "Use Spark workerbee to review why the Figma model was rejected",
@@ -1096,6 +1155,7 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertFalse(planned["registry_tool_mismatch"])
                 self.assertNotEqual(planned["spark_dispatch"]["status"], "hard-stop")
 
+    @historical_v2_policy()
     def test_failure_predicates_bind_to_their_spark_subjects(self) -> None:
         non_blocking = [
             "Spark tooling is unavailable in the browser, but native Spark tooling is available.",
@@ -1127,6 +1187,7 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertTrue(workerbee["hard_stop"])
                 self.assertEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
 
+    @historical_v2_policy()
     def test_bare_spark_availability_failure_requires_direct_unscoped_predicate(self) -> None:
         blocked = coach_orchestration_prompt("Spark isn't available.")["workerbee_parallelism"]
         self.assertEqual(blocked["recommended_mode"], "blocked")
@@ -1148,6 +1209,7 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertFalse(workerbee["registry_tool_mismatch"])
                 self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
 
+    @historical_v2_policy()
     def test_unrelated_tool_failure_does_not_block_spark(self) -> None:
         result = coach_orchestration_prompt(
             "Use Spark workerbees. The Figma tool is missing."
@@ -1159,6 +1221,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertFalse(workerbee["registry_tool_mismatch"])
         self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
 
+    @historical_v2_policy()
     def test_unrelated_provider_tool_failure_does_not_block_native_route(self) -> None:
         result = coach_orchestration_prompt(
             "Use Spark workerbees. ChatGPT Pro tooling is unavailable, but this task is unrelated to non-native tooling."
@@ -1170,6 +1233,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertFalse(workerbee["registry_tool_mismatch"])
         self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
 
+    @historical_v2_policy()
     def test_registry_tool_mismatch_hard_stops_execution(self) -> None:
         result = coach_orchestration_prompt(
             "There is a Spark registry/tool mismatch for this task; execution must stop until this is fixed."
@@ -1200,6 +1264,7 @@ class PromptCoachTests(unittest.TestCase):
             )
         )
 
+    @historical_v2_policy()
     def test_spark_operational_pairing_uses_canonical_lanes(self) -> None:
         result = coach_orchestration_prompt(
             "Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and report."
@@ -1213,13 +1278,14 @@ class PromptCoachTests(unittest.TestCase):
         self.assertNotIn("docs-reporting-dashboard", result["workerbee_parallelism"]["suggested_lanes"])
 
     def test_conditional_workerbee_language_still_prompts_for_parallelism(self) -> None:
-        result = coach_orchestration_prompt(
+        result = qualified_current_coach(
             "Plan docs and validation work. Use review-only workerbee lanes if selected by the coach."
         )
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertTrue(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
 
+    @historical_v2_policy()
     def test_spark_operational_pairing_selects_implementation_capable_mode(self) -> None:
         result = coach_orchestration_prompt(
             "Native Spark is available. Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and reporting."
@@ -1254,8 +1320,10 @@ class PromptCoachTests(unittest.TestCase):
         )
         emitted = json.dumps(result).lower()
         self.assertNotIn("bridge", emitted)
-        self.assertNotIn("fallback", emitted)
+        self.assertIsNone(result["operative_route"]["fallback"]["selected_model"])
+        self.assertFalse(result["operative_route"]["fallback"]["decision_required"])
 
+    @historical_v2_policy()
     def test_prompt_coach_schema_defines_spark_hard_stop_contract(self) -> None:
         schema = json.loads((ROOT / "schemas" / "prompt-coach-result.schema.json").read_text())
         blocked_result = coach_orchestration_prompt(
@@ -1330,6 +1398,7 @@ class PromptCoachTests(unittest.TestCase):
             with self.assertRaises(SchemaValidationError):
                 validate_schema_instance(dispatch_status_inconsistent, schema_target)
 
+    @historical_v2_policy()
     def test_workerbee_parallel_mode_precedence_matrix(self) -> None:
         cases = [
             {
@@ -1390,11 +1459,11 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertEqual(workerbee["suggested_lanes"], case["expected_lanes"], case["name"])
 
     def test_review_only_term_keeps_review_only_workerbee_mode(self) -> None:
-        result = coach_orchestration_prompt(
+        result = qualified_current_coach(
             "Use review-only workerbees to inspect docs and run a second pass on GitHub Pages tests."
         )
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
-        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.3-codex-spark")
+        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.6-luna")
         self.assertFalse(result["workerbee_parallelism"]["spark_operational_worker"])
         worker_questions = [item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"]
         self.assertEqual(worker_questions[0]["options"][0]["value"], "review-subagents")
@@ -1465,7 +1534,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertNotIn("Recommended launch prompt:", output)
 
     def test_explicit_coach_request_requires_selection_before_plan(self) -> None:
-        result = coach_orchestration_prompt(
+        result = qualified_current_coach(
             "Use $complex-work-orchestration coach to determine the best path forward for docs and validation."
         )
 

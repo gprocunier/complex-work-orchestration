@@ -1,0 +1,314 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Native Pool Transaction Plan v4 - P1a Final Prospective Campaign Recovery",
+  "type": "object",
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "properties": {
+    "plan_type": {
+      "const": "cwo-native-pool-transaction-plan"
+    },
+    "version": {
+      "const": 4
+    },
+    "schema": {
+      "const": "schemas/native-pool-transaction-plan-v4.schema.json"
+    },
+    "transaction_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "phase_id": {
+      "const": "task-selected-route-private-full-git-jit"
+    },
+    "candidate_manifest_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "controller_overlay_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "authority_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "call_graph_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "runtime_adapter_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "runtime_adapter_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "selected_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "prelude_session_count": {
+      "const": 1
+    },
+    "required_session_count": {
+      "const": 2
+    },
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cumulative_before": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "cumulative_ceiling": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "reserved_sessions": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "infrastructure_failures_before": {
+          "const": 5
+        },
+        "maximum_infrastructure_failures": {
+          "const": 6
+        }
+      },
+      "required": [
+        "cumulative_before",
+        "cumulative_ceiling",
+        "reserved_sessions",
+        "infrastructure_failures_before",
+        "maximum_infrastructure_failures"
+      ]
+    },
+    "startup_bounds_ms": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pre_allocation_ms": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "per_allocation_ms": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "runtime_binding_ms": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "admission_ms": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "dispatch_and_first_observation_ms": {
+          "$ref": "#/$defs/nonNegativeInteger"
+        },
+        "safety_margin_ms": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "pre_allocation_ms",
+        "per_allocation_ms",
+        "runtime_binding_ms",
+        "admission_ms",
+        "dispatch_and_first_observation_ms",
+        "safety_margin_ms"
+      ]
+    },
+    "children": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "child_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bead_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "segment_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "work_unit_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "requested_model": {
+            "type": "string",
+            "minLength": 1
+          },
+          "bead_projection_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "worktree_identity_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "work_plan_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "packet_blueprint_sha256": {
+            "$ref": "#/$defs/sha256"
+          },
+          "write_paths": {
+            "type": "array",
+            "minItems": 0,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "read_only": {
+            "type": "boolean"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "write_paths": {
+                  "maxItems": 0
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "read_only"
+              ],
+              "properties": {
+                "read_only": {
+                  "const": true
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "read_only"
+              ],
+              "properties": {
+                "read_only": {
+                  "const": true
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "write_paths": {
+                  "maxItems": 0
+                }
+              }
+            }
+          }
+        ],
+        "required": [
+          "child_id",
+          "bead_id",
+          "segment_id",
+          "work_unit_id",
+          "requested_model",
+          "bead_projection_sha256",
+          "worktree_identity_sha256",
+          "work_plan_sha256",
+          "packet_blueprint_sha256",
+          "write_paths"
+        ]
+      }
+    },
+    "plan_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "infrastructure_recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "recovery_type": {
+          "const": "cwo-native-pool-campaign-infrastructure-recovery"
+        },
+        "version": {
+          "const": 3
+        },
+        "campaign_id": {
+          "const": "spark-retirement-task-selected-p1a"
+        },
+        "phase_id": {
+          "const": "task-selected-route-private-full-git-jit"
+        },
+        "bead_id": {
+          "const": "complex-work-orchestration-bpm4"
+        },
+        "selected_model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authority_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "prior_failure_evidence_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "opportunity_ledger_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "additional_opportunities": {
+          "const": 1
+        },
+        "grant_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "required": [
+        "recovery_type",
+        "version",
+        "campaign_id",
+        "phase_id",
+        "bead_id",
+        "selected_model",
+        "authority_sha256",
+        "prior_failure_evidence_sha256",
+        "opportunity_ledger_path",
+        "additional_opportunities",
+        "grant_sha256"
+      ]
+    }
+  },
+  "required": [
+    "plan_type",
+    "version",
+    "schema",
+    "transaction_id",
+    "phase_id",
+    "candidate_manifest_sha256",
+    "controller_overlay_sha256",
+    "authority_sha256",
+    "call_graph_sha256",
+    "runtime_adapter_path",
+    "runtime_adapter_sha256",
+    "created_at",
+    "selected_model",
+    "prelude_session_count",
+    "required_session_count",
+    "budget",
+    "startup_bounds_ms",
+    "children",
+    "plan_sha256",
+    "infrastructure_recovery"
+  ]
+}

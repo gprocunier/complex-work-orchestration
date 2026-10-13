@@ -3,6 +3,24 @@
 This reference explains how to post and manage outside model contracts for the
 `complex-work-orchestration` skill.
 
+## Threat Model And Disclosure Boundary
+
+The assets are repository context, secrets, contractor packets, audit records,
+and implementation decisions. The trusted boundary is the helper-managed CWO
+control plane and its local audit store; operators, agents, external models,
+and manually copied prompts are outside that boundary unless explicitly
+recorded. Packet validation, redaction, opt-in, share-boundary checks, audit,
+evaluation, and architect adjudication are controls on the managed path.
+
+Audit records are tamper-evident evidence of the managed workflow, not
+protection from a privileged same-user writer or an unrecorded manual copy.
+Immutable or hash-bound fields describe frozen packet/binding semantics only;
+they do not make a checkout, audit store, or operator RBAC-proof. Helpers are
+gates, not authority, and contractor or model agreement remains evidence rather
+than authorization or proof. Report suspected secret exposure or boundary
+failure through the repository [security policy](../SECURITY.md), preserving
+the packet/audit identifiers for responsible disclosure and architect review.
+
 ## Contracting Model
 
 Outside model work is a contract, not an open-ended delegation. The contract is

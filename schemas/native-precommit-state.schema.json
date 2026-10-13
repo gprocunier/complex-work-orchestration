@@ -131,7 +131,7 @@
   "required": [
     "state_type", "version", "schema", "validation_rule_version", "state_id", "state_file",
     "packet_id", "work_unit_id", "bead_id", "attempt_nonce", "session_id", "session_file",
-    "agent_id", "requested_model", "attested_model", "attestation_source", "work_plan_sha256",
+    "agent_id", "requested_model", "attested_model", "attestation_source", "work_plan_sha256", "operative_routing_sha256",
     "fit_prompt", "fit_prompt_sha256", "workdir", "workspace_baseline", "baseline", "terminal",
     "owner_pid", "owner_identity", "control_execution_handle", "control_topology", "control_turn_id", "submission_id", "status", "decision", "reasons",
     "interrupt_requested", "closure_outcome", "poll_config", "polling", "observed",
@@ -152,10 +152,11 @@
     "session_id": {"type": "string", "minLength": 1},
     "session_file": {"type": "string", "minLength": 1},
     "agent_id": {"type": "string", "minLength": 1},
-    "requested_model": {"const": "gpt-5.3-codex-spark"},
-    "attested_model": {"const": "gpt-5.3-codex-spark"},
+    "requested_model": {"enum": ["gpt-5.3-codex-spark", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]},
+    "attested_model": {"enum": ["gpt-5.3-codex-spark", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]},
     "attestation_source": {"const": "trusted-control-plane-session-metadata"},
     "work_plan_sha256": {"$ref": "#/$defs/hash"},
+    "operative_routing_sha256": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
     "fit_prompt": {"type": "string", "minLength": 1},
     "fit_prompt_sha256": {"$ref": "#/$defs/hash"},
     "workdir": {"type": "string", "minLength": 1},
@@ -185,5 +186,14 @@
     "created_at": {"type": "string", "minLength": 1},
     "updated_at": {"type": "string", "minLength": 1},
     "closed_at": {"type": ["string", "null"]}
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"requested_model": {"enum": ["gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]}},
+        "required": ["requested_model"]
+      },
+      "then": {"properties": {"operative_routing_sha256": {"$ref": "#/$defs/hash"}}}
+    }
+  ]
 }

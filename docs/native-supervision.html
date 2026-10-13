@@ -211,7 +211,7 @@
             </table>
             <p>
               A concurrent pool requires deterministic admission, an economical
-              and schedulable cohort, immutable child bindings, and either
+              and schedulable cohort, hash-bound child bindings, and either
               isolated mutable worktrees or a strictly shared read-only
               topology. Precommit, packet construction, critics, integration,
               retry, replay, and publication remain single-flight.
@@ -221,6 +221,15 @@
               in parallel. Productive concurrency uses the admission-bound
               version-2 host path and consumes one-use live authority.
             </p>
+            <div class="callout">
+              <strong>Threat and disclosure boundary:</strong>
+              The supervisor addresses defined worker and workspace attack
+              paths; it does not make local evidence immutable or eliminate
+              compromise risk. See the public
+              <a href="../references/security-threat-model.md">threat model</a>
+              and <a href="../SECURITY.md">security policy</a>
+              for assumptions, controls, and responsible disclosure.
+            </div>
           </section>
 
           <section id="activation-preview">

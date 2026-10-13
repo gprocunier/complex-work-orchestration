@@ -18,6 +18,70 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
     def test_policy_is_json_loadable(self) -> None:
         self.assertIsInstance(self.__class__.policy, dict)
 
+    def test_operative_routing_is_spark_first_and_fail_closed(self) -> None:
+        route = self.__class__.policy["operative_routing"]
+        self.assertEqual(route["primary_model"], "gpt-5.3-codex-spark")
+        self.assertEqual(route["fallback_selection"], "user-explicit-only")
+        self.assertEqual(
+            route["ordinary_fallback_triggers"],
+            ["verified-quota-exhausted", "verified-capacity-unavailable"],
+        )
+        self.assertEqual(
+            route["protected_stop_statuses"],
+            ["unknown", "model-mismatch", "control-fault", "security-fault"],
+        )
+        self.assertTrue(route["fresh_segment_recheck_required"])
+        self.assertTrue(route["mid_unit_model_switch_forbidden"])
+        self.assertTrue(route["aggregate_budget_preserved"])
+        self.assertFalse(route["budget_reset"])
+        self.assertTrue(route["history_append_only"])
+        self.assertTrue(route["critic_and_peer_routes_orthogonal"])
+        self.assertEqual(route["version"], 2)
+        self.assertEqual(
+            route["ordered_recommendation"],
+            ["gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"],
+        )
+        self.assertEqual(route["maximum_fallback_choices"], 3)
+        self.assertEqual(route["wait_option"], "wait-for-spark")
+        self.assertEqual(route["wait_option_position"], "last")
+        self.assertFalse(route["recommendation_is_authority"])
+
+        rules = route["fitness_rules"]
+        self.assertEqual(rules["substantial"]["minimum_signals"], 2)
+        self.assertEqual(rules["substantial"]["context_tokens_p90_min"], 32000)
+        self.assertEqual(rules["cache_heavy"]["predicted"]["stable_context_fraction_min"], 0.5)
+        self.assertEqual(rules["cache_heavy"]["observed"]["cached_input_fraction_min"], 0.5)
+        self.assertEqual(rules["luna_fit"]["repeatable_high_volume"]["repeatable_unit_count_min"], 10)
+
+    def test_fallback_executor_roster_is_complete_and_ordered(self) -> None:
+        registry = json.loads((ROOT / "policy" / "executor-registry.yaml").read_text())["executors"]
+        expected = {
+            "internal_worker_gpt55": "gpt-5.5",
+            "internal_worker_terra": "gpt-5.6-terra",
+            "internal_worker_luna": "gpt-5.6-luna",
+        }
+        required_fields = {
+            "provider_key", "venue", "dispatch_mode", "access_profile", "capabilities",
+            "supports_shell", "supports_repo_read", "supports_repo_write", "privacy_class",
+            "max_risk", "max_data_sensitivity", "cost_tier", "latency_tier", "reasoning_tier",
+            "acceptance_required", "architect_review_required", "fallback_only",
+            "explicit_opt_in_required",
+        }
+        for key, model in expected.items():
+            with self.subTest(executor=key):
+                record = registry[key]
+                self.assertEqual(record["model_label"], model)
+                self.assertTrue(required_fields.issubset(record))
+                self.assertTrue(record["fallback_only"])
+                self.assertTrue(record["explicit_opt_in_required"])
+
+        environments = json.loads((ROOT / "policy" / "execution-environments.yaml").read_text())["profiles"]
+        for key in ("connected-codex", "connected-codex-glm-primary"):
+            self.assertEqual(
+                environments[key]["operative_routing"]["approved_fallback_executors"],
+                list(expected),
+            )
+
     def test_live_supervision_policy_is_fail_closed(self) -> None:
         policy = self.__class__.policy
         self.assertEqual(policy["rollout_mode"], "canary-then-enforce")
@@ -40,6 +104,11 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(precommit["packet_stage"], "precommit-validated")
         self.assertFalse(precommit["operative_dispatch_authorized"])
         self.assertEqual(precommit["release_requires"], "complex-work-orchestration-fsh.3")
+        release = policy["native_release_evidence"]
+        self.assertEqual(
+            release["fallback_canary_rule"],
+            "verified-spark-quota-exhaustion-explicit-selection-exact-model",
+        )
         containment = policy["precommit_containment"]
         self.assertTrue(containment["active"])
         self.assertEqual(containment["release_requires"], "complex-work-orchestration-fsh.3.5")
@@ -82,7 +151,7 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
             certification["certified_callback_max_ms"],
             {
                 "arm": 100,
-                "send_input": 250,
+                "send_input": 275,
                 "mark_dispatched": 100,
                 "check": 200,
                 "interrupt": 250,
@@ -197,8 +266,14 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertEqual(policy["governance"]["spark"]["exact_model"], "gpt-5.3-codex-spark")
         worker = policy["governance"]["native_operative_worker"]
         self.assertEqual(worker["preferred_model"], "gpt-5.3-codex-spark")
-        self.assertEqual(worker["authorized_models"], ["gpt-5.3-codex-spark", "gpt-5.6-luna"])
-        self.assertEqual(worker["authorized_fallback_models"], ["gpt-5.6-luna"])
+        self.assertEqual(
+            worker["authorized_models"],
+            ["gpt-5.3-codex-spark", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"],
+        )
+        self.assertEqual(
+            worker["authorized_fallback_models"],
+            ["gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"],
+        )
         self.assertEqual(worker["fallback_selection"], "explicit-only")
 
         gate = policy["execution_bootstrap"]["spawn"]["attestation_gate"]

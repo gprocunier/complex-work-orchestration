@@ -9,6 +9,7 @@ never copied into the result artifact.
 from __future__ import annotations
 
 import argparse
+import copy
 import datetime as dt
 import fcntl
 import hashlib
@@ -17,6 +18,7 @@ import math
 import os
 import pwd
 import re
+import shlex
 from pathlib import Path
 import stat
 import subprocess
@@ -63,6 +65,7 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     canonical_sha256 as domain_sha256,
     consume_steering_receipt,
     materialization_execution_correlation,
+    materialization_liveness_correlation,
     new_authorization_state,
     seal_materialization_evidence,
     steering_payload,
@@ -134,6 +137,24 @@ from cwo_core.native_pool_schedulability import (  # noqa: E402
 )
 from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authority  # noqa: E402
 from cwo_core.native_pool_workspace import PoolWorkspaceMonitor  # noqa: E402
+from cwo_core.workspace import (  # noqa: E402
+    capture_workspace_baseline,
+    compare_workspace_baseline,
+)
+from codex_tool_surface import (  # noqa: E402
+    ALLOWLIST_PARAMETER as CONFIG_TOOL_ALLOWLIST_PARAMETER,
+    CodexToolSurfaceError,
+    DIRECT_TOOL_TRANSPORT,
+    NAMESPACED_EXEC_TOOL_TRANSPORT,
+    require_surface_proof,
+    thread_start_enforcement_params,
+    prepare_capture_binding,
+    require_capture_binding,
+    _codex_binary,
+    tool_transport_instructions,
+    tool_profile_is_mutable,
+    require_zero_endpoint_inventory,
+)
 from cwo_core.native_tool_isolation import (  # noqa: E402
     NativeToolIsolationError,
     build_tool_surface_snapshot,
@@ -147,8 +168,16 @@ from cwo_core.native_tool_isolation import (  # noqa: E402
     validate_tool_surface_snapshot,
 )
 from cwo_core.native_worker_contracts import (  # noqa: E402
+    _argument_value,
+    _event_items,
+    _output_text,
+    _paired_namespaced_exec_result,
     canonical_argument_hash,
+    decode_namespaced_exec_source,
+    is_tool_call_item,
+    is_tool_output_item,
     normalize_action_receipts,
+    trusted_tool_name,
 )
 from cwo_core.native_session import _record_token_snapshot  # noqa: E402
 from cwo_core.native_session_boundary import (  # noqa: E402
@@ -166,6 +195,14 @@ from cwo_core.workspace import status_path  # noqa: E402
 
 
 EXACT_MODEL = "gpt-5.3-codex-spark"
+THREAD_PHASE_LIVE_CANARY = "live-canary"
+THREAD_PHASE_PRECOMMIT_FIT = "precommit-fit"
+THREAD_START_PHASES = frozenset(
+    {
+        THREAD_PHASE_LIVE_CANARY,
+        THREAD_PHASE_PRECOMMIT_FIT,
+    }
+)
 CONTROL_TURN_ID = "complex-work-orchestration-18w.6-live-canary-control-turn"
 POST_SUBMISSION_MATERIALIZATION_GRACE_MS = POOL_POLL_LAG_TOLERANCE_MS
 PROVISIONAL_TERMINAL_GRACE_SECONDS = 5.0
@@ -176,6 +213,9 @@ CALIBRATION_STARTUP_TIMEOUT_SECONDS = 30.0
 CALIBRATION_MATERIALIZATION_TIMEOUT_SECONDS = 10.0
 CALIBRATION_POLL_INTERVAL_SECONDS = 0.20
 CALIBRATION_POLL_GAP_MAX_SECONDS = 0.250
+STAGED_ARCHIVE_CLOSE_SETTLE_SECONDS = 0.05
+STAGED_ARCHIVE_TERMINAL_TIMEOUT_SECONDS = 5.0
+STAGED_ARCHIVE_TERMINAL_POLL_SECONDS = 0.05
 CALIBRATION_CERTIFICATION_SAMPLING_PHASE = (
     "after-first-exact-operative-observation"
 )
@@ -388,6 +428,63 @@ def sha256_bytes(value: bytes) -> str:
 
 def sha256_text(value: str) -> str:
     return sha256_bytes(value.encode("utf-8"))
+
+
+def privacy_safe_notification_shape(
+    events: list[Mapping[str, Any]],
+    *,
+    connection_epoch_sha256: str,
+    thread_id: str,
+    turn_id: str,
+) -> dict[str, Any]:
+    """Project app-server notification structure without raw user/tool payloads."""
+
+    projected: list[dict[str, Any]] = []
+    for event in events[:16]:
+        params = event.get("params") if isinstance(event.get("params"), Mapping) else {}
+        item = params.get("item") if isinstance(params.get("item"), Mapping) else {}
+        item_id = item.get("id")
+        payload = item.get("arguments")
+        if payload is None:
+            payload = item.get("command")
+        projected.append(
+            {
+                "sequence": int(event.get("sequence", 0)),
+                "received_monotonic_ns": int(event.get("received_monotonic_ns", 0)),
+                "method": str(event.get("method") or "missing"),
+                "params_keys": sorted(str(key) for key in params),
+                "item_keys": sorted(str(key) for key in item),
+                "thread_id_matches": params.get("threadId") == thread_id,
+                "turn_id_matches": params.get("turnId") == turn_id,
+                "item_type": str(item.get("type") or "missing"),
+                "item_status": str(item.get("status") or "missing"),
+                "item_namespace": (
+                    str(item["namespace"]) if isinstance(item.get("namespace"), str) else None
+                ),
+                "item_tool": str(item["tool"]) if isinstance(item.get("tool"), str) else None,
+                "item_id_sha256": sha256_text(str(item_id)),
+                "payload_digest_sha256": sha256_text(str(payload)),
+                "started_at_ms_type": (
+                    "integer"
+                    if isinstance(params.get("startedAtMs"), int)
+                    and not isinstance(params.get("startedAtMs"), bool)
+                    else "missing"
+                ),
+            }
+        )
+    body = {
+        "evidence_type": "cwo-app-server-notification-shape:v1",
+        "version": 1,
+        "connection_epoch_sha256": connection_epoch_sha256,
+        "thread_id_sha256": sha256_text(thread_id),
+        "turn_id_sha256": sha256_text(turn_id),
+        "event_count": len(projected),
+        "events": projected,
+    }
+    body["evidence_sha256"] = domain_sha256(
+        body, domain="native-app-server-notification-shape"
+    )
+    return body
 
 
 def _seal_same_process_proof(
@@ -1790,59 +1887,155 @@ class LivePoolProtectedFault(AppServerError):
 class AppServer:
     """Minimal stdlib JSON-RPC client for one trusted Codex app-server."""
 
-    def __init__(self) -> None:
-        self.process = subprocess.Popen(
-            ["codex", "app-server", "--stdio"],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            bufsize=1,
-            umask=0o077,
-        )
-        if self.process.stdin is None or self.process.stdout is None or self.process.stderr is None:
-            raise AppServerError("app-server-pipes-unavailable")
-        self._condition = threading.Condition()
-        self._responses: dict[int, dict[str, Any]] = {}
-        self._notifications: list[tuple[int, dict[str, Any]]] = []
-        self._request_id = 0
-        self._reader_error: str | None = None
-        self._stderr_line_count = 0
-        self.connection_epoch_sha256 = domain_sha256(
-            {"epoch": str(uuid.uuid4())}, domain="app-server-stdio-connection-epoch"
-        )
-        self.rpc_latencies: dict[str, list[float]] = {}
-        self.started_threads: dict[str, str | None] = {}
-        self._known_thread_turn_ids: dict[str, set[str]] = {}
-        self._turn_dispatch_records: dict[str, dict[str, Any]] = {}
-        self._fresh_never_turned_thread_proofs: dict[str, dict[str, Any]] = {}
-        self._archive_acceptance_proofs: dict[str, dict[str, Any]] = {}
-        self._delete_acceptance_proofs: dict[str, dict[str, Any]] = {}
-        self._same_process_containment_proofs: dict[str, dict[str, Any]] = {}
-        self._pending_turn_start_response_observers: dict[int, dict[str, Any]] = {}
-        self._observed_negative_turn_response_capabilities_by_request: dict[
-            int, object
-        ] = {}
-        self._negative_turn_response_capabilities = _IdentityCapabilityRegistry()
-        self.allocation_ledger: NativeLiveAllocationLedgerStore | None = None
-        threading.Thread(target=self._read_stdout, daemon=True).start()
-        threading.Thread(target=self._drain_stderr, daemon=True).start()
-        result, _ = self.request(
-            "initialize",
-            {
-                "clientInfo": {
-                    "name": "cwo-supervisor-concurrency-canary",
-                    "title": "CWO supervisor concurrency canary",
-                    "version": "1.0.0",
+    def __init__(
+        self,
+        *,
+        requested_model: str = EXACT_MODEL,
+        reasoning_effort: str = "low",
+        tool_surface_proof: Mapping[str, Any] | None = None,
+        tool_surface_probe_catalog: Path | None = None,
+        tool_surface_probe_binding: Mapping[str, Any] | None = None,
+        operation_metadata: Mapping[str, str] | None = None,
+    ) -> None:
+        self.process = None
+        self._reader_threads: list[threading.Thread] = []
+        self._close_lock = threading.RLock()
+        self._closing = False
+        self._cleanup_result: dict[str, Any] | None = None
+        try:
+            if not isinstance(requested_model, str) or not requested_model.strip():
+                raise AppServerError("app-server-requested-model-invalid")
+            if not isinstance(reasoning_effort, str) or reasoning_effort not in {"low", "medium", "high", "xhigh", "max", "ultra"}:
+                raise AppServerError("app-server-reasoning-effort-invalid")
+            if operation_metadata is not None and (
+                type(operation_metadata) is not dict or
+                set(operation_metadata) != {"cwo_bead", "cwo_control_turn", "cwo_mission"} or
+                any(type(v) is not str or not v.strip() for v in operation_metadata.values())
+            ):
+                raise AppServerError("app-server-operation-metadata-invalid")
+            self.operation_metadata = dict(operation_metadata) if operation_metadata is not None else None
+            self.requested_model = requested_model.strip()
+            self.reasoning_effort = reasoning_effort
+            self._tool_surface_proof = (
+                dict(tool_surface_proof)
+                if isinstance(tool_surface_proof, Mapping)
+                else None
+            )
+            home = Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")).resolve()
+            binding = None
+            startup_config: dict[str, Any] = {}
+            if tool_surface_proof is not None:
+                if tool_surface_probe_catalog is not None or tool_surface_probe_binding is not None:
+                    raise AppServerError("tool-proof-and-probe-catalog-conflict")
+                verified = require_surface_proof(tool_surface_proof,
+                    requested_model=self.requested_model,
+                    permitted_tools=tool_surface_proof.get("requested_tools") if isinstance(tool_surface_proof, Mapping) else None)
+                binding = require_capture_binding(verified["capture_binding"])
+            elif tool_surface_probe_binding is not None:
+                binding = require_capture_binding(tool_surface_probe_binding)
+                if (binding["requested_model"] != self.requested_model
+                        or (tool_surface_probe_catalog is not None and
+                            binding["startup_config"].get("model_catalog_json") != str(tool_surface_probe_catalog.absolute()))):
+                    raise AppServerError("tool-probe-binding-mismatch")
+            elif tool_surface_probe_catalog is not None:
+                binding = prepare_capture_binding(home, requested_model=self.requested_model,
+                    permitted_tools=["exec_command", "write_stdin"], catalog_projection=tool_surface_probe_catalog)
+            if binding is not None:
+                home = Path(binding["codex_home"])
+                startup_config = binding["startup_config"]
+            # Register invalidation state BEFORE stdout readers and thread/start.
+            self._mcp_guard_required = binding is not None and "effect_policy" in binding
+            self._mcp_endpoint_fault = None
+            self._mcp_notification_generation = 0
+            self._zero_mcp_observations = {}
+            self._mcp_finalized_threads = set()
+            self.launched_executable = binding["codex_binary"] if binding else str(_codex_binary())
+            command = [self.launched_executable]
+            for key, value in sorted(startup_config.items()):
+                command.extend(["-c", key + "=" + json.dumps(value)])
+            command.extend(["app-server", "--stdio"])
+            # The requested home is process-local, never a global config mutation.
+            environment = dict(os.environ, CODEX_HOME=str(home))
+            self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True, bufsize=1, umask=0o077, env=environment)
+            if self.process.stdin is None or self.process.stdout is None or self.process.stderr is None:
+                raise AppServerError("app-server-pipes-unavailable")
+            self._condition = threading.Condition()
+            self._responses: dict[int, dict[str, Any]] = {}
+            self._notifications: list[tuple[int, dict[str, Any]]] = []
+            self._request_id = 0
+            self._reader_error: str | None = None
+            self._stderr_line_count = 0
+            self.connection_epoch_sha256 = domain_sha256(
+                {"epoch": str(uuid.uuid4())}, domain="app-server-stdio-connection-epoch"
+            )
+            self.rpc_latencies: dict[str, list[float]] = {}
+            self.started_threads: dict[str, str | None] = {}
+            self._known_thread_turn_ids: dict[str, set[str]] = {}
+            self._turn_dispatch_records: dict[str, dict[str, Any]] = {}
+            self._fresh_never_turned_thread_proofs: dict[str, dict[str, Any]] = {}
+            self._archive_acceptance_proofs: dict[str, dict[str, Any]] = {}
+            self._staged_archives: dict[str, Any] = {}
+            self._delete_acceptance_proofs: dict[str, dict[str, Any]] = {}
+            self._same_process_containment_proofs: dict[str, dict[str, Any]] = {}
+            self._pending_turn_start_response_observers: dict[int, dict[str, Any]] = {}
+            self._observed_negative_turn_response_capabilities_by_request: dict[
+                int, object
+            ] = {}
+            self._negative_turn_response_capabilities = _IdentityCapabilityRegistry()
+            self.allocation_ledger: NativeLiveAllocationLedgerStore | None = None
+            for target in (self._read_stdout, self._drain_stderr):
+                reader = threading.Thread(target=target, daemon=True)
+                self._reader_threads.append(reader)
+                reader.start()
+                self._ensure_startup_open()
+            result, _ = self.request(
+                "initialize",
+                {
+                    "clientInfo": {
+                        "name": "cwo-supervisor-concurrency-canary",
+                        "title": "CWO supervisor concurrency canary",
+                        "version": "1.0.0",
+                    },
+                    "capabilities": {"experimentalApi": True},
                 },
-                "capabilities": {"experimentalApi": True},
-            },
-            timeout=10,
-        )
-        if not isinstance(result, Mapping) or not result.get("codexHome"):
-            raise AppServerError("app-server-initialize-invalid")
-        self.codex_home = Path(str(result["codexHome"])).resolve()
-        self.notify("initialized", {})
+                timeout=10,
+            )
+            if (not isinstance(result, Mapping) or not isinstance(result.get("codexHome"), str)
+                    or not result["codexHome"].strip()):
+                raise AppServerError("app-server-initialize-invalid")
+            self.codex_home = Path(result["codexHome"]).resolve()
+            if self.codex_home != home:
+                raise AppServerError("codex-tool-surface-home-drift")
+            self._ensure_startup_open()
+            if binding is not None:
+                require_capture_binding(binding)
+            self.notify("initialized", {})
+            self._ensure_startup_open()
+
+        except BaseException as exc:
+            try:
+                cleanup = self.close()
+            except BaseException as cleanup_exc:
+                cleanup = getattr(cleanup_exc, "app_server_cleanup", None) or {
+                    "all_contained": False, "resources_closed": False,
+                    "errors": [f"{type(cleanup_exc).__name__}:{cleanup_exc}"],
+                }
+            if type(cleanup) is not dict:
+                cleanup = {"all_contained": False, "resources_closed": False,
+                           "errors": ["cleanup-result-invalid"]}
+            exc.app_server_cleanup = cleanup
+            if cleanup.get("errors") or cleanup.get("all_contained") is not True:
+                exc.add_note("app-server construction cleanup: " + json.dumps(cleanup, sort_keys=True, default=str))
+            if isinstance(exc, CodexToolSurfaceError):
+                wrapped = AppServerError(str(exc))
+                wrapped.app_server_cleanup = cleanup
+                raise wrapped from exc
+            raise
+
+    def _ensure_startup_open(self) -> None:
+        if self._closing or self._cleanup_result is not None:
+            raise AppServerError("app-server-closed-during-startup")
 
     def attach_allocation_ledger(self, ledger: NativeLiveAllocationLedgerStore) -> None:
         if self.started_threads or self.allocation_ledger is not None:
@@ -2114,6 +2307,7 @@ class AppServer:
                         else:
                             self._responses[response_id] = dict(message)
                     elif isinstance(message.get("method"), str):
+                        self._observe_mcp_notification(message)
                         self._notifications.append(
                             (time.monotonic_ns(), dict(message))
                         )
@@ -2123,6 +2317,76 @@ class AppServer:
                 if self.process.poll() is None:
                     self._reader_error = "app-server-output-closed"
                 self._condition.notify_all()
+
+    def _observe_mcp_notification(self, message: Mapping[str, Any]) -> None:
+        if (getattr(self, "_mcp_guard_required", False)
+                and message.get("method") in {"mcpServer/startupStatus/updated", "config/mcpServer/reload"}):
+            self._mcp_notification_generation += 1
+            self._mcp_endpoint_fault = "app-server-mcp-endpoint-appearance"
+
+    def _require_mcp_guard(self, thread_id: str | None = None) -> None:
+        if not getattr(self, "_mcp_guard_required", False):
+            return
+        if self._mcp_endpoint_fault is not None or self._mcp_notification_generation != 0:
+            raise AppServerError(self._mcp_endpoint_fault or "app-server-mcp-inventory-invalidated")
+        if thread_id is not None and thread_id not in self._zero_mcp_observations:
+            raise AppServerError("app-server-mcp-inventory-before-turn-required")
+
+    def require_zero_mcp_endpoints(self, thread_id: str) -> dict[str, Any]:
+        """Read the actual owned thread's full inventory; empty is not assumed."""
+        with self._condition:
+            self._require_mcp_guard()
+            if type(thread_id) is not str or thread_id not in self.started_threads:
+                raise AppServerError("app-server-mcp-inventory-thread-not-owned")
+            generation = getattr(self, "_mcp_notification_generation", 0)
+        pages, cursor, seen = [], None, set()
+        for _ in range(100):
+            params = {"threadId": thread_id, "detail": "full", "limit": 100, "cursor": cursor}
+            response, _latency = self.request("mcpServerStatus/list", params, timeout=15)
+            pages.append({"request": params, "response": copy.deepcopy(response)})
+            with self._condition:
+                self._require_mcp_guard()
+                if getattr(self, "_mcp_notification_generation", 0) != generation:
+                    raise AppServerError("app-server-mcp-inventory-reentrant-invalidation")
+            if (type(response) is not dict or set(response) not in ({"data"}, {"data", "nextCursor"})
+                    or response.get("data") != []):
+                self._mcp_endpoint_fault = "app-server-mcp-endpoints-not-empty"
+                raise AppServerError(self._mcp_endpoint_fault)
+            cursor = response.get("nextCursor")
+            if cursor is None:
+                break
+            if type(cursor) is not str or not cursor or cursor in seen:
+                raise AppServerError("app-server-mcp-inventory-cursor-invalid")
+            seen.add(cursor)
+        observation = {"source": "app-server-thread-mcp-inventory-v1", "version": 1,
+            "thread_id": thread_id, "pid": self.process.pid,
+            "connection_epoch_sha256": self.connection_epoch_sha256,
+            "notification_generation": generation, "pages": pages}
+        try:
+            checked = require_zero_endpoint_inventory(observation, thread_id=thread_id,
+                pid=self.process.pid, connection_epoch_sha256=self.connection_epoch_sha256)
+        except CodexToolSurfaceError as exc:
+            raise AppServerError(str(exc)) from exc
+        with self._condition:
+            self._require_mcp_guard()
+            self._zero_mcp_observations.setdefault(thread_id, []).append(copy.deepcopy(checked))
+        return checked
+
+    def _guard_thread_observation(self, thread_id: str, thread: Mapping[str, Any]) -> None:
+        if not getattr(self, "_mcp_guard_required", False):
+            return
+        with self._condition:
+            self._require_mcp_guard()
+        turns = thread.get("turns")
+        if type(turns) is not list:
+            raise AppServerError("app-server-mcp-final-thread-turns-invalid")
+        terminal = any(type(turn) is dict and turn.get("status") in {"completed", "failed", "interrupted"}
+                       for turn in turns)
+        if terminal and thread_id not in self._mcp_finalized_threads:
+            self.require_zero_mcp_endpoints(thread_id)
+            with self._condition:
+                self._require_mcp_guard()
+                self._mcp_finalized_threads.add(thread_id)
 
     def _drain_stderr(self) -> None:
         assert self.process.stderr is not None
@@ -2148,6 +2412,11 @@ class AppServer:
             self._request_id += 1
             request_id = self._request_id
             payload = {"id": request_id, "method": method, "params": dict(params)}
+            if method in {"turn/start", "thread/start", "thread/resume", "thread/fork", "config/mcpServer/reload"}:
+                self._require_mcp_guard(params.get("threadId") if method == "turn/start" else None)
+                if method == "config/mcpServer/reload" and getattr(self, "_mcp_guard_required", False):
+                    self._mcp_endpoint_fault = "app-server-mcp-reload-forbidden"
+                    raise AppServerError(self._mcp_endpoint_fault)
             started = time.monotonic_ns()
             self.process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
             self.process.stdin.flush()
@@ -2207,6 +2476,11 @@ class AppServer:
             if self._reader_error:
                 raise AppServerError(self._reader_error)
             guarded = dict(pre_dispatch_guard())
+            if method in {"turn/start", "thread/start", "thread/resume", "thread/fork", "config/mcpServer/reload"}:
+                self._require_mcp_guard(params.get("threadId") if method == "turn/start" else None)
+                if method == "config/mcpServer/reload" and getattr(self, "_mcp_guard_required", False):
+                    self._mcp_endpoint_fault = "app-server-mcp-reload-forbidden"
+                    raise AppServerError(self._mcp_endpoint_fault)
             self._request_id += 1
             request_id = self._request_id
             payload = {"id": request_id, "method": method, "params": dict(params)}
@@ -2267,9 +2541,10 @@ class AppServer:
         models = result.get("data")
         if not isinstance(models, list):
             raise AppServerError("model-list-data-invalid")
-        matches = [item for item in models if isinstance(item, Mapping) and item.get("id") == EXACT_MODEL]
-        if len(matches) != 1 or matches[0].get("model") != EXACT_MODEL:
-            raise AppServerError("exact-spark-model-unavailable")
+        requested_model = getattr(self, "requested_model", EXACT_MODEL)
+        matches = [item for item in models if isinstance(item, Mapping) and item.get("id") == requested_model]
+        if len(matches) != 1 or matches[0].get("model") != requested_model:
+            raise AppServerError("requested-model-unavailable")
         return {
             "id": matches[0]["id"],
             "model": matches[0]["model"],
@@ -2277,14 +2552,29 @@ class AppServer:
             "latency_ms": round(latency, 3),
         }
 
-    @staticmethod
     def tool_surface_capability(
-        *, permitted_tools: list[str]
+        self, *, permitted_tools: list[str]
     ) -> dict[str, Any]:
-        _ = permitted_tools
-        # Codex app-server v2 ThreadStartParams in the pinned runtime has no
-        # built-in tool allowlist.  `dynamicTools` adds tools and therefore is
-        # not a restriction mechanism.
+        proof = getattr(self, "_tool_surface_proof", None)
+        requested_model = getattr(self, "requested_model", EXACT_MODEL)
+        if proof is not None:
+            try:
+                verified = require_surface_proof(
+                    proof,
+                    requested_model=requested_model,
+                    permitted_tools=permitted_tools,
+                )
+            except CodexToolSurfaceError as exc:
+                raise AppServerError(str(exc)) from exc
+            return {
+                "source": (
+                    "codex-app-server-v2-thread-config-proof:"
+                    + verified["proof_sha256"]
+                ),
+                "server_allowlist_supported": True,
+                "allowlist_parameter": CONFIG_TOOL_ALLOWLIST_PARAMETER,
+                "effective_allowlist": list(verified["observed_tools"]),
+            }
         return {
             "source": "codex-app-server-v2-thread-start-schema",
             "server_allowlist_supported": False,
@@ -2292,12 +2582,53 @@ class AppServer:
             "effective_allowlist": None,
         }
 
+    def capability_adapter_version(self) -> str:
+        """Return the app-server version bound by the exact surface proof."""
+
+        proof = getattr(self, "_tool_surface_proof", None)
+        if proof is None:
+            return "codex-app-server-0.144.5"
+        try:
+            verified = require_surface_proof(
+                proof,
+                requested_model=getattr(self, "requested_model", EXACT_MODEL),
+                permitted_tools=proof.get("requested_tools") if isinstance(proof, Mapping) else None,
+            )
+        except CodexToolSurfaceError as exc:
+            raise AppServerError(str(exc)) from exc
+        version = verified.get("codex_version")
+        if not isinstance(version, str) or not version.strip():
+            raise AppServerError("codex-tool-surface-version-invalid")
+        return f"codex-app-server-{version.strip()}"
+
+    def operative_tool_transport(self) -> str:
+        """Return the proof-bound call transport used by this model."""
+
+        proof = getattr(self, "_tool_surface_proof", None)
+        if proof is None:
+            return DIRECT_TOOL_TRANSPORT
+        try:
+            verified = require_surface_proof(
+                proof,
+                requested_model=getattr(self, "requested_model", EXACT_MODEL),
+                permitted_tools=proof.get("requested_tools") if isinstance(proof, Mapping) else None,
+            )
+        except CodexToolSurfaceError as exc:
+            raise AppServerError(str(exc)) from exc
+        transport = verified.get("tool_transport")
+        if not isinstance(transport, str) or transport not in {
+            DIRECT_TOOL_TRANSPORT,
+            NAMESPACED_EXEC_TOOL_TRANSPORT,
+        }:
+            raise AppServerError("codex-tool-surface-transport-invalid")
+        return str(transport)
+
     def _thread_tool_allowlist_params(
         self,
         *,
         permitted_tools: list[str] | None,
         allowlist_parameter: str | None,
-    ) -> dict[str, list[str]]:
+    ) -> dict[str, Any]:
         """Return only a capability-backed, exact server allowlist parameter."""
 
         if permitted_tools is None:
@@ -2359,6 +2690,15 @@ class AppServer:
             raise AppServerError("thread-start-tool-surface-capability-invalid")
         if effective_allowlist != permitted_tools:
             raise AppServerError("thread-start-tool-allowlist-effective-mismatch")
+        if allowlist_parameter == CONFIG_TOOL_ALLOWLIST_PARAMETER:
+            try:
+                return thread_start_enforcement_params(
+                    getattr(self, "_tool_surface_proof", None),
+                    requested_model=getattr(self, "requested_model", EXACT_MODEL),
+                    permitted_tools=permitted_tools,
+                )
+            except CodexToolSurfaceError as exc:
+                raise AppServerError(str(exc)) from exc
         return {allowlist_parameter: list(permitted_tools)}
 
     def start_thread(
@@ -2367,30 +2707,55 @@ class AppServer:
         *,
         mutable: bool,
         role: str | None = None,
+        thread_phase: str = THREAD_PHASE_LIVE_CANARY,
         permitted_tools: list[str] | None = None,
         allowlist_parameter: str | None = None,
     ) -> tuple[dict[str, Any], float]:
         if self.allocation_ledger is not None:
             if role not in EXPECTED_ROLES:
                 raise AppServerError("allocation-ledger-role-required")
-        params: dict[str, Any] = {
-            "model": EXACT_MODEL,
-            "allowProviderModelFallback": False,
-            "cwd": str(cwd.resolve()),
-            "runtimeWorkspaceRoots": [str(cwd.resolve())],
-            "approvalPolicy": "never",
-            "sandbox": "workspace-write" if mutable else "read-only",
-            "ephemeral": False,
-            "historyMode": "legacy",
-            "developerInstructions": (
-                "This is a bounded CWO live canary. Do not spawn subagents, use network access, "
-                "or access paths outside the supplied workspace. Follow the user task exactly."
-            ),
-        }
+        if thread_phase not in THREAD_START_PHASES:
+            raise AppServerError("thread-start-phase-invalid")
+        sealed_cwd = _canonical_controller_workdir(cwd)
+        transport = self.operative_tool_transport()
         tool_allowlist_params = self._thread_tool_allowlist_params(
             permitted_tools=permitted_tools,
             allowlist_parameter=allowlist_parameter,
         )
+        if mutable and isinstance(getattr(self, "_tool_surface_proof", None), Mapping) and not tool_profile_is_mutable(self._tool_surface_proof.get("tool_profile")):
+            raise AppServerError("read-only-tool-profile-mutable-thread-forbidden")
+        if thread_phase == THREAD_PHASE_PRECOMMIT_FIT:
+            developer_instructions = (
+                "This is a trusted CWO no-tools precommit fit estimate, not the later "
+                "implementation task. Do not inspect or modify the repository. Do not use "
+                "tools, spawn subagents, or use network access. The primary outcome and "
+                "acceptance checks describe work that a later operative worker may perform; "
+                "your only task in this turn is to estimate that later worker's required tool "
+                "calls and runtime. Return exactly one JSON object containing only these five "
+                "fields: decision, tool_calls_p50, tool_calls_p90, runtime_seconds_p50, and "
+                "runtime_seconds_p90. decision must be accept, pm-realignment, or architect-realignment. "
+                "Do not add status, reason, primary_outcome, or commentary."
+            )
+        else:
+            developer_instructions = (
+                "This is a bounded CWO live canary. Do not spawn subagents, use network access, "
+                "or access paths outside the supplied workspace. Follow the user task exactly."
+            )
+            try:
+                developer_instructions += tool_transport_instructions(permitted_tools, transport)
+            except CodexToolSurfaceError as exc:
+                raise AppServerError(str(exc)) from exc
+        params: dict[str, Any] = {
+            "model": getattr(self, "requested_model", EXACT_MODEL),
+            "allowProviderModelFallback": False,
+            "cwd": str(sealed_cwd),
+            "runtimeWorkspaceRoots": [str(sealed_cwd)],
+            "approvalPolicy": "never",
+            "sandbox": "workspace-write" if mutable else "read-only",
+            "ephemeral": False,
+            "historyMode": "legacy",
+            "developerInstructions": developer_instructions,
+        }
         if set(tool_allowlist_params).intersection(params):
             raise AppServerError("thread-start-tool-allowlist-parameter-collision")
         params.update(tool_allowlist_params)
@@ -2439,7 +2804,7 @@ class AppServer:
         )
         if self.allocation_ledger is not None and allocation_intent_id is not None:
             self.allocation_ledger.bind_thread(allocation_intent_id, thread_id)
-        if result.get("model") != EXACT_MODEL:
+        if result.get("model") != getattr(self, "requested_model", EXACT_MODEL):
             raise AppServerError("thread-start-model-mismatch")
         if type(turns) is list and not turns:
             fresh_proofs = getattr(
@@ -2468,7 +2833,18 @@ class AppServer:
                 },
                 domain="app-server-connection-local-thread-proof",
             )
-        return dict(result), latency
+        response = copy.deepcopy(dict(result))
+        evidence = getattr(self, "_effective_thread_start_evidence", None)
+        if evidence is None:
+            evidence = {}
+            self._effective_thread_start_evidence = evidence
+        evidence[thread_id] = {
+            "request": copy.deepcopy(params),
+            "response": copy.deepcopy(response),
+        }
+        if getattr(self, "_mcp_guard_required", False):
+            self.require_zero_mcp_endpoints(thread_id)
+        return response, latency
 
     def read_thread(
         self,
@@ -2484,6 +2860,7 @@ class AppServer:
         thread = result.get("thread")
         if not isinstance(thread, Mapping) or thread.get("id") != thread_id:
             raise AppServerError("thread-read-response-invalid")
+        self._guard_thread_observation(thread_id, thread)
         return dict(thread), latency
 
     def read_thread_once_with_guard(
@@ -2504,6 +2881,7 @@ class AppServer:
         thread = result.get("thread")
         if not isinstance(thread, Mapping) or thread.get("id") != thread_id:
             raise AppServerError("thread-read-response-invalid")
+        self._guard_thread_observation(thread_id, thread)
         return dict(thread), latency, guarded, request_id, payload_sha256
 
     def _turn_dispatch_path(self, turn_intent_id: str) -> Path | None:
@@ -3274,6 +3652,10 @@ class AppServer:
     ) -> tuple[dict[str, Any], float]:
         """Write ``turn/start`` exactly once and contain uncertain outcomes."""
 
+        if getattr(self, "_mcp_guard_required", False):
+            self.require_zero_mcp_endpoints(thread_id)
+            self._mcp_finalized_threads.discard(thread_id)
+
         getattr(self, "_fresh_never_turned_thread_proofs", {}).pop(
             thread_id,
             None,
@@ -3297,13 +3679,13 @@ class AppServer:
         params = {
             "threadId": thread_id,
             "input": [{"type": "text", "text": prompt, "text_elements": []}],
-            "model": EXACT_MODEL,
-            "effort": "low",
+            "model": getattr(self, "requested_model", EXACT_MODEL),
+            "effort": getattr(self, "reasoning_effort", "low"),
             "clientUserMessageId": turn_intent_id,
-            "responsesapiClientMetadata": {
+            "responsesapiClientMetadata": dict(getattr(self, "operation_metadata", None) or {
                 "cwo_bead": "complex-work-orchestration-18w.6",
                 "cwo_control_turn": CONTROL_TURN_ID,
-            },
+            }),
         }
         ledger_id, ledger_head, intent_entry = self._turn_intent_ledger_link(
             turn_intent_id
@@ -3377,6 +3759,7 @@ class AppServer:
                 except BaseException:
                     pending_observers.pop(request_id, None)
                     raise
+            self._require_mcp_guard(thread_id)
             started = time.monotonic_ns()
             try:
                 assert self.process.stdin is not None
@@ -3691,6 +4074,21 @@ class AppServer:
         ):
             return None
         return proof
+
+    def register_staged_archive(self, thread_id: str, staged_archive: Any) -> None:
+        """Bind one in-flight archive so containment never replays its RPC."""
+
+        with self._condition:
+            existing = getattr(self, "_staged_archives", {}).get(thread_id)
+            if existing is not None and existing is not staged_archive:
+                raise AppServerError("staged-archive-registration-conflict")
+            if not hasattr(self, "_staged_archives"):
+                self._staged_archives = {}
+            self._staged_archives[thread_id] = staged_archive
+
+    def staged_archive(self, thread_id: str) -> Any | None:
+        with self._condition:
+            return getattr(self, "_staged_archives", {}).get(thread_id)
 
     def delete_acceptance_proof(
         self,
@@ -4041,14 +4439,65 @@ class AppServer:
                 )
             return values
 
-    def close(self) -> None:
-        if self.process.poll() is None:
-            self.process.terminate()
-            try:
-                self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-                self.process.wait(timeout=5)
+    def close(self) -> dict[str, Any]:
+        """Reap only our child; failures are durable and never imply containment."""
+
+        with self._close_lock:
+            if self._closing:
+                error = AppServerError("app-server-cleanup-reentrant")
+                error.app_server_cleanup = {"all_contained": False, "resources_closed": False,
+                                            "errors": ["cleanup-in-progress"]}
+                raise error
+            if self._cleanup_result is not None:
+                result = copy.deepcopy(self._cleanup_result)
+            else:
+                self._closing = True
+                result = {"all_contained": self.process is None, "resources_closed": False, "errors": []}
+                errors = result["errors"]
+                def attempt(label, function):
+                    try:
+                        return function()
+                    except BaseException as exc:
+                        errors.append(f"{label}:{type(exc).__name__}:{exc}")
+                        return None
+                try:
+                    process = self.process
+                    if process is not None:
+                        if attempt("poll", process.poll) is None:
+                            attempt("terminate", process.terminate)
+                            attempt("wait", lambda: process.wait(timeout=5))
+                        if attempt("poll-after-terminate", process.poll) is None:
+                            attempt("kill", process.kill)
+                            attempt("wait-after-kill", lambda: process.wait(timeout=5))
+                        exited = attempt("final-poll", process.poll) is not None
+                        reaped = attempt("reap", lambda: process.wait(timeout=0)) if exited else None
+                        result["all_contained"] = exited and type(reaped) is int
+                        result["pid"] = process.pid
+                    # Do not close buffered pipes under a reader still blocked in I/O.
+                    readers_closed = True
+                    for reader in self._reader_threads:
+                        if reader.ident is not None and reader is not threading.current_thread():
+                            attempt("reader-join", lambda r=reader: r.join(timeout=1))
+                        if reader.is_alive():
+                            readers_closed = False
+                            errors.append("reader-still-running")
+                    if result["all_contained"] and readers_closed:
+                        if process is not None:
+                            for name in ("stdin", "stdout", "stderr"):
+                                stream = getattr(process, name, None)
+                                if stream is not None:
+                                    attempt("close-" + name, stream.close)
+                        result["resources_closed"] = not any(e.startswith("close-") for e in errors)
+                    if not result["all_contained"]:
+                        errors.append("owned-process-containment-unproved")
+                finally:
+                    self._cleanup_result = copy.deepcopy(result)
+                    self._closing = False
+            if result["errors"] or not result["all_contained"] or not result["resources_closed"]:
+                error = AppServerError("app-server-cleanup-failed")
+                error.app_server_cleanup = result
+                raise error
+            return result
 
 
 def turn_from_thread(thread: Mapping[str, Any], turn_id: str | None) -> Mapping[str, Any] | None:
@@ -4099,6 +4548,432 @@ EXACT_TOOL_TRACE_STEP_FIELDS = frozenset(
     }
 )
 
+READ_ONLY_COMMAND_AUTHORITY_STEP_FIELDS = frozenset(
+    {
+        "sequence",
+        "tool",
+        "argument_alternatives",
+        "continuation_of",
+    }
+)
+PENDING_EXEC_SESSION = "__CWO_PENDING_EXEC_SESSION__"
+_DIRECT_PENDING_EXEC_RESULT = re.compile(
+    r"Chunk ID: [0-9A-Za-z_-]+\n"
+    r"Wall time: [0-9]+(?:\.[0-9]+)? seconds\n"
+    r"Process running with session ID (?P<session_id>[1-9][0-9]*)\n"
+    r"Original token count: [0-9]+\n"
+    r"Output:\n[\s\S]*\Z"
+)
+_READ_ONLY_SHELL_META = frozenset({";", "&", "|", ">", "<"})
+
+
+def _read_only_command_tokens(command: Any) -> list[str]:
+    """Parse one deliberately narrow command without authorizing shell syntax."""
+
+    if (
+        not isinstance(command, str)
+        or not command
+        or "\x00" in command
+        or "\n" in command
+        or "\r" in command
+        or "`" in command
+        or "$(" in command
+        or "${" in command
+    ):
+        raise AppServerError("read-only-command-authority-command-invalid")
+    try:
+        lexer = shlex.shlex(command, posix=True, punctuation_chars=";&|<>")
+        lexer.whitespace_split = True
+        lexer.commenters = ""
+        tokens = list(lexer)
+    except ValueError as exc:
+        raise AppServerError(
+            "read-only-command-authority-command-invalid"
+        ) from exc
+    if not tokens or any(
+        token and set(token) <= _READ_ONLY_SHELL_META for token in tokens
+    ):
+        raise AppServerError("read-only-command-authority-shell-syntax-forbidden")
+    return tokens
+
+
+def _require_positive_read_only_command(command: Any) -> None:
+    """Accept only reviewed read/test command families, never a generic shell."""
+
+    tokens = _read_only_command_tokens(command)
+    executable = tokens[0]
+    arguments = tokens[1:]
+    if executable == "git":
+        if not arguments or arguments[0] not in {
+            "diff",
+            "status",
+            "rev-parse",
+            "show",
+            "ls-files",
+        }:
+            raise AppServerError("read-only-command-authority-git-command-forbidden")
+        if any(
+            token
+            in {
+                "--output",
+                "--exec",
+                "--ext-diff",
+                "--textconv",
+                "-c",
+                "--config-env",
+            }
+            or token.startswith(("--output=", "--ext", "--textc"))
+            for token in arguments[1:]
+        ):
+            raise AppServerError("read-only-command-authority-git-option-forbidden")
+        return
+    if executable in {"sha256sum", "cat", "head", "tail", "wc"}:
+        if any(token.startswith("--files0-from") for token in arguments):
+            raise AppServerError("read-only-command-authority-option-forbidden")
+        return
+    if executable in {"rg", "grep"}:
+        if any(
+            token in {"--pre", "--pre-glob"}
+            or token.startswith("--pre=")
+            or token.startswith("--pre-glob=")
+            for token in arguments
+        ):
+            raise AppServerError("read-only-command-authority-option-forbidden")
+        return
+    if executable == "find":
+        if any(
+            token
+            in {
+                "-delete",
+                "-exec",
+                "-execdir",
+                "-fls",
+                "-fprint",
+                "-ok",
+                "-okdir",
+            }
+            or token.startswith(("-fls", "-fprint"))
+            for token in arguments
+        ):
+            raise AppServerError("read-only-command-authority-option-forbidden")
+        return
+    if executable in {"python", "python3"}:
+        if not arguments or arguments[0] != "-B":
+            raise AppServerError("read-only-command-authority-python-no-bytecode-required")
+        python_arguments = arguments[1:]
+        allowed = False
+        if python_arguments[:2] == ["-m", "unittest"]:
+            allowed = True
+        elif python_arguments and python_arguments[0] in {
+            "scripts/validate_repository.py",
+            "scripts/run_parallel_unittest.py",
+        }:
+            allowed = True
+        if not allowed or any(token in {"-c", "-i"} for token in python_arguments):
+            raise AppServerError("read-only-command-authority-python-command-forbidden")
+        return
+    if executable == "./scripts/install.sh":
+        if "--dry-run" not in arguments:
+            raise AppServerError("read-only-command-authority-install-not-dry-run")
+        return
+    raise AppServerError("read-only-command-authority-executable-forbidden")
+
+
+def _normalize_read_only_command_authority(
+    value: list[Mapping[str, Any]] | None,
+    *,
+    worktree: Path,
+    tool_transport: str,
+) -> list[dict[str, Any]] | None:
+    if value is None:
+        return None
+    if type(value) is not list or not value:
+        raise AppServerError("read-only-command-authority-invalid")
+    normalized: list[dict[str, Any]] = []
+    for sequence, raw_step in enumerate(value):
+        if (
+            type(raw_step) is not dict
+            or set(raw_step) != READ_ONLY_COMMAND_AUTHORITY_STEP_FIELDS
+        ):
+            raise AppServerError("read-only-command-authority-step-fields-invalid")
+        tool = raw_step.get("tool")
+        alternatives = raw_step.get("argument_alternatives")
+        continuation = raw_step.get("continuation_of")
+        if (
+            raw_step.get("sequence") != sequence
+            or tool not in {"exec_command", "write_stdin"}
+            or type(alternatives) is not list
+            or not alternatives
+            or any(type(item) is not dict for item in alternatives)
+        ):
+            raise AppServerError("read-only-command-authority-step-invalid")
+        canonical_alternatives: list[dict[str, Any]] = []
+        hashes: list[str] = []
+        for raw_arguments in alternatives:
+            arguments = copy.deepcopy(dict(raw_arguments))
+            if tool == "exec_command":
+                if (
+                    continuation is not None
+                    or set(arguments)
+                    - {"cmd", "workdir", "login", "yield_time_ms", "max_output_tokens"}
+                    or arguments.get("workdir") != str(worktree)
+                    or not isinstance(arguments.get("cmd"), str)
+                    or (
+                        tool_transport == DIRECT_TOOL_TRANSPORT
+                        and arguments.get("login") is not False
+                    )
+                    or (
+                        tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
+                        and "login" in arguments
+                    )
+                ):
+                    raise AppServerError(
+                        "read-only-command-authority-exec-arguments-invalid"
+                    )
+                for field in ("yield_time_ms", "max_output_tokens"):
+                    if field in arguments and (
+                        isinstance(arguments[field], bool)
+                        or not isinstance(arguments[field], int)
+                        or arguments[field] <= 0
+                    ):
+                        raise AppServerError(
+                            "read-only-command-authority-exec-arguments-invalid"
+                        )
+                _require_positive_read_only_command(arguments["cmd"])
+            else:
+                if (
+                    isinstance(continuation, bool)
+                    or not isinstance(continuation, int)
+                    or continuation < 0
+                    or continuation >= sequence
+                    or normalized[continuation]["tool"] != "exec_command"
+                    or set(arguments)
+                    - {"session_id", "chars", "yield_time_ms", "max_output_tokens"}
+                    or arguments.get("session_id") != PENDING_EXEC_SESSION
+                    or arguments.get("chars") != ""
+                ):
+                    raise AppServerError(
+                        "read-only-command-authority-continuation-invalid"
+                    )
+                for field in ("yield_time_ms", "max_output_tokens"):
+                    if field in arguments and (
+                        isinstance(arguments[field], bool)
+                        or not isinstance(arguments[field], int)
+                        or arguments[field] <= 0
+                    ):
+                        raise AppServerError(
+                            "read-only-command-authority-continuation-invalid"
+                        )
+            canonical_alternatives.append(arguments)
+            hashes.append(canonical_argument_hash(arguments))
+        if hashes != sorted(set(hashes)):
+            raise AppServerError(
+                "read-only-command-authority-alternatives-not-canonical"
+            )
+        normalized.append(
+            {
+                "sequence": sequence,
+                "tool": tool,
+                "argument_alternatives": canonical_alternatives,
+                "continuation_of": continuation,
+            }
+        )
+    return normalized
+
+
+def _direct_pending_operation_session_id(output_item: Mapping[str, Any]) -> int | None:
+    match = _DIRECT_PENDING_EXEC_RESULT.fullmatch(_output_text(output_item))
+    return int(match.group("session_id")) if match is not None else None
+
+
+def _trusted_tool_authority_receipts(
+    records: list[Mapping[str, Any]],
+    receipts: list[dict[str, Any]],
+    *,
+    tool_transport: str,
+) -> list[dict[str, Any]]:
+    """Bind raw calls to normalized receipts without exposing raw commands."""
+
+    events: list[tuple[int, str, Mapping[str, Any]]] = []
+    for record_index, record in enumerate(records):
+        for item_index, item in enumerate(_event_items(record)):
+            order = record_index * 1000 + item_index
+            if is_tool_call_item(item):
+                events.append((order, "call", item))
+            elif is_tool_output_item(item):
+                events.append((order, "output", item))
+    outputs: dict[str, list[tuple[int, Mapping[str, Any]]]] = {}
+    for order, kind, item in events:
+        if kind != "output":
+            continue
+        call_id = str(item.get("call_id") or item.get("callId") or "").strip()
+        outputs.setdefault(call_id, []).append((order, item))
+    calls: list[dict[str, Any]] = []
+    call_ids: dict[str, int] = {}
+    for order, kind, item in events:
+        if kind != "call":
+            continue
+        call_id = str(
+            item.get("call_id") or item.get("callId") or item.get("id") or ""
+        ).strip()
+        call_ids[call_id] = call_ids.get(call_id, 0) + 1
+        tool = trusted_tool_name(item)
+        arguments = _argument_value(item)
+        namespaced = False
+        if (
+            tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
+            and str(item.get("type") or item.get("kind") or "").lower()
+            in {"custom_tool_call", "customtoolcall"}
+            and tool == "exec"
+        ):
+            try:
+                decoded = decode_namespaced_exec_source(item.get("input"))
+            except ValueError:
+                pass
+            else:
+                tool = str(decoded["tool"])
+                arguments = decoded["arguments"]
+                namespaced = True
+        paired_outputs = outputs.get(call_id, []) if call_id else []
+        output_item = paired_outputs[0][1] if len(paired_outputs) == 1 else None
+        output_order = paired_outputs[0][0] if len(paired_outputs) == 1 else None
+        operation_session_id: int | None = None
+        if isinstance(output_item, Mapping):
+            if namespaced:
+                _kind, _exit, conflict, operation_session_id = (
+                    _paired_namespaced_exec_result(
+                        tool=str(tool),
+                        output_item=output_item,
+                    )
+                )
+                if conflict:
+                    operation_session_id = None
+            elif tool in {"exec_command", "write_stdin"}:
+                operation_session_id = _direct_pending_operation_session_id(
+                    output_item
+                )
+        if tool == "write_stdin" and isinstance(arguments, Mapping):
+            argument_session_id = arguments.get("session_id")
+            if (
+                isinstance(argument_session_id, int)
+                and not isinstance(argument_session_id, bool)
+                and argument_session_id > 0
+            ):
+                if (
+                    operation_session_id is not None
+                    and operation_session_id != argument_session_id
+                ):
+                    operation_session_id = None
+                else:
+                    operation_session_id = argument_session_id
+        call_status = "exact"
+        if (
+            not call_id
+            or call_ids[call_id] != 1
+            or len(paired_outputs) > 1
+            or (
+                len(paired_outputs) == 1
+                and paired_outputs[0][0] <= order
+            )
+        ):
+            call_status = "invalid"
+        if tool == "write_stdin":
+            chronological_parents = [
+                prior
+                for prior in calls
+                if prior["tool"] == "exec_command"
+                and prior["_operation_session_id"] == operation_session_id
+                and prior["_paired_output_order"] is not None
+                and prior["_paired_output_order"] < order
+            ]
+            if len(chronological_parents) != 1:
+                call_status = "invalid"
+        calls.append(
+            {
+                "_order": order,
+                "_paired_output_order": output_order,
+                "_call_id": call_id,
+                "_arguments": arguments,
+                "_operation_session_id": operation_session_id,
+                "sequence": len(calls),
+                "tool": tool,
+                "canonical_argument_hash": canonical_argument_hash(arguments),
+                "continuation_argument_hash": (
+                    canonical_argument_hash(
+                        {
+                            **dict(arguments),
+                            "session_id": PENDING_EXEC_SESSION,
+                        }
+                    )
+                    if tool == "write_stdin" and isinstance(arguments, Mapping)
+                    else None
+                ),
+                "call_id_sha256": (
+                    sha256_text(call_id) if call_id else None
+                ),
+                "operation_session_id_sha256": (
+                    sha256_text(str(operation_session_id))
+                    if operation_session_id is not None
+                    else None
+                ),
+                "raw_pairing_status": call_status,
+            }
+        )
+    projected: list[dict[str, Any]] = []
+    for sequence, call in enumerate(calls):
+        receipt = receipts[sequence] if sequence < len(receipts) else None
+        aligned = bool(
+            isinstance(receipt, Mapping)
+            and receipt.get("sequence") == sequence
+            and receipt.get("call_id") == call["_call_id"]
+            and receipt.get("tool") == call["tool"]
+            and receipt.get("canonical_argument_hash")
+            == call["canonical_argument_hash"]
+        )
+        projected.append(
+            {
+                key: value
+                for key, value in call.items()
+                if not key.startswith("_")
+            }
+            | {
+                "raw_receipt_alignment": "exact" if aligned else "invalid",
+                "pairing_status": (
+                    receipt.get("pairing_status")
+                    if isinstance(receipt, Mapping)
+                    else None
+                ),
+                "result_kind": (
+                    receipt.get("typed_result", {}).get("kind")
+                    if isinstance(receipt, Mapping)
+                    and isinstance(receipt.get("typed_result"), Mapping)
+                    else None
+                ),
+                "exit_code": (
+                    receipt.get("exit_code")
+                    if isinstance(receipt, Mapping)
+                    else None
+                ),
+            }
+        )
+    if len(calls) != len(receipts):
+        projected.append(
+            {
+                "sequence": len(projected),
+                "tool": "telemetry_anomaly.raw_receipt_cardinality",
+                "canonical_argument_hash": None,
+                "continuation_argument_hash": None,
+                "call_id_sha256": None,
+                "operation_session_id_sha256": None,
+                "raw_pairing_status": "invalid",
+                "raw_receipt_alignment": "invalid",
+                "pairing_status": None,
+                "result_kind": None,
+                "exit_code": None,
+            }
+        )
+    return projected
+
 
 def _tool_receipt_projection(receipt: Mapping[str, Any]) -> dict[str, Any]:
     typed_result = receipt.get("typed_result")
@@ -4118,6 +4993,110 @@ def _tool_receipt_projection(receipt: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "exit_code": receipt.get("exit_code"),
     }
+
+
+def _canonical_controller_workdir(value: Path | str) -> Path:
+    """Return one lexical, existing, nonsymlink controller workdir."""
+
+    try:
+        supplied = Path(value)
+    except (TypeError, ValueError) as exc:
+        raise AppServerError("controller-workdir-invalid") from exc
+    if not supplied.is_absolute() or "\x00" in str(supplied):
+        raise AppServerError("controller-workdir-invalid")
+    try:
+        resolved = supplied.resolve(strict=True)
+        metadata = supplied.lstat()
+    except OSError as exc:
+        raise AppServerError("controller-workdir-invalid") from exc
+    if (
+        supplied != resolved
+        or stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISDIR(metadata.st_mode)
+    ):
+        raise AppServerError("controller-workdir-invalid")
+    return resolved
+
+
+def _trusted_session_workdir_binding(
+    records: list[Mapping[str, Any]],
+    expected_workdir: Path,
+) -> None:
+    session_records = [
+        record for record in records if record.get("type") == "session_meta"
+    ]
+    if len(session_records) != 1:
+        raise AppServerError("session-controller-workdir-binding-invalid")
+    payload = session_records[0].get("payload")
+    if (
+        not isinstance(payload, Mapping)
+        or payload.get("cwd") != str(expected_workdir)
+    ):
+        raise AppServerError("session-controller-workdir-mismatch")
+
+
+def _nonexistent_canonical_nonsymlink_path(value: str) -> bool:
+    """Prove a lexical absolute path is absent without trusting symlink aliases."""
+
+    candidate = Path(value)
+    if (
+        not candidate.is_absolute()
+        or "\x00" in value
+        or str(candidate) != value
+    ):
+        return False
+    cursor = Path(candidate.anchor)
+    for part in candidate.parts[1:]:
+        cursor = cursor / part
+        try:
+            metadata = cursor.lstat()
+        except FileNotFoundError:
+            return True
+        except OSError:
+            return False
+        if stat.S_ISLNK(metadata.st_mode):
+            return False
+    return False
+
+
+def _exec_workdir_binding(
+    receipt: Mapping[str, Any],
+    expected_workdir: Path | None,
+) -> dict[str, Any] | None:
+    if expected_workdir is None or receipt.get("tool") != "exec_command":
+        return None
+    expected_sha256 = sha256_text(str(expected_workdir))
+    present = receipt.get("_invocation_workdir_present") is True
+    supplied = receipt.get("_invocation_workdir")
+    supplied_sha256 = (
+        sha256_text(supplied)
+        if isinstance(supplied, str)
+        else canonical_sha256(
+            {
+                "present": present,
+                "type": type(supplied).__name__,
+            }
+        )
+    )
+    base = {
+        "expected_workdir_sha256": expected_sha256,
+        "supplied_workdir_sha256": supplied_sha256,
+        "supplied": present,
+    }
+    if not present:
+        return {**base, "disposition": "controller-default"}
+    if type(supplied) is not str or not supplied or "\x00" in supplied:
+        return {**base, "disposition": "security-violation-malformed-workdir"}
+    if supplied == str(expected_workdir):
+        return {**base, "disposition": "controller-exact"}
+    result = receipt.get("typed_result")
+    result_kind = result.get("kind") if isinstance(result, Mapping) else None
+    if (
+        result_kind == "paired-input-error"
+        and _nonexistent_canonical_nonsymlink_path(supplied)
+    ):
+        return {**base, "disposition": "recoverable-nonexistent-workdir"}
+    return {**base, "disposition": "security-violation-workdir-mismatch"}
 
 
 def _normalize_expected_tool_trace(
@@ -4180,6 +5159,8 @@ def trusted_tool_evidence_summary(
     *,
     turn_id: str | None,
     terminal_event: Mapping[str, Any] | None = None,
+    tool_transport: str = DIRECT_TOOL_TRANSPORT,
+    expected_workdir: Path | str | None = None,
 ) -> dict[str, Any]:
     """Summarize tool activity only from the descriptor-bound session boundary."""
 
@@ -4191,6 +5172,8 @@ def trusted_tool_evidence_summary(
         "trusted_tool_activity": [],
         "trusted_tool_receipts": [],
         "trusted_tool_trace_sha256": canonical_sha256([]),
+        "trusted_tool_authority_receipts": [],
+        "trusted_tool_authority_receipts_sha256": canonical_sha256([]),
     }
     if turn_id is None:
         return empty
@@ -4224,18 +5207,84 @@ def trusted_tool_evidence_summary(
                 "session-tool-evidence-grammar-invalid:terminal-order-invalid"
             )
         end_index = terminal_index + 1
+    controller_workdir = (
+        _canonical_controller_workdir(expected_workdir)
+        if expected_workdir is not None
+        else None
+    )
     receipts = normalize_action_receipts(
         records[start_index + 1 : end_index],
         segment_id=turn_id,
+        tool_transport=tool_transport,
+        include_private_transport_evidence=controller_workdir is not None,
     )
     calls = list(receipts)
+    authority_receipts = _trusted_tool_authority_receipts(
+        records[start_index + 1 : end_index],
+        calls,
+        tool_transport=tool_transport,
+    )
+    if tool_transport == DIRECT_TOOL_TRANSPORT:
+        for receipt, authority_receipt in zip(calls, authority_receipts):
+            typed_result = receipt.get("typed_result")
+            if (
+                isinstance(typed_result, dict)
+                and typed_result.get("kind") == "paired-unknown"
+                and receipt.get("pairing_status") == "paired"
+                and receipt.get("tool") in {"exec_command", "write_stdin"}
+                and authority_receipt.get("raw_pairing_status") == "exact"
+                and authority_receipt.get("raw_receipt_alignment") == "exact"
+                and authority_receipt.get("operation_session_id_sha256")
+                is not None
+            ):
+                typed_result["kind"] = "paired-pending"
+        for index, receipt in enumerate(calls):
+            typed_result = receipt.get("typed_result")
+            if (
+                not isinstance(typed_result, dict)
+                or typed_result.get("kind") != "paired-pending"
+            ):
+                continue
+            session_sha256 = authority_receipts[index].get(
+                "operation_session_id_sha256"
+            )
+            resolved = any(
+                later_receipt.get("tool") == "write_stdin"
+                and authority_receipts[later_index].get(
+                    "operation_session_id_sha256"
+                )
+                == session_sha256
+                and later_receipt.get("typed_result", {}).get("kind")
+                in {"paired-success", "paired-failure"}
+                for later_index, later_receipt in enumerate(
+                    calls[index + 1 :], start=index + 1
+                )
+            )
+            if resolved:
+                typed_result["kind"] = "paired-deferred"
+        authority_receipts = _trusted_tool_authority_receipts(
+            records[start_index + 1 : end_index],
+            calls,
+            tool_transport=tool_transport,
+        )
+    for receipt in calls:
+        binding = _exec_workdir_binding(receipt, controller_workdir)
+        receipt["_workdir_binding"] = binding
+        typed_result = receipt.get("typed_result")
+        if (
+            isinstance(typed_result, dict)
+            and typed_result.get("kind") == "paired-input-error"
+            and isinstance(binding, Mapping)
+            and binding.get("disposition") == "recoverable-nonexistent-workdir"
+        ):
+            typed_result["kind"] = "paired-recoverable-workdir-input-error"
     completed = [
         receipt
         for receipt in calls
         if receipt.get("pairing_status") == "paired"
         and (
             receipt.get("typed_result", {}).get("kind")
-            != "paired-interrupted"
+            not in {"paired-interrupted", "paired-pending"}
         )
     ]
     trusted_receipts = [
@@ -4255,14 +5304,29 @@ def trusted_tool_evidence_summary(
             if isinstance(typed_result, Mapping)
             else None
         )
+        workdir_binding = receipt.get("_workdir_binding")
+        workdir_violation = bool(
+            isinstance(workdir_binding, Mapping)
+            and str(workdir_binding.get("disposition", "")).startswith(
+                "security-violation-"
+            )
+        )
         telemetry_anomaly = (
             receipt.get("pairing_status") == "ambiguous"
             or result_kind
-            in {"paired-interrupted", "paired-unknown", "unpaired-output"}
+            in {
+                "paired-input-error",
+                "paired-interrupted",
+                "paired-unknown",
+                "unpaired-output",
+            }
+            or (result_kind == "paired-pending" and terminal_event is not None)
             or normalized_tool == "unknown"
         )
         tool = (
-            f"telemetry_anomaly.{normalized_tool[:96]}"
+            "security_violation.exec_command_workdir"
+            if workdir_violation
+            else f"telemetry_anomaly.{normalized_tool[:96]}"
             if telemetry_anomaly
             else normalized_tool
         )
@@ -4278,6 +5342,7 @@ def trusted_tool_evidence_summary(
             "action_class": receipt.get("action_class"),
             "determinable_target_paths": receipt.get("determinable_target_paths"),
             "pairing_status": receipt.get("pairing_status"),
+            "workdir_binding": workdir_binding,
         }
         trusted_activity.append(
             {
@@ -4309,6 +5374,10 @@ def trusted_tool_evidence_summary(
         "trusted_tool_activity": trusted_activity,
         "trusted_tool_receipts": trusted_receipts,
         "trusted_tool_trace_sha256": canonical_sha256(trusted_receipts),
+        "trusted_tool_authority_receipts": authority_receipts,
+        "trusted_tool_authority_receipts_sha256": canonical_sha256(
+            authority_receipts
+        ),
     }
 
 
@@ -4321,6 +5390,8 @@ def session_boundary_summary(
     baseline: Mapping[str, Any] | None = None,
     allow_unmaterialized: bool = False,
     expected_source_identity_sha256: str | None = None,
+    tool_transport: str = DIRECT_TOOL_TRANSPORT,
+    expected_workdir: Path | str | None = None,
 ) -> dict[str, Any]:
     try:
         located, boundary, records = capture_unique_boundary(
@@ -4363,7 +5434,16 @@ def session_boundary_summary(
             "trusted_tool_activity": [],
             "trusted_tool_receipts": [],
             "trusted_tool_trace_sha256": canonical_sha256([]),
+            "trusted_tool_authority_receipts": [],
+            "trusted_tool_authority_receipts_sha256": canonical_sha256([]),
         }
+    controller_workdir = (
+        _canonical_controller_workdir(expected_workdir)
+        if expected_workdir is not None
+        else None
+    )
+    if controller_workdir is not None:
+        _trusted_session_workdir_binding(records, controller_workdir)
     models: list[str] = []
     efforts: list[str] = []
     compactions = 0
@@ -4393,6 +5473,8 @@ def session_boundary_summary(
         records,
         turn_id=turn_id,
         terminal_event=terminal_event,
+        tool_transport=tool_transport,
+        expected_workdir=controller_workdir,
     )
     return {
         "available": True,
@@ -4418,9 +5500,18 @@ def captured_session_boundary_summary(
     records: list[dict[str, Any]],
     *,
     turn_id: str | None,
+    tool_transport: str = DIRECT_TOOL_TRANSPORT,
+    expected_workdir: Path | str | None = None,
 ) -> dict[str, Any]:
     """Summarize an already descriptor-bound session boundary."""
 
+    controller_workdir = (
+        _canonical_controller_workdir(expected_workdir)
+        if expected_workdir is not None
+        else None
+    )
+    if controller_workdir is not None:
+        _trusted_session_workdir_binding(records, controller_workdir)
     models: list[str] = []
     efforts: list[str] = []
     compactions = 0
@@ -4455,6 +5546,8 @@ def captured_session_boundary_summary(
         records,
         turn_id=turn_id,
         terminal_event=terminal_event,
+        tool_transport=tool_transport,
+        expected_workdir=controller_workdir,
     )
     return {
         "available": True,
@@ -4474,6 +5567,106 @@ def captured_session_boundary_summary(
     }
 
 
+class StagedThreadArchive:
+    """Issue one archive RPC off-callback and expose a bounded close check."""
+
+    def __init__(
+        self,
+        server: AppServer,
+        thread_id: str,
+        *,
+        prepare: Callable[[], None] | None = None,
+        after_archive: Callable[[float], None] | None = None,
+    ) -> None:
+        self.server = server
+        self.thread_id = thread_id
+        self.prepare = prepare
+        self.after_archive = after_archive
+        self._lock = threading.Lock()
+        self._done = threading.Event()
+        self._started = False
+        self._error: BaseException | None = None
+        self._rpc_latency_ms: float | None = None
+
+    def _run(self) -> None:
+        try:
+            if self.prepare is not None:
+                self.prepare()
+            latency = self.server.archive_thread(self.thread_id)
+            if (
+                not isinstance(latency, (int, float))
+                or isinstance(latency, bool)
+                or not math.isfinite(float(latency))
+                or float(latency) < 0
+            ):
+                raise AppServerError("staged-archive-latency-invalid")
+            proof_reader = getattr(self.server, "archive_acceptance_proof", None)
+            if callable(proof_reader) and proof_reader(self.thread_id) is None:
+                raise AppServerError("staged-archive-acceptance-proof-missing")
+            self._rpc_latency_ms = float(latency)
+            if self.after_archive is not None:
+                self.after_archive(self._rpc_latency_ms)
+        except BaseException as exc:
+            self._error = exc
+        finally:
+            self._done.set()
+
+    def start(self) -> None:
+        with self._lock:
+            if self._started:
+                raise AppServerError("staged-archive-already-started")
+            register = getattr(self.server, "register_staged_archive", None)
+            if callable(register):
+                register(self.thread_id, self)
+            self._started = True
+            threading.Thread(
+                target=self._run,
+                name=f"cwo-archive-{sha256_text(self.thread_id)[:12]}",
+                daemon=True,
+            ).start()
+
+    def require_complete(
+        self,
+        *,
+        timeout_seconds: float = STAGED_ARCHIVE_CLOSE_SETTLE_SECONDS,
+    ) -> float:
+        if not self._started:
+            raise AppServerError("staged-archive-not-started")
+        if not self._done.wait(timeout=max(0.0, timeout_seconds)):
+            raise AppServerError("staged-archive-not-complete-after-cooperative-wait")
+        if self._error is not None:
+            if isinstance(self._error, Exception):
+                raise self._error
+            raise AppServerError(
+                f"staged-archive-failed:{type(self._error).__name__}"
+            )
+        if self._rpc_latency_ms is None:
+            raise AppServerError("staged-archive-latency-missing")
+        return self._rpc_latency_ms
+
+    def completion_ready(self) -> bool:
+        """Return whether the single staged request has reached a terminal result."""
+
+        if not self._started:
+            raise AppServerError("staged-archive-not-started")
+        return self._done.is_set()
+
+    def telemetry(self) -> dict[str, Any]:
+        return {
+            "mode": "cooperative-staged-single-request",
+            "started": self._started,
+            "completed": self._done.is_set() and self._error is None,
+            "rpc_latency_ms": (
+                round(self._rpc_latency_ms, 3)
+                if self._rpc_latency_ms is not None
+                else None
+            ),
+            "error_type": (
+                type(self._error).__name__ if self._error is not None else None
+            ),
+        }
+
+
 class LiveThreadAdapter:
     def __init__(
         self,
@@ -4486,6 +5679,7 @@ class LiveThreadAdapter:
         mutable: bool,
         expected_mutation: str | None,
         expected_tool_trace: list[Mapping[str, Any]] | None = None,
+        read_only_command_authority: list[Mapping[str, Any]] | None = None,
         completion_evidence_policy: Mapping[str, Any] | None = None,
         tool_policy: Mapping[str, Any] | None = None,
         prompt_preflight_receipt: Mapping[str, Any] | None = None,
@@ -4496,21 +5690,48 @@ class LiveThreadAdapter:
         monotonic_ns: Callable[[], int] = time.monotonic_ns,
     ) -> None:
         self.server = server
-        self.thread_response = dict(thread_response)
-        self.thread = dict(thread_response["thread"])
+        self.thread_response = copy.deepcopy(dict(thread_response))
+        self.thread = copy.deepcopy(dict(thread_response["thread"]))
         self.thread_id = str(self.thread["id"])
         self.reported_session_path = self.thread.get("path")
         self.prompt = prompt
         self.expected_token = expected_token
-        self.worktree = worktree
+        self.worktree = _canonical_controller_workdir(worktree)
         self.mutable = mutable
         self.expected_mutation = expected_mutation
+        transport_reader = getattr(server, "operative_tool_transport", None)
+        self.tool_transport = (
+            str(transport_reader())
+            if callable(transport_reader)
+            else DIRECT_TOOL_TRANSPORT
+        )
+        if self.tool_transport not in {
+            DIRECT_TOOL_TRANSPORT,
+            NAMESPACED_EXEC_TOOL_TRANSPORT,
+        }:
+            raise AppServerError("operative-tool-transport-invalid")
+        if expected_tool_trace is not None and read_only_command_authority is not None:
+            raise AppServerError("tool-authority-contract-ambiguous")
         self.expected_tool_trace = _normalize_expected_tool_trace(
             expected_tool_trace
         )
         self.expected_tool_trace_sha256 = (
             canonical_sha256(self.expected_tool_trace)
             if self.expected_tool_trace is not None
+            else None
+        )
+        self.read_only_command_authority = (
+            _normalize_read_only_command_authority(
+                read_only_command_authority,
+                worktree=self.worktree,
+                tool_transport=self.tool_transport,
+            )
+        )
+        if self.mutable and self.read_only_command_authority is not None:
+            raise AppServerError("read-only-command-authority-mutable-forbidden")
+        self.read_only_command_authority_sha256 = (
+            canonical_sha256(self.read_only_command_authority)
+            if self.read_only_command_authority is not None
             else None
         )
         isolation_class = "mutable-isolated" if mutable else "read-only-shared"
@@ -4599,7 +5820,421 @@ class LiveThreadAdapter:
         self._session_boundary_baseline: dict[str, Any] | None = None
         self._session_source_identity_sha256: str | None = None
         self.callback_latencies: dict[str, list[float]] = {}
+        self.callback_subphase_latencies: dict[str, list[float]] = {}
         self._evidence_sequence = 0
+        self._staged_archive: StagedThreadArchive | None = None
+        self._archive_terminal_evidence_sha256: str | None = None
+        self._archive_observation_deadline_ns: int | None = None
+        self._effective_boundary_sources: dict[str, Any] | None = None
+        self._effective_boundary: dict[str, Any] | None = None
+        self._effective_boundary_sha256: str | None = None
+        self._effective_boundary_arm_in_progress = False
+        self._effective_boundary_armed = False
+        self._effective_boundary_send_reserved = False
+        self._workspace_baseline: dict[str, Any] | None = None
+        self._workspace_baseline_sha256: str | None = None
+
+    @staticmethod
+    def _sealed_mapping_matches(value: Mapping[str, Any], field: str) -> bool:
+        observed = value.get(field)
+        if not isinstance(observed, str):
+            return False
+        body = dict(value)
+        body.pop(field, None)
+        return observed == canonical_sha256(body)
+
+    def _current_effective_boundary(self) -> dict[str, Any]:
+        sources = self._effective_boundary_sources
+        if not isinstance(sources, Mapping):
+            raise AppServerError("effective-boundary-unbound")
+        evidence_by_thread = getattr(
+            self.server, "_effective_thread_start_evidence", None
+        )
+        evidence = (
+            evidence_by_thread.get(self.thread_id)
+            if isinstance(evidence_by_thread, Mapping)
+            else None
+        )
+        if not isinstance(evidence, Mapping):
+            raise AppServerError("effective-boundary-thread-start-missing")
+        return {
+            "thread_start": copy.deepcopy(dict(evidence)),
+            "thread_response": copy.deepcopy(self.thread_response),
+            "thread": copy.deepcopy(self.thread),
+            "planned_child": copy.deepcopy(dict(sources["planned_child"])),
+            "runtime_child": copy.deepcopy(dict(sources["runtime_child"])),
+            "pool_contract": copy.deepcopy(dict(sources["pool_contract"])),
+            "control_contract": copy.deepcopy(dict(sources["control_contract"])),
+            "predispatch_proof": copy.deepcopy(dict(sources["predispatch_proof"])),
+            "adapter": {
+                "requested_model": getattr(
+                    self.server, "requested_model", EXACT_MODEL
+                ),
+                "prompt": self.prompt,
+                "worktree": str(self.worktree),
+                "mutable": self.mutable,
+                "return_contract": {
+                    "expected_token": self.expected_token,
+                    "expected_mutation": self.expected_mutation,
+                    "expected_tool_trace": copy.deepcopy(
+                        self.expected_tool_trace
+                    ),
+                    "read_only_command_authority": copy.deepcopy(
+                        self.read_only_command_authority
+                    ),
+                    "completion_evidence_policy": copy.deepcopy(
+                        self.completion_evidence_policy
+                    ),
+                },
+                "prompt_preflight": copy.deepcopy(self.prompt_preflight),
+                "tool_policy": copy.deepcopy(self.tool_policy),
+                "tool_surface": copy.deepcopy(self.preflight_tool_surface),
+                "workspace_baseline_sha256": (
+                    canonical_sha256(self._workspace_baseline)
+                    if self._workspace_baseline is not None
+                    else None
+                ),
+                "writable_roots": list(sources["writable_roots"]),
+            },
+        }
+
+    def _validate_effective_boundary(self, boundary: Mapping[str, Any]) -> None:
+        expected_fields = {
+            "thread_start",
+            "thread_response",
+            "thread",
+            "planned_child",
+            "runtime_child",
+            "pool_contract",
+            "control_contract",
+            "predispatch_proof",
+            "adapter",
+        }
+        if set(boundary) != expected_fields:
+            raise AppServerError("effective-boundary-malformed")
+        start = boundary.get("thread_start")
+        response = boundary.get("thread_response")
+        thread = boundary.get("thread")
+        planned = boundary.get("planned_child")
+        child = boundary.get("runtime_child")
+        pool = boundary.get("pool_contract")
+        control = boundary.get("control_contract")
+        proof = boundary.get("predispatch_proof")
+        adapter = boundary.get("adapter")
+        if any(
+            not isinstance(value, Mapping)
+            for value in (
+                start,
+                response,
+                thread,
+                planned,
+                child,
+                pool,
+                control,
+                proof,
+                adapter,
+            )
+        ):
+            raise AppServerError("effective-boundary-malformed")
+        request = start.get("request")
+        trusted_response = start.get("response")
+        if not isinstance(request, Mapping) or not isinstance(
+            trusted_response, Mapping
+        ):
+            raise AppServerError("effective-boundary-thread-start-malformed")
+        if trusted_response != response or trusted_response.get("thread") != thread:
+            raise AppServerError("effective-boundary-thread-start-response-mismatch")
+        worktree = str(self.worktree)
+        requested_model = getattr(self.server, "requested_model", EXACT_MODEL)
+        provider = trusted_response.get("modelProvider")
+        request_provider = request.get("modelProvider")
+        expected_sandbox_type = "workspaceWrite" if self.mutable else "readOnly"
+        expected_sandbox_request = "workspace-write" if self.mutable else "read-only"
+        sandbox = trusted_response.get("sandbox")
+        if (
+            request.get("model") != requested_model
+            or request.get("allowProviderModelFallback") is not False
+            or request.get("sandbox") != expected_sandbox_request
+            or request.get("approvalPolicy") != "never"
+            or request.get("cwd") != worktree
+            or request.get("runtimeWorkspaceRoots") != [worktree]
+            or trusted_response.get("model") != requested_model
+            or not isinstance(provider, str)
+            or not provider.strip()
+            or request_provider not in (None, provider)
+            or trusted_response.get("approvalPolicy") != "never"
+            or trusted_response.get("cwd") != worktree
+            or trusted_response.get("runtimeWorkspaceRoots") != [worktree]
+            or not isinstance(sandbox, Mapping)
+            or sandbox.get("type") != expected_sandbox_type
+            or sandbox.get("networkAccess", False) is not False
+            or thread.get("id") != self.thread_id
+            or type(thread.get("turns")) is not list
+            or thread.get("turns") != []
+        ):
+            raise AppServerError("effective-boundary-thread-start-mismatch")
+        sandbox_roots = sandbox.get("writableRoots", [])
+        if type(sandbox_roots) is not list or any(
+            not isinstance(root, str) for root in sandbox_roots
+        ):
+            raise AppServerError("effective-boundary-writable-roots-malformed")
+        try:
+            explicit_roots = [
+                str(_canonical_controller_workdir(root)) for root in sandbox_roots
+            ]
+        except AppServerError as exc:
+            raise AppServerError("effective-boundary-writable-root-invalid") from exc
+        effective_roots = sorted(
+            set(([worktree] if self.mutable else []) + explicit_roots)
+        )
+        if (
+            explicit_roots != sorted(set(explicit_roots))
+            or effective_roots != adapter.get("writable_roots")
+            or (not self.mutable and explicit_roots)
+        ):
+            raise AppServerError("effective-boundary-writable-root-mismatch")
+        if (
+            adapter.get("requested_model") != requested_model
+            or adapter.get("prompt") != self.prompt
+            or adapter.get("worktree") != worktree
+            or adapter.get("mutable") is not self.mutable
+            or adapter.get("return_contract")
+            != {
+                "expected_token": self.expected_token,
+                "expected_mutation": self.expected_mutation,
+                "expected_tool_trace": self.expected_tool_trace,
+                "read_only_command_authority": self.read_only_command_authority,
+                "completion_evidence_policy": self.completion_evidence_policy,
+            }
+            or adapter.get("prompt_preflight") != self.prompt_preflight
+            or adapter.get("tool_policy") != self.tool_policy
+            or adapter.get("tool_surface") != self.preflight_tool_surface
+            or adapter.get("workspace_baseline_sha256")
+            != self._workspace_baseline_sha256
+        ):
+            raise AppServerError("effective-boundary-adapter-mismatch")
+        common_fields = (
+            "child_id",
+            "packet_id",
+            "attempt_nonce",
+            "session_id",
+            "agent_id",
+            "packet_sha256",
+            "lease_id",
+            "isolation_class",
+            "completion_evidence_policy",
+            "tool_policy",
+            "declared_write_paths",
+            "integration_target_paths",
+        )
+        if any(planned.get(field) != child.get(field) for field in common_fields):
+            raise AppServerError("effective-boundary-planned-child-mismatch")
+        if (
+            planned.get("session_id") != self.thread_id
+            or planned.get("agent_id") != self.thread_id
+            or planned.get("worktree") != worktree
+            or planned.get("prompt") != self.prompt
+            or planned.get("prompt_preflight") != self.prompt_preflight
+            or planned.get("tool_surface") != self.preflight_tool_surface
+            or planned.get("completion_evidence_policy")
+            != self.completion_evidence_policy
+            or planned.get("tool_policy") != self.tool_policy
+            or child.get("worktree") != worktree
+            or child.get("session_id") != self.thread_id
+            or child.get("agent_id") != self.thread_id
+        ):
+            raise AppServerError("effective-boundary-child-identity-mismatch")
+        expected_paths = [self.expected_mutation] if self.expected_mutation else []
+        hard_budget = planned.get("hard_budget")
+        if (
+            planned.get("declared_write_paths") != expected_paths
+            or planned.get("integration_target_paths") != expected_paths
+            or child.get("declared_write_paths") != expected_paths
+            or child.get("integration_target_paths") != expected_paths
+            or child.get("isolation_class")
+            != ("mutable-isolated" if self.mutable else "read-only-shared")
+            or not isinstance(hard_budget, Mapping)
+            or set(hard_budget)
+            != {
+                "tool_calls",
+                "runtime_seconds",
+                "compactions",
+                "full_suite_runs",
+                "mutations",
+            }
+            or any(
+                type(value) is not int or value < 0
+                for value in hard_budget.values()
+            )
+        ):
+            raise AppServerError("effective-boundary-scope-mismatch")
+        if (
+            not self._sealed_mapping_matches(control, "contract_sha256")
+            or control.get("agent_id") != self.thread_id
+            or control.get("state_file") != child.get("state_file")
+            or control.get("control_turn_id") != child.get("control_turn_id")
+            or control.get("task_sha256") != sha256_text(self.prompt)
+            or control.get("poll_interval_ms") != POOL_POLL_INTERVAL_MS
+        ):
+            raise AppServerError("effective-boundary-control-contract-mismatch")
+        if not self._sealed_mapping_matches(pool, "contract_sha256"):
+            raise AppServerError("effective-boundary-pool-contract-invalid")
+        pool_children = pool.get("children")
+        matches = (
+            [item for item in pool_children if item.get("child_id") == child.get("child_id")]
+            if isinstance(pool_children, list)
+            and all(isinstance(item, Mapping) for item in pool_children)
+            else []
+        )
+        if len(matches) != 1:
+            raise AppServerError("effective-boundary-pool-child-missing")
+        pool_child = matches[0]
+        pool_fields = (
+            "child_id",
+            "packet_id",
+            "attempt_nonce",
+            "session_id",
+            "agent_id",
+            "control_turn_id",
+            "packet_sha256",
+            "state_file",
+            "isolation_class",
+            "completion_evidence_policy",
+            "tool_policy",
+            "declared_write_paths",
+            "integration_target_paths",
+            "lease_id",
+        )
+        worktree_identity = pool_child.get("worktree_identity")
+        if (
+            any(pool_child.get(field) != child.get(field) for field in pool_fields)
+            or pool_child.get("control_contract_sha256")
+            != control.get("contract_sha256")
+            or not isinstance(worktree_identity, Mapping)
+            or worktree_identity.get("canonical_path_sha256")
+            != sha256_text(worktree)
+        ):
+            raise AppServerError("effective-boundary-pool-child-mismatch")
+        if (
+            proof.get("accepted") is not True
+            or proof.get("decision") != "accept"
+            or proof.get("stage") != "pre-dispatch"
+            or proof.get("contract_sha256") != pool.get("contract_sha256")
+            or not self._sealed_mapping_matches(proof, "result_sha256")
+        ):
+            raise AppServerError("effective-boundary-predispatch-proof-mismatch")
+
+    def bind_effective_boundary(
+        self,
+        *,
+        planned_child: Mapping[str, Any],
+        runtime_child: Mapping[str, Any],
+        pool_contract: Mapping[str, Any],
+        control_contract: Mapping[str, Any],
+        predispatch_proof: Mapping[str, Any],
+        writable_roots: Iterable[Path | str],
+    ) -> None:
+        """Bind all controller-owned pre-turn evidence exactly once."""
+
+        with self._boundary_lock:
+            if self._effective_boundary_sources is not None:
+                raise AppServerError("effective-boundary-already-bound")
+            roots = sorted(
+                {str(_canonical_controller_workdir(root)) for root in writable_roots}
+            )
+            self._effective_boundary_sources = {
+                "planned_child": planned_child,
+                "runtime_child": runtime_child,
+                "pool_contract": pool_contract,
+                "control_contract": control_contract,
+                "predispatch_proof": predispatch_proof,
+                "writable_roots": roots,
+            }
+            try:
+                boundary = self._current_effective_boundary()
+                self._validate_effective_boundary(boundary)
+            except BaseException:
+                self._effective_boundary_sources = None
+                raise
+            self._effective_boundary = copy.deepcopy(boundary)
+            self._effective_boundary_sha256 = canonical_sha256(boundary)
+
+    def bind_workspace_baseline(self, baseline: Mapping[str, Any]) -> None:
+        """Bind one complete controller-owned pre-dispatch workspace baseline."""
+
+        with self._boundary_lock:
+            if self._workspace_baseline is not None:
+                raise AppServerError("workspace-baseline-already-bound")
+            if (
+                self._effective_boundary_sources is not None
+                or self._boundary_phase != "pre-dispatch"
+                or self._effective_boundary_arm_in_progress
+                or self._effective_boundary_armed
+                or self._effective_boundary_send_reserved
+            ):
+                raise AppServerError("workspace-baseline-binding-too-late")
+            value = copy.deepcopy(dict(baseline))
+            caps = value.get("caps")
+            if (
+                value.get("workspace_evidence_type")
+                != "content-aware-baseline"
+                or value.get("version") != 2
+                or value.get("baseline_complete") is not True
+                or value.get("incomplete") is not False
+                or value.get("include_untracked") is not True
+                or value.get("tracked_paths_complete") is not True
+                or not isinstance(value.get("tracked_status"), list)
+                or not isinstance(value.get("tracked_paths"), list)
+                or not isinstance(value.get("preexisting_dirty_paths"), list)
+                or not isinstance(value.get("content_fingerprints"), Mapping)
+                or not isinstance(value.get("allowed_paths"), list)
+                or not isinstance(caps, Mapping)
+                or type(caps.get("max_files")) is not int
+                or caps["max_files"] < 1
+                or type(caps.get("max_bytes")) is not int
+                or caps["max_bytes"] < 0
+                or type(caps.get("max_seconds")) not in {int, float}
+                or caps["max_seconds"] <= 0
+            ):
+                raise AppServerError("workspace-baseline-invalid")
+            try:
+                baseline_root = Path(str(value.get("cwd", ""))).resolve()
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise AppServerError("workspace-baseline-root-invalid") from exc
+            if baseline_root != self.worktree:
+                raise AppServerError("workspace-baseline-root-mismatch")
+            self._workspace_baseline = value
+            self._workspace_baseline_sha256 = canonical_sha256(value)
+
+    def _require_effective_boundary(
+        self,
+        *,
+        current_tool_surface: Mapping[str, Any] | None = None,
+    ) -> None:
+        if self._effective_boundary is None or self._effective_boundary_sha256 is None:
+            raise AppServerError("effective-boundary-unbound")
+        if canonical_sha256(self._effective_boundary) != self._effective_boundary_sha256:
+            raise AppServerError("effective-boundary-receipt-mutated")
+        current = self._current_effective_boundary()
+        self._validate_effective_boundary(current)
+        if current != self._effective_boundary:
+            raise AppServerError("effective-boundary-source-mutated")
+        if current_tool_surface is not None:
+            surface = dict(current_tool_surface)
+            surface_errors = validate_tool_surface_snapshot(
+                surface, self.tool_policy
+            )
+            if surface_errors:
+                raise AppServerError(
+                    "effective-boundary-tool-surface-invalid:"
+                    + ";".join(surface_errors)
+                )
+            try:
+                require_unchanged_tool_surface(
+                    self.preflight_tool_surface, surface
+                )
+            except NativeToolIsolationError as exc:
+                raise AppServerError(str(exc)) from exc
 
     def _timed(self, name: str, action: Callable[[], Any]) -> Any:
         started = time.monotonic_ns()
@@ -4609,49 +6244,117 @@ class LiveThreadAdapter:
             elapsed = (time.monotonic_ns() - started) / 1_000_000
             self.callback_latencies.setdefault(name, []).append(elapsed)
 
+    def _record_callback_subphase(self, name: str, started_ns: int) -> None:
+        elapsed = max(0, self._monotonic_ns() - started_ns) / 1_000_000
+        self.callback_subphase_latencies.setdefault(name, []).append(elapsed)
+
     def arm(self, **_kwargs: Any) -> dict[str, str]:
         def action() -> dict[str, str]:
-            if self.thread_response.get("model") != EXACT_MODEL:
-                raise AppServerError("prearmed-thread-model-mismatch")
-            if self.thread.get("id") != self.thread_id or self.thread.get("turns"):
-                raise AppServerError("prearmed-thread-is-not-fresh")
+            with self._boundary_lock:
+                if (
+                    self._effective_boundary_arm_in_progress
+                    or self._effective_boundary_armed
+                ):
+                    raise AppServerError("effective-boundary-already-armed")
+                self._effective_boundary_arm_in_progress = True
+                try:
+                    current_surface = dict(self._tool_surface_reader())
+                    self._require_effective_boundary(
+                        current_tool_surface=current_surface
+                    )
+                    if self.thread_response.get("model") != getattr(
+                        self.server, "requested_model", EXACT_MODEL
+                    ):
+                        raise AppServerError("prearmed-thread-model-mismatch")
+                    if (
+                        self.thread.get("id") != self.thread_id
+                        or self.thread.get("turns")
+                    ):
+                        raise AppServerError("prearmed-thread-is-not-fresh")
+                except BaseException:
+                    self._effective_boundary_arm_in_progress = False
+                    raise
+                self._effective_boundary_arm_in_progress = False
+                self._effective_boundary_armed = True
             return {"ack": "armed"}
 
         return self._timed("arm", action)
 
     def send_input(self, *, message: str, **_kwargs: Any) -> dict[str, str]:
         def action() -> dict[str, str]:
-            if message != self.prompt:
-                raise AppServerError("turn-prompt-binding-mismatch")
-            try:
-                current_prompt_preflight = require_prompt_preflight(
-                    message, self.tool_policy
-                )
-            except NativeToolIsolationError as exc:
-                raise AppServerError(str(exc)) from exc
-            if current_prompt_preflight != self.prompt_preflight:
-                raise AppServerError("prompt-preflight-changed-before-dispatch")
-            current_surface = dict(self._tool_surface_reader())
-            surface_errors = validate_tool_surface_snapshot(
-                current_surface, self.tool_policy
-            )
-            if surface_errors:
-                raise AppServerError(
-                    "pre-dispatch-tool-surface-invalid:"
-                    + ";".join(surface_errors)
-                )
-            try:
-                require_unchanged_tool_surface(
-                    self.preflight_tool_surface, current_surface
-                )
-            except NativeToolIsolationError as exc:
-                raise AppServerError(str(exc)) from exc
-            self.pre_dispatch_tool_surface = current_surface
             with self._boundary_lock:
+                if self._effective_boundary_arm_in_progress:
+                    raise AppServerError("effective-boundary-arm-in-progress")
+                if not self._effective_boundary_armed:
+                    raise AppServerError("effective-boundary-not-armed")
+                if self._effective_boundary_send_reserved:
+                    raise AppServerError("effective-boundary-send-not-one-shot")
+                self._effective_boundary_send_reserved = True
+                self._require_effective_boundary()
+                if message != self.prompt:
+                    raise AppServerError("turn-prompt-binding-mismatch")
+                subphase_started = self._monotonic_ns()
+                try:
+                    current_prompt_preflight = require_prompt_preflight(
+                        message, self.tool_policy
+                    )
+                except NativeToolIsolationError as exc:
+                    raise AppServerError(str(exc)) from exc
+                finally:
+                    self._record_callback_subphase(
+                        "send_input.prompt_preflight", subphase_started
+                    )
+                if current_prompt_preflight != self.prompt_preflight:
+                    raise AppServerError("prompt-preflight-changed-before-dispatch")
+                subphase_started = self._monotonic_ns()
+                try:
+                    current_surface = dict(self._tool_surface_reader())
+                finally:
+                    self._record_callback_subphase(
+                        "send_input.tool_surface_capture", subphase_started
+                    )
+                subphase_started = self._monotonic_ns()
+                try:
+                    surface_errors = validate_tool_surface_snapshot(
+                        current_surface, self.tool_policy
+                    )
+                    if surface_errors:
+                        raise AppServerError(
+                            "pre-dispatch-tool-surface-invalid:"
+                            + ";".join(surface_errors)
+                        )
+                    try:
+                        require_unchanged_tool_surface(
+                            self.preflight_tool_surface, current_surface
+                        )
+                    except NativeToolIsolationError as exc:
+                        raise AppServerError(str(exc)) from exc
+                finally:
+                    self._record_callback_subphase(
+                        "send_input.tool_surface_validation", subphase_started
+                    )
+                self.pre_dispatch_tool_surface = current_surface
+                # The surface reader is a reentrant callback. Rebind all
+                # controller-owned identity and scope inputs after it returns,
+                # immediately before irrevocably attempting the RPC.
+                self._require_effective_boundary(
+                    current_tool_surface=current_surface
+                )
+                lock_started = self._monotonic_ns()
+                self._record_callback_subphase(
+                    "send_input.boundary_lock_wait", lock_started
+                )
                 # Revoke the pre-dispatch allowance before the RPC. Failed or
                 # ambiguous submission can never recover it from a missing id.
                 self._boundary_phase = "dispatch-attempted"
-                turn, _latency = self.server.start_turn(self.thread_id, message)
+                subphase_started = self._monotonic_ns()
+                try:
+                    turn, _latency = self.server.start_turn(self.thread_id, message)
+                finally:
+                    self._record_callback_subphase(
+                        "send_input.turn_start_rpc", subphase_started
+                    )
+                subphase_started = self._monotonic_ns()
                 returned_ns = self._monotonic_ns()
                 turn_id = turn.get("id") if isinstance(turn, Mapping) else None
                 if not isinstance(turn_id, str) or not turn_id:
@@ -4664,6 +6367,9 @@ class LiveThreadAdapter:
                     POST_SUBMISSION_MATERIALIZATION_GRACE_MS * 1_000_000
                 )
                 self._boundary_phase = "submission-acknowledged-awaiting-materialization"
+                self._record_callback_subphase(
+                    "send_input.acknowledgement_binding", subphase_started
+                )
                 return {"submission_id": self.turn_id}
 
         return self._timed("send_input", action)
@@ -4678,7 +6384,7 @@ class LiveThreadAdapter:
                     "thread_id": self.thread_id,
                     "turn_id": self.turn_id,
                     "prompt_sha256": sha256_text(self.prompt),
-                    "control_turn_id": CONTROL_TURN_ID,
+                    "control_turn_id": self.control_turn_identity(),
                 },
             )
             return {"ack": "dispatched"}
@@ -4688,10 +6394,13 @@ class LiveThreadAdapter:
     def check(self, **_kwargs: Any) -> dict[str, str]:
         def action() -> dict[str, str]:
             self.check_count += 1
-            thread, _latency = self.server.read_thread(self.thread_id)
-            self.last_thread = thread
-            self.reported_session_path = thread.get("path") or self.reported_session_path
             boundary = self._capture_trusted_boundary(allow_pending=True)
+            if boundary.get("available") is True:
+                thread, _latency = self.server.read_thread(self.thread_id)
+                self.last_thread = thread
+                self.reported_session_path = (
+                    thread.get("path") or self.reported_session_path
+                )
             status = turn_status(self.last_thread, self.turn_id)
             terminal_event = boundary.get("terminal_event")
             durable_status = (
@@ -4716,9 +6425,7 @@ class LiveThreadAdapter:
             if self._observe_forbidden_tool_activity(boundary):
                 return {"decision": "interrupt"}
             if durable_status == "completed":
-                _message_hash, matches = final_message_hash_and_match(
-                    self.last_thread, self.turn_id, self.expected_token
-                )
+                _message_hash, matches = self.final_message_observation()
                 if not matches:
                     return {"decision": "control-lost"}
                 if self._known_completion_evidence_missing(boundary):
@@ -4763,6 +6470,31 @@ class LiveThreadAdapter:
         self, boundary: Mapping[str, Any]
     ) -> list[dict[str, str]]:
         trusted_activity = list(boundary.get("trusted_tool_activity", []))
+        authority_observation = self._read_only_command_authority_observation(
+            boundary.get("trusted_tool_authority_receipts", []),
+            terminal=(
+                isinstance(boundary.get("terminal_event"), Mapping)
+                and boundary["terminal_event"].get("status")
+                in {"completed", "failed", "interrupted"}
+            ),
+        )
+        if authority_observation["required"] and authority_observation["mismatch"]:
+            trusted_activity.append(
+                {
+                    "tool": "security_violation.read_only_command_authority",
+                    "evidence_sha256": canonical_sha256(
+                        {
+                            "expected_sha256": authority_observation[
+                                "expected_sha256"
+                            ],
+                            "observed_sha256": authority_observation[
+                                "observed_sha256"
+                            ],
+                            "reason": authority_observation["reason"],
+                        }
+                    ),
+                }
+            )
         if (
             self.tool_policy["workload_class"] == "operative"
             and self.tool_policy["enforcement_mode"]
@@ -4783,7 +6515,11 @@ class LiveThreadAdapter:
                 else None
             )
             trusted_tool_calls = int(boundary.get("trusted_tool_calls", 0))
-            terminal = durable_status == "completed"
+            terminal = durable_status in {
+                "completed",
+                "failed",
+                "interrupted",
+            }
             for item in list(trusted_activity):
                 if (
                     terminal
@@ -4844,6 +6580,140 @@ class LiveThreadAdapter:
             combined[key] for key in sorted(combined)
         ]
         return list(self._forbidden_tool_activity)
+
+    def _read_only_command_authority_observation(
+        self,
+        observed_value: Any,
+        *,
+        terminal: bool,
+    ) -> dict[str, Any]:
+        expected = self.read_only_command_authority
+        observed = (
+            [dict(item) for item in observed_value]
+            if isinstance(observed_value, list)
+            and all(isinstance(item, Mapping) for item in observed_value)
+            else []
+        )
+        observed_sha256 = canonical_sha256(observed)
+        if expected is None:
+            return {
+                "required": False,
+                "status": "not-required",
+                "mismatch": False,
+                "satisfied": True,
+                "reason": None,
+                "expected_sha256": None,
+                "observed_sha256": observed_sha256,
+            }
+        reason: str | None = None
+        pending_sessions: dict[int, str] = {}
+        for sequence, observed_step in enumerate(observed):
+            if sequence >= len(expected):
+                reason = "extra-call"
+                break
+            expected_step = expected[sequence]
+            if observed_step.get("sequence") != sequence:
+                reason = f"step-{sequence}-sequence-mismatch"
+                break
+            if observed_step.get("tool") != expected_step["tool"]:
+                reason = f"step-{sequence}-tool-mismatch"
+                break
+            if (
+                observed_step.get("raw_pairing_status") != "exact"
+                or observed_step.get("raw_receipt_alignment") != "exact"
+                or observed_step.get("call_id_sha256") is None
+            ):
+                reason = f"step-{sequence}-raw-receipt-binding-invalid"
+                break
+            if expected_step["tool"] == "exec_command":
+                allowed_hashes = {
+                    canonical_argument_hash(item)
+                    for item in expected_step["argument_alternatives"]
+                }
+                if observed_step.get("canonical_argument_hash") not in allowed_hashes:
+                    reason = f"step-{sequence}-canonical-argument-mismatch"
+                    break
+            else:
+                allowed_hashes = {
+                    canonical_argument_hash(item)
+                    for item in expected_step["argument_alternatives"]
+                }
+                if observed_step.get("continuation_argument_hash") not in allowed_hashes:
+                    reason = f"step-{sequence}-continuation-argument-mismatch"
+                    break
+                parent = expected_step["continuation_of"]
+                if (
+                    not isinstance(parent, int)
+                    or pending_sessions.get(parent) is None
+                    or observed_step.get("operation_session_id_sha256")
+                    != pending_sessions[parent]
+                ):
+                    reason = f"step-{sequence}-pending-parent-mismatch"
+                    break
+            pairing_status = observed_step.get("pairing_status")
+            result_kind = observed_step.get("result_kind")
+            if pairing_status == "unpaired":
+                if terminal or sequence != len(observed) - 1:
+                    reason = f"step-{sequence}-unpaired"
+                    break
+                continue
+            if pairing_status != "paired":
+                reason = f"step-{sequence}-pairing-mismatch"
+                break
+            if result_kind in {"paired-pending", "paired-deferred"}:
+                session_sha256 = observed_step.get("operation_session_id_sha256")
+                if session_sha256 is None:
+                    reason = f"step-{sequence}-pending-session-missing"
+                    break
+                if expected_step["tool"] == "exec_command":
+                    pending_sessions[sequence] = session_sha256
+            elif result_kind not in {"paired-success", "paired-failure"}:
+                reason = f"step-{sequence}-result-invalid"
+                break
+        complete = reason is None and len(observed) == len(expected)
+        successful = complete and all(
+            item.get("pairing_status") == "paired"
+            and item.get("result_kind") in {"paired-success", "paired-deferred"}
+            and (
+                item.get("exit_code") == 0
+                or item.get("result_kind") == "paired-deferred"
+            )
+            for item in observed
+        )
+        if reason is None and terminal and not complete:
+            reason = "terminal-cardinality-mismatch"
+        mismatch = reason is not None
+        return {
+            "required": True,
+            "status": (
+                "mismatch"
+                if mismatch
+                else "satisfied"
+                if successful and terminal
+                else "authorized-failure"
+                if complete and terminal
+                else "pending"
+            ),
+            "mismatch": mismatch,
+            "satisfied": successful and terminal,
+            "reason": reason,
+            "expected_sha256": self.read_only_command_authority_sha256,
+            "observed_sha256": observed_sha256,
+        }
+
+    def control_turn_identity(self) -> str:
+        """Identity fixed by the controller before any dispatch evidence write."""
+        return CONTROL_TURN_ID
+
+    def final_message_observation(self) -> tuple[str | None, bool]:
+        """Controller-selected final contract; token canaries retain exact equality.
+
+        Product adapters may override this with strict native-return validation
+        bound before arming. Both supervision and evidence use this one method;
+        no post-turn replacement of expected_token is permitted.
+        """
+        return final_message_hash_and_match(
+            self.last_thread, self.turn_id, self.expected_token)
 
     def _exact_tool_trace_observation(
         self,
@@ -5005,28 +6875,22 @@ class LiveThreadAdapter:
 
         return self._timed("interrupt", action)
 
-    def finalize(self, *, control_action: str, **_kwargs: Any) -> dict[str, str]:
-        def action() -> dict[str, str]:
-            write_private_artifact(
-                self.record_dir / f"{self.thread_id}-finalize-{control_action}.json",
-                {
-                    "thread_id": self.thread_id,
-                    "turn_id": self.turn_id,
-                    "control_action": control_action,
-                    "control_turn_id": CONTROL_TURN_ID,
-                },
-            )
-            return {"ack": control_action}
-
-        return self._timed("finalize", action)
-
-    def close(self, **_kwargs: Any) -> dict[str, str]:
-        def action() -> dict[str, str]:
+    def _prepare_staged_archive(self) -> None:
+        deadline = time.monotonic() + STAGED_ARCHIVE_TERMINAL_TIMEOUT_SECONDS
+        while True:
             with self._boundary_lock:
-                self._boundary_phase = "closing"
+                if self._durable_terminal_status in {
+                    "completed",
+                    "failed",
+                    "interrupted",
+                }:
+                    self._bind_archive_terminal_evidence_locked()
+                    return
                 thread, _latency = self.server.read_thread(self.thread_id)
                 self.last_thread = thread
-                self.reported_session_path = thread.get("path") or self.reported_session_path
+                self.reported_session_path = (
+                    thread.get("path") or self.reported_session_path
+                )
                 boundary = self._capture_trusted_boundary(allow_pending=True)
                 terminal_event = boundary.get("terminal_event")
                 durable_status = (
@@ -5034,19 +6898,154 @@ class LiveThreadAdapter:
                     if isinstance(terminal_event, Mapping)
                     else None
                 )
-                if boundary.get("available") is True and durable_status not in {
-                    "completed",
-                    "interrupted",
-                    "failed",
-                }:
-                    raise AppServerError(
-                        f"close-before-durable-terminal:{durable_status}"
-                    )
-                if boundary.get("available") is not True and not self.interrupted:
-                    raise AppServerError("close-before-durable-terminal:unavailable")
-                self.server.archive_thread(self.thread_id)
+                if durable_status in {"completed", "failed", "interrupted"}:
+                    self._durable_terminal_status = str(durable_status)
+                    self._bind_archive_terminal_evidence_locked()
+                    return
+                if boundary.get("available") is not True and self.interrupted:
+                    # Preserve the fail-closed containment path when an accepted
+                    # interrupt cannot be materialized in session telemetry.
+                    return
+            if time.monotonic() >= deadline:
+                raise AppServerError(
+                    f"archive-before-durable-terminal:{durable_status}"
+                )
+            time.sleep(STAGED_ARCHIVE_TERMINAL_POLL_SECONDS)
+
+    def _bind_archive_terminal_evidence_locked(self) -> None:
+        if (
+            self._durable_terminal_status
+            not in {"completed", "failed", "interrupted"}
+            or self.turn_id is None
+            or self._session_source_identity_sha256 is None
+            or self._session_boundary_baseline is None
+        ):
+            raise AppServerError("archive-terminal-evidence-incomplete")
+        self._archive_terminal_evidence_sha256 = canonical_sha256(
+            {
+                "thread_id": self.thread_id,
+                "turn_id": self.turn_id,
+                "durable_terminal_status": self._durable_terminal_status,
+                "session_source_identity_sha256": (
+                    self._session_source_identity_sha256
+                ),
+                "terminal_boundary": dict(self._session_boundary_baseline),
+            }
+        )
+
+    def _record_staged_archive_containment(self, _latency_ms: float) -> None:
+        evidence_sha256 = self._archive_terminal_evidence_sha256
+        recorder = getattr(
+            self.server,
+            "record_terminal_archive_containment",
+            None,
+        )
+        if evidence_sha256 is None or not callable(recorder):
+            return
+        if self.turn_id is None:
+            raise AppServerError("archive-terminal-turn-id-missing")
+        recorder(
+            self.thread_id,
+            self.turn_id,
+            terminal_evidence_sha256=evidence_sha256,
+        )
+
+    def finalize(self, *, control_action: str, **_kwargs: Any) -> dict[str, Any]:
+        def action() -> dict[str, Any]:
+            write_private_artifact(
+                self.record_dir / f"{self.thread_id}-finalize-{control_action}.json",
+                {
+                    "thread_id": self.thread_id,
+                    "turn_id": self.turn_id,
+                    "control_action": control_action,
+                    "control_turn_id": self.control_turn_identity(),
+                },
+            )
+            if control_action not in {
+                "worker-completed",
+                "interrupt-confirmed",
+            }:
+                return {"ack": control_action}
+            with self._boundary_lock:
+                if self._staged_archive is not None:
+                    raise AppServerError("staged-archive-already-bound")
+                self._boundary_phase = "closing"
+                staged_archive = StagedThreadArchive(
+                    self.server,
+                    self.thread_id,
+                    prepare=self._prepare_staged_archive,
+                    after_archive=self._record_staged_archive_containment,
+                )
+                self._staged_archive = staged_archive
+            staged_archive.start()
+            self._archive_observation_deadline_ns = self._monotonic_ns() + int(
+                STAGED_ARCHIVE_TERMINAL_TIMEOUT_SECONDS * 1_000_000_000
+            )
+            return {
+                "ack": control_action,
+                "close_wait_required": True,
+            }
+
+        return self._timed("finalize", action)
+
+    def close(self, **_kwargs: Any) -> dict[str, Any]:
+        def action() -> dict[str, Any]:
+            if self._staged_archive is None:
+                raise AppServerError("close-before-staged-archive")
+            if not self._staged_archive.completion_ready():
+                return {
+                    "ack": "close-pending",
+                    "close_wait_required": True,
+                }
+            self._staged_archive.require_complete(timeout_seconds=0.0)
+            if (
+                self._session_source_identity_sha256 is None
+                and self._session_boundary_baseline is None
+            ):
+                # An interrupted, never-materialized boundary has no file to
+                # relocate. The accepted archive RPC and same-process
+                # containment proof remain its only truthful closure evidence.
                 self.archived = True
                 return {"ack": "closed"}
+            try:
+                located = locate_unique_session(
+                    self.server.codex_home,
+                    self.thread_id,
+                )
+            except NativeSessionBoundaryError as exc:
+                if (
+                    str(exc) == "trusted session file is missing"
+                    and self._archive_observation_deadline_ns is not None
+                    and self._monotonic_ns()
+                    < self._archive_observation_deadline_ns
+                ):
+                    return {
+                        "ack": "close-pending",
+                        "close_wait_required": True,
+                    }
+                raise AppServerError(
+                    f"staged-archive-observation-invalid:{exc}"
+                ) from exc
+            if located.store != "archived_sessions":
+                if (
+                    self._archive_observation_deadline_ns is not None
+                    and self._monotonic_ns()
+                    < self._archive_observation_deadline_ns
+                ):
+                    return {
+                        "ack": "close-pending",
+                        "close_wait_required": True,
+                    }
+                raise AppServerError("staged-archive-relocation-not-observed")
+            if (
+                self._session_source_identity_sha256 is not None
+                and located.source_identity_sha256
+                != self._session_source_identity_sha256
+            ):
+                raise AppServerError("staged-archive-source-identity-changed")
+            self.reported_session_path = str(located.path)
+            self.archived = True
+            return {"ack": "closed"}
 
         return self._timed("close", action)
 
@@ -5067,6 +7066,38 @@ class LiveThreadAdapter:
         }
 
     def _workspace_mutations(self) -> list[str]:
+        if self._workspace_baseline is not None:
+            if (
+                canonical_sha256(self._workspace_baseline)
+                != self._workspace_baseline_sha256
+            ):
+                raise AppServerError("workspace-baseline-mutated")
+            baseline = copy.deepcopy(self._workspace_baseline)
+            caps = baseline["caps"]
+            current = capture_workspace_baseline(
+                self.worktree,
+                allowed_paths=list(baseline["allowed_paths"]),
+                include_untracked=True,
+                max_files=int(caps["max_files"]),
+                max_bytes=int(caps["max_bytes"]),
+                max_seconds=float(caps["max_seconds"]),
+            )
+            report = compare_workspace_baseline(
+                baseline,
+                current,
+                allowed_paths=list(baseline["allowed_paths"]),
+            )
+            if report.get("incomplete") or report.get("attribution_ambiguous"):
+                raise AppServerError("workspace-baseline-comparison-incomplete")
+            mutations = report.get("mutations")
+            if not isinstance(mutations, list) or any(
+                not isinstance(item, Mapping)
+                or not isinstance(item.get("path"), str)
+                or not item["path"]
+                for item in mutations
+            ):
+                raise AppServerError("workspace-baseline-comparison-invalid")
+            return sorted({str(item["path"]) for item in mutations})
         completed = subprocess.run(
             [
                 "git",
@@ -5135,7 +7166,17 @@ class LiveThreadAdapter:
         # race thread/read against the still-initializing turn.
         if not self._turn_started_notification_observed_locked():
             return False
-        thread, _latency = self.server.read_thread(self.thread_id)
+        try:
+            thread, _latency = self.server.read_thread(self.thread_id)
+        except AppServerRpcError as exc:
+            if exc.method != "thread/read" or exc.code != -32603:
+                raise
+            # turn/started can precede readable thread projection.  While the
+            # bounded materialization window remains open, keep this state
+            # nonattesting instead of turning the expected startup race into
+            # control loss.
+            self._pending_window_is_open_locked()
+            return False
         if thread.get("id") != self.thread_id:
             raise AppServerError("post-submission-thread-read-identity-mismatch")
         self.last_thread = thread
@@ -5165,6 +7206,8 @@ class LiveThreadAdapter:
                 baseline=self._session_boundary_baseline,
                 allow_unmaterialized=allow_unmaterialized,
                 expected_source_identity_sha256=self._session_source_identity_sha256,
+                tool_transport=self.tool_transport,
+                expected_workdir=self.worktree,
             )
             if boundary["available"]:
                 return self._record_complete_boundary_locked(boundary)
@@ -5195,6 +7238,8 @@ class LiveThreadAdapter:
                 baseline=None,
                 allow_unmaterialized=True,
                 expected_source_identity_sha256=None,
+                tool_transport=self.tool_transport,
+                expected_workdir=self.worktree,
             )
             if boundary["available"]:
                 return self._record_complete_boundary_locked(boundary)
@@ -5219,9 +7264,7 @@ class LiveThreadAdapter:
         compactions = item_types.count("contextCompaction") + len(
             self.server.notifications(self.thread_id, "thread/compacted")
         )
-        final_hash, final_matches = final_message_hash_and_match(
-            self.last_thread, self.turn_id, self.expected_token
-        )
+        final_hash, final_matches = self.final_message_observation()
         reroutes = self.server.notifications(self.thread_id, "model/rerouted")
         token_events = self.server.notifications(self.thread_id, "thread/tokenUsage/updated")
         token_total = None
@@ -5239,10 +7282,12 @@ class LiveThreadAdapter:
                 }
         models = boundary.get("attested_models", [])
         efforts = boundary.get("attested_efforts", [])
+        requested_model = getattr(self.server, "requested_model", EXACT_MODEL)
+        requested_effort = getattr(self.server, "reasoning_effort", "low")
         model_exact = (
             boundary.get("available") is True
-            and models == [EXACT_MODEL]
-            and efforts == ["low"]
+            and models == [requested_model]
+            and efforts == [requested_effort]
         )
         projected_status = turn_status(self.last_thread, self.turn_id)
         terminal_event = boundary.get("terminal_event")
@@ -5283,6 +7328,12 @@ class LiveThreadAdapter:
             ),
             "trusted_tool_trace_sha256": boundary.get(
                 "trusted_tool_trace_sha256"
+            ),
+            "trusted_tool_authority_receipts": list(
+                boundary.get("trusted_tool_authority_receipts", [])
+            ),
+            "trusted_tool_authority_receipts_sha256": boundary.get(
+                "trusted_tool_authority_receipts_sha256"
             ),
             "forbidden_tool_activity": violations,
             "item_types": sorted(set(item_types)),
@@ -5337,6 +7388,13 @@ class LiveThreadAdapter:
                 and durable_terminal_event.get("status") == "completed"
             ),
         )
+        authority_observation = self._read_only_command_authority_observation(
+            summary.get("trusted_tool_authority_receipts", []),
+            terminal=(
+                isinstance(durable_terminal_event, Mapping)
+                and durable_terminal_event.get("status") == "completed"
+            ),
+        )
         observable_action_required = bool(
             policy["minimum_tool_calls"]
             or set(required["predicates"])
@@ -5350,11 +7408,13 @@ class LiveThreadAdapter:
             "missing_evidence_sha256": missing_hashes,
             "observable_action_required": observable_action_required,
             "exact_tool_trace_observation": trace_observation,
+            "read_only_command_authority_observation": authority_observation,
             "satisfied": (
                 minimum_met
                 and not missing_predicates
                 and not missing_hashes
                 and trace_observation["satisfied"]
+                and authority_observation["satisfied"]
             ),
         }
 
@@ -5404,10 +7464,18 @@ class LiveThreadAdapter:
         trace_observation = completion_observation[
             "exact_tool_trace_observation"
         ]
+        authority_observation = completion_observation[
+            "read_only_command_authority_observation"
+        ]
         if status == "failed":
             reasons.append("trusted-turn-failed")
         if trace_observation["required"] and trace_observation["mismatch"]:
             reasons.append("exact-tool-trace-mismatch")
+        if (
+            authority_observation["required"]
+            and authority_observation["mismatch"]
+        ):
+            reasons.append("read-only-command-authority-mismatch")
         if summary["forbidden_tool_activity"]:
             reasons.append("forbidden-tool-activity")
         if terminal and not summary["model_exact"]:
@@ -5484,6 +7552,15 @@ class LiveThreadAdapter:
                 trace_observation["observed_sha256"]
             ),
             "exact_tool_trace_status": trace_observation["status"],
+            "expected_read_only_command_authority_sha256": (
+                authority_observation["expected_sha256"]
+            ),
+            "observed_read_only_command_authority_sha256": (
+                authority_observation["observed_sha256"]
+            ),
+            "read_only_command_authority_status": authority_observation[
+                "status"
+            ],
             "forbidden_tool_activity": summary["forbidden_tool_activity"],
             "completion_evidence_satisfied": completion_observation["satisfied"],
             "evidence_sequence": self._evidence_sequence,
@@ -5558,6 +7635,18 @@ class LiveThreadAdapter:
         )
         summary["exact_tool_trace_observation"] = trace_observation
         summary["exact_tool_trace_satisfied"] = trace_observation["satisfied"]
+        authority_observation = completion_observation[
+            "read_only_command_authority_observation"
+        ]
+        summary["expected_read_only_command_authority_sha256"] = (
+            authority_observation["expected_sha256"]
+        )
+        summary["read_only_command_authority_observation"] = (
+            authority_observation
+        )
+        summary["read_only_command_authority_satisfied"] = (
+            authority_observation["satisfied"]
+        )
         summary["tool_policy"] = self.tool_policy
         summary["tool_policy_sha256"] = self.tool_policy_sha256
         summary["prompt_preflight"] = self.prompt_preflight
@@ -5567,6 +7656,15 @@ class LiveThreadAdapter:
         summary["callback_stats"] = {
             name: stats(values) for name, values in sorted(self.callback_latencies.items())
         }
+        summary["callback_subphase_stats"] = {
+            name: stats(values)
+            for name, values in sorted(self.callback_subphase_latencies.items())
+        }
+        summary["archive_staging"] = (
+            self._staged_archive.telemetry()
+            if self._staged_archive is not None
+            else None
+        )
         summary["prompt_sha256"] = sha256_text(self.prompt)
         return summary
 
@@ -5605,6 +7703,12 @@ def pool_sleep(*, seconds: float) -> None:
     time.sleep(seconds)
 
 
+def matches_exact_namespaced_wire_source(source: Any, expected: str) -> bool:
+    """Accept the exact wrapper or the app-server's one-LF wire projection."""
+
+    return isinstance(source, str) and source in {expected, expected + "\n"}
+
+
 def _run_calibration(
     server: AppServer,
     cwd: Path,
@@ -5614,21 +7718,76 @@ def _run_calibration(
     run_nonce: str,
     phase_nonce: str,
     boundary_trackers: list[PreAttestationSessionBoundaryTracker],
+    control_turn_id: str = CONTROL_TURN_ID,
+    requested_cap: int = LEGACY_CONCURRENT_CAPACITY,
     startup_timeout_seconds: float = CALIBRATION_STARTUP_TIMEOUT_SECONDS,
     materialization_timeout_seconds: float = (
         CALIBRATION_MATERIALIZATION_TIMEOUT_SECONDS
     ),
     pre_allocation_check: Callable[[], None] | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
+    if (
+        not isinstance(control_turn_id, str)
+        or not control_turn_id
+        or control_turn_id != control_turn_id.strip()
+    ):
+        raise AppServerError("capability-control-turn-id-invalid")
+    capacity_limits = load_pool_capacity()
+    if (
+        not capacity_limits.is_released(requested_cap)
+        or requested_cap < 2
+    ):
+        raise AppServerError("capability-requested-cap-invalid")
+    expected_model = getattr(server, "requested_model", EXACT_MODEL)
+    if not isinstance(expected_model, str) or not expected_model.strip():
+        raise AppServerError("capability-requested-model-invalid")
+    expected_model = expected_model.strip()
+    transport_reader = getattr(server, "operative_tool_transport", None)
+    tool_transport = (
+        str(transport_reader())
+        if callable(transport_reader)
+        else DIRECT_TOOL_TRANSPORT
+    )
+    if tool_transport not in {
+        DIRECT_TOOL_TRANSPORT,
+        NAMESPACED_EXEC_TOOL_TRANSPORT,
+    }:
+        raise AppServerError("capability-tool-transport-invalid")
     samples: dict[str, list[float]] = {}
+    calibration_arguments = {
+        "cmd": "sleep 20",
+        "workdir": str(cwd.resolve()),
+        "yield_time_ms": 30000,
+        "max_output_tokens": 1000,
+    }
+    calibration_wrapper_source = (
+        "const result = await tools.exec_command("
+        + json.dumps(
+            calibration_arguments,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        + "); text(JSON.stringify(result));"
+    )
     prompt = (
-        "Use the exec_command tool exactly once to run `sleep 20`. After it finishes, return "
-        "exactly CAPABILITY_LONG_DONE. Do not use any other tool."
+        (
+            "Use functions.exec exactly once with this exact source and no other tool: `"
+            + calibration_wrapper_source
+            + "`. After it finishes, return exactly CAPABILITY_LONG_DONE."
+        )
+        if tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
+        else (
+            "Use the exec_command tool exactly once to run `sleep 20`. After it finishes, return "
+            "exactly CAPABILITY_LONG_DONE. Do not use any other tool."
+        )
     )
     calibration_tool_policy = default_tool_policy(
         mutable=False,
         workload_class="safety-canary",
-        permitted_tools=["exec_command"],
+        # The connected-Codex config proof establishes one exact three-tool
+        # operative surface. Calibration remains read-only at the sandbox and
+        # prompt layers, while using that same proved server surface.
+        permitted_tools=["apply_patch", "exec_command", "write_stdin"],
     )
     try:
         calibration_prompt_preflight = require_prompt_preflight(
@@ -5686,7 +7845,7 @@ def _run_calibration(
         samples,
         "arm",
         lambda: (
-            result.get("model") == EXACT_MODEL
+            result.get("model") == expected_model
             and result.get("thread", {}).get("id") == thread_id
             and not result.get("thread", {}).get("turns")
         )
@@ -5710,6 +7869,10 @@ def _run_calibration(
         guard_seconds=0.0,
     )[0]
     turn_id = str(turn["id"])
+    acknowledged_thread = {
+        "id": thread_id,
+        "turns": [dict(turn)],
+    }
     attempt_nonce = str(uuid.uuid4())
     guarded_measure(
         samples,
@@ -5719,7 +7882,7 @@ def _run_calibration(
             {
                 "thread_id": thread_id,
                 "turn_id": turn_id,
-                "control_turn_id": CONTROL_TURN_ID,
+                "control_turn_id": control_turn_id,
                 "attempt_nonce": attempt_nonce,
                 "phase_nonce": phase_nonce,
             },
@@ -5744,6 +7907,7 @@ def _run_calibration(
     control_observations: list[dict[str, Any]] = []
     projection_started_ns: int | None = None
     attestation_observed = False
+    notification_shape_evidence: dict[str, Any] | None = None
     read_recovery_pending = False
     read_recovery: dict[str, Any] = {
         "telemetry_type": CALIBRATION_READ_RECOVERY_TELEMETRY_TYPE,
@@ -5941,8 +8105,29 @@ def _run_calibration(
         read_timeout_seconds: float = THREAD_READ_TIMEOUT_SECONDS,
         guarded_recovery_read: bool = False,
     ) -> tuple[dict[str, Any], dict[str, Any] | None]:
-        nonlocal attestation_observed, trusted_source_identity, observed_prefix
+        nonlocal attestation_observed, trusted_source_identity
+        nonlocal observed_prefix, notification_shape_evidence
+        events = server.notification_events(
+            thread_id,
+            turn_id,
+            after_sequence=notification_floor,
+        )
+        if events:
+            notification_shape_evidence = privacy_safe_notification_shape(
+                events,
+                connection_epoch_sha256=server.connection_epoch_sha256,
+                thread_id=thread_id,
+                turn_id=turn_id,
+            )
+            write_private_artifact(
+                record_dir / "calibration-notification-shape.json",
+                notification_shape_evidence,
+            )
         if guarded_recovery_read:
+            if tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT:
+                raise AppServerError(
+                    "capability-namespaced-read-recovery-unexpected"
+                )
             def pre_dispatch_guard() -> Mapping[str, Any]:
                 if (
                     read_recovery.get("token_consumed") is not True
@@ -6043,11 +8228,37 @@ def _run_calibration(
                     "transport_outcome": "response-correlated",
                 }
             )
+        elif tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT:
+            # The app-server can serialize thread/read behind an active
+            # namespaced dynamic tool call.  That would hide the in-progress
+            # window until the nested tool completes.  Use the already trusted
+            # turn/start acknowledgement while the pinned session JSONL and
+            # connection-local item/started notification independently prove
+            # exact live activity below.  No RPC is issued on this path before
+            # the deliberate interrupt.
+            thread = dict(acknowledged_thread)
         else:
             thread, _latency = server.read_thread(
                 thread_id,
                 timeout=read_timeout_seconds,
             )
+        if not events:
+            events = server.notification_events(
+                thread_id,
+                turn_id,
+                after_sequence=notification_floor,
+            )
+            if events:
+                notification_shape_evidence = privacy_safe_notification_shape(
+                    events,
+                    connection_epoch_sha256=server.connection_epoch_sha256,
+                    thread_id=thread_id,
+                    turn_id=turn_id,
+                )
+                write_private_artifact(
+                    record_dir / "calibration-notification-shape.json",
+                    notification_shape_evidence,
+                )
         projected_status = normalize_projected_status(turn_status(thread, turn_id))
         previous_boundary = dict(observed_prefix)
         try:
@@ -6092,7 +8303,7 @@ def _run_calibration(
                     "post_read_boundary_byte_offset": int(boundary["byte_offset"]),
                 }
             )
-        if not materialized:
+        if not materialized and tool_transport != NAMESPACED_EXEC_TOOL_TRANSPORT:
             record_nonterminal_projection(
                 phase=phase,
                 projected_status=projected_status,
@@ -6107,43 +8318,63 @@ def _run_calibration(
                 boundary=boundary,
             )
             return thread, None
-        assert located is not None
-        try:
-            terminal_event = trusted_terminal_event(records, turn_id=turn_id)
-        except NativeSessionBoundaryError as exc:
-            raise AppServerError(f"capability-terminal-grammar-invalid:{exc}") from exc
-        contexts = [
-            (index, record["payload"])
-            for index, record in enumerate(records)
-            if record.get("type") == "turn_context"
-            and isinstance(record.get("payload"), Mapping)
-            and (record["payload"].get("turn_id") or record["payload"].get("turnId")) == turn_id
-        ]
-        if contexts and any(
-            context.get("model") != EXACT_MODEL
-            or (context.get("effort") or context.get("reasoning_effort")) != "low"
-            for _index, context in contexts
-        ):
-            raise AppServerError("capability-trusted-model-effort-mismatch")
-        if len(contexts) > 1:
-            raise AppServerError("capability-current-turn-context-not-singular")
-        if len(contexts) == 1:
-            attestation_observed = True
-        markers = telemetry_markers(records, turn_id=turn_id)
-        if markers["compaction_indices"] or markers["reroute_indices"]:
-            raise AppServerError("capability-session-containment-failed")
-        if terminal_event is not None:
-            raise AppServerError(
-                "capability-terminal-event-before-deliberate-interrupt:"
-                + str(terminal_event["status"])
+        if located is None:
+            record_nonterminal_projection(
+                phase=phase,
+                projected_status=projected_status,
+                boundary_available=False,
+                ready=False,
+                source_identity_sha256=None,
+                previous_boundary=previous_boundary,
+                boundary=boundary,
             )
+            return thread, None
+        contexts: list[tuple[int, Mapping[str, Any]]] = []
+        if materialized:
+            try:
+                terminal_event = trusted_terminal_event(records, turn_id=turn_id)
+            except NativeSessionBoundaryError as exc:
+                raise AppServerError(f"capability-terminal-grammar-invalid:{exc}") from exc
+            contexts = [
+                (index, record["payload"])
+                for index, record in enumerate(records)
+                if record.get("type") == "turn_context"
+                and isinstance(record.get("payload"), Mapping)
+                and (record["payload"].get("turn_id") or record["payload"].get("turnId")) == turn_id
+            ]
+            if contexts and any(
+                context.get("model") != expected_model
+                or (context.get("effort") or context.get("reasoning_effort")) != "low"
+                for _index, context in contexts
+            ):
+                raise AppServerError("capability-trusted-model-effort-mismatch")
+            if len(contexts) > 1:
+                raise AppServerError("capability-current-turn-context-not-singular")
+            if len(contexts) == 1:
+                attestation_observed = True
+            markers = telemetry_markers(records, turn_id=turn_id)
+            if markers["compaction_indices"] or markers["reroute_indices"]:
+                raise AppServerError("capability-session-containment-failed")
+            if terminal_event is not None:
+                raise AppServerError(
+                    "capability-terminal-event-before-deliberate-interrupt:"
+                    + str(terminal_event["status"])
+                )
 
         def finish(
             observation: dict[str, Any] | None,
         ) -> tuple[dict[str, Any], dict[str, Any] | None]:
+            effective_projected_status = (
+                "active"
+                if (
+                    tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
+                    and observation is not None
+                )
+                else projected_status
+            )
             usable = record_nonterminal_projection(
                 phase=phase,
-                projected_status=projected_status,
+                projected_status=effective_projected_status,
                 boundary_available=True,
                 ready=observation is not None,
                 source_identity_sha256=located.source_identity_sha256,
@@ -6151,17 +8382,17 @@ def _run_calibration(
                 boundary=boundary,
             )
             return thread, observation if usable else None
-        events = server.notification_events(
-            thread_id,
-            turn_id,
-            after_sequence=notification_floor,
-        )
         started_commands = []
         completed_commands = []
+        expected_item_types = (
+            {"dynamicToolCall", "commandExecution"}
+            if tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
+            else {"commandExecution"}
+        )
         for event in events:
             params = event["params"]
             item = params.get("item") if isinstance(params.get("item"), Mapping) else {}
-            if item.get("type") != "commandExecution":
+            if item.get("type") not in expected_item_types:
                 continue
             if event.get("method") == "item/started":
                 started_commands.append((event, item))
@@ -6171,14 +8402,18 @@ def _run_calibration(
             raise AppServerError("capability-command-start-not-singular")
         if completed_commands:
             raise AppServerError("capability-command-completed-before-interrupt")
-        if not contexts or not started_commands:
+        if not started_commands or (
+            tool_transport == DIRECT_TOOL_TRANSPORT and not contexts
+        ):
             return finish(None)
-        context_index, _context = trusted_turn_context(
-            records,
-            turn_id=turn_id,
-            model=EXACT_MODEL,
-            effort="low",
-        )
+        context_index: int | None = None
+        if contexts:
+            context_index, _context = trusted_turn_context(
+                records,
+                turn_id=turn_id,
+                model=expected_model,
+                effort="low",
+            )
         start_event, command = started_commands[0]
         if start_event.get("connection_epoch_sha256") != server.connection_epoch_sha256:
             raise AppServerError("capability-notification-connection-epoch-mismatch")
@@ -6192,10 +8427,22 @@ def _run_calibration(
         item_id = command.get("id")
         if not isinstance(item_id, str) or not item_id:
             raise AppServerError("capability-command-item-identity-invalid")
-        if "source" not in command:
-            raise AppServerError("capability-command-source-missing")
-        if command.get("source") != "unifiedExecStartup":
-            raise AppServerError("capability-command-source-invalid")
+        command_projection_type = command.get("type")
+        if command_projection_type == "commandExecution":
+            if "source" not in command:
+                raise AppServerError("capability-command-source-missing")
+            if command.get("source") != "unifiedExecStartup":
+                raise AppServerError("capability-command-source-invalid")
+            command_source = "unifiedExecStartup"
+        elif command_projection_type == "dynamicToolCall":
+            if (
+                command.get("namespace") != "functions"
+                or command.get("tool") != "exec"
+            ):
+                raise AppServerError("capability-namespaced-command-identity-invalid")
+            command_source = "namespacedExecStartup"
+        else:
+            raise AppServerError("capability-command-projection-invalid")
         if command.get("status") in {"completed", "failed", "declined"}:
             raise AppServerError(
                 f"capability-command-terminal-before-interrupt:{command.get('status')}"
@@ -6205,49 +8452,140 @@ def _run_calibration(
         function_calls: list[tuple[int, Mapping[str, Any]]] = []
         function_outputs: list[tuple[int, Mapping[str, Any]]] = []
         competing_calls: list[int] = []
-        for index, record in enumerate(records[context_index + 1 :], context_index + 1):
+        record_floor = context_index + 1 if context_index is not None else 0
+        for index, record in enumerate(records[record_floor:], record_floor):
             if record.get("type") != "response_item" or not isinstance(
                 record.get("payload"), Mapping
             ):
                 continue
             payload = record["payload"]
-            if payload.get("type") in {"function_call", "functionCall"}:
-                if payload.get("name") == "exec_command":
-                    function_calls.append((index, payload))
-                else:
+            payload_type = payload.get("type")
+            if tool_transport == DIRECT_TOOL_TRANSPORT:
+                if payload_type in {"function_call", "functionCall"}:
+                    if payload.get("name") == "exec_command":
+                        function_calls.append((index, payload))
+                    else:
+                        competing_calls.append(index)
+                elif payload_type in {"function_call_output", "functionCallOutput"}:
+                    function_outputs.append((index, payload))
+                elif payload_type in {"custom_tool_call", "customToolCall"}:
                     competing_calls.append(index)
-            elif payload.get("type") in {"function_call_output", "functionCallOutput"}:
-                function_outputs.append((index, payload))
+            else:
+                if payload_type in {"custom_tool_call", "customToolCall"}:
+                    if payload.get("name") == "exec":
+                        function_calls.append((index, payload))
+                    else:
+                        competing_calls.append(index)
+                elif payload_type in {
+                    "custom_tool_call_output",
+                    "customToolCallOutput",
+                }:
+                    function_outputs.append((index, payload))
+                elif payload_type in {"function_call", "functionCall"}:
+                    competing_calls.append(index)
         if competing_calls or len(function_calls) > 1:
             raise AppServerError("capability-function-call-not-singular")
         if function_outputs:
             raise AppServerError("capability-function-output-before-interrupt")
-        if not function_calls:
+        notification_first = (
+            tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
+            and not function_calls
+        )
+        if not function_calls and not notification_first:
             return finish(None)
-        function_call_index, function_call = function_calls[0]
-        call_id = function_call.get("call_id") or function_call.get("callId")
-        if not isinstance(call_id, str) or not call_id:
-            raise AppServerError("capability-function-call-identity-invalid")
-        arguments = function_call.get("arguments")
-        if not isinstance(arguments, str):
-            raise AppServerError("capability-function-call-arguments-invalid")
-        try:
-            parsed_arguments = json.loads(arguments)
-        except json.JSONDecodeError as exc:
-            raise AppServerError("capability-function-call-arguments-invalid") from exc
-        if not isinstance(parsed_arguments, Mapping) or not isinstance(
-            parsed_arguments.get("cmd"), str
-        ):
-            raise AppServerError("capability-function-call-command-missing")
+        function_call_index: int | None = None
+        function_call: Mapping[str, Any] | None = None
+        call_id: str | None = None
+        if function_calls:
+            function_call_index, function_call = function_calls[0]
+            call_id = function_call.get("call_id") or function_call.get("callId")
+            if not isinstance(call_id, str) or not call_id:
+                raise AppServerError("capability-function-call-identity-invalid")
+        if tool_transport == DIRECT_TOOL_TRANSPORT:
+            assert function_call is not None
+            arguments = function_call.get("arguments")
+            if not isinstance(arguments, str):
+                raise AppServerError("capability-function-call-arguments-invalid")
+            try:
+                parsed_arguments = json.loads(arguments)
+            except json.JSONDecodeError as exc:
+                raise AppServerError("capability-function-call-arguments-invalid") from exc
+            if not isinstance(parsed_arguments, Mapping) or not isinstance(
+                parsed_arguments.get("cmd"), str
+            ):
+                raise AppServerError("capability-function-call-command-missing")
+            rendered_command = command.get("command")
+        else:
+            if command_projection_type == "dynamicToolCall":
+                source = (
+                    command.get("arguments")
+                    if notification_first
+                    else function_call.get("input")
+                    if function_call is not None
+                    else None
+                )
+                try:
+                    decoded = decode_namespaced_exec_source(source)
+                except ValueError as exc:
+                    raise AppServerError(
+                        f"capability-namespaced-function-call-invalid:{exc}"
+                    ) from exc
+                if decoded.get("tool") != "exec_command":
+                    raise AppServerError("capability-function-call-command-missing")
+                parsed_arguments = decoded["arguments"]
+                if not matches_exact_namespaced_wire_source(
+                    source, calibration_wrapper_source
+                ):
+                    raise AppServerError("capability-namespaced-source-digest-mismatch")
+                if command.get("arguments") != source:
+                    raise AppServerError(
+                        "capability-namespaced-notification-source-mismatch"
+                    )
+                rendered_command_sha256 = domain_sha256(
+                    {"wrapper_source_sha256": decoded["source_sha256"]},
+                    domain="native-capability-namespaced-wrapper",
+                )
+            else:
+                parsed_arguments = dict(calibration_arguments)
+                if function_call is not None:
+                    try:
+                        decoded = decode_namespaced_exec_source(
+                            function_call.get("input")
+                        )
+                    except ValueError as exc:
+                        raise AppServerError(
+                            f"capability-namespaced-function-call-invalid:{exc}"
+                        ) from exc
+                    if (
+                        decoded.get("tool") != "exec_command"
+                        or decoded.get("arguments") != calibration_arguments
+                        or not matches_exact_namespaced_wire_source(
+                            function_call.get("input"), calibration_wrapper_source
+                        )
+                    ):
+                        raise AppServerError(
+                            "capability-namespaced-source-digest-mismatch"
+                        )
+                try:
+                    rendered_command_sha256 = validate_capability_rendered_command(
+                        command.get("command"), raw_command="sleep 20"
+                    )
+                except NativeCanaryContractError as exc:
+                    raise AppServerError(f"capability-{exc}") from exc
         if sha256_text(str(parsed_arguments["cmd"])) != sha256_text("sleep 20"):
             raise AppServerError("capability-function-call-command-digest-mismatch")
-        try:
-            rendered_command_sha256 = validate_capability_rendered_command(
-                command.get("command"), raw_command=str(parsed_arguments["cmd"])
-            )
-        except NativeCanaryContractError as exc:
-            raise AppServerError(f"capability-{exc}") from exc
-        command_cwd = command.get("cwd")
+        if tool_transport == DIRECT_TOOL_TRANSPORT:
+            try:
+                rendered_command_sha256 = validate_capability_rendered_command(
+                    rendered_command, raw_command=str(parsed_arguments["cmd"])
+                )
+            except NativeCanaryContractError as exc:
+                raise AppServerError(f"capability-{exc}") from exc
+        command_cwd = (
+            command.get("cwd")
+            if command_projection_type == "commandExecution"
+            else parsed_arguments.get("workdir")
+        )
         if not isinstance(command_cwd, str) or not command_cwd:
             raise AppServerError("capability-notification-workspace-missing")
         try:
@@ -6260,24 +8598,25 @@ def _run_calibration(
         command_item_id_sha256 = domain_sha256(
             {"item_id": item_id}, domain="app-server-command-item-id"
         )
-        function_call_id_sha256 = domain_sha256(
-            {"call_id": call_id}, domain="session-exec-command-call-id"
+        function_call_id_sha256 = (
+            domain_sha256(
+                {"call_id": call_id}, domain="session-exec-command-call-id"
+            )
+            if call_id is not None
+            else None
         )
         raw_command_sha256 = sha256_text(str(parsed_arguments["cmd"]))
-        execution_correlation_sha256 = materialization_execution_correlation(
+        execution_correlation_sha256 = materialization_liveness_correlation(
             connection_epoch_sha256=str(start_event["connection_epoch_sha256"]),
             session_id=thread_id,
             thread_id=thread_id,
             turn_id=turn_id,
             command_item_id_sha256=command_item_id_sha256,
-            function_call_id_sha256=function_call_id_sha256,
             notification_sequence=int(start_event["sequence"]),
             notification_received_monotonic_ns=int(
                 start_event["received_monotonic_ns"]
             ),
             notification_started_at_ms=started_at_ms,
-            turn_context_record_index=context_index,
-            function_call_record_index=function_call_index,
             rendered_command_sha256=rendered_command_sha256,
             raw_command_sha256=raw_command_sha256,
         )
@@ -6297,12 +8636,17 @@ def _run_calibration(
             "function_call_id_sha256": function_call_id_sha256,
             "rendered_command_sha256": rendered_command_sha256,
             "execution_correlation_sha256": execution_correlation_sha256,
+            "correlation_mode": (
+                "notification-first"
+                if notification_first
+                else "session-and-notification"
+            ),
             "notification_command_semantic_match": True,
             "notification_workspace_match": True,
-            "command_source": "unifiedExecStartup",
+            "command_source": command_source,
             "command_status": "inProgress",
             "started_event_count": 1,
-            "function_call_count": 1,
+            "function_call_count": 0 if notification_first else 1,
             "completed_event_count": 0,
             "paired_result_count": 0,
             "competing_call_count": 0,
@@ -6826,22 +9170,45 @@ def _run_calibration(
     if interrupt_confirmed_at is None or confirmed_terminal_event is None:
         raise AppServerError("capability-interrupt-not-confirmed")
 
+    previous_boundary = dict(observed_prefix)
+    append_control_observation(
+        phase="terminal",
+        projected_status=normalize_projected_status(
+            turn_status(last_threads[thread_id], turn_id)
+        ),
+        durable_status="interrupted",
+        source_identity_sha256=trusted_source_identity,
+        previous_boundary=previous_boundary,
+        boundary=observed_prefix,
+        decision="terminal-accepted",
+    )
+
+    staged_archive = StagedThreadArchive(server, thread_id)
+
+    def persist_and_stage_archive() -> None:
+        write_private_artifact(
+            record_dir / "calibration-finalize.json",
+            {
+                "thread_id": thread_id,
+                "turn_id": turn_id,
+                "control_turn_id": control_turn_id,
+            },
+        )
+        staged_archive.start()
+
     guarded_measure(
         samples,
         "finalize",
-        lambda: write_private_artifact(
-            record_dir / "calibration-finalize.json",
-            {"thread_id": thread_id, "turn_id": turn_id, "control_turn_id": CONTROL_TURN_ID},
-        ),
+        persist_and_stage_archive,
         guard_seconds=0.0,
     )
+    time.sleep(POOL_POLL_INTERVAL_MS / 1000)
     guarded_measure(
         samples,
         "close",
-        lambda: server.archive_thread(thread_id),
+        lambda: staged_archive.require_complete(),
         guard_seconds=0.0,
     )
-    previous_boundary = dict(observed_prefix)
     try:
         (
             terminal_location,
@@ -6869,26 +9236,118 @@ def _run_calibration(
     if terminal_event.get("status") != "interrupted":
         raise AppServerError("capability-terminal-interrupt-proof-invalid")
     observed_prefix = dict(terminal_boundary)
-    append_control_observation(
-        phase="terminal",
-        projected_status=normalize_projected_status(
-            turn_status(last_threads[thread_id], turn_id)
-        ),
-        durable_status="interrupted",
-        source_identity_sha256=terminal_location.source_identity_sha256,
-        previous_boundary=previous_boundary,
-        boundary=terminal_boundary,
-        decision="terminal-accepted",
-    )
     if trusted_source_identity is None:
         raise AppServerError("capability-session-source-identity-not-pinned")
+    if pre_interrupt is None:
+        raise AppServerError("capability-terminal-correlation-liveness-missing")
+    terminal_context_index, _terminal_context = trusted_turn_context(
+        terminal_records,
+        turn_id=turn_id,
+        model=expected_model,
+        effort="low",
+    )
+    terminal_calls: list[tuple[int, Mapping[str, Any]]] = []
+    terminal_competing_calls: list[int] = []
+    for index, record in enumerate(
+        terminal_records[terminal_context_index + 1 :],
+        terminal_context_index + 1,
+    ):
+        if record.get("type") != "response_item" or not isinstance(
+            record.get("payload"), Mapping
+        ):
+            continue
+        payload = record["payload"]
+        payload_type = payload.get("type")
+        if tool_transport == DIRECT_TOOL_TRANSPORT:
+            if payload_type in {"function_call", "functionCall"}:
+                if payload.get("name") == "exec_command":
+                    terminal_calls.append((index, payload))
+                else:
+                    terminal_competing_calls.append(index)
+            elif payload_type in {"custom_tool_call", "customToolCall"}:
+                terminal_competing_calls.append(index)
+        else:
+            if payload_type in {"custom_tool_call", "customToolCall"}:
+                if payload.get("name") == "exec":
+                    terminal_calls.append((index, payload))
+                else:
+                    terminal_competing_calls.append(index)
+            elif payload_type in {"function_call", "functionCall"}:
+                terminal_competing_calls.append(index)
+    if terminal_competing_calls or len(terminal_calls) != 1:
+        raise AppServerError("capability-terminal-function-call-not-singular")
+    terminal_function_index, terminal_function = terminal_calls[0]
+    terminal_call_id = terminal_function.get("call_id") or terminal_function.get("callId")
+    if not isinstance(terminal_call_id, str) or not terminal_call_id:
+        raise AppServerError("capability-terminal-function-call-identity-invalid")
+    if tool_transport == DIRECT_TOOL_TRANSPORT:
+        terminal_arguments_text = terminal_function.get("arguments")
+        try:
+            terminal_arguments = json.loads(terminal_arguments_text)
+        except (TypeError, json.JSONDecodeError) as exc:
+            raise AppServerError(
+                "capability-terminal-function-call-arguments-invalid"
+            ) from exc
+        if terminal_arguments != {"cmd": "sleep 20"}:
+            raise AppServerError("capability-terminal-function-call-command-mismatch")
+    else:
+        terminal_source = terminal_function.get("input")
+        try:
+            terminal_decoded = decode_namespaced_exec_source(terminal_source)
+        except ValueError as exc:
+            raise AppServerError(
+                f"capability-terminal-namespaced-function-call-invalid:{exc}"
+            ) from exc
+        if (
+            not matches_exact_namespaced_wire_source(
+                terminal_source, calibration_wrapper_source
+            )
+            or terminal_decoded.get("tool") != "exec_command"
+            or terminal_decoded.get("arguments") != calibration_arguments
+        ):
+            raise AppServerError("capability-terminal-namespaced-source-mismatch")
+    terminal_function_call_id_sha256 = domain_sha256(
+        {"call_id": terminal_call_id}, domain="session-exec-command-call-id"
+    )
+    terminal_execution_correlation_sha256 = materialization_execution_correlation(
+        connection_epoch_sha256=server.connection_epoch_sha256,
+        session_id=thread_id,
+        thread_id=thread_id,
+        turn_id=turn_id,
+        command_item_id_sha256=pre_interrupt["command_item_id_sha256"],
+        function_call_id_sha256=terminal_function_call_id_sha256,
+        notification_sequence=pre_interrupt["notification_sequence"],
+        notification_received_monotonic_ns=pre_interrupt[
+            "notification_received_monotonic_ns"
+        ],
+        notification_started_at_ms=pre_interrupt["notification_started_at_ms"],
+        turn_context_record_index=terminal_context_index,
+        function_call_record_index=terminal_function_index,
+        rendered_command_sha256=pre_interrupt["rendered_command_sha256"],
+        raw_command_sha256=sha256_text("sleep 20"),
+    )
+    terminal_execution_correlation = {
+        "turn_context_record_index": terminal_context_index,
+        "function_call_record_index": terminal_function_index,
+        "function_call_id_sha256": terminal_function_call_id_sha256,
+        "command_item_id_sha256": pre_interrupt["command_item_id_sha256"],
+        "notification_sequence": pre_interrupt["notification_sequence"],
+        "notification_received_monotonic_ns": pre_interrupt[
+            "notification_received_monotonic_ns"
+        ],
+        "notification_started_at_ms": pre_interrupt["notification_started_at_ms"],
+        "rendered_command_sha256": pre_interrupt["rendered_command_sha256"],
+        "execution_correlation_sha256": terminal_execution_correlation_sha256,
+    }
+    if notification_shape_evidence is None:
+        raise AppServerError("capability-notification-shape-evidence-missing")
     read_recovery_telemetry = seal_calibration_read_recovery_telemetry(
         read_recovery
     )
     materialization = seal_materialization_evidence(
         {
             "evidence_type": MATERIALIZATION_EVIDENCE_TYPE,
-            "version": 4,
+            "version": 5,
             "schema": MATERIALIZATION_EVIDENCE_SCHEMA,
             "evidence_id": f"materialization-{uuid.uuid4()}",
             "run_nonce": run_nonce,
@@ -6897,8 +9356,8 @@ def _run_calibration(
             "session_id": thread_id,
             "thread_id": thread_id,
             "turn_id": turn_id,
-            "requested_model": EXACT_MODEL,
-            "attested_model": EXACT_MODEL,
+            "requested_model": expected_model,
+            "attested_model": expected_model,
             "attested_effort": "low",
             "attestation_source": (
                 "initialized-codex-home-session-jsonl-and-local-app-server-stdio-notifications"
@@ -6910,6 +9369,8 @@ def _run_calibration(
             "control_observations": control_observations,
             "liveness_observations": observations,
             "pre_interrupt_observation": pre_interrupt,
+            "notification_shape": notification_shape_evidence,
+            "terminal_execution_correlation": terminal_execution_correlation,
             "interrupt": {
                 "requested_at": interrupt_requested_at,
                 "request_accepted_at": interrupt_request_accepted_at,
@@ -6947,8 +9408,11 @@ def _run_calibration(
 
     scheduler_samples: list[float] = []
     children = [
-        {"child_id": "a", "next_deadline_ns": 1_000_000_000},
-        {"child_id": "b", "next_deadline_ns": 1_000_000_000},
+        {
+            "child_id": f"calibration-{index}",
+            "next_deadline_ns": 1_000_000_000,
+        }
+        for index in range(requested_cap)
     ]
     cursor = 0
 
@@ -6971,14 +9435,18 @@ def _run_calibration(
             "version": 1,
             "schema": CAPABILITY_RECEIPT_SCHEMA,
             "adapter_id": "native-multi-agent-v1",
-            "adapter_version": "codex-app-server-0.144.5",
+            "adapter_version": (
+                server.capability_adapter_version()
+                if hasattr(server, "capability_adapter_version")
+                else "codex-app-server-0.144.5"
+            ),
             "execution_surface": "connected-codex",
             "host_identity": dict(owner),
-            "control_turn_id": CONTROL_TURN_ID,
+            "control_turn_id": control_turn_id,
             "measured_at": iso(measured_at),
             "expires_at": iso(measured_at + dt.timedelta(minutes=55)),
             "sample_count": min(len(values) for values in samples.values()),
-            "requested_cap": LEGACY_CONCURRENT_CAPACITY,
+            "requested_cap": requested_cap,
             "clock": "monotonic_ns",
             "callbacks": {name: stats(samples[name]) for name in sorted(samples)},
             "scheduler_overhead": stats(scheduler_samples),
@@ -7030,6 +9498,7 @@ def _run_calibration(
             summary_boundary,
             summary_records,
             turn_id=turn_id,
+            tool_transport=tool_transport,
         )
     except NativeSessionBoundaryError as exc:
         raise AppServerError(
@@ -7054,9 +9523,9 @@ def _run_calibration(
         "pre_dispatch_tool_surface": calibration_pre_dispatch_surface,
         "override_provenance": calibration_tool_policy["override_provenance"],
     }
-    if summary["thread_start_model"] != EXACT_MODEL:
+    if summary["thread_start_model"] != expected_model:
         raise AppServerError("capability-thread-start-model-mismatch")
-    if summary["session_boundary"].get("attested_models") != [EXACT_MODEL]:
+    if summary["session_boundary"].get("attested_models") != [expected_model]:
         raise AppServerError("capability-session-model-mismatch")
     if summary["session_boundary"].get("attested_efforts") != ["low"]:
         raise AppServerError("capability-session-effort-mismatch")
@@ -7064,23 +9533,47 @@ def _run_calibration(
         raise AppServerError("capability-session-containment-failed")
     trusted_receipts = boundary.get("trusted_tool_receipts", [])
     trusted_activity = boundary.get("trusted_tool_activity", [])
+    expected_arguments = (
+        calibration_arguments
+        if tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
+        else {"cmd": "sleep 20"}
+    )
+    permitted_interrupted_results = (
+        {("unpaired", "unpaired-call"), ("paired", "paired-interrupted")}
+        if tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
+        else {("paired", "paired-interrupted")}
+    )
+    observed_interrupted_result = (
+        (
+            trusted_receipts[0].get("pairing_status"),
+            trusted_receipts[0].get("result_kind"),
+        )
+        if type(trusted_receipts) is list and len(trusted_receipts) == 1
+        else (None, None)
+    )
+    expected_activity_tool = (
+        "exec_command"
+        if observed_interrupted_result == ("unpaired", "unpaired-call")
+        else "telemetry_anomaly.exec_command"
+    )
     expected_interrupted_result = (
         type(trusted_receipts) is list
         and len(trusted_receipts) == 1
         and trusted_receipts[0].get("sequence") == 0
         and trusted_receipts[0].get("tool") == "exec_command"
         and trusted_receipts[0].get("canonical_argument_hash")
-        == canonical_argument_hash({"cmd": "sleep 20"})
+        == canonical_argument_hash(expected_arguments)
         and trusted_receipts[0].get("determinable_target_paths") == []
-        and trusted_receipts[0].get("pairing_status") == "paired"
-        and trusted_receipts[0].get("result_kind") == "paired-interrupted"
+        and observed_interrupted_result in permitted_interrupted_results
         and trusted_receipts[0].get("exit_code") is None
         and type(trusted_activity) is list
         and len(trusted_activity) == 1
-        and trusted_activity[0].get("tool")
-        == "telemetry_anomaly.exec_command"
-        and trusted_activity[0].get("pairing_status") == "paired"
-        and trusted_activity[0].get("result_kind") == "paired-interrupted"
+        and trusted_activity[0].get("tool") == expected_activity_tool
+        and (
+            trusted_activity[0].get("pairing_status"),
+            trusted_activity[0].get("result_kind"),
+        )
+        in permitted_interrupted_results
         and boundary.get("terminal_event") == confirmed_terminal_event
     )
     if not expected_interrupted_result:
@@ -7088,12 +9581,16 @@ def _run_calibration(
     calibration_violations = forbidden_tool_activity(
         trusted_activity, calibration_tool_policy
     )
-    expected_interrupted_violation = [
-        {
-            "tool": trusted_activity[0]["tool"],
-            "evidence_sha256": trusted_activity[0]["evidence_sha256"],
-        }
-    ]
+    expected_interrupted_violation = (
+        []
+        if observed_interrupted_result == ("unpaired", "unpaired-call")
+        else [
+            {
+                "tool": trusted_activity[0]["tool"],
+                "evidence_sha256": trusted_activity[0]["evidence_sha256"],
+            }
+        ]
+    )
     if calibration_violations != expected_interrupted_violation:
         raise AppServerError("capability-interrupted-tool-result-invalid")
     summary["forbidden_tool_activity"] = []
@@ -7117,6 +9614,14 @@ def _run_calibration(
             3,
         ) if observed_poll_gaps else 0.0,
         "interrupt_confirmed": True,
+        "archive_staging": {
+            **staged_archive.telemetry(),
+            "cooperative_wait_ms": POOL_POLL_INTERVAL_MS,
+            "close_settle_max_ms": round(
+                STAGED_ARCHIVE_CLOSE_SETTLE_SECONDS * 1000,
+                3,
+            ),
+        },
         "peer_completion_deferred_to_coordinator_interrupt_canary": True,
         "scheduler_inequality_lhs_ms": round(proof.total_demand_ms, 3),
         "scheduler_inequality_rhs_ms": proof.poll_interval_ms,
@@ -7132,6 +9637,8 @@ def calibration(
     *,
     run_nonce: str,
     phase_nonce: str,
+    control_turn_id: str = CONTROL_TURN_ID,
+    requested_cap: int = LEGACY_CONCURRENT_CAPACITY,
     startup_timeout_seconds: float = CALIBRATION_STARTUP_TIMEOUT_SECONDS,
     materialization_timeout_seconds: float = (
         CALIBRATION_MATERIALIZATION_TIMEOUT_SECONDS
@@ -7149,11 +9656,23 @@ def calibration(
             owner,
             run_nonce=run_nonce,
             phase_nonce=phase_nonce,
+            control_turn_id=control_turn_id,
+            requested_cap=requested_cap,
             boundary_trackers=boundary_trackers,
             startup_timeout_seconds=startup_timeout_seconds,
             materialization_timeout_seconds=materialization_timeout_seconds,
             pre_allocation_check=pre_allocation_check,
         )
+    except Exception as exc:
+        diagnostic = record_dir / "calibration-notification-shape.json"
+        if diagnostic.is_file() and not diagnostic.is_symlink():
+            try:
+                shape = json.loads(diagnostic.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                shape = None
+            if isinstance(shape, Mapping):
+                setattr(exc, "calibration_notification_shape", dict(shape))
+        raise
     finally:
         for tracker in reversed(boundary_trackers):
             tracker.close()
@@ -7218,6 +9737,7 @@ def build_pool_inputs(
     expected_tokens: list[str],
     completion_evidence_policies: list[Mapping[str, Any]] | None = None,
     tool_policies: list[Mapping[str, Any]] | None = None,
+    read_only_command_authorities: list[list[Mapping[str, Any]] | None] | None = None,
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
     pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
@@ -7245,6 +9765,13 @@ def build_pool_inputs(
         raise AppServerError("completion-evidence-policy-cardinality-mismatch")
     if len(prompts) != len(worktrees) or len(expected_tokens) != len(worktrees):
         raise AppServerError("pool-input-cardinality-mismatch")
+    command_authorities = (
+        [None for _worktree in worktrees]
+        if read_only_command_authorities is None
+        else list(read_only_command_authorities)
+    )
+    if len(command_authorities) != len(worktrees):
+        raise AppServerError("read-only-command-authority-cardinality-mismatch")
     for index, policy in enumerate(policies):
         errors = validate_completion_evidence_policy(
             policy,
@@ -7490,6 +10017,7 @@ def build_pool_inputs(
         tool_policy,
         prompt_receipt,
         preflight_surface,
+        command_authority,
     ) in enumerate(
         zip(
             thread_results,
@@ -7500,6 +10028,7 @@ def build_pool_inputs(
             normalized_tool_policies,
             prompt_preflights,
             preflight_tool_surfaces,
+            command_authorities,
         )
     ):
         planned = planned_children[index]
@@ -7572,6 +10101,7 @@ def build_pool_inputs(
             worktree=worktree,
             mutable=mutable,
             expected_mutation=target,
+            read_only_command_authority=command_authority,
             completion_evidence_policy=completion_policy,
             tool_policy=tool_policy,
             prompt_preflight_receipt=prompt_receipt,
@@ -7631,6 +10161,19 @@ def build_pool_inputs(
         integration_root=integration,
         child_worktrees={child_id: adapter.worktree for child_id, adapter in adapters.items()},
     )
+    for planned, child in zip(predispatch_children, children, strict=True):
+        child_id = str(child["child_id"])
+        adapters[child_id].bind_workspace_baseline(
+            monitor.child_baseline(child_id)
+        )
+        adapters[child_id].bind_effective_boundary(
+            planned_child=planned,
+            runtime_child=child,
+            pool_contract=contract,
+            control_contract=child_contracts[child_id],
+            predispatch_proof=predispatch_preflight,
+            writable_roots=[adapters[child_id].worktree] if mutable else [],
+        )
     return (
         contract,
         child_contracts,
@@ -7657,6 +10200,7 @@ def run_pool_canary(
     expected_tokens: list[str],
     completion_evidence_policies: list[Mapping[str, Any]] | None = None,
     tool_policies: list[Mapping[str, Any]] | None = None,
+    read_only_command_authorities: list[list[Mapping[str, Any]] | None] | None = None,
     pre_thread_start_check: Callable[[], Mapping[str, Any] | None],
     pre_allocation_check: Callable[[], None] | None = None,
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
@@ -7681,6 +10225,7 @@ def run_pool_canary(
         expected_tokens=expected_tokens,
         completion_evidence_policies=completion_evidence_policies,
         tool_policies=tool_policies,
+        read_only_command_authorities=read_only_command_authorities,
         pre_thread_start_check=pre_thread_start_check,
         pre_allocation_check=pre_allocation_check,
         expected_bound_manifest_validation=expected_bound_manifest_validation,
@@ -8073,6 +10618,18 @@ def contain_started_threads(
             else:
                 ambiguous.append(thread_id)
             continue
+        staged_archive = (
+            server.staged_archive(thread_id)
+            if hasattr(server, "staged_archive")
+            else None
+        )
+        if staged_archive is not None:
+            try:
+                staged_archive.require_complete(timeout_seconds=15.0)
+            except Exception as exc:
+                record_failure(thread_id, "staged-archive-settlement", exc)
+                ambiguous.append(thread_id)
+                continue
         local_proof = (
             server.same_process_containment_proof(thread_id)
             if allow_same_process_proofs
@@ -8099,6 +10656,15 @@ def contain_started_threads(
                 already_contained.append(thread_id)
             else:
                 ambiguous.append(thread_id)
+            continue
+        if (
+            staged_archive is not None
+            and hasattr(server, "archive_acceptance_proof")
+            and server.archive_acceptance_proof(thread_id) is not None
+        ):
+            # The exact archive request was accepted, but no terminal-bound
+            # containment proof survived. Never issue a second archive RPC.
+            ambiguous.append(thread_id)
             continue
         fresh_proof = (
             server.fresh_never_turned_thread_proof(thread_id)
@@ -14641,6 +17207,13 @@ def main() -> int:
         )
         if failure_persisted:
             write_private_artifact(output, failure)
+            notification_shape = getattr(
+                exc, "calibration_notification_shape", None
+            )
+            if isinstance(notification_shape, Mapping):
+                diagnostic_output = Path(str(output) + ".notification-shape.json")
+                if not diagnostic_output.exists() and not diagnostic_output.is_symlink():
+                    write_private_artifact(diagnostic_output, notification_shape)
         if (
             campaign_reservation is not None
             and failure_persisted

@@ -26,6 +26,8 @@
     "control_observations",
     "liveness_observations",
     "pre_interrupt_observation",
+    "notification_shape",
+    "terminal_execution_correlation",
     "interrupt",
     "terminal",
     "terminal_event",
@@ -34,8 +36,8 @@
     "evidence_sha256"
   ],
   "properties": {
-    "evidence_type": {"const": "cwo-native-session-materialization-evidence:v4"},
-    "version": {"const": 4},
+    "evidence_type": {"const": "cwo-native-session-materialization-evidence:v5"},
+    "version": {"const": 5},
     "schema": {"const": "schemas/native-session-materialization-evidence.schema.json"},
     "evidence_id": {"type": "string", "minLength": 1},
     "run_nonce": {"$ref": "#/$defs/uuid"},
@@ -65,6 +67,8 @@
       "items": {"$ref": "#/$defs/observation"}
     },
     "pre_interrupt_observation": {"$ref": "#/$defs/observation"},
+    "notification_shape": {"$ref": "#/$defs/notificationShape"},
+    "terminal_execution_correlation": {"$ref": "#/$defs/terminalExecutionCorrelation"},
     "interrupt": {
       "type": "object",
       "additionalProperties": false,
@@ -192,6 +196,7 @@
         "function_call_id_sha256",
         "rendered_command_sha256",
         "execution_correlation_sha256",
+        "correlation_mode",
         "notification_command_semantic_match",
         "notification_workspace_match",
         "command_source",
@@ -214,18 +219,25 @@
         "notification_sequence": {"type": "integer", "minimum": 1},
         "notification_received_monotonic_ns": {"type": "integer", "minimum": 0},
         "notification_started_at_ms": {"type": "integer", "minimum": 0},
-        "turn_context_record_index": {"type": "integer", "minimum": 0},
-        "function_call_record_index": {"type": "integer", "minimum": 0},
+        "turn_context_record_index": {"type": ["integer", "null"], "minimum": 0},
+        "function_call_record_index": {"type": ["integer", "null"], "minimum": 0},
         "command_item_id_sha256": {"$ref": "#/$defs/hash"},
-        "function_call_id_sha256": {"$ref": "#/$defs/hash"},
+        "function_call_id_sha256": {
+          "anyOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]
+        },
         "rendered_command_sha256": {"$ref": "#/$defs/hash"},
         "execution_correlation_sha256": {"$ref": "#/$defs/hash"},
+        "correlation_mode": {
+          "enum": ["session-and-notification", "notification-first"]
+        },
         "notification_command_semantic_match": {"const": true},
         "notification_workspace_match": {"const": true},
-        "command_source": {"const": "unifiedExecStartup"},
+        "command_source": {
+          "enum": ["unifiedExecStartup", "namespacedExecStartup"]
+        },
         "command_status": {"const": "inProgress"},
         "started_event_count": {"const": 1},
-        "function_call_count": {"const": 1},
+        "function_call_count": {"enum": [0, 1]},
         "completed_event_count": {"const": 0},
         "paired_result_count": {"const": 0},
         "competing_call_count": {"const": 0},
@@ -233,6 +245,118 @@
         "failed_event_count": {"const": 0},
         "declined_event_count": {"const": 0},
         "ambiguous_event_count": {"const": 0}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"correlation_mode": {"const": "notification-first"}}},
+          "then": {
+            "properties": {
+              "turn_context_record_index": {"type": "null"},
+              "function_call_record_index": {"type": "null"},
+              "function_call_id_sha256": {"type": "null"},
+              "function_call_count": {"const": 0}
+            }
+          },
+          "else": {
+            "properties": {
+              "turn_context_record_index": {"type": "integer", "minimum": 0},
+              "function_call_record_index": {"type": "integer", "minimum": 0},
+              "function_call_id_sha256": {"$ref": "#/$defs/hash"},
+              "function_call_count": {"const": 1}
+            }
+          }
+        }
+      ]
+    },
+    "terminalExecutionCorrelation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "turn_context_record_index",
+        "function_call_record_index",
+        "function_call_id_sha256",
+        "command_item_id_sha256",
+        "notification_sequence",
+        "notification_received_monotonic_ns",
+        "notification_started_at_ms",
+        "rendered_command_sha256",
+        "execution_correlation_sha256"
+      ],
+      "properties": {
+        "turn_context_record_index": {"type": "integer", "minimum": 0},
+        "function_call_record_index": {"type": "integer", "minimum": 0},
+        "function_call_id_sha256": {"$ref": "#/$defs/hash"},
+        "command_item_id_sha256": {"$ref": "#/$defs/hash"},
+        "notification_sequence": {"type": "integer", "minimum": 1},
+        "notification_received_monotonic_ns": {"type": "integer", "minimum": 0},
+        "notification_started_at_ms": {"type": "integer", "minimum": 0},
+        "rendered_command_sha256": {"$ref": "#/$defs/hash"},
+        "execution_correlation_sha256": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "notificationShapeEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sequence",
+        "received_monotonic_ns",
+        "method",
+        "params_keys",
+        "item_keys",
+        "thread_id_matches",
+        "turn_id_matches",
+        "item_type",
+        "item_status",
+        "item_namespace",
+        "item_tool",
+        "item_id_sha256",
+        "payload_digest_sha256",
+        "started_at_ms_type"
+      ],
+      "properties": {
+        "sequence": {"type": "integer", "minimum": 1},
+        "received_monotonic_ns": {"type": "integer", "minimum": 0},
+        "method": {"type": "string", "minLength": 1},
+        "params_keys": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "item_keys": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+        "thread_id_matches": {"const": true},
+        "turn_id_matches": {"const": true},
+        "item_type": {"type": "string", "minLength": 1},
+        "item_status": {"type": "string", "minLength": 1},
+        "item_namespace": {"type": ["string", "null"]},
+        "item_tool": {"type": ["string", "null"]},
+        "item_id_sha256": {"$ref": "#/$defs/hash"},
+        "payload_digest_sha256": {"$ref": "#/$defs/hash"},
+        "started_at_ms_type": {"enum": ["integer", "missing"]}
+      }
+    },
+    "notificationShape": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_type",
+        "version",
+        "connection_epoch_sha256",
+        "thread_id_sha256",
+        "turn_id_sha256",
+        "event_count",
+        "events",
+        "evidence_sha256"
+      ],
+      "properties": {
+        "evidence_type": {"const": "cwo-app-server-notification-shape:v1"},
+        "version": {"const": 1},
+        "connection_epoch_sha256": {"$ref": "#/$defs/hash"},
+        "thread_id_sha256": {"$ref": "#/$defs/hash"},
+        "turn_id_sha256": {"$ref": "#/$defs/hash"},
+        "event_count": {"type": "integer", "minimum": 1},
+        "events": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {"$ref": "#/$defs/notificationShapeEvent"}
+        },
+        "evidence_sha256": {"$ref": "#/$defs/hash"}
       }
     }
   }

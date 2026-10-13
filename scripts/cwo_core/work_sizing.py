@@ -499,6 +499,15 @@ def _validate_command_entry(command: Any, idx: int) -> tuple[list[str], int]:
     return argv, len(argv)
 
 
+def _is_read_only_command(argv: list[str]) -> bool:
+    """Return whether argv is one of the small, non-mutating direct commands."""
+
+    return argv in (
+        ["git", "status", "--short"],
+        ["git", "diff", "--check"],
+    )
+
+
 def _validate_execution_contract(
     value: Any,
     *,
@@ -743,6 +752,8 @@ def _evaluate_task_profile_fit(
         contradictions.append("source_mutation_paths required when source_mutation_count is non-zero")
     if any(path not in source["write_paths"] for path in source_mutation_paths):
         contradictions.append("source_mutation_paths must be contained in write_paths")
+    if semantic_payload is not None and source_mutation_count != int(semantic_payload["expected_mutations"]):
+        contradictions.append("source_mutation_count must equal semantic_estimate.expected_mutations")
     if read_context_count != len(source["context_manifest"]):
         contradictions.append("read_context_count must equal len(context_manifest)")
     if read_context_count > max_context_reads:
@@ -791,6 +802,10 @@ def _evaluate_task_profile_fit(
         checks.append("diagnosis class")
         if source_mutation_count != 0 or source["write_paths"]:
             contradictions.append("diagnosis requires zero source mutation and write_paths")
+
+    if task_class in {"read-only-validation", "diagnosis"}:
+        if any(not _is_read_only_command(command["argv"]) for command in commands):
+            contradictions.append("read-only task commands must use recognized safe argv")
 
     if task_class == "architecture":
         checks.append("architecture class")
@@ -1122,7 +1137,10 @@ def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
             int(estimate_payload["expected_mutations"]),
             path="semantic_estimate.read_to_mutation_ratio",
         )
-        estimate_payload["read_to_mutation_ratio"] = ratio
+        # Beads/Dolt stores JSON numbers, not their lexical spelling. Emit a
+        # stable integer for an integral ratio BEFORE any plan/receipt hash is
+        # frozen; never normalize or relax comparison of historical hashes.
+        estimate_payload["read_to_mutation_ratio"] = int(ratio) if ratio.is_integer() else ratio
 
     for pm_key in ("pm_estimate", "domain_expert_estimate"):
         if payload.get(pm_key) is not None:
@@ -1457,6 +1475,27 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     elif fit_mode == "architect":
         route = "architect"
         route_axes = {"authority_route": "architect", "operative_route": "architect"}
+    elif (
+        task_class == "diagnosis"
+        and fit_mode == "semantic"
+        and normalized["semantic_estimate"] is not None
+        and int(normalized["semantic_estimate"]["expected_mutations"]) == 0
+        and not source["write_paths"]
+        and v1_route == "spark"
+        and not route_conflict
+        and not any(reason in authority_reasons for reason in hard_gate_reasons)
+    ):
+        # A declared diagnosis is a bounded semantic review, not an incomplete
+        # implementation.  Its zero-write profile is eligible only after the
+        # profile has reconciled every mutation claim above.
+        hard_gate_reasons = [
+            reason
+            for reason in hard_gate_reasons
+            if reason not in {"semantic-read-mutation-split-trigger", "semantic-route-conflict"}
+        ]
+        semantic_route = "spark"
+        route = "spark"
+        route_axes = {"authority_route": "spark", "operative_route": "spark"}
     elif fit_mode == "deterministic":
         retained_authority_reasons = [reason for reason in hard_gate_reasons if reason in authority_reasons]
         hard_gate_reasons = retained_authority_reasons
@@ -1500,6 +1539,7 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     if task_profile is not None:
         estimate["task_profile"] = deepcopy(task_profile)
     if estimate_contract_version >= 2:
+        estimate["semantic_estimate"] = deepcopy(normalized["semantic_estimate"])
         estimate["estimate_contract_version"] = estimate_contract_version
         estimate["semantic_scores"] = semantic_scores
         estimate["v1_route"] = v1_route
@@ -1518,6 +1558,34 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     fit_evidence["protected_path_bindings"] = protected_path_bindings
     estimate["fit_evidence"] = fit_evidence
     return estimate
+
+
+def is_read_only_work_estimate(value: Any) -> bool:
+    """One consistent zero-mutation classification shared by packet and release.
+
+    Semantic diagnosis is not deterministic execution. Commands here must be
+    the same exact nonmutating argv forms permitted by sizing; arbitrary test
+    modules and write-capable options are not safe by their command prefix.
+    Actual sandbox/tool enforcement remains independently mandatory.
+    """
+    if type(value) is not dict or validate_work_estimate(value):
+        return False
+    profile = value.get("task_profile")
+    semantic = value.get("semantic_estimate")
+    if type(profile) is not dict or value.get("write_paths") != []:
+        return False
+    if value.get("task_class") not in {"literal-command", "read-only-validation", "diagnosis"}:
+        return False
+    if (type(profile.get("source_mutation_count")) is not int or
+        profile["source_mutation_count"] != 0 or profile.get("source_mutation_paths") != []):
+        return False
+    if semantic is not None and (type(semantic) is not dict or
+            type(semantic.get("expected_mutations")) is not int or semantic["expected_mutations"] != 0):
+        return False
+    commands = profile.get("commands")
+    return (type(commands) is list and all(type(record) is dict and set(record) == {"argv"}
+        and record["argv"] in (["git", "status", "--short"], ["git", "diff", "--check"])
+        for record in commands))
 
 
 def validate_work_estimate(
@@ -1859,6 +1927,7 @@ def build_policy_fit_commitment(
     session_id: str | None = None,
     attested_model: str | None = None,
     policy: Mapping[str, Any] | None = None,
+    current_authority: Any = None,
 ) -> dict[str, Any]:
     """Build commitment v2 only from an accepting deterministic trusted receipt."""
     if precommit_receipt is None:
@@ -1910,6 +1979,7 @@ def build_policy_fit_commitment(
         estimate,
         expected_packet_id=str(precommit_receipt.get("packet_id") or ""),
         require_accepting=True,
+        current_authority=current_authority,
     )
     if receipt_errors:
         raise ValueError("invalid deterministic precommit receipt: " + "; ".join(receipt_errors))
@@ -1943,10 +2013,34 @@ def build_policy_fit_commitment(
         policy=policy,
         dispatchable=True,
         precommit_receipt=precommit_receipt,
+        current_authority=current_authority,
     )
     if commitment_errors:
         raise ValueError("invalid policy-derived commitment: " + "; ".join(commitment_errors))
     return commitment
+
+
+def _operative_commitment_estimates(
+    work_estimate: Mapping[str, Any],
+    precommit_receipt: Mapping[str, Any],
+) -> dict[str, Any]:
+    fit_result = _ensure_mapping(
+        precommit_receipt.get("fit_result"),
+        label="precommit_receipt.fit_result",
+    )
+    source = (
+        fit_result.get("estimates")
+        if precommit_receipt.get("submission_id") == "deterministic-policy"
+        else _ensure_mapping(
+            work_estimate.get("estimates"),
+            label="work_estimate.estimates",
+        )
+    )
+    source = _ensure_mapping(source, label="operative commitment estimate source")
+    return _ensure_estimate_mapping(
+        {field: source.get(field) for field in COMMITMENT_ESTIMATE_KEYS},
+        path="operative commitment estimates",
+    )
 
 
 def build_worker_commitment_from_receipt(
@@ -1954,6 +2048,7 @@ def build_worker_commitment_from_receipt(
     precommit_receipt: Mapping[str, Any],
     *,
     policy: Mapping[str, Any] | None = None,
+    current_authority: Any = None,
 ) -> dict[str, Any]:
     estimate_errors = validate_work_estimate(work_estimate, policy=policy)
     if estimate_errors:
@@ -1964,12 +2059,14 @@ def build_worker_commitment_from_receipt(
         estimate,
         expected_packet_id=str(precommit_receipt.get("packet_id") or ""),
         require_accepting=True,
+        current_authority=current_authority,
     )
     if receipt_errors:
         raise ValueError("invalid precommit receipt: " + "; ".join(receipt_errors))
     fit_result = precommit_receipt.get("fit_result")
     if not isinstance(fit_result, Mapping):
         raise ValueError("precommit receipt fit_result is missing")
+    operative_estimates = _operative_commitment_estimates(estimate, precommit_receipt)
     commitment = {
         "commitment_type": "cwo-native-worker-fit-commitment",
         "version": 2,
@@ -1984,7 +2081,7 @@ def build_worker_commitment_from_receipt(
         "attested_model": precommit_receipt["attested_model"],
         "work_estimate_sha256": canonical_work_estimate_sha256(estimate),
         "decision": fit_result["decision"],
-        "estimates": deepcopy(fit_result["estimates"]),
+        "estimates": operative_estimates,
         "precommit_receipt_sha256": precommit_receipt["receipt_sha256"],
     }
     errors = validate_worker_commitment(
@@ -1993,6 +2090,7 @@ def build_worker_commitment_from_receipt(
         policy=policy,
         dispatchable=commitment["decision"] == "accept",
         precommit_receipt=precommit_receipt,
+        current_authority=current_authority,
     )
     if errors:
         raise ValueError("invalid receipt-derived commitment: " + "; ".join(errors))
@@ -2006,6 +2104,7 @@ def _validate_worker_commitment_v2(
     *,
     policy: Mapping[str, Any] | None,
     dispatchable: bool,
+    current_authority: Any = None,
 ) -> list[str]:
     errors: list[str] = []
     try:
@@ -2026,12 +2125,17 @@ def _validate_worker_commitment_v2(
             work_estimate,
             expected_packet_id=str(commitment.get("packet_id") or ""),
             require_accepting=dispatchable or commitment.get("decision") == "accept",
+            current_authority=current_authority,
         )
         if receipt_errors:
             raise ValueError("commitment precommit receipt is invalid: " + "; ".join(receipt_errors))
         fit_result = precommit_receipt.get("fit_result")
         if not isinstance(fit_result, Mapping):
             raise ValueError("commitment precommit receipt fit_result is missing")
+        operative_estimates = _operative_commitment_estimates(
+            work_estimate,
+            precommit_receipt,
+        )
         expected = {
             "packet_id": precommit_receipt.get("packet_id"),
             "attempt_nonce": precommit_receipt.get("attempt_nonce"),
@@ -2044,7 +2148,7 @@ def _validate_worker_commitment_v2(
             "attested_model": precommit_receipt.get("attested_model"),
             "work_estimate_sha256": canonical_work_estimate_sha256(work_estimate),
             "decision": fit_result.get("decision"),
-            "estimates": fit_result.get("estimates"),
+            "estimates": operative_estimates,
             "precommit_receipt_sha256": precommit_receipt.get("receipt_sha256"),
         }
         for field, expected_value in expected.items():
@@ -2070,6 +2174,7 @@ def validate_worker_commitment(
     *,
     dispatchable: bool = False,
     precommit_receipt: Mapping[str, Any] | None = None,
+    current_authority: Any = None,
 ) -> list[str]:
     commitment_source = deepcopy(commitment)
     errors: list[str] = []
@@ -2094,6 +2199,7 @@ def validate_worker_commitment(
             precommit_receipt,
             policy=policy,
             dispatchable=dispatchable,
+            current_authority=current_authority,
         )
     if dispatchable:
         return ["commitment version 1 is historical-inspection-only and dispatch-forbidden"]
@@ -2291,6 +2397,7 @@ def normalize_worker_commitment_response(
     precommit_receipt: Mapping[str, Any] | None = None,
     session_id: str | None = None,
     attested_model: str | None = None,
+    current_authority: Any = None,
 ) -> dict[str, Any]:
     _ = raw_commitment
     if precommit_receipt is None:
@@ -2310,7 +2417,7 @@ def normalize_worker_commitment_response(
         )
     estimate = deepcopy(_ensure_mapping(work_estimate, label="work_estimate"))
     try:
-        source = build_worker_commitment_from_receipt(estimate, precommit_receipt)
+        source = build_worker_commitment_from_receipt(estimate, precommit_receipt, current_authority=current_authority)
     except ValueError as exc:
         return _commitment_normalization_failure([str(exc)])
     decision = source["decision"]

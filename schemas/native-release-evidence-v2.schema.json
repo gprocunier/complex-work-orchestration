@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Maintenance native release evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "evidence_type": {
+      "const": "cwo-native-release-evidence"
+    },
+    "schema": {
+      "type": "string",
+      "minLength": 1
+    },
+    "evidence_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release_state": {
+      "const": "operative-authorized"
+    },
+    "authority": {
+      "const": "cwo-maintenance-controller"
+    },
+    "authority_bead": {
+      "type": "string",
+      "minLength": 1
+    },
+    "adjudication_bead": {
+      "type": "string",
+      "minLength": 1
+    },
+    "packet_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt_nonce": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "operation_class": {
+      "const": "native-operative-release"
+    },
+    "workdir": {
+      "type": "string",
+      "minLength": 1
+    },
+    "issued_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expires_at": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release_requires": {
+      "type": "string",
+      "minLength": 1
+    },
+    "mission_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "enum": [
+        "product",
+        "review"
+      ]
+    },
+    "work_plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "operative_routing_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "fit_prompt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "precommit_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "canary_receipt_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "adjudication_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "evidence_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "operation_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "plan_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "version": {
+      "const": 2
+    },
+    "repository_work_authorized": {
+      "const": true
+    },
+    "source_mutation_authorized": {
+      "type": "boolean"
+    },
+    "authorized_operations": {
+      "const": [
+        "dispatchable-packet-validation",
+        "operative-prompt-render",
+        "supervision-start",
+        "supervision-arm",
+        "native-dispatch"
+      ]
+    }
+  },
+  "required": [
+    "adjudication_bead",
+    "adjudication_sha256",
+    "attempt_nonce",
+    "authority",
+    "authority_bead",
+    "authorized_operations",
+    "canary_receipt_sha256",
+    "evidence_id",
+    "evidence_sha256",
+    "evidence_type",
+    "expires_at",
+    "fit_prompt_sha256",
+    "issued_at",
+    "mission_id",
+    "operation_class",
+    "operation_sha256",
+    "operative_routing_sha256",
+    "packet_id",
+    "plan_sha256",
+    "precommit_receipt_sha256",
+    "release_requires",
+    "release_state",
+    "repository_work_authorized",
+    "requested_model",
+    "role",
+    "schema",
+    "source_mutation_authorized",
+    "version",
+    "work_plan_sha256",
+    "workdir"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "role": {
+            "const": "review"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "source_mutation_authorized": {
+            "const": false
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "source_mutation_authorized": {
+            "const": true
+          }
+        }
+      }
+    }
+  ]
+}

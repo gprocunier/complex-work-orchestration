@@ -59,7 +59,7 @@
           "required": ["arm", "send_input", "mark_dispatched", "check", "interrupt", "close", "finalize"],
           "properties": {
             "arm": {"const": 100},
-            "send_input": {"const": 250},
+            "send_input": {"const": 275},
             "mark_dispatched": {"const": 100},
             "check": {"const": 200},
             "interrupt": {"const": 250},

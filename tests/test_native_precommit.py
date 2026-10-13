@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
+from tests.historical_policy_fixtures import historical_v2_policy, historical_cli_args
 
 from cwo_core.native_precommit import (  # noqa: E402
     arm_precommit,
@@ -30,6 +31,7 @@ from cwo_core.native_precommit import (  # noqa: E402
     validate_precommit_receipt,
 )
 import cwo_core.native_precommit as native_precommit  # noqa: E402
+from cwo_core.paths import cwo_temp_dir  # noqa: E402
 
 
 MODEL = "gpt-5.3-codex-spark"
@@ -43,6 +45,11 @@ def work_plan() -> dict:
         "bead_id": "complex-work-orchestration-fsh.2",
         "requested_model": MODEL,
         "task_class": "bounded-implementation",
+        "primary_outcome": "Make the bounded native precommit behavior deterministic.",
+        "acceptance_checks": [
+            "The focused lifecycle check passes.",
+            "Malformed evidence fails closed.",
+        ],
         "scores": {
             "reasoning_uncertainty": 1,
             "subsystem_coupling": 2,
@@ -150,10 +157,23 @@ class NativePrecommitTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="cwo-precommit-test-")
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        temp_root = Path(self.temp.name)
+        self.env = mock.patch.dict(
+            os.environ,
+            {
+                "CWO_TEMP_ROOT": str(temp_root),
+                "CWO_SESSION_ID": "precommit-fixture-session",
+                "CWO_PRECOMMIT_REGISTRY_ROOT": str(temp_root / "precommit-registry"),
+            },
+        )
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.root = cwo_temp_dir(scope="session")
         self.workdir = self.root / "workspace"
         self.workdir.mkdir()
         (self.workdir / "tracked.txt").write_text("baseline\n", encoding="utf-8")
+        subprocess.run(["git", "init", "-q"], cwd=self.workdir, check=True)
+        subprocess.run(["git", "add", "tracked.txt"], cwd=self.workdir, check=True)
         self.session_id = "spark-precommit-session"
         self.session_file = self.root / "session.jsonl"
         write_records(self.session_file, [session_record(self.session_id)])
@@ -161,9 +181,6 @@ class NativePrecommitTests(unittest.TestCase):
         self.receipt_file = self.root / "receipt.json"
         self.audit_file = self.root / "audit.jsonl"
         self.registry = self.root / "registry"
-        self.env = mock.patch.dict(os.environ, {"CWO_PRECOMMIT_REGISTRY_ROOT": str(self.registry)})
-        self.env.start()
-        self.addCleanup(self.env.stop)
 
     def create(self, **overrides: object) -> dict:
         values = {
@@ -204,19 +221,34 @@ class NativePrecommitTests(unittest.TestCase):
         finalize_precommit(self.state_file, CONTROL_TURN, "close-confirmed", now="2026-07-15T00:00:00.500Z")
         return issue_precommit_receipt(self.state_file, receipt_file=self.receipt_file)
 
-    def test_fit_prompt_is_deterministic_and_contains_no_operative_context(self) -> None:
+    def test_fit_prompt_is_deterministic_and_contains_bounded_semantic_context(self) -> None:
         prompt = render_fit_prompt(work_plan())
         self.assertEqual(prompt, render_fit_prompt(copy.deepcopy(work_plan())))
         payload = json.loads(prompt)
         self.assertEqual(payload["work_plan_sha256"], canonical_sha256(work_plan()))
         self.assertEqual(set(payload), {
             "request_type", "version", "work_plan_sha256", "task_class",
+            "primary_outcome", "acceptance_checks",
             "complexity_dimensions", "aggregate_allowance", "decision_vocabulary",
-            "required_numeric_fields",
+            "required_numeric_fields", "required_numeric_minimum",
+            "self_contained", "context_policy", "tool_policy", "response_policy",
         })
+        self.assertEqual(payload["required_numeric_minimum"], 1)
+        self.assertEqual(payload["version"], 3)
+        self.assertEqual(payload["primary_outcome"], work_plan()["primary_outcome"])
+        self.assertEqual(payload["acceptance_checks"], work_plan()["acceptance_checks"])
+        self.assertIs(payload["self_contained"], True)
+        self.assertEqual(
+            payload["context_policy"],
+            "do-not-read-memory-skills-files-or-other-context",
+        )
+        self.assertEqual(payload["tool_policy"], "do-not-use-tools")
+        self.assertEqual(
+            payload["response_policy"],
+            "return-exactly-one-json-object-with-no-commentary",
+        )
         self.assertNotIn(str(ROOT), prompt)
-        self.assertNotIn("path", prompt.lower())
-        self.assertNotIn("command", prompt.lower())
+        self.assertNotIn("/home/", prompt)
 
     def test_fit_prompt_rejects_text_smuggling_through_names_or_task_class(self) -> None:
         cases = []
@@ -232,6 +264,24 @@ class NativePrecommitTests(unittest.TestCase):
         plan = work_plan()
         plan["scores"]["contract_risk"] = 1.5
         cases.append(plan)
+        plan = work_plan()
+        plan["primary_outcome"] = "Inspect /repo/private/path before deciding."
+        cases.append(plan)
+        plan = work_plan()
+        plan["acceptance_checks"] = ["Run `git status` to decide."]
+        cases.append(plan)
+        plan = work_plan()
+        plan["acceptance_checks"] = ["first\nsecond"]
+        cases.append(plan)
+        plan = work_plan()
+        plan["acceptance_checks"] = []
+        cases.append(plan)
+        plan = work_plan()
+        plan["acceptance_checks"] = ["bounded"] * 7
+        cases.append(plan)
+        plan = work_plan()
+        plan["primary_outcome"] = "x" * 1001
+        cases.append(plan)
         for malformed in cases:
             with self.subTest(malformed=malformed):
                 with self.assertRaises(ValueError):
@@ -246,6 +296,34 @@ class NativePrecommitTests(unittest.TestCase):
         self.assertEqual(receipt["observed"]["workspace_mutations"], 0)
         payload = {key: value for key, value in receipt.items() if key != "receipt_file"}
         self.assertEqual(validate_precommit_receipt(payload, work_plan(), live=True, require_accepting=True), [])
+
+    def test_accepting_numeric_fit_estimates_are_advisory(self) -> None:
+        receipt = self.positive_receipt()
+        payload = {key: value for key, value in receipt.items() if key != "receipt_file"}
+        payload["fit_result"]["estimates"]["tool_calls_p90"] = 80
+        payload["fit_result"]["estimates"]["runtime_seconds_p90"] = 780
+        payload["receipt_sha256"] = canonical_sha256(
+            {key: value for key, value in payload.items() if key != "receipt_sha256"}
+        )
+        self.assertEqual(
+            validate_precommit_receipt(payload, work_plan(), require_accepting=True),
+            [],
+        )
+
+    def test_explicit_fit_refusal_cannot_be_accepting(self) -> None:
+        receipt = self.positive_receipt()
+        payload = {key: value for key, value in receipt.items() if key != "receipt_file"}
+        payload["fit_result"]["decision"] = "pm-realignment"
+        payload["accepting"] = False
+        payload["disposition"] = "reject"
+        payload["receipt_sha256"] = canonical_sha256(
+            {key: value for key, value in payload.items() if key != "receipt_sha256"}
+        )
+        self.assertEqual(validate_precommit_receipt(payload, work_plan()), [])
+        self.assertIn(
+            "precommit receipt is non-accepting",
+            validate_precommit_receipt(payload, work_plan(), require_accepting=True),
+        )
 
     def assert_forbidden_activity_interrupts(
         self,
@@ -279,6 +357,62 @@ class NativePrecommitTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "attestation"):
                     self.create()
                 self.assertFalse(self.state_file.exists())
+
+    @mock.patch(
+        "cwo_core.operative_routing._now_iso",
+        new=lambda: "2026-09-03T19:15:00Z",
+    )
+    @historical_v2_policy()
+    def test_fallback_precommit_requires_route_and_exact_attestation(self) -> None:
+        from tests.test_operative_routing import (
+            GPT55_MODEL, LUNA_MODEL, NOW, TERRA_MODEL, fallback_bundle, select_route, work_plan as fallback_plan,
+        )
+
+        for index, model in enumerate((GPT55_MODEL, TERRA_MODEL, LUNA_MODEL), start=1):
+            with self.subTest(model=model):
+                plan = fallback_plan(requested_model=model, narrow=model == LUNA_MODEL)
+                bundle = fallback_bundle(plan=plan)
+                route = select_route(bundle, model)
+                fallback_session_id = f"fallback-session-{index}"
+                fallback_session_file = self.root / f"fallback-session-{index}.jsonl"
+                fallback_workdir = self.root / f"fallback-workspace-{index}"
+                fallback_workdir.mkdir()
+                (fallback_workdir / "tracked.txt").write_text("baseline\n", encoding="utf-8")
+                subprocess.run(["git", "init", "-q"], cwd=fallback_workdir, check=True)
+                subprocess.run(["git", "add", "tracked.txt"], cwd=fallback_workdir, check=True)
+                common = {
+                    "work_plan": plan, "requested_model": model,
+                    "session_id": fallback_session_id, "session_file": fallback_session_file,
+                    "agent_id": f"fallback-agent-{index}", "workdir": fallback_workdir,
+                    "owner_pid": os.getpid(), "audit_file": self.root / f"fallback-audit-{index}.jsonl",
+                    "now": NOW,
+                }
+                write_records(fallback_session_file, [session_record(fallback_session_id, model=model)])
+                with self.assertRaisesRegex(ValueError, "valid operative routing"):
+                    create_precommit_state(
+                        **common, operative_routing=None,
+                        state_file=self.root / f"fallback-missing-route-{index}.json",
+                        packet_id=f"fallback-missing-route-{index}",
+                        attempt_nonce=f"fallback-missing-route-{index}",
+                    )
+                write_records(fallback_session_file, [session_record(fallback_session_id, model=MODEL)])
+                with self.assertRaisesRegex(ValueError, "attestation"):
+                    create_precommit_state(
+                        **common, operative_routing=route,
+                        state_file=self.root / f"fallback-wrong-model-{index}.json",
+                        packet_id=f"fallback-wrong-model-{index}",
+                        attempt_nonce=f"fallback-wrong-model-{index}",
+                    )
+                write_records(fallback_session_file, [session_record(fallback_session_id, model=model)])
+                state = create_precommit_state(
+                    **common, operative_routing=route,
+                    state_file=self.root / f"fallback-exact-model-{index}.json",
+                    packet_id=f"fallback-exact-model-{index}",
+                    attempt_nonce=f"fallback-exact-model-{index}",
+                )
+                self.assertEqual(state["requested_model"], model)
+                self.assertEqual(state["attested_model"], model)
+                self.assertEqual(state["operative_routing_sha256"], canonical_sha256(route))
 
     def test_trailing_partial_truncation_and_rewritten_prefix_fail_closed(self) -> None:
         write_records(self.session_file, [session_record(self.session_id)], trailing="{")
@@ -317,6 +451,22 @@ class NativePrecommitTests(unittest.TestCase):
         self.assertFalse(receipt["accepting"])
         payload = {key: value for key, value in receipt.items() if key != "receipt_file"}
         self.assertTrue(any("non-accepting" in error for error in validate_precommit_receipt(payload, require_accepting=True)))
+
+    def test_zero_tool_call_estimate_is_rejected_and_prompt_states_minimum(self) -> None:
+        prompt = json.loads(render_fit_prompt(work_plan()))
+        self.assertEqual(prompt["required_numeric_minimum"], 1)
+        response = json.dumps(
+            {
+                "decision": "accept",
+                "tool_calls_p50": 0,
+                "tool_calls_p90": 0,
+                "runtime_seconds_p50": 1,
+                "runtime_seconds_p90": 2,
+            },
+            sort_keys=True,
+        )
+        with self.assertRaisesRegex(ValueError, "tool_calls_p50 must be a positive integer"):
+            native_precommit.parse_fit_result(response)
 
     def test_workspace_mutation_and_lease_collisions_fail_closed(self) -> None:
         self.create()
@@ -366,6 +516,7 @@ class NativePrecommitTests(unittest.TestCase):
         second_session = self.root / "dead-owner-session.jsonl"
         dead_owner_worktree = self.root / "dead-owner-worktree"
         dead_owner_worktree.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=dead_owner_worktree, check=True)
         write_records(second_session, [session_record("dead-owner-session")])
         self.create(
             packet_id="dead-owner-packet",
@@ -398,6 +549,19 @@ class NativePrecommitTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertEqual(state["status"], "control-failed")
         self.assertIn("comparison failed", state["reasons"])
+
+    def test_non_git_workspace_is_rejected_fail_closed(self) -> None:
+        ordinary = self.root / "ordinary-workspace"
+        ordinary.mkdir()
+        with self.assertRaisesRegex(
+            ValueError, "workspace baseline comparison is incomplete"
+        ):
+            self.create(
+                packet_id="non-git-workspace-packet",
+                attempt_nonce="non-git-workspace-attempt",
+                workdir=ordinary,
+                state_file=self.root / "non-git-workspace-state.json",
+            )
 
     def test_state_transition_lock_serializes_concurrent_writers(self) -> None:
         self.create()

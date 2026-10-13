@@ -19,9 +19,14 @@
   "role_substitution_matrix": [
     {
       "cwo_role": "architect",
-      "connected_default": "Codex 5.6 Sol architect",
+      "connected_default": "GPT-6.1-Sol architect; Astra/max for unresolved architecture",
       "airgapped_profile": "rhoai-architect-mistral-small-4-119b-nvfp4",
-      "enterprise_profiles": ["rhoai-architect-nemotron-3-ultra-550b-a55b-fp8", "rhoai-architect-glm-5-2-bf16-256k-thinking", "rhoai-architect-glm-5-2-bf16-thinking", "rhoai-architect-glm-5-2-fp8"],
+      "enterprise_profiles": [
+        "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8",
+        "rhoai-architect-glm-5-2-bf16-256k-thinking",
+        "rhoai-architect-glm-5-2-bf16-thinking",
+        "rhoai-architect-glm-5-2-fp8"
+      ],
       "substitute_confidence": "high",
       "boundary": "Strongest local architect candidate. Requires architect adjudication discipline and validation evidence; do not claim proprietary frontier parity."
     },
@@ -29,23 +34,33 @@
       "cwo_role": "project_manager",
       "connected_default": "Codex main-thread PM or smaller coordination model",
       "airgapped_profile": "rhoai-project-manager-qwen3-6-35b-a3b-nvfp4",
-      "enterprise_profiles": ["rhoai-project-manager-qwen3-6-35b-a3b-nvfp4", "rhoai-architect-glm-5-2-fp8"],
+      "enterprise_profiles": [
+        "rhoai-project-manager-qwen3-6-35b-a3b-nvfp4",
+        "rhoai-architect-glm-5-2-fp8"
+      ],
       "substitute_confidence": "high",
       "boundary": "Use for Beads summaries, status, dependency hygiene, and handoff drafting. Final scope and architecture decisions remain architect-owned."
     },
     {
       "cwo_role": "workerbee",
-      "connected_default": "Codex 5.3 Spark workerbee",
+      "connected_default": "Qualified exact GPT-5.6-Luna first; GPT-5.6-Terra for documented nonfit or escalation",
       "airgapped_profile": "rhoai-worker-qwen2-5-coder-32b-fp8",
-      "enterprise_profiles": ["rhoai-worker-qwen2-5-coder-32b-fp8", "rhoai-architect-glm-5-2-fp8"],
+      "enterprise_profiles": [
+        "rhoai-worker-qwen2-5-coder-32b-fp8",
+        "rhoai-architect-glm-5-2-fp8"
+      ],
       "substitute_confidence": "high",
       "boundary": "Use for bounded code review, local patch suggestions, command drafting, and test triage inside an approved OpenCode/manual harness."
     },
     {
       "cwo_role": "review_worker",
-      "connected_default": "Codex 5.3 Spark review-only subagent",
+      "connected_default": "Qualified exact GPT-5.6-Luna enforced read-only reviewer; Terra for documented nonfit or escalation",
       "airgapped_profile": "rhoai-reviewer-nemotron-3-nano-30b-fp8",
-      "enterprise_profiles": ["rhoai-reviewer-nemotron-3-nano-30b-fp8", "rhoai-reviewer-llama-4-maverick-17b-128e-fp8", "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8"],
+      "enterprise_profiles": [
+        "rhoai-reviewer-nemotron-3-nano-30b-fp8",
+        "rhoai-reviewer-llama-4-maverick-17b-128e-fp8",
+        "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8"
+      ],
       "substitute_confidence": "medium",
       "boundary": "Use for fast review, ranking, and critique lanes. Prefer larger profiles for high-stakes architecture."
     },
@@ -53,7 +68,10 @@
       "cwo_role": "local_secure_reviewer",
       "connected_default": "Local secure reviewer or Codex evaluator",
       "airgapped_profile": "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4",
-      "enterprise_profiles": ["rhoai-secure-review-qwen3-6-35b-a3b-nvfp4", "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8"],
+      "enterprise_profiles": [
+        "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4",
+        "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8"
+      ],
       "substitute_confidence": "high",
       "boundary": "Use for repo/security/peer/sabotage review evidence. No shell, no web, no repo write."
     },
@@ -61,7 +79,12 @@
       "cwo_role": "synthesis_input",
       "connected_default": "CWO-native synthesis with Codex-owned adjudication",
       "airgapped_profile": "rhoai-synthesis-qwen3-5-122b-a10b-nvfp4",
-      "enterprise_profiles": ["rhoai-synthesis-qwen3-5-122b-a10b-nvfp4", "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8", "rhoai-architect-glm-5-2-bf16-thinking", "rhoai-architect-glm-5-2-fp8"],
+      "enterprise_profiles": [
+        "rhoai-synthesis-qwen3-5-122b-a10b-nvfp4",
+        "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8",
+        "rhoai-architect-glm-5-2-bf16-thinking",
+        "rhoai-architect-glm-5-2-fp8"
+      ],
       "substitute_confidence": "high",
       "boundary": "Use as one local synthesis input or counter-review. The synthesis owner still records provenance and architect adjudication."
     }
@@ -80,18 +103,38 @@
       "quantization": "NVFP4",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["architect", "architecture-review", "high-risk-review"],
+      "recommended_roles": [
+        "architect",
+        "architecture-review",
+        "high-risk-review"
+      ],
       "substitute_confidence": "high",
       "deployment_class": "large multi-GPU RHOAI/vLLM endpoint",
       "deployment_tier": "practical-airgapped-default",
       "hardware_profile": "large multi-GPU RHOAI endpoint; benchmark before medium-enterprise production use",
       "recommended_enterprise_scale": "medium enterprise practical default when H200 frontier candidates are unavailable or not yet benchmarked",
-      "benchmark_gate": ["vLLM startup", "/v1/models smoke", "/v1/chat/completions smoke", "representative CWO architect packet", "evaluator acceptance"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/models smoke",
+        "/v1/chat/completions smoke",
+        "representative CWO architect packet",
+        "evaluator acceptance"
+      ],
       "promotion_status": "practical-default",
       "context_window": "model-card advertises 256k; endpoint max-model-len remains operator-controlled",
       "default_variant": "reasoning-high",
-      "strengths": ["reasoning mode", "agentic coding", "tool calling", "long context", "RHOAI validation evidence"],
-      "limits": ["requires substantial GPU memory", "not a drop-in frontier parity claim", "model-card vLLM notes may require specific serving flags"]
+      "strengths": [
+        "reasoning mode",
+        "agentic coding",
+        "tool calling",
+        "long context",
+        "RHOAI validation evidence"
+      ],
+      "limits": [
+        "requires substantial GPU memory",
+        "not a drop-in frontier parity claim",
+        "model-card vLLM notes may require specific serving flags"
+      ]
     },
     "rhoai-project-manager-qwen3-6-35b-a3b-nvfp4": {
       "display_name": "RHOAI PM - Qwen3.6 35B A3B NVFP4",
@@ -106,18 +149,38 @@
       "quantization": "NVFP4",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["project_manager", "status", "handoff", "summarization"],
+      "recommended_roles": [
+        "project_manager",
+        "status",
+        "handoff",
+        "summarization"
+      ],
       "substitute_confidence": "high",
       "deployment_class": "medium-to-large RHOAI/vLLM endpoint",
       "deployment_tier": "practical-airgapped-default",
       "hardware_profile": "medium-to-large RHOAI endpoint; keep Beads context depth sized to endpoint limits",
       "recommended_enterprise_scale": "medium enterprise PM and coordination lane",
-      "benchmark_gate": ["vLLM startup", "/v1/chat/completions smoke", "Beads summary packet", "handoff-drafting packet", "evaluator acceptance"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/chat/completions smoke",
+        "Beads summary packet",
+        "handoff-drafting packet",
+        "evaluator acceptance"
+      ],
       "promotion_status": "practical-default",
       "context_window": "endpoint max-model-len must be validated from the deployed server",
       "default_variant": "balanced",
-      "strengths": ["Beads summarization", "status synthesis", "dependency hygiene", "local-cluster retention"],
-      "limits": ["preliminary model-card status", "do not give architecture authority", "requires evaluator review for local-worker returns"]
+      "strengths": [
+        "Beads summarization",
+        "status synthesis",
+        "dependency hygiene",
+        "local-cluster retention"
+      ],
+      "limits": [
+        "preliminary model-card status",
+        "do not give architecture authority",
+        "requires evaluator review for local-worker returns"
+      ]
     },
     "rhoai-worker-qwen2-5-coder-32b-fp8": {
       "display_name": "RHOAI Workerbee - Qwen2.5 Coder 32B FP8",
@@ -132,18 +195,38 @@
       "quantization": "FP8 dynamic",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["workerbee", "coding-quality", "test-triage", "bounded-patch-planning"],
+      "recommended_roles": [
+        "workerbee",
+        "coding-quality",
+        "test-triage",
+        "bounded-patch-planning"
+      ],
       "substitute_confidence": "high",
       "deployment_class": "medium RHOAI/vLLM endpoint",
       "deployment_tier": "practical-airgapped-default",
       "hardware_profile": "single or small multi-GPU RHOAI endpoint depending on quantization and context target",
       "recommended_enterprise_scale": "medium enterprise workerbee lane for bounded coding and test-triage work",
-      "benchmark_gate": ["vLLM startup", "/v1/chat/completions smoke", "bounded code-review packet", "test-triage packet", "evaluator acceptance"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/chat/completions smoke",
+        "bounded code-review packet",
+        "test-triage packet",
+        "evaluator acceptance"
+      ],
       "promotion_status": "practical-default",
       "context_window": "endpoint max-model-len must be validated from the deployed server",
       "default_variant": "coding",
-      "strengths": ["code-oriented instruction following", "bounded file review", "test triage", "patch proposal drafting"],
-      "limits": ["OpenCode/manual harness must own tools", "not allowed to bypass validation", "repo mutation requires explicit harness permission"]
+      "strengths": [
+        "code-oriented instruction following",
+        "bounded file review",
+        "test triage",
+        "patch proposal drafting"
+      ],
+      "limits": [
+        "OpenCode/manual harness must own tools",
+        "not allowed to bypass validation",
+        "repo mutation requires explicit harness permission"
+      ]
     },
     "rhoai-reviewer-nemotron-3-nano-30b-fp8": {
       "display_name": "RHOAI Review Worker - Nemotron 3 Nano 30B FP8",
@@ -158,18 +241,38 @@
       "quantization": "FP8",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["review_worker", "classification", "ranking", "fast-critique"],
+      "recommended_roles": [
+        "review_worker",
+        "classification",
+        "ranking",
+        "fast-critique"
+      ],
       "substitute_confidence": "medium",
       "deployment_class": "medium RHOAI/vLLM endpoint",
       "deployment_tier": "practical-airgapped-default",
       "hardware_profile": "medium RHOAI endpoint for fast review lanes",
       "recommended_enterprise_scale": "medium enterprise fast-review lane; escalate high-stakes design to an H200 candidate",
-      "benchmark_gate": ["vLLM startup", "/v1/chat/completions smoke", "ranking packet", "critique packet", "evaluator acceptance"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/chat/completions smoke",
+        "ranking packet",
+        "critique packet",
+        "evaluator acceptance"
+      ],
       "promotion_status": "practical-default",
       "context_window": "endpoint max-model-len must be validated from the deployed server",
       "default_variant": "review",
-      "strengths": ["fast review", "agentic benchmark evidence", "coding benchmark evidence", "lower serving footprint than largest profiles"],
-      "limits": ["medium confidence for architecture", "license differs from Apache-style model cards", "use larger models for final high-risk critique"]
+      "strengths": [
+        "fast review",
+        "agentic benchmark evidence",
+        "coding benchmark evidence",
+        "lower serving footprint than largest profiles"
+      ],
+      "limits": [
+        "medium confidence for architecture",
+        "license differs from Apache-style model cards",
+        "use larger models for final high-risk critique"
+      ]
     },
     "rhoai-secure-review-qwen3-6-35b-a3b-nvfp4": {
       "display_name": "RHOAI Secure Reviewer - Qwen3.6 35B A3B NVFP4",
@@ -184,18 +287,38 @@
       "quantization": "NVFP4",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["local_secure_reviewer", "security-review", "peer-review", "sabotage-review"],
+      "recommended_roles": [
+        "local_secure_reviewer",
+        "security-review",
+        "peer-review",
+        "sabotage-review"
+      ],
       "substitute_confidence": "high",
       "deployment_class": "medium-to-large RHOAI/vLLM endpoint",
       "deployment_tier": "practical-airgapped-default",
       "hardware_profile": "medium-to-large RHOAI endpoint with read-only packet boundaries",
       "recommended_enterprise_scale": "medium enterprise security, peer-review, and malpractice screening evidence",
-      "benchmark_gate": ["vLLM startup", "/v1/chat/completions smoke", "security-review packet", "sabotage-review packet", "evaluator acceptance"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/chat/completions smoke",
+        "security-review packet",
+        "sabotage-review packet",
+        "evaluator acceptance"
+      ],
       "promotion_status": "practical-default",
       "context_window": "endpoint max-model-len must be validated from the deployed server",
       "default_variant": "review",
-      "strengths": ["local-cluster review", "bounded repo critique", "peer-review evidence", "sabotage/malpractice screening"],
-      "limits": ["no shell/web/write authority", "review evidence only", "must pass evaluator and architect adjudication"]
+      "strengths": [
+        "local-cluster review",
+        "bounded repo critique",
+        "peer-review evidence",
+        "sabotage/malpractice screening"
+      ],
+      "limits": [
+        "no shell/web/write authority",
+        "review evidence only",
+        "must pass evaluator and architect adjudication"
+      ]
     },
     "rhoai-synthesis-qwen3-5-122b-a10b-nvfp4": {
       "display_name": "RHOAI Synthesis Input - Qwen3.5 122B A10B NVFP4",
@@ -210,18 +333,37 @@
       "quantization": "NVFP4",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["synthesis_input", "counter-review", "reasoning-review"],
+      "recommended_roles": [
+        "synthesis_input",
+        "counter-review",
+        "reasoning-review"
+      ],
       "substitute_confidence": "high",
       "deployment_class": "large multi-GPU RHOAI/vLLM endpoint",
       "deployment_tier": "practical-airgapped-default",
       "hardware_profile": "large multi-GPU RHOAI endpoint for synthesis input, not final authority",
       "recommended_enterprise_scale": "medium enterprise synthesis input when H200 candidates are not selected",
-      "benchmark_gate": ["vLLM startup", "/v1/chat/completions smoke", "multi-return synthesis packet", "conflict summary packet", "architect adjudication"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/chat/completions smoke",
+        "multi-return synthesis packet",
+        "conflict summary packet",
+        "architect adjudication"
+      ],
       "promotion_status": "practical-default",
       "context_window": "model-card examples use long-context evaluation; endpoint max-model-len remains operator-controlled",
       "default_variant": "reasoning",
-      "strengths": ["reasoning benchmarks", "long-context serving examples", "counter-review", "independent local synthesis input"],
-      "limits": ["large serving footprint", "must not replace CWO synthesis owner", "profile is evidence input, not final authority"]
+      "strengths": [
+        "reasoning benchmarks",
+        "long-context serving examples",
+        "counter-review",
+        "independent local synthesis input"
+      ],
+      "limits": [
+        "large serving footprint",
+        "must not replace CWO synthesis owner",
+        "profile is evidence input, not final authority"
+      ]
     },
     "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8": {
       "display_name": "RHOAI H200 Architect Candidate - Nemotron 3 Ultra 550B A55B FP8",
@@ -236,19 +378,50 @@
       "quantization": "FP8 dynamic",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["architect", "architecture-review", "security-review", "sabotage-review", "synthesis_input"],
+      "recommended_roles": [
+        "architect",
+        "architecture-review",
+        "security-review",
+        "sabotage-review",
+        "synthesis_input"
+      ],
       "substitute_confidence": "high",
       "deployment_class": "H200-class large multi-GPU RHOAI/vLLM endpoint",
       "deployment_tier": "h200-enterprise-candidate",
       "hardware_profile": "8x or 16x NVIDIA H200 class RHOAI cluster; CerIO-style full PCIe 5.0 GPU adjacency is a strong exemplar",
       "recommended_enterprise_scale": "medium-to-large enterprise architecture, high-stakes review, and synthesis candidate after benchmark promotion",
-      "benchmark_gate": ["nvidia-smi topo -m", "nvidia-smi topo -p2p w", "CUDA p2pBandwidthLatencyTest", "NCCL all_reduce_perf 8-GPU and 16-GPU", "vLLM startup with required parser flags", "/v1/models smoke", "/v1/chat/completions smoke", "CWO architect packet", "CWO synthesis packet", "architect adjudication"],
+      "benchmark_gate": [
+        "nvidia-smi topo -m",
+        "nvidia-smi topo -p2p w",
+        "CUDA p2pBandwidthLatencyTest",
+        "NCCL all_reduce_perf 8-GPU and 16-GPU",
+        "vLLM startup with required parser flags",
+        "/v1/models smoke",
+        "/v1/chat/completions smoke",
+        "CWO architect packet",
+        "CWO synthesis packet",
+        "architect adjudication"
+      ],
       "promotion_status": "candidate",
       "context_window": "endpoint max-model-len must be validated from deployed vLLM; do not publish a production context claim until benchmarked",
       "default_variant": "reasoning-xhigh",
-      "serving_notes": ["Model-card metadata may require reasoning and tool-call parser flags; record the exact vLLM flags in deployment evidence.", "Prefer this for deep reasoning when H200-class serving is stable and Beads context can be sized to the endpoint."],
-      "strengths": ["complex reasoning", "code generation", "science/math reasoning", "high-stakes architecture review", "local enterprise control"],
-      "limits": ["very large serving footprint", "candidate until local H200/CerIO benchmarks pass", "license differs from Apache/MIT artifacts", "not a blanket replacement for connected frontier review"]
+      "serving_notes": [
+        "Model-card metadata may require reasoning and tool-call parser flags; record the exact vLLM flags in deployment evidence.",
+        "Prefer this for deep reasoning when H200-class serving is stable and Beads context can be sized to the endpoint."
+      ],
+      "strengths": [
+        "complex reasoning",
+        "code generation",
+        "science/math reasoning",
+        "high-stakes architecture review",
+        "local enterprise control"
+      ],
+      "limits": [
+        "very large serving footprint",
+        "candidate until local H200/CerIO benchmarks pass",
+        "license differs from Apache/MIT artifacts",
+        "not a blanket replacement for connected frontier review"
+      ]
     },
     "rhoai-architect-glm-5-2-fp8": {
       "display_name": "RHOAI H200 Architect Candidate - GLM-5.2 FP8",
@@ -263,19 +436,123 @@
       "quantization": "FP8",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["architect", "architecture-review", "long-context-review", "project_manager", "workerbee", "synthesis_input"],
+      "recommended_roles": [
+        "architect",
+        "architecture-review",
+        "long-context-review",
+        "project_manager",
+        "workerbee",
+        "synthesis_input"
+      ],
       "substitute_confidence": "high",
       "deployment_class": "H200-class long-context multi-GPU RHOAI/vLLM endpoint",
       "deployment_tier": "h200-enterprise-candidate",
       "hardware_profile": "8x or 16x NVIDIA H200 class RHOAI cluster; validate long-context memory pressure before production use",
       "recommended_enterprise_scale": "medium-to-large enterprise long-context architecture, codebase review, PM summarization, and synthesis candidate after benchmark promotion",
-      "benchmark_gate": ["nvidia-smi topo -m", "nvidia-smi topo -p2p w", "CUDA p2pBandwidthLatencyTest", "NCCL all_reduce_perf 8-GPU and 16-GPU", "vLLM startup", "/v1/models smoke", "/v1/chat/completions smoke", "long-context Beads briefing packet", "CWO architect packet", "architect adjudication"],
+      "benchmark_gate": [
+        "nvidia-smi topo -m",
+        "nvidia-smi topo -p2p w",
+        "CUDA p2pBandwidthLatencyTest",
+        "NCCL all_reduce_perf 8-GPU and 16-GPU",
+        "vLLM startup",
+        "/v1/models smoke",
+        "/v1/chat/completions smoke",
+        "long-context Beads briefing packet",
+        "CWO architect packet",
+        "architect adjudication"
+      ],
       "promotion_status": "candidate",
       "context_window": "model card advertises 1M-token long-context capability; deployed vLLM max-model-len remains the operator-controlled truth",
       "default_variant": "reasoning-long-context",
-      "serving_notes": ["Use when the work needs large Beads briefings or repository context, then prove truncation and latency behavior locally.", "Non-RedHatAI fallback is allowed because the registry is RedHatAI-first rather than RedHatAI-only."],
-      "strengths": ["long-context reasoning", "codebase review", "PM summarization", "synthesis", "MIT license"],
-      "limits": ["non-RedHatAI fallback artifact", "candidate until local H200 benchmarks pass", "long-context settings can dominate latency and memory", "still evidence until CWO adjudication"]
+      "serving_notes": [
+        "Use when the work needs large Beads briefings or repository context, then prove truncation and latency behavior locally.",
+        "Non-RedHatAI fallback is allowed because the registry is RedHatAI-first rather than RedHatAI-only."
+      ],
+      "strengths": [
+        "long-context reasoning",
+        "codebase review",
+        "PM summarization",
+        "synthesis",
+        "MIT license"
+      ],
+      "limits": [
+        "non-RedHatAI fallback artifact",
+        "candidate until local H200 benchmarks pass",
+        "long-context settings can dominate latency and memory",
+        "still evidence until CWO adjudication"
+      ]
+    },
+    "rhoai-architect-glm-5-3-bf16-compact-critic": {
+      "display_name": "RHOAI Architect - GLM-5.3 BF16 Compact Critic",
+      "provider_key": "openshift_ai_vllm",
+      "local_profile": "openshift-ai-glm-5-3-direct",
+      "huggingface_model_id": "zai-org/GLM-5.3-BF16",
+      "model_alias": "glm-5.3-bf16",
+      "publisher": "zai-org",
+      "source_url": "https://huggingface.co/zai-org/GLM-5.3-BF16",
+      "license": "model-card",
+      "artifact": "BF16 model checkpoint",
+      "precision": "BF16",
+      "quantization": "none",
+      "thinking_enabled": true,
+      "reasoning_mode": "low-effort-reasoning-compact-final",
+      "request_options": {
+        "reasoning_effort": "low",
+        "include_reasoning": true
+      },
+      "required_vllm_flags": [
+        "OpenAI-compatible /v1/models route",
+        "OpenAI-compatible /v1/chat/completions route",
+        "glm45-compatible reasoning parser",
+        "chat template supports reasoning_effort=low"
+      ],
+      "vllm_compatible": true,
+      "endpoint_path": "/v1/chat/completions",
+      "recommended_roles": [
+        "architecture-review",
+        "counter-review",
+        "synthesis_input"
+      ],
+      "substitute_confidence": "medium",
+      "deployment_class": "current-host direct BF16 RHOAI endpoint",
+      "deployment_tier": "experimental-local-critic",
+      "hardware_profile": "operator-managed multi-GPU RHOAI endpoint; exact deployed model identity is preflighted for every review",
+      "recommended_enterprise_scale": "bounded second-opinion review after compact-contract calibration and evaluator acceptance",
+      "benchmark_gate": [
+        "/v1/models exact model preflight",
+        "compact model-visible contract smoke",
+        "reasoning-only quarantine",
+        "truncation quarantine",
+        "evaluator acceptance",
+        "architect adjudication"
+      ],
+      "promotion_status": "candidate",
+      "context_window": "current endpoint advertised max_model_len=262144 on 2026-09-12; live preflight remains authoritative",
+      "default_variant": "low-effort-reasoning-compact-final",
+      "serving_notes": [
+        "Keep the endpoint URL and route CA bundle operator-managed.",
+        "The current route is explicitly no-auth; command-line API-key overrides are rejected before preflight and no Authorization header is sent.",
+        "GLM-5.3 does not support enable_thinking=false; use top-level reasoning_effort=low, keep reasoning extraction enabled, and never claim this is a non-thinking route.",
+        "Use normal chat completion only. The current host's sole observed HTTP 500 was an xgrammar finite-state-machine rejection during generation, while the model pods stayed healthy. Fail closed if response_format, structured_outputs, guided_json, guided_regex, guided_grammar, or an equivalent grammar-constrained option appears.",
+        "Put the cwo-glm-critic-v2 compact final-answer contract in the model-visible system message. The client independently separates and hashes a leading reasoning envelope, then strictly validates duplicate-free JSON by exact fields, types, enums, counts, the 6000-character aggregate final-text ceiling, model identity, stop finish reason, request binding, and Unicode controls; harmless ordering, whitespace, and escapes are accepted.",
+        "Historical cwo-glm-critic-v1 evidence retains its original per-field limits and is never reinterpreted under v2.",
+        "Never persist or display reasoning, tool content, or any other unusable model-authored final content; retain only bounded digests, lengths, and failure classifications.",
+        "Never repeat or resume a failed dispatch. A separately admitted call must use a fresh dispatch and a materially distinct question."
+      ],
+      "strengths": [
+        "independent architecture critique",
+        "large-context inspection",
+        "local-cluster retention",
+        "low marginal cost"
+      ],
+      "limits": [
+        "evidence only until evaluator and architect adjudication",
+        "TLS requires a trusted route CA or explicit lab-only insecure waiver",
+        "no automatic retry",
+        "compact contract limits a call to three findings and a 6000-character final object",
+        "normal-chat generation can still miss the contract and is rejected all-or-nothing",
+        "HTTP response bodies do not yet have a separately calibrated wire-byte ceiling"
+      ]
     },
     "rhoai-architect-glm-5-2-bf16-256k-thinking": {
       "display_name": "RHOAI Architect - GLM-5.2 BF16 256K Thinking Hardened",
@@ -291,23 +568,62 @@
       "quantization": "none",
       "thinking_enabled": true,
       "reasoning_mode": "thinking-enabled",
-      "request_options": {"chat_template_kwargs": {"enable_thinking": true}},
-      "required_vllm_flags": ["OpenAI-compatible /v1/models route", "OpenAI-compatible /v1/chat/completions route", "chat template supports enable_thinking"],
+      "request_options": {
+        "chat_template_kwargs": {
+          "enable_thinking": true
+        }
+      },
+      "required_vllm_flags": [
+        "OpenAI-compatible /v1/models route",
+        "OpenAI-compatible /v1/chat/completions route",
+        "chat template supports enable_thinking"
+      ],
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["architect", "architecture-review", "long-context-review", "synthesis_input", "counter-review"],
+      "recommended_roles": [
+        "architect",
+        "architecture-review",
+        "long-context-review",
+        "synthesis_input",
+        "counter-review"
+      ],
       "substitute_confidence": "high",
       "deployment_class": "H200-class BF16 256K multi-GPU RHOAI endpoint",
       "deployment_tier": "h200-enterprise-candidate",
       "hardware_profile": "large multi-GPU RHOAI endpoint; deployed 256K model identity and runtime limits must be preflighted for every review",
       "recommended_enterprise_scale": "medium-to-large enterprise architecture second opinion after compact-packet calibration and semantic-return validation",
-      "benchmark_gate": ["vLLM startup", "/v1/models exact model preflight", "validated endpoint max_model_len", "/v1/chat/completions thinking-enabled smoke", "compact result validation", "evaluator acceptance", "architect adjudication"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/models exact model preflight",
+        "validated endpoint max_model_len",
+        "/v1/chat/completions thinking-enabled smoke",
+        "compact result validation",
+        "evaluator acceptance",
+        "architect adjudication"
+      ],
       "promotion_status": "candidate",
       "context_window": "this explicit deployment target is 256K; the live /v1/models response and endpoint configuration remain authoritative",
       "default_variant": "reasoning-thinking-hardened",
-      "serving_notes": ["Keep endpoint URL, tokens, route CA bundles, and cluster credentials operator-managed.", "Never persist or display reasoning_content, think-tag text, or a raw response envelope; retain only sanitized final content, hashes, counts, and compact telemetry.", "Default to max_tokens=8192 and timeout=900 seconds for a compact review packet; an output-budget-exhausted result is salvage-only and permits at most one materially smaller finalizer.", "Use target_input_chars=14000 and hard max_input_chars=24000; split postimplementation review by concern."],
-      "strengths": ["thinking-enabled reasoning", "long-context architecture review", "codebase review", "counter-review", "local-cluster retention"],
-      "limits": ["not hardened authority", "evidence only until evaluator and architect adjudication", "raw thinking text is prohibited durable output", "truncated, reasoning-only, malformed, or non-stop results are salvage-only", "one bounded smaller finalizer maximum after output exhaustion"]
+      "serving_notes": [
+        "Keep endpoint URL, tokens, route CA bundles, and cluster credentials operator-managed.",
+        "Never persist or display reasoning_content, think-tag text, or a raw response envelope; retain only sanitized final content, hashes, counts, and compact telemetry.",
+        "Default to max_tokens=8192 and timeout=900 seconds for a compact review packet; an output-budget-exhausted result is salvage-only and permits at most one materially smaller finalizer.",
+        "Use target_input_chars=14000 and hard max_input_chars=24000; split postimplementation review by concern."
+      ],
+      "strengths": [
+        "thinking-enabled reasoning",
+        "long-context architecture review",
+        "codebase review",
+        "counter-review",
+        "local-cluster retention"
+      ],
+      "limits": [
+        "not hardened authority",
+        "evidence only until evaluator and architect adjudication",
+        "raw thinking text is prohibited durable output",
+        "truncated, reasoning-only, malformed, or non-stop results are salvage-only",
+        "one bounded smaller finalizer maximum after output exhaustion"
+      ]
     },
     "rhoai-architect-glm-5-2-bf16-thinking": {
       "display_name": "RHOAI Architect - GLM-5.2 BF16 Thinking",
@@ -323,23 +639,63 @@
       "quantization": "none",
       "thinking_enabled": true,
       "reasoning_mode": "thinking-enabled",
-      "request_options": {"chat_template_kwargs": {"enable_thinking": true}},
-      "required_vllm_flags": ["OpenAI-compatible /v1/chat/completions route", "chat template supports enable_thinking"],
+      "request_options": {
+        "chat_template_kwargs": {
+          "enable_thinking": true
+        }
+      },
+      "required_vllm_flags": [
+        "OpenAI-compatible /v1/chat/completions route",
+        "chat template supports enable_thinking"
+      ],
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["architect", "architecture-review", "long-context-review", "synthesis_input", "counter-review"],
+      "recommended_roles": [
+        "architect",
+        "architecture-review",
+        "long-context-review",
+        "synthesis_input",
+        "counter-review"
+      ],
       "substitute_confidence": "high",
       "deployment_class": "H200-class BF16 long-context multi-GPU RHOAI/vLLM endpoint",
       "deployment_tier": "h200-enterprise-candidate",
       "hardware_profile": "large multi-GPU RHOAI endpoint; validate serving memory, route TLS, and long-context latency before production use",
       "recommended_enterprise_scale": "medium-to-large enterprise architecture second opinion and synthesis input after representative CWO packet benchmarks",
-      "benchmark_gate": ["vLLM startup", "/v1/models smoke", "validated deployed model id", "validated endpoint max_model_len", "/v1/chat/completions thinking-enabled smoke", "CWO architect-plan review packet", "CWO synthesis packet", "evaluator acceptance", "architect adjudication"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/models smoke",
+        "validated deployed model id",
+        "validated endpoint max_model_len",
+        "/v1/chat/completions thinking-enabled smoke",
+        "CWO architect-plan review packet",
+        "CWO synthesis packet",
+        "evaluator acceptance",
+        "architect adjudication"
+      ],
       "promotion_status": "candidate",
       "context_window": "deployed endpoint target is 128k; /v1/models max_model_len remains the operator-controlled truth",
       "default_variant": "reasoning-thinking",
-      "serving_notes": ["Keep endpoint URL, tokens, route CA bundles, and cluster credentials operator-managed.", "Thinking is enabled for model quality, but raw reasoning text must be stripped from Beads, audit events, and synthesis artifacts.", "Request-side defaults are bounded: `enable_thinking` remains true and `max_tokens=4096` for deep thinking and evidence-focused runs; operators can lower `max_tokens` explicitly for concise modes."],
-      "strengths": ["thinking-enabled reasoning", "long-context architecture review", "codebase review", "counter-review", "local-cluster retention", "primary-eligible synthesis input"],
-      "limits": ["candidate until local BF16 endpoint benchmarks pass", "large serving footprint", "raw thinking text is not durable evidence", "still evidence until CWO adjudication", "single-pass full-patch review can stop at length; treat as evidence-only/salvage unless final verdict is present"]
+      "serving_notes": [
+        "Keep endpoint URL, tokens, route CA bundles, and cluster credentials operator-managed.",
+        "Thinking is enabled for model quality, but raw reasoning text must be stripped from Beads, audit events, and synthesis artifacts.",
+        "Request-side defaults are bounded: `enable_thinking` remains true and `max_tokens=4096` for deep thinking and evidence-focused runs; operators can lower `max_tokens` explicitly for concise modes."
+      ],
+      "strengths": [
+        "thinking-enabled reasoning",
+        "long-context architecture review",
+        "codebase review",
+        "counter-review",
+        "local-cluster retention",
+        "primary-eligible synthesis input"
+      ],
+      "limits": [
+        "candidate until local BF16 endpoint benchmarks pass",
+        "large serving footprint",
+        "raw thinking text is not durable evidence",
+        "still evidence until CWO adjudication",
+        "single-pass full-patch review can stop at length; treat as evidence-only/salvage unless final verdict is present"
+      ]
     },
     "rhoai-reviewer-llama-4-maverick-17b-128e-fp8": {
       "display_name": "RHOAI Multimodal Review Candidate - Llama 4 Maverick 17B 128E FP8",
@@ -354,19 +710,44 @@
       "quantization": "FP8",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["review_worker", "general-review", "multimodal-review", "documentation"],
+      "recommended_roles": [
+        "review_worker",
+        "general-review",
+        "multimodal-review",
+        "documentation"
+      ],
       "substitute_confidence": "medium",
       "deployment_class": "large multimodal RHOAI/vLLM endpoint",
       "deployment_tier": "multimodal-review-candidate",
       "hardware_profile": "large GPU endpoint; validate multimodal serving path separately from text-only CWO dispatch",
       "recommended_enterprise_scale": "medium enterprise visual/doc review candidate, not the primary x-high architect substitute",
-      "benchmark_gate": ["vLLM startup", "/v1/models smoke", "/v1/chat/completions text smoke", "multimodal smoke when enabled", "documentation-review packet", "evaluator acceptance"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/models smoke",
+        "/v1/chat/completions text smoke",
+        "multimodal smoke when enabled",
+        "documentation-review packet",
+        "evaluator acceptance"
+      ],
       "promotion_status": "candidate",
       "context_window": "model card advertises long-context multimodal capability; endpoint max-model-len and image handling remain deployment-specific",
       "default_variant": "multimodal-review",
-      "serving_notes": ["Use for visual or mixed-modal second opinions when the local harness can pass images safely.", "Do not route primary x-high architecture decisions here unless a local benchmark proves the fit."],
-      "strengths": ["multimodal review", "general instruction following", "documentation critique", "broad Llama ecosystem"],
-      "limits": ["not the primary x-high architecture candidate", "license and acceptable-use constraints differ", "multimodal dispatch needs extra harness validation", "medium confidence for architecture"]
+      "serving_notes": [
+        "Use for visual or mixed-modal second opinions when the local harness can pass images safely.",
+        "Do not route primary x-high architecture decisions here unless a local benchmark proves the fit."
+      ],
+      "strengths": [
+        "multimodal review",
+        "general instruction following",
+        "documentation critique",
+        "broad Llama ecosystem"
+      ],
+      "limits": [
+        "not the primary x-high architecture candidate",
+        "license and acceptable-use constraints differ",
+        "multimodal dispatch needs extra harness validation",
+        "medium confidence for architecture"
+      ]
     },
     "rhoai-general-llama-3-3-70b-fp8": {
       "display_name": "RHOAI General Fallback - Llama 3.3 70B FP8",
@@ -381,18 +762,36 @@
       "quantization": "FP8 dynamic",
       "vllm_compatible": true,
       "endpoint_path": "/v1/chat/completions",
-      "recommended_roles": ["general-review", "fallback", "documentation"],
+      "recommended_roles": [
+        "general-review",
+        "fallback",
+        "documentation"
+      ],
       "substitute_confidence": "medium",
       "deployment_class": "large RHOAI/vLLM endpoint",
       "deployment_tier": "fallback",
       "hardware_profile": "large RHOAI endpoint for general review fallback",
       "recommended_enterprise_scale": "medium enterprise fallback only when role-specialized profiles are unavailable",
-      "benchmark_gate": ["vLLM startup", "/v1/chat/completions smoke", "documentation-review packet", "general-review packet", "evaluator acceptance"],
+      "benchmark_gate": [
+        "vLLM startup",
+        "/v1/chat/completions smoke",
+        "documentation-review packet",
+        "general-review packet",
+        "evaluator acceptance"
+      ],
       "promotion_status": "fallback",
       "context_window": "endpoint max-model-len must be validated from the deployed server",
       "default_variant": "general",
-      "strengths": ["general instruction following", "broad benchmark coverage", "known Llama ecosystem"],
-      "limits": ["license and acceptable-use constraints differ", "less role-specialized than coder or reasoning profiles", "fallback profile only"]
+      "strengths": [
+        "general instruction following",
+        "broad benchmark coverage",
+        "known Llama ecosystem"
+      ],
+      "limits": [
+        "license and acceptable-use constraints differ",
+        "less role-specialized than coder or reasoning profiles",
+        "fallback profile only"
+      ]
     }
   }
 }

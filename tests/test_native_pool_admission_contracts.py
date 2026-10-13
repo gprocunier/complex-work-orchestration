@@ -95,13 +95,17 @@ def _admitted_artifacts(
     root: Path,
     *,
     size: int = 2,
+    prompts: list[str] | None = None,
     completion_policy: str = "all-or-nothing",
     offline_candidate_harness: bool = False,
     admission_fixture: tuple[dict, dict[str, dict], list[dict], dict] | None = None,
     claim_adapter_override: object | None = None,
     claim_runner_override: object | None = None,
     temporary_tool_boundary: bool = False,
+    requested_model: str | None = None,
 ) -> tuple[RenderFixture, dict, dict, dict]:
+    if prompts is not None and len(prompts) != size:
+        raise ValueError("test admitted artifact prompts must match cohort size")
     fixture = RenderFixture(root, size)
     campaign_nonce = str(uuid.uuid4())
     enforcement_override = (
@@ -116,6 +120,7 @@ def _admitted_artifacts(
         readiness, estimates, items, policy = _fixture(
             [600] * size,
             policy=policy_fixture,
+            requested_model=requested_model,
         )
     else:
         readiness, estimates, items, policy = admission_fixture
@@ -125,7 +130,12 @@ def _admitted_artifacts(
         requested_workers=size,
         policy_document=policy,
     )
-    issue_ids = assessment["selected_cohort"]["issue_ids"]
+    selected = assessment["selected_cohort"]
+    issue_ids = (
+        selected["issue_ids"]
+        if selected is not None
+        else [assessment["fallback_issue_id"]]
+    )
     effective_children: list[dict] = []
     admission_bindings: dict[str, dict] = {}
 
@@ -138,7 +148,11 @@ def _admitted_artifacts(
             )
             render_child["declared_write_paths"] = []
             render_child["integration_target_paths"] = []
-        prompt = f"Inspect admitted target {bead_id}."
+        prompt = (
+            prompts[index]
+            if prompts is not None
+            else f"Inspect admitted target {bead_id}."
+        )
         tool_policy = (
             default_tool_policy(
                 mutable=render_child["isolation_class"] == "mutable-isolated",

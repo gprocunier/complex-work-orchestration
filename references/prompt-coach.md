@@ -232,6 +232,28 @@ editor as the final public-copy acceptance expert before publish sanitization.
 Exact contract labels belong in reference/operator surfaces, not narrative
 Pages copy.
 
+## Operative Model Choice
+
+The coach reports the same `cwo-operative-route` decision as `route_work.py`.
+Trusted-live usable Spark is selected automatically. Missing, ambiguous, stale,
+mismatched, contradictory, control-deficient, or security-fault evidence is a
+protected stop; it does not open fallback choice.
+
+Only verified Spark quota exhaustion or capacity unavailability activates the
+fallback questions. The caller must provide a validated native work estimate,
+strict hash-bound fallback-fit evidence, current Bead/wave/lineage context, and
+the unchanged aggregate budget. The coach then shows at most three live
+eligible models and **Wait for Spark** last. GPT-5.5 is recommended only for
+proved substantial cache-heavy work with independent accounting and sufficient
+headroom/budget. Otherwise Terra leads for non-Luna-shaped work and Luna leads
+for deterministic narrow or repeatable-high-volume work.
+
+The recommendation is explanatory, not dispatch authority. The user may select
+any displayed eligible model, but must also select its scope. Degraded Luna use
+requires a separate explicit acknowledgement. Capability, work-estimate,
+fitness, candidate, or policy hash drift invalidates the selection, and every
+fallback precommit and packet must carry the exact selected route provenance.
+
 ## Subagent Parallelism
 
 `workerbee_parallelism` is separate from the orchestration level. Broad
@@ -370,3 +392,13 @@ final answer still needs to tell the operator how to continue.
 See `examples/prompt-coach-examples.md` for narrow in-thread work with a Beads
 task, lightweight Beads, full harness, external contractor, and OpenShift AI
 vLLM local-worker examples.
+
+## Explicit autonomous maintenance
+
+An adopted maintenance objective authorizes its recorded repair-and-execute
+scope until completion or revocation. The coach must not recreate obsolete
+campaign approvals, exhausted slots or expired clocks as a self-repair gate.
+Ordinary finite-budget work is unchanged. Direct repair is followed by actual
+installed-path validation, not a declaration that the process is now repaired.
+Use `--current-authority` for current routing evidence; it does not itself grant
+dispatch authority. Keep omitted and explicit-invalid inputs distinct.

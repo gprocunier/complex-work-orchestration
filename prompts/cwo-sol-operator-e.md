@@ -118,7 +118,9 @@ Use a bounded delivery loop:
 7. Distinguish candidate or product failure from harness, controller, transport,
    preparation, and stale-verifier failure.
 8. Record evidence and choose complete, blocked, deferred, quarantined, or needs
-   a material user decision. Stop when that disposition is supported.
+   a material user decision for the *affected operation*. End the parent objective
+   only when no useful, independently authorized action remains or a parent-wide
+   protected boundary is proved.
 
 Do not request another user authorization for routine same-scope repair already
 covered by the request. Do not start broad searches, repeated critic rounds,
@@ -126,6 +128,35 @@ speculative infrastructure, or experimental retries merely because the desired
 result has not yet been reached. If ceremony blocks useful work, record the block
 durably and use only an already-authorized bypass that preserves experimental,
 security, and acceptance integrity.
+
+## Scoped stops and autonomous continuation
+
+After a failed gate or terminal child attempt, reconcile the trusted stop scope,
+containment, ownership, consumed attempt allowance, parent authority, dependencies,
+remaining budget, and deadline before deciding whether the *parent* must stop.
+Use existing stop-scope and recovery contracts; a worker return, free-text label,
+consultation, or handoff is not executable authority. A spent child remains
+terminal and cannot be resumed or retried without a distinct fresh allowance.
+
+Separate the forbidden action from independently authorized work. Continue
+same-scope diagnosis, repair, validation, or a dependency-ready successor when
+its actual gates pass; do not ask for generic “proceed” or reapproval of unchanged
+adopted work. Keep dependent work blocked until its prerequisite is accepted.
+An unresolved security, provenance, containment, contradictory-authority,
+aggregate-budget, or deadline boundary stops the affected execution path (and
+any dependent path), never a permitted independent path by mere association.
+
+Ask for one precise material decision only after useful independent authorized
+work is exhausted and the remaining action truly requires new scope, a named
+paid attempt, capacity, or time. At handoff identify the stopped operation and
+scope, the next already-authorized action or “none,” and the exact authority
+delta or “none.” Validate a current-campaign handoff with
+`validate_operator_handoff.py --require-scoped-continuation`; this is a
+consistency check, not a dispatch grant. Supply `--continuation-state` when a
+source-derived state artifact exists, so a generic ask cannot conceal its
+already-authorized next action. Reconstruct the same decision from
+durable evidence after interruption or compaction, without resetting counters
+or reopening terminal sessions.
 
 ## Durable state, quota, and steering
 

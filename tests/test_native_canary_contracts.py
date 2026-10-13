@@ -23,9 +23,11 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     MATERIALIZATION_EVIDENCE_SCHEMA,
     MATERIALIZATION_EVIDENCE_TYPE,
     NativeCanaryContractError,
+    canonical_sha256,
     consume_steering_receipt,
     length_framed_sha256,
     materialization_execution_correlation,
+    materialization_liveness_correlation,
     new_authorization_state,
     neutral_steering_final_text,
     operator_fact_action_sha256,
@@ -80,18 +82,15 @@ def observation(
     rendered = validate_capability_rendered_command(
         "/bin/bash -lc 'sleep 20'", raw_command="sleep 20"
     )
-    correlation = materialization_execution_correlation(
+    correlation = materialization_liveness_correlation(
         connection_epoch_sha256=hash_value("connection"),
         session_id=session,
         thread_id=thread,
         turn_id=turn,
         command_item_id_sha256=command_item,
-        function_call_id_sha256=function_call,
         notification_sequence=4,
         notification_received_monotonic_ns=100,
         notification_started_at_ms=42,
-        turn_context_record_index=2,
-        function_call_record_index=3,
         rendered_command_sha256=rendered,
         raw_command_sha256=hash_value("sleep 20"),
     )
@@ -109,6 +108,7 @@ def observation(
         "function_call_id_sha256": function_call,
         "rendered_command_sha256": rendered,
         "execution_correlation_sha256": correlation,
+        "correlation_mode": "session-and-notification",
         "notification_command_semantic_match": True,
         "notification_workspace_match": True,
         "command_source": "unifiedExecStartup",
@@ -170,13 +170,78 @@ def control_observations() -> list[dict]:
     return values
 
 
+def notification_shape(session: str, turn: str) -> dict:
+    body = {
+        "evidence_type": "cwo-app-server-notification-shape:v1",
+        "version": 1,
+        "connection_epoch_sha256": hash_value("connection"),
+        "thread_id_sha256": hash_value(session),
+        "turn_id_sha256": hash_value(turn),
+        "event_count": 1,
+        "events": [
+            {
+                "sequence": 4,
+                "received_monotonic_ns": 100,
+                "method": "item/started",
+                "params_keys": ["item", "startedAtMs", "threadId", "turnId"],
+                "item_keys": ["command", "cwd", "id", "source", "status", "type"],
+                "thread_id_matches": True,
+                "turn_id_matches": True,
+                "item_type": "commandExecution",
+                "item_status": "inProgress",
+                "item_namespace": None,
+                "item_tool": None,
+                "item_id_sha256": hash_value("item"),
+                "payload_digest_sha256": hash_value("payload"),
+                "started_at_ms_type": "integer",
+            }
+        ],
+    }
+    body["evidence_sha256"] = canonical_sha256(
+        body, domain="native-app-server-notification-shape"
+    )
+    return body
+
+
+def terminal_execution_correlation(session: str, turn: str) -> dict:
+    rendered = validate_capability_rendered_command(
+        "/bin/bash -lc 'sleep 20'", raw_command="sleep 20"
+    )
+    value = {
+        "turn_context_record_index": 2,
+        "function_call_record_index": 3,
+        "function_call_id_sha256": hash_value("call"),
+        "command_item_id_sha256": hash_value("item"),
+        "notification_sequence": 4,
+        "notification_received_monotonic_ns": 100,
+        "notification_started_at_ms": 42,
+        "rendered_command_sha256": rendered,
+    }
+    value["execution_correlation_sha256"] = materialization_execution_correlation(
+        connection_epoch_sha256=hash_value("connection"),
+        session_id=session,
+        thread_id=session,
+        turn_id=turn,
+        command_item_id_sha256=value["command_item_id_sha256"],
+        function_call_id_sha256=value["function_call_id_sha256"],
+        notification_sequence=value["notification_sequence"],
+        notification_received_monotonic_ns=value["notification_received_monotonic_ns"],
+        notification_started_at_ms=value["notification_started_at_ms"],
+        turn_context_record_index=value["turn_context_record_index"],
+        function_call_record_index=value["function_call_record_index"],
+        rendered_command_sha256=rendered,
+        raw_command_sha256=hash_value("sleep 20"),
+    )
+    return value
+
+
 def materialization() -> dict:
     session = "session-one"
     turn = "turn-one"
     return seal_materialization_evidence(
         {
             "evidence_type": MATERIALIZATION_EVIDENCE_TYPE,
-            "version": 4,
+            "version": 5,
             "schema": MATERIALIZATION_EVIDENCE_SCHEMA,
             "evidence_id": "evidence-one",
             "run_nonce": str(uuid.uuid4()),
@@ -196,6 +261,10 @@ def materialization() -> dict:
             "control_observations": control_observations(),
             "liveness_observations": [observation(1), observation(2)],
             "pre_interrupt_observation": observation(3),
+            "notification_shape": notification_shape(session, turn),
+            "terminal_execution_correlation": terminal_execution_correlation(
+                session, turn
+            ),
             "interrupt": {
                 "requested_at": "2026-07-16T00:00:03Z",
                 "request_accepted_at": "2026-07-16T00:00:03.100Z",
@@ -569,6 +638,32 @@ class NativeCanaryContractTests(unittest.TestCase):
                 materialization(), require_accepting=True
             ),
             [],
+        )
+
+    def test_notification_first_requires_later_durable_session_correlation(self) -> None:
+        value = materialization()
+        for item in [
+            *value["liveness_observations"],
+            value["pre_interrupt_observation"],
+        ]:
+            item["correlation_mode"] = "notification-first"
+            item["turn_context_record_index"] = None
+            item["function_call_record_index"] = None
+            item["function_call_id_sha256"] = None
+            item["function_call_count"] = 0
+            item["command_source"] = "namespacedExecStartup"
+        value = seal_materialization_evidence(value)
+        self.assertEqual(
+            validate_materialization_evidence(value, require_accepting=True),
+            [],
+        )
+        value["terminal_execution_correlation"]["function_call_id_sha256"] = (
+            hash_value("substitute-call")
+        )
+        value = seal_materialization_evidence(value)
+        self.assertIn(
+            "materialization-terminal-execution-correlation-mismatch",
+            validate_materialization_evidence(value, require_accepting=True),
         )
 
     def test_materialization_separation_identity_terminal_and_interrupt_races(
@@ -1427,6 +1522,15 @@ class NativeCanaryContractTests(unittest.TestCase):
         ):
             value = json.loads((ROOT / relative).read_text(encoding="utf-8"))
             self.assertFalse(value["additionalProperties"])
+
+    def test_materialization_schema_matches_both_trusted_command_sources(self) -> None:
+        schema = json.loads(
+            (ROOT / MATERIALIZATION_EVIDENCE_SCHEMA).read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            schema["$defs"]["observation"]["properties"]["command_source"],
+            {"enum": ["unifiedExecStartup", "namespacedExecStartup"]},
+        )
 
 
 if __name__ == "__main__":

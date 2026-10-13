@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from cwo_core.private_authority_input import private_authority_arguments
+
 from cwo_core.native_precommit import (
     arm_precommit,
     check_precommit,
@@ -50,11 +52,15 @@ def _common_create(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--control-execution-handle")
     parser.add_argument("--audit-file")
     parser.add_argument("--now")
+    parser.add_argument("--requested-model")
+    parser.add_argument("--operative-routing")
+    parser.add_argument("--current-authority-file")
+    parser.add_argument("--current-authority-sha256")
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Supervise a zero-tool native Spark fit before candidate packet construction."
+        description="Supervise a zero-tool exact-model fit before candidate packet construction."
     )
     commands = parser.add_subparsers(dest="command", required=True)
     render = commands.add_parser("render-fit-prompt")
@@ -88,6 +94,9 @@ def parse_args() -> argparse.Namespace:
     receipt.add_argument("--state-file", required=True)
     receipt.add_argument("--receipt-file")
     validate = commands.add_parser("validate-receipt")
+    validate.add_argument("--current-authority-file")
+    validate.add_argument("--current-authority-sha256")
+    validate.add_argument("--operative-routing")
     validate.add_argument("--receipt", required=True)
     validate.add_argument("--work-plan")
     validate.add_argument("--packet-id")
@@ -105,6 +114,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     try:
+        authority_arguments = private_authority_arguments(
+            getattr(args,"current_authority_file",None),getattr(args,"current_authority_sha256",None))
+        route_arguments = ({"operative_routing": _load(args.operative_routing,"operative route")}
+            if getattr(args,"operative_routing",None) is not None else {})
         if args.command == "render-fit-prompt":
             print(render_fit_prompt(_load(args.work_plan, "work plan")), end="")
             return 0
@@ -122,7 +135,7 @@ def main() -> int:
                 control_execution_handle=args.control_execution_handle,
                 audit_file=args.audit_file,
                 now=args.now,
-            )
+             requested_model=args.requested_model or _load(args.work_plan,"work plan").get("requested_model"), **authority_arguments, **route_arguments,)
             _emit(result, compact=args.compact)
             return 0
         if args.command == "arm":
@@ -165,7 +178,7 @@ def main() -> int:
                 expected_packet_id=args.packet_id,
                 live=args.live,
                 require_accepting=args.require_accepting,
-            )
+             **authority_arguments, **route_arguments,)
             if errors:
                 raise ValueError("; ".join(errors))
             print("precommit receipt valid")
@@ -187,7 +200,7 @@ def main() -> int:
                 control_execution_handle=args.control_execution_handle,
                 audit_file=args.audit_file,
                 now=args.now,
-            )
+             requested_model=args.requested_model or _load(args.work_plan,"work plan").get("requested_model"), **authority_arguments, **route_arguments,)
             _emit(result, compact=args.compact)
             return 0
     except ValueError as exc:

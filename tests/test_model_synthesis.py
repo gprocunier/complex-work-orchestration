@@ -16,6 +16,79 @@ from cwo_core.synthesis import (  # noqa: E402
 
 
 class ModelSynthesisTests(unittest.TestCase):
+    def test_invalid_v2_local_evidence_cannot_be_salvaged_or_architect_upgraded(self) -> None:
+        controls = [
+            {"lane": "control-a", "provider_camp": "openai", "disposition": "accepted"},
+            {"lane": "control-b", "provider_camp": "anthropic", "disposition": "accepted"},
+        ]
+        invalid = {
+            "lane": "glm-v2", "provider_camp": "local", "external": False,
+            "executor": "rhoai_glm_compact_architecture_critic",
+            "disposition": "accepted", "recommended_synthesis_use": "salvage-only",
+            "local_expected_response_contract": "cwo-glm-critic-v2",
+            "local_response_contract": "cwo-glm-critic-v2",
+            "local_response_contract_status": "invalid",
+            "local_completion_status": "contract-invalid",
+            "local_usable_final_content": False,
+            "local_normalized_return_matches": False,
+        }
+        for override in ({}, {"synthesis_use": "primary", "architect_adjudicated": True}):
+            with self.subTest(override=override):
+                result = evaluate_synthesis_inputs([*controls, {**invalid, **override}])
+                self.assertEqual(result["primary_input_count"], 2)
+                self.assertEqual(result["salvage_input_count"], 0)
+                self.assertEqual(result["input_summaries"][2]["synthesis_use"], "quarantine")
+
+    def test_valid_v2_and_explicit_v1_keep_their_synthesis_lanes(self) -> None:
+        valid = {
+            "lane": "glm-v2", "provider_camp": "local", "external": False,
+            "executor": "rhoai_glm_compact_architecture_critic",
+            "disposition": "accepted", "recommended_synthesis_use": "primary",
+            "architect_adjudicated": True,
+            "local_expected_response_contract": "cwo-glm-critic-v2",
+            "local_response_contract": "cwo-glm-critic-v2",
+            "local_response_contract_status": "valid",
+            "local_completion_status": "completed",
+            "local_usable_final_content": True,
+            "local_normalized_return_matches": True,
+            "local_v2_frame_valid": True,
+            "local_v2_identity_consistent": True,
+            "local_response_model_status": "matched",
+            "local_model_preflight_status": "passed",
+            "local_http_status": 200,
+        }
+        legacy = {
+            "lane": "glm-v1", "provider_camp": "local", "external": False,
+            "executor": "rhoai_glm_compact_architecture_critic",
+            "disposition": "accepted", "recommended_synthesis_use": "salvage-only",
+            "local_expected_response_contract": "cwo-glm-critic-v1",
+            "local_response_contract": "cwo-glm-critic-v1",
+            "local_completion_status": "empty-final-content",
+            "local_usable_final_content": False,
+        }
+        result = evaluate_synthesis_inputs([valid, legacy])
+        self.assertEqual(result["primary_input_count"], 1)
+        self.assertEqual(result["salvage_input_count"], 1)
+        self.assertEqual(result["quarantined_input_count"], 0)
+
+    def test_compact_critic_cannot_use_one_v1_marker_to_bypass_v2_guard(self) -> None:
+        result = evaluate_synthesis_inputs([
+            {"lane": "control", "provider_camp": "openai", "disposition": "accepted"},
+            {
+                "lane": "contradictory-glm", "provider_camp": "local", "external": False,
+                "executor": "rhoai_glm_compact_architecture_critic",
+                "disposition": "accepted", "synthesis_use": "primary", "architect_adjudicated": True,
+                "local_expected_response_contract": "unknown-contract",
+                "local_response_contract": "cwo-glm-critic-v1",
+                "local_completion_status": "contract-invalid",
+                "local_usable_final_content": False,
+                "local_normalized_return_matches": False,
+            },
+        ])
+        self.assertEqual(result["primary_input_count"], 1)
+        self.assertEqual(result["salvage_input_count"], 0)
+        self.assertEqual(result["input_summaries"][1]["synthesis_use"], "quarantine")
+
     def test_route_result_carries_inactive_recommendation(self) -> None:
         route = classify_work(
             "Refactor the orchestration control plane across routing, schema validation, docs, and CI.",

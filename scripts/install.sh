@@ -210,7 +210,9 @@ backup_root_for_skills_dir() {
   local skills_dir="$1"
   local parent_dir
 
-  parent_dir="$(cd -- "$(dirname -- "$skills_dir")" 2>/dev/null && pwd -P || dirname -- "$skills_dir")"
+  if ! parent_dir="$(cd -- "$(dirname -- "$skills_dir")" 2>/dev/null && pwd -P)"; then
+    parent_dir="$(dirname -- "$skills_dir")"
+  fi
   printf '%s\n' "$parent_dir/skill-backups"
 }
 
@@ -228,7 +230,7 @@ install_skill() {
   local backup_root
   local prev_dir
   local backed_up=0
-  local items="README.md LICENSE SKILL.md AGENTS.md VERSION CHANGELOG.md agents policy templates experts references schemas examples docs scripts calibration prompts"
+  local items="README.md LICENSE SECURITY.md SKILL.md AGENTS.md VERSION CHANGELOG.md agents policy templates experts references schemas examples docs scripts calibration prompts"
 
   backup_root="$(backup_root_for_skills_dir "$skills_dir")"
   prev_dir="$(backup_path_for_skill "$skills_dir")"

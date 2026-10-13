@@ -10,6 +10,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+from tests.historical_policy_fixtures import historical_v2_policy, historical_cli_args
 
 from prepare_native_worker import (
     _render_prompt,
@@ -255,6 +256,20 @@ def _contains(errors, text):
 
 
 class TestNativeWorkerPlanning(unittest.TestCase):
+    def test_zero_shell_primitive_profile_does_not_render_unplanned_wrapper_work(self):
+        packet = planned()
+        packet["work_plan"]["task_profile"] = {"task_class":"narrow-mechanical","command_count":0,
+            "commands":[],"focused_test_count":0,"full_suite_count":0}
+        text = _render_prompt(packet)
+        self.assertIn("Primitive edit execution contract:",text)
+        self.assertIn("Do not invent helper specifications",text)
+        self.assertNotIn("Checked command execution:",text)
+        # A declared shell command or malformed false counter must not obtain
+        # this profile-specific treatment. This rendering fixture is not a grant.
+        for count in (1,False):
+            packet["work_plan"]["task_profile"]["command_count"]=count
+            self.assertIn("Checked command execution:",_render_prompt(packet))
+
     def setUp(self):
         global _FIXTURE_ROOT
         self.precommit_temp = tempfile.TemporaryDirectory(prefix="cwo-planning-precommit-")
@@ -473,6 +488,7 @@ class TestNativeWorkerPlanning(unittest.TestCase):
                 requested_model="gpt-5.3-codex-spark",
             )
 
+    @historical_v2_policy()
     def test_read_only_plan_separates_context_scope_from_write_scope(self):
         read_only = plan()
         read_only["write_paths"] = []
@@ -498,8 +514,8 @@ class TestNativeWorkerPlanning(unittest.TestCase):
             "read_context_count": 1,
             "source_mutation_count": 0,
             "commands": [
-                {"argv": ["python3", "-m", "unittest", "tests.test_native_worker_planning", "-v"]},
-                {"argv": ["python3", "-m", "compileall", "scripts/prepare_native_worker.py"]},
+                {"argv": ["git", "status", "--short"]},
+                {"argv": ["git", "status", "--short"]},
                 {"argv": ["git", "diff", "--check"]},
             ],
             "source_mutation_paths": [],
@@ -556,7 +572,7 @@ class TestNativeWorkerPlanning(unittest.TestCase):
         self.assertIn("The first tool call must execute command 1", rendered)
         self.assertIn("Do not acknowledge first, inspect helpers or source, run --help", rendered)
         self.assertIn("No exploratory tool calls are permitted", rendered)
-        self.assertIn("1. python3 -m unittest tests.test_native_worker_planning -v", rendered)
+        self.assertIn("1. git status --short", rendered)
         self.assertNotIn("- Wrapper: scripts/run_checked_command.py", rendered)
         self.assertNotIn("build wrapper specifications.\n- Wrapper:", rendered)
         self.assertIn('"files_touched": []', rendered)

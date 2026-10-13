@@ -15,6 +15,12 @@ from typing import Any, Mapping
 
 
 TOOL_POLICY_VERSION = 1
+CORE_RESOURCE_TOOL_POLICY_VERSION = 2
+CORE_RESOURCE_TOOLS = ("list_mcp_resource_templates", "list_mcp_resources", "read_mcp_resource")
+CORE_RESOURCE_TOOL_PROFILES = {
+    "mutating-core-resources-v2": tuple(sorted(("apply_patch", "exec_command", "write_stdin", *CORE_RESOURCE_TOOLS))),
+    "read-only-core-resources-v2": tuple(sorted(("exec_command", "write_stdin", *CORE_RESOURCE_TOOLS))),
+}
 TOOL_ENFORCEMENT_OVERRIDE_VERSION = 1
 TOOL_ENFORCEMENT_OVERRIDE_TYPE = "cwo-native-tool-enforcement-override"
 TOOL_ENFORCEMENT_OVERRIDE_SCHEMA = (
@@ -356,6 +362,7 @@ def default_tool_policy(
     permitted_tools: list[str] | tuple[str, ...] | None = None,
     forbidden_tools: list[str] | tuple[str, ...] | None = None,
     enforcement_override: Mapping[str, Any] | None = None,
+    tool_profile: str | None = None,
 ) -> dict[str, Any]:
     """Build the narrow default for an operative worker or safety canary."""
 
@@ -366,6 +373,15 @@ def default_tool_policy(
         if mutable
         else ["exec_command", "write_stdin"]
     )
+    if tool_profile is not None:
+        if type(tool_profile) is not str or tool_profile not in CORE_RESOURCE_TOOL_PROFILES:
+            raise NativeToolIsolationError("tool-policy-profile-invalid")
+        if mutable is not (tool_profile == "mutating-core-resources-v2"):
+            raise NativeToolIsolationError("tool-policy-profile-mutation-mismatch")
+        expected = list(CORE_RESOURCE_TOOL_PROFILES[tool_profile])
+        if permitted_tools is not None and list(permitted_tools) != expected:
+            raise NativeToolIsolationError("tool-policy-profile-tools-mismatch")
+        permitted = expected
     forbidden_candidates: list[Any] = [
         *DEFAULT_FORBIDDEN_TOOLS,
         *(list(forbidden_tools) if forbidden_tools is not None else []),
@@ -392,6 +408,8 @@ def default_tool_policy(
         "workload_class": workload_class,
         "override_provenance": enforcement_override,
     }
+    if tool_profile is not None:
+        value.update(version=CORE_RESOURCE_TOOL_POLICY_VERSION, tool_profile=tool_profile)
     errors = validate_tool_policy(value)
     if errors:
         raise NativeToolIsolationError("tool-policy-invalid:" + ";".join(errors))
@@ -404,10 +422,13 @@ def validate_tool_policy(
     prefix: str = "tool-policy",
 ) -> list[str]:
     errors: list[str] = []
-    policy = _strict_fields(value, TOOL_POLICY_FIELDS, prefix, errors)
+    version = value.get("version") if isinstance(value, Mapping) else None
+    current = type(version) is int and version == CORE_RESOURCE_TOOL_POLICY_VERSION
+    fields = TOOL_POLICY_FIELDS | ({"tool_profile"} if current else set())
+    policy = _strict_fields(value, fields, prefix, errors)
     if policy is None:
         return errors
-    if policy.get("version") != TOOL_POLICY_VERSION:
+    if type(version) is not int or version not in (TOOL_POLICY_VERSION, CORE_RESOURCE_TOOL_POLICY_VERSION):
         errors.append(f"{prefix}-version-invalid")
     permitted = _validate_tool_names(
         policy.get("permitted_tools"), f"{prefix}-permitted-tools", errors
@@ -417,7 +438,19 @@ def validate_tool_policy(
     )
     if not permitted:
         errors.append(f"{prefix}-permitted-tools-must-not-be-empty")
-    unproven_permitted = sorted(set(permitted) - UNPROVEN_PERMITTED_TOOLS)
+    allowed = UNPROVEN_PERMITTED_TOOLS
+    if current:
+        profile = policy.get("tool_profile")
+        expected = CORE_RESOURCE_TOOL_PROFILES.get(profile) if type(profile) is str else None
+        if expected is None or permitted != list(expected):
+            errors.append(f"{prefix}-profile-tools-mismatch")
+        else:
+            allowed = frozenset(expected)
+        if (policy.get("enforcement_mode") != "server-allowlist-required"
+                or policy.get("workload_class") != "operative"
+                or policy.get("override_provenance") is not None):
+            errors.append(f"{prefix}-core-profile-enforcement-invalid")
+    unproven_permitted = sorted(set(permitted) - allowed)
     if unproven_permitted:
         errors.append(
             f"{prefix}-unproven-permitted-tool-expansion:"
@@ -467,8 +500,8 @@ def normalize_tool_policy(value: Any) -> dict[str, Any]:
     if errors:
         raise NativeToolIsolationError("tool-policy-invalid:" + ";".join(errors))
     assert isinstance(value, Mapping)
-    return {
-        "version": TOOL_POLICY_VERSION,
+    normalized = {
+        "version": value["version"],
         "permitted_tools": list(value["permitted_tools"]),
         "forbidden_tools": list(value["forbidden_tools"]),
         "enforcement_mode": str(value["enforcement_mode"]),
@@ -479,6 +512,10 @@ def normalize_tool_policy(value: Any) -> dict[str, Any]:
             else None
         ),
     }
+
+    if value["version"] == CORE_RESOURCE_TOOL_POLICY_VERSION:
+        normalized["tool_profile"] = value["tool_profile"]
+    return normalized
 
 
 def _negated_prefix(line: str, start: int) -> bool:
@@ -520,7 +557,7 @@ def prompt_preflight(prompt: str, tool_policy: Mapping[str, Any]) -> dict[str, A
             tool = match.group("tool").lower()
             if tool in permitted and tool not in forbidden:
                 continue
-            if tool not in forbidden and tool not in KNOWN_TOOL_NAMES:
+            if tool not in forbidden and tool not in KNOWN_TOOL_NAMES and tool not in permitted:
                 continue
             findings.append(
                 {
