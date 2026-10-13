@@ -258,6 +258,17 @@ See:
 
 ## Validation
 
+The full schema-validation suite uses the pinned test-only packages in
+`requirements-test.txt`. Install them into an isolated test environment:
+
+```bash
+python -m venv /tmp/cwo-test-venv
+. /tmp/cwo-test-venv/bin/activate
+python -m pip install -r requirements-test.txt
+```
+
+These packages are not runtime or installer dependencies.
+
 Before handoff, run:
 
 ```bash
