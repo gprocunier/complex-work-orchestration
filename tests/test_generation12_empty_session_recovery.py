@@ -13,6 +13,7 @@ import uuid
 from tests.test_run_native_pool_live_canaries import (
     deterministic_calibration_measurement,
     FakeCalibrationServer,
+    FakeElapsedClock,
     LIVE,
 )
 
@@ -662,19 +663,50 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
         self,
         server: FakeCalibrationServer,
         root: Path,
+        *,
+        clock: FakeElapsedClock | None = None,
     ) -> tuple[dict, dict]:
         record_dir = root / "records"
         record_dir.mkdir()
-        return LIVE.calibration(
-            server,
-            root,
-            record_dir,
-            self.owner(),
-            run_nonce=str(uuid.uuid4()),
-            phase_nonce=str(uuid.uuid4()),
-            startup_timeout_seconds=3.0,
-            materialization_timeout_seconds=3.0,
-        )
+        # These are functional providerless fixtures. Host scheduling must not
+        # fabricate a controller stall; actual stall rejection is tested below.
+        clock = clock if clock is not None else FakeElapsedClock()
+        with (
+            mock.patch.object(LIVE.time, "monotonic", side_effect=clock.monotonic),
+            mock.patch.object(LIVE.time, "monotonic_ns", side_effect=clock.monotonic_ns),
+            mock.patch.object(LIVE.time, "sleep", side_effect=clock.sleep),
+            mock.patch.object(LIVE, "utc_now", side_effect=clock.utc_now),
+        ):
+            return LIVE.calibration(
+                server,
+                root,
+                record_dir,
+                self.owner(),
+                run_nonce=str(uuid.uuid4()),
+                phase_nonce=str(uuid.uuid4()),
+                startup_timeout_seconds=3.0,
+                materialization_timeout_seconds=3.0,
+            )
+
+    def test_virtual_controller_stall_still_rejects_poll_gap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = EmptySessionCalibrationServer(root)
+            clock = FakeElapsedClock()
+            advance = clock.sleep
+            injected = False
+
+            def stalled_sleep(seconds: float) -> None:
+                nonlocal injected
+                if not injected and server.read_count == 3 and seconds >= 0.19:
+                    injected = True
+                    seconds += 0.061
+                advance(seconds)
+
+            clock.sleep = stalled_sleep
+            with self.assertRaisesRegex(LIVE.AppServerError, "capability-poll-interval-exceeded"):
+                self.run_calibration(server, root, clock=clock)
+            self.assertTrue(injected)
 
     def test_exact_gen11_zero_byte_fault_recovers_across_both_edges(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
