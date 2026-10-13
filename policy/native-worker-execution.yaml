@@ -21,9 +21,13 @@
       "preferred_model": "gpt-5.3-codex-spark",
       "authorized_models": [
         "gpt-5.3-codex-spark",
+        "gpt-5.5",
+        "gpt-5.6-terra",
         "gpt-5.6-luna"
       ],
       "authorized_fallback_models": [
+        "gpt-5.5",
+        "gpt-5.6-terra",
         "gpt-5.6-luna"
       ],
       "fallback_selection": "explicit-only",
@@ -101,7 +105,15 @@
     "canary_source_mutation_authorized": false,
     "canary_workspace_scope": "cwo-temp-only",
     "operative_release_enabled": true,
-    "operative_release_requires": "complex-work-orchestration-fsh.3.5"
+    "operative_release_requires": "complex-work-orchestration-fsh.3.5",
+    "authorized_models": [
+      "gpt-5.3-codex-spark",
+      "gpt-5.5",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna"
+    ],
+    "fallback_requires_operative_routing": true,
+    "fallback_canary_rule": "verified-spark-quota-exhaustion-explicit-selection-exact-model"
   },
   "precommit_supervision": {
     "version": 2,
@@ -116,7 +128,14 @@
     "packet_stage": "precommit-validated",
     "operative_dispatch_authorized": false,
     "release_requires": "complex-work-orchestration-fsh.3",
-    "control_topology": "single-host-process-v1"
+    "control_topology": "single-host-process-v1",
+    "authorized_models": [
+      "gpt-5.3-codex-spark",
+      "gpt-5.5",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna"
+    ],
+    "fallback_requires_operative_routing": true
   },
   "native_supervision_pool": {
     "version": 1,
@@ -148,7 +167,7 @@
       "observation_authority": "telemetry-only-non-authoritative",
       "certified_callback_max_ms": {
         "arm": 100,
-        "send_input": 250,
+        "send_input": 275,
         "mark_dispatched": 100,
         "check": 200,
         "interrupt": 250,
@@ -1248,5 +1267,194 @@
       "quoting_error_prevented",
       "avoided_retry_cycles"
     ]
+  },
+  "operative_routing": {
+    "version": 2,
+    "schema": "schemas/operative-routing-state.schema.json",
+    "fallback_fit_schema": "schemas/operative-fallback-fit.schema.json",
+    "primary_model": "gpt-5.3-codex-spark",
+    "primary_selection": "automatic-when-available",
+    "availability_statuses": [
+      "available",
+      "verified-quota-exhausted",
+      "verified-capacity-unavailable",
+      "unknown",
+      "model-mismatch",
+      "control-fault",
+      "security-fault"
+    ],
+    "ordinary_fallback_triggers": [
+      "verified-quota-exhausted",
+      "verified-capacity-unavailable"
+    ],
+    "protected_stop_statuses": [
+      "unknown",
+      "model-mismatch",
+      "control-fault",
+      "security-fault"
+    ],
+    "trusted_evidence_sources": [
+      "trusted-control-plane-session-metadata",
+      "trusted-host-capability-api"
+    ],
+    "required_lifecycle_controls": [
+      "interrupt",
+      "close",
+      "wait"
+    ],
+    "required_enforcement": [
+      "workspace",
+      "mutation"
+    ],
+    "approved_fallback_models": [
+      "gpt-5.5",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna"
+    ],
+    "ordered_recommendation": [
+      "gpt-5.5",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna"
+    ],
+    "fitness_rules": {
+      "substantial": {
+        "required_task_class": "bounded-implementation",
+        "required_unresolved_decisions_empty": true,
+        "minimum_signals": 2,
+        "context_tokens_p90_min": 32000,
+        "tool_calls_p90_min": 12,
+        "runtime_seconds_p90_min": 300,
+        "estimated_diff_p90_min": 81,
+        "write_paths_min": 3,
+        "behavioral_changes_min": 3
+      },
+      "cache_heavy": {
+        "predicted": {
+          "stable_context_tokens_p90_min": 16000,
+          "stable_context_fraction_min": 0.5,
+          "expected_reuse_opportunities_min": 2,
+          "required_source": "deterministic-context-plan"
+        },
+        "observed": {
+          "observed_cached_input_tokens_min": 16000,
+          "cached_input_fraction_min": 0.5,
+          "observed_input_tokens_nonzero": true,
+          "required_source": "trusted-session-telemetry",
+          "same_work_lineage_required": true
+        }
+      },
+      "luna_fit": {
+        "required_fit_mode": "deterministic",
+        "required_unresolved_decisions_empty": true,
+        "command_complexity_max": 1,
+        "test_construction_complexity_max": 1,
+        "narrow": {
+          "estimated_diff_p90_max": 80,
+          "write_paths_max": 2,
+          "behavioral_changes_max": 2,
+          "tool_calls_p90_max": 12
+        },
+        "repeatable_high_volume": {
+          "repeatable_unit_count_min": 10,
+          "repeat_template_sha256_required": true,
+          "per_unit_architecture_decision_forbidden": true
+        }
+      }
+    },
+    "evidence_freshness": {
+      "max_age_seconds": 3600,
+      "future_skew_seconds": 0,
+      "timestamp_field": "observed_at"
+    },
+    "gpt55_strategy": {
+      "requires_substantial": true,
+      "requires_cache_heavy": true,
+      "requires_quota_or_metering_domain_independence": true,
+      "distinct_from_models": [
+        "gpt-5.3-codex-spark",
+        "gpt-5.6-terra",
+        "gpt-5.6-luna"
+      ],
+      "requires_remaining_headroom": true,
+      "requires_aggregate_budget_coverage": true,
+      "permanent_price_assumption_forbidden": true
+    },
+    "degraded_luna": {
+      "allowed_as_final_live_fallback": true,
+      "warning": "Luna is live and control-eligible but this work is not narrow/deterministic or repeatable-high-volume; task fit is degraded.",
+      "acknowledgement_field": "degraded_task_fit_acknowledged"
+    },
+    "operative_dispatch_modes": [
+      "codex_worker"
+    ],
+    "maximum_fallback_choices": 3,
+    "fallback_selection": "user-explicit-only",
+    "fallback_scopes": [
+      "current-bead",
+      "current-wave",
+      "until-spark-restored"
+    ],
+    "wait_option": "wait-for-spark",
+    "wait_option_position": "last",
+    "recommendation_is_authority": false,
+    "user_model_and_scope_selection_required": true,
+    "fresh_segment_recheck_required": true,
+    "mid_unit_model_switch_forbidden": true,
+    "aggregate_budget_preserved": true,
+    "budget_reset": false,
+    "history_append_only": true,
+    "critic_and_peer_routes_orthogonal": true
+  },
+  "task_selected_routing": {
+    "version": 3,
+    "status": "active",
+    "activation": {
+      "active": true,
+      "dispatch_authority": true,
+      "requires_complete_candidate_acceptance": true
+    },
+    "selection": {
+      "sizing": "neutral-before-exact-model-selection",
+      "approved_portfolio": [
+        "gpt-5.6-luna",
+        "gpt-5.6-terra"
+      ],
+      "primary_model": "gpt-5.6-luna",
+      "terra_selection": "recorded-fit-qualification-risk-or-economics-escalation-only",
+      "spark_dispatch": "prohibited",
+      "gpt55_dispatch": "prohibited",
+      "model_substitution": "forbidden"
+    },
+    "operative_roles": {
+      "gpt-5.6-luna": "luna-first-operative-worker",
+      "gpt-5.6-terra": "escalation-only-operative-worker",
+      "gpt-5.3-codex-spark": "historical-nonoperative"
+    },
+    "historical_v2": {
+      "readable": true,
+      "nonoperative_for_v3": true,
+      "new_dispatch_authority": false
+    },
+    "attempt_binding": {
+      "exact_identity_required": true,
+      "qualification_required": true,
+      "provenance_required": true,
+      "scope_required": true,
+      "budget_required": true,
+      "stopped_session_reuse": "forbidden",
+      "session_substitution": "forbidden"
+    },
+    "bounded_semantic_readonly": {
+      "enabled": true,
+      "task_class": "diagnosis",
+      "required_fit_mode": "semantic",
+      "max_context_reads": 12,
+      "max_tool_calls_p90": 12,
+      "max_runtime_seconds_p90": 300,
+      "command_complexity_max": 1,
+      "test_construction_complexity_max": 1,
+      "self_hosting_risk_max": 2,
+      "live_control_risk_max": 2
+    }
   }
 }

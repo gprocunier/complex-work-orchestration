@@ -13,7 +13,7 @@
         "failed_native_capability_check_justification"
       ],
       "properties": {
-        "status": {"enum": ["not-applicable", "native-first", "hard-stop"]},
+        "status": {"enum": ["not-applicable", "native-first", "task-selected-v3", "hard-stop"]},
         "requested_model": {"type": "string"},
         "requested_route": {"type": "string"},
         "failed_native_capability_check": {"type": "string"},
@@ -42,6 +42,9 @@
     "workerbee_planned_delegation",
     "model_synthesis",
     "operator_calibration",
+    "operative_route",
+    "critic_route",
+    "peer_review_route",
     "route",
     "paste_ready_prompt",
     "warnings"
@@ -77,6 +80,9 @@
     "coach_result_type": {"const": "complex-work-orchestration-prompt-coach"},
     "version": {"type": "integer"},
     "beads_tracking_required": {"const": true},
+    "operative_route": {"type": "object"},
+    "critic_route": {"type": "object"},
+    "peer_review_route": {"type": "object"},
     "recommended_orchestration_level": {
       "enum": [
         "in-thread",

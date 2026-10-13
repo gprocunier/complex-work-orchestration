@@ -250,7 +250,7 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(result["selected_executor"]["model_label"], "codex-5.6-sol")
         self.assertEqual(
             result["execution_environment_profile"]["role_bindings"]["architect"]["model"],
-            "codex-5.6-sol",
+            "gpt-6.1-sol",
         )
         self.assertNotEqual(result["recommended_executor"], "rhoai_glm_primary_architect")
 
@@ -490,6 +490,20 @@ class RouteWorkTests(unittest.TestCase):
             result["requested_architecture_critic_executors"],
             ["claude_architecture_critic", "gemini_architecture_critic"],
         )
+
+    def test_glm53_does_not_silently_fall_back_to_glm52_executor(self) -> None:
+        result = classify_work(
+            "Use exact GLM-5.3 as a second-opinion architecture critic.",
+            requested_roles=["architecture"],
+            local_ok=True,
+            local_profile="openshift-ai-glm-5-3-direct",
+        )
+        self.assertEqual(
+            result["requested_architecture_critic_executors"],
+            ["rhoai_glm_compact_architecture_critic"],
+        )
+        self.assertEqual(result["recommended_executor"], "rhoai_glm_compact_architecture_critic")
+        self.assertEqual(result["selected_executor"]["model_profile"], "rhoai-architect-glm-5-3-bf16-compact-critic")
 
     def test_prohibited_provider_is_not_treated_as_architecture_critic_opt_in(self) -> None:
         result = classify_work(

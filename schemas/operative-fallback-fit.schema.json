@@ -1,0 +1,134 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO Operative Fallback Fitness Evidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "fit_type", "version", "evaluated_at", "work_estimate_sha256",
+    "policy_version", "policy_sha256", "capability_evidence_sha256",
+    "aggregate_budget_sha256", "context", "cache_profile",
+    "classifications", "candidates", "fit_sha256"
+  ],
+  "properties": {
+    "fit_type": {"const": "cwo-operative-fallback-fit"},
+    "version": {"const": 1},
+    "evaluated_at": {"type": "string", "minLength": 1},
+    "work_estimate_sha256": {"$ref": "#/$defs/sha256"},
+    "policy_version": {"const": 2},
+    "policy_sha256": {"$ref": "#/$defs/sha256"},
+    "capability_evidence_sha256": {"$ref": "#/$defs/sha256"},
+    "aggregate_budget_sha256": {"$ref": "#/$defs/sha256"},
+    "context": {"$ref": "#/$defs/context"},
+    "cache_profile": {"$ref": "#/$defs/cacheProfile"},
+    "classifications": {"$ref": "#/$defs/classifications"},
+    "candidates": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {"$ref": "#/$defs/candidate"}
+    },
+    "fit_sha256": {"$ref": "#/$defs/sha256"}
+  },
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bead_id", "wave_id", "fresh_segment", "work_lineage_id"],
+      "properties": {
+        "bead_id": {"type": "string", "minLength": 1},
+        "wave_id": {"type": ["string", "null"], "minLength": 1},
+        "fresh_segment": {"const": true},
+        "work_lineage_id": {"type": "string", "minLength": 1}
+      }
+    },
+    "cacheProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source", "observed_at", "total_context_tokens_p90",
+        "stable_context_tokens_p90", "expected_reuse_opportunities",
+        "repeatable_unit_count", "repeat_template_sha256",
+        "observed_input_tokens", "observed_cached_input_tokens",
+        "same_work_lineage", "context_plan_sha256",
+        "telemetry_lineage_id", "evidence_sha256"
+      ],
+      "properties": {
+        "source": {"enum": ["deterministic-context-plan", "trusted-session-telemetry"]},
+        "observed_at": {"type": "string", "minLength": 1},
+        "total_context_tokens_p90": {"type": "integer", "minimum": 0},
+        "stable_context_tokens_p90": {"type": "integer", "minimum": 0},
+        "expected_reuse_opportunities": {"type": "integer", "minimum": 0},
+        "repeatable_unit_count": {"type": "integer", "minimum": 0},
+        "repeat_template_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "observed_input_tokens": {"type": "integer", "minimum": 0},
+        "observed_cached_input_tokens": {"type": "integer", "minimum": 0},
+        "same_work_lineage": {"type": "boolean"},
+        "context_plan_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "telemetry_lineage_id": {"type": ["string", "null"], "minLength": 1},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "classifications": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "substantial", "substantial_signal_count", "cache_heavy",
+        "cache_evidence_fresh", "cache_path", "deterministic", "narrow",
+        "repeatable_high_volume", "luna_fit", "work_route_eligible"
+      ],
+      "properties": {
+        "substantial": {"type": "boolean"},
+        "substantial_signal_count": {"type": "integer", "minimum": 0, "maximum": 6},
+        "cache_heavy": {"type": "boolean"},
+        "cache_evidence_fresh": {"type": "boolean"},
+        "cache_path": {"enum": ["predicted", "observed", "none"]},
+        "deterministic": {"type": "boolean"},
+        "narrow": {"type": "boolean"},
+        "repeatable_high_volume": {"type": "boolean"},
+        "luna_fit": {"type": "boolean"},
+        "work_route_eligible": {"type": "boolean"}
+      }
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executor", "model", "display_name", "policy_rank", "rank",
+        "task_fit", "cache_strategy_valid", "quota_domain",
+        "cached_input_metering_domain", "domain_independent",
+        "live_available", "evidence_fresh", "exact_model", "control_eligible",
+        "risk_eligible", "data_sensitivity_eligible", "headroom_sufficient",
+        "aggregate_budget_sufficient", "eligible", "model_evidence_sha256",
+        "inclusion_reasons", "exclusion_reasons", "task_fit_warning",
+        "acknowledgement_required"
+      ],
+      "properties": {
+        "executor": {"type": "string"},
+        "model": {"enum": ["gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]},
+        "display_name": {"type": "string", "minLength": 1},
+        "policy_rank": {"type": "integer", "minimum": 1, "maximum": 3},
+        "rank": {"type": "integer", "minimum": 1, "maximum": 3},
+        "task_fit": {"enum": ["strategic", "preferred", "compatible", "degraded", "ineligible"]},
+        "cache_strategy_valid": {"type": "boolean"},
+        "quota_domain": {"type": ["string", "null"], "minLength": 1},
+        "cached_input_metering_domain": {"type": ["string", "null"], "minLength": 1},
+        "domain_independent": {"type": "boolean"},
+        "live_available": {"type": "boolean"},
+        "evidence_fresh": {"type": "boolean"},
+        "exact_model": {"type": "boolean"},
+        "control_eligible": {"type": "boolean"},
+        "risk_eligible": {"type": "boolean"},
+        "data_sensitivity_eligible": {"type": "boolean"},
+        "headroom_sufficient": {"type": "boolean"},
+        "aggregate_budget_sufficient": {"type": "boolean"},
+        "eligible": {"type": "boolean"},
+        "model_evidence_sha256": {"$ref": "#/$defs/sha256"},
+        "inclusion_reasons": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "exclusion_reasons": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+        "task_fit_warning": {"type": ["string", "null"], "minLength": 1},
+        "acknowledgement_required": {"type": "boolean"}
+      }
+    }
+  }
+}

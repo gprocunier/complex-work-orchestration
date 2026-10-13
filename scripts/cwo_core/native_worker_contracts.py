@@ -22,6 +22,7 @@ ALLOWED_PACKET_FIELDS = {
     "bead_id",
     "lane",
     "requested_model",
+    "operative_routing",
     "session_policy",
     "tool_policy",
     "scope",
@@ -63,9 +64,52 @@ _TOOL_EXIT_CODE_PATTERNS = (
     re.compile(r"\AExit code:\s*(-?\d+)\n"),
 )
 _EXEC_COMMAND_INTERRUPTED_PATTERN = re.compile(
-    r"\Aaborted by user after (?:0|[1-9][0-9]*)(?:\.[0-9]+)?s\Z"
+    r"\A(?:"
+    r"aborted by user after (?:0|[1-9][0-9]*)(?:\.[0-9]+)?s"
+    r"|Wall time: (?:0|[1-9][0-9]*)(?:\.[0-9]+)? seconds\n"
+    r"aborted by user"
+    r")\Z"
+)
+_EXEC_COMMAND_CREATE_PROCESS_ENOENT = (
+    'exec_command failed: CreateProcess { message: "Rejected(\\"Failed to create '
+    'unified exec process: No such file or directory (os error 2)\\")" }'
 )
 _APPLY_PATCH_FAILURE_PREFIX = "apply_patch verification failed:"
+DIRECT_TOOL_TRANSPORT = "direct-tool-calls-v1"
+NAMESPACED_EXEC_TOOL_TRANSPORT = "namespaced-exec-wrapper-v1"
+_NAMESPACED_EXEC_SOURCE = re.compile(
+    r"\Aconst\s+(?P<binding>[A-Za-z_$][A-Za-z0-9_$]*)\s*=\s*"
+    r"await\s+tools\.(?P<tool>apply_patch|exec_command|write_stdin)\("
+    r"(?P<arguments>[\s\S]+)\);\s*"
+    r"text\(JSON\.stringify\((?P=binding)\)\);\s*\Z"
+)
+_NAMESPACED_EXEC_ARGUMENT_FIELDS = {
+    "exec_command": frozenset(
+        {"cmd", "workdir", "tty", "yield_time_ms", "max_output_tokens"}
+    ),
+    "write_stdin": frozenset(
+        {"session_id", "chars", "yield_time_ms", "max_output_tokens"}
+    ),
+}
+_NAMESPACED_EXEC_RESULT_FIELDS = frozenset(
+    {
+        "chunk_id",
+        "exit_code",
+        "original_token_count",
+        "output",
+        "session_id",
+        "wall_time_seconds",
+    }
+)
+_NAMESPACED_EXEC_COMPLETED = re.compile(
+    r"\AScript completed\nWall time "
+    r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)? seconds\nOutput:\n(?P<body>[\s\S]*)\Z"
+)
+_NAMESPACED_EXEC_PATCH_VERIFICATION_FAILED = re.compile(
+    r"\AScript failed\nWall time "
+    r"(?:0|[1-9][0-9]*)(?:\.[0-9]+)? seconds\nOutput:\n"
+    r"Script error:\napply_patch verification failed: [^\r\n]+\Z"
+)
 ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS = {
     "mode",
     "spec",
@@ -354,6 +398,71 @@ def _argument_value(payload: Mapping[str, Any]) -> Any:
     return {}
 
 
+def decode_namespaced_exec_source(source: Any) -> dict[str, Any]:
+    """Decode the one-statement nested-tool grammar accepted by CWO.
+
+    The wrapper is executable JavaScript, so accepting arbitrary source and
+    searching it for ``tools.*`` would be unsafe.  This decoder accepts exactly
+    one awaited nested call whose argument is JSON and exactly one JSON result
+    projection.  Aliases, computed access, extra statements, comments, and
+    non-JSON expressions fail closed.
+    """
+
+    if not isinstance(source, str) or not source:
+        raise ValueError("namespaced-exec-source-invalid")
+    match = _NAMESPACED_EXEC_SOURCE.fullmatch(source)
+    if match is None:
+        raise ValueError("namespaced-exec-source-grammar-invalid")
+    tool = match.group("tool")
+    raw_arguments = match.group("arguments")
+    try:
+        arguments = json.loads(raw_arguments)
+    except json.JSONDecodeError as exc:
+        raise ValueError("namespaced-exec-arguments-not-json") from exc
+    if tool == "apply_patch":
+        if not isinstance(arguments, str) or not arguments:
+            raise ValueError("namespaced-exec-apply-patch-argument-invalid")
+    else:
+        if not isinstance(arguments, Mapping):
+            raise ValueError("namespaced-exec-arguments-invalid")
+        allowed = _NAMESPACED_EXEC_ARGUMENT_FIELDS[tool]
+        if set(arguments) - allowed:
+            raise ValueError("namespaced-exec-argument-fields-invalid")
+        if tool == "exec_command":
+            if "tty" in arguments and type(arguments["tty"]) is not bool:
+                raise ValueError("namespaced-exec-tty-invalid")
+            if (
+                not isinstance(arguments.get("cmd"), str)
+                or not arguments["cmd"]
+                or not isinstance(arguments.get("workdir"), str)
+                or not arguments["workdir"]
+            ):
+                raise ValueError("namespaced-exec-command-argument-invalid")
+        else:
+            session_id = arguments.get("session_id")
+            if (
+                isinstance(session_id, bool)
+                or not isinstance(session_id, int)
+                or session_id <= 0
+            ):
+                raise ValueError("namespaced-exec-session-id-invalid")
+            if "chars" in arguments and not isinstance(arguments["chars"], str):
+                raise ValueError("namespaced-exec-chars-invalid")
+        for field in ("yield_time_ms", "max_output_tokens"):
+            if field in arguments and (
+                isinstance(arguments[field], bool)
+                or not isinstance(arguments[field], int)
+                or arguments[field] <= 0
+            ):
+                raise ValueError(f"namespaced-exec-{field}-invalid")
+    return {
+        "tool": tool,
+        "arguments": arguments,
+        "command": _command_from_arguments(arguments),
+        "source_sha256": hashlib.sha256(source.encode("utf-8")).hexdigest(),
+    }
+
+
 def _command_from_arguments(arguments: Any) -> str:
     if isinstance(arguments, str):
         return arguments.strip()
@@ -363,6 +472,33 @@ def _command_from_arguments(arguments: Any) -> str:
             if isinstance(value, str) and value.strip():
                 return value.strip()
     return ""
+
+
+def _patch_target_paths(command: str, *, include_move_targets: bool) -> list[str]:
+    """Extract paths only from the structural headers of an apply_patch body."""
+
+    if not command.startswith("*** Begin Patch\n"):
+        return []
+    targets: list[str] = []
+    primary_prefixes = (
+        "*** Add File: ",
+        "*** Delete File: ",
+        "*** Update File: ",
+    )
+    for line in command.splitlines():
+        prefix = next(
+            (candidate for candidate in primary_prefixes if line.startswith(candidate)),
+            None,
+        )
+        if prefix is not None:
+            target = line[len(prefix) :].strip()
+        elif include_move_targets and line.startswith("*** Move to: "):
+            target = line[len("*** Move to: ") :].strip()
+        else:
+            continue
+        if target and "\x00" not in target and target not in targets:
+            targets.append(target)
+    return sorted(targets)
 
 
 def classify_action(tool: Any, command: str = "", arguments: Any = None) -> str:
@@ -402,6 +538,8 @@ def _target_paths(command: str, arguments: Any) -> list[str]:
     text = command or ""
     if not text and isinstance(arguments, Mapping):
         text = _command_from_arguments(arguments)
+    if text.startswith("*** Begin Patch\n"):
+        return _patch_target_paths(text, include_move_targets=True)
     try:
         tokens = shlex.split(text)
     except ValueError:
@@ -484,7 +622,82 @@ def _output_text(item: Mapping[str, Any] | None) -> str:
     if not isinstance(item, Mapping):
         return ""
     output = item.get("output")
-    return output if isinstance(output, str) else ""
+    if isinstance(output, str):
+        return output
+    if isinstance(output, list) and all(
+        isinstance(part, Mapping)
+        and part.get("type") in {"input_text", "inputText"}
+        and isinstance(part.get("text"), str)
+        and set(part) == {"type", "text"}
+        for part in output
+    ):
+        return "".join(str(part["text"]) for part in output)
+    return ""
+
+
+def _paired_namespaced_exec_result(
+    *,
+    tool: str,
+    output_item: Mapping[str, Any],
+) -> tuple[str, int | None, bool, int | None]:
+    """Classify an exact JSON-projected result from the exec wrapper."""
+
+    rendered = _output_text(output_item)
+    if (tool == "apply_patch"
+            and _NAMESPACED_EXEC_PATCH_VERIFICATION_FAILED.fullmatch(rendered)):
+        explicit_code, conflict = _explicit_output_exit_code(output_item)
+        if conflict or explicit_code is not None or "exit_code" in output_item:
+            return "paired-unknown", None, True, None
+        # A terminal tool-input rejection precedes lifecycle emission. This
+        # is not a process exit, and supplies no positive mutation evidence.
+        return "paired-failure", None, False, None
+    if (
+        tool == "exec_command"
+        and _EXEC_COMMAND_INTERRUPTED_PATTERN.fullmatch(rendered)
+    ):
+        return "paired-interrupted", None, False, None
+    match = _NAMESPACED_EXEC_COMPLETED.fullmatch(rendered)
+    if match is None:
+        return "paired-unknown", None, False, None
+    try:
+        nested = json.loads(match.group("body"))
+    except json.JSONDecodeError:
+        return "paired-unknown", None, False, None
+    if tool == "apply_patch":
+        # The current nested freeform transport resolves successful patches to
+        # an empty object.  Failure rejects the wrapper and therefore cannot
+        # satisfy the exact completed envelope above.
+        if nested == {}:
+            return "paired-success", 0, False, None
+        return "paired-unknown", None, False, None
+    if not isinstance(nested, Mapping) or set(nested) - _NAMESPACED_EXEC_RESULT_FIELDS:
+        return "paired-unknown", None, False, None
+    nested_output = nested.get("output")
+    if not isinstance(nested_output, str):
+        return "paired-unknown", None, False, None
+    operation_session_id = nested.get("session_id")
+    if operation_session_id is not None and (
+        isinstance(operation_session_id, bool)
+        or not isinstance(operation_session_id, int)
+        or operation_session_id <= 0
+    ):
+        return "paired-unknown", None, True, None
+    exit_code = nested.get("exit_code")
+    if isinstance(exit_code, bool) or (
+        exit_code is not None and not isinstance(exit_code, int)
+    ):
+        return "paired-unknown", None, True, None
+    if exit_code is None:
+        if _EXEC_COMMAND_INTERRUPTED_PATTERN.fullmatch(nested_output):
+            return "paired-interrupted", None, False, None
+        if tool in {"exec_command", "write_stdin"} and operation_session_id is not None:
+            return "paired-pending", None, False, operation_session_id
+        return "paired-unknown", None, False, None
+    return (
+        ("paired-success", exit_code, False, operation_session_id)
+        if exit_code == 0
+        else ("paired-failure", exit_code, False, operation_session_id)
+    )
 
 
 def _explicit_output_exit_code(
@@ -529,6 +742,7 @@ def _patch_apply_events(
         call_id = str(
             payload.get("call_id") or payload.get("callId") or ""
         ).strip()
+        call_id_present = bool(call_id)
         if not call_id:
             call_id = f"__missing_{record_index * 1000}"
         events.setdefault(call_id, []).append(
@@ -536,6 +750,7 @@ def _patch_apply_events(
                 "order": record_index * 1000,
                 "item": dict(payload),
                 "turn_id": payload.get("turn_id") or payload.get("turnId"),
+                "call_id_present": call_id_present,
             }
         )
     return events
@@ -557,6 +772,14 @@ def _paired_tool_result(
         if exit_code is not None:
             return "paired-unknown", None, True
         return "paired-interrupted", None, False
+    if tool == "exec_command" and text == _EXEC_COMMAND_CREATE_PROCESS_ENOENT:
+        if exit_code is not None:
+            return "paired-unknown", None, True
+        # This exact current-host transport response proves that unified exec
+        # did not create a process.  Whether it is a recoverable workdir typo is
+        # controller context, so the receipt records only the bounded input
+        # error here and leaves final classification to native supervision.
+        return "paired-input-error", None, False
     if tool == "apply_patch":
         failure_text = text.startswith(_APPLY_PATCH_FAILURE_PREFIX)
         if len(patch_events) > 1:
@@ -602,8 +825,21 @@ def _paired_tool_result(
     )
 
 
-def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: str | None = None) -> list[dict[str, Any]]:
+def normalize_action_receipts(
+    records: list[Mapping[str, Any]],
+    *,
+    segment_id: str | None = None,
+    tool_transport: str = DIRECT_TOOL_TRANSPORT,
+    include_private_transport_evidence: bool = False,
+) -> list[dict[str, Any]]:
     """Normalize tool calls and outputs into deterministic fail-closed receipts."""
+    if tool_transport not in {
+        DIRECT_TOOL_TRANSPORT,
+        NAMESPACED_EXEC_TOOL_TRANSPORT,
+    }:
+        raise ValueError("native-tool-transport-invalid")
+    if type(include_private_transport_evidence) is not bool:
+        raise ValueError("native-private-transport-evidence-flag-invalid")
     calls: list[dict[str, Any]] = []
     call_id_counts: dict[str, int] = {}
     outputs: dict[str, list[dict[str, Any]]] = {}
@@ -627,6 +863,21 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
         tool = trusted_tool_name(item)
         arguments = _argument_value(item)
         command = _command_from_arguments(arguments)
+        namespaced = False
+        if (
+            tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
+            and item_type in {"custom_tool_call", "customtoolcall"}
+            and tool == "exec"
+        ):
+            try:
+                decoded = decode_namespaced_exec_source(item.get("input"))
+            except ValueError:
+                pass
+            else:
+                tool = str(decoded["tool"])
+                arguments = decoded["arguments"]
+                command = str(decoded["command"])
+                namespaced = True
         call_key = call_id or f"__anonymous_{order}"
         call_id_counts[call_key] = call_id_counts.get(call_key, 0) + 1
         calls.append({
@@ -637,7 +888,94 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
             "tool": tool,
             "arguments": arguments,
             "command": command,
+            "namespaced": namespaced,
         })
+    nested_patch_events: dict[str, list[dict[str, Any]]] = {}
+    consumed_patch_events: set[tuple[str, int]] = set()
+    candidate_events_by_call: dict[int, list[tuple[str, dict[str, Any]]]] = {}
+    candidate_calls_by_event: dict[tuple[str, int], list[int]] = {}
+    for call_index, call in enumerate(calls):
+        if not call["namespaced"] or call["tool"] != "apply_patch":
+            continue
+        if call_id_counts[str(call["key"])] != 1:
+            continue
+        paired_outputs = outputs.get(str(call["key"]), [])
+        if len(paired_outputs) > 1:
+            continue
+        output_order = (
+            int(paired_outputs[0]["order"])
+            if paired_outputs
+            else None
+        )
+        expected_targets = {
+            target.replace("\\", "/").removeprefix("./")
+            for target in _patch_target_paths(
+                str(call["command"]),
+                include_move_targets=False,
+            )
+        }
+        if not expected_targets:
+            continue
+        candidates: list[tuple[str, dict[str, Any]]] = []
+        for event_key, entries in patch_events.items():
+            if event_key in call_id_counts or len(entries) != 1:
+                continue
+            event = entries[0]
+            if event.get("call_id_present") is not True:
+                continue
+            if event["order"] <= call["order"]:
+                continue
+            if output_order is not None and event["order"] >= output_order:
+                continue
+            if segment_id is not None and event.get("turn_id") != segment_id:
+                continue
+            item = event.get("item")
+            changes = item.get("changes") if isinstance(item, Mapping) else None
+            if not isinstance(changes, Mapping) or not changes:
+                continue
+            observed_targets = {
+                str(target).replace("\\", "/") for target in changes
+            }
+            if any(
+                not target
+                or "\x00" in target
+                or any(part in {".", ".."} for part in target.split("/"))
+                for target in observed_targets
+            ):
+                continue
+            if len(observed_targets) != len(expected_targets):
+                continue
+            target_matches = {
+                expected: [
+                    observed
+                    for observed in observed_targets
+                    if observed == expected or observed.endswith("/" + expected)
+                ]
+                for expected in expected_targets
+            }
+            if not all(len(matches) == 1 for matches in target_matches.values()):
+                continue
+            if len({matches[0] for matches in target_matches.values()}) != len(
+                observed_targets
+            ):
+                continue
+            candidates.append((event_key, event))
+        candidate_events_by_call[call_index] = candidates
+        for event_key, event in candidates:
+            event_identity = (event_key, int(event["order"]))
+            candidate_calls_by_event.setdefault(event_identity, []).append(
+                call_index
+            )
+    for call_index, candidates in candidate_events_by_call.items():
+        if len(candidates) != 1:
+            continue
+        event_key, event = candidates[0]
+        event_identity = (event_key, int(event["order"]))
+        if len(candidate_calls_by_event.get(event_identity, [])) != 1:
+            continue
+        call_key = str(calls[call_index]["key"])
+        nested_patch_events[call_key] = [event]
+        consumed_patch_events.add(event_identity)
     receipts: list[dict[str, Any]] = []
     for call in sorted(
         calls,
@@ -647,7 +985,8 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
         call_id = None if key.startswith("__anonymous_") else key
         paired = outputs.get(key, [])
         output = paired[0] if paired else None
-        all_patch_events = patch_events.get(key, [])
+        associated_nested_patch_events = nested_patch_events.get(key, [])
+        all_patch_events = patch_events.get(key, []) + associated_nested_patch_events
         valid_patch_events = (
             [
                 event
@@ -662,11 +1001,33 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
             if call["tool"] == "apply_patch"
             else []
         )
+        pending_nested_patch_event = bool(
+            call["namespaced"]
+            and call["tool"] == "apply_patch"
+            and output is None
+            and len(associated_nested_patch_events) == 1
+            and len(all_patch_events) == 1
+        )
+        pending_direct_patch_event = bool(
+            not call["namespaced"]
+            and call["tool"] == "apply_patch"
+            and output is None
+            and len(all_patch_events) == 1
+            and all_patch_events[0]["order"] > call["order"]
+            and (
+                segment_id is None
+                or all_patch_events[0].get("turn_id") == segment_id
+            )
+        )
         invalid_patch_event = bool(
             all_patch_events
             and (
                 call["tool"] != "apply_patch"
-                or len(valid_patch_events) != len(all_patch_events)
+                or (
+                    len(valid_patch_events) != len(all_patch_events)
+                    and not pending_nested_patch_event
+                    and not pending_direct_patch_event
+                )
             )
         )
         ambiguous = (
@@ -677,21 +1038,77 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
         )
         output_item = output["item"] if output else None
         result_conflict = False
+        operation_session_id = None
         if ambiguous:
             result_kind = "ambiguous-call-or-output-cardinality"
             exit_code = None
+        elif pending_direct_patch_event:
+            # Direct apply_patch writes its descriptor-bound lifecycle event
+            # immediately before the matching custom_tool_call_output.  That
+            # valid in-progress split is pending, not ambiguous.  If the turn
+            # becomes terminal before the output arrives, the boundary
+            # summarizer still converts paired-pending into a fail-closed
+            # telemetry anomaly.
+            result_kind = "paired-pending"
+            exit_code = None
         elif isinstance(output_item, Mapping):
-            result_kind, exit_code, result_conflict = _paired_tool_result(
-                tool=str(call["tool"]),
-                output_item=output_item,
-                patch_events=valid_patch_events,
-            )
+            if call["namespaced"]:
+                result_kind, exit_code, result_conflict, operation_session_id = (
+                    _paired_namespaced_exec_result(
+                        tool=str(call["tool"]),
+                        output_item=output_item,
+                    )
+                )
+                if call["tool"] == "apply_patch":
+                    verification_rejection = (
+                        result_kind == "paired-failure" and exit_code is None
+                        and operation_session_id is None
+                        and _NAMESPACED_EXEC_PATCH_VERIFICATION_FAILED.fullmatch(_output_text(output_item)) is not None
+                    )
+                    nested_success = (
+                        len(valid_patch_events) == 1
+                        and valid_patch_events[0].get("item", {}).get("success")
+                        is True
+                        and valid_patch_events[0].get("item", {}).get("status")
+                        == "completed"
+                    )
+                    if verification_rejection:
+                        # Absence must be real, not a malformed/misjoined event
+                        # filtered out by target correlation. A strict wrapper
+                        # has just one awaited tool, so any lifecycle emission
+                        # inside its interval contradicts pre-mutation rejection.
+                        event_in_interval = any(call["order"] < event["order"] < output["order"]
+                            for events in patch_events.values() for event in events)
+                        result_conflict = result_conflict or bool(all_patch_events) or event_in_interval
+                    elif len(valid_patch_events) != 1 or (
+                            result_kind == "paired-success" and not nested_success):
+                        result_conflict = True
+            else:
+                result_kind, exit_code, result_conflict = _paired_tool_result(
+                    tool=str(call["tool"]),
+                    output_item=output_item,
+                    patch_events=valid_patch_events,
+                )
             if result_conflict:
                 ambiguous = True
                 result_kind = "ambiguous-call-or-output-cardinality"
                 exit_code = None
         else:
             result_kind = "unpaired-call"
+            exit_code = None
+        argument_session_id = (
+            call["arguments"].get("session_id")
+            if call["tool"] == "write_stdin"
+            and isinstance(call["arguments"], Mapping)
+            else None
+        )
+        if (
+            operation_session_id is not None
+            and argument_session_id is not None
+            and operation_session_id != argument_session_id
+        ):
+            ambiguous = True
+            result_kind = "ambiguous-call-or-output-cardinality"
             exit_code = None
         receipts.append({
             "_source_order": call["order"],
@@ -708,6 +1125,18 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
             "exit_code": exit_code,
             "pairing_status": (
                 "ambiguous" if ambiguous else "paired" if output else "unpaired"
+            ),
+            "_operation_session_id": operation_session_id or argument_session_id,
+            "_invocation_workdir_present": bool(
+                call["tool"] == "exec_command"
+                and isinstance(call["arguments"], Mapping)
+                and "workdir" in call["arguments"]
+            ),
+            "_invocation_workdir": (
+                call["arguments"].get("workdir")
+                if call["tool"] == "exec_command"
+                and isinstance(call["arguments"], Mapping)
+                else None
             ),
         })
     call_keys = set(call_id_counts)
@@ -738,6 +1167,8 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
         if key in call_keys:
             continue
         for entry in entries:
+            if (key, int(entry["order"])) in consumed_patch_events:
+                continue
             item = entry["item"]
             receipts.append(
                 {
@@ -769,8 +1200,25 @@ def normalize_action_receipts(records: list[Mapping[str, Any]], *, segment_id: s
             item["sequence"],
         )
     )
+    for index, receipt in enumerate(receipts):
+        if receipt.get("typed_result", {}).get("kind") != "paired-pending":
+            continue
+        session_id = receipt.get("_operation_session_id")
+        resolved = any(
+            later.get("tool") == "write_stdin"
+            and later.get("_operation_session_id") == session_id
+            and later.get("typed_result", {}).get("kind")
+            in {"paired-success", "paired-failure"}
+            for later in receipts[index + 1 :]
+        )
+        if resolved:
+            receipt["typed_result"]["kind"] = "paired-deferred"
     for sequence, receipt in enumerate(receipts):
         receipt.pop("_source_order", None)
+        receipt.pop("_operation_session_id", None)
+        if not include_private_transport_evidence:
+            receipt.pop("_invocation_workdir_present", None)
+            receipt.pop("_invocation_workdir", None)
         receipt["sequence"] = sequence
     return receipts
 

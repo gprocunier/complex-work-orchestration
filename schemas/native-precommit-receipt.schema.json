@@ -143,7 +143,7 @@
     "receipt_type", "version", "schema", "receipt_id", "state_id", "state_file", "state_sha256",
     "packet_id", "work_unit_id", "bead_id", "attempt_nonce", "session_id", "session_file", "agent_id",
     "requested_model", "attested_model", "attestation_source", "owner_identity", "control_execution_handle", "control_topology", "control_turn_id", "submission_id",
-    "work_plan_sha256", "fit_prompt_sha256", "workspace_baseline", "baseline", "terminal",
+    "work_plan_sha256", "operative_routing_sha256", "fit_prompt_sha256", "workspace_baseline", "baseline", "terminal",
     "token_telemetry", "observed", "polling", "control_receipts", "audit_event_hashes",
     "final_response_sha256", "semantic_status", "fit_result", "closure_outcome", "disposition",
     "validation_rule_version", "provenance", "accepting", "receipt_sha256"
@@ -163,8 +163,8 @@
     "session_id": {"type": "string", "minLength": 1},
     "session_file": {"type": "string", "minLength": 1},
     "agent_id": {"type": "string", "minLength": 1},
-    "requested_model": {"const": "gpt-5.3-codex-spark"},
-    "attested_model": {"const": "gpt-5.3-codex-spark"},
+    "requested_model": {"enum": ["gpt-5.3-codex-spark", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]},
+    "attested_model": {"enum": ["gpt-5.3-codex-spark", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]},
     "attestation_source": {"const": "trusted-control-plane-session-metadata"},
     "owner_identity": {"$ref": "#/$defs/ownerIdentity"},
     "control_execution_handle": {"type": "string", "minLength": 1},
@@ -172,6 +172,7 @@
     "control_turn_id": {"type": "string", "minLength": 1},
     "submission_id": {"type": "string", "minLength": 1},
     "work_plan_sha256": {"$ref": "#/$defs/hash"},
+    "operative_routing_sha256": {"oneOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
     "fit_prompt_sha256": {"$ref": "#/$defs/hash"},
     "workspace_baseline": {"$ref": "#/$defs/workspaceBaseline"},
     "baseline": {"$ref": "#/$defs/boundary"},
@@ -190,5 +191,14 @@
     "provenance": {"$ref": "#/$defs/provenance"},
     "accepting": {"type": "boolean"},
     "receipt_sha256": {"$ref": "#/$defs/hash"}
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"requested_model": {"enum": ["gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]}},
+        "required": ["requested_model"]
+      },
+      "then": {"properties": {"operative_routing_sha256": {"$ref": "#/$defs/hash"}}}
+    }
+  ]
 }

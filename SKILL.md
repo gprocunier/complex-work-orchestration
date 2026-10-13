@@ -30,7 +30,7 @@ non-trivial work.
 - Candidate E (`prompts/cwo-sol-operator-e.md`) is the default; post-v5 repair is deterministically validated, not model-requalified. Named-profile activation requires a fresh session. Reading it in an unprofiled thread is a fallback without profile-selection evidence. C remains opt-in; main thread decides.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
 - Prefer review-only workers before implementation unless write ownership is disjoint.
-- In connected Codex work, Sol handles architecture and adjudication while Spark handles operative work. Sol is an external critic only when explicitly requested.
+- In connected Codex work, select a qualified exact Luna worker first after model-neutral sizing. Terra requires documented nonfit or justified escalation. Spark records remain historical, not authority for new routing. Sol handles architecture and adjudication; expressly authorized maintenance may be implemented directly.
 - Default mode is conservative. Explicit coach requests present coach options before plan creation unless execution was requested; Plan mode asks only questions that change execution.
 - Keep model names and versions in policy and use executor aliases from `policy/executor-registry.yaml` in plans and docs.
 
@@ -99,45 +99,44 @@ Use `scripts/evaluate_proportional_execution.py --brief <path>` only for one ign
 `operative-readiness:v2` bounds hashed context units and mutation evidence:
 three units or six reads warn; four or eleven require replanning.
 
-## Bootstrap Policy Controls
+## Routing and Maintenance Controls
 
-- For every native-operative segment, use `policy/native-worker-execution.yaml` as the bootstrap policy.
-- Sol remains architecture/adjudication only. Spark runs operative work.
-- Operative worker segments start with a `no-tools` attestation gate. The gate must use trusted control-plane/session metadata; model self-report does not authorize work.
-- Every operative task segment begins a fresh attestation boundary.
-- `resume_agent` is forbidden by default. If explicitly waived, keep the segment quarantined until post-resume attestation exactly matches `gpt-5.3-codex-spark`.
-- Missing or mismatched model attestation must quarantine output and trigger a fresh Spark redispatch.
-- Durable continuation uses Beads checkpoint + fresh Spark worker, not operative agent resume.
-- Realignment return requires: completed evidence, files touched, mutation state, decision required, bounded options, recommendation, remaining scope, and usage.
-- In realignment, worker must stop mutating and await architect decision.
-- Fix -> reload -> resume means reinstall/reload this skill, then resume from Beads. Never resume the operative agent session.
-- Hard-stop returns for bootstrap policy are `needs-architect-realignment`, `budget-exhausted`, and `model-mismatch`.
-- Native operative packets are emitted as version 2. Version 1 remains readable for historical inspection but is dispatch-forbidden.
-- Every native worker requires `scripts/supervise_native_worker.py`; no unsupervised mode or opt-out exists. Arm supervision after trusted no-tools attestation and before dispatch. One worker is standard; N=2/N=3 concurrency is the capability-bound Tech Preview; N>=4 is blocked.
-- Productive concurrency must use admission-bound version-2 `run_admitted_native_pool`; direct coordinator calls and serialized evidence cannot authorize work.
-- Bind `arm`, native `send_input`, `mark-dispatched`, one-second checks, interrupt, close, and receipts to one control-turn ID and one uninterrupted tool-orchestration turn. No assistant/model round-trip may occur between task submission and the first check.
-- Record dispatch and poll latency. Delay alone warns; missing trusted telemetry or control-turn binding is control loss.
-- Healthy packet-contract failures allow one PM refinement and one bounded Sol replan within the original budget; recursive salvage and budget reset remain forbidden.
-- `interrupt` or `control-lost` requires native interrupt, close, and receipts.
-- Before packet build, evaluate operative work with semantic work-estimate contract v2. The estimate separates architect authority from operative routing and includes diff, behavior, state/schema, self-hosting/live-control, contract/CLI/policy/telemetry surfaces, test construction, command complexity, expected reads, mutations, and their ratio.
-- Before release, require `references/pre-dispatch-readiness.md`; frozen experiments require `references/frozen-protocol-lock.md`, which steering cannot replace.
-- Before packet build, use the trusted precommit supervisor and receipt-derived commitment v2; FSH.2 candidates remain non-operative until FSH.3. See `references/execution-environments.md`.
-- During execution, use `scripts/cwo_core/native_progress.py` to compare planned and observed calls, runtime, tokens, reads, mutations, tests, and artifacts. Retained productive artifacts are not pure waste.
-- The PM may autonomously refine a packet, ask the current architect one bounded reasoning question, or split material work within the original objective and aggregate allowance. These routine corrections do not require operator approval.
-- Packet `scope.workdir` governs commands, mutation baselines, and receipts; ignore inherited worker cwd.
-- Closure pressure starts at acceptance or independent validation. Continue the work unit, record `retain`, `correct`, `quarantine`, `defer`, or `close`, and reject routine repair children.
-- Convergence ledgers and replays are append-only. Keep historical unknowns null and never rewrite prior evidence.
-- Reports show absolute call categories and replay-target results.
-- Main-thread model and effort recommendations are advisory. User selection is authoritative; mismatch alone cannot stop or pivot execution.
-- Reserve protected stops for model, control, security, authority, mutation-attribution, contradictory-validation, or aggregate-budget boundaries.
-- Route complex or mutation-sensitive commands through `scripts/run_checked_command.py`. Raw `python -c`, `bash -c`, and `sh -c` are not valid checked-command inputs; use typed Python or shell source.
-- If the active tool surface cannot interrupt, close, wait, or expose trusted session telemetry, stop before dispatch. Do not substitute Sol or another model.
-- Sol operative break-fix is forbidden by default. A self-hosting CWO incident requires explicit operator approval in the current interaction, an audited Bead-scoped authorization with a heavy warning, and fresh Spark validation; the exception expires when that Bead closes and must never be selected automatically.
-
-`scripts/check_native_worker_session.py` provides retrospective/session checks;
-`scripts/supervise_native_worker.py` enforces live packet-v2 limits. See
-`references/execution-environments.md` for session-file lookup, segmenting, and exit-code
-rules.
+- Size work before selecting an exact model. Use the version-3 Luna-first portfolio
+  in `policy/native-worker-execution.yaml`; record justified Terra escalation.
+- Current dispatch needs verified model, tool profile, workspace, ownership,
+  qualification, source image and attempt bindings. Caller JSON is evidence,
+  not a grant. Omitted authority must not revive historical Spark dispatch.
+- Historical version-2 records remain inspectable. They cannot authorize new
+  dispatch once the current routing policy is activated.
+- Preserve ordinary finite budgets. Explicit mission-scoped maintenance may
+  use an unbounded mission with finite per-operation reservations and timeouts.
+  Never infer maintenance authority from a filename, worker return or summary.
+- When the user authorizes CWO self-repair, broken CWO admission is not a
+  prerequisite for authorized editing/testing. Repair with available tools,
+  then prove the repaired installed path works. Preserve old receipts and UNKNOWN
+  findings; establish present ownership/isolation for new operations.
+- `full_auto` must be explicit. For covered defects: suspend the affected operation,
+  diagnose, repair, test, revalidate bindings, rerun the failed gate and continue.
+  Do not turn routine failure or a phase boundary into a generic permission ask.
+- Consult the strongest authorized available adviser for unresolved architecture
+  or repeated materially different failed repairs. Advice is evidence, not authority
+  to waive a gate. Disclose genuine access/outage/security boundaries plainly.
+- No stopped worker resumes. Use fresh identities after terminal failure;
+  realignment remains nonaccepted. Containment precedes owned-state restoration.
+- Native productive work uses the admitted version-2 pool launcher and the
+  supervised transaction. Maximum supported fixed cohorts remain N=1..3;
+  concurrency requires actual compatible capability evidence, not a flag.
+- Maintenance transactions use the explicit version-8 plan and opaque owner
+  capabilities. Missing authority rejects before runtime adapter execution,
+  including validate-only. The trusted parent selects/pins the installed factory.
+- Qualification retains original provider/session/terminal/cleanup observations
+  and independent checked execution. A serialized success Boolean is insufficient.
+- Read-only semantic validation has zero consistent mutation claims and an
+  actually enforced read-only sandbox/tool profile. Arbitrary tests and command
+  prefixes do not establish read-only safety.
+- Install only the coherent accepted projection, retain a backup, verify byte
+  parity and loaded fresh-runtime identity, then prove productive, read-only and
+  subsequent-operation behavior. Import success or a dry run is not completion.
 
 ## Reference Map
 
@@ -177,11 +176,11 @@ ChatGPT Pro browser review requires `scripts/chatgpt_browser_review.py`, confirm
 model attestation, and a share-link return. Local inference requires `--local-ok`;
 use `--prefer-local` only for an intended low-risk local review lane.
 
-Spark is native-only in this policy. Use native subagents with `gpt-5.3-codex-spark`
-and enforce model attestation from trusted control-plane/session metadata.
-
-Hard-stop if the attested actual model is missing or does not exactly match the
-requested model (`gpt-5.3-codex-spark`). Do not substitute Sol or any other model.
+Current native workers use the qualified exact task-selected model from the
+version-3 Luna-first route. The attested actual model must exactly match that
+immutable request; missing or mismatched identity stops the affected dispatch.
+Do not substitute another model. Spark records are historical compatibility
+material, not a new dispatch route.
 
 Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a checkout. Quarantine high-sabotage, high-malpractice, provider-conflict, and boundary-tainted returns until peer review and architect adjudication complete.
 

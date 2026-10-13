@@ -28,7 +28,7 @@ from .native_stop_scope import (
 
 STEERING_RECEIPT_TYPE_V1 = "cwo-steering-receipt:v1"
 STEERING_RECEIPT_TYPE = "cwo-steering-receipt:v2"
-MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v4"
+MATERIALIZATION_EVIDENCE_TYPE = "cwo-native-session-materialization-evidence:v5"
 CANARY_AUTHORIZATION_TYPE = "cwo-native-canary-authorization-state:v1"
 CANARY_AUTHORIZATION_TYPE_V2 = "cwo-native-canary-authorization-state:v2"
 STEERING_RECEIPT_SCHEMA_V1 = "schemas/native-steering-receipt.schema.json"
@@ -76,6 +76,7 @@ OBSERVATION_FIELDS = {
     "function_call_id_sha256",
     "rendered_command_sha256",
     "execution_correlation_sha256",
+    "correlation_mode",
     "notification_command_semantic_match",
     "notification_workspace_match",
     "command_source",
@@ -89,6 +90,43 @@ OBSERVATION_FIELDS = {
     "failed_event_count",
     "declined_event_count",
     "ambiguous_event_count",
+}
+TERMINAL_EXECUTION_CORRELATION_FIELDS = {
+    "turn_context_record_index",
+    "function_call_record_index",
+    "function_call_id_sha256",
+    "command_item_id_sha256",
+    "notification_sequence",
+    "notification_received_monotonic_ns",
+    "notification_started_at_ms",
+    "rendered_command_sha256",
+    "execution_correlation_sha256",
+}
+NOTIFICATION_SHAPE_EVENT_FIELDS = {
+    "sequence",
+    "received_monotonic_ns",
+    "method",
+    "params_keys",
+    "item_keys",
+    "thread_id_matches",
+    "turn_id_matches",
+    "item_type",
+    "item_status",
+    "item_namespace",
+    "item_tool",
+    "item_id_sha256",
+    "payload_digest_sha256",
+    "started_at_ms_type",
+}
+NOTIFICATION_SHAPE_FIELDS = {
+    "evidence_type",
+    "version",
+    "connection_epoch_sha256",
+    "thread_id_sha256",
+    "turn_id_sha256",
+    "event_count",
+    "events",
+    "evidence_sha256",
 }
 CONTROL_OBSERVATION_MAX = 192
 CONTROL_OBSERVATION_MAX_GAP_MS = 1000
@@ -142,6 +180,8 @@ MATERIALIZATION_FIELDS = {
     "control_observations",
     "liveness_observations",
     "pre_interrupt_observation",
+    "notification_shape",
+    "terminal_execution_correlation",
     "interrupt",
     "terminal",
     "terminal_event",
@@ -454,6 +494,38 @@ def materialization_execution_correlation(
             ("notification_started_at_ms", notification_started_at_ms),
             ("turn_context_record_index", turn_context_record_index),
             ("function_call_record_index", function_call_record_index),
+            ("rendered_command_sha256", rendered_command_sha256),
+            ("raw_command_sha256", raw_command_sha256),
+        ),
+    )
+
+
+def materialization_liveness_correlation(
+    *,
+    connection_epoch_sha256: str,
+    session_id: str,
+    thread_id: str,
+    turn_id: str,
+    command_item_id_sha256: str,
+    notification_sequence: int,
+    notification_received_monotonic_ns: int,
+    notification_started_at_ms: int,
+    rendered_command_sha256: str,
+    raw_command_sha256: str,
+) -> str:
+    """Bind live stdio liveness without claiming unflushed session records."""
+
+    return length_framed_sha256(
+        domain="native-capability-liveness-correlation",
+        fields=(
+            ("connection_epoch_sha256", connection_epoch_sha256),
+            ("session_id", session_id),
+            ("thread_id", thread_id),
+            ("turn_id", turn_id),
+            ("command_item_id_sha256", command_item_id_sha256),
+            ("notification_sequence", notification_sequence),
+            ("notification_received_monotonic_ns", notification_received_monotonic_ns),
+            ("notification_started_at_ms", notification_started_at_ms),
             ("rendered_command_sha256", rendered_command_sha256),
             ("raw_command_sha256", raw_command_sha256),
         ),
@@ -821,8 +893,6 @@ def _validate_observation(
         "notification_sequence",
         "notification_received_monotonic_ns",
         "notification_started_at_ms",
-        "turn_context_record_index",
-        "function_call_record_index",
         "started_event_count",
         "function_call_count",
         "completed_event_count",
@@ -836,17 +906,34 @@ def _validate_observation(
         current = observation.get(field)
         if isinstance(current, bool) or not isinstance(current, int) or current < 0:
             errors.append(f"{label}-{field}-invalid")
+    correlation_mode = observation.get("correlation_mode")
+    if correlation_mode not in {"session-and-notification", "notification-first"}:
+        errors.append(f"{label}-correlation-mode-invalid")
+    for field in ("turn_context_record_index", "function_call_record_index"):
+        current = observation.get(field)
+        if correlation_mode == "session-and-notification":
+            if isinstance(current, bool) or not isinstance(current, int) or current < 0:
+                errors.append(f"{label}-{field}-invalid")
+        elif current is not None:
+            errors.append(f"{label}-{field}-must-be-null")
     for field in (
         "session_source_identity_sha256",
         "connection_epoch_sha256",
         "command_item_id_sha256",
-        "function_call_id_sha256",
         "rendered_command_sha256",
         "execution_correlation_sha256",
     ):
         if not _is_hash(observation.get(field)):
             errors.append(f"{label}-{field}-invalid")
-    if observation.get("command_source") != "unifiedExecStartup":
+    if correlation_mode == "session-and-notification":
+        if not _is_hash(observation.get("function_call_id_sha256")):
+            errors.append(f"{label}-function-call-id-sha256-invalid")
+    elif observation.get("function_call_id_sha256") is not None:
+        errors.append(f"{label}-function-call-id-sha256-must-be-null")
+    if observation.get("command_source") not in {
+        "unifiedExecStartup",
+        "namespacedExecStartup",
+    }:
         errors.append(f"{label}-command-source-invalid")
     if observation.get("notification_command_semantic_match") is not True:
         errors.append(f"{label}-notification-command-semantic-match-invalid")
@@ -867,7 +954,8 @@ def _validate_observation(
             errors.append(f"{label}-{field}-nonzero")
     if observation.get("started_event_count") != 1:
         errors.append(f"{label}-started-event-count-invalid")
-    if observation.get("function_call_count") != 1:
+    expected_function_calls = 1 if correlation_mode == "session-and-notification" else 0
+    if observation.get("function_call_count") != expected_function_calls:
         errors.append(f"{label}-function-call-count-invalid")
     return observation, observed
 
@@ -929,6 +1017,143 @@ def _validate_control_observation(
     return observation
 
 
+def _validate_notification_shape(
+    value: Any, errors: list[str]
+) -> dict[str, Any]:
+    shape = _exact_fields(
+        value,
+        NOTIFICATION_SHAPE_FIELDS,
+        "materialization-notification-shape",
+        errors,
+    )
+    if (
+        shape.get("evidence_type") != "cwo-app-server-notification-shape:v1"
+        or shape.get("version") != 1
+    ):
+        errors.append("materialization-notification-shape-header-invalid")
+    for field in (
+        "connection_epoch_sha256",
+        "thread_id_sha256",
+        "turn_id_sha256",
+    ):
+        if not _is_hash(shape.get(field)):
+            errors.append(f"materialization-notification-shape-{field}-invalid")
+    events = shape.get("events")
+    if not isinstance(events, list) or not events or len(events) > 16:
+        errors.append("materialization-notification-shape-events-invalid")
+        events = []
+    if shape.get("event_count") != len(events):
+        errors.append("materialization-notification-shape-count-invalid")
+    previous_sequence = 0
+    for index, raw_event in enumerate(events):
+        event = _exact_fields(
+            raw_event,
+            NOTIFICATION_SHAPE_EVENT_FIELDS,
+            f"materialization-notification-shape-event-{index}",
+            errors,
+        )
+        sequence = event.get("sequence")
+        if (
+            isinstance(sequence, bool)
+            or not isinstance(sequence, int)
+            or sequence <= previous_sequence
+        ):
+            errors.append(
+                f"materialization-notification-shape-event-{index}-sequence-invalid"
+            )
+        elif isinstance(sequence, int):
+            previous_sequence = sequence
+        received = event.get("received_monotonic_ns")
+        if isinstance(received, bool) or not isinstance(received, int) or received < 0:
+            errors.append(
+                f"materialization-notification-shape-event-{index}-received-invalid"
+            )
+        if not isinstance(event.get("method"), str) or not event.get("method"):
+            errors.append(
+                f"materialization-notification-shape-event-{index}-method-invalid"
+            )
+        for field in ("params_keys", "item_keys"):
+            keys = event.get(field)
+            if (
+                not isinstance(keys, list)
+                or any(not isinstance(item, str) or not item for item in keys)
+                or keys != sorted(set(keys))
+            ):
+                errors.append(
+                    f"materialization-notification-shape-event-{index}-{field}-invalid"
+                )
+        for field in ("thread_id_matches", "turn_id_matches"):
+            if event.get(field) is not True:
+                errors.append(
+                    f"materialization-notification-shape-event-{index}-{field}-invalid"
+                )
+        for field in ("item_type", "item_status"):
+            if not isinstance(event.get(field), str) or not event.get(field):
+                errors.append(
+                    f"materialization-notification-shape-event-{index}-{field}-invalid"
+                )
+        for field in ("item_namespace", "item_tool"):
+            if event.get(field) is not None and not isinstance(event.get(field), str):
+                errors.append(
+                    f"materialization-notification-shape-event-{index}-{field}-invalid"
+                )
+        for field in ("item_id_sha256", "payload_digest_sha256"):
+            if not _is_hash(event.get(field)):
+                errors.append(
+                    f"materialization-notification-shape-event-{index}-{field}-invalid"
+                )
+        if event.get("started_at_ms_type") not in {"integer", "missing"}:
+            errors.append(
+                f"materialization-notification-shape-event-{index}-started-type-invalid"
+            )
+    expected_hash = shape.get("evidence_sha256")
+    unsigned = dict(shape)
+    unsigned.pop("evidence_sha256", None)
+    if expected_hash != canonical_sha256(
+        unsigned, domain="native-app-server-notification-shape"
+    ):
+        errors.append("materialization-notification-shape-sha256-mismatch")
+    return shape
+
+
+def _validate_terminal_execution_correlation(
+    value: Any, terminal: Mapping[str, Any], errors: list[str]
+) -> dict[str, Any]:
+    correlation = _exact_fields(
+        value,
+        TERMINAL_EXECUTION_CORRELATION_FIELDS,
+        "materialization-terminal-execution",
+        errors,
+    )
+    for field in (
+        "turn_context_record_index",
+        "function_call_record_index",
+        "notification_sequence",
+        "notification_received_monotonic_ns",
+        "notification_started_at_ms",
+    ):
+        current = correlation.get(field)
+        if isinstance(current, bool) or not isinstance(current, int) or current < 0:
+            errors.append(f"materialization-terminal-execution-{field}-invalid")
+    for field in (
+        "function_call_id_sha256",
+        "command_item_id_sha256",
+        "rendered_command_sha256",
+        "execution_correlation_sha256",
+    ):
+        if not _is_hash(correlation.get(field)):
+            errors.append(f"materialization-terminal-execution-{field}-invalid")
+    terminal_count = terminal.get("record_count")
+    if isinstance(terminal_count, int):
+        for field in ("turn_context_record_index", "function_call_record_index"):
+            current = correlation.get(field)
+            if isinstance(current, int) and current >= terminal_count:
+                errors.append(
+                    f"materialization-terminal-execution-{field}-out-of-range"
+                )
+    return correlation
+
+
 def seal_materialization_evidence(value: Mapping[str, Any]) -> dict[str, Any]:
     body = dict(value)
     body.pop("evidence_sha256", None)
@@ -946,7 +1171,7 @@ def validate_materialization_evidence(
     if evidence.get("evidence_type") != MATERIALIZATION_EVIDENCE_TYPE:
         errors.append("materialization-type-invalid")
     if (
-        evidence.get("version") != 4
+        evidence.get("version") != 5
         or evidence.get("schema") != MATERIALIZATION_EVIDENCE_SCHEMA
     ):
         errors.append("materialization-header-invalid")
@@ -985,6 +1210,32 @@ def validate_materialization_evidence(
     terminal = _validate_boundary(
         evidence.get("terminal"), "materialization-terminal", errors
     )
+    notification_shape = _validate_notification_shape(
+        evidence.get("notification_shape"), errors
+    )
+    terminal_execution = _validate_terminal_execution_correlation(
+        evidence.get("terminal_execution_correlation"), terminal, errors
+    )
+    if notification_shape.get("connection_epoch_sha256") != evidence.get(
+        "connection_epoch_sha256"
+    ):
+        errors.append("materialization-notification-shape-connection-mismatch")
+    thread_id = evidence.get("thread_id")
+    expected_thread_hash = (
+        hashlib.sha256(thread_id.encode("utf-8")).hexdigest()
+        if isinstance(thread_id, str)
+        else None
+    )
+    if notification_shape.get("thread_id_sha256") != expected_thread_hash:
+        errors.append("materialization-notification-shape-thread-mismatch")
+    turn_id = evidence.get("turn_id")
+    expected_turn_hash = (
+        hashlib.sha256(turn_id.encode("utf-8")).hexdigest()
+        if isinstance(turn_id, str)
+        else None
+    )
+    if notification_shape.get("turn_id_sha256") != expected_turn_hash:
+        errors.append("materialization-notification-shape-turn-mismatch")
     control_observations = evidence.get("control_observations")
     if (
         not isinstance(control_observations, list)
@@ -1169,6 +1420,7 @@ def validate_materialization_evidence(
             "notification_sequence",
             "notification_received_monotonic_ns",
             "notification_started_at_ms",
+            "correlation_mode",
             "turn_context_record_index",
             "function_call_record_index",
             "command_item_id_sha256",
@@ -1225,20 +1477,17 @@ def validate_materialization_evidence(
             (*parsed_observations, (pre_interrupt, pre_time))
         ):
             try:
-                expected_correlation = materialization_execution_correlation(
+                expected_correlation = materialization_liveness_correlation(
                     connection_epoch_sha256=str(item.get("connection_epoch_sha256")),
                     session_id=str(evidence.get("session_id")),
                     thread_id=str(evidence.get("thread_id")),
                     turn_id=str(evidence.get("turn_id")),
                     command_item_id_sha256=str(item.get("command_item_id_sha256")),
-                    function_call_id_sha256=str(item.get("function_call_id_sha256")),
                     notification_sequence=item.get("notification_sequence"),
                     notification_received_monotonic_ns=item.get(
                         "notification_received_monotonic_ns"
                     ),
                     notification_started_at_ms=item.get("notification_started_at_ms"),
-                    turn_context_record_index=item.get("turn_context_record_index"),
-                    function_call_record_index=item.get("function_call_record_index"),
                     rendered_command_sha256=str(item.get("rendered_command_sha256")),
                     raw_command_sha256=str(evidence.get("command_sha256")),
                 )
@@ -1251,6 +1500,67 @@ def validate_materialization_evidence(
                     errors.append(
                         f"materialization-observation-{index}-correlation-mismatch"
                     )
+        if any(
+            terminal_execution.get(field) != pre_interrupt.get(field)
+            for field in (
+                "command_item_id_sha256",
+                "notification_sequence",
+                "notification_received_monotonic_ns",
+                "notification_started_at_ms",
+                "rendered_command_sha256",
+            )
+        ):
+            errors.append("materialization-terminal-execution-liveness-mismatch")
+        if pre_interrupt.get("correlation_mode") == "session-and-notification":
+            if any(
+                terminal_execution.get(field) != pre_interrupt.get(field)
+                for field in (
+                    "turn_context_record_index",
+                    "function_call_record_index",
+                    "function_call_id_sha256",
+                )
+            ):
+                errors.append(
+                    "materialization-terminal-execution-session-correlation-mismatch"
+                )
+        try:
+            expected_terminal_correlation = materialization_execution_correlation(
+                connection_epoch_sha256=str(evidence.get("connection_epoch_sha256")),
+                session_id=str(evidence.get("session_id")),
+                thread_id=str(evidence.get("thread_id")),
+                turn_id=str(evidence.get("turn_id")),
+                command_item_id_sha256=str(
+                    terminal_execution.get("command_item_id_sha256")
+                ),
+                function_call_id_sha256=str(
+                    terminal_execution.get("function_call_id_sha256")
+                ),
+                notification_sequence=terminal_execution.get("notification_sequence"),
+                notification_received_monotonic_ns=terminal_execution.get(
+                    "notification_received_monotonic_ns"
+                ),
+                notification_started_at_ms=terminal_execution.get(
+                    "notification_started_at_ms"
+                ),
+                turn_context_record_index=terminal_execution.get(
+                    "turn_context_record_index"
+                ),
+                function_call_record_index=terminal_execution.get(
+                    "function_call_record_index"
+                ),
+                rendered_command_sha256=str(
+                    terminal_execution.get("rendered_command_sha256")
+                ),
+                raw_command_sha256=str(evidence.get("command_sha256")),
+            )
+        except NativeCanaryContractError:
+            errors.append("materialization-terminal-execution-correlation-input-invalid")
+        else:
+            if (
+                terminal_execution.get("execution_correlation_sha256")
+                != expected_terminal_correlation
+            ):
+                errors.append("materialization-terminal-execution-correlation-mismatch")
     interrupt = _exact_fields(
         evidence.get("interrupt"), INTERRUPT_FIELDS, "materialization-interrupt", errors
     )

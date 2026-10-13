@@ -18,6 +18,14 @@ import cwo_core.audit as lib  # noqa: E402
 
 
 class DispatchQuotaTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Unit-test exhaustion against a fixed fixture, not mutable campaign caps.
+        controls = json.loads(json.dumps(lib.load_contracting_controls()))
+        controls["quota_policy"]["external_manual_dispatches_per_epic"] = 7
+        self.controls_patch = patch.object(lib, "load_contracting_controls", return_value=controls)
+        self.controls_patch.start()
+        self.addCleanup(self.controls_patch.stop)
+
     def test_external_quota_enforced_per_epic(self) -> None:
         original_audit = lib.AUDIT_LOG
         with tempfile.TemporaryDirectory() as tmp:
@@ -25,8 +33,8 @@ class DispatchQuotaTests(unittest.TestCase):
             try:
                 first = lib.enforce_contracting_quota("epic-1", "claude_code_manual", "external-contract")
                 self.assertTrue(first["quota_checked"])
-                self.assertEqual(first["quota_remaining"], 4)
-                for index in range(5):
+                self.assertEqual(first["quota_remaining"], 6)
+                for index in range(7):
                     lib.record_audit_event(
                         {
                             "event_type": "dispatch_prepared",
@@ -64,7 +72,7 @@ class DispatchQuotaTests(unittest.TestCase):
                     dispatch_id="dispatch-same",
                     packet_sha256="packet-sha",
                 )
-                self.assertEqual(result["quota_remaining"], 4)
+                self.assertEqual(result["quota_remaining"], 6)
             finally:
                 lib.AUDIT_LOG = original_audit
 
@@ -92,7 +100,7 @@ class DispatchQuotaTests(unittest.TestCase):
                     dispatch_id="dispatch-reused",
                     packet_sha256="packet-new",
                 )
-                self.assertEqual(result["quota_remaining"], 2)
+                self.assertEqual(result["quota_remaining"], 4)
             finally:
                 lib.AUDIT_LOG = original_audit
 
@@ -122,7 +130,7 @@ class DispatchQuotaTests(unittest.TestCase):
                     "chatgpt_pro_browser_master_reviewer",
                     "external-contract",
                 )
-                self.assertEqual(result["quota_remaining"], 4)
+                self.assertEqual(result["quota_remaining"], 6)
             finally:
                 lib.AUDIT_LOG = original_audit
 
@@ -200,7 +208,7 @@ class DispatchQuotaTests(unittest.TestCase):
 
                 packet = json.loads(output_path.read_text(encoding="utf-8"))
                 self.assertEqual(packet["epic_id"], "cwo-epic-1")
-                self.assertEqual(packet["quota_remaining"], 4)
+                self.assertEqual(packet["quota_remaining"], 6)
                 events = lib.iter_audit_events(lib.AUDIT_LOG)
                 self.assertEqual(events[-1]["epic_id"], "cwo-epic-1")
                 self.assertEqual(events[-1]["quota_event_type"], "external_manual_dispatch")
@@ -292,7 +300,7 @@ class DispatchQuotaTests(unittest.TestCase):
 
                 packet = json.loads(output_path.read_text(encoding="utf-8"))
                 self.assertIsNone(packet["epic_id"])
-                self.assertEqual(packet["quota_remaining"], 4)
+                self.assertEqual(packet["quota_remaining"], 6)
                 events = lib.iter_audit_events(lib.AUDIT_LOG)
                 self.assertIsNone(events[-1].get("epic_id"))
             finally:

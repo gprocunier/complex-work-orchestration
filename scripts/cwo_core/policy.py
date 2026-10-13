@@ -14,6 +14,61 @@ from .util import rank_allows, rank_max, term_hits
 RISK_ORDER = ["low", "medium", "high", "critical"]
 
 
+GLM_COMPACT_CRITIC_EXECUTOR = "rhoai_glm_compact_architecture_critic"
+GLM_CRITIC_V1_CONTRACT = "cwo-glm-critic-v1"
+GLM_CRITIC_V2_CONTRACT = "cwo-glm-critic-v2"
+
+
+def local_v2_critic_subject(
+    *, executor: object, expected_contract: object, response_contract: object
+) -> bool:
+    """Recognize current v2 evidence without reclassifying explicit historical v1."""
+    if GLM_CRITIC_V2_CONTRACT in (expected_contract, response_contract):
+        return True
+    if expected_contract == GLM_CRITIC_V1_CONTRACT and response_contract == GLM_CRITIC_V1_CONTRACT:
+        return False
+    return executor == GLM_COMPACT_CRITIC_EXECUTOR
+
+
+def local_v2_critic_eligible(
+    *,
+    executor: object,
+    expected_contract: object,
+    response_contract: object,
+    contract_status: object,
+    completion_status: object,
+    usable_final_content: object,
+    normalized_return_matches: object,
+    frame_valid: object,
+    identity_consistent: object,
+    response_model_status: object,
+    model_preflight_status: object,
+    http_status: object,
+) -> bool | None:
+    """Return None for non-v2 evidence, else a strict v2 eligibility decision."""
+    if not local_v2_critic_subject(
+        executor=executor,
+        expected_contract=expected_contract,
+        response_contract=response_contract,
+    ):
+        return None
+    return bool(
+        executor == GLM_COMPACT_CRITIC_EXECUTOR
+        and expected_contract == GLM_CRITIC_V2_CONTRACT
+        and response_contract == GLM_CRITIC_V2_CONTRACT
+        and contract_status == "valid"
+        and completion_status == "completed"
+        and usable_final_content is True
+        and normalized_return_matches is True
+        and frame_valid is True
+        and identity_consistent is True
+        and response_model_status == "matched"
+        and model_preflight_status == "passed"
+        and type(http_status) is int
+        and http_status == 200
+    )
+
+
 SENSITIVITY_ORDER = ["public", "redacted", "internal", "restricted"]
 
 
@@ -165,10 +220,15 @@ def load_json_compatible_yaml(path: Path) -> dict[str, Any]:
     except (json.JSONDecodeError, ValueError) as exc:
         raise SystemExit(
             f"{path} is not JSON-compatible YAML: {exc}. "
-            "Policy files use a JSON-compatible YAML subset so helpers can run with the Python standard library."
+            "Policy files use a strict JSON-compatible YAML subset: quoted keys, JSON strings, "
+            "arrays, objects, numbers, booleans, and null only; comments and unquoted keys are not supported. "
+            "The subset keeps helpers stdlib-only and json.load compatible."
         ) from exc
     if not isinstance(value, dict):
-        raise SystemExit(f"{path} must contain a top-level object")
+        raise SystemExit(
+            f"{path} must contain a top-level object in the strict JSON-compatible YAML subset; "
+            "arrays and scalar documents are not valid policy files"
+        )
     return value
 
 

@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import http.client
 import ipaddress
 import json
+import math
 import os
 import re
 import socket
@@ -19,6 +21,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 
 from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt
+from cwo_core.routing import current_authority_file_arguments
+
 from cwo_core.errors import CWOError
 from cwo_core.routing import classify_work
 from cwo_core.audit import (
@@ -34,7 +38,7 @@ from cwo_core.access_profiles import (
     sanitized_access_profile,
 )
 from cwo_core.policy import executor_config
-from cwo_core.return_language import default_expected_return_language
+from cwo_core.return_language import analyze_return_language, default_expected_return_language
 from cwo_core.util import (
     artifact_hash,
     make_dispatch_id,
@@ -63,6 +67,8 @@ ALLOWED_LOCAL_API_KEY_ENV_NAMES = {
 }
 LOCAL_COMPLETION_STATUSES = {
     "completed",
+    "content-unsafe",
+    "contract-invalid",
     "output-budget-exhausted",
     "empty-final-content",
     "malformed-response",
@@ -80,6 +86,243 @@ RAW_REASONING_FIELDS = {
     "tool_reasoning",
 }
 FORBIDDEN_LOCAL_RESPONSE_FIELDS = {"delta", "function_call", "tool_calls"}
+
+LOCAL_PREFLIGHT_RESPONSE_CAP = 262144
+LOCAL_COMPLETION_RESPONSE_CAP = 1048576
+LOCAL_HTTP_ERROR_RESPONSE_CAP = 65536
+
+GLM_CRITIC_CONTRACT_V1 = "cwo-glm-critic-v1"
+GLM_CRITIC_CONTRACT = "cwo-glm-critic-v2"
+GLM_CRITIC_CONTRACTS = {GLM_CRITIC_CONTRACT_V1, GLM_CRITIC_CONTRACT}
+GLM_CRITIC_FIELDS = {
+    "verdict",
+    "summary",
+    "findings",
+    "alternatives",
+    "risks",
+    "confidence",
+    "recommended_next_action",
+    "escalation_needed",
+}
+GLM_CRITIC_FINDING_FIELDS = {"severity", "claim", "evidence", "repair"}
+GLM_CRITIC_MAX_FINDINGS = 3
+GLM_CRITIC_MAX_ALTERNATIVES = 2
+GLM_CRITIC_MAX_RISKS = 2
+GLM_CRITIC_MAX_SUMMARY_CHARS = 320
+GLM_CRITIC_MAX_FINDING_TEXT_CHARS = 300
+GLM_CRITIC_MAX_LIST_ITEM_CHARS = 240
+GLM_CRITIC_MAX_ACTION_CHARS = 320
+GLM_CRITIC_MAX_ESCALATION_CHARS = 240
+GLM_CRITIC_MAX_FINAL_CHARS = 6000
+GLM_CRITIC_V1_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdict": {"type": "string", "enum": ["approve", "revise", "reject"]},
+        "summary": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": GLM_CRITIC_MAX_SUMMARY_CHARS,
+        },
+        "findings": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": GLM_CRITIC_MAX_FINDINGS,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "severity": {
+                        "type": "string",
+                        "enum": ["critical", "high", "medium", "low"],
+                    },
+                    "claim": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": GLM_CRITIC_MAX_FINDING_TEXT_CHARS,
+                    },
+                    "evidence": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": GLM_CRITIC_MAX_FINDING_TEXT_CHARS,
+                    },
+                    "repair": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": GLM_CRITIC_MAX_FINDING_TEXT_CHARS,
+                    },
+                },
+                "required": ["severity", "claim", "evidence", "repair"],
+                "additionalProperties": False,
+            },
+        },
+        "alternatives": {
+            "type": "array",
+            "maxItems": GLM_CRITIC_MAX_ALTERNATIVES,
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": GLM_CRITIC_MAX_LIST_ITEM_CHARS,
+            },
+        },
+        "risks": {
+            "type": "array",
+            "maxItems": GLM_CRITIC_MAX_RISKS,
+            "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": GLM_CRITIC_MAX_LIST_ITEM_CHARS,
+            },
+        },
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "recommended_next_action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": GLM_CRITIC_MAX_ACTION_CHARS,
+        },
+        "escalation_needed": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": GLM_CRITIC_MAX_ESCALATION_CHARS,
+        },
+    },
+    "required": [
+        "verdict",
+        "summary",
+        "findings",
+        "alternatives",
+        "risks",
+        "confidence",
+        "recommended_next_action",
+        "escalation_needed",
+    ],
+    "additionalProperties": False,
+}
+GLM_CRITIC_JSON_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "verdict": {"type": "string", "enum": ["approve", "revise", "reject"]},
+        "summary": {"type": "string", "minLength": 1},
+        "findings": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": GLM_CRITIC_MAX_FINDINGS,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "severity": {
+                        "type": "string",
+                        "enum": ["critical", "high", "medium", "low"],
+                    },
+                    "claim": {"type": "string", "minLength": 1},
+                    "evidence": {"type": "string", "minLength": 1},
+                    "repair": {"type": "string", "minLength": 1},
+                },
+                "required": ["severity", "claim", "evidence", "repair"],
+                "additionalProperties": False,
+            },
+        },
+        "alternatives": {
+            "type": "array",
+            "maxItems": GLM_CRITIC_MAX_ALTERNATIVES,
+            "items": {"type": "string", "minLength": 1},
+        },
+        "risks": {
+            "type": "array",
+            "maxItems": GLM_CRITIC_MAX_RISKS,
+            "items": {"type": "string", "minLength": 1},
+        },
+        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+        "recommended_next_action": {"type": "string", "minLength": 1},
+        "escalation_needed": {"type": "string", "minLength": 1},
+    },
+    "required": [
+        "verdict",
+        "summary",
+        "findings",
+        "alternatives",
+        "risks",
+        "confidence",
+        "recommended_next_action",
+        "escalation_needed",
+    ],
+    "additionalProperties": False,
+}
+
+LOCAL_RESERVED_REQUEST_OPTIONS = {
+    "function_call",
+    "functions",
+    "messages",
+    "model",
+    "stream",
+    "temperature",
+    "tool_choice",
+    "tools",
+}
+MAX_LOCAL_JSON_DEPTH = 64
+LOCAL_UNUSABLE_RESPONSE_EXIT_CODE = 4
+
+
+class StrictJSONError(ValueError):
+    """A bounded, content-free classification for untrusted JSON."""
+
+
+def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    value: dict[str, Any] = {}
+    for key, item in pairs:
+        if key in value:
+            raise StrictJSONError("duplicate JSON object key")
+        value[key] = item
+    return value
+
+
+def _reject_non_finite_json_constant(_value: str) -> None:
+    raise StrictJSONError("non-finite JSON number")
+
+
+def _validate_json_value(value: Any, *, depth: int = 0) -> None:
+    if depth > MAX_LOCAL_JSON_DEPTH:
+        raise StrictJSONError("JSON nesting exceeds the supported depth")
+    if isinstance(value, str):
+        try:
+            value.encode("utf-8", errors="strict")
+        except UnicodeEncodeError as exc:
+            raise StrictJSONError("JSON contains invalid Unicode") from exc
+        return
+    if value is None or isinstance(value, (bool, int)):
+        return
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise StrictJSONError("JSON contains a non-finite number")
+        return
+    if isinstance(value, list):
+        for item in value:
+            _validate_json_value(item, depth=depth + 1)
+        return
+    if isinstance(value, dict):
+        for key, item in value.items():
+            _validate_json_value(key, depth=depth + 1)
+            _validate_json_value(item, depth=depth + 1)
+        return
+    raise StrictJSONError("JSON contains an unsupported runtime value")
+
+
+def strict_json_loads(content: str) -> tuple[Any | None, str | None]:
+    if not isinstance(content, str):
+        return None, "JSON input must be text"
+    try:
+        content.encode("utf-8", errors="strict")
+        value = json.loads(
+            content,
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_non_finite_json_constant,
+        )
+        _validate_json_value(value)
+    except json.JSONDecodeError:
+        return None, "malformed JSON"
+    except StrictJSONError as exc:
+        return None, str(exc)
+    except (RecursionError, UnicodeEncodeError, ValueError, TypeError):
+        return None, "JSON could not be decoded safely"
+    return value, None
 
 
 def _truthy(value: Any) -> bool:
@@ -179,7 +422,309 @@ def local_executor_fallback(executor_key: str) -> dict[str, Any]:
 def endpoint_url(base_url: str, endpoint_path: str) -> str:
     base = base_url.rstrip("/")
     path = "/" + endpoint_path.strip("/")
+    if base.endswith("/v1") and (path == "/v1" or path.startswith("/v1/")):
+        path = path[3:] or "/"
     return f"{base}{path}"
+
+
+def local_response_contract_prompt(contract: str | None) -> str | None:
+    if contract not in GLM_CRITIC_CONTRACTS:
+        return None
+    common = (
+        "Return exactly one compact UTF-8 JSON object and nothing else. Do not use Markdown fences. "
+        "Prefer one line. The model-visible contract is: "
+        '{"verdict":"approve|revise|reject","summary":"short conclusion",'
+        '"findings":[{"severity":"critical|high|medium|low","claim":"specific issue",'
+        '"evidence":"fact from the supplied packet or explicitly labeled inference",'
+        '"repair":"smallest effective correction"}],'
+        '"alternatives":["rejected alternative and why"],"risks":["residual risk"],'
+        '"confidence":"high|medium|low","recommended_next_action":"one bounded next action",'
+        '"escalation_needed":"none or the genuine boundary"}. '
+        "Provide one to three findings and at most two alternatives and two risks. Prefer one decisive "
+        "finding and concise evidence. Keep the entire object at most 6,000 characters. Keep private "
+        "reasoning before the final answer; after reasoning, "
+        "emit only the JSON object. Do not claim tool use or repeat the input."
+    )
+    if contract == GLM_CRITIC_CONTRACT_V1:
+        return (
+            common
+            + " Historical v1 also requires summary and recommended_next_action at most 320 "
+            "characters; each finding text at most 300 characters; and each alternative, risk, "
+            "and escalation_needed at most 240 characters."
+        )
+    return (
+        "Return exactly one compact UTF-8 JSON object and nothing else. Do not use Markdown fences. "
+        "Use exactly these eight top-level keys, with no others: verdict, summary, findings, alternatives, "
+        "risks, confidence, recommended_next_action, escalation_needed. verdict is one of approve, revise, "
+        "reject; confidence is one of high, medium, low. summary, recommended_next_action, and "
+        "escalation_needed are non-empty strings. findings is an array containing one to three objects; every "
+        "finding has exactly these four string keys, with no others: severity, claim, evidence, repair. severity "
+        "is one of critical, high, medium, low. Put Fact: or Inference: inside the evidence string; never add "
+        "an inference key. alternatives and risks are arrays of zero to two non-empty strings. Prefer one decisive "
+        "finding and concise evidence. Keep the whole "
+        "object at most 6,000 characters. Example of a valid three-finding normal-chat response: "
+        '{"verdict":"revise","summary":"Three bounded corrections are needed.","findings":['
+        '{"severity":"high","claim":"The request can drift after review.","evidence":"Fact: the request is mutable after construction.","repair":"Bind and revalidate its hash before dispatch."},'
+        '{"severity":"medium","claim":"A failed response could be reused.","evidence":"Inference: retaining rejected content invites later salvage.","repair":"Quarantine invalid final content."},'
+        '{"severity":"low","claim":"Operators need a clear next step.","evidence":"Fact: the route has an evaluator gate.","repair":"Record the gate before promotion."}],'
+        '"alternatives":["Use a server grammar only after isolated validation."],"risks":["Mocked tests do not prove model compliance."],'
+        '"confidence":"high","recommended_next_action":"Run deterministic validation.","escalation_needed":"none"}. '
+        "Keep private reasoning before the final answer; after reasoning, emit only the JSON object. Do not claim "
+        "tool use or repeat the input."
+    )
+
+
+def _bounded_nonempty_string(value: Any, *, maximum: int) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and len(value) <= maximum
+
+
+def _nonempty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _local_json_type(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, list):
+        return "array"
+    if isinstance(value, dict):
+        return "object"
+    if isinstance(value, (int, float)):
+        return "number"
+    return "unknown"
+
+
+def _contract_key_digest(keys: set[str]) -> str:
+    return hashlib.sha256(json.dumps(sorted(keys), separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def _validate_local_response_contract_detailed(
+    content: str,
+    contract: str | None,
+    *,
+    max_final_chars: int | None = None,
+) -> tuple[dict[str, Any] | None, list[str], list[dict[str, Any]]]:
+    diagnostics: list[dict[str, Any]] = []
+
+    def diagnostic(code: str, path: str, **details: Any) -> None:
+        if len(diagnostics) < 32:
+            diagnostics.append({"code": code, "path": path, **details})
+
+    if not contract:
+        return None, [], diagnostics
+    if contract not in GLM_CRITIC_CONTRACTS:
+        return None, [f"unsupported local response contract: {contract}"], diagnostics
+    maximum = GLM_CRITIC_MAX_FINAL_CHARS if max_final_chars is None else max_final_chars
+    if not isinstance(maximum, int) or isinstance(maximum, bool) or maximum <= 0:
+        return None, ["local response contract requires a positive max_final_chars"], diagnostics
+    if not isinstance(content, str):
+        return None, ["final content must be UTF-8 text"], diagnostics
+    if len(content) > maximum:
+        diagnostic("final.overlong", "final", observed_count=len(content), maximum=maximum)
+        return None, [f"final content exceeds max_final_chars={maximum}"], diagnostics
+    language = analyze_return_language(
+        content,
+        expected_language="en",
+        expected_language_source="local-response-contract",
+    )
+    if any(
+        item.get("category") == "unicode_control_evasion"
+        for item in language.get("return_language_findings", [])
+        if isinstance(item, dict)
+    ):
+        diagnostic("final.unsafe_unicode", "final")
+        return None, ["final content contains dangerous Unicode controls"], diagnostics
+    value, decode_error = strict_json_loads(content)
+    if decode_error:
+        diagnostic("final.invalid_json", "final")
+        return None, [f"final content is not one safe JSON object: {decode_error}"], diagnostics
+    decoded_language = analyze_return_language(
+        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+        expected_language="en",
+        expected_language_source="local-response-contract-decoded",
+    )
+    if any(
+        item.get("category") == "unicode_control_evasion"
+        for item in decoded_language.get("return_language_findings", [])
+        if isinstance(item, dict)
+    ):
+        diagnostic("final.unsafe_unicode", "final")
+        return None, ["final content contains dangerous Unicode controls"], diagnostics
+    errors: list[str] = []
+    if not isinstance(value, dict):
+        diagnostic("final.wrong_type", "final", observed_type=_local_json_type(value))
+        return None, ["final content must be a JSON object"], diagnostics
+    keys = set(value)
+    if keys != GLM_CRITIC_FIELDS:
+        errors.append(f"final object fields do not exactly match {contract}")
+        missing = sorted(GLM_CRITIC_FIELDS - keys)
+        extra = keys - GLM_CRITIC_FIELDS
+        if missing:
+            diagnostic("final.missing_fields", "final", fields=missing)
+        if extra:
+            diagnostic("final.unexpected_fields", "final", count=len(extra), digest=_contract_key_digest(extra))
+    verdict = value.get("verdict")
+    if not isinstance(verdict, str) or verdict not in {"approve", "revise", "reject"}:
+        errors.append("verdict must be approve, revise, or reject")
+        diagnostic("verdict.invalid_enum", "verdict", observed_type=_local_json_type(verdict))
+    confidence = value.get("confidence")
+    if not isinstance(confidence, str) or confidence not in {"high", "medium", "low"}:
+        errors.append("confidence must be high, medium, or low")
+        diagnostic("confidence.invalid_enum", "confidence", observed_type=_local_json_type(confidence))
+    if contract == GLM_CRITIC_CONTRACT_V1:
+        string_limits = {
+            "summary": GLM_CRITIC_MAX_SUMMARY_CHARS,
+            "recommended_next_action": GLM_CRITIC_MAX_ACTION_CHARS,
+            "escalation_needed": GLM_CRITIC_MAX_ESCALATION_CHARS,
+        }
+        for field, field_maximum in string_limits.items():
+            if not _bounded_nonempty_string(value.get(field), maximum=field_maximum):
+                errors.append(
+                    f"{field} must be a non-empty string no longer than {field_maximum} characters"
+                )
+                diagnostic("field.invalid_text", field, observed_type=_local_json_type(value.get(field)))
+    else:
+        for field in ("summary", "recommended_next_action", "escalation_needed"):
+            if not _nonempty_string(value.get(field)):
+                errors.append(f"{field} must be a non-empty string")
+                diagnostic("field.invalid_text", field, observed_type=_local_json_type(value.get(field)))
+    findings = value.get("findings")
+    if not isinstance(findings, list) or not 1 <= len(findings) <= GLM_CRITIC_MAX_FINDINGS:
+        errors.append(f"findings must contain one to {GLM_CRITIC_MAX_FINDINGS} items")
+        diagnostic("findings.invalid_bounds", "findings", observed_type=_local_json_type(findings), observed_count=len(findings) if isinstance(findings, list) else None, minimum=1, maximum=GLM_CRITIC_MAX_FINDINGS)
+    else:
+        for index, finding in enumerate(findings):
+            path = f"findings[{index}]"
+            if not isinstance(finding, dict):
+                errors.append(f"finding {index} fields do not exactly match the contract")
+                diagnostic("finding.wrong_type", path, observed_type=_local_json_type(finding))
+                continue
+            finding_keys = set(finding)
+            if finding_keys != GLM_CRITIC_FINDING_FIELDS:
+                errors.append(f"finding {index} fields do not exactly match the contract")
+                missing = sorted(GLM_CRITIC_FINDING_FIELDS - finding_keys)
+                extra = finding_keys - GLM_CRITIC_FINDING_FIELDS
+                if missing:
+                    diagnostic("finding.missing_fields", path, fields=missing)
+                if extra:
+                    diagnostic("finding.unexpected_fields", path, count=len(extra), digest=_contract_key_digest(extra))
+                if contract == GLM_CRITIC_CONTRACT_V1:
+                    continue
+            severity = finding.get("severity")
+            if not isinstance(severity, str) or severity not in {"critical", "high", "medium", "low"}:
+                errors.append(f"finding {index} severity is invalid")
+                diagnostic("finding.invalid_enum", f"{path}.severity", observed_type=_local_json_type(severity))
+            for field in ("claim", "evidence", "repair"):
+                item = finding.get(field)
+                if contract == GLM_CRITIC_CONTRACT_V1:
+                    valid = _bounded_nonempty_string(
+                        item,
+                        maximum=GLM_CRITIC_MAX_FINDING_TEXT_CHARS,
+                    )
+                else:
+                    valid = _nonempty_string(item)
+                if not valid:
+                    qualifier = "bounded " if contract == GLM_CRITIC_CONTRACT_V1 else ""
+                    errors.append(f"finding {index} {field} must be a {qualifier}non-empty string")
+                    diagnostic("finding.invalid_text", f"{path}.{field}", observed_type=_local_json_type(item))
+    list_limits = {
+        "alternatives": GLM_CRITIC_MAX_ALTERNATIVES,
+        "risks": GLM_CRITIC_MAX_RISKS,
+    }
+    for field, maximum_items in list_limits.items():
+        items = value.get(field)
+        if not isinstance(items, list) or len(items) > maximum_items:
+            errors.append(f"{field} must be a list of at most {maximum_items} items")
+            diagnostic("list.invalid_bounds", field, observed_type=_local_json_type(items), observed_count=len(items) if isinstance(items, list) else None, minimum=0, maximum=maximum_items)
+        elif contract == GLM_CRITIC_CONTRACT_V1 and any(
+            not _bounded_nonempty_string(item, maximum=GLM_CRITIC_MAX_LIST_ITEM_CHARS)
+            for item in items
+        ):
+            errors.append(f"{field} items must be bounded non-empty strings")
+            diagnostic("list.invalid_text", field)
+        elif contract == GLM_CRITIC_CONTRACT and any(
+            not _nonempty_string(item) for item in items
+        ):
+            errors.append(f"{field} items must be non-empty strings")
+            diagnostic("list.invalid_text", field)
+    return (value if not errors else None), errors, diagnostics
+
+
+def validate_local_response_contract(
+    content: str,
+    contract: str | None,
+    *,
+    max_final_chars: int | None = None,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    review, errors, _ = _validate_local_response_contract_detailed(
+        content, contract, max_final_chars=max_final_chars
+    )
+    return review, errors
+
+
+def _render_model_text(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value)
+    printable = "".join(character if character.isprintable() else " " for character in normalized)
+    return " ".join(printable.split()).replace("#", r"\#")
+
+
+def render_local_critic_return(
+    review: dict[str, Any],
+    *,
+    envelope: dict[str, Any],
+    response_metadata: dict[str, Any],
+) -> str:
+    findings = "\n".join(
+        f"- [{item['severity']}] {_render_model_text(item['claim'])} "
+        f"Evidence: {_render_model_text(item['evidence'])} "
+        f"Repair: {_render_model_text(item['repair'])}"
+        for item in review["findings"]
+    )
+    alternatives = "\n".join(f"- {_render_model_text(item)}" for item in review["alternatives"]) or "- none supplied"
+    risks = "\n".join(f"- {_render_model_text(item)}" for item in review["risks"]) or "- none supplied"
+    preflight = response_metadata.get("model_preflight")
+    preflight_data = preflight if isinstance(preflight, dict) else {}
+    requested_model = str(envelope.get("model") or "unknown")
+    job_description = str(envelope.get("job_description_label") or "contract-jd-architecture-reasoning")
+    return (
+        "## Status\ncompleted\n\n"
+        f"## Contractor job description\n{_render_model_text(job_description)}\n\n"
+        f"## Summary\n{review['verdict']}: {_render_model_text(review['summary'])}\n\n"
+        "## Validation result\nThe compact GLM critic return contract passed.\n\n"
+        f"## Evidence\n{findings}\n\n"
+        "## Evidence provenance\n"
+        f"Exact requested model: {requested_model}; preflight: {preflight_data.get('status', 'not-recorded')}; "
+        f"final-content SHA-256: {response_metadata.get('final_content_sha256')}.\n\n"
+        "## Attestation or reproducibility note\n"
+        "The shared dispatcher performed the configured exact-model preflight immediately before the POST; "
+        "the response model and stop finish reason remain mandatory.\n\n"
+        "## Share-boundary conformance\n"
+        f"{envelope.get('share_boundary') or 'no-outside-sharing'}; no tools, shell, web, or repo-write authority.\n\n"
+        "## Peer-review disposition\npending independent evaluator review and architect adjudication\n\n"
+        f"## Alternatives considered\n{alternatives}\n\n"
+        f"## Confidence\n{review['confidence']}\n\n"
+        f"## Risks or gaps\n{risks}\n\n"
+        f"## Recommended next bead\n{_render_model_text(review['recommended_next_action'])}\n\n"
+        f"## Escalation needed\n{_render_model_text(review['escalation_needed'])}\n"
+    )
+
+
+def quarantine_local_response_content(payload: Any) -> None:
+    if not isinstance(payload, dict):
+        return
+    choices = payload.get("choices")
+    if not isinstance(choices, list):
+        return
+    for choice in choices:
+        if not isinstance(choice, dict):
+            continue
+        message = choice.get("message")
+        if isinstance(message, dict):
+            message["content"] = ""
 
 
 def _local_endpoint_ip_allowed(ip: ipaddress._BaseAddress) -> bool:
@@ -328,7 +873,13 @@ def local_transport(selected_executor: dict[str, Any], args: argparse.Namespace)
     transport.setdefault("default_model", "local-model")
     transport.setdefault("timeout_seconds", 120)
     transport.setdefault("max_input_chars", 24000)
+    transport.setdefault(
+        "auth_mode",
+        "bearer-env" if str(transport.get("api_key_env") or "").strip() else "none",
+    )
     if getattr(args, "local_api_key_env", None):
+        if transport.get("auth_mode") == "none" or not str(transport.get("api_key_env") or "").strip():
+            raise SystemExit("selected local executor is no-auth and forbids --local-api-key-env")
         transport["api_key_env"] = args.local_api_key_env
     if getattr(args, "local_timeout", None):
         maximum_timeout = transport.get("max_timeout_seconds")
@@ -370,7 +921,12 @@ def local_request_options_override(transport: dict[str, Any], args: argparse.Nam
             raise SystemExit(f"--local-max-tokens must not exceed profile maximum {maximum}")
         request_options["max_tokens"] = local_max_tokens
     local_thinking = str(getattr(args, "local_thinking", "default")).strip().lower()
-    if local_thinking in {"on", "off"}:
+    response_contract = str(transport.get("response_contract") or "")
+    if response_contract in GLM_CRITIC_CONTRACTS and local_thinking == "off":
+        raise SystemExit(
+            "GLM-5.3 does not support non-thinking mode; use its bounded reasoning_effort profile"
+        )
+    if response_contract not in GLM_CRITIC_CONTRACTS and local_thinking in {"on", "off"}:
         existing = request_options.get("chat_template_kwargs")
         if existing is None:
             chat_template_kwargs = {}
@@ -384,10 +940,167 @@ def local_request_options_override(transport: dict[str, Any], args: argparse.Nam
         thinking = request_options.get("chat_template_kwargs")
         if not isinstance(thinking, dict) or thinking.get("enable_thinking") is not True:
             raise SystemExit("selected local executor requires thinking to remain enabled")
+    required_reasoning_effort = transport.get("required_reasoning_effort")
+    if (
+        isinstance(required_reasoning_effort, str)
+        and request_options.get("reasoning_effort") != required_reasoning_effort
+    ):
+        raise SystemExit(
+            "selected local executor requires reasoning_effort="
+            f"{required_reasoning_effort!r}"
+        )
+    forbidden_request_options = transport.get("forbidden_request_options")
+    if forbidden_request_options is not None:
+        if not isinstance(forbidden_request_options, list) or not all(
+            isinstance(key, str) and key for key in forbidden_request_options
+        ):
+            raise SystemExit(
+                "selected local executor forbidden_request_options must be a list of non-empty strings"
+            )
+        present = sorted(
+            key for key in forbidden_request_options if key in request_options
+        )
+        if present:
+            raise SystemExit(
+                "selected local executor forbids grammar-constrained request options: "
+                + ", ".join(present)
+            )
+    reserved = sorted(key for key in LOCAL_RESERVED_REQUEST_OPTIONS if key in request_options)
+    if reserved:
+        raise SystemExit(
+            "selected local executor request options contain controller-reserved fields: "
+            + ", ".join(reserved)
+        )
+    allowed_request_options = transport.get("allowed_request_options")
+    if allowed_request_options is not None:
+        if not isinstance(allowed_request_options, list) or not all(
+            isinstance(key, str) and key for key in allowed_request_options
+        ):
+            raise SystemExit(
+                "selected local executor allowed_request_options must be a list of non-empty strings"
+            )
+        unexpected = sorted(set(request_options) - set(allowed_request_options))
+        if unexpected:
+            raise SystemExit(
+                "selected local executor request options are not allowlisted: "
+                + ", ".join(unexpected)
+            )
+    max_tokens = request_options.get("max_tokens")
+    if max_tokens is not None and (
+        not isinstance(max_tokens, int) or isinstance(max_tokens, bool) or max_tokens <= 0
+    ):
+        raise SystemExit("selected local executor max_tokens must be a positive integer")
+    maximum_output = transport.get("max_output_tokens")
+    if (
+        isinstance(maximum_output, int)
+        and isinstance(max_tokens, int)
+        and not isinstance(max_tokens, bool)
+        and max_tokens > maximum_output
+    ):
+        raise SystemExit(
+            f"selected local executor max_tokens must not exceed profile maximum {maximum_output}"
+        )
+    if response_contract in GLM_CRITIC_CONTRACTS:
+        expected_keys = {"reasoning_effort", "include_reasoning", "max_tokens"}
+        if set(request_options) != expected_keys:
+            raise SystemExit(
+                "GLM-5.3 critic request options must exactly contain reasoning_effort, "
+                "include_reasoning, and max_tokens"
+            )
+        if request_options.get("include_reasoning") is not True:
+            raise SystemExit("GLM-5.3 critic requires include_reasoning=true")
     return request_options
 
 
+def _canonical_json_hash(value: Any) -> str:
+    return artifact_hash(
+        json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    )
+
+
+def validate_local_execution_binding(
+    envelope: dict[str, Any],
+    selected_executor: dict[str, Any],
+    transport: dict[str, Any],
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    if not isinstance(envelope, dict) or envelope.get("envelope_type") != "local-openai-compatible-dispatch":
+        raise SystemExit("local execution requires a supported local dispatch envelope")
+    if envelope.get("version") != 2:
+        raise SystemExit("local execution requires envelope version 2")
+    access_profile_key = str(selected_executor.get("access_profile") or "")
+    expected_access_profile = sanitized_access_profile(access_profile_key)
+    if envelope.get("access_profile_details") != expected_access_profile:
+        raise SystemExit("local dispatch access profile changed after construction")
+    if envelope.get("transport_binding_sha256") != _canonical_json_hash(transport):
+        raise SystemExit("local dispatch transport changed after construction")
+    tls = local_tls_settings(transport, args)
+    if envelope.get("tls_binding_sha256") != _canonical_json_hash(tls):
+        raise SystemExit("local dispatch TLS settings changed after construction")
+    expected_fields = {
+        "executor_key": selected_executor.get("key"),
+        "provider_key": selected_executor.get("provider_key"),
+        "access_profile": selected_executor.get("access_profile"),
+        "local_profile": selected_executor.get("local_profile"),
+        "model_profile": selected_executor.get("model_profile"),
+        "model": transport.get("model"),
+        "required_model": transport.get("required_model"),
+        "endpoint_path": transport.get("endpoint_path"),
+        "timeout_seconds": transport.get("timeout_seconds"),
+        "max_input_chars": transport.get("max_input_chars"),
+        "model_preflight_required": bool(transport.get("model_preflight_required")),
+        "model_preflight_endpoint_path": transport.get("model_preflight_endpoint_path"),
+        "response_model_required": bool(transport.get("response_model_required")),
+        "required_finish_reason": transport.get("required_finish_reason"),
+        "response_contract": str(transport.get("response_contract") or "") or None,
+        "thinking_parser": transport.get("thinking_parser"),
+        "max_final_chars": transport.get("max_final_chars"),
+        "api_key_env": transport.get("api_key_env"),
+        "auth_mode": transport.get("auth_mode"),
+        "forbidden_request_options": transport.get("forbidden_request_options"),
+        "allowed_request_options": transport.get("allowed_request_options"),
+        "allow_private_dns": bool(transport.get("allow_private_dns")),
+    }
+    mismatched = sorted(
+        field for field, expected in expected_fields.items() if envelope.get(field) != expected
+    )
+    if mismatched:
+        raise SystemExit(
+            "local dispatch envelope no longer matches the selected executor profile: "
+            + ", ".join(mismatched)
+        )
+    messages = envelope.get("messages")
+    if (
+        not isinstance(messages, list)
+        or len(messages) != 2
+        or [item.get("role") if isinstance(item, dict) else None for item in messages]
+        != ["system", "user"]
+        or any(
+            not isinstance(item, dict)
+            or set(item) != {"role", "content"}
+            or not isinstance(item.get("content"), str)
+            or not item["content"].strip()
+            for item in messages
+        )
+    ):
+        raise SystemExit("local dispatch envelope messages are malformed")
+    if envelope.get("messages_sha256") != _canonical_json_hash(messages):
+        raise SystemExit("local dispatch envelope messages changed after construction")
+    expected_options = local_request_options_override(transport, args)
+    if envelope.get("request_options") != expected_options:
+        raise SystemExit("local dispatch request options changed after construction")
+    return expected_options
+
+
 def _split_thinking_content(content: str) -> dict[str, Any]:
+    if content.lstrip().startswith(("{", "[")):
+        return {
+            "content": content,
+            "reasoning_stripped": False,
+            "reasoning_chars": 0,
+            "reasoning_sha256": None,
+            "reasoning_malformed": False,
+        }
     opening = re.match(r"(?is)^\s*<(think|analysis|reasoning)>", content)
     if opening:
         tag = opening.group(1)
@@ -413,7 +1126,19 @@ def _split_thinking_content(content: str) -> dict[str, Any]:
             "reasoning_sha256": artifact_hash(reasoning),
             "reasoning_malformed": False,
         }
-    if re.search(r"(?is)</?(think|analysis|reasoning)>", content):
+    tags = list(re.finditer(r"(?is)</?(think|analysis|reasoning)>", content))
+    if len(tags) == 1 and tags[0].group(0).startswith("</"):
+        reasoning = content[: tags[0].start()].strip()
+        final = content[tags[0].end() :].strip()
+        if reasoning and final:
+            return {
+                "content": final,
+                "reasoning_stripped": True,
+                "reasoning_chars": len(reasoning),
+                "reasoning_sha256": artifact_hash(reasoning),
+                "reasoning_malformed": False,
+            }
+    if tags:
         return {
             "content": "",
             "reasoning_stripped": True,
@@ -456,6 +1181,13 @@ def _strip_raw_reasoning_fields(value: Any, metadata: dict[str, Any]) -> None:
                 continue
             if normalized_key in FORBIDDEN_LOCAL_RESPONSE_FIELDS:
                 removed = value.pop(key)
+                if (
+                    removed is None
+                    or (isinstance(removed, str) and not removed.strip())
+                    or (isinstance(removed, (dict, list)) and not removed)
+                ):
+                    metadata["ignored_empty_response_fields"].append(normalized_key)
+                    continue
                 rendered = json.dumps(removed, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
                 metadata["forbidden_response_fields"].append(normalized_key)
                 metadata["forbidden_response_sha256"] = artifact_hash(rendered)
@@ -488,9 +1220,27 @@ def sanitize_local_response_payload(
         "final_content_chars": 0,
         "forbidden_response_fields": [],
         "forbidden_response_sha256": None,
+        "ignored_empty_response_fields": [],
         "provider_error_present": False,
         "provider_error_sha256": None,
+        "payload_validation_error": None,
+        "content_security_status": "not-checked",
     }
+    try:
+        _validate_json_value(payload)
+        serialized = json.dumps(
+            payload,
+            ensure_ascii=False,
+            allow_nan=False,
+            separators=(",", ":"),
+        )
+        sanitized, clone_error = strict_json_loads(serialized)
+        if clone_error:
+            raise StrictJSONError(clone_error)
+    except (StrictJSONError, RecursionError, UnicodeEncodeError, ValueError, TypeError) as exc:
+        metadata["payload_validation_error"] = str(exc) or "unsafe JSON payload"
+        metadata["content_security_status"] = "rejected"
+        return {}, metadata
     if isinstance(payload, dict):
         choices = payload.get("choices")
         if isinstance(choices, list):
@@ -503,7 +1253,6 @@ def sanitize_local_response_payload(
                     metadata["finish_reasons"].append(reason)
                     if reason == "length":
                         metadata["response_truncated"] = True
-    sanitized = json.loads(json.dumps(payload))
     if isinstance(sanitized, dict) and "error" in sanitized:
         provider_error = sanitized.pop("error")
         rendered_error = json.dumps(provider_error, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
@@ -548,15 +1297,28 @@ def sanitize_local_response_payload(
                     metadata["reasoning_malformed"] or split["reasoning_malformed"]
                 )
                 content = split["content"]
-        clean = str(message.get("content") or "").strip()
-        if clean:
+        clean = str(message.get("content") or "")
+        if clean.strip():
             final_contents.append(clean)
     final_content = final_contents[0] if final_contents else ""
     metadata["final_content"] = final_content
     metadata["final_content_sha256"] = artifact_hash(final_content)
     metadata["final_content_chars"] = len(final_content)
     finish_reasons = [str(item).strip().lower() for item in metadata["finish_reasons"]]
-    if metadata["reasoning_malformed"]:
+    language = analyze_return_language(
+        final_content,
+        expected_language="en",
+        expected_language_source="local-response-sanitizer",
+    )
+    dangerous_controls = any(
+        item.get("category") == "unicode_control_evasion"
+        for item in language.get("return_language_findings", [])
+        if isinstance(item, dict)
+    )
+    metadata["content_security_status"] = "rejected" if dangerous_controls else "passed"
+    if dangerous_controls:
+        completion_status = "content-unsafe"
+    elif metadata["reasoning_malformed"]:
         completion_status = "malformed-response"
     elif metadata["response_truncated"] or any(item in {"length", "max_tokens"} for item in finish_reasons):
         completion_status = "output-budget-exhausted"
@@ -571,6 +1333,52 @@ def sanitize_local_response_payload(
     metadata["completion_status"] = completion_status
     metadata["usable_final_content"] = completion_status == "completed"
     return sanitized, metadata
+
+
+def project_local_response_payload(payload: Any) -> dict[str, Any]:
+    """Retain only response fields used by telemetry and final-content consumers."""
+    if not isinstance(payload, dict):
+        return {}
+    projected: dict[str, Any] = {}
+    model = payload.get("model")
+    if isinstance(model, str):
+        projected["model"] = model
+    choices = payload.get("choices")
+    projected_choices: list[dict[str, Any]] = []
+    if isinstance(choices, list):
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            projected_choice: dict[str, Any] = {}
+            finish_reason = choice.get("finish_reason")
+            if finish_reason is None or isinstance(finish_reason, str):
+                projected_choice["finish_reason"] = finish_reason
+            message = choice.get("message")
+            if isinstance(message, dict):
+                content = message.get("content")
+                projected_choice["message"] = {
+                    "content": content if isinstance(content, str) else ""
+                }
+            projected_choices.append(projected_choice)
+    projected["choices"] = projected_choices
+    usage = payload.get("usage")
+    if isinstance(usage, dict):
+        projected_usage = {
+            key: value
+            for key in (
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "input_tokens",
+                "output_tokens",
+            )
+            if isinstance((value := usage.get(key)), int)
+            and not isinstance(value, bool)
+            and value >= 0
+        }
+        if projected_usage:
+            projected["usage"] = projected_usage
+    return projected
 
 
 def build_local_envelope(
@@ -596,9 +1404,15 @@ def build_local_envelope(
         raise SystemExit(
             f"selected local executor requires exact model {required_model!r}; got {model!r}"
         )
+    try:
+        task.encode("utf-8", errors="strict")
+    except UnicodeEncodeError as exc:
+        raise SystemExit("local dispatch task must be valid UTF-8 text") from exc
     if len(task) > max_input_chars:
         raise SystemExit(f"local dispatch task exceeds max_input_chars={max_input_chars}")
     request_options = local_request_options_override(transport, args)
+    response_contract = str(transport.get("response_contract") or "") or None
+    contract_prompt = local_response_contract_prompt(response_contract)
     constraints = (
         "local-only, evaluator review required, architect adjudication required, "
         "no web, no shell, no repo write; repo read only when executor policy explicitly allows it"
@@ -610,6 +1424,7 @@ def build_local_envelope(
                 "You are a bounded local worker for complex-work-orchestration. "
                 "Return evidence-focused findings only. Do not claim repo mutation, "
                 "web access, shell execution, or policy approval."
+                + (f" {contract_prompt}" if contract_prompt else "")
             ),
         },
         {
@@ -636,6 +1451,8 @@ def build_local_envelope(
         "access_profile": access_profile_key or None,
         "access_profile_details": access_profile_details,
         "access_profile_readiness": access_profile_runtime_status(access_profile_key),
+        "share_boundary": route.get("share_boundary"),
+        "job_description_label": (route.get("ranked_experts") or [{}])[0].get("job_description_label"),
         "local_profile": selected.get("local_profile"),
         "model_profile": selected.get("model_profile"),
         "expected_return_language": default_expected_return_language(),
@@ -643,7 +1460,9 @@ def build_local_envelope(
         "transport_kind": transport.get("kind"),
         "base_url_env": transport.get("base_url_env"),
         "base_url_configured": bool(transport.get("base_url")),
+        "transport_binding_sha256": _canonical_json_hash(transport),
         "api_key_env": transport.get("api_key_env"),
+        "auth_mode": transport.get("auth_mode"),
         "model_env": transport.get("model_env"),
         "model": model,
         "endpoint_path": transport.get("endpoint_path"),
@@ -661,7 +1480,22 @@ def build_local_envelope(
         "tls_ca_bundle_env": tls["tls_ca_bundle_env"],
         "tls_ca_bundle_configured": bool(tls["tls_ca_bundle_configured"]),
         "allow_insecure_tls": bool(tls["allow_insecure_tls"]),
+        "tls_binding_sha256": _canonical_json_hash(tls),
         "request_options": request_options,
+        "messages_sha256": _canonical_json_hash(messages),
+        "response_contract": response_contract,
+        "server_structured_outputs_status": transport.get(
+            "server_structured_outputs_status"
+        ),
+        "forbidden_request_options": transport.get("forbidden_request_options"),
+        "allowed_request_options": transport.get("allowed_request_options"),
+        "max_final_chars": transport.get("max_final_chars"),
+        "quarantine_contract_invalid_content": bool(
+            transport.get("quarantine_contract_invalid_content")
+        ),
+        "quarantine_unusable_content": bool(
+            transport.get("quarantine_unusable_content")
+        ),
         "thinking_parser": transport.get("thinking_parser"),
         "response_sanitization": transport.get("response_sanitization"),
         "constraints": constraints,
@@ -702,6 +1536,42 @@ def _build_local_opener(
     return request.build_opener(*opener_handlers)
 
 
+def _local_response_header(response: Any, name: str) -> str | None:
+    getheader = getattr(response, "getheader", None)
+    value = getheader(name) if callable(getheader) else None
+    if value is None:
+        headers = getattr(response, "headers", None)
+        getter = getattr(headers, "get", None)
+        value = getter(name) if callable(getter) else None
+    return None if value is None else str(value).strip()
+
+
+def _read_local_http_response(response: Any, *, cap: int, phase: str) -> bytes:
+    content_length = _local_response_header(response, "Content-Length")
+    transfer_encoding = _local_response_header(response, "Transfer-Encoding")
+    content_encoding = _local_response_header(response, "Content-Encoding")
+    if content_encoding is not None and content_encoding.lower() not in {"", "identity"}:
+        raise SystemExit(f"local {phase} response used unsupported content encoding")
+    if transfer_encoding is not None and transfer_encoding.lower() not in {"", "chunked"}:
+        raise SystemExit(f"local {phase} response used unsupported transfer encoding")
+    if content_length is not None:
+        if not content_length.isascii() or not content_length.isdecimal():
+            raise SystemExit(f"local {phase} response had malformed Content-Length")
+        declared = int(content_length)
+        if transfer_encoding is not None:
+            raise SystemExit(f"local {phase} response had conflicting framing")
+        if declared > cap:
+            raise SystemExit(f"local {phase} response exceeded response cap")
+    else:
+        declared = None
+    raw_bytes = response.read(cap + 1)
+    if len(raw_bytes) > cap:
+        raise SystemExit(f"local {phase} response exceeded response cap")
+    if declared is not None and len(raw_bytes) != declared:
+        raise SystemExit(f"local {phase} response ended before Content-Length")
+    return raw_bytes
+
+
 def _preflight_local_model(
     opener: Any,
     *,
@@ -714,14 +1584,23 @@ def _preflight_local_model(
     req = request.Request(endpoint_url(base_url, endpoint_path), headers=headers, method="GET")
     started = time.monotonic()
     with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
-        raw = response.read().decode("utf-8")
+        raw_bytes = _read_local_http_response(
+            response, cap=LOCAL_PREFLIGHT_RESPONSE_CAP, phase="model preflight"
+        )
+        raw_sha256 = hashlib.sha256(raw_bytes).hexdigest()
         try:
-            payload = json.loads(raw)
-        except json.JSONDecodeError as exc:
+            raw = raw_bytes.decode("utf-8", errors="strict")
+        except UnicodeDecodeError as exc:
             raise SystemExit(
-                "local model preflight returned malformed JSON; body omitted "
-                f"(sha256={artifact_hash(raw)}, chars={len(raw)})"
+                "local model preflight returned invalid UTF-8; body omitted "
+                f"(sha256={raw_sha256}, bytes={len(raw_bytes)})"
             ) from exc
+        payload, decode_error = strict_json_loads(raw)
+        if decode_error:
+            raise SystemExit(
+                "local model preflight returned unsafe or malformed JSON; body omitted "
+                f"(sha256={raw_sha256}, chars={len(raw)}, classification={decode_error})"
+            )
         data = payload.get("data") if isinstance(payload, dict) else None
         model_ids = [
             str(item.get("id"))
@@ -732,14 +1611,14 @@ def _preflight_local_model(
             raise SystemExit(
                 "local model preflight did not attest the exact requested model; "
                 f"status={getattr(response, 'status', None)!r}, model={model!r}, "
-                f"response_sha256={artifact_hash(raw)}"
+                f"response_sha256={raw_sha256}"
             )
         return {
             "status": "passed",
             "status_code": 200,
             "required_model": model,
             "observed_model_count": len(model_ids),
-            "response_sha256": artifact_hash(raw),
+            "response_sha256": raw_sha256,
             "response_chars": len(raw),
             "elapsed_ms": max(0, int((time.monotonic() - started) * 1000)),
             "_completed_monotonic": time.monotonic(),
@@ -748,7 +1627,30 @@ def _preflight_local_model(
 
 def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     require_access_profile_online_for_execution(envelope, args)
-    transport = local_transport(selected_executor, args)
+    executor_key = str(envelope.get("executor_key") or "")
+    authoritative_executor = executor_config(executor_key)
+    binding_fields = (
+        "key",
+        "provider_key",
+        "access_profile",
+        "local_profile",
+        "model_profile",
+        "transport",
+    )
+    if any(
+        selected_executor.get(field) != authoritative_executor.get(field)
+        for field in binding_fields
+    ):
+        raise SystemExit(
+            "selected local executor changed after policy routing; rebuild the dispatch envelope"
+        )
+    transport = local_transport(authoritative_executor, args)
+    request_options = validate_local_execution_binding(
+        envelope,
+        authoritative_executor,
+        transport,
+        args,
+    )
     base_url = transport.get("base_url")
     if not base_url:
         raise SystemExit(
@@ -764,23 +1666,37 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         )
     pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get("allow_private_dns")))
     api_key_env = str(transport.get("api_key_env") or "")
-    validate_local_api_key_env_name(api_key_env)
+    auth_mode = str(transport.get("auth_mode") or "")
+    if auth_mode == "none":
+        if api_key_env:
+            raise SystemExit("no-auth local executor must not configure an API-key environment variable")
+    elif auth_mode == "bearer-env":
+        if not api_key_env:
+            raise SystemExit("authenticated local executor requires an API-key environment variable")
+        validate_local_api_key_env_name(api_key_env)
+    else:
+        raise SystemExit(f"unsupported local executor auth_mode: {auth_mode or 'missing'}")
     payload = {
         "model": model,
         "messages": envelope["messages"],
         "temperature": 0,
     }
-    request_options = envelope.get("request_options")
-    if isinstance(request_options, dict):
-        payload.update(request_options)
-    else:
-        payload.update(local_request_options_override(transport, args))
+    payload.update(request_options)
     body = json.dumps(payload).encode("utf-8")
+    request_payload_sha256 = artifact_hash(body.decode("utf-8"))
+    request_options_sha256 = artifact_hash(
+        json.dumps(
+            request_options,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
     headers = {"Content-Type": "application/json"}
     headers["X-CWO-Dispatch-ID"] = str(envelope.get("dispatch_id") or uuid.uuid4())
-    api_key = os.environ.get(api_key_env)
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+    if auth_mode == "bearer-env":
+        api_key = os.environ.get(api_key_env)
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
     req = request.Request(
         endpoint_url(str(base_url), str(transport.get("endpoint_path", "/v1/chat/completions"))),
         data=body,
@@ -809,20 +1725,33 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
                     f"gap_ms={preflight_to_post_ms}, maximum_ms={maximum_gap}"
                 )
         with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
-            raw = response.read().decode("utf-8")
+            raw_bytes = _read_local_http_response(
+                response, cap=LOCAL_COMPLETION_RESPONSE_CAP, phase="completion"
+            )
+            raw_response_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+            try:
+                raw = raw_bytes.decode("utf-8", errors="strict")
+                raw_decode_error = None
+            except UnicodeDecodeError:
+                raw = ""
+                raw_decode_error = "invalid UTF-8"
             if getattr(response, "status", None) != 200:
                 raise SystemExit(
                     "local endpoint did not return HTTP 200; response body omitted "
                     f"(status={getattr(response, 'status', None)!r}, "
-                    f"sha256={artifact_hash(raw)}, chars={len(raw)})"
+                    f"sha256={raw_response_sha256}, bytes={len(raw_bytes)})"
                 )
-            try:
-                parsed: Any = json.loads(raw)
-            except json.JSONDecodeError:
+            parsed: Any = None
+            parse_error = raw_decode_error
+            if parse_error is None:
+                parsed, parse_error = strict_json_loads(raw)
+            if parse_error:
                 parsed = {
-                    "malformed_response_sha256": artifact_hash(raw),
-                    "malformed_response_chars": len(raw),
+                    "malformed_response_sha256": raw_response_sha256,
+                    "malformed_response_bytes": len(raw_bytes),
+                    "malformed_response_classification": parse_error,
                 }
+            response_model = parsed.get("model") if isinstance(parsed, dict) else None
             sanitized, response_metadata = sanitize_local_response_payload(
                 parsed,
                 transport.get("thinking_parser"),
@@ -832,30 +1761,100 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
                     else None
                 ),
             )
-            response_model = parsed.get("model") if isinstance(parsed, dict) else None
+            if parse_error:
+                response_metadata["payload_validation_error"] = parse_error
+                response_metadata["completion_status"] = "malformed-response"
+                response_metadata["usable_final_content"] = False
             response_model_status = "not-required"
             if transport.get("response_model_required") is True:
                 response_model_status = "matched" if response_model == model else "mismatch"
                 if response_model_status != "matched":
                     response_metadata["completion_status"] = "malformed-response"
                     response_metadata["usable_final_content"] = False
+            response_contract = str(transport.get("response_contract") or "") or None
+            normalized_return = None
+            review = None
+            contract_errors: list[str] = []
+            contract_diagnostics: list[dict[str, Any]] = []
+            if response_contract:
+                content = str(response_metadata.get("final_content") or "")
+                max_final_chars = int(transport.get("max_final_chars") or 0)
+                review, contract_errors, contract_diagnostics = _validate_local_response_contract_detailed(
+                    content,
+                    response_contract,
+                    max_final_chars=max_final_chars,
+                )
+                response_metadata["response_contract"] = response_contract
+                response_metadata["response_contract_status"] = (
+                    "valid" if review is not None and not contract_errors else "invalid"
+                )
+                response_metadata["response_contract_errors"] = contract_errors
+                response_metadata["response_contract_diagnostics"] = contract_diagnostics
+                if (review is None or contract_errors) and response_metadata.get("completion_status") == "completed":
+                    if any("dangerous Unicode controls" in error for error in contract_errors):
+                        response_metadata["content_security_status"] = "rejected"
+                        response_metadata["completion_status"] = "content-unsafe"
+                    else:
+                        response_metadata["completion_status"] = "contract-invalid"
+            content = str(response_metadata.get("final_content") or "")
+            eligible = (
+                response_metadata.get("completion_status") == "completed"
+                and response_model_status in {"matched", "not-required"}
+                and (not response_contract or (review is not None and not contract_errors))
+            )
+            response_metadata["usable_final_content"] = eligible
+            if eligible and response_contract and review is not None:
+                render_metadata = {**response_metadata, "model_preflight": model_preflight}
+                normalized_return = render_local_critic_return(
+                    review,
+                    envelope=envelope,
+                    response_metadata=render_metadata,
+                )
+                response_metadata["normalized_return_sha256"] = artifact_hash(normalized_return)
+                response_metadata["normalized_return_chars"] = len(normalized_return)
+            elif content and (
+                transport.get("quarantine_unusable_content") is True
+                or (
+                    response_contract
+                    and transport.get("quarantine_contract_invalid_content") is True
+                )
+            ):
+                response_metadata["quarantined_content_sha256"] = artifact_hash(content)
+                response_metadata["quarantined_content_chars"] = len(content)
+                quarantine_local_response_content(sanitized)
+                response_metadata["final_content"] = ""
+                response_metadata["final_content_sha256"] = artifact_hash("")
+                response_metadata["final_content_chars"] = 0
+            sanitized = project_local_response_payload(sanitized)
             return {
                 "status_code": response.status,
                 "response": sanitized,
                 "elapsed_seconds": round(time.monotonic() - started, 3),
-                "raw_response_sha256": artifact_hash(raw),
+                "raw_response_sha256": raw_response_sha256,
                 "raw_response_chars": len(raw),
+                "raw_response_bytes": len(raw_bytes),
+                "request_payload_sha256": request_payload_sha256,
+                "request_options_sha256": request_options_sha256,
+                "server_structured_outputs_status": envelope.get(
+                    "server_structured_outputs_status"
+                ),
                 "model_preflight": model_preflight,
                 "response_model_status": response_model_status,
+                "normalized_return": normalized_return,
                 **response_metadata,
             }
     except HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")
-        raise SystemExit(
-            f"local endpoint returned HTTP {exc.code}; response body omitted "
-            f"(sha256={artifact_hash(body)}, chars={len(body)})"
-            + _debug_local_http_excerpt(body)
-        ) from exc
+        try:
+            body = _read_local_http_response(
+                exc, cap=LOCAL_HTTP_ERROR_RESPONSE_CAP, phase="HTTP error"
+            )
+            raise SystemExit(
+                f"local endpoint returned HTTP {exc.code}; response body omitted "
+                f"(sha256={hashlib.sha256(body).hexdigest()}, bytes={len(body)})"
+                + _debug_local_http_excerpt("")
+            ) from exc
+        finally:
+            exc.close()
     except URLError as exc:
         raise SystemExit(f"local endpoint request failed: {exc}") from exc
 
@@ -921,6 +1920,8 @@ def local_response_telemetry(local_response: dict[str, Any] | None) -> dict[str,
         forbidden_response_sha256=local_response.get("forbidden_response_sha256"),
         provider_error_present=local_response.get("provider_error_present"),
         provider_error_sha256=local_response.get("provider_error_sha256"),
+        payload_validation_error=local_response.get("payload_validation_error"),
+        content_security_status=local_response.get("content_security_status"),
     )
 
 
@@ -937,6 +1938,9 @@ def compact_local_response(local_response: dict[str, Any] | None) -> dict[str, A
         "elapsed_seconds",
         "raw_response_sha256",
         "raw_response_chars",
+        "raw_response_bytes",
+        "request_payload_sha256",
+        "request_options_sha256",
         "thinking_parser",
         "reasoning_stripped",
         "reasoning_malformed",
@@ -948,8 +1952,21 @@ def compact_local_response(local_response: dict[str, Any] | None) -> dict[str, A
         "model_preflight",
         "forbidden_response_fields",
         "forbidden_response_sha256",
+        "ignored_empty_response_fields",
         "provider_error_present",
         "provider_error_sha256",
+        "payload_validation_error",
+        "content_security_status",
+        "response_contract",
+        "server_structured_outputs_status",
+        "response_contract_status",
+        "response_contract_errors",
+        "response_contract_diagnostics",
+        "quarantined_content_sha256",
+        "quarantined_content_chars",
+        "normalized_return",
+        "normalized_return_sha256",
+        "normalized_return_chars",
     )
     return {key: local_response.get(key) for key in fields if key in local_response}
 
@@ -970,16 +1987,53 @@ def compact_local_envelope(envelope: dict[str, Any] | None) -> dict[str, Any] | 
         "local_profile",
         "model_profile",
         "model",
+        "auth_mode",
+        "expected_return_language",
+        "expected_return_language_source",
+        "share_boundary",
+        "job_description_label",
         "endpoint_path",
+        "transport_binding_sha256",
         "timeout_seconds",
         "max_input_chars",
         "thinking_parser",
         "response_sanitization",
+        "response_contract",
+        "server_structured_outputs_status",
+        "forbidden_request_options",
+        "allowed_request_options",
+        "max_final_chars",
+        "quarantine_contract_invalid_content",
+        "quarantine_unusable_content",
         "tls_verify",
         "tls_verify_source",
+        "tls_binding_sha256",
         "execution_enabled",
     )
-    return {key: envelope.get(key) for key in fields if key in envelope}
+    compact = {key: envelope.get(key) for key in fields if key in envelope}
+    options = envelope.get("request_options")
+    if isinstance(options, dict):
+        compact["request_options_sha256"] = artifact_hash(
+            json.dumps(options, sort_keys=True, separators=(",", ":"))
+        )
+        compact["request_option_keys"] = sorted(options)
+        for key in ("max_tokens", "reasoning_effort", "include_reasoning"):
+            if key in options:
+                compact[key] = options[key]
+        structured_outputs = options.get("structured_outputs")
+        if isinstance(structured_outputs, dict):
+            compact["structured_outputs_kind"] = next(
+                (
+                    key
+                    for key in ("json", "regex", "choice", "grammar")
+                    if structured_outputs.get(key) is not None
+                ),
+                None,
+            )
+            compact["structured_outputs_sha256"] = artifact_hash(
+                json.dumps(structured_outputs, sort_keys=True, separators=(",", ":"))
+            )
+    return compact
 
 
 def compact_local_route(route: dict[str, Any]) -> dict[str, Any]:
@@ -1005,6 +2059,17 @@ def compact_local_route(route: dict[str, Any]) -> dict[str, Any]:
             if key in selected
         },
     }
+
+
+def local_execution_exit_code(local_response: dict[str, Any] | None) -> int:
+    if not isinstance(local_response, dict):
+        return LOCAL_UNUSABLE_RESPONSE_EXIT_CODE
+    if (
+        local_response.get("completion_status") == "completed"
+        and local_response.get("usable_final_content") is True
+    ):
+        return 0
+    return LOCAL_UNUSABLE_RESPONSE_EXIT_CODE
 
 
 def main() -> None:
@@ -1098,6 +2163,7 @@ def main() -> None:
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--json", action="store_true")
     add_waiver_reason_argument(parser)
+    parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
     args = parser.parse_args()
     if not args.audit and not args.rehearsal:
         raise SystemExit("--no-audit is allowed only with --rehearsal for local tests or rehearsals")
@@ -1207,6 +2273,7 @@ def main() -> None:
             share_boundary=args.share_boundary,
             data_sensitivity=args.data_sensitivity,
             requested_roles=args.requested_role,
+            **current_authority_file_arguments(args.current_authority),
         )
     except CWOError as exc:
         raise SystemExit(str(exc))
@@ -1338,6 +2405,10 @@ def main() -> None:
             rendered_artifact.get("manual_prompt")
             or json.dumps(rendered_artifact.get("local_envelope") or rendered_artifact.get("route"), indent=2, sort_keys=True)
         )
+    if args.execute_local:
+        exit_code = local_execution_exit_code(local_response)
+        if exit_code:
+            raise SystemExit(exit_code)
 
 
 if __name__ == "__main__":

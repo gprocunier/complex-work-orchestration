@@ -242,6 +242,10 @@ class InstructionProfileTests(unittest.TestCase):
             "does not authorize a replacement benchmark",
             "Explicit replacement authority starts a new protocol",
             "Revalidate the protocol lock before every candidate or model call",
+            "End the parent objective only when no useful, independently authorized action remains",
+            "A spent child remains terminal and cannot be resumed or retried",
+            "do not ask for generic “proceed” or reapproval of unchanged adopted work",
+            "--require-scoped-continuation",
         ):
             self.assertIn(expected, normalized)
         guide = E_GUIDE.read_text(encoding="utf-8")
@@ -250,9 +254,12 @@ class InstructionProfileTests(unittest.TestCase):
         self.assertIn("frozen-protocol-lock.md", guide)
         self.assertIn("does not set `model_reasoning_effort`", guide)
         self.assertIn("post-v5 frozen-protocol repair", README.read_text(encoding="utf-8"))
+        # Prospectively version the active source for scoped continuation. The
+        # previously pinned post-v5 bytes remain in the v110 preimage evidence;
+        # this assertion does not claim the installed profile has reloaded.
         self.assertEqual(
             hashlib.sha256(E_PROMPT.read_bytes()).hexdigest(),
-            "ce85010acb60ea9fafd81f84790524a86f685067b65f86c352e07a5d3367ef67",
+            "82fdd0a53aa188cfa5779950cd32d6f7d7b9fa2c4dac3af1c72480a75548f22d",
         )
 
     def test_default_e_launcher_selects_profile_and_forwards_arguments(self) -> None:

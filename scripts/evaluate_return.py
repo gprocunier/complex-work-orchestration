@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,13 @@ from typing import Any
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.audit import record_audit_event
 from cwo_core.errors import CWOPolicyError
-from cwo_core.policy import resolve_executor_key
+from cwo_core.policy import (
+    GLM_COMPACT_CRITIC_EXECUTOR,
+    executor_config,
+    local_v2_critic_eligible,
+    local_v2_critic_subject,
+    resolve_executor_key,
+)
 from cwo_core.packets import (
     contractor_packet_evaluation_metadata,
     local_dispatch_language_metadata,
@@ -111,6 +118,42 @@ def _as_dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _local_v2_identity_consistent(
+    artifact: dict[str, Any], route: dict[str, Any], selected: dict[str, Any],
+    envelope: dict[str, Any], response: dict[str, Any],
+) -> bool:
+    """Compare redundant producer identities; this does not sign the artifact."""
+    required_model = _as_dict(executor_config(GLM_COMPACT_CRITIC_EXECUTOR).get("transport")).get("required_model")
+    if not isinstance(required_model, str) or not required_model:
+        return False
+    pairs = (
+        (artifact.get("dispatch_id"), envelope.get("dispatch_id")),
+        (selected.get("key"), route.get("recommended_executor")),
+        (selected.get("key"), envelope.get("executor_key")),
+        (selected.get("provider_key"), envelope.get("provider_key")),
+        (selected.get("provider_trust_tier"), envelope.get("provider_trust_tier")),
+        (selected.get("local_profile"), envelope.get("local_profile")),
+        (selected.get("model_profile"), envelope.get("model_profile")),
+        (selected.get("dispatch_mode"), artifact.get("dispatch_mode")),
+        (route.get("share_boundary"), envelope.get("share_boundary")),
+        (envelope.get("model"), _as_dict(response.get("model_preflight")).get("required_model")),
+    )
+    outer_bead = artifact.get("bead_id")
+    envelope_bead = envelope.get("bead_id")
+    bead_consistent = (
+        (outer_bead is None and envelope_bead is None)
+        or (isinstance(outer_bead, str) and bool(outer_bead) and outer_bead == envelope_bead)
+    )
+    return bool(
+        selected.get("key") == GLM_COMPACT_CRITIC_EXECUTOR
+        and envelope.get("execution_enabled") is True
+        and envelope.get("model") == required_model
+        and bead_consistent
+        and all(isinstance(left, str) and bool(left) and left == right for left, right in pairs)
+        and _as_dict(response.get("model_preflight")).get("status_code") == 200
+    )
+
+
 def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
     try:
         artifact = json.loads(path.read_text(encoding="utf-8"))
@@ -126,6 +169,15 @@ def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
     primary_expert_label = _as_str(_as_dict(primary_expert).get("job_description_label"))
     local_envelope = _as_dict(artifact.get("local_envelope"))
     local_response = _as_dict(artifact.get("local_response"))
+    v2_identity_consistent: bool | None = None
+    if local_v2_critic_subject(
+        executor=selected_executor.get("key") or route.get("recommended_executor"),
+        expected_contract=local_envelope.get("response_contract"),
+        response_contract=local_response.get("response_contract"),
+    ):
+        v2_identity_consistent = _local_v2_identity_consistent(
+            artifact, route, selected_executor, local_envelope, local_response,
+        )
     expected_return_language: str | None = None
     expected_return_language_source: str | None = None
     if local_envelope:
@@ -207,6 +259,29 @@ def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
             if isinstance(local_response.get("usable_final_content"), bool)
             else None
         ),
+        "local_expected_response_contract": _as_str(local_envelope.get("response_contract")),
+        "local_response_contract": _as_str(local_response.get("response_contract")),
+        "local_response_contract_status": _as_str(local_response.get("response_contract_status")),
+        "local_response_model_status": _as_str(local_response.get("response_model_status")),
+        "local_model_preflight_status": _as_str(_as_dict(local_response.get("model_preflight")).get("status")),
+        "local_http_status": (
+            local_response.get("status_code")
+            if type(local_response.get("status_code")) is int
+            else None
+        ),
+        "local_v2_frame_valid": bool(
+            local_response.get("response_truncated") is False
+            and local_response.get("reasoning_malformed") is False
+            and local_response.get("finish_reasons") == ["stop"]
+            and local_response.get("response_contract_errors") == []
+            and local_response.get("content_security_status") == "passed"
+            and type(local_response.get("final_content_chars")) is int
+            and 0 < local_response["final_content_chars"] <= 6000
+        ),
+        "local_v2_identity_consistent": v2_identity_consistent,
+        "_local_normalized_return": local_response.get("normalized_return"),
+        "_local_normalized_return_sha256": local_response.get("normalized_return_sha256"),
+        "_local_normalized_return_chars": local_response.get("normalized_return_chars"),
     }
 
 
@@ -275,6 +350,28 @@ def main() -> None:
         if args.local_dispatch_result
         else {}
     )
+    local_v2_subject = bool(local_dispatch_metadata) and local_v2_critic_subject(
+        executor=local_dispatch_metadata.get("executor"),
+        expected_contract=local_dispatch_metadata.get("local_expected_response_contract"),
+        response_contract=local_dispatch_metadata.get("local_response_contract"),
+    )
+    if local_v2_subject:
+        # Only finite controller statuses cross into evaluator diagnostics.
+        known_values = {
+            "local_completion_status": {
+                "completed", "content-unsafe", "contract-invalid", "output-budget-exhausted",
+                "empty-final-content", "malformed-response",
+            },
+            "local_expected_response_contract": {"cwo-glm-critic-v1", "cwo-glm-critic-v2"},
+            "local_response_contract": {"cwo-glm-critic-v1", "cwo-glm-critic-v2"},
+            "local_response_contract_status": {"valid", "invalid"},
+            "local_response_model_status": {"matched", "mismatch", "not-required"},
+            "local_model_preflight_status": {"passed"},
+        }
+        for field, allowed in known_values.items():
+            value = local_dispatch_metadata.get(field)
+            if not isinstance(value, str) or value not in allowed:
+                local_dispatch_metadata[field] = None
     contractor_packet_metadata: dict[str, Any] = {}
     if args.contractor_packet:
         packet = json.loads(Path(args.contractor_packet).read_text(encoding="utf-8"))
@@ -286,7 +383,7 @@ def main() -> None:
         explicit = getattr(args, name, None)
         metadata_value = dispatch_metadata.get(name)
         if (
-            contractor_packet_metadata
+            (contractor_packet_metadata or local_v2_subject)
             and explicit is not None
             and explicit != ""
             and isinstance(metadata_value, str)
@@ -313,6 +410,11 @@ def main() -> None:
     expected_return_language_source = _cli_or_metadata("expected_return_language_source")
     if executor:
         executor = resolve_executor_key(executor)
+    local_v2_subject = local_v2_subject or local_v2_critic_subject(
+        executor=executor,
+        expected_contract=local_dispatch_metadata.get("local_expected_response_contract"),
+        response_contract=local_dispatch_metadata.get("local_response_contract"),
+    )
 
     workspace_mutation = (
         json.loads(Path(args.workspace_mutation_report).read_text(encoding="utf-8"))
@@ -324,9 +426,47 @@ def main() -> None:
     local_reasoning_malformed = bool(local_dispatch_metadata.get("local_reasoning_malformed", False))
     local_completion_status = local_dispatch_metadata.get("local_completion_status")
     local_usable_final_content = local_dispatch_metadata.get("local_usable_final_content")
+    return_bytes = Path(args.file).read_bytes()
+    try:
+        return_text = return_bytes.decode("utf-8")
+    except UnicodeDecodeError:
+        if not local_v2_subject:
+            raise
+        return_text = ""
+    local_normalized_return_matches: bool | None = None
+    if local_v2_subject:
+        normalized = local_dispatch_metadata.get("_local_normalized_return")
+        digest = local_dispatch_metadata.get("_local_normalized_return_sha256")
+        chars = local_dispatch_metadata.get("_local_normalized_return_chars")
+        local_normalized_return_matches = bool(
+            isinstance(normalized, str)
+            and bool(normalized)
+            and isinstance(digest, str)
+            and hashlib.sha256(normalized.encode("utf-8")).hexdigest() == digest
+            and type(chars) is int
+            and chars == len(normalized)
+            and normalized.encode("utf-8") == return_bytes
+        )
+        eligible = local_v2_critic_eligible(
+            executor=executor,
+            expected_contract=local_dispatch_metadata.get("local_expected_response_contract"),
+            response_contract=local_dispatch_metadata.get("local_response_contract"),
+            contract_status=local_dispatch_metadata.get("local_response_contract_status"),
+            completion_status=local_completion_status,
+            usable_final_content=local_usable_final_content,
+            normalized_return_matches=local_normalized_return_matches,
+            frame_valid=local_dispatch_metadata.get("local_v2_frame_valid"),
+            identity_consistent=local_dispatch_metadata.get("local_v2_identity_consistent"),
+            response_model_status=local_dispatch_metadata.get("local_response_model_status"),
+            model_preflight_status=local_dispatch_metadata.get("local_model_preflight_status"),
+            http_status=local_dispatch_metadata.get("local_http_status"),
+        )
+        # Never score a stale or rejected text surface as semantic evidence.
+        if eligible is not True:
+            return_text = ""
 
     result = make_acceptance_decision(
-        Path(args.file).read_text(encoding="utf-8"),
+        return_text,
         bead_id=bead_id,
         dispatch_id=dispatch_id,
         packet_sha256=packet_sha256,
@@ -358,6 +498,15 @@ def main() -> None:
         local_usable_final_content=(
             local_usable_final_content if isinstance(local_usable_final_content, bool) else None
         ),
+        local_expected_response_contract=local_dispatch_metadata.get("local_expected_response_contract"),
+        local_response_contract=local_dispatch_metadata.get("local_response_contract"),
+        local_response_contract_status=local_dispatch_metadata.get("local_response_contract_status"),
+        local_normalized_return_matches=local_normalized_return_matches,
+        local_v2_frame_valid=local_dispatch_metadata.get("local_v2_frame_valid"),
+        local_v2_identity_consistent=local_dispatch_metadata.get("local_v2_identity_consistent"),
+        local_response_model_status=local_dispatch_metadata.get("local_response_model_status"),
+        local_model_preflight_status=local_dispatch_metadata.get("local_model_preflight_status"),
+        local_http_status=local_dispatch_metadata.get("local_http_status"),
     )
     if args.audit:
         audit_path = Path(args.audit_file) if args.audit_file else None

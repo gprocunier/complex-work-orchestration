@@ -5,6 +5,17 @@ does not re-export symbols.
 """
 
 __all__ = [
+    "maintenance_image",
+    "maintenance_readiness",
+    'maintenance_qualification',
+    'maintenance_release',
+    'private_authority_input',
+
+    "maintenance_runtime_support",
+    "maintenance_native_runtime",
+    "stage_completion",
+    "stage_evidence",
+    "maintenance_authority",
     "access_profiles",
     "audit",
     "checked_command",
@@ -34,6 +45,7 @@ __all__ = [
     "native_pool_contracts",
     "native_pool_scheduler",
     "native_pool_schedulability",
+    "native_pool_transaction",
     "native_pool_leases",
     "native_pool_workspace",
     "native_pool",
@@ -58,6 +70,7 @@ __all__ = [
     "native_tool_activation",
     "native_tool_isolation",
     "native_worker_contracts",
+    "operative_routing",
     "packets",
     "paths",
     "policy",

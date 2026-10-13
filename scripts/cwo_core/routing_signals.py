@@ -76,7 +76,39 @@ def explicit_claude_architect_critique_requested(text: str) -> bool:
 def explicit_glm_architect_critique_requested(text: str) -> bool:
     """Return true only for the opt-in GLM design-critic pattern."""
     return bool(
-        _affirmative_provider_hit(text, ["glm", "glm 5.2", "glm-5.2", "glm52"])
+        _affirmative_provider_hit(
+            text,
+            ["glm", "glm 5.2", "glm-5.2", "glm52", "glm 5.3", "glm-5.3", "glm53"],
+        )
+        and _hits(text, ["architect", "architecture", "design", "synthesis"])
+        and _hits(
+            text,
+            [
+                "second opinion",
+                "second opinions",
+                "2nd opinion",
+                "2nd opinions",
+                "independent opinion",
+                "independent opinions",
+                "peer opinion",
+                "peer opinions",
+                "critique",
+                "critiques",
+                "critic",
+                "critics",
+                "review",
+                "reviews",
+                "synthesis",
+                "synthesize",
+            ],
+        )
+    )
+
+
+def explicit_glm_5_3_architect_critique_requested(text: str) -> bool:
+    """Return true only when the GLM-5.3 critic generation is explicit."""
+    return bool(
+        _affirmative_provider_hit(text, ["glm 5.3", "glm-5.3", "glm53"])
         and _hits(text, ["architect", "architecture", "design", "synthesis"])
         and _hits(
             text,
@@ -130,12 +162,17 @@ def architecture_critic_intent_conflicts(text: str) -> list[str]:
     if not (architecture_context and critique_context):
         return []
     conflicts: list[str] = []
+    glm_5_3_requested = explicit_glm_5_3_architect_critique_requested(text)
     for executor, terms in [
         ("claude_architecture_critic", ["claude", "opus", "anthropic"]),
         ("gemini_architecture_critic", ["gemini", "agy", "antigravity"]),
         (
-            "rhoai_glm_hardened_architecture_critic",
-            ["glm", "glm 5.2", "glm-5.2", "glm52"],
+            (
+                "rhoai_glm_compact_architecture_critic"
+                if glm_5_3_requested
+                else "rhoai_glm_hardened_architecture_critic"
+            ),
+            ["glm", "glm 5.2", "glm-5.2", "glm52", "glm 5.3", "glm-5.3", "glm53"],
         ),
     ]:
         affirmative, excluded = provider_term_intent(text, terms)
@@ -150,7 +187,9 @@ def requested_architecture_critic_executor_keys(text: str) -> list[str]:
         keys.append("claude_architecture_critic")
     if explicit_gemini_architect_critique_requested(text):
         keys.append("gemini_architecture_critic")
-    if explicit_glm_architect_critique_requested(text):
+    if explicit_glm_5_3_architect_critique_requested(text):
+        keys.append("rhoai_glm_compact_architecture_critic")
+    elif explicit_glm_architect_critique_requested(text):
         keys.append("rhoai_glm_hardened_architecture_critic")
     return keys
 

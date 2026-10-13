@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime
@@ -65,8 +66,40 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
+def _persistence_stable_json_value(value: Any) -> Any:
+    """Normalize JSON numbers before hashing across persistence backends.
+
+    JSON does not distinguish ``5`` from ``5.0`` semantically, and some stores
+    round-trip an integral floating-point value as an integer.  Hash the
+    schema-equivalent representation so a trusted receipt remains verifiable
+    after that lossless normalization.  Non-finite values are not valid JSON
+    evidence and fail closed.
+    """
+
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("canonical-json-non-finite-number")
+        return int(value) if value.is_integer() else value
+    if isinstance(value, list):
+        return [_persistence_stable_json_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_persistence_stable_json_value(item) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _persistence_stable_json_value(item)
+            for key, item in value.items()
+        }
+    return value
+
+
 def _canonical_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return json.dumps(
+        _persistence_stable_json_value(value),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+        allow_nan=False,
+    )
 
 
 def _evaluate_base(evidence: dict[str, Any]) -> tuple[dict[str, bool], bool, bool, bool, bool]:

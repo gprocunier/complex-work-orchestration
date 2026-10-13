@@ -253,6 +253,14 @@ def _is_full_suite_args(args: list[str]) -> bool:
     interpreter = args[0].split("/")[-1]
     if interpreter not in {"python", "python3"}:
         return False
+    if len(args) >= 2 and Path(args[1]).as_posix().endswith(
+        "scripts/run_parallel_unittest.py"
+    ):
+        try:
+            start_index = args.index("--start-directory", 2)
+        except ValueError:
+            return True
+        return start_index + 1 < len(args) and args[start_index + 1] == "tests"
     try:
         m_index = args.index("-m")
     except ValueError:

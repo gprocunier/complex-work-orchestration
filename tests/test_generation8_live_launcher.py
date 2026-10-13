@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 from dataclasses import replace
 import importlib.util
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -292,12 +293,38 @@ class Generation8LiveLauncherTests(unittest.TestCase):
         events: list[str] = []
 
         class FakeServer:
-            def start_thread(self, _worktree: Path, **_kwargs: object):
+            def __init__(self) -> None:
+                self.requested_model = LIVE.EXACT_MODEL
+                self.started_threads: dict[str, str | None] = {}
+                self._effective_thread_start_evidence: dict[str, dict] = {}
+
+            def start_thread(self, worktree: Path, **_kwargs: object):
                 events.append("allocate")
-                return {
-                    "thread": {"id": str(LIVE.uuid.uuid4()), "turns": []},
+                sealed = str(worktree.resolve())
+                thread_id = str(LIVE.uuid.uuid4())
+                request = {
                     "model": LIVE.EXACT_MODEL,
-                }, 0.0
+                    "allowProviderModelFallback": False,
+                    "sandbox": "read-only",
+                    "approvalPolicy": "never",
+                    "cwd": sealed,
+                    "runtimeWorkspaceRoots": [sealed],
+                }
+                response = {
+                    "model": LIVE.EXACT_MODEL,
+                    "modelProvider": "trusted",
+                    "sandbox": {"type": "readOnly"},
+                    "approvalPolicy": "never",
+                    "cwd": sealed,
+                    "runtimeWorkspaceRoots": [sealed],
+                    "thread": {"id": thread_id, "turns": [], "path": None},
+                }
+                self.started_threads[thread_id] = None
+                self._effective_thread_start_evidence[thread_id] = {
+                    "request": copy.deepcopy(request),
+                    "response": copy.deepcopy(response),
+                }
+                return response, 0.0
 
         def gate() -> dict[str, str]:
             events.append("gate")
@@ -315,18 +342,76 @@ class Generation8LiveLauncherTests(unittest.TestCase):
                 path.mkdir()
 
             def fake_contract(request: dict[str, object], **_kwargs: object):
-                return {"children": request["children"]}
+                children = copy.deepcopy(request["children"])
+                for child in children:
+                    control = json.loads(
+                        Path(child["control_contract_file"]).read_text(encoding="utf-8")
+                    )
+                    child["control_contract_sha256"] = control["contract_sha256"]
+                    child["worktree_identity"] = {
+                        "canonical_path_sha256": LIVE.sha256_text(
+                            str(Path(child["worktree"]).resolve())
+                        )
+                    }
+                contract = {"children": children}
+                contract["contract_sha256"] = LIVE.canonical_sha256(contract)
+                return contract
+
+            def fake_preflight(request: dict[str, object]):
+                contract = request.get("pool_contract")
+                receipt = {
+                    "accepted": True,
+                    "decision": "accept",
+                    "stage": request["stage"],
+                    "contract_sha256": (
+                        contract.get("contract_sha256")
+                        if isinstance(contract, dict)
+                        else None
+                    ),
+                }
+                receipt["result_sha256"] = LIVE.canonical_sha256(receipt)
+                return receipt
+
+            child_roots = {
+                "generation8-child-0": first.resolve(),
+                "generation8-child-1": second.resolve(),
+            }
+
+            def child_baseline(child_id: str) -> dict[str, object]:
+                return {
+                    "workspace_evidence_type": "content-aware-baseline",
+                    "version": 2,
+                    "cwd": str(child_roots[child_id]),
+                    "allowed_paths": [],
+                    "include_untracked": True,
+                    "tracked_status": [],
+                    "tracked_paths": [],
+                    "tracked_paths_complete": True,
+                    "preexisting_dirty_paths": [],
+                    "content_fingerprints": {},
+                    "baseline_complete": True,
+                    "incomplete": False,
+                    "replay_allowed": False,
+                    "caps": {
+                        "max_files": 10000,
+                        "max_bytes": 50_000_000,
+                        "max_seconds": 5.0,
+                    },
+                }
+
+            monitor = mock.Mock()
+            monitor.child_baseline.side_effect = child_baseline
 
             with mock.patch.object(
                 LIVE, "validate_live_canary_manifest_gate", return_value=[]
             ), mock.patch.object(
                 LIVE, "build_live_canary_pool_contract", side_effect=fake_contract
             ), mock.patch.object(
-                LIVE, "PoolWorkspaceMonitor", return_value=object()
+                LIVE, "PoolWorkspaceMonitor", return_value=monitor
             ), mock.patch.object(
                 LIVE,
                 "require_pool_preflight",
-                return_value={"accepted": True, "result_sha256": "a" * 64},
+                side_effect=fake_preflight,
             ):
                 LIVE.build_pool_inputs(
                     FakeServer(),
@@ -347,6 +432,7 @@ class Generation8LiveLauncherTests(unittest.TestCase):
                     pre_allocation_check=final_watermark,
                     expected_bound_manifest_validation={"expected": "receipt"},
                 )
+            self.assertEqual(monitor.child_baseline.call_count, 2)
         self.assertEqual(
             events,
             [

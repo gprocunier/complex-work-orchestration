@@ -28,6 +28,8 @@ from cwo_core.native_pool_admission import (  # noqa: E402
     build_admission_child_binding,
     build_dispatch_context,
     canonical_admission_sha256,
+    _is_exact_claim_transition,
+    _is_exact_close_transition,
     consume_pool_admission,
     reserve_pool_cohort,
     validate_close_receipt,
@@ -201,8 +203,16 @@ class MemoryBdRunner:
         self.claim_order.append(bead_id)
         action = self.actions.get(bead_id, ["success"]).pop(0)
         issue = self.issues[bead_id]
-        committed = action in {"success", "timeout-committed", "error-committed"}
+        committed = action in {
+            "success",
+            "timeout-committed",
+            "error-committed",
+            "preserved-started-at",
+            "changed-started-at",
+            "cleared-started-at",
+        }
         if committed:
+            prior_started_at = issue.get("started_at")
             issue.update(
                 {
                     "status": "in_progress",
@@ -211,6 +221,10 @@ class MemoryBdRunner:
                     "started_at": "2026-07-21T20:00:01Z",
                 }
             )
+            if action == "preserved-started-at":
+                issue["started_at"] = prior_started_at
+            elif action == "cleared-started-at":
+                issue["started_at"] = None
         elif action == "lost":
             issue.update(
                 {
@@ -281,6 +295,46 @@ def _context(receipt: dict) -> dict:
 
 
 class NativePoolAdmissionTests(unittest.TestCase):
+    def test_productive_n1_preserves_multi_surface_estimate_order(self) -> None:
+        policy = json.loads(
+            (ROOT / "policy" / "native-worker-execution.yaml").read_text(
+                encoding="utf-8"
+            )
+        )
+        write_paths = [
+            "scripts/prepare_native_worker.py",
+            "scripts/cwo_core/native_tool_isolation.py",
+            "scripts/dispatch_work.py",
+        ]
+        item = ready_item("bead-a", write_paths=write_paths)
+        item = _set_runtime(item, 600, policy=policy)
+        readiness = build_ready_set_evidence(
+            [item],
+            epic_id="epic-productive-n1-order",
+            requested_workers=1,
+            policy_document=policy,
+        )
+        estimate = item["raw"]["metadata"]["cwo_ready_set_admission"]["work_plan"]
+        self.assertEqual(
+            estimate["protected_surface_matches"],
+            [
+                "policy-routing",
+                "native-supervision-self-hosting",
+                "provider-access-authority",
+            ],
+        )
+        candidate = _candidate_from(
+            readiness,
+            {"bead-a": estimate},
+            policy,
+            requested_workers=1,
+        )
+
+        reservation, runner = _reserve(candidate, [item])
+
+        self.assertTrue(reservation.admitted)
+        self.assertEqual(runner.claim_order, ["bead-a"])
+
     def test_n2_success_is_sorted_claim_backed_and_p1_7_bound(self) -> None:
         candidate, items, _ = _fixture_candidate(2)
         reservation, runner = _reserve(candidate, list(reversed(items)))
@@ -371,6 +425,33 @@ class NativePoolAdmissionTests(unittest.TestCase):
         spoofed = _adapter(runner).claim("bead-a")
         self.assertFalse(spoofed.owned)
         self.assertEqual(spoofed.receipt["outcome"], "claim-lost")
+
+    def test_reopened_claim_accepts_only_preserved_historical_started_at(self) -> None:
+        _, items, _ = _fixture_candidate(2)
+        historical_started_at = "2026-07-20T12:34:56Z"
+        items[0]["raw"]["started_at"] = historical_started_at
+
+        runner = MemoryBdRunner(items)
+        runner.queue("bead-a", "preserved-started-at")
+        preserved = _adapter(runner).claim("bead-a")
+        self.assertTrue(preserved.owned)
+        self.assertEqual(preserved.receipt["outcome"], "claimed")
+        self.assertEqual(
+            preserved.post_issue["started_at"],
+            historical_started_at,
+        )
+
+        runner = MemoryBdRunner(items)
+        runner.queue("bead-a", "changed-started-at")
+        changed = _adapter(runner).claim("bead-a")
+        self.assertFalse(changed.owned)
+        self.assertEqual(changed.receipt["outcome"], "claim-lost")
+
+        runner = MemoryBdRunner(items)
+        runner.queue("bead-a", "cleared-started-at")
+        cleared = _adapter(runner).claim("bead-a")
+        self.assertFalse(cleared.owned)
+        self.assertEqual(cleared.receipt["outcome"], "claim-lost")
 
     def test_partial_race_rebuilds_once_and_requires_owned_inclusion(self) -> None:
         _, _, all_items, policy = _fixture([600, 600, 600])
@@ -856,9 +937,16 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 actor="admission-real-test",
                 timeout=20,
             )
+            before_claim = dict(adapter.show_exact(issue_id))
             transition = adapter.claim(issue_id)
             self.assertTrue(transition.owned)
             self.assertEqual(transition.receipt["outcome"], "claimed")
+            self.assertTrue(_is_exact_claim_transition(before_claim, transition.post_issue, actor=adapter.actor))
+            for field, invalid in (("heartbeat_at", None), ("lease_expires_at", 0), ("revision", False)):
+                with self.subTest(field=field):
+                    tampered = dict(transition.post_issue)
+                    tampered[field] = invalid
+                    self.assertFalse(_is_exact_claim_transition(before_claim, tampered, actor=adapter.actor))
             self.assertEqual(transition.post_issue["status"], "in_progress")
             self.assertEqual(
                 transition.post_issue["assignee"],
@@ -874,6 +962,12 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 reason="real exact close",
             )
             self.assertTrue(close.closed)
+            self.assertTrue(_is_exact_close_transition(transition.post_issue, close.post_issue,
+                                                       actor=adapter.actor, reason="real exact close"))
+            malformed_close = dict(close.post_issue)
+            malformed_close["lease_expires_at"] = transition.post_issue["lease_expires_at"]
+            self.assertFalse(_is_exact_close_transition(transition.post_issue, malformed_close,
+                                                        actor=adapter.actor, reason="real exact close"))
             self.assertEqual(close.post_issue["status"], "closed")
             self.assertEqual(
                 close.post_issue["assignee"],

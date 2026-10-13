@@ -146,10 +146,21 @@ def cwo_temp_dir(
         mode = 0o1770
     else:
         raise SystemExit("scope must be 'session' or 'exchange'")
-    if purpose:
-        base = base / _sanitize_temp_component(purpose, "artifact")
     if create:
-        return _ensure_temp_dir(base, mode=mode, require_owner=scope == "session")
+        # Secure the policy root before creating a purpose subdirectory.  A
+        # recursive mkdir of only the leaf can otherwise leave a newly created
+        # session parent at the process umask mode, making the result fail its
+        # own authorization predicate.
+        base = _ensure_temp_dir(base, mode=mode, require_owner=scope == "session")
+        if purpose:
+            return _ensure_temp_dir(
+                base / _sanitize_temp_component(purpose, "artifact"),
+                mode=mode,
+                require_owner=scope == "session",
+            )
+        return base
+    if purpose:
+        return base / _sanitize_temp_component(purpose, "artifact")
     return base
 
 
@@ -167,20 +178,33 @@ def cwo_temp_path(
 
 def is_cwo_temp_path(path: Path) -> bool:
     """Return whether a path is inside the configured CWO temp or exchange roots."""
-    resolved = path.expanduser().resolve()
-    exchange_root = cwo_temp_dir(scope="exchange", create=False).expanduser().resolve()
-    try:
-        resolved.relative_to(exchange_root)
-        return True
-    except ValueError:
-        pass
-    temp_root = cwo_temp_root(create=False).expanduser().resolve()
-    try:
-        relative = resolved.relative_to(temp_root)
-    except ValueError:
+    candidate = path.expanduser()
+    if not candidate.is_absolute():
         return False
-    return bool(relative.parts) and relative.parts[0].startswith(CWO_TEMP_DIR_PREFIX)
-    return False
+
+    def authorized_root(root: Path, mode: int, require_owner: bool) -> bool:
+        try:
+            _reject_symlinked_existing_parts(root)
+            root_stat = root.stat()
+        except (OSError, SystemExit):
+            return False
+        if not stat.S_ISDIR(root_stat.st_mode) or stat.S_IMODE(root_stat.st_mode) != mode:
+            return False
+        if require_owner and root_stat.st_uid != os.getuid():
+            return False
+        try:
+            _reject_symlinked_existing_parts(candidate)
+            candidate.relative_to(root)
+        except (OSError, SystemExit, ValueError):
+            return False
+        return True
+
+    exchange_root = cwo_temp_dir(scope="exchange", create=False)
+    if authorized_root(exchange_root, 0o1770, require_owner=False):
+        return True
+
+    session_root = cwo_temp_dir(scope="session", create=False)
+    return authorized_root(session_root, 0o700, require_owner=True)
 
 
 def repo_relative_path(path: Path) -> str:

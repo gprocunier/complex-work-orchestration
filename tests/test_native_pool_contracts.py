@@ -812,11 +812,24 @@ class NativePoolContractTest(unittest.TestCase):
         now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
 
         observed_overrun = copy.deepcopy(capability)
-        observed_overrun["callbacks"]["send_input"] = {
+        bounded_jitter = copy.deepcopy(capability)
+        bounded_jitter["callbacks"]["send_input"] = {
             "p50_ms": 251,
             "p90_ms": 251,
             "p99_ms": 251,
             "max_ms": 251,
+        }
+        bounded_jitter = seal_artifact(bounded_jitter, "receipt_sha256")
+        self.assertNotIn(
+            "callback-observed-above-certified:send_input",
+            validate_capability_receipt(bounded_jitter, now=now),
+        )
+
+        observed_overrun["callbacks"]["send_input"] = {
+            "p50_ms": 276,
+            "p90_ms": 276,
+            "p99_ms": 276,
+            "max_ms": 276,
         }
         observed_overrun = seal_artifact(observed_overrun, "receipt_sha256")
         self.assertIn(

@@ -1,3 +1,40 @@
+# Native supervision: current and historical contracts
+
+Current operative routing is neutral-sized, qualified exact Luna first, with
+Terra only for recorded nonfit or justified escalation. Spark/v2 examples below
+are historical compatibility material: parseability is not fresh dispatch
+authority. Current v3 routes require current qualification, source/context/scope,
+candidate/attempt and budget bindings through precommit, packet and release.
+
+Read-only semantic reviews require zero mutations and an enforced filesystem
+and network boundary. Removing a patch tool or giving read-only instructions
+is not sufficient. A valid realignment return is nonaccepted. Final transaction
+validation and actual owned-resource closure outrank transport completion.
+
+Explicit self-maintenance uses owner-issued in-process capabilities and truthful
+maintenance-unbounded budget mode with bounded individual operations. Serialized
+authority snapshots never authenticate themselves. Normal unauthorized requests
+and finite budgets retain their ordinary behavior.
+
+## Current host tool profiles
+
+Tool policy version 2 explicitly binds the current core-resource profiles.
+The mutating profile permits `apply_patch`, `exec_command`, `write_stdin`,
+`list_mcp_resource_templates`, `list_mcp_resources`, and `read_mcp_resource`.
+The read-only profile omits `apply_patch`. Resource tools require actual empty,
+fully paginated MCP endpoint inventories before and after the owned thread;
+endpoint/configuration changes invalidate dispatch. Do not relabel a larger
+capture as an older three/two-tool profile. Version-1 profiles remain readable
+and strict on their own hosts; they do not qualify this larger surface.
+
+Packet producers can select these profiles with `--tool-profile` (or the
+corresponding library argument). The same validated profile governs rendered
+instructions and host enforcement. Removing a tool is never proof that shell
+writes or network effects are prevented; retain the actual enforced sandbox.
+Precommit/qualification turns remain no-tools regardless of operative profile.
+
+## Historical supervision reference
+
 # Native Worker Supervision
 
 Native worker supervision is the connected CWO control path for delegated
@@ -32,12 +69,67 @@ not attestation. Missing trusted session metadata, wrong model identity, an
 unavailable interrupt or close control, or an unusable telemetry stream stops
 dispatch.
 
+## Spark-First Operative Routing
+
+Operative, critic, and peer-review routes are independent decisions. Critic,
+contractor, and local-review configuration is evidence-only and never changes
+the operative model. Each fresh operative segment resolves an
+`operative_route` from trusted live capability evidence. Policy declarations or
+a model name accepted by a CLI parser do not prove availability.
+
+The exact availability vocabulary is `available`,
+`verified-quota-exhausted`, `verified-capacity-unavailable`, `unknown`,
+`model-mismatch`, `control-fault`, and `security-fault`. Only the two verified
+quota/capacity states open the ordinary fallback-choice path. Unknown or
+ambiguous telemetry, mismatch, control failure, contradictory validation,
+security failure, or unattributed mutation stops rather than prompting for a
+fallback.
+
+The legacy `workerbee_planned_delegation.spark_dispatch` summary remains
+readable for compatibility, but it is advisory and cannot prove availability
+or authorize dispatch. Consumers must use `operative_route` and the normal
+packet, precommit, release, and supervision gates.
+
+Fallback candidates are the intersection of fresh live host evidence and the
+environment's approved operative executors. They must retain repository read,
+write, shell, exact-attestation, lifecycle-control, workspace, mutation, risk,
+and policy authority. Review-only and external executors are excluded.
+
+A separate strict `cwo-operative-fallback-fit` artifact binds the native work
+estimate, Bead/wave/fresh-segment and work-lineage context, cache evidence,
+per-model host evidence, aggregate budget, policy version/hash, classifications,
+and candidate results by SHA-256. Predicted cache fit requires a hash-bound
+context plan. Observed cache fit requires trusted same-lineage telemetry. Stale,
+cross-lineage, missing, negative, malformed, or ratio-invalid evidence fails
+closed.
+
+The coach presents at most three eligible candidates plus **Wait for Spark**:
+GPT-5.5 only for strategically valid substantial cache-heavy work, Terra for
+non-Luna-shaped work, and Luna for deterministic narrow or repeatable work.
+Luna remains the final live fallback for non-Luna work only with an explicit
+degraded-task-fit warning and acknowledgement. Dispatch remains unauthorized
+until the user explicitly selects a displayed model and a scope: current Bead,
+current wave, or until Spark is restored. Version-2 selection provenance binds
+the exact model/executor, reason, scope/expiry, timestamp, actor, capability,
+work-estimate, fitness, policy, and candidate-evidence hashes.
+
+The aggregate budget is copied across model changes and is never reset. Spark
+is re-evaluated at every fresh segment. When it returns, a restoration-scoped
+fallback expires and the new segment returns to Spark; an already-running work
+unit never switches models. Route history appends quota, selection, and expiry
+evidence without rewriting earlier events. Legacy explicit-fallback metadata
+remains readable for inspection but must be migrated to the version-2 explicit
+selection contract before dispatch.
+
 ## Before Dispatch
 
 The precommit request happens before the candidate packet is allowed to become
-operative. It contains the work-plan hash, numeric complexity, aggregate
-allowance, and the required p50/p90 estimate fields. It excludes repository
-paths, code excerpts, commands, mutation instructions, and validation commands.
+operative. It contains the work-plan hash, task class, bounded primary outcome,
+bounded acceptance checks, numeric complexity, aggregate allowance, and the
+required p50/p90 estimate fields. The semantic text is single-line, size-limited,
+and rejects absolute paths and code or command fragments. The request excludes
+repository paths, code excerpts, commands, mutation instructions, and validation
+commands while remaining self-contained enough for a truthful fit decision.
 
 The precommit worker is supervised as a zero-tool fit request. An unexpected
 tool call, model mismatch, workspace mutation, compaction, partial session
@@ -189,6 +281,8 @@ python3 scripts/supervise_native_pool.py --help
 The public policy source is `policy/native-worker-execution.yaml`. Important
 schemas include:
 
+- `schemas/operative-routing-state.schema.json`
+- `schemas/operative-fallback-fit.schema.json`
 - `schemas/native-worker-packet.schema.json`
 - `schemas/native-precommit-state.schema.json`
 - `schemas/native-precommit-receipt.schema.json`

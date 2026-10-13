@@ -24,6 +24,8 @@ from cwo_core.audit import acquire_audit_lock, record_audit_event, release_audit
 from cwo_core.native_disposition import derive_disposition
 from cwo_core.native_containment import require_native_operative_dispatch
 from cwo_core.native_precommit import canonical_sha256
+from cwo_core.operative_routing import validate_operative_route_for_model
+from cwo_core.private_authority_input import private_authority_arguments
 from cwo_core.native_retry import (
     build_retry_authorization,
     canonical_retry_artifact_sha256,
@@ -46,7 +48,11 @@ from cwo_core.native_stop_scope import (
     policy_scope_authority,
     read_stop_metadata,
 )
-from cwo_core.native_worker_contracts import is_tool_call_item, trusted_tool_name
+from cwo_core.native_worker_contracts import (
+    decode_namespaced_exec_source,
+    is_tool_call_item,
+    trusted_tool_name,
+)
 from cwo_core.policy import load_policy
 from cwo_core.paths import AUDIT_LOG, cwo_temp_path, is_cwo_temp_path
 from cwo_core.util import artifact_hash, atomic_write_text, make_dispatch_id
@@ -520,15 +526,53 @@ def _tool_call_id(item: dict[str, Any]) -> str | None:
     return None
 
 
+def _effective_tool_call(item: dict[str, Any]) -> dict[str, Any]:
+    """Project a strict namespaced ``exec`` wrapper as its one nested tool.
+
+    Codex app-server telemetry represents ``functions.exec`` as a custom tool
+    call whose input is executable JavaScript.  The shared contract decoder
+    accepts only the single-call grammar used by that transport.  Malformed or
+    ambiguous source deliberately remains the outer ``exec`` call so normal
+    fail-closed tool policy rejects it.
+
+    The caller retains ``item`` for raw provenance and output pairing.  This
+    projection is used only at decision sites that need the effective tool,
+    arguments, command, or workdir.
+    """
+
+    item_type = str(item.get("type") or item.get("kind") or "").lower()
+    if (
+        item_type not in {"custom_tool_call", "customtoolcall"}
+        or trusted_tool_name(item).strip().lower() != "exec"
+    ):
+        return item
+    try:
+        decoded = decode_namespaced_exec_source(item.get("input"))
+    except ValueError:
+        return item
+    effective = dict(item)
+    effective.pop("input", None)
+    effective["name"] = str(decoded["tool"])
+    effective["arguments"] = decoded["arguments"]
+    return effective
+
+
 def _tool_policy_violation(
-    item: dict[str, Any], packet: dict[str, Any]
+    item: dict[str, Any],
+    packet: dict[str, Any],
+    *,
+    source_item: dict[str, Any] | None = None,
 ) -> dict[str, str] | None:
+    provenance_item = source_item if source_item is not None else item
     policy = packet.get("tool_policy")
     if not isinstance(policy, dict):
         return {
             "tool": "unknown",
             "evidence_sha256": canonical_sha256(
-                {"reason": "tool-policy-missing", "item_type": item.get("type")}
+                {
+                    "reason": "tool-policy-missing",
+                    "item_type": provenance_item.get("type"),
+                }
             ),
         }
     raw_name = trusted_tool_name(item).strip().lower()
@@ -541,7 +585,7 @@ def _tool_policy_violation(
     call_id = _tool_call_id(item)
     evidence = {
         "tool": name,
-        "item_sha256": canonical_sha256(item),
+        "item_sha256": canonical_sha256(provenance_item),
         "arguments_sha256": canonical_sha256(
             arguments if arguments is not None else {"unparseable": True}
         ),
@@ -801,6 +845,7 @@ def _activity_category(
     if (
         "python -m unittest" in lower
         or "python3 -m unittest" in lower
+        or "run_parallel_unittest.py" in lower
         or "compileall" in lower
         or "git diff --check" in lower
     ):
@@ -832,22 +877,23 @@ def _authorized_continuation_calls(
             item_type = item.get("type")
             call_id = _tool_call_id(item)
             if item_type in {"function_call", "custom_tool_call"}:
-                name = _tool_name(item).lower()
+                effective_item = _effective_tool_call(item)
+                name = _tool_name(effective_item).lower()
                 if name == "exec_command" and call_id is not None:
-                    command = _extract_command(item) or ""
+                    command = _extract_command(effective_item) or ""
                     category, _, _ = _activity_category(
-                        item,
+                        effective_item,
                         command,
                         [],
                         declared_validation_commands,
                     )
                     if (
                         category == "focused-validation"
-                        and _exec_command_workdir_violation(item, packet) is None
+                        and _exec_command_workdir_violation(effective_item, packet) is None
                     ):
                         declared_exec_calls.add(call_id)
                 elif name == "write_stdin" and call_id is not None:
-                    arguments = _tool_arguments(item)
+                    arguments = _tool_arguments(effective_item)
                     session_id = arguments.get("session_id") if arguments is not None else None
                     chars = arguments.get("chars", "") if arguments is not None else None
                     if (
@@ -1003,7 +1049,8 @@ def _analyze_command_evidence(
             item_type = item.get("type")
             call_id = _tool_call_id(item)
             if item_type in {"function_call", "custom_tool_call"}:
-                name = _tool_name(item).lower()
+                effective_item = _effective_tool_call(item)
+                name = _tool_name(effective_item).lower()
                 if failed:
                     violations.add("command-after-terminal-failure")
                 if call_id is not None:
@@ -1011,7 +1058,7 @@ def _analyze_command_evidence(
                         violations.add("command-call-id-duplicate")
                     calls[call_id] = (str(item_type), name)
                 if name == "exec_command":
-                    command = _extract_command(item) or ""
+                    command = _extract_command(effective_item) or ""
                     try:
                         argv = tuple(shlex.split(command))
                     except ValueError:
@@ -1028,7 +1075,7 @@ def _analyze_command_evidence(
                     command_states[index] = "pending"
                     commands[call_id] = {"index": index, "session_id": None, "parent": None}
                 elif name == "write_stdin":
-                    arguments = _tool_arguments(item)
+                    arguments = _tool_arguments(effective_item)
                     session_id = arguments.get("session_id") if isinstance(arguments, dict) else None
                     chars = arguments.get("chars", "") if isinstance(arguments, dict) else None
                     parent = active_sessions.get(session_id) if isinstance(session_id, int) and not isinstance(session_id, bool) else None
@@ -1144,7 +1191,12 @@ def _classify_native_activity(
     }
 
     for item in items[processed:]:
-        tool_violation = _tool_policy_violation(item, packet)
+        effective_item = _effective_tool_call(item)
+        tool_violation = _tool_policy_violation(
+            effective_item,
+            packet,
+            source_item=item,
+        )
         if tool_violation is not None:
             forbidden_activity[
                 (tool_violation["tool"], tool_violation["evidence_sha256"])
@@ -1154,14 +1206,14 @@ def _classify_native_activity(
             ) + 1
             violations.add("forbidden-tool-activity")
             continue
-        command = _extract_command(item) or ""
-        workdir_violation = _exec_command_workdir_violation(item, packet)
+        command = _extract_command(effective_item) or ""
+        workdir_violation = _exec_command_workdir_violation(effective_item, packet)
         if workdir_violation is not None:
             category_counts["unrelated"] = int(category_counts.get("unrelated", 0)) + 1
             violations.add(workdir_violation)
             continue
         category, referenced, content_chunk = _activity_category(
-            item,
+            effective_item,
             command,
             context_units,
             declared_validation_commands,
@@ -1692,6 +1744,9 @@ def start(
     *,
     verified_recovery_action: object | None = None,
     recovery_action_store: object | None = None,
+    current_authority: object = None,
+    maintenance_operation: object = None,
+    maintenance_verifier: object = None,
 ) -> dict[str, Any]:
     retry_authorization_path = getattr(args, "retry_authorization", None)
     if not retry_authorization_path and (
@@ -1700,8 +1755,9 @@ def start(
         _fail("recovery action hooks require --retry-authorization")
     packet_path = Path(args.packet).expanduser().resolve()
     packet = _load_json(packet_path, "packet")
-    _require_packet_release(packet, "supervision-start")
-    errors = validate_native_worker_packet(packet, dispatchable=True)
+    _require_current_packet_authority(packet, current_authority)
+    _require_packet_release(packet, "supervision-start", maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
+    errors = validate_native_worker_packet(packet, dispatchable=True, current_authority=current_authority, maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
     if errors:
         _fail("packet validation failed: " + "; ".join(errors))
     if _direct_execution_contract_invalid(packet.get("work_plan")):
@@ -1880,10 +1936,22 @@ def _load_control_state(path_value: str) -> tuple[Path, dict[str, Any]]:
     return path, state
 
 
-def _require_packet_release(packet: dict[str, Any], operation: str) -> None:
+def _require_current_packet_authority(packet: dict[str, Any], current_authority: object) -> None:
+    route = packet.get("operative_routing")
+    # Historical v2 remains parseable. A selected v3 route requires the actual
+    # current producer's evidence, never a self-authorizing packet snapshot.
+    if isinstance(route, dict) and route.get("version") == 3:
+        errors = validate_operative_route_for_model(route, packet.get("requested_model"),
+            work_estimate=packet.get("work_plan"), current_authority=current_authority)
+        if errors:
+            _fail("current operative authority rejected: " + "; ".join(errors))
+
+
+def _require_packet_release(packet: dict[str, Any], operation: str, *, maintenance_operation=None, maintenance_verifier=None) -> None:
     work_plan = packet.get("work_plan")
     require_native_operative_dispatch(
         operation,
+        maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier,
         release_evidence=(
             packet.get("release_evidence")
             if isinstance(packet.get("release_evidence"), dict)
@@ -1901,12 +1969,12 @@ def _require_packet_release(packet: dict[str, Any], operation: str) -> None:
     )
 
 
-def _require_direct_release(args: argparse.Namespace, operation: str) -> dict[str, Any] | None:
+def _require_direct_release(args: argparse.Namespace, operation: str, *, maintenance_operation=None, maintenance_verifier=None) -> dict[str, Any] | None:
     evidence = None
     path_value = getattr(args, "release_evidence", None)
     if isinstance(path_value, str) and path_value:
         evidence = _load_json(Path(path_value).expanduser().resolve(), "native release evidence")
-    require_native_operative_dispatch(operation, release_evidence=evidence)
+    require_native_operative_dispatch(operation, release_evidence=evidence, maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
     return evidence
 
 
@@ -1914,6 +1982,7 @@ def _require_state_release(
     state: dict[str, Any],
     operation: str,
     supplied_evidence: dict[str, Any] | None = None,
+    *, current_authority=None, maintenance_operation=None, maintenance_verifier=None,
 ) -> None:
     packet_file = state.get("packet_file")
     if not isinstance(packet_file, str) or not packet_file:
@@ -1923,7 +1992,8 @@ def _require_state_release(
         _fail("control-lost: bound packet changed after supervision start")
     if supplied_evidence is not None and packet.get("release_evidence") != supplied_evidence:
         _fail("control-lost: supplied release evidence does not match the bound packet")
-    _require_packet_release(packet, operation)
+    _require_current_packet_authority(packet, current_authority)
+    _require_packet_release(packet, operation, maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
 
 
 def _control_turn(value: str) -> str:
@@ -1968,10 +2038,10 @@ def _set_control_lost(
     _apply_supervision_stop_metadata(state)
 
 
-def arm(args: argparse.Namespace) -> dict[str, Any]:
-    release_evidence = _require_direct_release(args, "supervision-arm")
+def arm(args: argparse.Namespace, *, current_authority=None, maintenance_operation=None, maintenance_verifier=None) -> dict[str, Any]:
+    release_evidence = _require_direct_release(args, "supervision-arm", maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
     path, state = _load_control_state(args.state_file)
-    _require_state_release(state, "supervision-arm", release_evidence)
+    _require_state_release(state, "supervision-arm", release_evidence, current_authority=current_authority, maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
     if state.get("status") != "created":
         _fail("arm requires a newly created supervision state")
     now = _iso_now(args.now)
@@ -1984,10 +2054,10 @@ def arm(args: argparse.Namespace) -> dict[str, Any]:
     return state
 
 
-def mark_dispatched(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
-    release_evidence = _require_direct_release(args, "native-dispatch")
+def mark_dispatched(args: argparse.Namespace, *, current_authority=None, maintenance_operation=None, maintenance_verifier=None) -> tuple[dict[str, Any], int]:
+    release_evidence = _require_direct_release(args, "native-dispatch", maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
     path, state = _load_control_state(args.state_file)
-    _require_state_release(state, "native-dispatch", release_evidence)
+    _require_state_release(state, "native-dispatch", release_evidence, current_authority=current_authority, maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
     if state.get("status") != "armed":
         _fail("mark-dispatched requires an armed supervision state")
     supplied_control_turn = _control_turn(args.control_turn_id)
@@ -2045,8 +2115,16 @@ def _record_poll_timing(state: dict[str, Any], now: dt.datetime) -> bool:
     return False
 
 
-def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
+def check(args: argparse.Namespace, *, current_authority=None, maintenance_operation=None, maintenance_verifier=None) -> tuple[dict[str, Any], int]:
     path, state = _load_control_state(args.state_file)
+    try:
+        packet = _require_state_packet(state.get("packet_file"), state, "bound packet")
+        _require_current_packet_authority(packet, current_authority)
+    except SystemExit as exc:
+        if state.get("status") not in FINAL_STATES:
+            _set_control_lost(state, reason="current-authority-invalid", now=_iso_now(args.now), validation_reason=str(exc))
+            _write_state(path, state)
+        return _decision(state), 2
     if state.get("status") in {"running", "interrupt-pending", "interrupt-confirmed"}:
         try:
             _require_control_turn(state, args.control_turn_id)
@@ -2155,8 +2233,23 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
                 "command_evidence": command_evidence,
             }
         )
+        dispatched_at = _iso_now(state["control_timing"]["dispatched_at"])
+        startup_elapsed = max(0.0, (now - dispatched_at).total_seconds())
+        workspace_mutations = workspace_report.get("mutations")
+        attestation_pending = (
+            not bool(selected.get("complete"))
+            and selected.get("models") == []
+            and selected.get("hard_stop_reasons") == ["missing-attestation"]
+            and int(selected.get("tool_calls", 0)) == 0
+            and int(selected.get("context_compactions", 0)) == 0
+            and int(selected.get("full_suite_runs", 0)) == 0
+            and workspace_mutations in (None, [])
+            and not activity.get("violations")
+            and not command_evidence.get("violations")
+            and startup_elapsed <= state["segment_start_grace_seconds"]
+        )
         hard_reasons: list[str] = []
-        if overall_status == "model-mismatch":
+        if overall_status == "model-mismatch" and not attestation_pending:
             hard_reasons.append("model-mismatch")
         if observed["context_compactions"] > state["budget"]["max_compactions"]:
             hard_reasons.append("context-compaction")
@@ -2190,6 +2283,11 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
         elif reserve_reasons:
             decision = "interrupt"
             reasons = list(dict.fromkeys(reserve_reasons))
+        elif attestation_pending:
+            decision = "warn" if warning_reasons else "continue"
+            reasons = list(
+                dict.fromkeys(["awaiting-model-attestation", *warning_reasons])
+            )
         elif warning_reasons:
             decision = "warn"
             reasons = list(dict.fromkeys(warning_reasons))
@@ -2201,6 +2299,18 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
             "artifact_disposition": selected["artifact_disposition"],
             "artifact_validation": selected["artifact_validation"],
         }
+        if attestation_pending:
+            disposition = {
+                "session_disposition": "accepted-with-warning",
+                "artifact_disposition": "independent-validation-required",
+                "artifact_validation": {
+                    "eligible": False,
+                    "max_attempts": 1,
+                    "attempts_used": 0,
+                    "outcome": "not-run",
+                    "reason": "awaiting segment-local model attestation",
+                },
+            }
         if decision == "interrupt" and disposition["session_disposition"] != "quarantined":
             if hard_reasons:
                 disposition = {
@@ -2267,12 +2377,15 @@ def check(args: argparse.Namespace) -> tuple[dict[str, Any], int]:
     return decision, 2 if decision["decision"] in {"interrupt", "control-lost"} else 0
 
 
-def finalize(args: argparse.Namespace) -> dict[str, Any]:
+def finalize(args: argparse.Namespace, *, current_authority=None, maintenance_operation=None, maintenance_verifier=None) -> dict[str, Any]:
     path, state = _load_control_state(args.state_file)
     _require_control_turn(state, args.control_turn_id)
     if state.get("status") in FINAL_STATES:
         _fail("finalized supervision state cannot be reopened")
     action = args.control_action
+    if action == "worker-completed":
+        packet = _require_state_packet(state.get("packet_file"), state, "bound packet")
+        _require_current_packet_authority(packet, current_authority)
     if action == "worker-completed" and state.get("decision") != "complete":
         _fail("worker-completed requires a complete supervisor decision")
     if action == "interrupt-confirmed" and state.get("decision") not in {"interrupt", "control-lost"}:
@@ -2307,12 +2420,13 @@ def finalize(args: argparse.Namespace) -> dict[str, Any]:
     return state
 
 
-def assess_retry(args: argparse.Namespace) -> dict[str, Any]:
+def assess_retry(args: argparse.Namespace, *, current_authority=None, maintenance_operation=None, maintenance_verifier=None) -> dict[str, Any]:
     path, state = _load_control_state(args.state_file)
     _require_control_turn(state, args.control_turn_id)
     _require_closed_for_retry(state)
     _require_native_retry_decision(state)
     parent = _require_state_packet(state.get("packet_file"), state, "parent packet")
+    _require_current_packet_authority(parent, current_authority)
     canonical = canonical_work_sha256(parent)
     if state.get("immutable_work_sha256") != canonical:
         _fail("retry lifecycle requires preserved immutable work hash")
@@ -2335,14 +2449,15 @@ def assess_retry(args: argparse.Namespace) -> dict[str, Any]:
     return eligibility
 
 
-def authorize_retry(args: argparse.Namespace) -> dict[str, Any]:
-    release_evidence = _require_direct_release(args, "native-retry")
+def authorize_retry(args: argparse.Namespace, *, current_authority=None, maintenance_operation=None, maintenance_verifier=None) -> dict[str, Any]:
+    release_evidence = _require_direct_release(args, "native-retry", maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
     path, state = _load_control_state(args.state_file)
-    _require_state_release(state, "native-retry", release_evidence)
+    _require_state_release(state, "native-retry", release_evidence, current_authority=current_authority, maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
     _require_control_turn(state, args.control_turn_id)
     _require_closed_for_retry(state)
     _require_native_retry_decision(state)
     parent = _require_state_packet(state.get("packet_file"), state, "parent packet")
+    _require_current_packet_authority(parent, current_authority)
     canonical = canonical_work_sha256(parent)
     if state.get("immutable_work_sha256") != canonical:
         _fail("retry lifecycle requires preserved immutable work hash")
@@ -2350,7 +2465,7 @@ def authorize_retry(args: argparse.Namespace) -> dict[str, Any]:
     semantic_result = _load_json(Path(args.semantic_result).expanduser().resolve(), "semantic result")
     fresh_attestation = _load_json(Path(args.fresh_attestation).expanduser().resolve(), "fresh attestation")
     retry_packet = _load_json(Path(args.retry_packet).expanduser().resolve(), "retry packet")
-    errors = validate_native_worker_packet(retry_packet, dispatchable=True)
+    errors = validate_native_worker_packet(retry_packet, dispatchable=True, current_authority=current_authority, maintenance_operation=maintenance_operation, maintenance_verifier=maintenance_verifier)
     if errors:
         _fail("retry packet validation failed: " + "; ".join(errors))
     policy = _retry_policy()
@@ -2440,27 +2555,34 @@ def parse_args() -> argparse.Namespace:
     authorize_cmd.add_argument("--release-evidence")
     authorize_cmd.add_argument("--now")
     authorize_cmd.add_argument("--json", action="store_true")
+    for command in (start_cmd, arm_cmd, dispatched_cmd, check_cmd, finalize_cmd, assess_cmd, authorize_cmd):
+        command.add_argument("--current-authority-file")
+        command.add_argument("--current-authority-sha256")
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    try:
+        authority_args = private_authority_arguments(args.current_authority_file, args.current_authority_sha256)
+    except ValueError as exc:
+        _fail(str(exc))
     if args.command == "start":
-        result, code = start(args), 0
+        result, code = start(args, **authority_args), 0
     elif args.command == "arm":
-        result, code = arm(args), 0
+        result, code = arm(args, **authority_args), 0
     elif args.command == "mark-dispatched":
-        result, code = mark_dispatched(args)
+        result, code = mark_dispatched(args, **authority_args)
     elif args.command == "check":
-        result, code = check(args)
+        result, code = check(args, **authority_args)
         if args.projection == "compact":
             result = _compact_projection(_load_json(Path(args.state_file).expanduser().resolve(), "supervision state"))
     elif args.command == "finalize":
-        result, code = finalize(args), 0
+        result, code = finalize(args, **authority_args), 0
     elif args.command == "assess-retry":
-        result, code = assess_retry(args), 0
+        result, code = assess_retry(args, **authority_args), 0
     elif args.command == "authorize-retry":
-        result, code = authorize_retry(args), 0
+        result, code = authorize_retry(args, **authority_args), 0
     else:
         _fail(f"unsupported command {args.command!r}")
     if getattr(args, "json", False):

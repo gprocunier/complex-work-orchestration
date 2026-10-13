@@ -4,6 +4,7 @@ import fcntl
 import hashlib
 import json
 import os
+import stat
 import subprocess
 import tempfile
 import time
@@ -13,6 +14,19 @@ from typing import Any
 
 from .paths import REPO_ROOT
 from .util import artifact_hash
+
+
+FINGERPRINT_EXCLUDED_PARTS = frozenset(
+    {
+        ".git",
+        ".beads",
+        ".orchestration-audit",
+        "__pycache__",
+        ".ruff_cache",
+        ".pytest_cache",
+        ".mypy_cache",
+    }
+)
 
 
 def status_path(line: str) -> str:
@@ -26,7 +40,12 @@ def tracked_status_map(lines: list[str]) -> dict[str, str]:
     return {status_path(line): line for line in lines if line.strip()}
 
 
-def capture_tracked_workspace_state(cwd: Path | str = REPO_ROOT, *, include_untracked: bool = False) -> dict[str, Any]:
+def capture_tracked_workspace_state(
+    cwd: Path | str = REPO_ROOT,
+    *,
+    include_untracked: bool = False,
+    include_content_fingerprints: bool = True,
+) -> dict[str, Any]:
     root = Path(cwd)
     untracked_flag = "--untracked-files=all" if include_untracked else "--untracked-files=no"
     scope = "tracked-and-untracked" if include_untracked else "tracked"
@@ -49,15 +68,27 @@ def capture_tracked_workspace_state(cwd: Path | str = REPO_ROOT, *, include_untr
             "tracked_status_sha256": artifact_hash(""),
         }
     lines = sorted(line for line in result.stdout.splitlines() if line.strip())
-    fingerprint_lines = list(lines)
-    tracked_files = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "-z"],
-        check=False,
-        capture_output=True,
-    )
-    if tracked_files.returncode == 0:
-        fingerprint_lines.extend(
-            f"?? {item}" for item in tracked_files.stdout.decode("utf-8", errors="replace").split("\0") if item
+    fingerprints: dict[str, dict[str, Any]] = {}
+    if include_content_fingerprints:
+        fingerprint_lines = list(lines)
+        tracked_files = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "-z"],
+            check=False,
+            capture_output=True,
+        )
+        if tracked_files.returncode == 0:
+            fingerprint_lines.extend(
+                f"?? {item}"
+                for item in tracked_files.stdout.decode(
+                    "utf-8", errors="replace"
+                ).split("\0")
+                if item
+            )
+        fingerprints = _content_fingerprints(
+            root,
+            fingerprint_lines,
+            max_files=10000,
+            max_bytes=50_000_000,
         )
     return {
         "workspace_state_type": "git-status",
@@ -68,7 +99,7 @@ def capture_tracked_workspace_state(cwd: Path | str = REPO_ROOT, *, include_untr
         "include_untracked": bool(include_untracked),
         "tracked_status": lines,
         "tracked_status_sha256": artifact_hash("\n".join(lines)),
-        "content_fingerprints": _content_fingerprints(root, fingerprint_lines, max_files=10000, max_bytes=50_000_000),
+        "content_fingerprints": fingerprints,
         "baseline_complete": True,
         "replay_allowed": False,
     }
@@ -90,7 +121,13 @@ def _fingerprint_candidates(
     allowed_paths: list[str] | tuple[str, ...] | None = None,
 ) -> list[str]:
     resolved_root = root.resolve()
-    candidates = {_status_path_value(line) for line in status_lines if line.strip()}
+    candidates = {
+        path
+        for line in status_lines
+        if line.strip()
+        for path in [_status_path_value(line)]
+        if not any(part in FINGERPRINT_EXCLUDED_PARTS for part in Path(path).parts)
+    }
     for raw in allowed_paths or []:
         base = (resolved_root / str(raw)).resolve() if not Path(str(raw)).is_absolute() else Path(str(raw)).resolve()
         try:
@@ -98,12 +135,60 @@ def _fingerprint_candidates(
         except ValueError:
             continue
         if base.is_file():
-            candidates.add(base.relative_to(resolved_root).as_posix())
+            relative = base.relative_to(resolved_root)
+            if not any(part in FINGERPRINT_EXCLUDED_PARTS for part in relative.parts):
+                candidates.add(relative.as_posix())
         elif base.is_dir():
-            for path in sorted(base.rglob("*")):
-                if path.is_file() and ".git" not in path.relative_to(resolved_root).parts:
-                    candidates.add(path.relative_to(resolved_root).as_posix())
+            for current, directory_names, file_names in os.walk(base):
+                current_path = Path(current)
+                for name in sorted(directory_names):
+                    path = current_path / name
+                    relative = path.relative_to(resolved_root)
+                    if (
+                        path.is_symlink()
+                        and not any(
+                            part in FINGERPRINT_EXCLUDED_PARTS
+                            for part in relative.parts
+                        )
+                    ):
+                        candidates.add(relative.as_posix())
+                directory_names[:] = sorted(
+                    name
+                    for name in directory_names
+                    if name not in FINGERPRINT_EXCLUDED_PARTS
+                    and not (current_path / name).is_symlink()
+                )
+                for name in sorted(file_names):
+                    path = current_path / name
+                    relative = path.relative_to(resolved_root)
+                    if not any(
+                        part in FINGERPRINT_EXCLUDED_PARTS
+                        for part in relative.parts
+                    ) and path.is_file():
+                        candidates.add(relative.as_posix())
     return sorted(candidates)
+
+
+def _tracked_file_paths(root: Path) -> tuple[list[str], bool]:
+    """Return the tracked path set without performing a content-hash pass."""
+
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z"],
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        return [], False
+    try:
+        values = [item for item in result.stdout.decode("utf-8").split("\0") if item]
+    except UnicodeDecodeError:
+        return [], False
+    filtered = sorted(
+        path
+        for path in values
+        if not any(part in FINGERPRINT_EXCLUDED_PARTS for part in Path(path).parts)
+    )
+    return filtered, len(filtered) == len(set(filtered))
 
 
 def _content_fingerprints(
@@ -111,24 +196,47 @@ def _content_fingerprints(
     status_lines: list[str],
     *,
     allowed_paths: list[str] | tuple[str, ...] | None = None,
+    candidates: list[str] | tuple[str, ...] | None = None,
     max_files: int = 10000,
     max_bytes: int = 50_000_000,
     max_seconds: float = 5.0,
 ) -> dict[str, dict[str, Any]]:
     started = time.monotonic()
-    candidates = _fingerprint_candidates(root, status_lines, allowed_paths)
+    selected_candidates = (
+        list(candidates)
+        if candidates is not None
+        else _fingerprint_candidates(root, status_lines, allowed_paths)
+    )
     result: dict[str, dict[str, Any]] = {}
     total_bytes = 0
-    for relative in sorted(candidates):
+    for relative in sorted(selected_candidates):
         if len(result) >= max_files or time.monotonic() - started > max_seconds:
             break
         path = root / relative
         try:
+            metadata = path.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                target = os.fsencode(os.readlink(path))
+                size = len(target)
+                if total_bytes + size > max_bytes:
+                    break
+                result[relative] = {
+                    "kind": "symlink",
+                    "sha256": hashlib.sha256(target).hexdigest(),
+                    "size": size,
+                }
+                total_bytes += size
+                continue
             resolved = path.resolve()
             resolved.relative_to(root.resolve())
-            if not path.is_file() or path.is_symlink():
+            if not stat.S_ISREG(metadata.st_mode):
+                result[relative] = {
+                    "sha256": None,
+                    "size": None,
+                    "error": "unsupported-file-type",
+                }
                 continue
-            size = path.stat().st_size
+            size = metadata.st_size
             if total_bytes + size > max_bytes:
                 break
             digest = hashlib.sha256()
@@ -153,19 +261,37 @@ def capture_workspace_baseline(
 ) -> dict[str, Any]:
     """Capture status plus content evidence, retaining pre-existing dirt."""
     root = Path(cwd).resolve()
-    state = capture_tracked_workspace_state(root, include_untracked=include_untracked)
+    # This function computes the exact scoped fingerprints below. Avoid the
+    # broader all-tracked-file pass performed by the generic state helper: that
+    # duplicate evidence is discarded here and can make an N=3 trusted poll
+    # miss its deadline without adding any mutation coverage.
+    state = capture_tracked_workspace_state(
+        root,
+        include_untracked=include_untracked,
+        include_content_fingerprints=False,
+    )
     status_lines = list(state.get("tracked_status", []))
+    # Enumerate once and use that exact set for both fingerprinting and
+    # completeness.  A second filesystem walk can observe a different instant
+    # and falsely classify an otherwise coherent capture as incomplete.
+    candidates = _fingerprint_candidates(root, status_lines, allowed_paths)
+    tracked_paths, tracked_paths_complete = _tracked_file_paths(root)
     fingerprints = _content_fingerprints(
         root,
         status_lines,
         allowed_paths=allowed_paths,
+        candidates=candidates,
         max_files=max_files,
         max_bytes=max_bytes,
         max_seconds=max_seconds,
     )
-    candidate_count = len(_fingerprint_candidates(root, status_lines, allowed_paths))
+    candidate_count = len(candidates)
     fingerprint_error = any(item.get("error") for item in fingerprints.values())
-    incomplete = len(fingerprints) < candidate_count or fingerprint_error
+    incomplete = (
+        len(fingerprints) < candidate_count
+        or fingerprint_error
+        or not tracked_paths_complete
+    )
     dirty = sorted(_status_path_value(line) for line in status_lines if line[:2].strip())
     return {
         "workspace_evidence_type": "content-aware-baseline",
@@ -174,6 +300,8 @@ def capture_workspace_baseline(
         "allowed_paths": list(allowed_paths or []),
         "include_untracked": bool(include_untracked),
         "tracked_status": status_lines,
+        "tracked_paths": tracked_paths,
+        "tracked_paths_complete": tracked_paths_complete,
         "preexisting_dirty_paths": dirty,
         "content_fingerprints": fingerprints,
         "baseline_complete": not incomplete,
@@ -199,6 +327,7 @@ def compare_workspace_baseline(
     after_status = tracked_status_map(list(after.get("tracked_status", [])))
     before_fp = _evidence_fingerprints(before)
     after_fp = _evidence_fingerprints(after)
+    before_tracked = set(before.get("tracked_paths", []))
     paths = sorted(set(before_status) | set(after_status) | set(before_fp) | set(after_fp))
     mutations: list[dict[str, Any]] = []
     unchanged_dirty: list[str] = []
@@ -210,9 +339,25 @@ def compare_workspace_baseline(
             if baseline_dirty:
                 unchanged_dirty.append(path)
             continue
+        in_scope = _path_matches_scope(
+            path,
+            Path(str(before.get("cwd", "."))),
+            allowed_paths or before.get("allowed_paths"),
+        )
         if path not in before_fp and path in after_fp:
-            category = "untracked" if path not in before_status else "attribution-ambiguous"
-        elif not _path_matches_scope(path, Path(str(before.get("cwd", "."))), allowed_paths or before.get("allowed_paths")):
+            # A declared output may legitimately be absent from the baseline.
+            # Classify ownership before treating a newly fingerprinted path as
+            # an undeclared creation.  New paths outside the declared scope
+            # remain fail-closed.
+            if in_scope:
+                category = "scoped"
+            elif path in before_tracked:
+                category = "out-of-scope"
+            elif before.get("tracked_paths_complete") is True:
+                category = "untracked"
+            else:
+                category = "attribution-ambiguous"
+        elif not in_scope:
             category = "out-of-scope"
         elif baseline_dirty and not content_changed:
             category = "unchanged-dirty"

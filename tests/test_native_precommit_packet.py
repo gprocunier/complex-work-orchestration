@@ -10,10 +10,12 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+from tests.historical_policy_fixtures import historical_v2_policy, historical_cli_args
 
 from cwo_core.native_precommit import (  # noqa: E402
     arm_precommit,
@@ -25,6 +27,7 @@ from cwo_core.native_precommit import (  # noqa: E402
     release_precommit_receipt_reservation,
     reserve_precommit_receipt,
 )
+from cwo_core.paths import cwo_temp_dir  # noqa: E402
 import cwo_core.native_precommit as native_precommit  # noqa: E402
 from cwo_core.native_release import authorize_operative_packet  # noqa: E402
 from cwo_core.work_sizing import (  # noqa: E402
@@ -53,6 +56,8 @@ def canary_work_plan() -> dict:
         "bead_id": "complex-work-orchestration-fsh.3.5",
         "requested_model": MODEL,
         "task_class": "bounded-implementation",
+        "primary_outcome": "Complete a harmless bounded packet canary.",
+        "acceptance_checks": ["The canary packet remains zero mutation."],
         "scores": {
             "reasoning_uncertainty": 0,
             "subsystem_coupling": 0,
@@ -127,9 +132,19 @@ def write_records(path: Path, records: list[dict]) -> None:
 
 class NativePrecommitPacketTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.enterContext(historical_v2_policy())
         self.temp = tempfile.TemporaryDirectory(prefix="cwo-precommit-packet-")
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        self.environment = mock.patch.dict(
+            os.environ,
+            {
+                "CWO_TEMP_ROOT": self.temp.name,
+                "CWO_SESSION_ID": "native-precommit-packet",
+            },
+        )
+        self.environment.start()
+        self.addCleanup(self.environment.stop)
+        self.root = cwo_temp_dir()
         self.registry = self.root / "registry"
         self.original_registry = os.environ.get("CWO_PRECOMMIT_REGISTRY_ROOT")
         os.environ["CWO_PRECOMMIT_REGISTRY_ROOT"] = str(self.registry)
@@ -212,6 +227,32 @@ class NativePrecommitPacketTests(unittest.TestCase):
         tampered = copy.deepcopy(commitment)
         tampered["session_id"] = "different"
         self.assertTrue(any("derive exclusively" in error for error in validate_worker_commitment(tampered, self.plan, precommit_receipt=self.receipt)))
+
+        advisory = copy.deepcopy(self.receipt)
+        advisory["fit_result"]["estimates"]["tool_calls_p90"] = (
+            self.plan["aggregate_allowance"]["tool_calls_hard"] + 10
+        )
+        advisory["fit_result"]["estimates"]["runtime_seconds_p90"] = (
+            self.plan["aggregate_allowance"]["runtime_seconds_hard"] + 180
+        )
+        advisory["receipt_sha256"] = native_precommit.canonical_sha256(
+            {key: value for key, value in advisory.items() if key != "receipt_sha256"}
+        )
+        advisory_commitment = build_worker_commitment_from_receipt(self.plan, advisory)
+        expected_estimates = {
+            key: self.plan["estimates"][key]
+            for key in ("tool_calls_p50", "tool_calls_p90", "runtime_seconds_p50", "runtime_seconds_p90")
+        }
+        self.assertEqual(advisory_commitment["estimates"], expected_estimates)
+        self.assertEqual(
+            validate_worker_commitment(
+                advisory_commitment,
+                self.plan,
+                dispatchable=True,
+                precommit_receipt=advisory,
+            ),
+            [],
+        )
 
     def test_commitment_v1_is_historical_only(self) -> None:
         legacy = {
@@ -405,8 +446,7 @@ class NativePrecommitPacketTests(unittest.TestCase):
         adjudication_path.write_text(json.dumps(adjudication), encoding="utf-8")
         result = subprocess.run(
             [
-                sys.executable,
-                str(ROOT / "scripts" / "manage_native_release.py"),
+                *historical_cli_args(ROOT / "scripts" / "manage_native_release.py"),
                 "authorize-packet",
                 "--candidate-packet",
                 str(candidate_path),
@@ -510,7 +550,7 @@ class NativePrecommitPacketTests(unittest.TestCase):
         packet_file = self.root / "packet.json"
         packet_file.write_text(json.dumps(packet), encoding="utf-8")
         render = subprocess.run(
-            [sys.executable, str(ROOT / "scripts" / "prepare_native_worker.py"), "render", str(packet_file)],
+            historical_cli_args(ROOT / "scripts" / "prepare_native_worker.py", "render", str(packet_file)),
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -520,8 +560,7 @@ class NativePrecommitPacketTests(unittest.TestCase):
         self.assertIn("native-precommit-containment-active", render.stderr)
         start = subprocess.run(
             [
-                sys.executable,
-                str(ROOT / "scripts" / "supervise_native_worker.py"),
+                *historical_cli_args(ROOT / "scripts" / "supervise_native_worker.py"),
                 "start",
                 "--packet",
                 str(packet_file),

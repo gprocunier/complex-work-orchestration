@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
+from tests.historical_policy_fixtures import historical_v2_policy  # noqa: E402
 from cwo_core.synthesis import recommend_model_synthesis  # noqa: E402
 from scaffold_workgraph import (  # noqa: E402
     _normalize_closure_pressure,
@@ -19,6 +20,25 @@ from scaffold_workgraph import (  # noqa: E402
     recovery_summary,
     try_dep,
 )
+
+
+def live_spark_capability_evidence() -> dict[str, object]:
+    return {
+        "source": "trusted-control-plane-session-metadata",
+        "observed_at": "2026-09-03T12:00:00Z",
+        "fresh": True,
+        "spark": {
+            "model": "gpt-5.3-codex-spark",
+            "exact_model_available": True,
+            "quota_status": "usable",
+            "capacity_status": "available",
+            "fresh_session_supported": True,
+            "exact_model_attestation_supported": True,
+            "lifecycle_controls": ["interrupt", "close", "wait"],
+            "workspace_enforced": True,
+            "mutation_enforced": True,
+        },
+    }
 
 
 class ScaffoldTests(unittest.TestCase):
@@ -239,10 +259,13 @@ class ScaffoldTests(unittest.TestCase):
                 item.get("metadata", {}).get("workerbee_spark_dispatch", {}),
             )
 
+    @historical_v2_policy()
     def test_operational_lanes_get_spark_owner_metadata_and_labels(self) -> None:
         route = classify_work(
             "Refactor docs, implementation, and validation with Codex 5.6 Sol and Codex 5.3 Spark roles.",
             requested_roles=["architecture", "documentation", "implementation"],
+            operative_capabilities=live_spark_capability_evidence(),
+            operative_evaluated_at="2026-09-03T12:00:00Z",
         )
         route["workerbee_planned_delegation"] = {
             "mode": "implementation-capable",
@@ -282,10 +305,13 @@ class ScaffoldTests(unittest.TestCase):
         if "publish-sanitization" in by_lane:
             self.assertEqual(by_lane["publish-sanitization"]["metadata"].get("workerbee_operational_owner"), "spark")
 
+    @historical_v2_policy()
     def test_native_first_route_assigns_spark_operational_metadata_to_operative_lanes(self) -> None:
         route = classify_work(
             "Implement a small helper and verify tests with Spark-native dispatch.",
             requested_roles=["implementation", "documentation", "validation"],
+            operative_capabilities=live_spark_capability_evidence(),
+            operative_evaluated_at="2026-09-03T12:00:00Z",
         )
         route["workerbee_planned_delegation"] = {
             "mode": "implementation-capable",
@@ -387,6 +413,7 @@ class ScaffoldTests(unittest.TestCase):
             with self.subTest(lane=item.get("lane")):
                 self.assert_hard_stop_workerbee_metadata(item, expected_dispatch)
 
+    @historical_v2_policy()
     def test_real_coach_native_tool_unavailable_preserves_non_mismatch_hard_stop(self) -> None:
         self.assert_coach_hard_stop_graph(
             "Plan docs work. Native Spark tooling is unavailable.",
@@ -394,6 +421,7 @@ class ScaffoldTests(unittest.TestCase):
             expected_failed_check="spark-native-tool-absence",
         )
 
+    @historical_v2_policy()
     def test_real_coach_registry_tool_mismatch_preserves_mismatch_hard_stop(self) -> None:
         self.assert_coach_hard_stop_graph(
             "There is a Spark registry/tool mismatch for this task.",
@@ -401,6 +429,7 @@ class ScaffoldTests(unittest.TestCase):
             expected_failed_check="spark-registry-tool-mismatch",
         )
 
+    @historical_v2_policy()
     def test_spark_operational_metadata_does_not_infect_architect_and_model_synthesis_lanes(self) -> None:
         text = (
             "Architect a high-risk public docs migration, with Sol routing as architect and Spark as implementation worker. "
@@ -411,6 +440,8 @@ class ScaffoldTests(unittest.TestCase):
             external_ok=True,
             share_boundary="redacted-packet",
             requested_roles=["architecture", "documentation", "implementation"],
+            operative_capabilities=live_spark_capability_evidence(),
+            operative_evaluated_at="2026-09-03T12:00:00Z",
         )
         route = {**route, "model_synthesis": recommend_model_synthesis(text, route)}
         route["workerbee_planned_delegation"] = {

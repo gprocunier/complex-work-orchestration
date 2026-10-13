@@ -62,6 +62,14 @@ profile `rhoai-architect-glm-5-2-bf16-256k-thinking`. It reads its route from
 `glm-5.2-bf16-256k`, and preflights `/v1/models` immediately before posting to
 `/v1/chat/completions`.
 
+GLM-5.3 direct review uses the dedicated executor
+`rhoai_glm_compact_architecture_critic`, local profile
+`openshift-ai-glm-5-3-direct`, and access profile `rhoai-glm-5-3-direct`. It
+reads `CWO_OPENSHIFT_AI_GLM_5_3_BASE_URL`, accepts either an origin URL or one
+already ending in `/v1`, requires the exact advertised model
+`glm-5.3-bf16`, and sends no API-key header. It is a compact second-opinion
+critic, not a primary architect or implementation worker.
+
 The same endpoint can be selected as an experimental primary architect through
 `rhoai_glm_primary_architect` by choosing the
 `connected-codex-glm-primary` execution environment. That path keeps the Codex
@@ -117,12 +125,16 @@ export CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL="glm-5.2-bf16-128k"
 export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL="https://glm-256k-route.example.internal"
 export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_MODEL="glm-5.2-bf16-256k"
 
+export CWO_OPENSHIFT_AI_GLM_5_3_BASE_URL="https://glm-route.example.internal/v1"
+export CWO_OPENSHIFT_AI_GLM_5_3_MODEL="glm-5.3-bf16"
+
 # Optional for private route trust.
 export CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE="$HOME/.config/cwo/rhoai-ca.pem"
 
 # Lab-only escape hatch when the endpoint route cannot be validated normally.
 # export CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY=false
 # export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_TLS_VERIFY=false
+# export CWO_OPENSHIFT_AI_GLM_5_3_TLS_VERIFY=false
 ```
 
 Source the file before starting Codex or running CWO helpers:
@@ -137,6 +149,7 @@ Smoke-test the configuration in layers:
 python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
 python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16 --require-configured
 python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --require-configured
+python3 scripts/render_access_profile_status.py --profile rhoai-glm-5-3-direct --require-configured
 
 curl -sS "$CWO_OPENSHIFT_AI_VLLM_BASE_URL/v1/models" \
   -H "Authorization: Bearer $CWO_OPENSHIFT_AI_VLLM_API_KEY"
@@ -302,6 +315,133 @@ The executor defaults remain bounded request-side at `chat_template_kwargs.enabl
 and `max_tokens=4096` so local endpoint defaults do not control safety-critical
 token cap behavior.
 
+### GLM-5.3 compact second-opinion mode
+
+The GLM-5.3 lane addresses a failure mode observed with a monolithic review:
+the model spent 10,000 to 12,000 output tokens drafting, the server did not make
+the requested response schema visible to the model, and a larger repeat ended
+in an HTTP 504. The repaired lane therefore puts a small JSON contract directly
+in the system message, requests GLM-5.3's supported
+`reasoning_effort=low`, caps the final return at three findings, and
+deterministically renders a successful object into
+the standard evaluator sections. The prospective `cwo-glm-critic-v2` contract
+uses one 6,000-character final-object ceiling rather than prescribing how the
+model must distribute that space across evidence fields. Historical v1 evidence
+retains its original per-field limits and is never reinterpreted under v2.
+
+V2 tells the normal-chat model to emit exactly eight top-level keys:
+`verdict`, `summary`, `findings`, `alternatives`, `risks`, `confidence`,
+`recommended_next_action`, and `escalation_needed`. `verdict` is `approve`,
+`revise`, or `reject`; `confidence` is `high`, `medium`, or `low`. Each of one
+to three findings has exactly four string keys: `severity`, `claim`,
+`evidence`, and `repair`; severity is `critical`, `high`, `medium`, or `low`.
+Evidence must include `Fact:` or `Inference:` as appropriate--there is no
+separate inference field. Alternatives and risks are arrays of zero to two
+non-empty strings.
+
+Client validation still rejects every shape violation. Invalid v2 results may
+carry only bounded generated diagnostics: JSON/container type, missing known
+fields, unexpected-field count plus a digest, invalid enum or text type, and
+list bounds. Unknown field names, values, excerpts, and reasoning are never
+reported. Rejected final content is quarantined before both full and compact
+projection, so diagnostics are operational evidence rather than a recoverable
+review. Deterministic mocked tests check this client contract; they do not
+establish GLM reliability on a live workload.
+Current-host diagnostics show that the route advertises but
+does not enforce native structured-output constraints; a later reasoning-aligned
+constrained request returned HTTP 500. The dispatcher therefore does not submit
+`structured_outputs` on this host. Re-enable it only after an isolated server
+diagnostic proves enforcement. Independent validation
+uses the semantic JSON contract and total-length ceiling rather than rejecting a
+safe answer only because it contains harmless JSON whitespace or escapes.
+
+Server logs later classified the single HTTP 500 as an xgrammar finite-state
+machine rejection while advancing the grammar during generation. It was not a
+GLM outage, compiler failure, parser assertion, OOM, engine death, Ray loss, or
+pod restart. Consequently this profile fails closed if `response_format`,
+`structured_outputs`, `guided_json`, `guided_regex`, `guided_grammar`, or any
+equivalent grammar-constrained request option is configured. Normal chat output
+is validated and quarantined client-side instead.
+
+```bash
+set -euo pipefail
+dispatch_json=$(mktemp "${TMPDIR:-/tmp}/cwo-glm53-dispatch.XXXXXXXX.json")
+return_file=$(mktemp "${TMPDIR:-/tmp}/cwo-glm53-return.XXXXXXXX.md")
+trap 'rm -f "$dispatch_json" "$return_file" "$return_file.pending"' EXIT
+
+python3 scripts/dispatch_work.py \
+  --file critic-brief.md \
+  --local-ok \
+  --local-profile openshift-ai-glm-5-3-direct \
+  --requested-role architecture \
+  --execute-local \
+  --local-result-view compact \
+  --json > "$dispatch_json"
+
+python3 - "$dispatch_json" "$return_file" <<'PY'
+import json
+import os
+import sys
+from pathlib import Path
+
+artifact = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+response = artifact.get("local_response")
+value = response.get("normalized_return") if isinstance(response, dict) else None
+if not isinstance(value, str) or not value:
+    raise SystemExit("GLM-5.3 did not produce an evaluator-ready return")
+target = Path(sys.argv[2])
+pending = target.with_name(target.name + ".pending")
+pending.write_text(value, encoding="utf-8")
+os.replace(pending, target)
+PY
+
+python3 scripts/evaluate_return.py \
+  --file "$return_file" \
+  --local-dispatch-result "$dispatch_json" \
+  --peer-review-required \
+  --json
+```
+
+Run the block as one shell transaction. A failed dispatch or extraction stops
+before evaluation; the per-run temporary files are removed on exit. The
+evaluator also requires an exact match to the dispatch's normalized-return
+digest for v2, so a stale or substituted return cannot gain synthesis weight.
+
+Prefer a configured `CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE`. If the current lab route
+still presents an untrusted chain, `--local-insecure-tls` is available only with
+an explicit waiver reason and is recorded in dispatch telemetry. The no-auth
+profile never reads the shared API-key variable.
+
+GLM-5.3 has no non-thinking mode. Its chat template uses `reasoning_effort` and
+always opens a reasoning segment, so this profile must not send the older
+`enable_thinking=false` switch. That combination can leave the model reasoning
+while disabling vLLM's extraction, leaking scratchpad text into `content`.
+Instead the profile sends top-level `reasoning_effort=low` and keeps reasoning
+extraction enabled. Separate reasoning is hashed and removed. For the known
+leading-prompt case where only a closing `</think>` appears in generated text,
+the client hashes the prefix as reasoning and validates only the final suffix.
+
+Only an exact-model, `stop`-finished, tool-free final response matching
+`cwo-glm-critic-v2` is usable. The request boundary revalidates the profile,
+exact normal-chat option allowlist, contract, and no-auth mode immediately before
+preflight. The client rejects duplicate JSON keys, non-finite values, invalid
+Unicode, dangerous controls, and excessive nesting. Any unusable model-authored
+final content is removed from both full and compact results and replaced by its
+hash and character count. The validator retains a 6,000-character fail-closed
+whole-final-text ceiling without the brittle v1 per-field distribution caps. The 8,192-token
+request budget exists to leave room for low-effort reasoning and a bounded final
+object. A length stop, 504,
+reasoning-only return, or invalid contract ends that dispatch; never repeat or
+resume it. Any separately admitted call must use a fresh dispatch and a
+materially distinct question while preserving the failed evidence.
+
+The dispatch command emits its audited JSON artifact and then exits nonzero when
+an executed local response is unusable. Automation must check both the process
+status and `local_response.usable_final_content`; an evaluator verdict never
+overrides the dispatcher's final eligibility decision. Current limits bound the
+model-visible final text, not the complete HTTP response body, so this profile
+does not claim a separately calibrated wire-byte resource ceiling.
+
 For a render-only harness envelope under the GLM-primary bridge:
 
 ```bash
@@ -335,8 +475,9 @@ OpenShift Route hostnames are allowed only when the selected executor profile or
 `--local-allow-private-dns` opts in and every resolved address is loopback,
 RFC1918 private, or RFC4193 local IPv6. For TLS, prefer normal trust-store
 verification or set `CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE` to a route CA bundle.
-The GLM BF16 executor also supports the lab-only
-`CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY=false` or `--local-insecure-tls`
+The GLM BF16 executors also support the lab-only
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY=false`,
+`CWO_OPENSHIFT_AI_GLM_5_3_TLS_VERIFY=false`, or `--local-insecure-tls`
 escape hatch; audit metadata records that insecure verification was selected,
 and other local executor profiles remain fail-closed unless they explicitly
 allow it.

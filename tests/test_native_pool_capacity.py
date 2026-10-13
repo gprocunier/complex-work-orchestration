@@ -16,6 +16,7 @@ from cwo_core.native_pool_capacity import (  # noqa: E402
     NativePoolCapacityPolicyError,
     capacity_schema_errors,
     load_pool_capacity,
+    operative_pool_policy,
 )
 
 
@@ -26,6 +27,44 @@ def policy_document() -> dict:
 
 
 class NativePoolCapacityTests(unittest.TestCase):
+    def test_operative_policy_copy_preserves_checked_in_mapping_order(self) -> None:
+        document = policy_document()
+        operative = operative_pool_policy(document)
+
+        expected = list(
+            document["work_sizing"]["enforcement"]["foundation-canary"][
+                "protected_surfaces"
+            ]
+        )
+        actual = list(
+            operative["work_sizing"]["enforcement"]["foundation-canary"][
+                "protected_surfaces"
+            ]
+        )
+        self.assertEqual(actual, expected)
+
+    def test_operative_policy_still_rejects_caller_substitution(self) -> None:
+        document = policy_document()
+        document["native_supervision_pool"]["capacity"][
+            "released_max_active_workers"
+        ] = 2
+
+        with self.assertRaisesRegex(
+            NativePoolCapacityPolicyError,
+            "productive-pool-policy-not-operative",
+        ):
+            operative_pool_policy(document)
+
+    def test_operative_policy_still_rejects_non_json_input(self) -> None:
+        document = policy_document()
+        document["not-json"] = {"set-value"}
+
+        with self.assertRaisesRegex(
+            NativePoolCapacityPolicyError,
+            "productive-pool-policy-not-canonical-json",
+        ):
+            operative_pool_policy(document)
+
     def test_canonical_policy_releases_certified_hard_ceiling(self) -> None:
         document = policy_document()
         limits = load_pool_capacity(document)

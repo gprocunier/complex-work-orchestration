@@ -72,12 +72,16 @@ class FakeAdapter:
         callback_ms: float = 1,
         callback_ms_by_name: dict[str, float] | None = None,
         fail: str | None = None,
+        deferred_close: bool = False,
+        close_defer_count: int = 0,
     ) -> None:
         self.clock = clock
         self.decisions = list(decisions)
         self.callback_ms = callback_ms
         self.callback_ms_by_name = dict(callback_ms_by_name or {})
         self.fail = fail
+        self.deferred_close = deferred_close
+        self.close_defer_count = close_defer_count
         self.calls: list[str] = []
 
     def _call(self, name: str, result=None):
@@ -91,6 +95,18 @@ class FakeAdapter:
         decision = self.decisions.pop(0) if self.decisions else "complete"
         return self._call("check", {"decision": decision})
 
+    def close(self, **_kwargs):
+        pending = self.close_defer_count > 0
+        if pending:
+            self.close_defer_count -= 1
+        return self._call(
+            "close",
+            {
+                "ack": "close-pending" if pending else "closed",
+                "close_wait_required": pending,
+            },
+        )
+
     def callbacks(self) -> dict:
         return {
             "arm": lambda **_kwargs: self._call("arm"),
@@ -100,8 +116,16 @@ class FakeAdapter:
             "mark_dispatched": lambda **_kwargs: self._call("mark_dispatched"),
             "check": self.check,
             "interrupt": lambda **_kwargs: self._call("interrupt"),
-            "close": lambda **_kwargs: self._call("close"),
-            "finalize": lambda **_kwargs: self._call("finalize"),
+            "close": self.close,
+            "finalize": lambda **_kwargs: self._call(
+                "finalize",
+                {
+                    "ack": _kwargs.get("control_action", "finalized"),
+                    "close_wait_required": True,
+                }
+                if self.deferred_close
+                else None,
+            ),
             "sleep": lambda **_kwargs: self._call("sleep"),
         }
 
@@ -116,6 +140,8 @@ class PoolHarness:
         callback_ms: float = 1,
         callback_ms_by_name: dict[str, float] | None = None,
         fail: tuple[int, str] | None = None,
+        deferred_close: bool = False,
+        close_defer_count: int = 0,
         dirty_phases: set[str] | None = None,
         usage_by_child: dict[str, dict] | None = None,
         usage_sequence_by_child: dict[str, list[dict]] | None = None,
@@ -165,6 +191,8 @@ class PoolHarness:
                 callback_ms=callback_ms,
                 callback_ms_by_name=callback_ms_by_name,
                 fail=fail[1] if fail is not None and fail[0] == index else None,
+                deferred_close=deferred_close,
+                close_defer_count=close_defer_count,
             )
             for index in range(cap)
         }
@@ -455,6 +483,26 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 receipt["admission_order"],
                 ["child-0", "child-1", "child-2"],
             )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            deferred = PoolHarness(
+                temporary,
+                cap=3,
+                deferred_close=True,
+                close_defer_count=2,
+            )
+            receipt = deferred.coordinator.run()
+            self.assertTrue(receipt["accepting"])
+            self.assertEqual(receipt["pool_disposition"], "accepted")
+            self.assertLess(
+                deferred.coordinator.progress()["state"]["state_sequence"],
+                64,
+            )
+            for adapter in deferred.adapters.values():
+                self.assertEqual(
+                    adapter.calls[-4:],
+                    ["finalize", "close", "close", "close"],
+                )
 
         with tempfile.TemporaryDirectory() as temporary:
             reduced_policy = json.loads(
@@ -782,7 +830,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             harness = PoolHarness(
                 temporary,
                 cap=2,
-                callback_ms_by_name={"send_input": 210},
+                callback_ms_by_name={"check": 190},
             )
             warning = None
             for _ in range(32):
@@ -794,12 +842,50 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 if progress["wait_required"]:
                     harness.clock.sleep(seconds=progress["wait_seconds"])
             self.assertIsNotNone(warning)
-            self.assertEqual(warning["observed_callback_latency_ms"], 210.0)
+            self.assertEqual(warning["observed_callback_latency_ms"], 190.0)
             self.assertEqual(warning["reasons"], [])
 
             receipt = harness.coordinator.run()
             self.assertTrue(receipt["accepting"])
             self.assertIsNone(receipt["first_protected_fault"])
+
+    def test_send_input_nominal_and_hard_boundaries_are_distinct(self) -> None:
+        cases = (
+            (250, None, True),
+            (250.001, "warn", True),
+            (275, "warn", True),
+            (275.001, "interrupt", False),
+        )
+        for callback_ms, expected_decision, expected_accepting in cases:
+            with self.subTest(callback_ms=callback_ms), tempfile.TemporaryDirectory() as temporary:
+                harness = PoolHarness(
+                    temporary,
+                    cap=2,
+                    callback_ms_by_name={"send_input": callback_ms},
+                )
+                observed_decision = None
+                for _ in range(32):
+                    progress = harness.coordinator.step()
+                    decision = progress["decision"]
+                    if decision is not None and decision["selected_child_id"] == "child-0":
+                        if decision["decision"] in {"warn", "interrupt"}:
+                            observed_decision = decision["decision"]
+                            break
+                    if progress["wait_required"]:
+                        harness.clock.sleep(seconds=progress["wait_seconds"])
+                if expected_decision is None:
+                    self.assertIsNone(observed_decision)
+                else:
+                    self.assertEqual(observed_decision, expected_decision)
+                receipt = harness.coordinator.run()
+                self.assertEqual(receipt["accepting"], expected_accepting)
+                if expected_accepting:
+                    self.assertIsNone(receipt["first_protected_fault"])
+                else:
+                    self.assertEqual(
+                        receipt["first_protected_fault"]["code"],
+                        "callback-overrun:send_input",
+                    )
 
     def test_step_invokes_at_most_one_adapter_callback_and_never_sleeps(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -870,7 +956,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
 
     def test_mixed_topology_mutation_disables_later_callback_skipping(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            detected_phase = "after-child-1-arm"
+            detected_phase = "after-child-1-check"
             harness = PoolHarness(
                 temporary,
                 cap=2,
@@ -1321,12 +1407,10 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 temporary,
                 cap=2,
                 callback_ms=101,
-                dirty_phases={"after-child-0-arm", "close"},
             )
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
             self.assertIn("callback-overrun:arm", receipt["reasons"])
-            self.assertIn("workspace-mutation-attribution-failed", receipt["reasons"])
             self.assertEqual(
                 receipt["first_protected_fault"],
                 {
@@ -1375,6 +1459,19 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertIn("interrupt", calls)
             self.assertGreater(calls.index("interrupt"), calls.index("check"))
             self.assertIn("workspace-mutation-attribution-failed", receipt["reasons"])
+            observations = harness.coordinator.workspace_observations()
+            suspicious = [
+                item
+                for item in observations
+                if item["phase"] == "after-child-0-check"
+            ]
+            self.assertEqual(len(suspicious), 1)
+            self.assertFalse(suspicious[0]["evidence"]["integration_root_clean"])
+            observations[0]["phase"] = "tampered-copy"
+            self.assertNotEqual(
+                harness.coordinator.workspace_observations()[0]["phase"],
+                "tampered-copy",
+            )
 
     def test_aggregate_exhaustion_interrupts_every_admitted_child(self) -> None:
         usage = zero_usage()
@@ -1482,13 +1579,68 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertTrue(any("cumulative-tool-calls-reset" in reason for reason in receipt["reasons"]))
             self.assertEqual(receipt["lease_evidence"][0]["lifecycle_state"], "release-pending")
 
-    def test_late_first_poll_is_pool_wide_protected_stop(self) -> None:
+    def test_pre_submission_time_does_not_count_as_first_poll_lag(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            harness = PoolHarness(temporary, cap=1, callback_ms=700)
+            harness = PoolHarness(temporary, cap=1)
+            harness.clock.advance_ms(5000)
+            receipt = harness.coordinator.run()
+            self.assertTrue(receipt["accepting"])
+            self.assertNotIn("maximum-poll-gap-exceeded", receipt["reasons"])
+            self.assertLess(receipt["timing"]["max_poll_gap_ms"], 2500)
+
+    def test_post_submission_first_poll_delay_is_pool_wide_protected_stop(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            turn = harness.coordinator._turns["child-0"]
+            original_step = turn.step
+
+            def delayed_step(*args, **kwargs):
+                if turn._phase == "mark-dispatched":
+                    harness.clock.advance_ms(2600)
+                return original_step(*args, **kwargs)
+
+            turn.step = delayed_step
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
             self.assertIn("maximum-poll-gap-exceeded", receipt["reasons"])
             self.assertGreater(receipt["timing"]["max_poll_gap_ms"], 2500)
+
+    def test_mutable_startup_compares_workspace_at_first_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            receipt = harness.coordinator.run()
+            self.assertTrue(receipt["accepting"])
+            self.assertFalse(
+                any(
+                    phase in {
+                        "after-child-0-arm",
+                        "after-child-0-send_input",
+                        "after-child-0-mark_dispatched",
+                    }
+                    for phase in harness.compare_phases
+                )
+            )
+            self.assertIn("after-child-0-check", harness.compare_phases)
+
+    def test_mocked_n3_startup_reaches_all_first_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(
+                temporary,
+                cap=3,
+                decisions=[["continue", "complete"] for _ in range(3)],
+            )
+            receipt = harness.coordinator.run()
+            self.assertTrue(receipt["accepting"])
+            self.assertEqual(
+                receipt["admission_order"],
+                ["child-0", "child-1", "child-2"],
+            )
+            self.assertNotIn("maximum-poll-gap-exceeded", receipt["reasons"])
+            for child_id in ("child-0", "child-1", "child-2"):
+                self.assertIn(
+                    f"after-{child_id}-check",
+                    harness.compare_phases,
+                )
 
     def test_partial_dispatch_lease_collision_has_strict_nonaccepting_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

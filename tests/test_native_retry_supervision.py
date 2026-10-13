@@ -33,7 +33,7 @@ from cwo_core.native_recovery_policy import (
     RECOVERY_SIGNAL_FIELDS,
     build_recovery_audit_decision,
 )
-from cwo_core.paths import cwo_temp_path
+from cwo_core.paths import cwo_temp_dir, cwo_temp_path
 from cwo_core.policy import load_policy
 
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
@@ -105,16 +105,18 @@ def _reseal_retry_evidence_bindings(receipt: dict) -> None:
 class NativeRetrySupervisionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-native-retry-supervision-")
-        self.root = Path(self.tmp.name)
-        supervisor_fixtures._FIXTURE_ROOT = self.root
+        outer_root = Path(self.tmp.name)
         self.environment = mock.patch.dict(
             os.environ,
             {
-                "CWO_PRECOMMIT_REGISTRY_ROOT": str(self.root / "precommit-registry"),
-                "CWO_SESSION_ID": self.root.name,
+                "CWO_TEMP_ROOT": str(outer_root),
+                "CWO_SESSION_ID": outer_root.name,
             },
         )
         self.environment.start()
+        self.root = cwo_temp_dir(scope="session")
+        os.environ["CWO_PRECOMMIT_REGISTRY_ROOT"] = str(self.root / "precommit-registry")
+        supervisor_fixtures._FIXTURE_ROOT = self.root
         self.session_id = "spark-session"
         self.session_file = self.root / "session.jsonl"
         self.packet_file = self.root / "packet.json"

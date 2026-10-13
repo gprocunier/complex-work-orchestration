@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import os
 import subprocess
 import sys
 import tempfile
@@ -30,6 +32,227 @@ from cwo_core.returns import (  # noqa: E402
 class EvaluateReturnTests(unittest.TestCase):
     def sample_return(self) -> str:
         return (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
+
+    def _v2_dispatch_artifact(self, text: str) -> dict:
+        """Independent synthetic oracle: no model output or live dispatch."""
+        return {
+            "dispatch_id": "synthetic-v2-dispatch",
+            "bead_id": "synthetic-review",
+            "dispatch_mode": "local_secure_review",
+            "route": {
+                "share_boundary": "redacted-packet",
+                "recommended_executor": "rhoai_glm_compact_architecture_critic",
+                "selected_executor": {
+                    "key": "rhoai_glm_compact_architecture_critic",
+                    "provider_key": "openshift_ai_vllm",
+                    "provider_trust_tier": "local-platform",
+                    "dispatch_mode": "local_secure_review",
+                    "local_profile": "openshift-ai-glm-5-3-direct",
+                    "model_profile": "rhoai-architect-glm-5-3-bf16-compact-critic",
+                },
+            },
+            "local_envelope": {
+                "response_contract": "cwo-glm-critic-v2",
+                "dispatch_id": "synthetic-v2-dispatch",
+                "bead_id": "synthetic-review",
+                "executor_key": "rhoai_glm_compact_architecture_critic",
+                "provider_key": "openshift_ai_vllm",
+                "provider_trust_tier": "local-platform",
+                "local_profile": "openshift-ai-glm-5-3-direct",
+                "model_profile": "rhoai-architect-glm-5-3-bf16-compact-critic",
+                "share_boundary": "redacted-packet",
+                "model": "glm-5.3-bf16",
+                "execution_enabled": True,
+            },
+            "local_response": {
+                "status_code": 200,
+                "completion_status": "completed",
+                "usable_final_content": True,
+                "response_contract": "cwo-glm-critic-v2",
+                "response_contract_status": "valid",
+                "response_model_status": "matched",
+                "model_preflight": {"status": "passed", "required_model": "glm-5.3-bf16", "status_code": 200},
+                "finish_reasons": ["stop"],
+                "response_truncated": False,
+                "reasoning_malformed": False,
+                "response_contract_errors": [],
+                "content_security_status": "passed",
+                "final_content_chars": 100,
+                "normalized_return": text,
+                "normalized_return_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                "normalized_return_chars": len(text),
+            },
+        }
+
+    def _evaluate_v2_cli(
+        self, artifact: dict, text: str, *extra: str, return_bytes: bytes | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        with tempfile.TemporaryDirectory() as workdir:
+            artifact_path = Path(workdir) / "dispatch.json"
+            return_path = Path(workdir) / "return.md"
+            artifact_path.write_text(json.dumps(artifact), encoding="utf-8")
+            if return_bytes is None:
+                return_path.write_text(text, encoding="utf-8")
+            else:
+                return_path.write_bytes(return_bytes)
+            return subprocess.run(
+                [sys.executable, "-B", str(ROOT / "scripts" / "evaluate_return.py"),
+                 "--file", str(return_path), "--local-dispatch-result", str(artifact_path),
+                 "--no-audit", "--waiver-reason", "synthetic v2 eligibility regression",
+                 "--json", *extra],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+
+    def test_v2_cli_rejects_unusable_or_unbound_dispatch_evidence(self) -> None:
+        sample = self.sample_return()
+        valid = self._v2_dispatch_artifact(sample)
+        cases = {
+            "contract-invalid": lambda d: d["local_response"].update(completion_status="contract-invalid", usable_final_content=False, normalized_return=None),
+            "missing-response": lambda d: d.pop("local_response"),
+            "string-usability": lambda d: d["local_response"].update(usable_final_content="false"),
+            "invalid-contract-status": lambda d: d["local_response"].update(response_contract_status="invalid"),
+            "wrong-response-contract": lambda d: d["local_response"].update(response_contract="cwo-glm-critic-v1"),
+            "wrong-digest": lambda d: d["local_response"].update(normalized_return_sha256="0" * 64),
+            "missing-digest": lambda d: d["local_response"].pop("normalized_return_sha256"),
+            "wrong-model": lambda d: d["local_response"].update(response_model_status="mismatch"),
+            "unknown-status": lambda d: d["local_response"].update(completion_status="not-a-status"),
+            "contradictory-truncation": lambda d: d["local_response"].update(response_truncated=True),
+            "contradictory-contract-errors": lambda d: d["local_response"].update(response_contract_errors=["error"]),
+            "overlong-final-frame": lambda d: d["local_response"].update(final_content_chars=6001),
+            "v1-response-unknown-envelope": lambda d: (
+                d["local_envelope"].update(response_contract="unknown-contract"),
+                d["local_response"].update(response_contract="cwo-glm-critic-v1", completion_status="contract-invalid", usable_final_content=False, normalized_return=None),
+            ),
+            "missing-outer-dispatch": lambda d: d.pop("dispatch_id"),
+            "envelope-dispatch-mismatch": lambda d: d["local_envelope"].update(dispatch_id="other-dispatch"),
+            "envelope-executor-mismatch": lambda d: d["local_envelope"].update(executor_key="rhoai_glm_hardened_architecture_critic"),
+            "preflight-model-mismatch": lambda d: d["local_response"]["model_preflight"].update(required_model="not-glm-5.3"),
+            "one-sided-bead": lambda d: d.update(bead_id=None),
+            "mismatched-bead": lambda d: d["local_envelope"].update(bead_id="other-bead"),
+            "empty-bead-pair": lambda d: (d.update(bead_id=""), d["local_envelope"].update(bead_id="")),
+        }
+        for name, mutate in cases.items():
+            with self.subTest(name=name):
+                artifact = self._v2_dispatch_artifact(sample)
+                mutate(artifact)
+                completed = self._evaluate_v2_cli(artifact, sample)
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                result = json.loads(completed.stdout)
+                self.assertIn(result["verdict"], {"reject", "quarantine"})
+                self.assertIn(result["recommended_synthesis_use"], {"reject", "quarantine"})
+                self.assertEqual(result["sections"], {})
+                if name == "unknown-status":
+                    self.assertNotIn("not-a-status", completed.stdout)
+
+        stale = self._evaluate_v2_cli(valid, sample + "\nSTALE")
+        self.assertEqual(stale.returncode, 0, stale.stderr)
+        stale_result = json.loads(stale.stdout)
+        self.assertIn(stale_result["recommended_synthesis_use"], {"reject", "quarantine"})
+        self.assertEqual(stale_result["sections"], {})
+        crlf = self._evaluate_v2_cli(
+            valid, sample, return_bytes=sample.replace("\n", "\r\n").encode("utf-8")
+        )
+        self.assertEqual(crlf.returncode, 0, crlf.stderr)
+        self.assertIn(json.loads(crlf.stdout)["recommended_synthesis_use"], {"reject", "quarantine"})
+
+    def test_direct_v2_truncation_overrides_claimed_valid_frame(self) -> None:
+        result = make_acceptance_decision(
+            self.sample_return(),
+            executor="rhoai_glm_compact_architecture_critic",
+            local_completion_status="completed",
+            local_usable_final_content=True,
+            local_expected_response_contract="cwo-glm-critic-v2",
+            local_response_contract="cwo-glm-critic-v2",
+            local_response_contract_status="valid",
+            local_normalized_return_matches=True,
+            local_v2_frame_valid=True,
+            local_v2_identity_consistent=True,
+            local_response_model_status="matched",
+            local_model_preflight_status="passed",
+            local_http_status=200,
+            local_response_truncated=True,
+        )
+        self.assertEqual(result["verdict"], "quarantine")
+        self.assertEqual(result["recommended_synthesis_use"], "quarantine")
+        self.assertFalse(result["local_v2_frame_valid"])
+
+    def test_v2_cli_accepts_matching_return_and_rejects_identity_override(self) -> None:
+        sample = self.sample_return()
+        artifact = self._v2_dispatch_artifact(sample)
+        valid = self._evaluate_v2_cli(artifact, sample)
+        self.assertEqual(valid.returncode, 0, valid.stderr)
+        self.assertEqual(json.loads(valid.stdout)["recommended_synthesis_use"], "primary")
+        no_bead = self._v2_dispatch_artifact(sample)
+        no_bead["bead_id"] = None
+        no_bead["local_envelope"]["bead_id"] = None
+        valid_without_bead = self._evaluate_v2_cli(no_bead, sample)
+        self.assertEqual(valid_without_bead.returncode, 0, valid_without_bead.stderr)
+        self.assertEqual(json.loads(valid_without_bead.stdout)["recommended_synthesis_use"], "primary")
+        overridden = self._evaluate_v2_cli(artifact, sample, "--executor", "rhoai_glm_hardened_architecture_critic")
+        self.assertNotEqual(overridden.returncode, 0)
+        wrong_dispatch = self._evaluate_v2_cli(artifact, sample, "--dispatch-id", "another-dispatch")
+        self.assertNotEqual(wrong_dispatch.returncode, 0)
+
+    def test_documented_glm_handoff_does_not_evaluate_stale_file_after_dispatch_failure(self) -> None:
+        docs = (ROOT / "references" / "local-inference.md").read_text(encoding="utf-8")
+        blocks = [block.split("```", 1)[0] for block in docs.split("```bash\n")[1:]]
+        flow = next(block for block in blocks if "openshift-ai-glm-5-3-direct" in block and "evaluate_return.py" in block)
+        with tempfile.TemporaryDirectory() as workdir:
+            root = Path(workdir)
+            (root / "scripts").mkdir()
+            (root / "scripts" / "dispatch_work.py").write_text("raise SystemExit(7)\n", encoding="utf-8")
+            (root / "scripts" / "evaluate_return.py").write_text(
+                "from pathlib import Path\nPath('evaluated-marker').write_text('unsafe')\n",
+                encoding="utf-8",
+            )
+            (root / "critic-brief.md").write_text("synthetic", encoding="utf-8")
+            (root / "glm53-return.md").write_text("stale prior return", encoding="utf-8")
+            result = subprocess.run(
+                ["bash", "-c", flow], cwd=root, capture_output=True, text=True,
+                env={**os.environ, "TMPDIR": workdir}, check=False,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse((root / "evaluated-marker").exists())
+
+    def test_documented_glm_handoff_extracts_fresh_file_or_stops(self) -> None:
+        docs = (ROOT / "references" / "local-inference.md").read_text(encoding="utf-8")
+        blocks = [block.split("```", 1)[0] for block in docs.split("```bash\n")[1:]]
+        flow = next(block for block in blocks if "openshift-ai-glm-5-3-direct" in block and "evaluate_return.py" in block)
+        with tempfile.TemporaryDirectory() as workdir:
+            root = Path(workdir)
+            (root / "scripts").mkdir()
+            (root / "critic-brief.md").write_text("synthetic", encoding="utf-8")
+            (root / "glm53-return.md").write_text("stale prior return", encoding="utf-8")
+            evaluator = (root / "scripts" / "evaluate_return.py")
+            evaluator.write_text(
+                "import sys\nfrom pathlib import Path\n"
+                "args=sys.argv\n"
+                "text=Path(args[args.index('--file')+1]).read_text()\n"
+                "Path('evaluated-marker').write_text(text)\n",
+                encoding="utf-8",
+            )
+            dispatch = (root / "scripts" / "dispatch_work.py")
+            dispatch.write_text(
+                "import json\nprint(json.dumps({'local_response': {'normalized_return': None}}))\n",
+                encoding="utf-8",
+            )
+            bad = subprocess.run(
+                ["bash", "-c", flow], cwd=root, capture_output=True, text=True,
+                env={**os.environ, "TMPDIR": workdir}, check=False,
+            )
+            self.assertNotEqual(bad.returncode, 0)
+            self.assertFalse((root / "evaluated-marker").exists())
+            dispatch.write_text(
+                "import json\nprint(json.dumps({'local_response': {'normalized_return': 'fresh synthetic return'}}))\n",
+                encoding="utf-8",
+            )
+            good = subprocess.run(
+                ["bash", "-c", flow], cwd=root, capture_output=True, text=True,
+                env={**os.environ, "TMPDIR": workdir}, check=False,
+            )
+            self.assertEqual(good.returncode, 0, good.stderr)
+            self.assertEqual((root / "evaluated-marker").read_text(), "fresh synthetic return")
+            self.assertEqual((root / "glm53-return.md").read_text(), "stale prior return")
 
     def test_missing_sections_lower_score(self) -> None:
         result = make_acceptance_decision("Status: complete\nSummary: shallow\n")

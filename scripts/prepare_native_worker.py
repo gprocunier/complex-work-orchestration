@@ -21,6 +21,7 @@ from cwo_core.native_precommit import (
     reserve_precommit_receipt,
     validate_precommit_receipt,
 )
+from cwo_core.operative_routing import SPARK_MODEL, validate_operative_route_for_model
 from cwo_core.native_release import validate_native_release_evidence
 from cwo_core.native_tool_isolation import (
     NativeToolIsolationError,
@@ -125,7 +126,10 @@ def _policy_model_config() -> dict[str, Any]:
     worker = policy.get("governance", {}).get("native_operative_worker", {})
     if not isinstance(worker, dict):
         raise SystemExit("policy missing governance.native_operative_worker")
-    preferred = str(worker.get("preferred_model") or "").strip()
+    current = policy.get("task_selected_routing", {})
+    preferred = (current.get("selection", {}).get("primary_model")
+        if current.get("status") == "active" else worker.get("preferred_model"))
+    preferred = str(preferred or "").strip()
     authorized = worker.get("authorized_models")
     if not preferred:
         raise SystemExit("policy missing governance.native_operative_worker.preferred_model")
@@ -428,12 +432,8 @@ def _build_command_contract(policy: dict[str, Any]) -> dict[str, Any]:
 
 
 def _read_only_work_plan(work_plan: Any) -> bool:
-    return (
-        isinstance(work_plan, dict)
-        and work_plan.get("task_class") in {"literal-command", "read-only-validation"}
-        and work_plan.get("fit_mode") == "deterministic"
-        and work_plan.get("write_paths") == []
-    )
+    from cwo_core.work_sizing import is_read_only_work_estimate
+    return is_read_only_work_estimate(work_plan)
 
 
 def _execution_contract(work_plan: Any) -> dict[str, Any] | None:
@@ -535,12 +535,15 @@ def _build_native_worker_packet_unreserved(
     validation_parent_packet_id: str | None = None,
     validation_attempt: int = 0,
     requested_model: str | None = None,
+    operative_routing: dict[str, Any] | None = None,
     packet_version: int = 2,
     experimental_v3: bool = False,
     phase: str | None = None,
     permitted_tools: list[str] | None = None,
+    tool_profile: str | None = None,
     forbidden_tools: list[str] | None = None,
     tool_enforcement_override: dict[str, Any] | None = None,
+    current_authority: Any = None,
 ) -> dict[str, Any]:
     if not str(bead_id).strip():
         raise SystemExit("bead-id must be non-empty")
@@ -574,15 +577,19 @@ def _build_native_worker_packet_unreserved(
         raise SystemExit("session and model identity must be derived exclusively from a trusted precommit receipt")
     if work_plan is not None and worker_commitment is None:
         try:
-            if work_plan.get("fit_mode") == "deterministic":
+            if (work_plan.get("fit_mode") == "deterministic"
+                    and precommit_receipt.get("submission_id") == "deterministic-policy"
+                    and precommit_receipt.get("requested_model") == SPARK_MODEL):
                 worker_commitment = build_policy_fit_commitment(
                     work_plan,
                     precommit_receipt=precommit_receipt,
+                    current_authority=current_authority,
                 )
             else:
                 worker_commitment = build_worker_commitment_from_receipt(
                     work_plan,
                     precommit_receipt,
+                    current_authority=current_authority,
                 )
         except ValueError as exc:
             raise SystemExit(str(exc)) from exc
@@ -597,6 +604,15 @@ def _build_native_worker_packet_unreserved(
         packet_id = receipt_packet_id
     packet_id = packet_id or make_dispatch_id(bead_id)
     selected_model = _policy_model(requested_model)
+    if selected_model != SPARK_MODEL:
+        routing_errors = validate_operative_route_for_model(
+            operative_routing,
+            selected_model,
+            work_estimate=work_plan,
+            current_authority=current_authority,
+        )
+        if routing_errors:
+            raise SystemExit("fallback operative routing validation failed:\n- " + "\n- ".join(routing_errors))
     budget, overridden_fields = _effective_budget(lane, budget_overrides)
     policy = load_policy("native-worker-execution")
     if validation_attempt not in {0, 1}:
@@ -614,6 +630,7 @@ def _build_native_worker_packet_unreserved(
             mutable=not read_only_plan,
             workload_class="operative",
             permitted_tools=permitted_tools,
+            **({"tool_profile": tool_profile} if tool_profile is not None else {}),
             forbidden_tools=forbidden_tools,
             enforcement_override=tool_enforcement_override,
         )
@@ -631,9 +648,11 @@ def _build_native_worker_packet_unreserved(
         receipt_errors = validate_precommit_receipt(
             precommit_receipt,
             work_plan,
+            operative_routing=operative_routing,
             expected_packet_id=packet_id,
             live=True,
             require_accepting=True,
+            current_authority=current_authority,
         )
         if receipt_errors:
             raise SystemExit("precommit receipt validation failed:\n- " + "\n- ".join(receipt_errors))
@@ -696,6 +715,8 @@ def _build_native_worker_packet_unreserved(
         "return_contract": _build_return_contract(),
         "command_contract": _build_command_contract(policy),
     }
+    if operative_routing is not None:
+        packet["operative_routing"] = deepcopy(operative_routing)
     if work_plan is not None and worker_commitment is not None:
         packet["work_plan"] = deepcopy(work_plan)
         packet["worker_commitment"] = deepcopy(worker_commitment)
@@ -729,7 +750,7 @@ def _build_native_worker_packet_unreserved(
                 ),
             }
         )
-    errors = validate_native_worker_packet(packet, experimental=(packet_version == 3))
+    errors = validate_native_worker_packet(packet, experimental=(packet_version == 3), current_authority=current_authority)
     if errors:
         raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
     return packet
@@ -744,9 +765,11 @@ def build_native_worker_packet(**kwargs: Any) -> dict[str, Any]:
     initial_errors = validate_precommit_receipt(
         precommit_receipt,
         kwargs.get("work_plan"),
+        operative_routing=kwargs.get("operative_routing"),
         expected_packet_id=kwargs.get("packet_id") or precommit_receipt.get("packet_id"),
         live=True,
         require_accepting=True,
+        current_authority=kwargs.get("current_authority"),
     )
     if initial_errors:
         raise SystemExit("precommit receipt validation failed:\n- " + "\n- ".join(initial_errors))
@@ -760,9 +783,11 @@ def build_native_worker_packet(**kwargs: Any) -> dict[str, Any]:
         final_errors = validate_precommit_receipt(
             precommit_receipt,
             kwargs.get("work_plan"),
+            operative_routing=kwargs.get("operative_routing"),
             expected_packet_id=packet.get("packet_id"),
             live=True,
             require_accepting=True,
+        current_authority=kwargs.get("current_authority"),
         )
         if final_errors:
             raise SystemExit(
@@ -900,8 +925,15 @@ def validate_native_worker_packet(
     dispatchable: bool = False,
     experimental: bool = False,
     allow_experimental_v3: bool | None = None,
+    current_authority: Any = None,
+    maintenance_operation: Any = None,
+    maintenance_verifier: Any = None,
 ) -> list[str]:
     errors: list[str] = []
+    if dispatchable and isinstance(payload, dict):
+        current = load_policy("native-worker-execution").get("task_selected_routing", {})
+        if current.get("status") == "active" and payload.get("requested_model") not in current.get("selection", {}).get("approved_portfolio", []):
+            errors.append("historical model records cannot authorize current dispatch")
     if not isinstance(payload, dict):
         return ["packet is not a JSON object"]
     if dispatchable:
@@ -920,6 +952,8 @@ def validate_native_worker_packet(
                 if isinstance(payload.get("precommit_receipt_sha256"), str)
                 else None
             ),
+            maintenance_operation=maintenance_operation,
+            maintenance_verifier=maintenance_verifier,
         ):
             errors.append(containment)
     if allow_experimental_v3 is not None:
@@ -957,6 +991,20 @@ def validate_native_worker_packet(
         errors.append(error)
     elif payload["requested_model"] not in _policy_models():
         errors.append("requested_model must be an authorized native operative model")
+    requested_model = str(payload.get("requested_model") or "")
+    operative_routing = payload.get("operative_routing")
+    if operative_routing is not None:
+        errors.extend(
+            "operative_routing: " + error
+            for error in validate_operative_route_for_model(
+                operative_routing,
+                requested_model,
+                work_estimate=payload.get("work_plan"),
+                current_authority=current_authority,
+            )
+        )
+    elif requested_model and requested_model != SPARK_MODEL:
+        errors.append("fallback packet requires explicit operative_routing provenance")
 
     session_policy = payload.get("session_policy")
     if not isinstance(session_policy, dict):
@@ -1104,7 +1152,8 @@ def validate_native_worker_packet(
             elif stage in {"canary-authorized", "operative-authorized"}:
                 expected_contract = {
                     "operative_dispatch_authorized": stage == "operative-authorized",
-                    "release_requires": "complex-work-orchestration-fsh.3.5",
+                    "release_requires": (release_evidence.get("mission_id") if type(release_evidence) is dict
+                        and release_evidence.get("version") == 2 else "complex-work-orchestration-fsh.3.5"),
                 }
                 if not isinstance(release_evidence, dict):
                     errors.append(f"{stage} packet requires embedded release_evidence")
@@ -1126,6 +1175,8 @@ def validate_native_worker_packet(
                                 else None
                             ),
                             live=dispatchable,
+                            maintenance_operation=maintenance_operation,
+                            maintenance_verifier=maintenance_verifier,
                         )
                     )
                     if release_evidence.get("release_state") != stage:
@@ -1146,8 +1197,14 @@ def validate_native_worker_packet(
                     for error in validate_precommit_receipt(
                         precommit_receipt,
                         work_plan if isinstance(work_plan, dict) else None,
+                        operative_routing=(
+                            payload.get("operative_routing")
+                            if isinstance(payload.get("operative_routing"), dict)
+                            else None
+                        ),
                         expected_packet_id=str(payload.get("packet_id") or ""),
                         require_accepting=True,
+                        current_authority=current_authority,
                     )
                 )
                 if payload.get("precommit_receipt_sha256") != precommit_receipt.get("receipt_sha256"):
@@ -1162,6 +1219,7 @@ def validate_native_worker_packet(
                 work_plan,
                 dispatchable=dispatchable,
                 precommit_receipt=precommit_receipt if isinstance(precommit_receipt, dict) else None,
+                current_authority=current_authority,
             )
         )
         scope_allowed_paths = scope.get("allowed_paths") if isinstance(scope, dict) else None
@@ -1201,6 +1259,9 @@ def validate_native_worker_packet(
                 prohibited_actions = scope.get("prohibited_actions", []) if isinstance(scope, dict) else []
                 if "edit-scoped-files" in allowed_actions or "source-mutation" not in prohibited_actions:
                     errors.append("read-only work_plan must prohibit source mutation")
+                evidence = payload.get("release_evidence")
+                if isinstance(evidence, dict) and evidence.get("source_mutation_authorized") is not False:
+                    errors.append("read-only release must not authorize source mutation")
             elif scope_allowed_paths != work_plan.get("write_paths"):
                 errors.append("work_plan.write_paths must exactly match packet.scope.allowed_paths")
             if acceptance_checks != work_plan.get("acceptance_checks"):
@@ -1514,6 +1575,23 @@ def _parse_usage_limits_for_completion(usage: dict[str, Any], packet: dict[str, 
 
 
 def validate_native_worker_return(packet: dict[str, Any], result: Any) -> list[str]:
+    """Controlled JSON-shape rejection; malformed supplied returns never escape."""
+    if type(packet) is not dict:
+        return ["packet must be an object"]
+    if type(result) is not dict:
+        return ["return is not a JSON object"]
+    if type(result.get("version")) is not int:
+        return ["version must be integer 1"]
+    for field in ("status", "mutation_state", "attestation_status", "artifact_disposition", "session_disposition"):
+        if field in result and type(result[field]) is not str:
+            return [field + " must be a string"]
+    try:
+        return _validate_native_worker_return_fields(packet, result)
+    except (TypeError, ValueError, KeyError, AttributeError, OverflowError) as exc:
+        return ["return shape rejected: " + type(exc).__name__ + ": " + str(exc)]
+
+
+def _validate_native_worker_return_fields(packet: dict[str, Any], result: Any) -> list[str]:
     errors: list[str] = []
     if not isinstance(result, dict):
         return ["return is not a JSON object"]
@@ -1794,6 +1872,12 @@ def _render_prompt(payload: dict[str, Any]) -> str:
         and bool(task_profile.get("commands"))
     )
     declared_commands = task_profile.get("commands", []) if exact_argv else []
+    primitive_edit = (isinstance(task_profile, dict)
+        and task_class == "narrow-mechanical"
+        and all(type(task_profile.get(key)) is int and task_profile[key] == 0
+                for key in ("command_count", "focused_test_count", "full_suite_count"))
+        and task_profile.get("commands") == []
+    )
     command_lines = [
         f"{index}. {shlex.join(command['argv'])}"
         for index, command in enumerate(declared_commands, start=1)
@@ -1890,9 +1974,19 @@ def _render_prompt(payload: dict[str, Any]) -> str:
             ]
             if sequence_argv is not None
             else [
+                "Primitive edit execution contract:",
+                "- No shell test/mutation commands or checked-command specifications are planned for this unit.",
+                "- Use the authorized apply_patch primitive for the declared source edit. Do not invent helper specifications, inspect helpers, run --help, or write temporary specification files.",
+                "- If source context is needed, a bounded plain source read or scope/diff check may use the authorized exec_command transport; do not combine commands or use interpreter/nested-language forms.",
+                "- This profile-specific instruction does not waive checked-command requirements for other work units.",
+            ]
+            if primitive_edit
+            else [
                 "Checked command execution:",
                 f"- Wrapper: {payload['command_contract']['wrapper']}",
+                f"- Approved helper location: {Path(__file__).resolve().parents[1] / payload['command_contract']['wrapper']}. Do not assume the target workspace contains CWO scripts.",
                 f"- Typed modes: {', '.join(payload['command_contract']['modes'])}",
+                "- An authorized primitive apply_patch tool call does not require a shell checked-command helper. This does not waive checked-command requirements for exec commands.",
                 "- Complex commands, interpreter -c forms, nested quoting/languages, and mutation commands must use the checked wrapper.",
                 "- A preflight construction failure is PM-recoverable with no source quarantine; hash, scope, security, or mutation-attribution failures quarantine.",
             ]
@@ -1957,7 +2051,9 @@ def _parse_args() -> argparse.Namespace:
     build.add_argument("--trusted-session-id")
     build.add_argument("--attested-model")
     build.add_argument("--requested-model")
+    build.add_argument("--operative-routing", help="Resolved operative route JSON with explicit fallback provenance.")
     build.add_argument("--permitted-tool", action="append", dest="permitted_tools")
+    build.add_argument("--tool-profile", choices=["mutating-core-resources-v2", "read-only-core-resources-v2"])
     build.add_argument("--forbidden-tool", action="append", dest="forbidden_tools")
     build.add_argument("--tool-enforcement-override")
     for field in sorted(ALLOWED_BUDGET_FIELDS):
@@ -1979,11 +2075,26 @@ def _parse_args() -> argparse.Namespace:
     validate_return.add_argument("--packet", required=True)
     validate_return.add_argument("--return", required=True, dest="return_path")
 
+    for command in (build, validate_cmd, render, validate_return):
+        command.add_argument("--current-authority-file")
+        command.add_argument("--current-authority-sha256")
     return parser.parse_args()
 
 
-def main() -> None:
+def main(
+    *,
+    current_authority: Any = None,
+) -> None:
     args = _parse_args()
+    from cwo_core.private_authority_input import private_authority_arguments
+    try:
+        supplied = private_authority_arguments(args.current_authority_file, args.current_authority_sha256)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    if supplied:
+        if current_authority is not None and supplied['current_authority'] != current_authority:
+            raise SystemExit("conflicting current-authority inputs")
+        current_authority = supplied['current_authority']
     errors = validate_schema_files()
     if errors:
         raise SystemExit(errors[0])
@@ -1997,6 +2108,7 @@ def main() -> None:
         work_plan = _load_json_payload(args.work_plan) if args.work_plan else None
         worker_commitment = _load_json_payload(args.worker_commitment) if args.worker_commitment else None
         precommit_receipt = _load_json_payload(args.precommit_receipt) if args.precommit_receipt else None
+        operative_routing = _load_json_payload(args.operative_routing) if args.operative_routing else None
         tool_enforcement_override = (
             _load_json_payload(args.tool_enforcement_override)
             if args.tool_enforcement_override
@@ -2018,7 +2130,10 @@ def main() -> None:
             validation_parent_packet_id=args.validation_parent_packet_id,
             validation_attempt=args.validation_attempt,
             requested_model=args.requested_model,
+            operative_routing=operative_routing,
             permitted_tools=args.permitted_tools,
+            tool_profile=args.tool_profile,
+            current_authority=current_authority,
             forbidden_tools=args.forbidden_tools,
             tool_enforcement_override=tool_enforcement_override,
         )
@@ -2027,7 +2142,7 @@ def main() -> None:
 
     if args.command == "validate":
         packet = _load_json_payload(args.packet)
-        errors = validate_native_worker_packet(packet)
+        errors = validate_native_worker_packet(packet, current_authority=current_authority)
         if errors:
             raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
         print("packet valid")
@@ -2055,7 +2170,7 @@ def main() -> None:
                 else None
             ),
         )
-        errors = validate_native_worker_packet(packet, dispatchable=True)
+        errors = validate_native_worker_packet(packet, dispatchable=True, current_authority=current_authority)
         if errors:
             raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))
         print(_render_prompt(packet))
@@ -2063,7 +2178,7 @@ def main() -> None:
 
     if args.command == "validate-return":
         packet = _load_json_payload(args.packet)
-        packet_errors = validate_native_worker_packet(packet)
+        packet_errors = validate_native_worker_packet(packet, current_authority=current_authority)
         if packet_errors:
             raise SystemExit("packet validation failed:\n- " + "\n- ".join(packet_errors))
         native_return = _load_json_payload(args.return_path)

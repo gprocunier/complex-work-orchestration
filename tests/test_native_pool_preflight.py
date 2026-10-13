@@ -498,12 +498,12 @@ class NativePoolPreflightTests(unittest.TestCase):
             CERTIFIED_SCHEDULER_OVERHEAD_MS,
             POOL_POLL_INTERVAL_MS,
         )
-        self.assertEqual((n2["total_demand_ms"], n2["slack_ms"]), (750, 250))
-        self.assertEqual(n3["total_demand_ms"], 950)
-        self.assertEqual(n3["slack_ms"], 50)
+        self.assertEqual((n2["total_demand_ms"], n2["slack_ms"]), (775, 225))
+        self.assertEqual(n3["total_demand_ms"], 975)
+        self.assertEqual(n3["slack_ms"], 25)
         self.assertTrue(n3["accepted"])
-        self.assertEqual(n4["total_demand_ms"], 1150)
-        self.assertEqual(n4["slack_ms"], -150)
+        self.assertEqual(n4["total_demand_ms"], 1175)
+        self.assertEqual(n4["slack_ms"], -175)
         self.assertFalse(n4["accepted"])
 
     def test_unauthorized_override_is_rejected(self) -> None:

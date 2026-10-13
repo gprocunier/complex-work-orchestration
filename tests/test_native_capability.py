@@ -82,6 +82,25 @@ def _load_schema() -> dict:
 
 
 class NativeCapabilityTests(unittest.TestCase):
+    def test_capability_hash_is_stable_across_integral_float_persistence(self) -> None:
+        floating = _base_evidence({"runtime_seconds": 5.0})
+        integral = _base_evidence({"runtime_seconds": 5})
+        self.assertEqual(
+            native_capability.canonical_capability_evidence_sha256(floating),
+            native_capability.canonical_capability_evidence_sha256(integral),
+        )
+
+        receipt = _build_receipt(floating)
+        persisted = copy.deepcopy(receipt)
+        persisted["runtime_seconds"] = 5
+        self.assertEqual(_validate_receipt(persisted), [])
+
+    def test_capability_hash_rejects_non_finite_json_number(self) -> None:
+        with self.assertRaisesRegex(ValueError, "non-finite"):
+            native_capability.canonical_capability_evidence_sha256(
+                _base_evidence({"runtime_seconds": float("inf")})
+            )
+
     def test_record_cli_builds_and_validates_without_spawn_authority(self) -> None:
         script = ROOT / "scripts" / "record_native_model_capability.py"
         with tempfile.TemporaryDirectory() as raw:

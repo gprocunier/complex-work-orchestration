@@ -110,12 +110,15 @@ CAPABILITY_RESPONSE_TIME_EQUATION = "max_lifecycle+N*check+scheduler<=poll_inter
 CAPABILITY_OBSERVATION_AUTHORITY = "telemetry-only-non-authoritative"
 CERTIFIED_CALLBACK_MAX_MS = {
     "arm": 100,
-    "send_input": 250,
+    "send_input": 275,
     "mark_dispatched": 100,
     "check": 200,
     "interrupt": 250,
     "close": 250,
     "finalize": 100,
+}
+CALLBACK_WARNING_THRESHOLD_MS = {
+    "send_input": 250,
 }
 CERTIFIED_SCHEDULER_OVERHEAD_MS = 100
 CAPABILITY_SLACK_WARNING_FRACTION = 0.8

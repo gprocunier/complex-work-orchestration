@@ -12,6 +12,8 @@ from .synthesis import recommend_model_synthesis
 from .types import CoachResult
 from .util import term_hits
 
+_COACH_AUTHORITY_OMITTED = object()
+
 SPARK_MODEL_ALIAS = "gpt-5.3-codex-spark"
 
 
@@ -35,6 +37,9 @@ PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
     "workerbee_planned_delegation",
     "model_synthesis",
     "operator_calibration",
+    "operative_route",
+    "critic_route",
+    "peer_review_route",
     "route",
     "paste_ready_prompt",
     "warnings",
@@ -787,8 +792,14 @@ def selection_before_plan_gate(text: str, interactive_questions: list[dict[str, 
     explicit_coach = prompt_coach_has_explicit_coach_request(text.lower())
     execution_approved = prompt_coach_has_execution_approval(text.lower())
     question_ids = [str(question.get("id")) for question in interactive_questions if question.get("id")]
-    requires_selection = bool(explicit_coach and question_ids and not execution_approved)
-    if requires_selection:
+    fallback_selection_required = "operative_fallback" in question_ids
+    requires_selection = fallback_selection_required or bool(explicit_coach and question_ids and not execution_approved)
+    if fallback_selection_required:
+        reason = (
+            "Trusted evidence verified a Spark fallback trigger; explicit fallback model and scope selections "
+            "are required before any operative dispatch."
+        )
+    elif requires_selection:
         reason = (
             "The user explicitly asked for the CWO coach; present interactive_questions and wait for the "
             "user's selection before creating a decision-complete plan."
@@ -901,6 +912,9 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     }
 
     native_dispatch = route.get("native_operative_dispatch")
+    operative_route = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
+    operative_route_authoritative = operative_route.get("version") == 3 or bool(operative_route.get("availability_evidence"))
+    operative_status = str(operative_route.get("stop_reason") or operative_route.get("availability_status") or "unknown")
     native_precommit_contained = bool(
         isinstance(native_dispatch, dict)
         and native_dispatch.get("dispatch_authorized") is False
@@ -926,7 +940,7 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             }
         )
         rationale.append(failed_check_justification)
-    elif registry_tool_mismatch or native_tool_absent or model_rejected or model_unavailable:
+    elif not operative_route_authoritative and (registry_tool_mismatch or native_tool_absent or model_rejected or model_unavailable):
         mode = "blocked"
         hard_stop = True
         suggested_lanes = []
@@ -995,14 +1009,62 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             rationale.append("Independent review, test, docs, policy, or validation workstreams can run beside main-thread implementation.")
 
     if mode == "none":
-        rationale.append("No clear parallel sidecar workstream is needed; ask anyway so the user can explicitly choose subagents or stay in-thread.")
+        rationale.append("No separate parallel workstream is needed; continue in-thread under existing authority.")
+
+    if mode != "none" and operative_route_authoritative:
+        if operative_route.get("dispatch_authorized") is True:
+            selected_model = str(operative_route.get("selected_model") or "")
+            spark_dispatch.update(
+                {
+                    "status": ("task-selected-v3" if operative_route.get("version") == 3 else
+                               "native-first" if selected_model == SPARK_MODEL_ALIAS else "not-applicable"),
+                    "requested_model": selected_model,
+                    "requested_route": mode,
+                    "failed_native_capability_check": "",
+                    "failed_native_capability_check_justification": "",
+                }
+            )
+            rationale.append(
+                f"Trusted operative routing selected {selected_model} via {operative_route.get('selection_source', operative_route.get('selected_model'))}."
+            )
+        elif (operative_route.get("fallback") or {}).get("decision_required") is True:
+            hard_stop = False
+            mode = "blocked"
+            suggested_lanes = []
+            spark_dispatch.update(
+                {
+                    "status": "hard-stop",
+                    "requested_model": SPARK_MODEL_ALIAS,
+                    "requested_route": mode,
+                    "failed_native_capability_check": operative_status,
+                    "failed_native_capability_check_justification": "Explicit user fallback selection and scope are required before dispatch.",
+                }
+            )
+            rationale.append("Verified Spark quota/capacity state opened a user decision; no fallback is selected automatically.")
+        else:
+            hard_stop = True
+            mode = "blocked"
+            suggested_lanes = []
+            hard_stop_reason = str(operative_route.get("stop_reason") or operative_status)
+            spark_dispatch.update(
+                {
+                    "status": "hard-stop",
+                    "requested_model": operative_route.get("selected_model") or "",
+                    "requested_route": mode,
+                    "failed_native_capability_check": operative_status,
+                    "failed_native_capability_check_justification": str(
+                        operative_route.get("stop_reason") or "Trusted operative availability was not proven."
+                    ),
+                }
+            )
+            rationale.append("Operative routing failed closed; critic and peer-review lanes remain evidence-only.")
 
     if mode == "none":
         suggested_lanes = []
     if route.get("route") in {"external-contract", "local-worker"} and mode != "none":
         rationale.append("Workerbees are separate from contractor/local-worker dispatch; do not use them for no-codex-exec contract work.")
 
-    if mode != "none" and not hard_stop:
+    if mode != "none" and not hard_stop and not operative_route_authoritative:
         spark_dispatch.update(
             {
                 "status": "native-first",
@@ -1019,8 +1081,9 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     return {
         "recommended_mode": mode,
         "recommended_model": (
-            SPARK_MODEL_ALIAS
-            if mode != "none" and not hard_stop
+            operative_route.get("selected_model") if operative_route.get("dispatch_authorized") is True
+            else SPARK_MODEL_ALIAS
+            if mode != "none" and not hard_stop and not operative_route_authoritative
             else None
         ),
         "spark_operational_worker": spark_operational_pairing and not review_only_intent and mode == "implementation-capable",
@@ -1243,6 +1306,26 @@ def prompt_coach_missing_questions(
     lower = text.lower()
     words = re.findall(r"[A-Za-z0-9_/-]+", text)
     questions: list[dict[str, str]] = []
+    operative_route = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
+    fallback = operative_route.get("fallback") if isinstance(operative_route.get("fallback"), dict) else {}
+
+    if fallback.get("decision_required") is True:
+        questions.extend(
+            [
+                {
+                    "id": "operative_fallback",
+                    "question": "Which live approved operative fallback should CWO use, or should it wait for Spark?",
+                    "why": f"Trusted evidence verified a Spark quota/capacity trigger. Policy recommends {fallback.get('recommended_model') or 'Wait for Spark'} but forbids automatic model substitution.",
+                    "default": f"Select {fallback.get('recommended_model')} with an explicit scope, or Wait for Spark." if fallback.get("recommended_model") else "Wait for Spark because no live fit fallback is proven.",
+                },
+                {
+                    "id": "operative_fallback_scope",
+                    "question": "Should the explicit fallback apply to the current Bead, current wave, or only until Spark is restored?",
+                    "why": "Fallback authority must have a recorded expiry and is re-evaluated at every fresh operative segment.",
+                    "default": "Use until Spark is restored, then return new segments to Spark automatically.",
+                },
+            ]
+        )
 
     if len(words) < 4:
         questions.append(
@@ -1295,7 +1378,9 @@ def prompt_coach_missing_questions(
             default = "Use implementation subagents only for disjoint file scopes, with main-thread integration and acceptance."
         elif mode == "review-only":
             worker_dispatch_status = str(spark_dispatch.get("status") or "")
-            if worker_dispatch_status == "native-first":
+            if worker_dispatch_status == "task-selected-v3":
+                default = f"Use qualified exact {workerbee_parallelism['recommended_model']} for the current admitted native work; keep integration and acceptance in the main thread."
+            elif worker_dispatch_status == "native-first":
                 default = "Use Codex 5.3 Spark for native workerbee dispatch; keep implementation authority in the main thread."
             else:
                 default = "Use Codex 5.3 Spark for workerbee review sidecars and keep implementation authority in the main thread."
@@ -1378,9 +1463,11 @@ def workerbee_model_phrase(workerbee_parallelism: dict[str, Any] | None) -> str:
     dispatch = workerbee_parallelism.get("spark_dispatch")
     if not isinstance(dispatch, dict):
         return "Codex 5.3 Spark as the default operative route"
+    if dispatch.get("status") == "task-selected-v3":
+        return f"qualified exact {workerbee_parallelism['recommended_model']} on the current task-selected route"
     if workerbee_parallelism.get("recommended_model") == SPARK_MODEL_ALIAS:
         return "Codex 5.3 Spark natively"
-    return "Codex 5.3 Spark as the default operative route"
+    return "no qualified operative route until current authority and admission gates pass"
 
 
 def prompt_coach_interactive_questions(
@@ -1394,6 +1481,34 @@ def prompt_coach_interactive_questions(
 ) -> list[dict[str, Any]]:
     missing_ids = {question["id"] for question in missing_questions}
     questions: list[dict[str, Any]] = []
+    operative_route = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
+    fallback = operative_route.get("fallback") if isinstance(operative_route.get("fallback"), dict) else {}
+
+    if "operative_fallback" in missing_ids:
+        options = fallback.get("options") if isinstance(fallback.get("options"), list) else []
+        questions.append(
+            {
+                "id": "operative_fallback",
+                "header": "Worker",
+                "question": "Which operative fallback should CWO use?",
+                "why": "Only an explicit user choice may authorize a live approved fallback after verified Spark quota/capacity failure.",
+                "options": dedupe_interactive_options([dict(item) for item in options if isinstance(item, dict)]),
+            }
+        )
+    if "operative_fallback_scope" in missing_ids:
+        questions.append(
+            {
+                "id": "operative_fallback_scope",
+                "header": "Scope",
+                "question": "How long should the fallback selection remain active?",
+                "why": "The selected scope is persisted with actor, reason, evidence, and expiry provenance.",
+                "options": [
+                    {"label": "Until restored (Recommended)", "value": "until-spark-restored", "description": "Return new segments to Spark as soon as trusted evidence shows it available."},
+                    {"label": "Current Bead", "value": "current-bead", "description": "Keep the fallback for fresh segments in only the named Bead."},
+                    {"label": "Current wave", "value": "current-wave", "description": "Keep the fallback for fresh segments in only the named wave."},
+                ],
+            }
+        )
 
     if level in {"lightweight-beads", "full-harness", "publish-release"} or missing_ids & {
         "goal_success_criteria",
@@ -1787,7 +1902,9 @@ def prompt_coach_enabled_levers(
         spark_dispatch = workerbee_parallelism.get("spark_dispatch")
         if isinstance(spark_dispatch, dict):
             status = str(spark_dispatch.get("status") or "")
-            if status == "native-first":
+            if status == "task-selected-v3":
+                levers.append("workerbee-dispatch-route=task-selected-v3")
+            elif status == "native-first":
                 levers.append("workerbee-dispatch-route=native-spark")
             elif status == "hard-stop":
                 levers.append("workerbee-dispatch-route=hard-stop")
@@ -1967,6 +2084,8 @@ def prompt_coach_warnings(
                         "Native operative dispatch remains contained until fsh.3 releases validated precommit supervision; "
                         "do not substitute another operative model."
                     )
+                elif route.get("operative_route", {}).get("version") == 3:
+                    warnings.append("Current task-selected operative routing is unavailable; diagnose the failed gate without substituting an unqualified model.")
                 else:
                     warnings.append(
                         "Native Spark is hard-stopped; do not substitute Sol or another model unless native capability is re-proven."
@@ -2004,12 +2123,12 @@ def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
     if not workerbee_parallelism or workerbee_parallelism.get("recommended_mode") == "none":
         return "Always ask the user whether to parallelize with subagents; default to no subagents for narrow work unless the user opts in.\n"
     if workerbee_parallelism.get("hard_stop"):
-        return (
-            "Native Spark dispatch is hard-stopped. Do not dispatch workerbees until a hard-stop resolution is recorded.\n"
-        )
+        return "The affected operative dispatch is suspended until its actual route gate passes; continue authorized independent diagnosis and repair.\n"
     dispatch_notice = ""
     dispatch = workerbee_parallelism.get("spark_dispatch")
-    if isinstance(dispatch, dict) and str(dispatch.get("status") or "") == "native-first":
+    if isinstance(dispatch, dict) and dispatch.get("status") == "task-selected-v3":
+        dispatch_notice = "Use the qualified exact task-selected model; do not revive historical routing.\n"
+    elif isinstance(dispatch, dict) and str(dispatch.get("status") or "") == "native-first":
         dispatch_notice = "Native Spark dispatch is the preferred route.\n"
     lanes = workerbee_parallelism.get("suggested_lanes") or ["bounded sidecar review"]
     prefix = "heavy review" if workerbee_parallelism.get("recommended_mode") == "heavy-review" else workerbee_parallelism.get("recommended_mode")
@@ -2283,6 +2402,15 @@ def coach_orchestration_prompt(
     beads_context_depth: str | None = None,
     data_sensitivity: str | None = None,
     execution_environment: str | None = None,
+    operative_capabilities: dict[str, Any] | None = None,
+    operative_work_estimate: dict[str, Any] | None = None,
+    operative_fallback_fit: dict[str, Any] | None = None,
+    fallback_selection: dict[str, Any] | None = None,
+    operative_context: dict[str, Any] | None = None,
+    aggregate_budget: dict[str, Any] | None = None,
+    previous_operative_route: dict[str, Any] | None = None,
+    operative_evaluated_at: str | None = None,
+    current_authority: Any = _COACH_AUTHORITY_OMITTED,
 ) -> CoachResult:
     route = classify_work(
         text,
@@ -2300,6 +2428,16 @@ def coach_orchestration_prompt(
         model_synthesis=model_synthesis,
         beads_context_depth=beads_context_depth,
         data_sensitivity=data_sensitivity,
+        operative_capabilities=operative_capabilities,
+        operative_work_estimate=operative_work_estimate,
+        operative_fallback_fit=operative_fallback_fit,
+        fallback_selection=fallback_selection,
+        operative_context=operative_context,
+        aggregate_budget=aggregate_budget,
+        previous_operative_route=previous_operative_route,
+        operative_evaluated_at=operative_evaluated_at,
+        **({} if current_authority is _COACH_AUTHORITY_OMITTED else
+           {"current_authority": current_authority}),
     )
     level = prompt_coach_level(route, text)
     workerbee_parallelism = prompt_coach_parallel_workerbee_signal(text, level, route)
@@ -2396,6 +2534,9 @@ def coach_orchestration_prompt(
         "workerbee_planned_delegation": workerbee_planned_delegation,
         "model_synthesis": model_synthesis_config,
         "operator_calibration": operator_calibration,
+        "operative_route": route["operative_route"],
+        "critic_route": route["critic_route"],
+        "peer_review_route": route["peer_review_route"],
         "route": route,
         "paste_ready_prompt": render_coached_prompt(
             level,

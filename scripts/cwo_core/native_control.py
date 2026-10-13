@@ -310,6 +310,15 @@ def _decision(value: Any) -> str:
     raise ValueError("check returned an invalid decision")
 
 
+def _deferred_close_requested(value: Any) -> bool:
+    """Recognize the trusted adapter's narrow cooperative close handoff."""
+
+    return (
+        isinstance(value, Mapping)
+        and value.get("close_wait_required") is True
+    )
+
+
 class NativeControlTurn:
     """Execute one immutable native control contract at most once."""
 
@@ -458,17 +467,25 @@ class NativeControlTurn:
                 else:
                     self._phase = "interrupt"
             elif self._phase == "finalize-complete":
-                self._invoke(
+                result = self._invoke(
                     "finalize",
                     label="finalize:worker-completed",
                     state_file=state_file,
                     control_turn_id=control_turn_id,
                     control_action="worker-completed",
                 )
-                self._phase = "close-complete"
+                if _deferred_close_requested(result):
+                    self._phase = "waiting-close-complete"
+                    self._waiting = True
+                else:
+                    self._phase = "close-complete"
             elif self._phase == "close-complete":
-                self._invoke("close", agent_id=agent_id)
-                return self._finish("completed")
+                result = self._invoke("close", agent_id=agent_id)
+                if _deferred_close_requested(result):
+                    self._phase = "waiting-close-complete"
+                    self._waiting = True
+                else:
+                    return self._finish("completed")
             elif self._phase == "interrupt":
                 decision = self._decisions[-1]
                 self._invoke(
@@ -478,17 +495,25 @@ class NativeControlTurn:
                 )
                 self._phase = "finalize-interrupt"
             elif self._phase == "finalize-interrupt":
-                self._invoke(
+                result = self._invoke(
                     "finalize",
                     label="finalize:interrupt-confirmed",
                     state_file=state_file,
                     control_turn_id=control_turn_id,
                     control_action="interrupt-confirmed",
                 )
-                self._phase = "close-interrupt"
+                if _deferred_close_requested(result):
+                    self._phase = "waiting-close-interrupt"
+                    self._waiting = True
+                else:
+                    self._phase = "close-interrupt"
             elif self._phase == "close-interrupt":
-                self._invoke("close", agent_id=agent_id)
-                self._phase = "finalize-close"
+                result = self._invoke("close", agent_id=agent_id)
+                if _deferred_close_requested(result):
+                    self._phase = "waiting-close-interrupt"
+                    self._waiting = True
+                else:
+                    self._phase = "finalize-close"
             elif self._phase == "finalize-close":
                 self._invoke(
                     "finalize",
@@ -526,7 +551,14 @@ class NativeControlTurn:
         if not self._waiting:
             raise ValueError("control turn is not waiting")
         self._waiting = False
-        self._phase = "check"
+        next_phase = {
+            "waiting": "check",
+            "waiting-close-complete": "close-complete",
+            "waiting-close-interrupt": "close-interrupt",
+        }.get(self._phase)
+        if next_phase is None:
+            raise RuntimeError("unknown cooperative wait phase")
+        self._phase = next_phase
         return self._progress()
 
     def request_interrupt(self, reason: str = "pool-interrupt") -> dict[str, Any]:

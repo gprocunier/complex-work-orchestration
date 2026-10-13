@@ -35,7 +35,7 @@ from cwo_core.harness import (
     MODEL_PROFILE_REQUIRED_FIELDS,
     validate_execution_environment_registry,
 )
-from cwo_core.policy import load_policy
+from cwo_core.policy import load_json_compatible_yaml, load_policy
 from cwo_core.public_copy import (
     validate_markdown_public_copy,
     validate_required_doc_terms,
@@ -49,11 +49,12 @@ EMITTED_PACKET_ARTIFACT_TYPES = {
     "expert_profile",
 }
 CI_REQUIRED_COMMANDS = [
+    "python -m compileall -j 8 -x '(^|/)(\\.git|\\.beads|\\.orchestration-audit|__pycache__|\\.ruff_cache)(/|$)' .",
     "python scripts/validate_repository.py",
     "python scripts/validate_public_copy.py",
     "python scripts/validate_site.py",
     "python scripts/generate_site.py --check",
-    "python -m unittest discover -s tests",
+    "python scripts/run_parallel_unittest.py --workers 8",
     "bash examples/sample-prompt-coach-command.sh",
     "python scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json",
     "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet",
@@ -62,13 +63,22 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/close_bead_with_summary.py --bead example-1 --disposition completed --why \"validated\" --follow-up none --dry-run --json",
     "python scripts/cleanup_stale_agents.py --dry-run --json",
 ]
+APPROVED_ACTION_PINS = {
+    "actions/checkout": ("d23441a48e516b6c34aea4fa41551a30e30af803", "v6"),
+    "actions/configure-pages": ("45bfe0192ca1faeb007ade9deae92b16b8254a0d", "v6"),
+    "actions/deploy-pages": ("368f82528645a54fb793d4d04e342629a3f51346", "v5"),
+    "actions/setup-python": ("ece7cb06caefa5fff74198d8649806c4678c61a1", "v6"),
+    "actions/upload-pages-artifact": ("fc324d3547104276b827a68afc52ff2a11cc49c9", "v5"),
+    "github/codeql-action": ("cdf488f595d80d6e07e03d4674febd5ab45fa938", "v4"),
+    "ludeeus/action-shellcheck": ("00cae500b08a931fb5698e11e79bfbd38e612a38", "2.0.0"),
+}
 CWO_CORE_ALLOWED_IMPORTS = {
     "access_profiles": {"policy"},
     "paths": set(),
     "util": set(),
     "chatgpt_urls": set(),
     "policy": {"paths", "util"},
-    "routing": {"access_profiles", "errors", "native_containment", "policy", "routing_signals", "synthesis", "types", "util"},
+    "routing": {"access_profiles", "errors", "native_containment", "operative_routing", "policy", "routing_signals", "synthesis", "types", "util"},
     "routing_signals": {"util"},
     "synthesis": {"policy", "util"},
     "coach": {"routing", "synthesis", "types", "util"},
@@ -135,8 +145,10 @@ CWO_CORE_ALLOWED_IMPORTS = {
     },
     "native_turn_dispatch": set(),
     "native_containment": {"native_release", "policy"},
-    "native_precommit": {"audit", "native_session", "native_session_boundary", "paths", "policy", "util", "workspace"},
-    "native_release": {"native_precommit", "paths", "policy", "util"},
+    "native_precommit": {"maintenance_authority", "audit", "native_session", "native_session_boundary", "operative_routing", "paths", "policy", "util", "workspace"},
+    "native_release": {
+        "maintenance_release", "work_sizing","native_precommit", "operative_routing", "paths", "policy", "util"},
+    "operative_routing": {"policy", "work_sizing"},
     "proportional_execution": {"native_capability", "native_containment"},
     "native_recovery": set(),
     "native_recovery_authority": {
@@ -179,6 +191,23 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_tool_isolation",
     },
     "native_pool_scheduler": {"native_pool_contracts"},
+    "maintenance_native_runtime": {'maintenance_qualification', 'maintenance_image', 'native_precommit', 'native_pool_config', 'native_pool_contracts', 'native_pool_preflight', 'workspace', 'native_control', 'native_tool_isolation', 'native_pool_transaction', 'maintenance_runtime_support', 'native_pool_leases', 'paths', 'policy', 'native_pool_workspace', 'native_pool_admission', 'native_stop_scope'},
+    "maintenance_runtime_support": {'maintenance_authority', 'native_pool_admission', 'native_pool_contracts'},
+    "maintenance_authority": {"native_authority", "native_pool_contracts"},
+    "maintenance_image": {"native_pool_contracts", "paths"},
+    "maintenance_readiness": {"maintenance_authority", "native_pool_contracts", "native_pool_transaction", "native_precommit", "work_sizing"},
+    'maintenance_qualification': {'maintenance_image', 'native_tool_isolation', 'native_pool_contracts', 'maintenance_runtime_support', 'maintenance_authority', 'native_authority', 'native_canary_contracts', 'checked_command', 'native_turn_dispatch'},
+    'maintenance_release': {'native_precommit', 'native_pool_contracts', 'maintenance_authority', 'maintenance_qualification', 'operative_routing', 'work_sizing'},
+    'private_authority_input': {'native_precommit', 'operative_routing'},
+
+    "stage_evidence": set(),
+    "stage_completion": {"stage_evidence", "checked_command", "native_pool_transaction"},
+    "native_pool_transaction": {
+        "maintenance_authority",
+        "native_pool_admitted",
+        "native_pool_contracts",
+        "util",
+    },
     "native_pool_leases": {"native_pool_contracts"},
     "native_pool_workspace": {"native_pool_contracts", "workspace"},
     "native_pool": {
@@ -785,8 +814,8 @@ def validate_repository() -> list[str]:
 
     for path in sorted(POLICY_DIR.glob("*.yaml")):
         try:
-            load_json(path)
-        except ValueError as exc:
+            load_json_compatible_yaml(path)
+        except SystemExit as exc:
             errors.append(str(exc))
 
     normalized_schemas: dict[str, str] = {}
@@ -831,8 +860,12 @@ def validate_repository() -> list[str]:
         if target not in executors:
             errors.append(f"executor alias {alias!r} targets unknown executor {target!r}")
 
+    # GPT-5.5's protocol-prescribed stable executor key is the sole intentional
+    # exception to the role-like-key rule; arbitrary versioned executor keys
+    # remain rejected.
+    versioned_executor_key_exceptions = {"internal_worker_gpt55"}
     for key, executor in executors.items():
-        if any(char.isdigit() for char in key):
+        if any(char.isdigit() for char in key) and key not in versioned_executor_key_exceptions:
             errors.append(f"executor key {key!r} must be role-like and must not contain version digits")
         alias_for = executor.get("alias_for")
         if alias_for and alias_for not in executors:
@@ -2324,6 +2357,20 @@ def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None
     for term in CI_REQUIRED_COMMANDS:
         if term not in ci:
             errors.append(f"CI workflow is missing required command: {term}")
+    for workflow_path in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+        content = workflow_path.read_text(encoding="utf-8")
+        for match in re.finditer(r"uses:\s*([\w.-]+/[\w.-]+)(?:/[^@\s]+)?@([^\s]+)(?:\s+#\s*(\S+))?", content):
+            action, reference, comment = match.groups()
+            base = action if action in APPROVED_ACTION_PINS else action.split("/", 2)[0] + "/" + action.split("/", 2)[1]
+            expected = APPROVED_ACTION_PINS.get(base)
+            if expected is None:
+                errors.append(f"workflow uses unknown action: {action}")
+            elif reference != expected[0] or comment != expected[1] or len(reference) != 40:
+                errors.append(f"workflow action pin is invalid: {action}@{reference}")
+    if "contents: read" not in ci or "cancel-in-progress: true" not in ci:
+        errors.append("CI workflow is missing least privilege or cancellable concurrency")
+    if "timeout-minutes:" not in ci or "codeql:" not in ci or "shellcheck:" not in ci:
+        errors.append("CI workflow is missing timeout, CodeQL, or ShellCheck controls")
 
 
 def require_schema_properties(

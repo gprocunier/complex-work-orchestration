@@ -366,6 +366,18 @@ class AcceptanceDecision(TypedDict, total=False):
     score: int
     recommended_disposition: str
     recommended_synthesis_use: SynthesisUse
+    local_completion_status: str | None
+    local_usable_final_content: bool | None
+    local_expected_response_contract: str | None
+    local_response_contract: str | None
+    local_response_contract_status: str | None
+    local_normalized_return_matches: bool | None
+    local_v2_frame_valid: bool | None
+    local_v2_identity_consistent: bool | None
+    local_response_model_status: str | None
+    local_model_preflight_status: str | None
+    local_http_status: int | None
+    local_v2_critic_eligible: bool | None
     missing_sections: list[str]
     penalty_reasons: list[str]
     hard_disqualifiers: list[str]

@@ -130,7 +130,7 @@ class ValidateRepositoryTests(unittest.TestCase):
             policy_document=policy,
         )
         self.assertIn(
-            "pool-hard-cap-unschedulable:demand=1150:slack=-150",
+            "pool-hard-cap-unschedulable:demand=1175:slack=-175",
             errors,
         )
 
@@ -219,6 +219,49 @@ class ValidateRepositoryTests(unittest.TestCase):
             validate_ci_workflow(errors, ci_path)
         self.assertIn(f"CI workflow is missing required command: {CI_REQUIRED_COMMANDS[1]}", errors)
         self.assertIn(f"CI workflow is missing required command: {CI_REQUIRED_COMMANDS[2]}", errors)
+
+    def test_ci_contract_requires_temporary_eight_worker_validation(self) -> None:
+        self.assertTrue(
+            any(command.startswith("python -m compileall -j 8 -x ") for command in CI_REQUIRED_COMMANDS)
+        )
+        self.assertIn(
+            "python scripts/run_parallel_unittest.py --workers 8",
+            CI_REQUIRED_COMMANDS,
+        )
+
+    def test_workflow_controls_accept_independent_positive_fixture(self) -> None:
+        errors: list[str] = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            workflow_dir = root / ".github" / "workflows"
+            workflow_dir.mkdir(parents=True)
+            fixture = root / "ci.yml"
+            fixture.write_text("\n".join(CI_REQUIRED_COMMANDS) + "\npermissions:\n  contents: read\nconcurrency:\n  cancel-in-progress: true\ntimeout-minutes: 5\ncodeql:\nshellcheck:\n", encoding="utf-8")
+            original = validate_repository_module.REPO_ROOT
+            validate_repository_module.REPO_ROOT = root
+            try:
+                (workflow_dir / "ci.yml").write_text("uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6\n" + fixture.read_text(), encoding="utf-8")
+                validate_ci_workflow(errors, fixture)
+            finally:
+                validate_repository_module.REPO_ROOT = original
+        self.assertEqual(errors, [])
+
+    def test_workflow_controls_reject_mutable_or_commentless_pins(self) -> None:
+        errors: list[str] = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            workflow_dir = root / ".github" / "workflows"
+            workflow_dir.mkdir(parents=True)
+            fixture = root / "ci.yml"
+            fixture.write_text("\n".join(CI_REQUIRED_COMMANDS) + "\npermissions:\n  contents: read\nconcurrency:\n  cancel-in-progress: true\ntimeout-minutes: 5\ncodeql:\nshellcheck:\n", encoding="utf-8")
+            original = validate_repository_module.REPO_ROOT
+            validate_repository_module.REPO_ROOT = root
+            try:
+                (workflow_dir / "ci.yml").write_text("uses: actions/checkout@v6\n" + fixture.read_text(), encoding="utf-8")
+                validate_ci_workflow(errors, fixture)
+            finally:
+                validate_repository_module.REPO_ROOT = original
+        self.assertTrue(any("invalid" in error for error in errors))
 
     def test_local_inference_evaluator_peer_review_guidance_is_route_derived(self) -> None:
         errors: list[str] = []

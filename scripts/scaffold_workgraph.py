@@ -5,7 +5,10 @@ import argparse
 import json
 import re
 import sys
+from pathlib import Path
 from typing import Any
+
+from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.beads import (
     add_dependency,
@@ -50,6 +53,7 @@ OPERATIONAL_WORKER_BEAD_LANES = {
     "dashboard-report",
 }
 OPERATIONAL_SPARK_LABELS = ["no-sol-exec", "spark-operative-owner"]
+OPERATIONAL_FALLBACK_LABELS = ["no-sol-exec", "fallback-operative-owner"]
 SPARK_DISPATCH_METADATA_FIELDS = (
     "status",
     "requested_model",
@@ -57,6 +61,15 @@ SPARK_DISPATCH_METADATA_FIELDS = (
     "failed_native_capability_check",
     "failed_native_capability_check_justification",
 )
+
+
+def _load_optional_json(path: str | None) -> dict[str, Any] | None:
+    if not path:
+        return None
+    value = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise SystemExit(f"{path} must contain a JSON object")
+    return value
 
 
 def body(purpose: str, expected: str) -> str:
@@ -136,14 +149,34 @@ def _route_prefers_native_spark_operational(route: dict[str, Any]) -> bool:
     return dispatch_status == "native-first"
 
 
+def _route_prefers_native_operational(route: dict[str, Any]) -> bool:
+    planned = route.get("workerbee_planned_delegation")
+    operative = route.get("operative_route")
+    if not isinstance(operative, dict):
+        return _route_prefers_native_spark_operational(route)
+    return bool(
+        isinstance(planned, dict)
+        and str(planned.get("mode") or "") == SPARK_WORKER_MODE
+        and operative.get("dispatch_authorized") is True
+        and operative.get("selected_model")
+    )
+
+
 def _route_has_spark_hard_stop(route: dict[str, Any]) -> bool:
     planned = route.get("workerbee_planned_delegation")
     if not isinstance(planned, dict):
         return False
+    operative = route.get("operative_route")
+    operative_blocked = bool(
+        isinstance(operative, dict)
+        and operative.get("availability_evidence")
+        and operative.get("dispatch_authorized") is not True
+    )
     return (
         bool(planned.get("hard_stop"))
         or bool(planned.get("registry_tool_mismatch"))
         or _route_spark_dispatch_status(route) == "hard-stop"
+        or operative_blocked
     )
 
 
@@ -198,17 +231,25 @@ def _route_planned_workerbee_delegation(
     mode = str(planned.get("mode") or "none")
     model = planned.get("model")
     model = model if not (model is not None and not str(model).strip()) else None
-    if _route_prefers_native_spark_operational(route):
+    if _route_prefers_native_operational(route):
         is_operative_lane = lane in OPERATIONAL_WORKER_BEAD_LANES
     else:
         is_operative_lane = False
     if is_operative_lane:
         mode = SPARK_WORKER_MODE
-        model = SPARK_WORKER_MODEL
+        operative = route.get("operative_route")
+        model = operative.get("selected_model") if isinstance(operative, dict) else SPARK_WORKER_MODEL
     if model is None:
         workerbee_operational_owner = ""
     else:
-        workerbee_operational_owner = "spark" if is_operative_lane else ""
+        if is_operative_lane and model == SPARK_WORKER_MODEL:
+            workerbee_operational_owner = "spark"
+        elif is_operative_lane:
+            operative = route.get("operative_route")
+            selected_executor = operative.get("selected_executor") if isinstance(operative, dict) else None
+            workerbee_operational_owner = f"fallback:{selected_executor or model}"
+        else:
+            workerbee_operational_owner = ""
     return {
         "workerbee_planned_delegation": {
             "mode": mode,
@@ -296,6 +337,16 @@ def route_notes(route: dict[str, Any]) -> str:
                 f"requested_model={spark_dispatch.get('requested_model', '') or ''} | "
                 f"failed_check={spark_dispatch.get('failed_native_capability_check', '') or ''}"
             )
+    operative = route.get("operative_route")
+    if isinstance(operative, dict):
+        lines.extend(
+            [
+                f"Operative primary: {operative.get('primary_model')} via {operative.get('primary_executor')}",
+                f"Operative availability: {operative.get('availability_status')} ({operative.get('availability_reason')})",
+                f"Operative selected: {operative.get('selected_model') or 'none'} via {operative.get('selection_source') or 'none'}",
+                f"Operative dispatch authorized: {bool(operative.get('dispatch_authorized'))}",
+            ]
+        )
     return "\n".join(lines)
 
 
@@ -316,6 +367,63 @@ def _lane_metadata(
     merged["routine_repair_child_forbidden"] = bool(closure_pressure.get("active"))
     merged["dependency_semantics_version"] = 1
     merged["ready_set_admission_required"] = lane in OPERATIONAL_WORKER_BEAD_LANES
+    merged["operative_route"] = route.get("operative_route", {})
+    merged["critic_route"] = route.get("critic_route", {})
+    merged["peer_review_route"] = route.get("peer_review_route", {})
+    operative = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
+    if operative.get("version") == 3:
+        merged.update({
+            "operative_routing_version": 3,
+            "operative_dispatch_authorized": operative.get("dispatch_authorized") is True,
+            "operative_primary_model": "gpt-5.6-luna",
+            "operative_selected_model": operative.get("selected_model"),
+            "operative_selection_source": "task-sized-qualified-luna-first",
+            "operative_recommended_model": operative.get("selected_model"),
+            "operative_recommended_executor": operative.get("selected_executor"),
+            "operative_work_estimate_sha256": operative.get("work_estimate_sha256"),
+            "operative_fit_record_sha256": operative.get("fit_record_sha256"),
+            "operative_qualification_sha256": operative.get("qualification_sha256"),
+            "operative_policy_sha256": operative.get("policy_sha256"),
+            "operative_aggregate_budget": operative.get("aggregate_budget"),
+            "operative_stop_reason": operative.get("stop_reason"),
+        })
+        return merged
+    merged["operative_primary_model"] = operative.get("primary_model")
+    merged["operative_selected_model"] = operative.get("selected_model")
+    merged["operative_selection_source"] = operative.get("selection_source")
+    merged["operative_recommended_model"] = operative.get("recommended_model")
+    merged["operative_recommended_executor"] = operative.get("recommended_executor")
+    merged["operative_work_estimate_sha256"] = operative.get("work_estimate_sha256")
+    merged["operative_fallback_fit_sha256"] = operative.get("fallback_fit_sha256")
+    merged["operative_capability_evidence_sha256"] = operative.get("capability_evidence_sha256")
+    merged["operative_policy_sha256"] = operative.get("policy_sha256")
+    merged["operative_aggregate_budget"] = operative.get("aggregate_budget", {})
+    merged["operative_fallback_selection"] = (
+        operative.get("fallback", {}).get("selection")
+        if isinstance(operative.get("fallback"), dict)
+        else None
+    )
+    fallback_selection = (
+        merged["operative_fallback_selection"]
+        if isinstance(merged["operative_fallback_selection"], dict)
+        else {}
+    )
+    merged["operative_selection_scope"] = fallback_selection.get("scope")
+    merged["operative_selection_expires_when"] = fallback_selection.get("expires_when")
+    selected_candidate = next(
+        (
+            item
+            for item in operative.get("fallback", {}).get("candidates", [])
+            if isinstance(item, dict)
+            and item.get("model") == operative.get("selected_model")
+            and item.get("executor") == operative.get("selected_executor")
+        ),
+        {},
+    )
+    merged["operative_task_fit_warning"] = selected_candidate.get("task_fit_warning")
+    merged["operative_task_fit_acknowledgement_required"] = selected_candidate.get(
+        "acknowledgement_required", False
+    )
     return merged
 
 
@@ -352,8 +460,12 @@ def _lane_labels(route: dict[str, Any], lane: str, labels: list[str]) -> list[st
     if _route_has_spark_hard_stop(route):
         return unique_strings([label for label in labels if label not in OPERATIONAL_SPARK_LABELS])
     lane_labels = list(labels)
-    if _route_prefers_native_spark_operational(route) and lane in OPERATIONAL_WORKER_BEAD_LANES:
-        lane_labels.extend(OPERATIONAL_SPARK_LABELS)
+    if _route_prefers_native_operational(route) and lane in OPERATIONAL_WORKER_BEAD_LANES:
+        operative = route.get("operative_route")
+        if isinstance(operative, dict) and operative.get("selected_model") == SPARK_WORKER_MODEL:
+            lane_labels.extend(OPERATIONAL_SPARK_LABELS)
+        else:
+            lane_labels.extend(OPERATIONAL_FALLBACK_LABELS)
     return unique_strings(lane_labels)
 
 
@@ -1185,6 +1297,13 @@ def main() -> None:
         help="Override the autosized Beads context depth for internal Codex/subagent briefing.",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--operative-capabilities", help="Trusted live operative capability evidence JSON.")
+    parser.add_argument("--operative-work-estimate", help="Validated native work-estimate v2 JSON.")
+    parser.add_argument("--operative-fallback-fit", help="Strict hash-bound fallback-fitness evidence JSON.")
+    parser.add_argument("--fallback-selection", help="Explicit user fallback selection JSON.")
+    parser.add_argument("--operative-context", help="Current Bead/wave/fresh-segment context JSON.")
+    parser.add_argument("--aggregate-budget", help="Original aggregate budget JSON; never reset on fallback.")
+    parser.add_argument("--operative-evaluated-at", help="ISO-8601 routing evaluation time for deterministic automation.")
     parser.add_argument(
         "--format",
         choices=["cwo", "beads-graph", "markdown-workgraph"],
@@ -1207,6 +1326,7 @@ def main() -> None:
         help="Closure disposition required when closure-pressure is active.",
     )
     add_waiver_reason_argument(parser)
+    parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
     args = parser.parse_args()
     require_waiver_reason(args, ["allow_disclosure_escalation"])
 
@@ -1225,6 +1345,14 @@ def main() -> None:
             execution_environment=args.execution_environment,
             model_synthesis=args.model_synthesis,
             beads_context_depth=args.beads_context_depth,
+            operative_capabilities=_load_optional_json(args.operative_capabilities),
+            operative_work_estimate=_load_optional_json(args.operative_work_estimate),
+            operative_fallback_fit=_load_optional_json(args.operative_fallback_fit),
+            fallback_selection=_load_optional_json(args.fallback_selection),
+            operative_context=_load_optional_json(args.operative_context),
+            aggregate_budget=_load_optional_json(args.aggregate_budget),
+            operative_evaluated_at=args.operative_evaluated_at,
+            **current_authority_file_arguments(args.current_authority),
         )
     except CWOError as exc:
         raise SystemExit(str(exc))

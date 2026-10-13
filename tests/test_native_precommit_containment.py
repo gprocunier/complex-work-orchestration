@@ -10,6 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+from tests.historical_policy_fixtures import historical_v2_policy, historical_cli_args
 
 from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 from cwo_core.native_containment import (  # noqa: E402
@@ -68,6 +69,7 @@ class NativePrecommitContainmentTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "malformed policy"):
                 native_operative_containment(malformed)
 
+    @historical_v2_policy()
     def test_route_coach_and_scaffold_offer_native_lanes_after_release(self) -> None:
         prompt = "Use Sol as architect and Spark for implementation, tests, validation, docs, and reporting."
         route = classify_work(prompt)
@@ -97,6 +99,7 @@ class NativePrecommitContainmentTests(unittest.TestCase):
             self.assertEqual(metadata.get("workerbee_planned_model"), "gpt-5.3-codex-spark")
             self.assertEqual(metadata.get("workerbee_planned_lanes"), planned["lanes"])
 
+    @historical_v2_policy()
     def test_planned_build_and_dispatchable_validation_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
             with self.assertRaisesRegex(SystemExit, "trusted precommit receipt"):
@@ -143,12 +146,13 @@ class NativePrecommitContainmentTests(unittest.TestCase):
         self.assertFalse(result["dispatch_required"])
         self.assertTrue(any(CONTAINMENT_ERROR in reason for reason in result["reasons"]))
 
+    @historical_v2_policy()
     def test_real_cli_render_and_supervisor_authority_paths_emit_no_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
             packet_path = Path(workdir) / "packet.json"
             packet_path.write_text(json.dumps(_draft(workdir)), encoding="utf-8")
             rendered = subprocess.run(
-                [sys.executable, str(ROOT / "scripts" / "prepare_native_worker.py"), "render", str(packet_path)],
+                historical_cli_args(ROOT / "scripts" / "prepare_native_worker.py", "render", str(packet_path)),
                 cwd=ROOT,
                 capture_output=True,
                 text=True,
@@ -176,7 +180,7 @@ class NativePrecommitContainmentTests(unittest.TestCase):
             )
             for command in commands:
                 result = subprocess.run(
-                    [sys.executable, str(ROOT / "scripts" / "supervise_native_worker.py"), *command],
+                    historical_cli_args(ROOT / "scripts" / "supervise_native_worker.py", *command),
                     cwd=ROOT,
                     capture_output=True,
                     text=True,

@@ -843,6 +843,30 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertIn("restricted-label", excluded[restricted])
         self.assertIn("invalid-admission-metadata", excluded[invalid])
 
+    def test_equal_timestamp_content_drift_changes_snapshot_seal(self) -> None:
+        # Synthetic collision isolates the seal invariant from host/CLI latency.
+        before = ready_item("equal-timestamp", write_paths=["scripts/toy.py"])["raw"]
+        before.pop("_cwo_executable_leaf")  # Controller annotation is not a bd show field.
+        before["description"] = "Original description"
+        for field in ("title", "description"):
+            with self.subTest(field=field):
+                after = json.loads(json.dumps(before))
+                after[field] = f"Changed {field}"
+                self.assertEqual(before["updated_at"], after["updated_at"])
+                old_seal = build_ready_set_evidence(
+                    [before], epic_id="synthetic-epic", policy_document=released_three_policy()
+                )
+                new_seal = build_ready_set_evidence(
+                    [after], epic_id="synthetic-epic", policy_document=released_three_policy()
+                )
+                self.assertNotEqual(
+                    old_seal["beads_readiness_snapshot_sha256"],
+                    new_seal["beads_readiness_snapshot_sha256"],
+                )
+                projection = new_seal["beads_readiness_snapshot"]["issue_projections"][0]
+                self.assertEqual(projection[field], after[field])
+                self.assertEqual(projection["exact_show_raw_sha256"], canonical_json_sha256(after))
+
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_beads_issue_and_admission_drift_changes_snapshot_seal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -972,26 +996,9 @@ class ContinueSprintTests(unittest.TestCase):
                 [leaf],
             )
 
-            same_second_pair: tuple[dict, dict] | None = None
-            for attempt in range(8):
-                before = show(leaf)
-                update(
-                    leaf,
-                    "--title",
-                    f"Same-second title drift {attempt}",
-                    "--description",
-                    f"Same-second description drift {attempt}",
-                )
-                after = show(leaf)
-                if before["updated_at"] == after["updated_at"]:
-                    same_second_pair = (before, after)
-                    break
-            self.assertIsNotNone(
-                same_second_pair,
-                "could not reproduce Beads' second-resolution update timestamp",
-            )
-            assert same_second_pair is not None
-            before, after = same_second_pair
+            before = show(leaf)
+            update(leaf, "--title", "Title drift", "--description", "Description drift")
+            after = show(leaf)
             self.assertNotEqual(before["title"], after["title"])
             self.assertNotEqual(before["description"], after["description"])
             before_seal = build_ready_set_evidence(

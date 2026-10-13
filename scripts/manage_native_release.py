@@ -47,6 +47,7 @@ def parse_args() -> argparse.Namespace:
     canary.add_argument("--packet-id", required=True)
     canary.add_argument("--attempt-nonce", required=True)
     canary.add_argument("--work-plan", required=True)
+    canary.add_argument("--operative-routing")
     canary.add_argument("--workdir", required=True)
     canary.add_argument("--output", required=True)
     canary.add_argument("--ttl-seconds", type=int, default=900)
@@ -55,6 +56,7 @@ def parse_args() -> argparse.Namespace:
     operative.add_argument("--candidate-packet", required=True)
     operative.add_argument("--adjudication", required=True)
     operative.add_argument("--canary-receipt", required=True)
+    operative.add_argument("--canary-release-evidence")
     operative.add_argument("--output", required=True)
     operative.add_argument("--ttl-seconds", type=int, default=900)
     operative.add_argument("--now")
@@ -72,6 +74,11 @@ def main() -> int:
                 packet_id=args.packet_id,
                 attempt_nonce=args.attempt_nonce,
                 work_plan=_load(args.work_plan, "work plan"),
+                operative_routing=(
+                    _load(args.operative_routing, "operative routing")
+                    if args.operative_routing
+                    else None
+                ),
                 workdir=args.workdir,
                 ttl_seconds=args.ttl_seconds,
                 now=args.now,
@@ -90,6 +97,11 @@ def main() -> int:
                 candidate_packet=candidate,
                 adjudication=_load(args.adjudication, "operative adjudication"),
                 canary_receipt=_load(args.canary_receipt, "canary precommit receipt"),
+                canary_release_evidence=(
+                    _load(args.canary_release_evidence, "canary release evidence")
+                    if args.canary_release_evidence
+                    else None
+                ),
                 ttl_seconds=args.ttl_seconds,
                 now=args.now,
             )

@@ -551,6 +551,7 @@ def evaluate_ready_candidate(
     policy_document: Mapping[str, Any] | None = None,
     share_policy_document: Mapping[str, Any] | None = None,
     operator_approval_verifier: OperatorApprovalVerifier | None = None,
+    current_authority: Any = None,
 ) -> tuple[ReadyCandidate | None, list[dict[str, str]]]:
     """Validate one exact-show-enriched ready issue for pool candidacy."""
 
@@ -649,6 +650,7 @@ def evaluate_ready_candidate(
             commitment,
             work_plan,
             precommit_receipt=precommit_receipt,
+            current_authority=current_authority,
         )
         if commitment_errors:
             reasons.append(
@@ -1565,6 +1567,7 @@ def build_ready_set_evidence(
     scope_items: Sequence[Mapping[str, Any]] | None = None,
     share_policy_document: Mapping[str, Any] | None = None,
     operator_approval_verifier: OperatorApprovalVerifier | None = None,
+    current_authority: Any = None,
 ) -> dict[str, Any]:
     """Build sealed candidate evidence without claims, leases, or dispatch."""
 
@@ -1640,6 +1643,7 @@ def build_ready_set_evidence(
             policy_document=policy,
             share_policy_document=share_policy,
             operator_approval_verifier=operator_approval_verifier,
+            current_authority=current_authority,
         )
         if candidate is None:
             exclusions[issue_id] = sorted(
@@ -1656,6 +1660,7 @@ def build_ready_set_evidence(
             policy_document=policy,
             share_policy_document=share_policy,
             operator_approval_verifier=None,
+            current_authority=current_authority,
         )
         reasons.append(
             _exclusion(

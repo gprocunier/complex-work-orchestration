@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import copy
 import importlib.util
 import io
 import inspect
@@ -132,6 +133,12 @@ class FakeCalibrationServer:
         materialize_before_read: int | None = None,
         automatic_materialize_read: int | None = 3,
         empty_initial_session: bool = False,
+        requested_model: str = LIVE.EXACT_MODEL,
+        tool_transport: str = LIVE.DIRECT_TOOL_TRANSPORT,
+        materialize_on_notification_snapshot: bool = False,
+        emit_notification_on_turn_start: bool = False,
+        materialize_session_on_interrupt: bool = False,
+        forbid_preinterrupt_read: bool = False,
     ) -> None:
         self.codex_home = root / "codex-home"
         self.active = self.codex_home / "sessions" / "2026" / "07"
@@ -182,6 +189,35 @@ class FakeCalibrationServer:
         self._notifications: list[tuple[int, dict]] = []
         self.rpc_latencies = {}
         self.terminal_containment_calls: list[dict[str, str]] = []
+        self.requested_model = requested_model
+        self.tool_transport = tool_transport
+        self.materialize_on_notification_snapshot = (
+            materialize_on_notification_snapshot
+        )
+        self.notification_materialized = False
+        self.emit_notification_on_turn_start = emit_notification_on_turn_start
+        self.materialize_session_on_interrupt = materialize_session_on_interrupt
+        self.notification_emitted = False
+        self.forbid_preinterrupt_read = forbid_preinterrupt_read
+        self.preinterrupt_read_count = 0
+
+    def operative_tool_transport(self) -> str:
+        return self.tool_transport
+
+    def _namespaced_source(self) -> str:
+        if self.started_cwd is None:
+            raise AssertionError("thread cwd missing")
+        arguments = {
+            "cmd": self.function_command,
+            "workdir": str(self.started_cwd),
+            "yield_time_ms": 30000,
+            "max_output_tokens": 1000,
+        }
+        return (
+            "const result = await tools.exec_command("
+            + json.dumps(arguments, sort_keys=True, separators=(",", ":"))
+            + "); text(JSON.stringify(result));"
+        )
 
     def _write(self, records: list[dict]) -> None:
         self.path.write_text("".join(json.dumps(item) + "\n" for item in records), encoding="utf-8")
@@ -194,7 +230,7 @@ class FakeCalibrationServer:
         self.thread_start_count += 1
         self.started_cwd = _cwd.resolve()
         return {
-            "model": LIVE.EXACT_MODEL,
+            "model": self.requested_model,
             "modelProvider": "trusted",
             "thread": {"id": self.thread_id, "turns": [], "path": str(self.path)},
         }, 1.0
@@ -219,6 +255,8 @@ class FakeCalibrationServer:
                     {"type": "response_item", "payload": {"type": "message", "role": "user"}},
                 ]
             )
+        if self.emit_notification_on_turn_start:
+            self._emit_notification()
         return {"id": self.turn_id}, 1.0
 
     def _thread(self) -> dict:
@@ -238,24 +276,35 @@ class FakeCalibrationServer:
                     {"type": "response_item", "payload": {"type": "message", "role": "user"}},
                 ]
             )
+        tool_call = (
+            {
+                "type": "custom_tool_call",
+                "name": "exec",
+                "call_id": "call-one",
+                "id": "call-one",
+                "input": self._namespaced_source(),
+            }
+            if self.tool_transport == LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT
+            else {
+                "type": "function_call",
+                "name": "exec_command",
+                "call_id": "call-one",
+                "id": "call-one",
+                "arguments": json.dumps({"cmd": self.function_command}),
+            }
+        )
         records = [
             {
                 "type": "turn_context",
                 "payload": {
                     "turn_id": self.turn_id,
-                    "model": LIVE.EXACT_MODEL,
+                    "model": self.requested_model,
                     "effort": "low",
                 },
             },
             {
                 "type": "response_item",
-                "payload": {
-                    "type": "function_call",
-                    "name": "exec_command",
-                    "call_id": "call-one",
-                    "id": "call-one",
-                    "arguments": json.dumps({"cmd": self.function_command}),
-                },
+                "payload": tool_call,
             },
         ]
         if self.duplicate_function_call:
@@ -316,21 +365,39 @@ class FakeCalibrationServer:
                 )
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write("".join(json.dumps(item) + "\n" for item in records))
+        self._emit_notification()
+
+    def _emit_notification(self) -> None:
+        if self.notification_emitted:
+            return
+        self.notification_emitted = True
         if not self.missing_start:
             if self.started_cwd is None:
                 raise AssertionError("thread cwd missing")
             notification_cwd = self.started_cwd
             if self.notification_workspace_mismatch:
                 notification_cwd = self.codex_home.resolve()
-            item = {
-                "id": "command-one",
-                "type": self.notification_item_type,
-                "command": self.notification_command,
-                "commandActions": [],
-                "cwd": str(notification_cwd),
-                "status": self.command_status,
-            }
-            if not self.omit_command_source:
+            item = (
+                {
+                    "id": "command-one",
+                    "type": "dynamicToolCall",
+                    "namespace": "functions",
+                    "tool": "exec",
+                    "arguments": self._namespaced_source(),
+                    "status": self.command_status,
+                }
+                if self.tool_transport == LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT
+                and self.notification_item_type == "dynamicToolCall"
+                else {
+                    "id": "command-one",
+                    "type": self.notification_item_type,
+                    "command": self.notification_command,
+                    "commandActions": [],
+                    "cwd": str(notification_cwd),
+                    "status": self.command_status,
+                }
+            )
+            if item["type"] == "commandExecution" and not self.omit_command_source:
                 item["source"] = self.command_source
             params = {
                 "threadId": "other-thread" if self.cross_thread_start else self.thread_id,
@@ -376,6 +443,10 @@ class FakeCalibrationServer:
     ) -> tuple[dict, float]:
         if thread_id != self.thread_id:
             raise AssertionError("thread mismatch")
+        if not self.interrupted:
+            self.preinterrupt_read_count += 1
+            if self.forbid_preinterrupt_read:
+                raise AssertionError("thread/read issued before deliberate interrupt")
         self.read_count += 1
         self.read_started.append(LIVE.time.monotonic())
         self.read_timeouts.append(timeout)
@@ -434,21 +505,27 @@ class FakeCalibrationServer:
     def interrupt_turn(self, thread_id: str, turn_id: str) -> float:
         if (thread_id, turn_id) != (self.thread_id, self.turn_id):
             raise AssertionError("interrupt mismatch")
+        if self.materialize_session_on_interrupt:
+            self._materialize()
         self.interrupted = True
         with self.path.open("a", encoding="utf-8") as stream:
-            stream.write(
-                json.dumps(
-                    {
-                        "type": "response_item",
-                        "payload": {
-                            "type": "function_call_output",
-                            "call_id": "call-one",
-                            "output": "aborted by user after 1.3s",
-                        },
-                    }
+            if self.tool_transport == LIVE.DIRECT_TOOL_TRANSPORT:
+                stream.write(
+                    json.dumps(
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call_output",
+                                "call_id": "call-one",
+                                "output": (
+                                    "Wall time: 1.3 seconds\n"
+                                    "aborted by user"
+                                ),
+                            },
+                        }
+                    )
+                    + "\n"
                 )
-                + "\n"
-            )
             stream.write(
                 json.dumps(
                     {
@@ -505,6 +582,12 @@ class FakeCalibrationServer:
         *,
         after_sequence: int,
     ) -> list[dict]:
+        if (
+            self.materialize_on_notification_snapshot
+            and not self.notification_materialized
+        ):
+            self._materialize()
+            self.notification_materialized = True
         values = []
         for sequence, (received_ns, message) in enumerate(self._notifications, 1):
             params = message["params"]
@@ -573,6 +656,7 @@ class FakeLiveThreadServer:
         initial_boundary: str = "missing",
         read_statuses: list[str] | None = None,
     ) -> None:
+        self.root = root.resolve()
         self.codex_home = root / "codex-home"
         self.active = self.codex_home / "sessions" / "2026" / "07"
         self.archive = self.codex_home / "archived_sessions"
@@ -589,6 +673,8 @@ class FakeLiveThreadServer:
         self.bind_turn_result = True
         self.start_error: Exception | None = None
         self.archived = False
+        self.requested_model = LIVE.EXACT_MODEL
+        self._effective_thread_start_evidence: dict[str, dict] = {}
         self.set_boundary(initial_boundary)
 
     def set_boundary(self, kind: str) -> None:
@@ -608,7 +694,14 @@ class FakeLiveThreadServer:
         if kind != "valid":
             raise AssertionError(f"unknown boundary kind: {kind}")
         records = [
-            {"type": "session_meta", "payload": {"id": self.thread_id}},
+            {
+                "type": "session_meta",
+                "payload": {
+                    "id": self.thread_id,
+                    "session_id": self.thread_id,
+                    "cwd": str(self.root),
+                },
+            },
             {
                 "type": "turn_context",
                 "payload": {
@@ -638,12 +731,32 @@ class FakeLiveThreadServer:
                 + "\n"
             )
 
-    def thread_response(self) -> dict:
-        return {
+    def thread_response(self, *, mutable: bool = False) -> dict:
+        request = {
+            "model": LIVE.EXACT_MODEL,
+            "allowProviderModelFallback": False,
+            "sandbox": "workspace-write" if mutable else "read-only",
+            "approvalPolicy": "never",
+            "cwd": str(self.root),
+            "runtimeWorkspaceRoots": [str(self.root)],
+        }
+        response = {
             "model": LIVE.EXACT_MODEL,
             "modelProvider": "trusted",
+            "sandbox": {
+                "type": "workspaceWrite" if mutable else "readOnly",
+                **({"writableRoots": []} if mutable else {}),
+            },
+            "approvalPolicy": "never",
+            "cwd": str(self.root),
+            "runtimeWorkspaceRoots": [str(self.root)],
             "thread": {"id": self.thread_id, "turns": [], "path": str(self.path)},
         }
+        self._effective_thread_start_evidence[self.thread_id] = {
+            "request": copy.deepcopy(request),
+            "response": copy.deepcopy(response),
+        }
+        return response
 
     def start_turn(self, thread_id: str, _message: str) -> tuple[dict, float]:
         if thread_id != self.thread_id:
@@ -818,6 +931,175 @@ class AppServerRpcErrorTests(unittest.TestCase):
         wire = json.loads(server.process.stdin.getvalue().splitlines()[-1])
         self.assertEqual(wire["params"]["tools"], ["exec_command"])
         self.assertNotIn("dynamicTools", wire["params"])
+
+    def test_precommit_fit_thread_start_is_estimate_only_and_exact_schema(self) -> None:
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        exact_tools = ["apply_patch", "exec_command", "write_stdin"]
+        server.tool_surface_capability = lambda *, permitted_tools: {
+            "source": "supported-test-server",
+            "server_allowlist_supported": True,
+            "allowlist_parameter": "tools",
+            "effective_allowlist": list(permitted_tools),
+        }
+        server.operative_tool_transport = lambda: LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT
+        server.start_thread(
+            ROOT,
+            mutable=False,
+            thread_phase=LIVE.THREAD_PHASE_PRECOMMIT_FIT,
+            permitted_tools=exact_tools,
+            allowlist_parameter="tools",
+        )
+        wire = json.loads(server.process.stdin.getvalue().splitlines()[-1])
+        instructions = wire["params"]["developerInstructions"]
+        self.assertIn("no-tools precommit fit estimate", instructions)
+        self.assertIn("not the later implementation task", instructions)
+        self.assertIn("containing only these five fields", instructions)
+        for field in (
+            "decision",
+            "tool_calls_p50",
+            "tool_calls_p90",
+            "runtime_seconds_p50",
+            "runtime_seconds_p90",
+        ):
+            self.assertIn(field, instructions)
+        self.assertIn("Do not add status, reason, primary_outcome", instructions)
+        self.assertNotIn("Follow the user task exactly", instructions)
+        self.assertNotIn("functions.exec transport", instructions)
+        self.assertEqual(wire["params"]["sandbox"], "read-only")
+
+    def test_live_canary_thread_start_preserves_namespaced_exec_instructions(self) -> None:
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        server.operative_tool_transport = lambda: LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT
+        server.start_thread(ROOT, mutable=True)
+        wire = json.loads(server.process.stdin.getvalue().splitlines()[-1])
+        instructions = wire["params"]["developerInstructions"]
+        self.assertIn("bounded CWO live canary", instructions)
+        self.assertIn("Follow the user task exactly", instructions)
+        self.assertIn("functions.exec transport", instructions)
+        self.assertNotIn("precommit fit estimate", instructions)
+        self.assertEqual(wire["params"]["sandbox"], "workspace-write")
+
+    def test_direct_thread_start_makes_controller_cwd_authoritative(self) -> None:
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        server.operative_tool_transport = lambda: LIVE.DIRECT_TOOL_TRANSPORT
+        server.start_thread(ROOT, mutable=True)
+        wire = json.loads(server.process.stdin.getvalue().splitlines()[-1])
+        instructions = wire["params"]["developerInstructions"]
+        self.assertIn("controller-supplied thread cwd is authoritative", instructions)
+        self.assertIn("Omit the workdir argument", instructions)
+        self.assertEqual(wire["params"]["cwd"], str(ROOT))
+        self.assertEqual(wire["params"]["runtimeWorkspaceRoots"], [str(ROOT)])
+
+    def test_thread_start_rejects_noncanonical_workdir_before_transport(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "target"
+            target.mkdir()
+            alias = root / "alias"
+            alias.symlink_to(target, target_is_directory=True)
+            for invalid in (Path("relative"), alias, root / "missing"):
+                with self.subTest(invalid=invalid):
+                    server = self.request_server({"id": 1, "result": {}})
+                    server.operative_tool_transport = mock.Mock(
+                        side_effect=AssertionError(
+                            "workdir gate must precede transport"
+                        )
+                    )
+                    with self.assertRaisesRegex(
+                        LIVE.AppServerError, "controller-workdir-invalid"
+                    ):
+                        server.start_thread(invalid, mutable=False)
+                    server.operative_tool_transport.assert_not_called()
+                    self.assertEqual(server.process.stdin.getvalue(), "")
+
+    def test_unknown_thread_phase_fails_before_transport_or_allocation(self) -> None:
+        server = self.request_server({"id": 1, "result": {}})
+        server.operative_tool_transport = mock.Mock(
+            side_effect=AssertionError("phase gate must precede transport")
+        )
+        with self.assertRaisesRegex(LIVE.AppServerError, "thread-start-phase-invalid"):
+            server.start_thread(ROOT, mutable=False, thread_phase="unknown-phase")
+        server.operative_tool_transport.assert_not_called()
+        self.assertEqual(server.process.stdin.getvalue(), "")
+
+    def test_config_proof_thread_start_forwards_locked_config_and_no_dynamic_tools(
+        self,
+    ) -> None:
+        thread_id = str(uuid.uuid4())
+        server = self.request_server(
+            {
+                "id": 1,
+                "result": {
+                    "model": LIVE.EXACT_MODEL,
+                    "thread": {"id": thread_id, "turns": []},
+                },
+            }
+        )
+        server.allocation_ledger = None
+        server.started_threads = {}
+        server._tool_surface_proof = {"proof_sha256": "a" * 64, "tool_profile": "mutating-v1"}
+        exact_tools = ["apply_patch", "exec_command", "write_stdin"]
+        verified = {
+            "proof_sha256": "a" * 64,
+            "observed_tools": exact_tools,
+            "codex_version": "0.153.2",
+            "tool_transport": LIVE.DIRECT_TOOL_TRANSPORT,
+        }
+        locked = {"features": {"multi_agent": False}}
+        with (
+            mock.patch.object(LIVE, "require_surface_proof", return_value=verified),
+            mock.patch.object(
+                LIVE,
+                "thread_start_enforcement_params",
+                return_value={"config": locked, "dynamicTools": []},
+            ),
+        ):
+            surface = LIVE.capture_server_tool_surface(
+                server,
+                LIVE.default_tool_policy(mutable=True),
+            )
+            server.start_thread(
+                ROOT,
+                mutable=True,
+                permitted_tools=exact_tools,
+                allowlist_parameter="config",
+            )
+            self.assertEqual(
+                server.capability_adapter_version(),
+                "codex-app-server-0.153.2",
+            )
+        self.assertTrue(surface["server_allowlist_supported"])
+        self.assertEqual(surface["effective_allowlist"], exact_tools)
+        wire = json.loads(server.process.stdin.getvalue().splitlines()[-1])
+        self.assertEqual(wire["params"]["config"], locked)
+        self.assertEqual(wire["params"]["dynamicTools"], [])
 
     def test_fresh_thread_proof_requires_exact_empty_turns(self) -> None:
         cases = (
@@ -3088,6 +3370,295 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertEqual(server.thread_start_count, 0)
             self.assertEqual(server.turn_start_count, 0)
 
+    def test_calibration_binds_requested_pool_cap_and_control_turn(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(root)
+
+            receipt, _evidence = LIVE.calibration(
+                server,
+                root,
+                record_dir,
+                self.owner(),
+                run_nonce=str(uuid.uuid4()),
+                phase_nonce=str(uuid.uuid4()),
+                control_turn_id="n3-canary-control-turn",
+                requested_cap=3,
+            )
+
+            self.assertEqual(receipt["control_turn_id"], "n3-canary-control-turn")
+            self.assertEqual(receipt["requested_cap"], 3)
+            self.assertEqual(receipt["validation_outcome"], "accepted")
+            self.assertEqual(
+                json.loads((record_dir / "calibration-mark.json").read_text())[
+                    "control_turn_id"
+                ],
+                "n3-canary-control-turn",
+            )
+            self.assertEqual(
+                json.loads((record_dir / "calibration-finalize.json").read_text())[
+                    "control_turn_id"
+                ],
+                "n3-canary-control-turn",
+            )
+
+    def test_calibration_binds_server_requested_fallback_model(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                requested_model="gpt-5.6-luna",
+            )
+
+            receipt, evidence = LIVE.calibration(
+                server,
+                root,
+                record_dir,
+                self.owner(),
+                run_nonce=str(uuid.uuid4()),
+                phase_nonce=str(uuid.uuid4()),
+                requested_cap=3,
+            )
+
+            self.assertEqual(receipt["validation_outcome"], "accepted")
+            self.assertEqual(
+                evidence["materialization_evidence"]["requested_model"],
+                "gpt-5.6-luna",
+            )
+            self.assertEqual(
+                evidence["materialization_evidence"]["attested_model"],
+                "gpt-5.6-luna",
+            )
+            self.assertEqual(
+                evidence["sessions"][0]["session_boundary"][
+                    "attested_models"
+                ],
+                ["gpt-5.6-luna"],
+            )
+
+    def test_calibration_accepts_proof_bound_namespaced_exec_transport(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                requested_model="gpt-5.6-luna",
+                tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+                automatic_materialize_read=None,
+                emit_notification_on_turn_start=True,
+                materialize_session_on_interrupt=True,
+                forbid_preinterrupt_read=True,
+            )
+
+            receipt, evidence = LIVE.calibration(
+                server,
+                root,
+                record_dir,
+                self.owner(),
+                run_nonce=str(uuid.uuid4()),
+                phase_nonce=str(uuid.uuid4()),
+                requested_cap=3,
+            )
+
+            self.assertEqual(receipt["validation_outcome"], "accepted")
+            materialization = evidence["materialization_evidence"]
+            self.assertEqual(
+                materialization["pre_interrupt_observation"]["command_source"],
+                "unifiedExecStartup",
+            )
+            self.assertEqual(
+                materialization["pre_interrupt_observation"]["correlation_mode"],
+                "notification-first",
+            )
+            self.assertIsNone(
+                materialization["pre_interrupt_observation"][
+                    "function_call_record_index"
+                ]
+            )
+            self.assertEqual(
+                materialization["terminal_execution_correlation"][
+                    "function_call_record_index"
+                ],
+                4,
+            )
+            diagnostic = json.loads(
+                (record_dir / "calibration-notification-shape.json").read_text()
+            )
+            self.assertEqual(diagnostic["events"][0]["item_type"], "commandExecution")
+            serialized_diagnostic = json.dumps(diagnostic, sort_keys=True)
+            self.assertNotIn(server._namespaced_source(), serialized_diagnostic)
+            self.assertNotIn(str(root.resolve()), serialized_diagnostic)
+            boundary = evidence["sessions"][0]["session_boundary"]
+            self.assertEqual(boundary["trusted_tool_names"], ["exec_command"])
+            self.assertEqual(
+                boundary["trusted_tool_receipts"][0]["result_kind"],
+                "unpaired-call",
+            )
+            self.assertEqual(server.preinterrupt_read_count, 0)
+            if importlib.util.find_spec("jsonschema") is not None:
+                import jsonschema
+
+                schema = json.loads(
+                    (ROOT / LIVE.MATERIALIZATION_EVIDENCE_SCHEMA).read_text(
+                        encoding="utf-8"
+                    )
+                )
+                jsonschema.Draft202012Validator(schema).validate(materialization)
+
+    def test_namespaced_calibration_accepts_only_exact_single_lf_projection(self) -> None:
+        expected = (
+            'const result = await tools.exec_command({"cmd":"sleep 20",'
+            '"max_output_tokens":1000,"workdir":"/tmp/work",'
+            '"yield_time_ms":30000}); text(JSON.stringify(result));'
+        )
+        self.assertTrue(LIVE.matches_exact_namespaced_wire_source(expected, expected))
+        self.assertTrue(
+            LIVE.matches_exact_namespaced_wire_source(expected + "\n", expected)
+        )
+        for suffix in (" ", "\r\n", "\n\n", "\t\n"):
+            with self.subTest(suffix=repr(suffix)):
+                self.assertFalse(
+                    LIVE.matches_exact_namespaced_wire_source(expected + suffix, expected)
+                )
+
+    def test_calibration_accepts_namespaced_single_lf_in_archived_tool_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                requested_model="gpt-5.6-luna",
+                tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+                automatic_materialize_read=None,
+                emit_notification_on_turn_start=True,
+                materialize_session_on_interrupt=True,
+                forbid_preinterrupt_read=True,
+            )
+            original_source = server._namespaced_source
+            server._namespaced_source = lambda: original_source() + "\n"
+
+            receipt, evidence = LIVE.calibration(
+                server,
+                root,
+                record_dir,
+                self.owner(),
+                run_nonce=str(uuid.uuid4()),
+                phase_nonce=str(uuid.uuid4()),
+                requested_cap=3,
+            )
+
+            self.assertEqual(receipt["validation_outcome"], "accepted")
+            self.assertEqual(
+                evidence["sessions"][0]["session_boundary"]["trusted_tool_names"],
+                ["exec_command"],
+            )
+
+    def test_calibration_rejects_namespaced_multiple_lf_projection(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                requested_model="gpt-5.6-luna",
+                tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+                automatic_materialize_read=None,
+                emit_notification_on_turn_start=True,
+                materialize_session_on_interrupt=True,
+                forbid_preinterrupt_read=True,
+            )
+            original_source = server._namespaced_source
+            server._namespaced_source = lambda: original_source() + "\n\n"
+
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "terminal-namespaced-source-mismatch"
+            ):
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    requested_cap=3,
+                )
+
+    def test_calibration_failure_preserves_privacy_safe_notification_shape(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            record_dir = root / "records"
+            record_dir.mkdir()
+            server = FakeCalibrationServer(
+                root,
+                requested_model="gpt-5.6-luna",
+                tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+                command_status="failed",
+                automatic_materialize_read=None,
+                emit_notification_on_turn_start=True,
+                forbid_preinterrupt_read=True,
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "capability-command-terminal-before-interrupt:failed",
+            ) as caught:
+                LIVE.calibration(
+                    server,
+                    root,
+                    record_dir,
+                    self.owner(),
+                    run_nonce=str(uuid.uuid4()),
+                    phase_nonce=str(uuid.uuid4()),
+                    requested_cap=3,
+                )
+            shape = caught.exception.calibration_notification_shape
+            self.assertEqual(shape["events"][0]["item_status"], "failed")
+            self.assertEqual(
+                shape,
+                json.loads(
+                    (record_dir / "calibration-notification-shape.json").read_text()
+                ),
+            )
+            serialized = json.dumps(shape, sort_keys=True)
+            self.assertNotIn(server._namespaced_source(), serialized)
+            self.assertNotIn(str(root.resolve()), serialized)
+
+    def test_invalid_calibration_binding_fails_before_allocation(self) -> None:
+        cases = (
+            {"control_turn_id": "", "requested_cap": 3},
+            {"control_turn_id": "n3-canary-control-turn", "requested_cap": 4},
+            {"control_turn_id": "n3-canary-control-turn", "requested_cap": True},
+        )
+        for overrides in cases:
+            with self.subTest(overrides=overrides):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    record_dir = root / "records"
+                    record_dir.mkdir()
+                    server = FakeCalibrationServer(root)
+
+                    with self.assertRaisesRegex(
+                        LIVE.AppServerError,
+                        "capability-(control-turn-id|requested-cap)-invalid",
+                    ):
+                        LIVE.calibration(
+                            server,
+                            root,
+                            record_dir,
+                            self.owner(),
+                            run_nonce=str(uuid.uuid4()),
+                            phase_nonce=str(uuid.uuid4()),
+                            **overrides,
+                        )
+
+                    self.assertEqual(server.thread_start_count, 0)
+                    self.assertEqual(server.turn_start_count, 0)
+
     def test_functional_calibration_isolated_from_host_artifact_latency(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -4054,7 +4625,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertGreaterEqual(server.read_count, 8)
             materialization = evidence["materialization_evidence"]
             self.assertEqual(materialization["disposition"], "accepted")
-            self.assertEqual(materialization["version"], 4)
+            self.assertEqual(materialization["version"], 5)
             self.assertEqual(materialization["thread_id"], server.thread_id)
             self.assertEqual(
                 materialization["connection_epoch_sha256"], server.connection_epoch_sha256
@@ -4285,7 +4856,30 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 record_dir = root / "records"
                 record_dir.mkdir()
                 server = FakeCalibrationServer(root, **options)
-                with self.assertRaisesRegex(LIVE.AppServerError, expected):
+                clock = FakeElapsedClock()
+                with (
+                    mock.patch.object(
+                        LIVE.time,
+                        "monotonic",
+                        side_effect=clock.monotonic,
+                    ),
+                    mock.patch.object(
+                        LIVE.time,
+                        "monotonic_ns",
+                        side_effect=clock.monotonic_ns,
+                    ),
+                    mock.patch.object(
+                        LIVE.time,
+                        "sleep",
+                        side_effect=clock.sleep,
+                    ),
+                    mock.patch.object(
+                        LIVE,
+                        "utc_now",
+                        side_effect=clock.utc_now,
+                    ),
+                    self.assertRaisesRegex(LIVE.AppServerError, expected),
+                ):
                     LIVE.calibration(
                         server,
                         root,
@@ -4458,7 +5052,845 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             self.assertEqual(result["ambiguous_count"], 1)
             self.assertEqual(result["unresolved_allocation_intent_count"], 1)
 
+class PendingExecTelemetryTests(unittest.TestCase):
+    TURN_ID = "pending-exec-turn"
+
+    @classmethod
+    def call(cls, tool: str, call_id: str, arguments: dict[str, object]) -> dict:
+        return {
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call",
+                "call_id": call_id,
+                "name": "exec",
+                "input": (
+                    f"const result = await tools.{tool}("
+                    + json.dumps(arguments, separators=(",", ":"))
+                    + "); text(JSON.stringify(result));"
+                ),
+            },
+        }
+
+    @staticmethod
+    def output(call_id: str, result: dict[str, object]) -> dict:
+        return {
+            "type": "response_item",
+            "payload": {
+                "type": "custom_tool_call_output",
+                "call_id": call_id,
+                "output": [
+                    {
+                        "type": "input_text",
+                        "text": "Script completed\nWall time 1.2 seconds\nOutput:\n",
+                    },
+                    {
+                        "type": "input_text",
+                        "text": json.dumps(result, separators=(",", ":")),
+                    },
+                ],
+            },
+        }
+
+    @classmethod
+    def pending_records(cls) -> list[dict]:
+        return [
+            {
+                "type": "turn_context",
+                "payload": {"turn_id": cls.TURN_ID},
+            },
+            cls.call(
+                "exec_command",
+                "exec",
+                {"cmd": "sleep 2", "workdir": "/tmp"},
+            ),
+            cls.output(
+                "exec",
+                {
+                    "chunk_id": "abc",
+                    "wall_time_seconds": 1.0,
+                    "session_id": 28838,
+                    "original_token_count": 1,
+                    "output": "partial",
+                },
+            ),
+        ]
+
+    @classmethod
+    def terminal(cls, records: list[dict]) -> tuple[list[dict], dict]:
+        completed = list(records) + [
+            {
+                "type": "event_msg",
+                "payload": {
+                    "type": "task_complete",
+                    "turn_id": cls.TURN_ID,
+                },
+            }
+        ]
+        return completed, {"record_index": len(completed) - 1}
+
+    def test_pending_exec_is_nonfaulting_while_active_but_not_completed(self) -> None:
+        summary = LIVE.trusted_tool_evidence_summary(
+            self.pending_records(),
+            turn_id=self.TURN_ID,
+            tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+        )
+        self.assertEqual(summary["trusted_tool_calls"], 1)
+        self.assertEqual(summary["trusted_completed_tool_calls"], 0)
+        self.assertEqual(
+            summary["trusted_tool_receipts"][0]["result_kind"],
+            "paired-pending",
+        )
+        self.assertEqual(summary["trusted_tool_names"], ["exec_command"])
+        self.assertEqual(
+            LIVE.forbidden_tool_activity(
+                summary["trusted_tool_activity"],
+                LIVE.default_tool_policy(mutable=True, workload_class="operative"),
+            ),
+            [],
+        )
+
+    def test_terminal_unresolved_pending_exec_fails_closed(self) -> None:
+        records, terminal = self.terminal(self.pending_records())
+        summary = LIVE.trusted_tool_evidence_summary(
+            records,
+            turn_id=self.TURN_ID,
+            terminal_event=terminal,
+            tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+        )
+        self.assertEqual(
+            summary["trusted_tool_names"],
+            ["telemetry_anomaly.exec_command"],
+        )
+        self.assertTrue(
+            LIVE.forbidden_tool_activity(
+                summary["trusted_tool_activity"],
+                LIVE.default_tool_policy(mutable=True, workload_class="operative"),
+            )
+        )
+
+    def test_same_session_write_stdin_resolves_pending_exec(self) -> None:
+        records = self.pending_records() + [
+            self.call(
+                "write_stdin",
+                "wait",
+                {"session_id": 28838, "chars": ""},
+            ),
+            self.output(
+                "wait",
+                {
+                    "chunk_id": "def",
+                    "wall_time_seconds": 2.0,
+                    "exit_code": 0,
+                    "original_token_count": 2,
+                    "output": "done",
+                },
+            ),
+        ]
+        records, terminal = self.terminal(records)
+        summary = LIVE.trusted_tool_evidence_summary(
+            records,
+            turn_id=self.TURN_ID,
+            terminal_event=terminal,
+            tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+        )
+        self.assertEqual(summary["trusted_completed_tool_calls"], 2)
+        self.assertEqual(
+            [item["result_kind"] for item in summary["trusted_tool_receipts"]],
+            ["paired-deferred", "paired-success"],
+        )
+        self.assertEqual(
+            LIVE.forbidden_tool_activity(
+                summary["trusted_tool_activity"],
+                LIVE.default_tool_policy(mutable=True, workload_class="operative"),
+            ),
+            [],
+        )
+
+    def test_different_session_wait_does_not_resolve_pending_exec(self) -> None:
+        records = self.pending_records() + [
+            self.call(
+                "write_stdin",
+                "wait",
+                {"session_id": 28839, "chars": ""},
+            ),
+            self.output(
+                "wait",
+                {
+                    "chunk_id": "def",
+                    "wall_time_seconds": 2.0,
+                    "exit_code": 0,
+                    "original_token_count": 2,
+                    "output": "done",
+                },
+            ),
+        ]
+        records, terminal = self.terminal(records)
+        summary = LIVE.trusted_tool_evidence_summary(
+            records,
+            turn_id=self.TURN_ID,
+            terminal_event=terminal,
+            tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+        )
+        self.assertEqual(
+            summary["trusted_tool_receipts"][0]["result_kind"],
+            "paired-pending",
+        )
+        self.assertIn(
+            "telemetry_anomaly.exec_command",
+            summary["trusted_tool_names"],
+        )
+
+
+class ControllerWorkdirTelemetryTests(unittest.TestCase):
+    TURN_ID = "controller-workdir-turn"
+    NO_PROCESS = (
+        'exec_command failed: CreateProcess { message: "Rejected(\\"Failed to '
+        'create unified exec process: No such file or directory (os error 2)\\")" }'
+    )
+
+    def summary(
+        self,
+        expected: Path,
+        *,
+        workdir: object = None,
+        include_workdir: bool = True,
+        output: str = "ok",
+        exit_code: int | None = 0,
+    ) -> dict[str, Any]:
+        arguments: dict[str, object] = {"cmd": "pwd"}
+        if include_workdir:
+            arguments["workdir"] = workdir
+        output_payload: dict[str, object] = {
+            "type": "function_call_output",
+            "call_id": "workdir-call",
+            "output": output,
+        }
+        if exit_code is not None:
+            output_payload["exit_code"] = exit_code
+        return LIVE.trusted_tool_evidence_summary(
+            [
+                {
+                    "type": "turn_context",
+                    "payload": {"turn_id": self.TURN_ID},
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "exec_command",
+                        "call_id": "workdir-call",
+                        "arguments": json.dumps(arguments),
+                    },
+                },
+                {"type": "response_item", "payload": output_payload},
+            ],
+            turn_id=self.TURN_ID,
+            expected_workdir=expected,
+        )
+
+    def assert_forbidden(self, summary: Mapping[str, Any], tool: str) -> None:
+        self.assertEqual(summary["trusted_tool_names"], [tool])
+        self.assertEqual(
+            LIVE.forbidden_tool_activity(
+                summary["trusted_tool_activity"],
+                LIVE.default_tool_policy(
+                    mutable=True, workload_class="operative"
+                ),
+            )[0]["tool"],
+            tool,
+        )
+
+    def test_exact_or_omitted_workdir_uses_controller_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            expected = Path(temporary).resolve()
+            exact = self.summary(expected, workdir=str(expected))
+            omitted = self.summary(expected, include_workdir=False)
+        for summary in (exact, omitted):
+            self.assertEqual(summary["trusted_tool_names"], ["exec_command"])
+            self.assertEqual(
+                summary["trusted_tool_receipts"][0]["result_kind"],
+                "paired-success",
+            )
+            self.assertEqual(
+                LIVE.forbidden_tool_activity(
+                    summary["trusted_tool_activity"],
+                    LIVE.default_tool_policy(
+                        mutable=True, workload_class="operative"
+                    ),
+                ),
+                [],
+            )
+
+    def test_exact_no_process_response_for_nonexistent_typo_is_recoverable(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            expected = Path(temporary).resolve()
+            missing = expected / "mistyped-workdir"
+            summary = self.summary(
+                expected,
+                workdir=str(missing),
+                output=self.NO_PROCESS,
+                exit_code=None,
+            )
+        self.assertEqual(summary["trusted_tool_names"], ["exec_command"])
+        self.assertEqual(summary["trusted_completed_tool_calls"], 1)
+        self.assertEqual(
+            summary["trusted_tool_receipts"][0]["result_kind"],
+            "paired-recoverable-workdir-input-error",
+        )
+        self.assertEqual(
+            LIVE.forbidden_tool_activity(
+                summary["trusted_tool_activity"],
+                LIVE.default_tool_policy(
+                    mutable=True, workload_class="operative"
+                ),
+            ),
+            [],
+        )
+        self.assertNotIn(str(missing), json.dumps(summary))
+
+    def test_unsafe_or_unproven_workdir_mismatches_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            expected = Path(temporary).resolve()
+            existing = expected / "existing"
+            existing.mkdir()
+            link = expected / "broken-link"
+            link.symlink_to(expected / "missing-target", target_is_directory=True)
+            cases = (
+                ("existing-success", str(existing), "ok", 0),
+                ("broken-symlink", str(link), self.NO_PROCESS, None),
+                ("relative", "mistyped-workdir", self.NO_PROCESS, None),
+                ("malformed", 7, self.NO_PROCESS, None),
+                (
+                    "ambiguous-nonexistent",
+                    str(expected / "missing"),
+                    "not the exact transport failure",
+                    None,
+                ),
+            )
+            for name, workdir, output, exit_code in cases:
+                with self.subTest(name=name):
+                    summary = self.summary(
+                        expected,
+                        workdir=workdir,
+                        output=output,
+                        exit_code=exit_code,
+                    )
+                    self.assert_forbidden(
+                        summary,
+                        "security_violation.exec_command_workdir",
+                    )
+
+            exact_root_error = self.summary(
+                expected,
+                workdir=str(expected),
+                output=self.NO_PROCESS,
+                exit_code=None,
+            )
+            self.assert_forbidden(
+                exact_root_error, "telemetry_anomaly.exec_command"
+            )
+
+
 class LiveThreadBoundaryPhaseTests(unittest.TestCase):
+    def controller_bind_and_arm(
+        self,
+        adapter: LIVE.LiveThreadAdapter,
+        *,
+        arm: bool = True,
+    ) -> dict[str, Any]:
+        packet_id = "test-packet"
+        child_id = "test-child"
+        control_turn_id = "test-control-turn"
+        state_file = str(adapter.worktree / "test-worker-state.json")
+        packet_sha256 = LIVE.sha256_text("test-packet")
+        lease_id = "test-lease"
+        paths = [adapter.expected_mutation] if adapter.expected_mutation else []
+        isolation = "mutable-isolated" if adapter.mutable else "read-only-shared"
+        planned = {
+            "child_id": child_id,
+            "packet_id": packet_id,
+            "attempt_nonce": "test-attempt",
+            "session_id": adapter.thread_id,
+            "agent_id": adapter.thread_id,
+            "packet_sha256": packet_sha256,
+            "lease_id": lease_id,
+            "worktree": str(adapter.worktree),
+            "isolation_class": isolation,
+            "completion_evidence_policy": copy.deepcopy(
+                adapter.completion_evidence_policy
+            ),
+            "tool_policy": copy.deepcopy(adapter.tool_policy),
+            "hard_budget": {
+                "tool_calls": 10,
+                "runtime_seconds": 300,
+                "compactions": 0,
+                "full_suite_runs": 0,
+                "mutations": 1 if adapter.mutable else 0,
+            },
+            "prompt": adapter.prompt,
+            "prompt_preflight": copy.deepcopy(adapter.prompt_preflight),
+            "tool_surface": copy.deepcopy(adapter.preflight_tool_surface),
+            "declared_write_paths": paths,
+            "integration_target_paths": paths,
+        }
+        child = {
+            key: copy.deepcopy(value)
+            for key, value in planned.items()
+            if key
+            not in {"prompt", "prompt_preflight", "tool_surface", "hard_budget"}
+        }
+        child.update(
+            {
+                "control_turn_id": control_turn_id,
+                "control_contract_file": str(
+                    adapter.worktree / "test-control-contract.json"
+                ),
+                "state_file": state_file,
+            }
+        )
+        control = {
+            "contract_type": "cwo-native-control-turn-contract",
+            "version": 1,
+            "state_file": state_file,
+            "agent_id": adapter.thread_id,
+            "control_turn_id": control_turn_id,
+            "task_sha256": LIVE.sha256_text(adapter.prompt),
+            "poll_interval_ms": LIVE.POOL_POLL_INTERVAL_MS,
+            "allowed_actions": [
+                "arm",
+                "send-input",
+                "mark-dispatched",
+                "check",
+                "interrupt",
+                "close",
+                "finalize",
+            ],
+        }
+        control["contract_sha256"] = LIVE.canonical_sha256(control)
+        pool_child = {
+            key: copy.deepcopy(value)
+            for key, value in child.items()
+            if key != "control_contract_file"
+        }
+        pool_child["control_contract_sha256"] = control["contract_sha256"]
+        pool_child["worktree_identity"] = {
+            "canonical_path_sha256": LIVE.sha256_text(str(adapter.worktree))
+        }
+        pool = {
+            "contract_type": "cwo-native-supervision-pool-contract",
+            "version": 1,
+            "pool_id": "test-pool",
+            "pool_epoch": "test-epoch",
+            "control_turn_id": LIVE.CONTROL_TURN_ID,
+            "children": [pool_child],
+        }
+        pool["contract_sha256"] = LIVE.canonical_sha256(pool)
+        proof = {
+            "accepted": True,
+            "decision": "accept",
+            "stage": "pre-dispatch",
+            "contract_sha256": pool["contract_sha256"],
+        }
+        proof["result_sha256"] = LIVE.canonical_sha256(proof)
+        adapter.bind_effective_boundary(
+            planned_child=planned,
+            runtime_child=child,
+            pool_contract=pool,
+            control_contract=control,
+            predispatch_proof=proof,
+            writable_roots=[adapter.worktree] if adapter.mutable else [],
+        )
+        if arm:
+            adapter.arm()
+        return {
+            "planned_child": planned,
+            "runtime_child": child,
+            "pool_contract": pool,
+            "control_contract": control,
+            "predispatch_proof": proof,
+        }
+
+    def test_unbound_send_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                record_dir=root,
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "effective-boundary-not-armed"
+            ):
+                adapter.send_input(message="bounded prompt")
+
+    def test_nested_effective_boundary_mutations_fail_at_arm(self) -> None:
+        cases = (
+            ("planned-packet", "planned_child", "packet_id", "changed-packet"),
+            ("runtime-lease", "runtime_child", "lease_id", "changed-lease"),
+            ("control-task", "control_contract", "task_sha256", "0" * 64),
+            ("proof-decision", "predispatch_proof", "decision", "reject"),
+        )
+        for name, source, field, value in cases:
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                adapter = LIVE.LiveThreadAdapter(
+                    server,
+                    server.thread_response(),
+                    prompt="bounded prompt",
+                    expected_token="DONE",
+                    worktree=root,
+                    mutable=False,
+                    expected_mutation=None,
+                    record_dir=root,
+                )
+                bound = self.controller_bind_and_arm(adapter, arm=False)
+                bound[source][field] = value
+                if source == "control_contract":
+                    bound[source]["contract_sha256"] = LIVE.canonical_sha256(
+                        {
+                            key: item
+                            for key, item in bound[source].items()
+                            if key != "contract_sha256"
+                        }
+                    )
+                if source == "predispatch_proof":
+                    bound[source]["result_sha256"] = LIVE.canonical_sha256(
+                        {
+                            key: item
+                            for key, item in bound[source].items()
+                            if key != "result_sha256"
+                        }
+                    )
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "effective-boundary"
+                ):
+                    adapter.arm()
+                self.assertFalse(adapter._effective_boundary_armed)
+
+    def test_provider_scope_pool_and_return_pairings_fail_at_arm(self) -> None:
+        mutations = (
+            "provider",
+            "writable-root",
+            "pool-packet",
+            "return-token",
+        )
+        for mutation in mutations:
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                adapter = LIVE.LiveThreadAdapter(
+                    server,
+                    server.thread_response(),
+                    prompt="bounded prompt",
+                    expected_token="DONE",
+                    worktree=root,
+                    mutable=False,
+                    expected_mutation=None,
+                    record_dir=root,
+                )
+                bound = self.controller_bind_and_arm(adapter, arm=False)
+                if mutation == "provider":
+                    server._effective_thread_start_evidence[adapter.thread_id][
+                        "response"
+                    ]["modelProvider"] = "other-provider"
+                elif mutation == "writable-root":
+                    server._effective_thread_start_evidence[adapter.thread_id][
+                        "response"
+                    ]["sandbox"]["writableRoots"] = [str(root)]
+                elif mutation == "pool-packet":
+                    pool = bound["pool_contract"]
+                    pool["children"][0]["packet_id"] = "other-packet"
+                    pool["contract_sha256"] = LIVE.canonical_sha256(
+                        {
+                            key: item
+                            for key, item in pool.items()
+                            if key != "contract_sha256"
+                        }
+                    )
+                else:
+                    adapter.expected_token = "OTHER"
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "effective-boundary"
+                ):
+                    adapter.arm()
+                self.assertFalse(adapter._effective_boundary_armed)
+
+    def test_bind_arm_and_send_are_individually_one_shot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                record_dir=root,
+            )
+            bound = self.controller_bind_and_arm(adapter)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "effective-boundary-already-bound"
+            ):
+                adapter.bind_effective_boundary(
+                    **bound,
+                    writable_roots=[],
+                )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "effective-boundary-already-armed"
+            ):
+                adapter.arm()
+            with mock.patch.object(
+                server, "start_turn", wraps=server.start_turn
+            ) as start_turn:
+                adapter.send_input(message="bounded prompt")
+                with self.assertRaisesRegex(
+                    LIVE.AppServerError, "effective-boundary-send-not-one-shot"
+                ):
+                    adapter.send_input(message="bounded prompt")
+            self.assertEqual(start_turn.call_count, 1)
+
+    def test_reentrant_surface_observer_cannot_duplicate_submission(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            policy = LIVE.default_tool_policy(
+                mutable=False, workload_class="safety-canary"
+            )
+            baseline_surface = LIVE.capture_server_tool_surface(server, policy)
+            adapter: LIVE.LiveThreadAdapter | None = None
+            reenter = False
+            reentrant_errors: list[str] = []
+
+            def surface_reader() -> Mapping[str, Any]:
+                if reenter and adapter is not None:
+                    try:
+                        adapter.send_input(message="bounded prompt")
+                    except LIVE.AppServerError as exc:
+                        reentrant_errors.append(str(exc))
+                return copy.deepcopy(baseline_surface)
+
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                tool_policy=policy,
+                tool_surface_reader=surface_reader,
+                record_dir=root,
+            )
+            self.controller_bind_and_arm(adapter)
+            reenter = True
+            with mock.patch.object(
+                server, "start_turn", wraps=server.start_turn
+            ) as start_turn:
+                adapter.send_input(message="bounded prompt")
+            self.assertEqual(
+                reentrant_errors,
+                ["effective-boundary-send-not-one-shot"],
+            )
+            self.assertEqual(start_turn.call_count, 1)
+
+    def test_reentrant_surface_observer_cannot_duplicate_arm(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            policy = LIVE.default_tool_policy(
+                mutable=False, workload_class="safety-canary"
+            )
+            baseline_surface = LIVE.capture_server_tool_surface(server, policy)
+            adapter: LIVE.LiveThreadAdapter | None = None
+            reenter = False
+            reentrant_errors: list[str] = []
+
+            def surface_reader() -> Mapping[str, Any]:
+                if reenter and adapter is not None:
+                    try:
+                        adapter.arm()
+                    except LIVE.AppServerError as exc:
+                        reentrant_errors.append(str(exc))
+                return copy.deepcopy(baseline_surface)
+
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                tool_policy=policy,
+                tool_surface_reader=surface_reader,
+                record_dir=root,
+            )
+            self.controller_bind_and_arm(adapter, arm=False)
+            reenter = True
+            self.assertEqual(adapter.arm(), {"ack": "armed"})
+            self.assertEqual(
+                reentrant_errors,
+                ["effective-boundary-already-armed"],
+            )
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "effective-boundary-already-armed"
+            ):
+                adapter.arm()
+
+    def test_reentrant_surface_observer_cannot_send_during_arm(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            policy = LIVE.default_tool_policy(
+                mutable=False, workload_class="safety-canary"
+            )
+            baseline_surface = LIVE.capture_server_tool_surface(server, policy)
+            adapter: LIVE.LiveThreadAdapter | None = None
+            reenter = False
+            return_invalid_surface = False
+            callback_depth = 0
+            reentrant_errors: list[str] = []
+
+            def surface_reader() -> Mapping[str, Any]:
+                nonlocal callback_depth
+                callback_depth += 1
+                try:
+                    if reenter and callback_depth == 1 and adapter is not None:
+                        try:
+                            adapter.send_input(message="bounded prompt")
+                        except LIVE.AppServerError as exc:
+                            reentrant_errors.append(str(exc))
+                    surface = copy.deepcopy(baseline_surface)
+                    if return_invalid_surface and callback_depth == 1:
+                        surface["source"] = "substituted-during-arm"
+                    return surface
+                finally:
+                    callback_depth -= 1
+
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                tool_policy=policy,
+                tool_surface_reader=surface_reader,
+                record_dir=root,
+            )
+            self.controller_bind_and_arm(adapter, arm=False)
+            reenter = True
+            return_invalid_surface = True
+            with mock.patch.object(
+                server, "start_turn", wraps=server.start_turn
+            ) as start_turn, self.assertRaisesRegex(
+                LIVE.AppServerError, "tool-surface-snapshot-mismatch"
+            ):
+                adapter.arm()
+            self.assertEqual(
+                reentrant_errors,
+                ["effective-boundary-arm-in-progress"],
+            )
+            start_turn.assert_not_called()
+            self.assertFalse(adapter._effective_boundary_arm_in_progress)
+            self.assertFalse(adapter._effective_boundary_armed)
+            self.assertFalse(adapter._effective_boundary_send_reserved)
+            self.assertIsNone(adapter.turn_id)
+
+    def test_surface_callback_boundary_mutation_rejects_before_submission(self) -> None:
+        for mutation in ("runtime-lease", "requested-model", "thread-freshness"):
+            with self.subTest(mutation=mutation), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                policy = LIVE.default_tool_policy(
+                    mutable=False, workload_class="safety-canary"
+                )
+                baseline_surface = LIVE.capture_server_tool_surface(server, policy)
+                adapter: LIVE.LiveThreadAdapter | None = None
+                bound: dict[str, Any] | None = None
+                mutate = False
+
+                def surface_reader() -> Mapping[str, Any]:
+                    if mutate and bound is not None and adapter is not None:
+                        if mutation == "runtime-lease":
+                            bound["runtime_child"]["lease_id"] = (
+                                "mutated-during-callback"
+                            )
+                        elif mutation == "requested-model":
+                            server.requested_model = "substituted-model"
+                        else:
+                            adapter.thread["turns"] = [{"id": "stale-turn"}]
+                    return copy.deepcopy(baseline_surface)
+
+                adapter = LIVE.LiveThreadAdapter(
+                    server,
+                    server.thread_response(),
+                    prompt="bounded prompt",
+                    expected_token="DONE",
+                    worktree=root,
+                    mutable=False,
+                    expected_mutation=None,
+                    tool_policy=policy,
+                    tool_surface_reader=surface_reader,
+                    record_dir=root,
+                )
+                bound = self.controller_bind_and_arm(adapter)
+                mutate = True
+                with mock.patch.object(
+                    server, "start_turn", wraps=server.start_turn
+                ) as start_turn, self.assertRaisesRegex(
+                    LIVE.AppServerError, "effective-boundary"
+                ):
+                    adapter.send_input(message="bounded prompt")
+                start_turn.assert_not_called()
+                self.assertTrue(adapter._effective_boundary_send_reserved)
+
+    def test_synchronous_start_turn_observes_reserved_attempt(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                record_dir=root,
+            )
+            self.controller_bind_and_arm(adapter)
+            original = server.start_turn
+
+            def observing_start_turn(
+                thread_id: str, message: str
+            ) -> tuple[dict[str, Any], float]:
+                self.assertTrue(adapter._effective_boundary_send_reserved)
+                self.assertEqual(adapter._boundary_phase, "dispatch-attempted")
+                return original(thread_id, message)
+
+            server.start_turn = observing_start_turn
+            adapter.send_input(message="bounded prompt")
+            self.assertIsNotNone(adapter.turn_id)
+
+    @staticmethod
+    def settle_and_close(adapter: LIVE.LiveThreadAdapter) -> dict[str, Any]:
+        assert adapter._staged_archive is not None
+        adapter._staged_archive.require_complete(timeout_seconds=1.0)
+        return adapter.close()
+
     @staticmethod
     def complete_turn(
         server: FakeLiveThreadServer,
@@ -4562,13 +5994,156 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 )
             self.assertEqual(run.call_args.kwargs["cwd"], root)
 
+    def test_workspace_mutations_are_relative_to_bound_complete_dirty_baseline(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "cwo@example.invalid"],
+                cwd=root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "CWO Test"],
+                cwd=root,
+                check=True,
+            )
+            tracked = root / "tracked.txt"
+            tracked.write_text("committed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "tracked.txt"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "commit", "-qm", "baseline"], cwd=root, check=True
+            )
+            tracked.write_text("dirty-before-dispatch\n", encoding="utf-8")
+            untracked = root / "existing-untracked.txt"
+            untracked.write_text("existing\n", encoding="utf-8")
+            link = root / "existing-link"
+            link.symlink_to("tracked.txt")
+            baseline = LIVE.capture_workspace_baseline(
+                root,
+                allowed_paths=["."],
+                include_untracked=True,
+            )
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(root)
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                record_dir=root,
+                monotonic_ns=clock,
+            )
+            adapter.bind_workspace_baseline(baseline)
+            self.controller_bind_and_arm(adapter)
+
+            self.assertEqual(adapter._workspace_mutations(), [])
+
+            tracked.write_text("changed-after-dispatch\n", encoding="utf-8")
+            self.assertEqual(adapter._workspace_mutations(), ["tracked.txt"])
+            tracked.write_text("dirty-before-dispatch\n", encoding="utf-8")
+
+            link.unlink()
+            link.symlink_to("existing-untracked.txt")
+            self.assertEqual(adapter._workspace_mutations(), ["existing-link"])
+            link.unlink()
+            link.symlink_to("tracked.txt")
+
+            link.unlink()
+            link.symlink_to("../outside-worktree")
+            self.assertEqual(adapter._workspace_mutations(), ["existing-link"])
+            link.unlink()
+            link.symlink_to("tracked.txt")
+
+            untracked.unlink()
+            self.assertEqual(
+                adapter._workspace_mutations(),
+                ["existing-untracked.txt"],
+            )
+            untracked.write_text("existing\n", encoding="utf-8")
+
+            (root / "added.txt").write_text("added\n", encoding="utf-8")
+            self.assertEqual(adapter._workspace_mutations(), ["added.txt"])
+            (root / "added.txt").unlink()
+
+            subprocess.run(["git", "add", "tracked.txt"], cwd=root, check=True)
+            self.assertEqual(adapter._workspace_mutations(), ["tracked.txt"])
+
+    def test_workspace_baseline_binding_rejects_incomplete_wrong_root_and_late_use(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            baseline = LIVE.capture_workspace_baseline(
+                root,
+                allowed_paths=["."],
+                include_untracked=True,
+            )
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(root)
+
+            def new_adapter() -> LIVE.LiveThreadAdapter:
+                return LIVE.LiveThreadAdapter(
+                    server,
+                    server.thread_response(),
+                    prompt="bounded prompt",
+                    expected_token="DONE",
+                    worktree=root,
+                    mutable=False,
+                    expected_mutation=None,
+                    record_dir=root,
+                    monotonic_ns=clock,
+                )
+
+            incomplete = copy.deepcopy(baseline)
+            incomplete["incomplete"] = True
+            incomplete["baseline_complete"] = False
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "workspace-baseline-invalid",
+            ):
+                new_adapter().bind_workspace_baseline(incomplete)
+
+            wrong_root = copy.deepcopy(baseline)
+            wrong_root["cwd"] = str(root / "other")
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "workspace-baseline-root-mismatch",
+            ):
+                new_adapter().bind_workspace_baseline(wrong_root)
+
+            already_bound = new_adapter()
+            already_bound.bind_workspace_baseline(baseline)
+            self.controller_bind_and_arm(already_bound)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "workspace-baseline-already-bound",
+            ):
+                already_bound.bind_workspace_baseline(baseline)
+
+            late_first_bind = new_adapter()
+            self.controller_bind_and_arm(late_first_bind)
+            self.assertIsNone(late_first_bind._workspace_baseline)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "workspace-baseline-binding-too-late",
+            ):
+                late_first_bind.bind_workspace_baseline(baseline)
+            self.assertIsNone(late_first_bind._workspace_baseline)
+
     def adapter(
         self,
         root: Path,
         server: FakeLiveThreadServer,
         clock: FakeMonotonicClock,
     ) -> LIVE.LiveThreadAdapter:
-        return LIVE.LiveThreadAdapter(
+        adapter = LIVE.LiveThreadAdapter(
             server,
             server.thread_response(),
             prompt="bounded prompt",
@@ -4579,6 +6154,8 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             record_dir=root,
             monotonic_ns=clock,
         )
+        self.controller_bind_and_arm(adapter)
+        return adapter
 
     def test_trusted_tool_evidence_is_scoped_to_the_exact_turn(self) -> None:
         prior_turn = "prior-turn"
@@ -4852,6 +6429,9 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
         class FailedSubmissionServer:
             def __init__(self, codex_home: Path) -> None:
                 self.codex_home = codex_home
+                self.requested_model = LIVE.EXACT_MODEL
+                self.started_threads: dict[str, str | None] = {}
+                self._effective_thread_start_evidence: dict[str, dict] = {}
 
             @staticmethod
             def start_turn(_thread_id: str, _message: str) -> tuple[dict, float]:
@@ -4861,13 +6441,30 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             root = Path(temporary)
             thread_id = str(uuid.uuid4())
             server = FailedSubmissionServer(root)
+            response = {
+                "model": LIVE.EXACT_MODEL,
+                "modelProvider": "trusted",
+                "sandbox": {"type": "readOnly"},
+                "approvalPolicy": "never",
+                "cwd": str(root),
+                "runtimeWorkspaceRoots": [str(root)],
+                "thread": {"id": thread_id, "turns": [], "path": None},
+            }
+            server.started_threads[thread_id] = None
+            server._effective_thread_start_evidence[thread_id] = {
+                "request": {
+                    "model": LIVE.EXACT_MODEL,
+                    "allowProviderModelFallback": False,
+                    "sandbox": "read-only",
+                    "approvalPolicy": "never",
+                    "cwd": str(root),
+                    "runtimeWorkspaceRoots": [str(root)],
+                },
+                "response": copy.deepcopy(response),
+            }
             adapter = LIVE.LiveThreadAdapter(
                 server,
-                {
-                    "model": LIVE.EXACT_MODEL,
-                    "modelProvider": "trusted",
-                    "thread": {"id": thread_id, "turns": [], "path": None},
-                },
+                response,
                 prompt="bounded prompt",
                 expected_token="DONE",
                 worktree=root,
@@ -4875,6 +6472,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 expected_mutation=None,
                 record_dir=root,
             )
+            self.controller_bind_and_arm(adapter)
             pre_dispatch = LIVE.session_boundary_summary(
                 root,
                 thread_id,
@@ -4899,7 +6497,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 nonlocal reads
                 reads += 1
                 effective = list(permitted_tools)
-                if reads > 1:
+                if reads > 2:
                     effective.append("spawn_agent")
                     effective.sort()
                 return {
@@ -4915,6 +6513,46 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 adapter.send_input(message="bounded prompt")
             self.assertIsNone(server.started_threads[server.thread_id])
             self.assertEqual(adapter._boundary_phase, "pre-dispatch")
+
+    def test_effective_tool_surface_expansion_blocks_arm(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root)
+            reads = 0
+
+            def surface(*, permitted_tools: list[str]) -> dict:
+                nonlocal reads
+                reads += 1
+                effective = list(permitted_tools)
+                if reads > 1:
+                    effective.append("spawn_agent")
+                    effective.sort()
+                return {
+                    "source": "supported-test-server",
+                    "server_allowlist_supported": True,
+                    "allowlist_parameter": "tools",
+                    "effective_allowlist": effective,
+                }
+
+            server.tool_surface_capability = surface
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=False,
+                expected_mutation=None,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            self.controller_bind_and_arm(adapter, arm=False)
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "tool-surface-expanded"
+            ):
+                adapter.arm()
+            self.assertFalse(adapter._effective_boundary_armed)
+            self.assertIsNone(server.started_threads[server.thread_id])
 
     def test_bound_turn_missing_boundary_is_rejecting(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -4974,6 +6612,54 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 ],
                 "post-submission-turn-start-pending-nonattesting",
             )
+
+    def test_check_does_not_read_before_exact_started_notification(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(root, initial_boundary="missing")
+            adapter = self.adapter(root, server, clock)
+            adapter.send_input(message="bounded prompt")
+            with mock.patch.object(
+                server,
+                "read_thread",
+                side_effect=AssertionError("thread/read raced turn/started"),
+            ) as read_thread:
+                self.assertEqual(adapter.check(), {"decision": "continue"})
+            read_thread.assert_not_called()
+
+    def test_check_treats_initial_projection_rpc_race_as_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            clock = FakeMonotonicClock()
+            server = FakeLiveThreadServer(root, initial_boundary="empty")
+            adapter = self.adapter(root, server, clock)
+            adapter.send_input(message="bounded prompt")
+            server.notifications = lambda _thread_id, _method=None: [
+                {
+                    "method": "turn/started",
+                    "params": {
+                        "threadId": server.thread_id,
+                        "turn": {"id": server.turn_id},
+                    },
+                }
+            ]
+            error = LIVE.AppServerRpcError(
+                method="thread/read",
+                code=-32603,
+                request_id=1,
+                latency_ms=1.0,
+            )
+            with mock.patch.object(
+                server, "read_thread", side_effect=error
+            ) as read_thread:
+                self.assertEqual(adapter.check(), {"decision": "continue"})
+            read_thread.assert_called_once_with(server.thread_id)
+            self.assertEqual(
+                adapter._boundary_phase,
+                "submission-acknowledged-awaiting-materialization",
+            )
+            self.assertIsNone(adapter._session_boundary_baseline)
 
     def test_only_exact_turn_started_notification_unlocks_thread_read(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -5128,7 +6814,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             server = FakeLiveThreadServer(root, initial_boundary="valid")
             adapter = LIVE.LiveThreadAdapter(
                 server,
-                server.thread_response(),
+                server.thread_response(mutable=True),
                 prompt="Use apply_patch exactly once, then run git diff --check",
                 expected_token="DONE",
                 worktree=root,
@@ -5142,6 +6828,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message=adapter.prompt)
             with server.path.open("a", encoding="utf-8") as stream:
                 stream.write(
@@ -5219,7 +6906,17 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 )
                 interrupt_turn.assert_not_called()
                 self.assertFalse(adapter.interrupted)
-                self.assertEqual(adapter.close(), {"ack": "closed"})
+                self.assertEqual(
+                    adapter.finalize(control_action="interrupt-confirmed"),
+                    {
+                        "ack": "interrupt-confirmed",
+                        "close_wait_required": True,
+                    },
+                )
+                self.assertEqual(
+                    self.settle_and_close(adapter),
+                    {"ack": "closed"},
+                )
                 self.assertTrue(server.archived)
 
     def test_interrupt_skips_rpc_for_other_durable_terminal_statuses(
@@ -5234,7 +6931,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 server = FakeLiveThreadServer(root, initial_boundary="valid")
                 adapter = LIVE.LiveThreadAdapter(
                     server,
-                    server.thread_response(),
+                    server.thread_response(mutable=True),
                     prompt="Use apply_patch exactly once, then run git diff --check",
                     expected_token="DONE",
                     worktree=root,
@@ -5248,6 +6945,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                     record_dir=root,
                     monotonic_ns=FakeMonotonicClock(),
                 )
+                self.controller_bind_and_arm(adapter)
                 adapter.send_input(message=adapter.prompt)
                 server.append_terminal(event_type)
                 self.assertEqual(
@@ -5268,7 +6966,17 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                     )
                     interrupt_turn.assert_not_called()
                 self.assertFalse(adapter.interrupted)
-                self.assertEqual(adapter.close(), {"ack": "closed"})
+                self.assertEqual(
+                    adapter.finalize(control_action="interrupt-confirmed"),
+                    {
+                        "ack": "interrupt-confirmed",
+                        "close_wait_required": True,
+                    },
+                )
+                self.assertEqual(
+                    self.settle_and_close(adapter),
+                    {"ack": "closed"},
+                )
                 self.assertTrue(server.archived)
 
     def test_interrupt_adjudicates_terminal_transition_after_rpc_error_once(
@@ -5307,7 +7015,17 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 "completed",
             )
             self.assertFalse(adapter.interrupted)
-            self.assertEqual(adapter.close(), {"ack": "closed"})
+            self.assertEqual(
+                adapter.finalize(control_action="interrupt-confirmed"),
+                {
+                    "ack": "interrupt-confirmed",
+                    "close_wait_required": True,
+                },
+            )
+            self.assertEqual(
+                self.settle_and_close(adapter),
+                {"ack": "closed"},
+            )
             self.assertTrue(server.archived)
 
     def test_interrupt_rpc_error_without_terminal_evidence_propagates_once(
@@ -5405,6 +7123,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message=adapter.prompt)
             records = []
             for index, command in enumerate(
@@ -5585,7 +7304,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             server = FakeLiveThreadServer(root, initial_boundary="valid")
             adapter = LIVE.LiveThreadAdapter(
                 server,
-                server.thread_response(),
+                server.thread_response(mutable=True),
                 prompt="Use apply_patch once then exec_command once",
                 expected_token="DONE",
                 worktree=root,
@@ -5599,6 +7318,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message=adapter.prompt)
             failed_patch = MUTABLE_PATCH_INPUT.replace(
                 "+activation-preview-mutated",
@@ -5738,7 +7458,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             server = FakeLiveThreadServer(root, initial_boundary="valid")
             adapter = LIVE.LiveThreadAdapter(
                 server,
-                server.thread_response(),
+                server.thread_response(mutable=True),
                 prompt="Use apply_patch once then exec_command once",
                 expected_token="DONE",
                 worktree=root,
@@ -5752,6 +7472,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message=adapter.prompt)
             records = [
                 {
@@ -5877,6 +7598,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message=adapter.prompt)
             server.status = "completed"
             server.items = [
@@ -5911,6 +7633,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message="bounded prompt")
             with server.path.open("a", encoding="utf-8") as stream:
                 stream.write(
@@ -5976,6 +7699,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message="bounded prompt")
             self.complete_turn(
                 server,
@@ -6016,6 +7740,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message="bounded prompt")
             with server.path.open("a", encoding="utf-8") as stream:
                 stream.write(
@@ -6063,6 +7788,350 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             self.assertEqual(
                 summary["forbidden_tool_activity"][0]["tool"],
                 "telemetry_anomaly.exec_command",
+            )
+
+    def test_pending_namespaced_patch_does_not_latch_before_outer_output(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            server.operative_tool_transport = (
+                lambda: LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT
+            )
+            _manifest, override = temporary_tool_override_fixture()
+            policy = LIVE.default_tool_policy(
+                mutable=True,
+                enforcement_override=override,
+            )
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(mutable=True),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="scripts/child_2.py",
+                tool_policy=policy,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            self.controller_bind_and_arm(adapter)
+            adapter.send_input(message="bounded prompt")
+            patch = (
+                "*** Begin Patch\n"
+                "*** Update File: scripts/child_2.py\n"
+                "@@\n"
+                "+VALUE = 12\n"
+                "*** End Patch"
+            )
+            source = (
+                "const result = await tools.apply_patch("
+                + json.dumps(patch)
+                + "); text(JSON.stringify(result));"
+            )
+            records = [
+                {"type": "turn_context", "payload": {"turn_id": server.turn_id}},
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call",
+                        "call_id": "outer-call",
+                        "name": "exec",
+                        "input": source,
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "patch_apply_end",
+                        "call_id": "nested-call",
+                        "turn_id": server.turn_id,
+                        "success": True,
+                        "status": "completed",
+                        "changes": {
+                            str(root / "scripts/child_2.py"): {
+                                "type": "update"
+                            }
+                        },
+                    },
+                },
+            ]
+            pending = LIVE.trusted_tool_evidence_summary(
+                records,
+                turn_id=server.turn_id,
+                tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+            )
+            self.assertEqual(pending["trusted_tool_calls"], 1)
+            self.assertEqual(pending["trusted_completed_tool_calls"], 0)
+            self.assertEqual(
+                pending["trusted_tool_receipts"][0]["result_kind"],
+                "unpaired-call",
+            )
+            self.assertEqual(adapter._observe_forbidden_tool_activity(pending), [])
+
+            records.append(
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call_output",
+                        "call_id": "outer-call",
+                        "output": [
+                            {
+                                "type": "input_text",
+                                "text": (
+                                    "Script completed\n"
+                                    "Wall time 0.1 seconds\n"
+                                    "Output:\n"
+                                ),
+                            },
+                            {"type": "input_text", "text": "{}"},
+                        ],
+                    },
+                }
+            )
+            completed = LIVE.trusted_tool_evidence_summary(
+                records,
+                turn_id=server.turn_id,
+                tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+            )
+            self.assertEqual(completed["trusted_completed_tool_calls"], 1)
+            self.assertEqual(
+                completed["trusted_tool_receipts"][0]["result_kind"],
+                "paired-success",
+            )
+            self.assertEqual(
+                adapter._observe_forbidden_tool_activity(completed),
+                [],
+            )
+
+    def test_pending_direct_patch_waits_for_output_and_fails_closed_terminally(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            _manifest, override = temporary_tool_override_fixture()
+            policy = LIVE.default_tool_policy(
+                mutable=True,
+                enforcement_override=override,
+            )
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(mutable=True),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="scripts/child_2.py",
+                tool_policy=policy,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            self.controller_bind_and_arm(adapter)
+            adapter.send_input(message="bounded prompt")
+            records = [
+                {"type": "turn_context", "payload": {"turn_id": server.turn_id}},
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call",
+                        "call_id": "direct-call",
+                        "name": "apply_patch",
+                        "input": (
+                            "*** Begin Patch\n"
+                            "*** Update File: scripts/child_2.py\n"
+                            "@@\n"
+                            "+VALUE = 12\n"
+                            "*** End Patch"
+                        ),
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "patch_apply_end",
+                        "call_id": "direct-call",
+                        "turn_id": server.turn_id,
+                        "success": True,
+                        "status": "completed",
+                        "changes": {
+                            str(root / "scripts/child_2.py"): {"type": "update"}
+                        },
+                    },
+                },
+            ]
+            pending = LIVE.trusted_tool_evidence_summary(
+                records,
+                turn_id=server.turn_id,
+                tool_transport=LIVE.DIRECT_TOOL_TRANSPORT,
+            )
+            self.assertEqual(
+                pending["trusted_tool_receipts"][0]["result_kind"],
+                "paired-pending",
+            )
+            self.assertEqual(pending["trusted_tool_names"], ["apply_patch"])
+            self.assertEqual(adapter._observe_forbidden_tool_activity(pending), [])
+
+            terminal = LIVE.trusted_tool_evidence_summary(
+                records,
+                turn_id=server.turn_id,
+                terminal_event={"status": "interrupted", "record_index": 3},
+                tool_transport=LIVE.DIRECT_TOOL_TRANSPORT,
+            )
+            self.assertEqual(
+                terminal["trusted_tool_names"],
+                ["telemetry_anomaly.apply_patch"],
+            )
+            self.assertEqual(
+                [item["tool"] for item in adapter._observe_forbidden_tool_activity(terminal)],
+                ["telemetry_anomaly.apply_patch"],
+            )
+
+    def test_pending_namespaced_patch_fails_closed_at_every_terminal_state(
+        self,
+    ) -> None:
+        for terminal_status in ("completed", "failed", "interrupted"):
+            with self.subTest(terminal_status=terminal_status), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                _manifest, override = temporary_tool_override_fixture()
+                policy = LIVE.default_tool_policy(
+                    mutable=True,
+                    enforcement_override=override,
+                )
+                adapter = LIVE.LiveThreadAdapter(
+                    server,
+                    server.thread_response(),
+                    prompt="bounded prompt",
+                    expected_token="DONE",
+                    worktree=root,
+                    mutable=True,
+                    expected_mutation="scripts/child_2.py",
+                    tool_policy=policy,
+                    record_dir=root,
+                    monotonic_ns=FakeMonotonicClock(),
+                )
+                adapter.turn_id = server.turn_id
+                boundary = {
+                    "trusted_tool_calls": 1,
+                    "trusted_tool_activity": [
+                        {
+                            "tool": "apply_patch",
+                            "evidence_sha256": "a" * 64,
+                            "pairing_status": "unpaired",
+                            "result_kind": "unpaired-call",
+                        }
+                    ],
+                    "terminal_event": {"status": terminal_status},
+                }
+
+                observed = adapter._observe_forbidden_tool_activity(boundary)
+
+                self.assertEqual(len(observed), 1)
+                self.assertEqual(
+                    observed[0]["tool"],
+                    "telemetry_anomaly.apply_patch",
+                )
+
+    def test_namespaced_patch_output_after_terminal_cannot_complete_call(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            _manifest, override = temporary_tool_override_fixture()
+            policy = LIVE.default_tool_policy(
+                mutable=True,
+                enforcement_override=override,
+            )
+            adapter = LIVE.LiveThreadAdapter(
+                server,
+                server.thread_response(),
+                prompt="bounded prompt",
+                expected_token="DONE",
+                worktree=root,
+                mutable=True,
+                expected_mutation="scripts/child_2.py",
+                tool_policy=policy,
+                record_dir=root,
+                monotonic_ns=FakeMonotonicClock(),
+            )
+            adapter.turn_id = server.turn_id
+            patch = (
+                "*** Begin Patch\n"
+                "*** Update File: scripts/child_2.py\n"
+                "@@\n"
+                "+VALUE = 12\n"
+                "*** End Patch"
+            )
+            source = (
+                "const result = await tools.apply_patch("
+                + json.dumps(patch)
+                + "); text(JSON.stringify(result));"
+            )
+            records = [
+                {"type": "turn_context", "payload": {"turn_id": server.turn_id}},
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call",
+                        "call_id": "outer-call",
+                        "name": "exec",
+                        "input": source,
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "patch_apply_end",
+                        "call_id": "nested-call",
+                        "turn_id": server.turn_id,
+                        "success": True,
+                        "status": "completed",
+                        "changes": {
+                            str(root / "scripts/child_2.py"): {
+                                "type": "update"
+                            }
+                        },
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "task_complete",
+                        "turn_id": server.turn_id,
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "custom_tool_call_output",
+                        "call_id": "outer-call",
+                        "output": (
+                            "Script completed\n"
+                            "Wall time 0.1 seconds\n"
+                            "Output:\n{}"
+                        ),
+                    },
+                },
+            ]
+            boundary = LIVE.trusted_tool_evidence_summary(
+                records,
+                turn_id=server.turn_id,
+                terminal_event={"record_index": 3, "status": "completed"},
+                tool_transport=LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+            )
+            boundary["terminal_event"] = {"status": "completed"}
+
+            self.assertEqual(boundary["trusted_completed_tool_calls"], 0)
+            self.assertEqual(
+                boundary["trusted_tool_receipts"][0]["result_kind"],
+                "unpaired-call",
+            )
+            self.assertEqual(
+                adapter._observe_forbidden_tool_activity(boundary)[0]["tool"],
+                "telemetry_anomaly.apply_patch",
             )
 
     def test_interrupted_exec_result_rejects_normal_worker_completion(
@@ -6125,6 +8194,100 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 summary["forbidden_tool_activity"][0]["tool"],
                 "telemetry_anomaly.exec_command",
             )
+
+    def test_recoverable_nonexistent_workdir_does_not_interrupt_worker(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            missing = root / "mistyped-workdir"
+            with server.path.open("a", encoding="utf-8") as stream:
+                for record in (
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": "recoverable-call",
+                            "arguments": json.dumps(
+                                {"cmd": "pwd", "workdir": str(missing)}
+                            ),
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "recoverable-call",
+                            "output": ControllerWorkdirTelemetryTests.NO_PROCESS,
+                        },
+                    },
+                ):
+                    stream.write(json.dumps(record) + "\n")
+
+            self.assertEqual(adapter.check(), {"decision": "continue"})
+            self.assertEqual(adapter._forbidden_tool_activity, [])
+            boundary = adapter._capture_trusted_boundary(allow_pending=True)
+            self.assertEqual(
+                boundary["trusted_tool_receipts"][0]["result_kind"],
+                "paired-recoverable-workdir-input-error",
+            )
+
+    def test_existing_workdir_escape_attempt_interrupts_fail_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            outside = root.parent
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            with server.path.open("a", encoding="utf-8") as stream:
+                for record in (
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call",
+                            "name": "exec_command",
+                            "call_id": "escape-call",
+                            "arguments": json.dumps(
+                                {"cmd": "pwd", "workdir": str(outside)}
+                            ),
+                        },
+                    },
+                    {
+                        "type": "response_item",
+                        "payload": {
+                            "type": "function_call_output",
+                            "call_id": "escape-call",
+                            "output": str(outside),
+                            "exit_code": 0,
+                        },
+                    },
+                ):
+                    stream.write(json.dumps(record) + "\n")
+
+            self.assertEqual(adapter.check(), {"decision": "interrupt"})
+            self.assertEqual(
+                adapter._forbidden_tool_activity[0]["tool"],
+                "security_violation.exec_command_workdir",
+            )
+
+    def test_trusted_session_cwd_mismatch_is_a_control_error(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            records = [json.loads(line) for line in server.path.read_text().splitlines()]
+            records[0]["payload"]["cwd"] = str(root / "other")
+            server.path.write_text(
+                "".join(json.dumps(record) + "\n" for record in records),
+                encoding="utf-8",
+            )
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter.send_input(message="bounded prompt")
+            with self.assertRaisesRegex(
+                LIVE.AppServerError, "session-controller-workdir-mismatch"
+            ):
+                adapter.check()
 
     def test_unpermitted_trusted_tool_activity_interrupts_and_is_classified(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -6253,6 +8416,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                     record_dir=root,
                     monotonic_ns=FakeMonotonicClock(),
                 )
+                self.controller_bind_and_arm(adapter)
                 adapter.send_input(message="bounded prompt")
                 self.complete_turn(server, trusted_tool_calls=1)
                 self.assertEqual(
@@ -6336,6 +8500,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message="bounded prompt")
             self.complete_turn(server)
             self.assertEqual(adapter.check(), {"decision": "complete"})
@@ -6352,7 +8517,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             server = FakeLiveThreadServer(root, initial_boundary="missing")
             adapter = LIVE.LiveThreadAdapter(
                 server,
-                server.thread_response(),
+                server.thread_response(mutable=True),
                 prompt="bounded prompt",
                 expected_token="DONE",
                 worktree=root,
@@ -6361,7 +8526,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
-            self.assertEqual(adapter.arm(), {"ack": "armed"})
+            self.controller_bind_and_arm(adapter)
             with mock.patch.object(
                 adapter,
                 "_workspace_mutations",
@@ -6389,7 +8554,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             server = FakeLiveThreadServer(root, initial_boundary="missing")
             adapter = LIVE.LiveThreadAdapter(
                 server,
-                server.thread_response(),
+                server.thread_response(mutable=True),
                 prompt="bounded prompt",
                 expected_token="DONE",
                 worktree=root,
@@ -6418,7 +8583,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             server = FakeLiveThreadServer(root, initial_boundary="missing")
             adapter = LIVE.LiveThreadAdapter(
                 server,
-                server.thread_response(),
+                server.thread_response(mutable=True),
                 prompt="bounded prompt",
                 expected_token="DONE",
                 worktree=root,
@@ -6427,6 +8592,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message="bounded prompt")
             with mock.patch.object(
                 adapter,
@@ -6446,7 +8612,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             server = FakeLiveThreadServer(root, initial_boundary="valid")
             adapter = LIVE.LiveThreadAdapter(
                 server,
-                server.thread_response(),
+                server.thread_response(mutable=True),
                 prompt="bounded prompt",
                 expected_token="DONE",
                 worktree=root,
@@ -6455,6 +8621,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 record_dir=root,
                 monotonic_ns=FakeMonotonicClock(),
             )
+            self.controller_bind_and_arm(adapter)
             adapter.send_input(message="bounded prompt")
             self.complete_turn(server, trusted_tool_calls=1)
             self.assertEqual(adapter.check(), {"decision": "complete"})
@@ -6486,11 +8653,63 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             self.assertTrue(evidence["protected_fault"])
             self.assertEqual(evidence["session_disposition"], "quarantined")
             self.assertEqual(evidence["artifact_disposition"], "rejected")
-            adapter.close()
+            self.assertEqual(
+                adapter.finalize(control_action="interrupt-confirmed"),
+                {
+                    "ack": "interrupt-confirmed",
+                    "close_wait_required": True,
+                },
+            )
+            self.assertEqual(
+                self.settle_and_close(adapter),
+                {"ack": "closed"},
+            )
             final = adapter.final_summary()
+            self.assertEqual(
+                set(final["callback_subphase_stats"]),
+                {
+                    "send_input.acknowledgement_binding",
+                    "send_input.boundary_lock_wait",
+                    "send_input.prompt_preflight",
+                    "send_input.tool_surface_capture",
+                    "send_input.tool_surface_validation",
+                    "send_input.turn_start_rpc",
+                },
+            )
             self.assertEqual(
                 final["session_boundary"]["observation_type"],
                 "containment-unmaterialized-nonattesting-rejected",
+            )
+
+    def test_close_defers_until_staged_archive_is_ready(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.adapter(root, server, FakeMonotonicClock())
+            adapter._capture_trusted_boundary(allow_pending=True)
+            staged_archive = mock.Mock()
+            staged_archive.completion_ready.side_effect = [False, True]
+            staged_archive.require_complete.return_value = 1.0
+            adapter._staged_archive = staged_archive
+
+            self.assertEqual(
+                adapter.close(),
+                {
+                    "ack": "close-pending",
+                    "close_wait_required": True,
+                },
+            )
+            self.assertFalse(adapter.archived)
+            staged_archive.require_complete.assert_not_called()
+
+            target = server.archive / server.path.name
+            server.path.replace(target)
+            server.path = target
+            self.assertEqual(adapter.close(), {"ack": "closed"})
+            self.assertTrue(adapter.archived)
+            self.assertEqual(adapter.reported_session_path, str(target))
+            staged_archive.require_complete.assert_called_once_with(
+                timeout_seconds=0.0,
             )
 
     def test_nonempty_invalid_boundary_never_uses_pending_allowance(self) -> None:
@@ -6541,6 +8760,700 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             adapter.send_input(message="bounded prompt")
             with self.assertRaisesRegex(LIVE.AppServerError, "duplicate active/archive"):
                 adapter._trusted_summary()
+
+    @staticmethod
+    def read_only_authority(
+        root: Path,
+        *,
+        pending: bool = False,
+        tool_transport: str = LIVE.DIRECT_TOOL_TRANSPORT,
+    ) -> list[dict[str, Any]]:
+        command = "python -B -m unittest tests.test_local_dispatch" if pending else "git diff --check"
+        exec_arguments = {
+            "cmd": command,
+            "workdir": str(root),
+        }
+        if tool_transport == LIVE.DIRECT_TOOL_TRANSPORT:
+            exec_arguments["login"] = False
+        authority: list[dict[str, Any]] = [
+            {
+                "sequence": 0,
+                "tool": "exec_command",
+                "argument_alternatives": [exec_arguments],
+                "continuation_of": None,
+            }
+        ]
+        if pending:
+            authority.append(
+                {
+                    "sequence": 1,
+                    "tool": "write_stdin",
+                    "argument_alternatives": [
+                        {
+                            "session_id": LIVE.PENDING_EXEC_SESSION,
+                            "chars": "",
+                        }
+                    ],
+                    "continuation_of": 0,
+                }
+            )
+        return authority
+
+    def authorized_read_only_adapter(
+        self,
+        root: Path,
+        server: FakeLiveThreadServer,
+        *,
+        pending: bool = False,
+    ) -> LIVE.LiveThreadAdapter:
+        transport_reader = getattr(server, "operative_tool_transport", None)
+        tool_transport = (
+            transport_reader()
+            if callable(transport_reader)
+            else LIVE.DIRECT_TOOL_TRANSPORT
+        )
+        adapter = LIVE.LiveThreadAdapter(
+            server,
+            server.thread_response(),
+            prompt="Run only the exact controller-authorized validation commands",
+            expected_token="DONE",
+            worktree=root,
+            mutable=False,
+            expected_mutation=None,
+            read_only_command_authority=self.read_only_authority(
+                root,
+                pending=pending,
+                tool_transport=tool_transport,
+            ),
+            record_dir=root,
+            monotonic_ns=FakeMonotonicClock(),
+        )
+        self.controller_bind_and_arm(adapter)
+        return adapter
+
+    @staticmethod
+    def append_terminal_records(
+        server: FakeLiveThreadServer,
+        records: list[dict[str, Any]],
+    ) -> None:
+        terminal = {
+            "type": "event_msg",
+            "payload": {
+                "type": "task_complete",
+                "turn_id": server.turn_id,
+            },
+        }
+        with server.path.open("a", encoding="utf-8") as stream:
+            stream.write(
+                "".join(
+                    json.dumps(record) + "\n"
+                    for record in [*records, terminal]
+                )
+            )
+        server.items = [
+            {"type": "commandExecution", "status": "completed"}
+            for _item in records
+            if _item.get("type") == "response_item"
+            and _item.get("payload", {}).get("type")
+            in {"function_call", "custom_tool_call"}
+        ] + [
+            {
+                "type": "agentMessage",
+                "phase": "finalAnswer",
+                "text": "DONE",
+            }
+        ]
+        server.status = "completed"
+
+    def test_read_only_command_authority_reaches_final_acceptance_on_both_transports(
+        self,
+    ) -> None:
+        for transport in (
+            LIVE.DIRECT_TOOL_TRANSPORT,
+            LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+        ):
+            with self.subTest(transport=transport), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                server.operative_tool_transport = lambda: transport
+                adapter = self.authorized_read_only_adapter(root, server)
+                adapter.send_input(message=adapter.prompt)
+                arguments = self.read_only_authority(
+                    root,
+                    tool_transport=transport,
+                )[0][
+                    "argument_alternatives"
+                ][0]
+                if transport == LIVE.DIRECT_TOOL_TRANSPORT:
+                    records = [
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call",
+                                "name": "exec_command",
+                                "call_id": "read-only-command",
+                                "arguments": json.dumps(arguments),
+                            },
+                        },
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call_output",
+                                "call_id": "read-only-command",
+                                "exit_code": 0,
+                                "output": "bounded",
+                            },
+                        },
+                    ]
+                else:
+                    source = (
+                        "const result = await tools.exec_command("
+                        + json.dumps(arguments, separators=(",", ":"))
+                        + "); text(JSON.stringify(result));"
+                    )
+                    records = [
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "custom_tool_call",
+                                "name": "exec",
+                                "call_id": "read-only-command",
+                                "input": source,
+                            },
+                        },
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "custom_tool_call_output",
+                                "call_id": "read-only-command",
+                                "output": [
+                                    {
+                                        "type": "input_text",
+                                        "text": "Script completed\nWall time 0.1 seconds\nOutput:\n",
+                                    },
+                                    {
+                                        "type": "input_text",
+                                        "text": json.dumps(
+                                            {
+                                                "wall_time_seconds": 0.1,
+                                                "exit_code": 0,
+                                                "output": "bounded",
+                                            },
+                                            separators=(",", ":"),
+                                        ),
+                                    },
+                                ],
+                            },
+                        },
+                    ]
+                self.append_terminal_records(server, records)
+                self.assertEqual(adapter.check(), {"decision": "complete"})
+                with mock.patch.object(
+                    adapter,
+                    "_workspace_mutations",
+                    return_value=[],
+                ):
+                    evidence = adapter.evidence()
+                    summary = adapter.final_summary()
+                self.assertEqual(evidence["reasons"], [])
+                self.assertTrue(
+                    summary["read_only_command_authority_satisfied"]
+                )
+                self.assertTrue(summary["completion_evidence_satisfied"])
+
+    def test_read_only_command_authority_binds_pending_poll_to_exact_parent(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.authorized_read_only_adapter(
+                root,
+                server,
+                pending=True,
+            )
+            arguments = self.read_only_authority(root, pending=True)[0][
+                "argument_alternatives"
+            ][0]
+            records = [
+                {"type": "turn_context", "payload": {"turn_id": "authority-turn"}},
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "exec_command",
+                        "call_id": "exec",
+                        "arguments": json.dumps(arguments),
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "exec",
+                        "output": (
+                            "Chunk ID: abc123\n"
+                            "Wall time: 30.0 seconds\n"
+                            "Process running with session ID 28838\n"
+                            "Original token count: 0\n"
+                            "Output:\n"
+                        ),
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "name": "write_stdin",
+                        "call_id": "poll",
+                        "arguments": json.dumps(
+                            {"session_id": 28838, "chars": ""}
+                        ),
+                    },
+                },
+                {
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "poll",
+                        "output": (
+                            "Chunk ID: def456\n"
+                            "Wall time: 1.0 seconds\n"
+                            "Process exited with code 0\n"
+                            "Final output:\n"
+                        ),
+                    },
+                },
+                {
+                    "type": "event_msg",
+                    "payload": {
+                        "type": "task_complete",
+                        "turn_id": "authority-turn",
+                    },
+                },
+            ]
+            summary = LIVE.trusted_tool_evidence_summary(
+                records,
+                turn_id="authority-turn",
+                terminal_event={"record_index": len(records) - 1},
+                tool_transport=LIVE.DIRECT_TOOL_TRANSPORT,
+            )
+            self.assertEqual(
+                [
+                    item["result_kind"]
+                    for item in summary["trusted_tool_authority_receipts"]
+                ],
+                ["paired-deferred", "paired-success"],
+            )
+            accepted = adapter._read_only_command_authority_observation(
+                summary["trusted_tool_authority_receipts"],
+                terminal=True,
+            )
+            self.assertTrue(accepted["satisfied"])
+            wrong = copy.deepcopy(summary["trusted_tool_authority_receipts"])
+            wrong[1]["operation_session_id_sha256"] = LIVE.sha256_text("28839")
+            rejected = adapter._read_only_command_authority_observation(
+                wrong,
+                terminal=True,
+            )
+            self.assertTrue(rejected["mismatch"])
+            self.assertEqual(rejected["reason"], "step-1-pending-parent-mismatch")
+
+    def test_read_only_command_authority_rejects_poll_before_parent_result(
+        self,
+    ) -> None:
+        for transport in (
+            LIVE.DIRECT_TOOL_TRANSPORT,
+            LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+        ):
+            with self.subTest(transport=transport), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                server = FakeLiveThreadServer(root, initial_boundary="valid")
+                server.operative_tool_transport = lambda: transport
+                adapter = self.authorized_read_only_adapter(
+                    root,
+                    server,
+                    pending=True,
+                )
+                authority = self.read_only_authority(
+                    root,
+                    pending=True,
+                    tool_transport=transport,
+                )
+                exec_arguments = authority[0]["argument_alternatives"][0]
+                poll_arguments = {"session_id": 28838, "chars": ""}
+                if transport == LIVE.DIRECT_TOOL_TRANSPORT:
+                    records = [
+                        {"type": "turn_context", "payload": {"turn_id": "authority-turn"}},
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call",
+                                "name": "exec_command",
+                                "call_id": "exec",
+                                "arguments": json.dumps(exec_arguments),
+                            },
+                        },
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call",
+                                "name": "write_stdin",
+                                "call_id": "poll",
+                                "arguments": json.dumps(poll_arguments),
+                            },
+                        },
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call_output",
+                                "call_id": "poll",
+                                "output": (
+                                    "Chunk ID: def456\n"
+                                    "Wall time: 1.0 seconds\n"
+                                    "Process exited with code 0\n"
+                                    "Final output:\n"
+                                ),
+                            },
+                        },
+                        {
+                            "type": "response_item",
+                            "payload": {
+                                "type": "function_call_output",
+                                "call_id": "exec",
+                                "output": (
+                                    "Chunk ID: abc123\n"
+                                    "Wall time: 30.0 seconds\n"
+                                    "Process running with session ID 28838\n"
+                                    "Original token count: 0\n"
+                                    "Output:\n"
+                                ),
+                            },
+                        },
+                    ]
+                else:
+                    records = [
+                        {"type": "turn_context", "payload": {"turn_id": "authority-turn"}},
+                        PendingExecTelemetryTests.call(
+                            "exec_command", "exec", exec_arguments
+                        ),
+                        PendingExecTelemetryTests.call(
+                            "write_stdin", "poll", poll_arguments
+                        ),
+                        PendingExecTelemetryTests.output(
+                            "poll",
+                            {
+                                "chunk_id": "def456",
+                                "wall_time_seconds": 1.0,
+                                "exit_code": 0,
+                                "original_token_count": 0,
+                                "output": "",
+                            },
+                        ),
+                        PendingExecTelemetryTests.output(
+                            "exec",
+                            {
+                                "chunk_id": "abc123",
+                                "wall_time_seconds": 30.0,
+                                "session_id": 28838,
+                                "original_token_count": 0,
+                                "output": "",
+                            },
+                        ),
+                    ]
+                records.append(
+                    {
+                        "type": "event_msg",
+                        "payload": {
+                            "type": "task_complete",
+                            "turn_id": "authority-turn",
+                        },
+                    }
+                )
+                summary = LIVE.trusted_tool_evidence_summary(
+                    records,
+                    turn_id="authority-turn",
+                    terminal_event={"record_index": len(records) - 1},
+                    tool_transport=transport,
+                )
+                rejected = adapter._read_only_command_authority_observation(
+                    summary["trusted_tool_authority_receipts"],
+                    terminal=True,
+                )
+                self.assertTrue(rejected["mismatch"])
+                self.assertEqual(
+                    rejected["reason"],
+                    "step-1-raw-receipt-binding-invalid",
+                )
+
+    def test_read_only_command_authority_rejects_shell_and_interpreter_escape_grammars(
+        self,
+    ) -> None:
+        bad_commands = (
+            "git diff --check; touch escaped",
+            "git diff --check && rm -f target",
+            "git diff --check > /tmp/result",
+            "python -B -c 'open(\"target\", \"w\").write(\"x\")'",
+            "sed -n '1,10p' target",
+            "sed -i s/a/b/ target",
+            "sed -n '1e id' target",
+            "sed -n 'w /tmp/escaped' target",
+            "find . -delete",
+            "find . -fls /tmp/not-executed",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for command in bad_commands:
+                with self.subTest(command=command), self.assertRaises(
+                    LIVE.AppServerError
+                ):
+                    LIVE._normalize_read_only_command_authority(
+                        [
+                            {
+                                "sequence": 0,
+                                "tool": "exec_command",
+                                "argument_alternatives": [
+                                    {
+                                        "cmd": command,
+                                        "workdir": str(root),
+                                        "login": False,
+                                    }
+                                ],
+                                "continuation_of": None,
+                            }
+                        ],
+                        worktree=root,
+                        tool_transport=LIVE.DIRECT_TOOL_TRANSPORT,
+                    )
+
+    def test_read_only_command_authority_rejects_find_fls_on_both_transports(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for transport in (
+                LIVE.DIRECT_TOOL_TRANSPORT,
+                LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+            ):
+                arguments = {
+                    "cmd": "find . -fls /tmp/not-executed",
+                    "workdir": str(root),
+                }
+                if transport == LIVE.DIRECT_TOOL_TRANSPORT:
+                    arguments["login"] = False
+                with self.subTest(transport=transport), self.assertRaisesRegex(
+                    LIVE.AppServerError,
+                    "read-only-command-authority-option-forbidden",
+                ):
+                    LIVE._normalize_read_only_command_authority(
+                        [
+                            {
+                                "sequence": 0,
+                                "tool": "exec_command",
+                                "argument_alternatives": [arguments],
+                                "continuation_of": None,
+                            }
+                        ],
+                        worktree=root,
+                        tool_transport=transport,
+                    )
+
+    def test_read_only_command_authority_rejects_git_external_helpers_on_both_transports(
+        self,
+    ) -> None:
+        commands = (
+            "git diff --ext",
+            "git diff --ext-",
+            "git diff --ext-d",
+            "git diff --ext-di",
+            "git diff --ext-diff",
+            "git diff --textc",
+            "git diff --textco",
+            "git diff --textcon",
+            "git diff --textconv",
+            "git show --ext-diff HEAD",
+            "git show --textconv HEAD",
+            "git diff --ext-diff=true",
+            "git show --textconv=true HEAD",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for transport in (
+                LIVE.DIRECT_TOOL_TRANSPORT,
+                LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+            ):
+                for command in commands:
+                    arguments = {
+                        "cmd": command,
+                        "workdir": str(root),
+                    }
+                    if transport == LIVE.DIRECT_TOOL_TRANSPORT:
+                        arguments["login"] = False
+                    with (
+                        self.subTest(transport=transport, command=command),
+                        self.assertRaisesRegex(
+                            LIVE.AppServerError,
+                            "read-only-command-authority-git-option-forbidden",
+                        ),
+                    ):
+                        LIVE._normalize_read_only_command_authority(
+                            [
+                                {
+                                    "sequence": 0,
+                                    "tool": "exec_command",
+                                    "argument_alternatives": [arguments],
+                                    "continuation_of": None,
+                                }
+                            ],
+                            worktree=root,
+                            tool_transport=transport,
+                        )
+
+    def test_read_only_command_authority_preserves_reviewed_git_grammar_on_both_transports(
+        self,
+    ) -> None:
+        commands = (
+            "git diff --check",
+            "git diff --exit-code",
+            "git diff --text",
+            "git diff --no-ext-diff",
+            "git show --no-textconv HEAD",
+            "git status --short",
+            "git rev-parse --show-toplevel",
+            "git show --stat HEAD",
+            "git ls-files",
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for transport in (
+                LIVE.DIRECT_TOOL_TRANSPORT,
+                LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT,
+            ):
+                for command in commands:
+                    arguments = {
+                        "cmd": command,
+                        "workdir": str(root),
+                    }
+                    if transport == LIVE.DIRECT_TOOL_TRANSPORT:
+                        arguments["login"] = False
+                    with self.subTest(transport=transport, command=command):
+                        normalized = LIVE._normalize_read_only_command_authority(
+                            [
+                                {
+                                    "sequence": 0,
+                                    "tool": "exec_command",
+                                    "argument_alternatives": [arguments],
+                                    "continuation_of": None,
+                                }
+                            ],
+                            worktree=root,
+                            tool_transport=transport,
+                        )
+                        self.assertEqual(normalized[0]["tool"], "exec_command")
+                        self.assertEqual(
+                            normalized[0]["argument_alternatives"][0]["cmd"],
+                            command,
+                        )
+
+    def test_read_only_command_authority_rejects_substitution_and_stays_sticky(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.authorized_read_only_adapter(root, server)
+            expected_arguments = self.read_only_authority(root)[0][
+                "argument_alternatives"
+            ][0]
+            bad_receipt = {
+                "sequence": 0,
+                "tool": "exec_command",
+                "canonical_argument_hash": LIVE.canonical_argument_hash(
+                    {**expected_arguments, "cmd": "git status --short"}
+                ),
+                "continuation_argument_hash": None,
+                "call_id_sha256": LIVE.sha256_text("substituted"),
+                "operation_session_id_sha256": None,
+                "raw_pairing_status": "exact",
+                "raw_receipt_alignment": "exact",
+                "pairing_status": "paired",
+                "result_kind": "paired-success",
+                "exit_code": 0,
+            }
+            boundary = {
+                "trusted_tool_activity": [],
+                "trusted_tool_authority_receipts": [bad_receipt],
+                "terminal_event": None,
+            }
+            first = adapter._observe_forbidden_tool_activity(boundary)
+            self.assertTrue(first)
+            self.assertEqual(
+                first[0]["tool"],
+                "security_violation.read_only_command_authority",
+            )
+            second = adapter._observe_forbidden_tool_activity(
+                {
+                    "trusted_tool_activity": [],
+                    "trusted_tool_authority_receipts": [],
+                    "terminal_event": None,
+                }
+            )
+            self.assertEqual(second, first)
+
+    def test_read_only_command_authority_distinguishes_authorized_failure_from_success(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = self.authorized_read_only_adapter(root, server)
+            arguments = self.read_only_authority(root)[0][
+                "argument_alternatives"
+            ][0]
+            observed = [
+                {
+                    "sequence": 0,
+                    "tool": "exec_command",
+                    "canonical_argument_hash": LIVE.canonical_argument_hash(
+                        arguments
+                    ),
+                    "continuation_argument_hash": None,
+                    "call_id_sha256": LIVE.sha256_text("failed"),
+                    "operation_session_id_sha256": None,
+                    "raw_pairing_status": "exact",
+                    "raw_receipt_alignment": "exact",
+                    "pairing_status": "paired",
+                    "result_kind": "paired-failure",
+                    "exit_code": 1,
+                }
+            ]
+            result = adapter._read_only_command_authority_observation(
+                observed,
+                terminal=True,
+            )
+            self.assertFalse(result["mismatch"])
+            self.assertFalse(result["satisfied"])
+            self.assertEqual(result["status"], "authorized-failure")
+
+    def test_read_only_command_authority_is_unavailable_to_mutable_workers(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            with self.assertRaisesRegex(
+                LIVE.AppServerError,
+                "read-only-command-authority-mutable-forbidden",
+            ):
+                LIVE.LiveThreadAdapter(
+                    server,
+                    server.thread_response(mutable=True),
+                    prompt="bounded",
+                    expected_token="DONE",
+                    worktree=root,
+                    mutable=True,
+                    expected_mutation="target.txt",
+                    read_only_command_authority=self.read_only_authority(root),
+                    record_dir=root,
+                )
 
 
 class FullAutoAuthorizationLauncherTests(unittest.TestCase):
@@ -7030,14 +9943,40 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
         class ThreadStartSentinelServer:
             starts = 0
 
+            def __init__(self) -> None:
+                self.requested_model = LIVE.EXACT_MODEL
+                self._effective_thread_start_evidence: dict[str, dict] = {}
+
             def start_thread(
                 self, _worktree: Path, *, mutable: bool, role: str | None = None
             ) -> tuple[dict, float]:
                 self.starts += 1
-                return {
+                worktree = _worktree.resolve()
+                response = {
                     "model": LIVE.EXACT_MODEL,
+                    "modelProvider": "trusted",
+                    "sandbox": {
+                        "type": "workspaceWrite" if mutable else "readOnly",
+                        **({"writableRoots": []} if mutable else {}),
+                    },
+                    "approvalPolicy": "never",
+                    "cwd": str(worktree),
+                    "runtimeWorkspaceRoots": [str(worktree)],
                     "thread": {"id": str(uuid.uuid4()), "turns": []},
-                }, 0.0
+                }
+                thread_id = response["thread"]["id"]
+                self._effective_thread_start_evidence[thread_id] = {
+                    "request": {
+                        "model": LIVE.EXACT_MODEL,
+                        "allowProviderModelFallback": False,
+                        "sandbox": "workspace-write" if mutable else "read-only",
+                        "approvalPolicy": "never",
+                        "cwd": str(worktree),
+                        "runtimeWorkspaceRoots": [str(worktree)],
+                    },
+                    "response": copy.deepcopy(response),
+                }
+                return response, 0.0
 
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -7059,23 +9998,101 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 {"launch_claim_sha256": LIVE.sha256_text("launch-claim")},
             )
             rendered = {"children": []}
+
+            def render_contract(
+                request: Mapping[str, Any], **_kwargs: Any
+            ) -> dict[str, Any]:
+                children = []
+                for child in request["children"]:
+                    control = json.loads(
+                        Path(child["control_contract_file"]).read_text(
+                            encoding="utf-8"
+                        )
+                    )
+                    projected = {
+                        key: copy.deepcopy(value)
+                        for key, value in child.items()
+                        if key != "control_contract_file"
+                    }
+                    projected["control_contract_sha256"] = control[
+                        "contract_sha256"
+                    ]
+                    projected["worktree_identity"] = {
+                        "canonical_path_sha256": LIVE.sha256_text(
+                            child["worktree"]
+                        )
+                    }
+                    children.append(projected)
+                rendered.clear()
+                rendered.update(
+                    {
+                        "contract_type": "cwo-native-supervision-pool-contract",
+                        "version": 1,
+                        "pool_id": request["pool_id"],
+                        "pool_epoch": request["pool_epoch"],
+                        "control_turn_id": request["control_turn_id"],
+                        "children": children,
+                    }
+                )
+                rendered["contract_sha256"] = LIVE.canonical_sha256(rendered)
+                return rendered
+
+            def accept_preflight(
+                request: Mapping[str, Any],
+            ) -> dict[str, Any]:
+                contract = request.get("pool_contract")
+                result = {
+                    "accepted": True,
+                    "decision": "accept",
+                    "stage": request["stage"],
+                    "contract_sha256": (
+                        contract.get("contract_sha256")
+                        if isinstance(contract, Mapping)
+                        else None
+                    ),
+                }
+                result["result_sha256"] = LIVE.canonical_sha256(result)
+                return result
+
+            monitor_double = mock.Mock()
+            monitor_double.child_baseline.return_value = {
+                "workspace_evidence_type": "content-aware-baseline",
+                "version": 2,
+                "cwd": str(shared_worktree.resolve()),
+                "allowed_paths": [],
+                "include_untracked": True,
+                "tracked_status": [],
+                "tracked_paths": [],
+                "tracked_paths_complete": True,
+                "preexisting_dirty_paths": [],
+                "content_fingerprints": {},
+                "baseline_complete": True,
+                "incomplete": False,
+                "replay_allowed": False,
+                "caps": {
+                    "max_files": 10000,
+                    "max_bytes": 50_000_000,
+                    "max_seconds": 5.0,
+                },
+            }
+
             with mock.patch.object(
                 LIVE,
                 "build_live_canary_pool_contract",
-                return_value=rendered,
+                side_effect=render_contract,
             ) as builder, mock.patch.object(
                 LIVE,
                 "PoolWorkspaceMonitor",
-                return_value=mock.sentinel.monitor,
+                return_value=monitor_double,
             ), mock.patch.object(
                 LIVE,
                 "require_pool_preflight",
-                return_value={"accepted": True, "result_sha256": "a" * 64},
+                side_effect=accept_preflight,
             ):
                 (
                     contract,
                     _controls,
-                    _adapters,
+                    adapters,
                     monitor,
                     _preflights,
                 ) = LIVE.build_pool_inputs(
@@ -7089,11 +10106,26 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     mutable=False,
                     prompts=["one", "two"],
                     expected_tokens=["ONE", "TWO"],
+                    read_only_command_authorities=[
+                        LiveThreadBoundaryPhaseTests.read_only_authority(
+                            shared_worktree
+                        ),
+                        LiveThreadBoundaryPhaseTests.read_only_authority(
+                            shared_worktree
+                        ),
+                    ],
                     pre_thread_start_check=lambda: bound,
                     expected_bound_manifest_validation=bound,
                 )
             self.assertIs(contract, rendered)
-            self.assertIs(monitor, mock.sentinel.monitor)
+            self.assertIs(monitor, monitor_double)
+            self.assertEqual(monitor_double.child_baseline.call_count, 2)
+            self.assertTrue(
+                all(
+                    adapter.read_only_command_authority is not None
+                    for adapter in adapters.values()
+                )
+            )
             self.assertIs(
                 builder.call_args.kwargs["bound_manifest_validation"], bound
             )
@@ -12365,3 +15397,164 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+# Synthetic wire fixtures: the real host probes are recorded separately.
+class ProfileThreadBoundaryTests(unittest.TestCase):
+    request_server = AppServerRpcErrorTests.request_server
+
+    def test_readonly_developer_instructions_and_enforcement_agree(self):
+        for transport in [LIVE.DIRECT_TOOL_TRANSPORT,LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT]:
+            server=self.request_server({'id':1,'result':{'model':LIVE.EXACT_MODEL,'thread':{'id':str(uuid.uuid4()),'turns':[]}}})
+            tools=['exec_command','write_stdin']
+            server.operative_tool_transport=lambda:transport
+            server.tool_surface_capability=lambda **kw:{'source':'synthetic-fixed-two-tool-profile','server_allowlist_supported':True,'allowlist_parameter':'tools','effective_allowlist':tools}
+            server.start_thread(ROOT,mutable=False,permitted_tools=tools,allowlist_parameter='tools')
+            params=json.loads(server.process.stdin.getvalue().splitlines()[-1])['params']
+            self.assertEqual(params['tools'],tools);self.assertEqual(params['sandbox'],'read-only')
+            self.assertNotIn('apply_patch',params['developerInstructions'])
+            for tool in tools:self.assertIn(tool,params['developerInstructions'])
+
+    def test_failed_capability_is_before_allocation_or_transport(self):
+        for permitted in [None,{},['exec_command',{}],['exec_command','write_stdin']]:
+            server=self.request_server({'id':1,'result':{}})
+            ledger=mock.Mock();server.allocation_ledger=ledger
+            server.tool_surface_capability=lambda **kw:{'source':'synthetic-broader','server_allowlist_supported':True,'allowlist_parameter':'tools','effective_allowlist':['apply_patch','exec_command','write_stdin']}
+            with self.subTest(permitted=permitted),self.assertRaises(LIVE.AppServerError):
+                server.start_thread(ROOT,mutable=False,role=next(iter(LIVE.EXPECTED_ROLES)),permitted_tools=permitted,allowlist_parameter='tools')
+            ledger.allocation_intent.assert_not_called();self.assertEqual(server.process.stdin.getvalue(),'')
+
+    def test_profile_consumers_do_not_reinsert_three_tools(self):
+        tools=['exec_command','write_stdin'];server=self.request_server({'id':1,'result':{}})
+        server._tool_surface_proof={'requested_tools':tools}
+        proof={'codex_version':'test-version','tool_transport':LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT}
+        with mock.patch.object(LIVE,'require_surface_proof',return_value=proof) as require:
+            self.assertEqual(server.capability_adapter_version(),'codex-app-server-test-version')
+            self.assertEqual(server.operative_tool_transport(),LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT)
+            for call in require.call_args_list:self.assertEqual(call.kwargs['permitted_tools'],tools)
+
+    def test_invalid_proof_rejected_before_process_start(self):
+        for bad in [[],{},None]:
+            if bad is None:continue
+            with mock.patch.object(LIVE.subprocess,'Popen') as popen,self.assertRaises(LIVE.AppServerError):
+                LIVE.AppServer(requested_model='gpt-5.6-luna',tool_surface_proof=bad)
+            popen.assert_not_called()
+
+    def test_readonly_profile_cannot_open_mutable_thread(self):
+        server=self.request_server({'id':1,'result':{}})
+        server._tool_surface_proof={'tool_profile':'read-only-v1'}
+        server.operative_tool_transport=lambda:LIVE.DIRECT_TOOL_TRANSPORT
+        server._thread_tool_allowlist_params=lambda **kw:{}
+        with self.assertRaisesRegex(LIVE.AppServerError,'read-only-tool-profile-mutable-thread-forbidden'):
+            server.start_thread(ROOT,mutable=True)
+        self.assertEqual(server.process.stdin.getvalue(),'')
+
+    def test_proof_startup_is_forwarded_and_home_drift_closes(self):
+        proof={'requested_tools':['exec_command','write_stdin']}
+        verified={'startup_config':{'model_catalog_json':'/fixture/catalog.json'},'codex_home':'/fixture/home','codex_binary':'/fixture/codex','capture_binding':{'fixture':True}}
+        with mock.patch.object(LIVE,'require_surface_proof',return_value=verified),mock.patch.object(LIVE,'require_capture_binding',return_value=verified),mock.patch.object(LIVE.subprocess,'Popen') as process,mock.patch.object(LIVE.threading,'Thread'),mock.patch.object(LIVE.AppServer,'request',return_value=({'codexHome':'/different/home'},0)),mock.patch.object(LIVE.AppServer,'close',return_value={'all_contained':True,'resources_closed':True,'errors':[]}) as close:
+            with self.assertRaisesRegex(LIVE.AppServerError,'codex-tool-surface-home-drift'):
+                LIVE.AppServer(requested_model='gpt-5.6-luna',tool_surface_proof=proof)
+            self.assertEqual(process.call_args.args[0],['/fixture/codex','-c','model_catalog_json="/fixture/catalog.json"','app-server','--stdio'])
+            close.assert_called_once()
+
+
+class StartupLifecycleTests(unittest.TestCase):
+    """No provider: fake RPCs plus a bounded, real owned Python child."""
+    def construct(self, *, failure=None, process=None, callback=None):
+        import io,os
+        home=Path(tempfile.gettempdir()).resolve()
+        process=process or mock.Mock()
+        process.pid=123;process.returncode=None
+        process.stdin=io.StringIO();process.stdout=io.StringIO();process.stderr=io.StringIO()
+        process.poll.side_effect=lambda:process.returncode
+        def wait(**kw):process.returncode=-15;return -15
+        process.wait.side_effect=wait
+        reader=mock.Mock();reader.ident=None;reader.is_alive.return_value=False
+        if failure=='pipes':process.stdout=None
+        if failure=='reader':reader.start.side_effect=RuntimeError('reader-failed')
+        original=LIVE.AppServerError('initialize-original')
+        instance=[]
+        def request(server,*args,**kw):
+            instance.append(server)
+            if callback:callback(server,process)
+            if failure=='rpc':raise original
+            if failure=='invalid':return {},0
+            if failure=='invalid-home':return {'codexHome':{}},0
+            return {'codexHome':str(home if failure!='home' else home/'wrong')},0
+        def notify(server,*args):
+            if failure=='notify':raise RuntimeError('notification-original')
+        with mock.patch.dict(os.environ,{'CODEX_HOME':str(home)}),mock.patch.object(LIVE,'_codex_binary',return_value=Path('/verified/codex')),mock.patch.object(LIVE.subprocess,'Popen',return_value=process) as popen,mock.patch.object(LIVE.threading,'Thread',return_value=reader),mock.patch.object(LIVE.AppServer,'request',request),mock.patch.object(LIVE.AppServer,'notify',notify):
+            try:
+                server=LIVE.AppServer(requested_model='gpt-5.6-luna')
+                self.assertEqual(popen.call_args.args[0][0],'/verified/codex')
+                return server,process
+            except BaseException as exc:
+                self.assertTrue(exc.app_server_cleanup['all_contained'])
+                self.assertTrue(exc.app_server_cleanup['resources_closed'])
+                self.assertEqual(exc.app_server_cleanup['errors'],[])
+                self.assertIsNotNone(process.returncode)
+                if failure=='rpc':self.assertIs(exc,original)
+                raise
+
+    def test_all_post_spawn_failures_reap_owned_child(self):
+        for failure in ['pipes','rpc','invalid','invalid-home','home','reader','notify']:
+            with self.subTest(failure=failure),self.assertRaises((LIVE.AppServerError,RuntimeError)):
+                self.construct(failure=failure)
+
+    def test_synchronous_close_during_initialize_and_repeated_close(self):
+        def callback(server,process):
+            first=server.close();self.assertTrue(first['all_contained']);self.assertEqual(first,server.close())
+        with self.assertRaisesRegex(LIVE.AppServerError,'closed-during-startup'):
+            self.construct(callback=callback)
+        server,process=self.construct();first=server.close();self.assertEqual(first,server.close());process.terminate.assert_called_once()
+
+    def test_reentrant_close_does_not_claim_completion(self):
+        server,process=self.construct()
+        seen=[]
+        def terminate():
+            try:server.close()
+            except LIVE.AppServerError as exc:seen.append(exc.app_server_cleanup)
+        process.terminate.side_effect=terminate
+        self.assertTrue(server.close()['all_contained']);self.assertEqual(seen[0]['all_contained'],False)
+
+    def test_terminate_wait_kill_and_pipe_failures_remain_truthful(self):
+        for failure in ['terminate','wait','kill','pipe']:
+            server,process=self.construct()
+            if failure=='terminate':process.terminate.side_effect=OSError('terminate-failed')
+            if failure in ['wait','kill']:
+                process.wait.side_effect=LIVE.subprocess.TimeoutExpired('fixture',0)
+                if failure=='wait':
+                    def kill():process.returncode=-9;process.wait.side_effect=None;process.wait.return_value=-9
+                    process.kill.side_effect=kill
+                else:process.kill.side_effect=OSError('kill-failed')
+            if failure=='pipe':process.stdin=mock.Mock();process.stdin.close.side_effect=OSError('close-failed')
+            with self.subTest(failure=failure),self.assertRaisesRegex(LIVE.AppServerError,'cleanup-failed') as caught:server.close()
+            result=caught.exception.app_server_cleanup
+            self.assertEqual(result['all_contained'],failure!='kill')
+            self.assertTrue(result['errors'])
+            with self.assertRaises(LIVE.AppServerError) as again:server.close()
+            self.assertEqual(again.exception.app_server_cleanup,result)
+
+    def test_original_error_and_cleanup_failure_are_separate(self):
+        original=LIVE.AppServerError('primary-initialize')
+        with mock.patch.object(LIVE,'_codex_binary',return_value=Path('/fixture/codex')),mock.patch.object(LIVE.subprocess,'Popen') as popen,mock.patch.object(LIVE.threading,'Thread'),mock.patch.object(LIVE.AppServer,'request',side_effect=original),mock.patch.object(LIVE.AppServer,'close',side_effect=OSError('cleanup-failure')):
+            with self.assertRaises(LIVE.AppServerError) as caught:LIVE.AppServer(requested_model='gpt-5.6-luna')
+        self.assertIs(caught.exception,original);self.assertFalse(original.app_server_cleanup['all_contained']);self.assertIn('cleanup-failure',str(original.app_server_cleanup))
+
+    def test_real_disposable_child_is_reaped_when_constructor_fails(self):
+        import os,subprocess,sys
+        spawn=subprocess.Popen;children=[]
+        def factory(*args,**kw):
+            child=spawn([sys.executable,'-c','import time; time.sleep(30)'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+            children.append(child);return child
+        original=LIVE.AppServerError('real-child-initialize-failure')
+        try:
+            with mock.patch.object(LIVE,'_codex_binary',return_value=Path(sys.executable)),mock.patch.object(LIVE.subprocess,'Popen',side_effect=factory),mock.patch.object(LIVE.AppServer,'request',side_effect=original):
+                with self.assertRaises(LIVE.AppServerError) as caught:LIVE.AppServer(requested_model='gpt-5.6-luna')
+            self.assertIs(caught.exception,original);self.assertEqual(len(children),1)
+            child=children[0];self.assertIsNotNone(child.poll());self.assertTrue(original.app_server_cleanup['all_contained'])
+            self.assertTrue(all(stream.closed for stream in [child.stdin,child.stdout,child.stderr]))
+            with self.assertRaises(ChildProcessError):os.waitpid(child.pid,os.WNOHANG)
+        finally:
+            for child in children:
+                if child.poll() is None:child.kill();child.wait(timeout=5)

@@ -100,6 +100,12 @@ class NativeProgressTest(unittest.TestCase):
             aggregate["required_operator_change_types"],
             ["aggregate-budget-increase"],
         )
+        runtime = evaluate_worker_progress(
+            plan(), actual(runtime_seconds=plan()["runtime_seconds_hard"])
+        )
+        self.assertEqual(runtime["outcome"], "protected-stop")
+        self.assertIn("aggregate-allowance-exhausted", runtime["reasons"])
+        self.assertFalse(runtime["dispatch_authorized"])
         result = evaluate_worker_progress(
             plan(), actual(), discoveries={"model_mismatch": True}
         )

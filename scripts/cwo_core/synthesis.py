@@ -5,7 +5,7 @@ import json
 import re
 from typing import Any
 
-from .policy import load_policy
+from .policy import load_policy, local_v2_critic_eligible
 from .util import provider_term_intent, term_hits, term_intent
 
 
@@ -410,6 +410,22 @@ def evaluate_synthesis_inputs(
             or entry.get("share_boundary_status")
         )
         effective_disposition = "boundary-tainted" if boundary_status == "boundary-tainted" else disposition
+        local_v2_eligible = local_v2_critic_eligible(
+            executor=entry.get("executor"),
+            expected_contract=entry.get("local_expected_response_contract"),
+            response_contract=entry.get("local_response_contract"),
+            contract_status=entry.get("local_response_contract_status"),
+            completion_status=entry.get("local_completion_status"),
+            usable_final_content=entry.get("local_usable_final_content"),
+            normalized_return_matches=entry.get("local_normalized_return_matches"),
+            frame_valid=entry.get("local_v2_frame_valid"),
+            identity_consistent=entry.get("local_v2_identity_consistent"),
+            response_model_status=entry.get("local_response_model_status"),
+            model_preflight_status=entry.get("local_model_preflight_status"),
+            http_status=entry.get("local_http_status"),
+        )
+        if local_v2_eligible is False:
+            effective_disposition = "quarantined"
         lane = str(entry.get("lane") or entry.get("id") or entry.get("name") or f"input-{index}")
         external = bool(entry.get("external", True))
         provider_camp = str(entry.get("provider_camp") or "")
@@ -461,7 +477,11 @@ def evaluate_synthesis_inputs(
             "requested_synthesis_use": requested_synthesis_use,
             "evidence_quality_score": entry.get("evidence_quality_score"),
             "external": external,
-            "reason": entry.get("reason"),
+            "reason": (
+                "unusable GLM critic v2 dispatch evidence"
+                if local_v2_eligible is False
+                else entry.get("reason")
+            ),
             "implementation_blocked": implementation_blocked,
             "hold_classification": hold_classification,
             "hold_reasons": hold_reasons,

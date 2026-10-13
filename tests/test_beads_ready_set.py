@@ -58,14 +58,19 @@ POOL_BUDGET = {
 }
 
 
-def work_plan(bead_id: str, write_paths: list[str]) -> dict:
+def work_plan(
+    bead_id: str,
+    write_paths: list[str],
+    *,
+    requested_model: str = MODEL,
+) -> dict:
     return evaluate_work_estimate(
         {
             "estimate_type": "cwo-native-work-estimate",
             "version": 1,
             "work_unit_id": f"work-{bead_id}",
             "bead_id": bead_id,
-            "requested_model": MODEL,
+            "requested_model": requested_model,
             "primary_outcome": f"complete {bead_id}",
             "expected_artifacts": ["patch", "tests"],
             "expert_profiles": ["engineer"],
@@ -95,15 +100,16 @@ def work_plan(bead_id: str, write_paths: list[str]) -> dict:
 
 
 def worker_commitment(plan: dict) -> dict:
+    requested_model = plan.get("requested_model", MODEL)
     return {
         "commitment_type": "cwo-native-worker-fit-commitment",
         "version": 1,
         "work_unit_id": plan["work_unit_id"],
         "bead_id": plan["bead_id"],
-        "requested_model": MODEL,
+        "requested_model": requested_model,
         "session_id": f"session-{plan['bead_id']}",
         "attestation_source": "trusted-session-jsonl",
-        "attested_model": MODEL,
+        "attested_model": requested_model,
         "work_estimate_sha256": canonical_work_estimate_sha256(plan),
         "decision": "accept",
         "confidence": 0.91,
@@ -127,9 +133,10 @@ def ready_item(
     labels: list[str] | None = None,
     aggregate_budget: dict | None = None,
     metadata_overrides: dict | None = None,
+    requested_model: str = MODEL,
 ) -> dict:
     writes = list(write_paths or [])
-    plan = work_plan(bead_id, writes)
+    plan = work_plan(bead_id, writes, requested_model=requested_model)
     tool_policy = default_tool_policy(mutable=bool(writes))
     tool_surface = build_tool_surface_snapshot(
         tool_policy,
@@ -139,14 +146,14 @@ def ready_item(
         effective_allowlist=list(tool_policy["permitted_tools"]),
     )
     capability_evidence = {
-        "requested_model": MODEL,
-        "configured_model": MODEL,
+        "requested_model": requested_model,
+        "configured_model": requested_model,
         "advertised": True,
-        "advertised_models": [MODEL],
+        "advertised_models": [requested_model],
         "spawn_accepted": True,
         "canary_session_id": f"capability-{bead_id}",
         "attestation_source": "trusted-session-jsonl",
-        "attested_model": MODEL,
+        "attested_model": requested_model,
         "tool_calls": 0,
         "context_compactions": 0,
         "runtime_seconds": 1.25,
@@ -163,7 +170,7 @@ def ready_item(
     )
     capability_receipt = build_native_capability_receipt(
         capability_evidence,
-        [MODEL],
+        [requested_model],
         "2026-07-20T20:00:00Z",
         "2026-07-20T20:30:00Z",
         session_authority=capability_authority,

@@ -124,6 +124,8 @@ def containment_error(
     expected_packet_id: str | None = None,
     expected_work_plan_sha256: str | None = None,
     expected_precommit_receipt_sha256: str | None = None,
+    maintenance_operation: Any = None,
+    maintenance_verifier: Any = None,
 ) -> str:
     try:
         state = native_operative_containment(policy)
@@ -137,6 +139,8 @@ def containment_error(
             expected_packet_id=expected_packet_id,
             expected_work_plan_sha256=expected_work_plan_sha256,
             expected_precommit_receipt_sha256=expected_precommit_receipt_sha256,
+            maintenance_operation=maintenance_operation,
+            maintenance_verifier=maintenance_verifier,
         )
         if evidence_errors:
             return f"{CONTAINMENT_ERROR}: release evidence rejected: {'; '.join(evidence_errors)}"
@@ -160,6 +164,8 @@ def require_native_operative_dispatch(
     expected_packet_id: str | None = None,
     expected_work_plan_sha256: str | None = None,
     expected_precommit_receipt_sha256: str | None = None,
+    maintenance_operation: Any = None,
+    maintenance_verifier: Any = None,
 ) -> None:
     error = containment_error(
         operation,
@@ -168,6 +174,8 @@ def require_native_operative_dispatch(
         expected_packet_id=expected_packet_id,
         expected_work_plan_sha256=expected_work_plan_sha256,
         expected_precommit_receipt_sha256=expected_precommit_receipt_sha256,
+        maintenance_operation=maintenance_operation,
+        maintenance_verifier=maintenance_verifier,
     )
     if error:
         raise SystemExit(error)

@@ -15,6 +15,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+from tests.historical_policy_fixtures import historical_v2_policy, historical_cli_args
 
 from cwo_core.native_containment import CONTAINMENT_ERROR, containment_error  # noqa: E402
 from cwo_core.native_precommit import canonical_sha256  # noqa: E402
@@ -22,9 +23,11 @@ from cwo_core.native_release import (  # noqa: E402
     authorize_operative_packet,
     build_canary_release_evidence,
     build_operative_release_evidence,
+    reissue_operative_packet_release,
     validate_native_release_evidence,
     write_release_evidence,
 )
+from cwo_core.paths import cwo_temp_dir  # noqa: E402
 from tests.native_precommit_fixtures import issue_accepting_precommit_receipt  # noqa: E402
 
 
@@ -37,6 +40,8 @@ def canary_plan() -> dict:
         "bead_id": "complex-work-orchestration-fsh.3.5",
         "requested_model": "gpt-5.3-codex-spark",
         "task_class": "bounded-implementation",
+        "primary_outcome": "Complete a harmless bounded release canary.",
+        "acceptance_checks": ["The canary completes without workspace mutation."],
         "scores": {
             "reasoning_uncertainty": 0,
             "subsystem_coupling": 0,
@@ -90,7 +95,17 @@ class NativeReleaseTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="cwo-native-release-test-")
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name)
+        temp_root = Path(self.temp.name)
+        self.env = mock.patch.dict(
+            os.environ,
+            {
+                "CWO_TEMP_ROOT": str(temp_root),
+                "CWO_SESSION_ID": "release-fixture-session",
+            },
+        )
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        self.root = cwo_temp_dir(scope="session")
         self.registry = self.root / "registry"
         self.env = mock.patch.dict(
             os.environ,
@@ -131,6 +146,89 @@ class NativeReleaseTests(unittest.TestCase):
                 "runtime_seconds_p90": 20,
             },
         )
+
+    def fallback_canary_bundle(
+        self,
+        *,
+        quota: str = "exhausted",
+        capacity: str = "available",
+        evaluated_at: str | None = None,
+    ) -> tuple[dict, dict, dict]:
+        from cwo_core.operative_routing import (
+            LUNA_MODEL,
+            build_operative_fallback_fit,
+            resolve_operative_route,
+        )
+        from tests.test_operative_routing import (
+            BUDGET,
+            NOW,
+            cache_profile,
+            capability_evidence,
+            work_plan as fallback_plan,
+        )
+
+        context = {
+            "bead_id": "complex-work-orchestration-fsh.3.5",
+            "wave_id": "p4vg-wave-0-release-repair",
+            "fresh_segment": True,
+            "work_lineage_id": "p4vg-fallback-canary",
+        }
+        plan = fallback_plan(requested_model=LUNA_MODEL, narrow=True)
+        plan["bead_id"] = context["bead_id"]
+        plan["work_unit_id"] = "p4vg-fallback-release-canary"
+        route_time = evaluated_at or NOW
+        capabilities = capability_evidence(quota=quota, capacity=capacity)
+        if evaluated_at is not None:
+            capabilities["observed_at"] = route_time
+            for record in capabilities["operative_models"]:
+                record["observed_at"] = route_time
+        fit = build_operative_fallback_fit(
+            work_estimate=plan,
+            cache_profile=cache_profile(),
+            capability_evidence=capabilities,
+            context=context,
+            aggregate_budget=BUDGET,
+            evaluated_at=route_time,
+        )
+        decision = resolve_operative_route(
+            capability_evidence=capabilities,
+            work_estimate=plan,
+            fallback_fit=fit,
+            context=context,
+            aggregate_budget=BUDGET,
+            evaluated_at=route_time,
+        )
+        candidate = next(
+            item
+            for item in decision["fallback"]["candidates"]
+            if item["model"] == LUNA_MODEL
+        )
+        selection = {
+            "version": 2,
+            "selection_source": "user-explicit-fallback",
+            "selected_model": LUNA_MODEL,
+            "selected_executor": candidate["executor"],
+            "reason": "User explicitly authorized the recommended eligible fallback.",
+            "scope": "current-wave",
+            "wave_id": context["wave_id"],
+            "selected_at": route_time,
+            "actor": "operator@example.test",
+            "capability_evidence_sha256": decision["capability_evidence_sha256"],
+            "work_estimate_sha256": decision["work_estimate_sha256"],
+            "fallback_fit_sha256": decision["fallback_fit_sha256"],
+            "policy_sha256": decision["policy_sha256"],
+            "candidate_evidence_sha256": candidate["model_evidence_sha256"],
+        }
+        route = resolve_operative_route(
+            capability_evidence=capabilities,
+            work_estimate=plan,
+            fallback_fit=fit,
+            fallback_selection=selection,
+            context=context,
+            aggregate_budget=BUDGET,
+            evaluated_at=route_time,
+        )
+        return plan, route, context
 
     def test_canary_evidence_is_strict_bounded_and_nonoperative(self) -> None:
         evidence = self.build()
@@ -201,6 +299,159 @@ class NativeReleaseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate native release attempt_nonce"):
             self.build(packet_id="different-packet")
 
+    @mock.patch(
+        "cwo_core.operative_routing._now_iso",
+        new=lambda: "2026-09-03T19:15:00Z",
+    )
+    @historical_v2_policy()
+    def test_fallback_canary_requires_verified_quota_exhaustion_and_exact_route(self) -> None:
+        from tests.test_operative_routing import NOW
+
+        plan, route, _ = self.fallback_canary_bundle()
+        evidence = self.build(
+            packet_id="fallback-canary",
+            attempt_nonce="fallback-canary-attempt",
+            work_plan=plan,
+            operative_routing=route,
+            now=NOW,
+        )
+        self.assertEqual(evidence["requested_model"], "gpt-5.6-luna")
+        self.assertEqual(evidence["operative_routing_sha256"], canonical_sha256(route))
+        routing_now = dt.datetime.fromisoformat(NOW.replace("Z", "+00:00"))
+        self.assertEqual(validate_native_release_evidence(evidence, now=routing_now), [])
+
+        with self.assertRaisesRegex(ValueError, "valid operative routing"):
+            self.build(
+                packet_id="fallback-canary-no-route",
+                attempt_nonce="fallback-canary-no-route-attempt",
+                work_plan=plan,
+                operative_routing=None,
+                now=NOW,
+            )
+
+        capacity_plan, capacity_route, _ = self.fallback_canary_bundle(
+            quota="usable",
+            capacity="unavailable",
+        )
+        with self.assertRaisesRegex(ValueError, "verified Spark quota exhaustion"):
+            self.build(
+                packet_id="fallback-capacity-canary",
+                attempt_nonce="fallback-capacity-canary-attempt",
+                work_plan=capacity_plan,
+                operative_routing=capacity_route,
+                now=NOW,
+            )
+
+        with self.assertRaisesRegex(ValueError, "must not carry fallback"):
+            self.build(operative_routing=route)
+
+    @mock.patch(
+        "cwo_core.operative_routing._now_iso",
+        new=lambda: "2026-09-03T19:15:00.123456Z",
+    )
+    @historical_v2_policy()
+    def test_fallback_canary_preserves_supplied_microsecond_routing_clock(self) -> None:
+        precise_now = "2026-09-03T19:15:00.123456Z"
+        plan, route, _ = self.fallback_canary_bundle(evaluated_at=precise_now)
+        evidence = self.build(
+            packet_id="fallback-canary-microsecond-clock",
+            attempt_nonce="fallback-canary-microsecond-clock-attempt",
+            work_plan=plan,
+            operative_routing=route,
+            now=precise_now,
+        )
+        self.assertEqual(evidence["requested_model"], "gpt-5.6-luna")
+        self.assertEqual(
+            evidence["operative_routing_sha256"], canonical_sha256(route)
+        )
+
+    @mock.patch(
+        "cwo_core.operative_routing._now_iso",
+        new=lambda: "2026-09-03T19:15:00Z",
+    )
+    @historical_v2_policy()
+    def test_fallback_canary_authorizes_only_the_same_fallback_with_bound_evidence(self) -> None:
+        from tests.test_operative_routing import NOW
+
+        plan, route, _ = self.fallback_canary_bundle()
+        canary_release = self.build(
+            packet_id="fallback-canary-proof",
+            attempt_nonce="fallback-canary-proof-attempt",
+            work_plan=plan,
+            operative_routing=route,
+            now=NOW,
+        )
+        workspace = self.root / "fallback-canary-workspace"
+        workspace.mkdir()
+        canary_receipt = issue_accepting_precommit_receipt(
+            work_plan=plan,
+            packet_id="fallback-canary-proof",
+            artifact_root=self.root / "fallback-canary-receipt",
+            workdir=workspace,
+            estimates={
+                "tool_calls_p50": 1,
+                "tool_calls_p90": 1,
+                "runtime_seconds_p50": 10,
+                "runtime_seconds_p90": 20,
+            },
+            model="gpt-5.6-luna",
+            operative_routing=route,
+            attempt_nonce="fallback-canary-proof-attempt",
+        )
+        candidate = candidate_packet(self.root)
+        candidate.update(
+            packet_id="fallback-operative-candidate",
+            requested_model="gpt-5.6-luna",
+            work_plan=plan,
+            operative_routing=route,
+        )
+        adjudication = operative_adjudication(canary_receipt["receipt_sha256"])
+        evidence = build_operative_release_evidence(
+            candidate_packet=candidate,
+            adjudication=adjudication,
+            canary_receipt=canary_receipt,
+            canary_release_evidence=canary_release,
+            now=NOW,
+        )
+        self.assertEqual(evidence["requested_model"], "gpt-5.6-luna")
+
+        with self.assertRaisesRegex(ValueError, "requires its release evidence"):
+            build_operative_release_evidence(
+                candidate_packet=candidate,
+                adjudication=adjudication,
+                canary_receipt=canary_receipt,
+                now=NOW,
+            )
+
+        tampered_release = copy.deepcopy(canary_release)
+        tampered_release["operative_routing_sha256"] = "f" * 64
+        tampered_release["evidence_sha256"] = canonical_sha256(
+            {
+                key: value
+                for key, value in tampered_release.items()
+                if key != "evidence_sha256"
+            }
+        )
+        with self.assertRaisesRegex(ValueError, "operative_routing_sha256 binding mismatch"):
+            build_operative_release_evidence(
+                candidate_packet=candidate,
+                adjudication=adjudication,
+                canary_receipt=canary_receipt,
+                canary_release_evidence=tampered_release,
+                now=NOW,
+            )
+
+        wrong_model = copy.deepcopy(candidate)
+        wrong_model["requested_model"] = "gpt-5.6-terra"
+        with self.assertRaisesRegex(ValueError, "fallback canary model must match"):
+            build_operative_release_evidence(
+                candidate_packet=wrong_model,
+                adjudication=adjudication,
+                canary_receipt=canary_receipt,
+                canary_release_evidence=canary_release,
+                now=NOW,
+            )
+
     def test_operative_evidence_requires_strict_go_and_authorizes_exact_packet(self) -> None:
         canary_receipt = self.accepting_canary_receipt()
         canary_hash = canary_receipt["receipt_sha256"]
@@ -267,6 +518,71 @@ class NativeReleaseTests(unittest.TestCase):
                 now=self.now,
             )
 
+    def test_operative_release_reissue_preserves_packet_and_appends_lineage(self) -> None:
+        canary_receipt = self.accepting_canary_receipt()
+        workdir = self.root / "operative-workspace"
+        workdir.mkdir()
+        operative_receipt = issue_accepting_precommit_receipt(
+            work_plan=canary_plan(),
+            packet_id="operative-refresh-packet",
+            artifact_root=self.root / "operative-refresh-receipt",
+            workdir=workdir,
+            estimates={
+                "tool_calls_p50": 1,
+                "tool_calls_p90": 1,
+                "runtime_seconds_p50": 10,
+                "runtime_seconds_p90": 20,
+            },
+        )
+        candidate = candidate_packet(workdir)
+        candidate.update(
+            {
+                "packet_id": operative_receipt["packet_id"],
+                "precommit_receipt": operative_receipt,
+                "precommit_receipt_sha256": operative_receipt["receipt_sha256"],
+            }
+        )
+        packet = authorize_operative_packet(
+            candidate_packet=candidate,
+            adjudication=operative_adjudication(canary_receipt["receipt_sha256"]),
+            canary_receipt=canary_receipt,
+            now=self.now,
+        )
+        refreshed_at = (self.now_dt + dt.timedelta(seconds=30)).isoformat(
+            timespec="milliseconds"
+        ).replace("+00:00", "Z")
+        result = reissue_operative_packet_release(
+            authorized_packet=packet,
+            adjudication=operative_adjudication(canary_receipt["receipt_sha256"]),
+            canary_receipt=canary_receipt,
+            now=refreshed_at,
+        )
+        refreshed = result["packet"]
+        self.assertEqual(refreshed["packet_id"], packet["packet_id"])
+        self.assertEqual(
+            refreshed["precommit_receipt_sha256"],
+            packet["precommit_receipt_sha256"],
+        )
+        self.assertEqual(refreshed["work_plan"], packet["work_plan"])
+        self.assertNotEqual(
+            refreshed["release_evidence_sha256"], packet["release_evidence_sha256"]
+        )
+        lineage = result["lineage"]
+        self.assertEqual(
+            lineage["parent_release_evidence_sha256"],
+            packet["release_evidence_sha256"],
+        )
+        self.assertEqual(
+            lineage["replacement_release_evidence_sha256"],
+            refreshed["release_evidence_sha256"],
+        )
+        self.assertEqual(
+            lineage["lineage_sha256"],
+            canonical_sha256(
+                {key: value for key, value in lineage.items() if key != "lineage_sha256"}
+            ),
+        )
+
     def test_operative_release_rejects_non_v2_candidate_packets(self) -> None:
         canary_receipt = self.accepting_canary_receipt()
         canary_hash = canary_receipt["receipt_sha256"]
@@ -304,6 +620,59 @@ class NativeReleaseTests(unittest.TestCase):
                                 canary_receipt=canary_receipt,
                                 now=self.now,
                             )
+
+    @mock.patch(
+        "cwo_core.operative_routing._now_iso",
+        new=lambda: "2026-09-03T19:15:00Z",
+    )
+    @historical_v2_policy()
+    def test_operative_release_accepts_each_selected_fallback_and_rejects_mismatch(self) -> None:
+        from tests.test_operative_routing import (
+            GPT55_MODEL,
+            LUNA_MODEL,
+            NOW,
+            TERRA_MODEL,
+            fallback_bundle,
+            select_route,
+            work_plan as fallback_plan,
+        )
+
+        canary_receipt = self.accepting_canary_receipt()
+        adjudication = operative_adjudication(canary_receipt["receipt_sha256"])
+        for index, model in enumerate((GPT55_MODEL, TERRA_MODEL, LUNA_MODEL), start=1):
+            with self.subTest(model=model):
+                plan = fallback_plan(requested_model=model, narrow=model == LUNA_MODEL)
+                bundle = fallback_bundle(plan=plan)
+                route = select_route(bundle, model)
+                candidate = candidate_packet(self.root)
+                candidate.update(
+                    packet_id=f"fallback-release-{index}",
+                    requested_model=model,
+                    work_plan=plan,
+                    operative_routing=route,
+                )
+                evidence = build_operative_release_evidence(
+                    candidate_packet=candidate,
+                    adjudication=adjudication,
+                    canary_receipt=canary_receipt,
+                    now=NOW,
+                )
+                self.assertEqual(evidence["requested_model"], model)
+                self.assertEqual(evidence["operative_routing_sha256"], canonical_sha256(route))
+                routing_now = dt.datetime.fromisoformat(NOW.replace("Z", "+00:00"))
+                self.assertEqual(validate_native_release_evidence(evidence, now=routing_now), [])
+
+                mismatched = copy.deepcopy(candidate)
+                mismatched["requested_model"] = (
+                    TERRA_MODEL if model != TERRA_MODEL else LUNA_MODEL
+                )
+                with self.assertRaisesRegex(ValueError, "operative routing is invalid"):
+                    build_operative_release_evidence(
+                        candidate_packet=mismatched,
+                        adjudication=adjudication,
+                        canary_receipt=canary_receipt,
+                        now=NOW,
+                    )
 
     def test_cli_issues_private_canary_artifact(self) -> None:
         plan_file = self.root / "plan.json"

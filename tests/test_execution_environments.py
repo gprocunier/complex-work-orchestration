@@ -33,7 +33,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         self.assertIn("rhoai-architect-glm-5-2-fp8", registry["profiles"])
         self.assertIn("rhoai-architect-glm-5-2-bf16-thinking", registry["profiles"])
         architect_row = next(row for row in registry["role_substitution_matrix"] if row["cwo_role"] == "architect")
-        self.assertEqual(architect_row["connected_default"], "Codex 5.6 Sol architect")
+        self.assertEqual(architect_row["connected_default"], "GPT-6.1-Sol architect; Astra/max for unresolved architecture")
         self.assertEqual(
             architect_row["enterprise_profiles"],
             [
@@ -134,7 +134,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         binding = environment["role_bindings"]["architect"]
 
         self.assertEqual(binding["executor"], "frontier_architect")
-        self.assertEqual(binding["model"], "codex-5.6-sol")
+        self.assertEqual(binding["model"], "gpt-6.1-sol")
         self.assertEqual(binding["variant"], "sol")
 
         envelope = build_harness_dispatch(
@@ -145,31 +145,31 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             bead_id="cwo-test",
         )
         self.assertEqual(envelope["harness"], "codex_cli")
-        self.assertEqual(envelope["model"], "codex-5.6-sol")
+        self.assertEqual(envelope["model"], "gpt-6.1-sol")
         self.assertEqual(envelope["variant"], "sol")
         self.assertIsNone(envelope["model_profile"])
         self.assertEqual(envelope["access_profile"], "codex-connected-shell")
         self.assertIn("Codex conversation", envelope["suggested_command"])
         self.assertEqual(validate_harness_dispatch_envelope(envelope), [])
 
-    def test_connected_codex_worker_resolves_spark_model(self) -> None:
+    def test_connected_codex_worker_resolves_luna_first_model(self) -> None:
         environment = execution_environment_registry()["profiles"]["connected-codex"]
         binding = environment["role_bindings"]["worker"]
 
-        self.assertEqual(binding["executor"], "internal_worker")
-        self.assertEqual(binding["model"], "gpt-5.3-codex-spark")
-        self.assertEqual(binding["variant"], "spark")
+        self.assertEqual(binding["executor"], "internal_worker_luna")
+        self.assertEqual(binding["model"], "gpt-5.6-luna")
+        self.assertEqual(binding["variant"], "luna")
 
         envelope = build_harness_dispatch(
             task="Implement the bounded operative packet.",
-            dispatch_id="dispatch-spark-test",
+            dispatch_id="dispatch-luna-test",
             environment_key="connected-codex",
             role="worker",
-            bead_id="cwo-spark-test",
+            bead_id="cwo-luna-test",
         )
         self.assertEqual(envelope["harness"], "codex_cli")
-        self.assertEqual(envelope["model"], "gpt-5.3-codex-spark")
-        self.assertEqual(envelope["variant"], "spark")
+        self.assertEqual(envelope["model"], "gpt-5.6-luna")
+        self.assertEqual(envelope["variant"], "luna")
         self.assertEqual(envelope["access_profile"], "codex-connected-shell")
         self.assertEqual(validate_harness_dispatch_envelope(envelope), [])
 

@@ -205,8 +205,11 @@ def operative_pool_policy(
 
     operative = load_policy("native-worker-execution")
     try:
+        operative_copy = json.loads(
+            json.dumps(operative, separators=(",", ":"))
+        )
         operative_snapshot = json.loads(
-            json.dumps(operative, sort_keys=True, separators=(",", ":"))
+            json.dumps(operative_copy, sort_keys=True, separators=(",", ":"))
         )
         supplied_snapshot = (
             operative_snapshot
@@ -223,7 +226,7 @@ def operative_pool_policy(
         raise NativePoolCapacityPolicyError(
             "productive-pool-policy-not-operative"
         )
-    return operative_snapshot
+    return operative_copy
 
 
 def load_operative_pool_capacity(

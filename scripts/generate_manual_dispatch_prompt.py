@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from cwo_core.routing import current_authority_file_arguments
+
 from cwo_core.errors import CWOError
 from cwo_core.packets import fenced_block, redact_text, require_valid_contractor_packet
 from cwo_core.routing import classify_work
@@ -244,6 +246,7 @@ def main() -> None:
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--json", action="store_true")
     add_waiver_reason_argument(parser)
+    parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
     args = parser.parse_args()
     require_waiver_reason(args, ["allow_degraded_packet", "allow_raw_manual_prompt", "allow_disclosure_escalation"])
 
@@ -268,6 +271,7 @@ def main() -> None:
             share_boundary=args.share_boundary,
             data_sensitivity=args.data_sensitivity,
             requested_roles=args.requested_role,
+            **current_authority_file_arguments(args.current_authority),
         )
     except CWOError as exc:
         raise SystemExit(str(exc))

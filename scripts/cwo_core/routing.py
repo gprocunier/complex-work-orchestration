@@ -13,6 +13,7 @@ from .access_profiles import (
 )
 from .errors import CWOPolicyError, CWOValidationError
 from .native_containment import native_operative_containment
+from .operative_routing import resolve_operative_route
 from .policy import (
     EDITOR_GATE_EXPERT,
     EXTERNAL_GUARD_LABELS,
@@ -41,6 +42,7 @@ from .routing_signals import (
     explicit_chatgpt_master_plan_review_requested,
     explicit_claude_architect_critique_requested,
     explicit_gemini_architect_critique_requested,
+    explicit_glm_5_3_architect_critique_requested,
     explicit_glm_architect_critique_requested,
     explicit_openai_deep_research_requested,
     requested_architecture_critic_executor_keys,
@@ -58,6 +60,22 @@ SENSITIVITY_HEURISTIC_DISCLAIMER = (
     "Data sensitivity is an advisory text heuristic and can miss paraphrases or context; "
     "operators should pass --data-sensitivity when sensitivity is known."
 )
+
+
+def current_authority_file_arguments(path: str | Path | None) -> dict[str, Any]:
+    """Load classification evidence, NOT dispatch permission or an opaque grant.
+
+    Omission remains omission. An explicitly supplied JSON null/false is not
+    silently discarded. Final dispatch independently requires its trusted owner.
+    """
+    if path is None:
+        return {}
+    import json
+    try:
+        value = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError, UnicodeError) as error:
+        raise CWOValidationError("current-authority input is unreadable or malformed JSON") from error
+    return {"current_authority": value}
 
 
 def normalize_data_sensitivity(value: str | None) -> str | None:
@@ -138,8 +156,10 @@ CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
 ]
 
 DEFAULT_EXECUTION_ENVIRONMENT = "connected-codex"
+_AUTHORITY_OMITTED = object()
 GLM_PRIMARY_EXECUTION_ENVIRONMENT = "connected-codex-glm-primary"
 GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR = "rhoai_glm_hardened_architecture_critic"
+GLM_5_3_ARCHITECTURE_CRITIC_EXECUTOR = "rhoai_glm_compact_architecture_critic"
 GLM_BF16_PRIMARY_ARCHITECT_EXECUTOR = "rhoai_glm_primary_architect"
 CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR = "codex_architecture_critic"
 LOCAL_DISPATCH_MODES = {"local_openai_compatible", "local_secure_review"}
@@ -810,7 +830,16 @@ def score_executors(
         if is_architecture_review_task and key == "claude_architecture_critic" and explicit_claude_architect_critique_requested(text):
             score += 32
             reasons.append("explicit Claude Opus architect critique request")
-        if is_architecture_review_task and key == GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR and explicit_glm_architect_critique_requested(text):
+        glm_5_3_requested = explicit_glm_5_3_architect_critique_requested(text)
+        if is_architecture_review_task and key == GLM_5_3_ARCHITECTURE_CRITIC_EXECUTOR and glm_5_3_requested:
+            score += 38
+            reasons.append("explicit GLM-5.3 BF16 architect critique request")
+        if (
+            is_architecture_review_task
+            and key == GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR
+            and explicit_glm_architect_critique_requested(text)
+            and not glm_5_3_requested
+        ):
             score += 34
             reasons.append("explicit GLM-5.2 BF16 architect critique request")
         if key == "chatgpt_pro_browser_master_reviewer" and explicit_chatgpt_master_plan_review_requested(text):
@@ -932,6 +961,15 @@ def classify_work(
     beads_context_depth: str | None = None,
     data_sensitivity: str | None = None,
     execution_environment: str | None = None,
+    operative_capabilities: dict[str, Any] | None = None,
+    operative_work_estimate: dict[str, Any] | None = None,
+    operative_fallback_fit: dict[str, Any] | None = None,
+    fallback_selection: dict[str, Any] | None = None,
+    operative_context: dict[str, Any] | None = None,
+    aggregate_budget: dict[str, Any] | None = None,
+    previous_operative_route: dict[str, Any] | None = None,
+    operative_evaluated_at: str | None = None,
+    current_authority: Any = _AUTHORITY_OMITTED,
 ) -> RouteResult:
     native_dispatch = native_operative_containment()
     routing = load_policy("routing-policy")
@@ -1217,6 +1255,42 @@ def classify_work(
     peer_policy = peer_review_policy()
     peer_review_count = int(peer_policy.get("defaults", {}).get("minimum_peer_reviews", 1)) if peer_required else 0
     zero_trust_route = zero_trust_route_requirement(text, risk=risk)
+    # Omission is historical API compatibility, not explicit absent/invalid
+    # authority. Never send our private sentinel into another module.
+    authority_arguments = (
+        {} if current_authority is _AUTHORITY_OMITTED
+        else {"current_authority": current_authority}
+    )
+    operative_route = resolve_operative_route(
+        execution_environment=execution_environment_key,
+        risk_level=risk,
+        data_sensitivity=sensitivity,
+        capability_evidence=operative_capabilities,
+        work_estimate=operative_work_estimate,
+        fallback_fit=operative_fallback_fit,
+        fallback_selection=fallback_selection,
+        context=operative_context,
+        aggregate_budget=aggregate_budget,
+        previous_route=previous_operative_route,
+        evaluated_at=operative_evaluated_at,
+        **authority_arguments,
+    )
+    critic_route = {
+        "route_type": "cwo-critic-route",
+        "selected_executor": recommended_executor if route in {"external-contract", "local-worker", "architect-review"} else None,
+        "requested_executors": list(requested_critic_keys),
+        "contracts": architecture_critic_contracts,
+        "evidence_only": True,
+        "may_change_operative_route": False,
+    }
+    peer_review_route = {
+        "route_type": "cwo-peer-review-route",
+        "required": peer_required,
+        "minimum_reviews": peer_review_count,
+        "executor": peer_policy.get("defaults", {}).get("local_secure_review_executor") if peer_required else None,
+        "evidence_only": True,
+        "may_change_operative_route": False,
+    }
 
     synthesis_result = recommend_model_synthesis(text, {}, force_accepted=model_synthesis)
     beads_depth = resolve_beads_context_depth(
@@ -1250,6 +1324,9 @@ def classify_work(
             else "codex-frontier-architect"
         ),
         "native_operative_dispatch": native_dispatch,
+        "operative_route": operative_route,
+        "critic_route": critic_route,
+        "peer_review_route": peer_review_route,
         "external_opt_in": external_ok,
         "disclosure_escalation_approved": allow_disclosure_escalation,
         "external_contract_allowed": route == "external-contract" and not hard_stops,

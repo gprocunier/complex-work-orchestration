@@ -12,3 +12,17 @@ artifacts are not a substitute for this user-visible packet.
 - Commit/push status: `<commit, push, remote verification, or not requested>`
 - Validation status: `<commands run, not run, or blocked>`
 - Escalation rule: `<when to stop and ask the operator>`
+
+For a current campaign with a terminal or protected sub-operation, also supply
+the scoped continuation fields below and validate with
+`--require-scoped-continuation`. They describe a decision; they do not grant
+dispatch authority. When a source-derived continuation-state artifact exists,
+also pass `--continuation-state <path>` to catch a false generic approval ask.
+That artifact is a consistency input, not authority. Historical handoffs remain
+readable without these fields.
+
+- Stopped operation: `<exact child, cohort, path, or parent operation>`
+- Stop scope: `<child, cohort, execution-path, complete-task, or publication>`
+- Continuation disposition: `<continue-authorized, material-decision, or complete>`
+- Already-authorized next action: `<exact action or none>`
+- Authority delta required: `<specific new authority or none>`

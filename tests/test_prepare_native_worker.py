@@ -12,6 +12,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
+from tests.historical_policy_fixtures import historical_v2_policy, historical_cli_args
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 
 from prepare_native_worker import (  # noqa: E402
@@ -45,7 +46,7 @@ def set_disposition(packet: dict, result: dict) -> None:
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, str(ROOT / "scripts" / "prepare_native_worker.py"), *args],
+        historical_cli_args(ROOT / "scripts" / "prepare_native_worker.py", *args),
         cwd=ROOT,
         check=False,
         capture_output=True,
@@ -77,7 +78,38 @@ def temporary_override() -> dict[str, object]:
     )
 
 
+class CurrentPolicyHistoricalPacketTests(unittest.TestCase):
+    def test_current_default_cannot_build_without_current_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            with self.assertRaisesRegex(SystemExit, "operative routing"):
+                build_native_worker_packet(
+                    bead_id="current-missing-authority", lane="review",
+                    workdir=workdir, allowed_paths=["."],
+                    acceptance_checks=["review complete"],
+                )
+
+    def test_historical_packet_is_inspectable_but_cannot_dispatch(self) -> None:
+        with tempfile.TemporaryDirectory() as workdir:
+            with historical_v2_policy():
+                packet = build_native_worker_packet(
+                    bead_id="historical-inspection", lane="review",
+                    workdir=workdir, allowed_paths=["."],
+                    acceptance_checks=["review complete"],
+                )
+            self.assertEqual(packet["requested_model"], "gpt-5.3-codex-spark")
+            self.assertEqual(validate_native_worker_packet(packet), [])
+            self.assertIn(
+                "historical model records cannot authorize current dispatch",
+                validate_native_worker_packet(packet, dispatchable=True),
+            )
+
+
 class NativeWorkerPacketTests(unittest.TestCase):
+    """Historical v2 packet construction and validation under inactive v3."""
+
+    def setUp(self) -> None:
+        self.enterContext(historical_v2_policy())
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.policy = json.loads((ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8"))
@@ -104,8 +136,12 @@ class NativeWorkerPacketTests(unittest.TestCase):
         )
         self.assertEqual(set(properties["scope"]["properties"].keys()), contracts.ALLOWED_SCOPE_FIELDS)
         self.assertEqual(
-            set(properties["tool_policy"]["properties"].keys()),
+            set(properties["tool_policy"]["oneOf"][0]["properties"].keys()),
             TOOL_POLICY_FIELDS,
+        )
+        self.assertEqual(
+            set(properties["tool_policy"]["oneOf"][1]["properties"].keys()),
+            TOOL_POLICY_FIELDS | {"tool_profile"},
         )
         self.assertEqual(set(properties["budget"]["properties"].keys()), contracts.ALLOWED_BUDGET_FIELDS)
         self.assertEqual(set(properties["budget_provenance"]["properties"].keys()), contracts.ALLOWED_BUDGET_PROVENANCE_FIELDS)
@@ -352,39 +388,21 @@ class NativeWorkerPacketTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("unknown lane", result.stderr.lower())
 
-    def test_explicit_luna_packet_binds_exact_attestation(self) -> None:
+    def test_fallback_packet_requires_valid_route_before_attestation_binding(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
             allowed = Path(workdir) / "allowed"
             allowed.mkdir()
-            packet = build_native_worker_packet(
-                bead_id="bead-luna",
-                lane="implementation",
-                workdir=workdir,
-                allowed_paths=[str(allowed)],
-                acceptance_checks=["focused tests pass"],
-                requested_model="gpt-5.6-luna",
-            )
-            self.assertEqual(packet["requested_model"], "gpt-5.6-luna")
-            self.assertEqual(
-                packet["session_policy"]["attestation"]["required_actual_model"],
-                "gpt-5.6-luna",
-            )
-            self.assertEqual(validate_native_worker_packet(packet), [])
-
-            if HAS_JSONSCHEMA:
-                from jsonschema import Draft202012Validator
-
-                schema = json.loads((ROOT / "schemas" / "native-worker-packet.schema.json").read_text(encoding="utf-8"))
-                validator = Draft202012Validator(schema)
-                validator.validate(packet)
-
-            packet["session_policy"]["attestation"]["required_actual_model"] = "gpt-5.3-codex-spark"
-            self.assertIn(
-                "session_policy.attestation.required_actual_model must match packet.requested_model",
-                validate_native_worker_packet(packet),
-            )
-            if HAS_JSONSCHEMA:
-                self.assertTrue(list(validator.iter_errors(packet)))
+            for model in ("gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"):
+                with self.subTest(model=model):
+                    with self.assertRaisesRegex(SystemExit, "operative routing"):
+                        build_native_worker_packet(
+                            bead_id="bead-fallback",
+                            lane="implementation",
+                            workdir=workdir,
+                            allowed_paths=[str(allowed)],
+                            acceptance_checks=["focused tests pass"],
+                            requested_model=model,
+                        )
 
     def test_build_rejects_unauthorized_native_model(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:

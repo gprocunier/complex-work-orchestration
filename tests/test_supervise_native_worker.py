@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from prepare_native_worker import build_native_worker_packet  # noqa: E402
 from cwo_core.work_sizing import evaluate_work_estimate
+from cwo_core.paths import cwo_temp_dir
 import supervise_native_worker as supervisor  # noqa: E402
 from tests.native_precommit_fixtures import issue_accepting_precommit_receipt  # noqa: E402
 
@@ -255,6 +256,27 @@ def tool_record(
     return {"response_item": item}
 
 
+def namespaced_tool_record(
+    tool: str,
+    arguments: object,
+    *,
+    call_id: str,
+) -> dict:
+    source = (
+        f"const result = await tools.{tool}("
+        f"{json.dumps(arguments, separators=(',', ':'))}); "
+        "text(JSON.stringify(result));"
+    )
+    return {
+        "response_item": {
+            "type": "custom_tool_call",
+            "name": "exec",
+            "call_id": call_id,
+            "input": source,
+        }
+    }
+
+
 def tool_output(call_id: str, output: object, *, custom: bool = False) -> dict:
     return {
         "response_item": {
@@ -274,14 +296,18 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         global _FIXTURE_ROOT
         self.precommit_temp = tempfile.TemporaryDirectory(prefix="cwo-semantic-precommit-")
         self.addCleanup(self.precommit_temp.cleanup)
-        _FIXTURE_ROOT = Path(self.precommit_temp.name)
-        self.addCleanup(lambda: globals().__setitem__("_FIXTURE_ROOT", None))
         environment = mock.patch.dict(
             os.environ,
-            {"CWO_PRECOMMIT_REGISTRY_ROOT": str(_FIXTURE_ROOT / "registry")},
+            {
+                "CWO_TEMP_ROOT": self.precommit_temp.name,
+                "CWO_SESSION_ID": "native-supervisor-semantic",
+                "CWO_PRECOMMIT_REGISTRY_ROOT": str(Path(self.precommit_temp.name) / "registry"),
+            },
         )
         environment.start()
         self.addCleanup(environment.stop)
+        _FIXTURE_ROOT = cwo_temp_dir()
+        self.addCleanup(lambda: globals().__setitem__("_FIXTURE_ROOT", None))
 
     def packet(self) -> dict:
         return planned_packet(packet_id="packet-semantic-helper")
@@ -732,6 +758,25 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         self.assertEqual(activity["category_counts"]["unrelated"], 1)
         self.assertIn("unrelated-activity-denied", activity["violations"])
 
+    def test_parallel_unittest_wrapper_is_focused_validation(self) -> None:
+        packet = self.packet()
+        _, units = supervisor._evaluate_operative_readiness(packet, self.policy)
+        activity = supervisor._classify_native_activity(
+            [
+                tool_record(
+                    "python scripts/run_parallel_unittest.py --workers 8 --verbose"
+                )
+            ],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertEqual(activity["category_counts"]["focused-validation"], 1)
+        self.assertEqual(activity["category_counts"]["unrelated"], 0)
+        self.assertEqual(activity["violations"], [])
+
     def test_unpermitted_tool_activity_is_hash_bound_and_interrupting(self) -> None:
         packet = self.packet()
         _, units = supervisor._evaluate_operative_readiness(packet, self.policy)
@@ -752,6 +797,148 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             r"^[0-9a-f]{64}$",
         )
         self.assertNotIn("escape", json.dumps(activity))
+
+    def test_exact_namespaced_exec_is_classified_as_its_nested_tool(self) -> None:
+        packet = self.packet()
+        _, units = supervisor._evaluate_operative_readiness(packet, self.policy)
+        command = "sed -n '1,10p' scripts/supervise_native_worker.py"
+        activity = supervisor._classify_native_activity(
+            [
+                namespaced_tool_record(
+                    "exec_command",
+                    {"cmd": command, "workdir": str(ROOT)},
+                    call_id="nested-read",
+                )
+            ],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertEqual(activity["category_counts"]["targeted-read"], 1)
+        self.assertEqual(activity["forbidden_tool_activity"], [])
+        self.assertEqual(activity["violations"], [])
+
+    def test_namespaced_exec_fail_closed_boundaries_remain_enforced(self) -> None:
+        packet = self.packet()
+        _, units = supervisor._evaluate_operative_readiness(packet, self.policy)
+        command = "sed -n '1,10p' scripts/supervise_native_worker.py"
+
+        malformed = namespaced_tool_record(
+            "exec_command",
+            {"cmd": command, "workdir": str(ROOT)},
+            call_id="nested-malformed",
+        )
+        malformed["response_item"]["input"] += ' notify("extra");'
+        malformed_activity = supervisor._classify_native_activity(
+            [malformed],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertIn("forbidden-tool-activity", malformed_activity["violations"])
+        self.assertEqual(
+            malformed_activity["forbidden_tool_activity"][0]["tool"], "exec"
+        )
+
+        wrong_workdir_activity = supervisor._classify_native_activity(
+            [
+                namespaced_tool_record(
+                    "exec_command",
+                    {"cmd": command, "workdir": str(ROOT.parent)},
+                    call_id="nested-wrong-workdir",
+                )
+            ],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertIn(
+            "exec-command-workdir-mismatch", wrong_workdir_activity["violations"]
+        )
+
+        patch_record = namespaced_tool_record(
+            "apply_patch",
+            "*** Begin Patch\n*** Update File: scripts/supervise_native_worker.py\n@@\n-old\n+new\n*** End Patch",
+            call_id="nested-patch",
+        )
+        patch_activity = supervisor._classify_native_activity(
+            [patch_record],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertEqual(patch_activity["category_counts"]["mutation"], 1)
+        self.assertEqual(patch_activity["violations"], [])
+
+        restricted_packet = json.loads(json.dumps(packet))
+        restricted_packet["tool_policy"]["permitted_tools"].remove("apply_patch")
+        restricted_activity = supervisor._classify_native_activity(
+            [patch_record],
+            units,
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=restricted_packet,
+        )
+        self.assertIn("forbidden-tool-activity", restricted_activity["violations"])
+        self.assertEqual(
+            restricted_activity["forbidden_tool_activity"][0]["tool"],
+            "apply_patch",
+        )
+
+    def test_namespaced_exec_preserves_command_and_continuation_evidence(self) -> None:
+        command = ["python", "scripts/validate_repository.py"]
+        packet = self.validation_packet([command])
+        records = [
+            namespaced_tool_record(
+                "exec_command",
+                {"cmd": " ".join(command), "workdir": str(ROOT)},
+                call_id="nested-exec",
+            ),
+            tool_output(
+                "nested-exec",
+                json.dumps({"session_id": 51986}),
+                custom=True,
+            ),
+            namespaced_tool_record(
+                "write_stdin",
+                {"session_id": 51986, "chars": ""},
+                call_id="nested-poll",
+            ),
+            tool_output(
+                "nested-poll",
+                json.dumps({"exit_code": 0}),
+                custom=True,
+            ),
+        ]
+        activity = supervisor._classify_native_activity(
+            records,
+            [],
+            None,
+            scoped_mutation=False,
+            policy=self.policy,
+            packet=packet,
+        )
+        self.assertEqual(activity["category_counts"]["focused-validation"], 2)
+        self.assertEqual(activity["violations"], [])
+
+        evidence = supervisor._analyze_command_evidence(
+            records,
+            packet,
+            task_complete=True,
+        )
+        self.assertEqual(evidence["observed_count"], 1)
+        self.assertEqual(evidence["completed_count"], 1)
+        self.assertEqual(evidence["paired_output_count"], 2)
+        self.assertEqual(evidence["violations"], [])
 
     def test_call_shaped_unknown_tool_activity_fails_closed(self) -> None:
         packet = self.packet()
@@ -1069,7 +1256,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         self.assertEqual(evidence["completed_count"], 1)
 
     def test_checked_sequence_evidence_requires_bound_passed_result(self) -> None:
-        with tempfile.TemporaryDirectory(prefix="cwo-sequence-evidence-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="sequence-evidence-", dir=_FIXTURE_ROOT) as temporary:
             output_path = Path(temporary) / "result.json"
             runner = ["python3", "scripts/run_checked_command_sequence.py", "spec.json"]
             packet = self.evidence_packet([runner])
@@ -1154,6 +1341,8 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             "allowed_paths": ["new-owned.py"],
             "include_untracked": True,
             "tracked_status": [],
+            "tracked_paths": [],
+            "tracked_paths_complete": True,
             "preexisting_dirty_paths": [],
             "content_fingerprints": {},
             "baseline_complete": True,
@@ -1234,15 +1423,24 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
     def setUp(self) -> None:
         global _FIXTURE_ROOT
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-supervision-test-")
-        self.root = Path(self.tmp.name)
-        _FIXTURE_ROOT = self.root
-        self.addCleanup(lambda: globals().__setitem__("_FIXTURE_ROOT", None))
         environment = mock.patch.dict(
             os.environ,
-            {"CWO_PRECOMMIT_REGISTRY_ROOT": str(self.root / "precommit-registry")},
+            {
+                "CWO_TEMP_ROOT": self.tmp.name,
+                "CWO_SESSION_ID": "native-supervisor-worker",
+            },
         )
         environment.start()
         self.addCleanup(environment.stop)
+        self.root = cwo_temp_dir()
+        _FIXTURE_ROOT = self.root
+        self.addCleanup(lambda: globals().__setitem__("_FIXTURE_ROOT", None))
+        registry = mock.patch.dict(
+            os.environ,
+            {"CWO_PRECOMMIT_REGISTRY_ROOT": str(self.root / "precommit-registry")},
+        )
+        registry.start()
+        self.addCleanup(registry.stop)
         self.session_id = "spark-session"
         self.session_file = self.root / "session.jsonl"
         self.packet_file = self.root / "packet.json"
@@ -1570,6 +1768,82 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
                 for path in payload["authorized_continuation_paths"]
             )
         )
+
+    def test_task_boundary_without_attestation_waits_for_segment_context(self) -> None:
+        self.assertEqual(self.start().returncode, 0)
+        task_started = {
+            "timestamp": "2026-07-11T00:00:01.100Z",
+            "session_id": self.session_id,
+            "event_msg": "task_started",
+        }
+        write_records(self.session_file, [session_meta(self.session_id), task_started])
+
+        waiting = self.check("2026-07-11T00:00:02Z")
+        self.assertEqual(waiting.returncode, 0, waiting.stderr)
+        waiting_payload = json.loads(waiting.stdout)
+        self.assertEqual(waiting_payload["decision"], "continue")
+        self.assertEqual(waiting_payload["reasons"], ["awaiting-model-attestation"])
+        self.assertEqual(waiting_payload["session_disposition"], "accepted-with-warning")
+        self.assertFalse(waiting_payload["control_action_required"])
+
+        exact_context = event(
+            "2026-07-11T00:00:02.100Z",
+            self.session_id,
+            "assistant",
+        )
+        write_records(
+            self.session_file,
+            [session_meta(self.session_id), task_started, exact_context],
+        )
+        attested = self.check("2026-07-11T00:00:03Z")
+        self.assertEqual(attested.returncode, 0, attested.stderr)
+        attested_payload = json.loads(attested.stdout)
+        self.assertEqual(attested_payload["decision"], "continue")
+        self.assertEqual(attested_payload["reasons"], [])
+        self.assertEqual(attested_payload["session_disposition"], "accepted")
+
+    def test_task_boundary_missing_attestation_expires_and_wrong_model_is_immediate(self) -> None:
+        task_started = {
+            "timestamp": "2026-07-11T00:00:01.100Z",
+            "session_id": self.session_id,
+            "event_msg": "task_started",
+        }
+
+        with self.subTest("missing-after-grace"):
+            self.assertEqual(self.start().returncode, 0)
+            self.assertEqual(self.arm("2026-07-11T00:00:00Z").returncode, 0)
+            self.assertEqual(
+                self.mark_dispatched("2026-07-11T00:00:01Z").returncode,
+                0,
+            )
+            write_records(self.session_file, [session_meta(self.session_id), task_started])
+            expired = self.check("2026-07-11T00:00:12Z")
+            self.assertEqual(expired.returncode, 2, expired.stderr)
+            expired_payload = json.loads(expired.stdout)
+            self.assertEqual(expired_payload["decision"], "interrupt")
+            self.assertIn("model-mismatch", expired_payload["reasons"])
+
+        self.state_file.unlink()
+        self.audit_file.unlink()
+        self.activated = False
+        with self.subTest("observed-wrong-model"):
+            write_records(self.session_file, [session_meta(self.session_id)])
+            self.assertEqual(self.start().returncode, 0)
+            wrong_context = event(
+                "2026-07-11T00:00:01.200Z",
+                self.session_id,
+                "assistant",
+                model="gpt-5.6-sol",
+            )
+            write_records(
+                self.session_file,
+                [session_meta(self.session_id), task_started, wrong_context],
+            )
+            rejected = self.check("2026-07-11T00:00:02Z")
+            self.assertEqual(rejected.returncode, 2, rejected.stderr)
+            rejected_payload = json.loads(rejected.stdout)
+            self.assertEqual(rejected_payload["decision"], "interrupt")
+            self.assertIn("model-mismatch", rejected_payload["reasons"])
 
     def test_delayed_trusted_completion_is_complete_not_quarantine(self) -> None:
         self.assertEqual(self.start().returncode, 0)

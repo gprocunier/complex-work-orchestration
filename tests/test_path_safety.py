@@ -27,13 +27,20 @@ class PathSafetyTests(unittest.TestCase):
                     file_snippet(path, max_lines=5)
 
     def test_obvious_secret_files_are_rejected(self) -> None:
-        secret = ROOT / "packet-test.key"
-        try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repository = Path(tmpdir)
+            for directory in ("policy", "scripts", "schemas"):
+                (repository / directory).mkdir()
+            secret = repository / "packet-test.key"
+            safe = repository / "packet-test.txt"
             secret.write_text("not a real key", encoding="utf-8")
-            with self.assertRaises(SystemExit):
-                file_snippet(secret, max_lines=5)
-        finally:
-            secret.unlink(missing_ok=True)
+            safe.write_text("ordinary packet text", encoding="utf-8")
+            with patch("cwo_core.paths.REPO_ROOT", repository):
+                with self.assertRaisesRegex(SystemExit, "private key or certificate"):
+                    file_snippet(secret, max_lines=5)
+                snippet = file_snippet(safe, max_lines=5)
+            self.assertEqual(snippet["path"], "packet-test.txt")
+            self.assertEqual(snippet["content"], "ordinary packet text")
 
     def test_snippet_is_line_limited_and_redacted(self) -> None:
         snippet = file_snippet(ROOT / "policy" / "share-boundaries.yaml", max_lines=3)
@@ -87,6 +94,19 @@ class PathSafetyTests(unittest.TestCase):
                 self.assertTrue(str(artifact).endswith("fallback-graph/work-graph.md"))
                 self.assertTrue(is_cwo_temp_path(artifact))
                 self.assertFalse(is_cwo_temp_path(Path(tmpdir) / "not-cwo" / "artifact.txt"))
+
+    def test_cwo_temp_purpose_first_secures_session_parent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict(
+                "os.environ",
+                {"CWO_TEMP_ROOT": tmpdir, "CWO_SESSION_ID": "purpose-first", "USER": "test"},
+                clear=False,
+            ):
+                purpose_dir = cwo_temp_dir(scope="session", purpose="fixture")
+                session_dir = cwo_temp_dir(scope="session", create=False)
+                self.assertEqual(session_dir.stat().st_mode & 0o777, 0o700)
+                self.assertEqual(purpose_dir.stat().st_mode & 0o777, 0o700)
+                self.assertTrue(is_cwo_temp_path(purpose_dir / "state.json"))
 
     def test_cwo_temp_rejects_relative_or_symlinked_roots_and_parts(self) -> None:
         with patch.dict("os.environ", {"CWO_TEMP_ROOT": "relative-temp-root"}, clear=False):

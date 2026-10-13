@@ -4,61 +4,187 @@
   "type": "object",
   "additionalProperties": false,
   "required": [
-    "contract_type", "version", "schema", "pool_id", "pool_epoch", "control_turn_id",
-    "created_at", "owner", "children", "max_active_workers", "scheduler",
-    "aggregate_hard_budget", "topology", "allowed_actions",
-    "capability_receipt_sha256", "contract_sha256"
+    "contract_type",
+    "version",
+    "schema",
+    "pool_id",
+    "pool_epoch",
+    "control_turn_id",
+    "created_at",
+    "owner",
+    "children",
+    "max_active_workers",
+    "scheduler",
+    "aggregate_hard_budget",
+    "topology",
+    "allowed_actions",
+    "capability_receipt_sha256",
+    "contract_sha256"
   ],
   "properties": {
-    "contract_type": {"const": "cwo-native-supervision-pool-contract"},
-    "version": {"const": 1},
-    "schema": {"const": "schemas/native-supervision-pool-contract.schema.json"},
-    "pool_id": {"type": "string", "minLength": 1},
-    "pool_epoch": {"type": "string", "minLength": 1},
-    "control_turn_id": {"type": "string", "minLength": 1},
-    "created_at": {"type": "string", "format": "date-time"},
-    "owner": {"$ref": "#/$defs/owner"},
-    "children": {
-      "type": "array", "minItems": 1, "maxItems": 3,
-      "items": {"$ref": "#/$defs/child"}
+    "contract_type": {
+      "const": "cwo-native-supervision-pool-contract"
     },
-    "max_active_workers": {"enum": [1, 2, 3]},
-    "scheduler": {"$ref": "#/$defs/scheduler"},
-    "aggregate_hard_budget": {"$ref": "#/$defs/budget"},
-    "topology": {"$ref": "#/$defs/topology"},
-    "allowed_actions": {"const": ["admit", "step", "interrupt", "close", "finalize", "release-leases"]},
-    "capability_receipt_sha256": {"oneOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
-    "completion_policy": {"enum": ["all-or-nothing", "best-effort"]},
-    "contract_sha256": {"$ref": "#/$defs/sha256"}
+    "version": {
+      "const": 1
+    },
+    "schema": {
+      "const": "schemas/native-supervision-pool-contract.schema.json"
+    },
+    "pool_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pool_epoch": {
+      "type": "string",
+      "minLength": 1
+    },
+    "control_turn_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "owner": {
+      "$ref": "#/$defs/owner"
+    },
+    "children": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 3,
+      "items": {
+        "$ref": "#/$defs/child"
+      }
+    },
+    "max_active_workers": {
+      "enum": [
+        1,
+        2,
+        3
+      ]
+    },
+    "scheduler": {
+      "$ref": "#/$defs/scheduler"
+    },
+    "aggregate_hard_budget": {
+      "$ref": "#/$defs/budget"
+    },
+    "topology": {
+      "$ref": "#/$defs/topology"
+    },
+    "allowed_actions": {
+      "const": [
+        "admit",
+        "step",
+        "interrupt",
+        "close",
+        "finalize",
+        "release-leases"
+      ]
+    },
+    "capability_receipt_sha256": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/sha256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "completion_policy": {
+      "enum": [
+        "all-or-nothing",
+        "best-effort"
+      ]
+    },
+    "contract_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
   },
   "allOf": [
     {
-      "if": {"properties": {"max_active_workers": {"const": 1}}},
+      "if": {
+        "properties": {
+          "max_active_workers": {
+            "const": 1
+          }
+        }
+      },
       "then": {
         "properties": {
-          "children": {"minItems": 1, "maxItems": 1},
+          "children": {
+            "minItems": 1,
+            "maxItems": 1
+          },
           "scheduler": {
             "properties": {
-              "certified_max_check_ms": {"type": "null"},
-              "certified_max_scheduler_overhead_ms": {"type": "null"}
+              "certified_max_check_ms": {
+                "type": "null"
+              },
+              "certified_max_scheduler_overhead_ms": {
+                "type": "null"
+              }
             }
           },
-          "capability_receipt_sha256": {"type": "null"}
+          "capability_receipt_sha256": {
+            "type": "null"
+          }
         }
       }
     },
     {
-      "if": {"properties": {"max_active_workers": {"const": 2}}},
-      "then": {"properties": {"children": {"minItems": 2, "maxItems": 2}, "capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}}
+      "if": {
+        "properties": {
+          "max_active_workers": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "children": {
+            "minItems": 2,
+            "maxItems": 2
+          },
+          "capability_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
     },
     {
-      "if": {"properties": {"max_active_workers": {"const": 3}}},
-      "then": {"properties": {"children": {"minItems": 3, "maxItems": 3}, "capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}}
+      "if": {
+        "properties": {
+          "max_active_workers": {
+            "const": 3
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "children": {
+            "minItems": 3,
+            "maxItems": 3
+          },
+          "capability_receipt_sha256": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
+      }
     }
   ],
   "$defs": {
-    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-    "gitObject": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "gitObject": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
     "uuid": {
       "type": "string",
       "format": "uuid",
@@ -70,181 +196,672 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "override_type", "version", "schema", "authorization_id",
-        "authorization_canonical_sha256", "outer_authority_id",
-        "outer_authority_file_sha256", "outer_authority_canonical_sha256",
-        "campaign_nonce", "candidate_commit", "candidate_tree", "max_workers",
-        "max_mutating_workers", "single_use", "risk_acknowledgement",
+        "override_type",
+        "version",
+        "schema",
+        "authorization_id",
+        "authorization_canonical_sha256",
+        "outer_authority_id",
+        "outer_authority_file_sha256",
+        "outer_authority_canonical_sha256",
+        "campaign_nonce",
+        "candidate_commit",
+        "candidate_tree",
+        "max_workers",
+        "max_mutating_workers",
+        "single_use",
+        "risk_acknowledgement",
         "canonical_override_sha256"
       ],
       "properties": {
-        "override_type": {"const": "cwo-native-tool-enforcement-override"},
-        "version": {"const": 1},
-        "schema": {"const": "schemas/native-tool-enforcement-override.schema.json"},
-        "authorization_id": {"$ref": "#/$defs/uuid"},
-        "authorization_canonical_sha256": {"$ref": "#/$defs/sha256"},
-        "outer_authority_id": {"$ref": "#/$defs/uuid"},
-        "outer_authority_file_sha256": {"$ref": "#/$defs/sha256"},
-        "outer_authority_canonical_sha256": {"$ref": "#/$defs/sha256"},
-        "campaign_nonce": {"$ref": "#/$defs/uuid"},
-        "candidate_commit": {"$ref": "#/$defs/gitObject"},
-        "candidate_tree": {"$ref": "#/$defs/gitObject"},
-        "max_workers": {"const": 2},
-        "max_mutating_workers": {"const": 1},
-        "single_use": {"const": true},
-        "risk_acknowledgement": {"const": "unlisted-built-ins-may-act-before-detection"},
-        "canonical_override_sha256": {"$ref": "#/$defs/sha256"}
+        "override_type": {
+          "const": "cwo-native-tool-enforcement-override"
+        },
+        "version": {
+          "const": 1
+        },
+        "schema": {
+          "const": "schemas/native-tool-enforcement-override.schema.json"
+        },
+        "authorization_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "authorization_canonical_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "outer_authority_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "outer_authority_file_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "outer_authority_canonical_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "campaign_nonce": {
+          "$ref": "#/$defs/uuid"
+        },
+        "candidate_commit": {
+          "$ref": "#/$defs/gitObject"
+        },
+        "candidate_tree": {
+          "$ref": "#/$defs/gitObject"
+        },
+        "max_workers": {
+          "const": 2
+        },
+        "max_mutating_workers": {
+          "const": 1
+        },
+        "single_use": {
+          "const": true
+        },
+        "risk_acknowledgement": {
+          "const": "unlisted-built-ins-may-act-before-detection"
+        },
+        "canonical_override_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
       }
     },
     "owner": {
-      "type": "object", "additionalProperties": false,
-      "required": ["pid", "start_ticks", "boot_id_sha256"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pid",
+        "start_ticks",
+        "boot_id_sha256"
+      ],
       "properties": {
-        "pid": {"type": "integer", "minimum": 1},
-        "start_ticks": {"type": "integer", "minimum": 1},
-        "boot_id_sha256": {"$ref": "#/$defs/sha256"}
+        "pid": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "start_ticks": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "boot_id_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
       }
     },
     "identity": {
-      "type": "object", "additionalProperties": false,
-      "required": ["canonical_path_sha256", "git_common_dir_sha256", "device", "inode", "baseline_sha256"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "canonical_path_sha256",
+        "git_common_dir_sha256",
+        "device",
+        "inode",
+        "baseline_sha256"
+      ],
       "properties": {
-        "canonical_path_sha256": {"$ref": "#/$defs/sha256"},
-        "git_common_dir_sha256": {"$ref": "#/$defs/sha256"},
-        "device": {"type": "integer", "minimum": 0},
-        "inode": {"type": "integer", "minimum": 0},
-        "baseline_sha256": {"$ref": "#/$defs/sha256"}
+        "canonical_path_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "git_common_dir_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "device": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "inode": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "baseline_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
       }
     },
     "child": {
-      "type": "object", "additionalProperties": false,
+      "type": "object",
+      "additionalProperties": false,
       "required": [
-        "ordinal", "child_id", "packet_id", "attempt_nonce", "session_id", "agent_id",
-        "control_turn_id", "packet_sha256", "control_contract_sha256", "state_file",
-        "worktree_identity", "isolation_class", "completion_evidence_policy", "tool_policy", "declared_write_paths",
-        "integration_target_paths", "lease_id"
+        "ordinal",
+        "child_id",
+        "packet_id",
+        "attempt_nonce",
+        "session_id",
+        "agent_id",
+        "control_turn_id",
+        "packet_sha256",
+        "control_contract_sha256",
+        "state_file",
+        "worktree_identity",
+        "isolation_class",
+        "completion_evidence_policy",
+        "tool_policy",
+        "declared_write_paths",
+        "integration_target_paths",
+        "lease_id"
       ],
       "properties": {
-        "ordinal": {"type": "integer", "minimum": 0, "maximum": 2},
-        "child_id": {"type": "string", "minLength": 1},
-        "packet_id": {"type": "string", "minLength": 1},
-        "attempt_nonce": {"type": "string", "minLength": 1},
-        "session_id": {"type": "string", "minLength": 1},
-        "agent_id": {"type": "string", "minLength": 1},
-        "control_turn_id": {"type": "string", "minLength": 1},
-        "packet_sha256": {"$ref": "#/$defs/sha256"},
-        "control_contract_sha256": {"$ref": "#/$defs/sha256"},
-        "state_file": {"type": "string", "pattern": "^/", "minLength": 2},
-        "worktree_identity": {"$ref": "#/$defs/identity"},
-        "isolation_class": {"enum": ["read-only-shared", "mutable-isolated"]},
-        "completion_evidence_policy": {"$ref": "#/$defs/completion_evidence_policy"},
-        "tool_policy": {"$ref": "#/$defs/tool_policy"},
-        "declared_write_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-        "integration_target_paths": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
-        "lease_id": {"type": "string", "minLength": 1}
+        "ordinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        },
+        "child_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packet_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "attempt_nonce": {
+          "type": "string",
+          "minLength": 1
+        },
+        "session_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "agent_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "control_turn_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "packet_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "control_contract_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "state_file": {
+          "type": "string",
+          "pattern": "^/",
+          "minLength": 2
+        },
+        "worktree_identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "isolation_class": {
+          "enum": [
+            "read-only-shared",
+            "mutable-isolated"
+          ]
+        },
+        "completion_evidence_policy": {
+          "$ref": "#/$defs/completion_evidence_policy"
+        },
+        "tool_policy": {
+          "$ref": "#/$defs/tool_policy"
+        },
+        "declared_write_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "integration_target_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "lease_id": {
+          "type": "string",
+          "minLength": 1
+        }
       }
     },
     "completion_evidence_policy": {
-      "type": "object", "additionalProperties": false,
-      "required": ["minimum_tool_calls", "required_evidence", "allow_zero_tool_completion", "expected_mutation_mode"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_tool_calls",
+        "required_evidence",
+        "allow_zero_tool_completion",
+        "expected_mutation_mode"
+      ],
       "properties": {
-        "minimum_tool_calls": {"type": "integer", "minimum": 0},
-        "required_evidence": {"$ref": "#/$defs/required_evidence"},
-        "allow_zero_tool_completion": {"type": "boolean"},
-        "expected_mutation_mode": {"enum": ["read-only", "mutable-isolated"]}
+        "minimum_tool_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "required_evidence": {
+          "$ref": "#/$defs/required_evidence"
+        },
+        "allow_zero_tool_completion": {
+          "type": "boolean"
+        },
+        "expected_mutation_mode": {
+          "enum": [
+            "read-only",
+            "mutable-isolated"
+          ]
+        }
       }
     },
     "tool_policy": {
-      "type": "object", "additionalProperties": false,
-      "required": ["version", "permitted_tools", "forbidden_tools", "enforcement_mode", "workload_class", "override_provenance"],
-      "properties": {
-        "version": {"const": 1},
-        "permitted_tools": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["apply_patch", "exec_command", "write_stdin"]}},
-        "forbidden_tools": {"type": "array", "uniqueItems": true, "items": {"type": "string", "pattern": "^[a-z][a-z0-9_.:-]{0,127}$"}},
-        "enforcement_mode": {"enum": ["server-allowlist-required", "trusted-detect-and-contain"]},
-        "workload_class": {"enum": ["operative", "safety-canary"]},
-        "override_provenance": {
-          "oneOf": [
-            {"type": "null"},
-            {"$ref": "#/$defs/toolEnforcementOverride"}
-          ]
-        }
-      },
-      "allOf": [
+      "oneOf": [
         {
-          "if": {
-            "properties": {
-              "workload_class": {"const": "operative"},
-              "enforcement_mode": {"const": "server-allowlist-required"}
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "permitted_tools",
+            "forbidden_tools",
+            "enforcement_mode",
+            "workload_class",
+            "override_provenance"
+          ],
+          "properties": {
+            "version": {
+              "const": 1
             },
-            "required": ["workload_class", "enforcement_mode"]
-          },
-          "then": {"properties": {"override_provenance": {"type": "null"}}}
-        },
-        {
-          "if": {
-            "properties": {
-              "workload_class": {"const": "operative"},
-              "enforcement_mode": {"const": "trusted-detect-and-contain"}
+            "permitted_tools": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "apply_patch",
+                  "exec_command",
+                  "write_stdin"
+                ]
+              }
             },
-            "required": ["workload_class", "enforcement_mode"]
+            "forbidden_tools": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.:-]{0,127}$"
+              }
+            },
+            "enforcement_mode": {
+              "enum": [
+                "server-allowlist-required",
+                "trusted-detect-and-contain"
+              ]
+            },
+            "workload_class": {
+              "enum": [
+                "operative",
+                "safety-canary"
+              ]
+            },
+            "override_provenance": {
+              "oneOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "$ref": "#/$defs/toolEnforcementOverride"
+                }
+              ]
+            }
           },
-          "then": {
-            "properties": {
-              "override_provenance": {
-                "$ref": "#/$defs/toolEnforcementOverride"
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "workload_class": {
+                    "const": "operative"
+                  },
+                  "enforcement_mode": {
+                    "const": "server-allowlist-required"
+                  }
+                },
+                "required": [
+                  "workload_class",
+                  "enforcement_mode"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "override_provenance": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "workload_class": {
+                    "const": "operative"
+                  },
+                  "enforcement_mode": {
+                    "const": "trusted-detect-and-contain"
+                  }
+                },
+                "required": [
+                  "workload_class",
+                  "enforcement_mode"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "override_provenance": {
+                    "$ref": "#/$defs/toolEnforcementOverride"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "workload_class": {
+                    "const": "safety-canary"
+                  }
+                },
+                "required": [
+                  "workload_class"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "override_provenance": {
+                    "type": "null"
+                  }
+                }
               }
             }
-          }
+          ]
         },
         {
-          "if": {
-            "properties": {"workload_class": {"const": "safety-canary"}},
-            "required": ["workload_class"]
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "version",
+            "permitted_tools",
+            "forbidden_tools",
+            "enforcement_mode",
+            "workload_class",
+            "override_provenance",
+            "tool_profile"
+          ],
+          "properties": {
+            "version": {
+              "const": 2
+            },
+            "permitted_tools": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "apply_patch",
+                  "exec_command",
+                  "list_mcp_resource_templates",
+                  "list_mcp_resources",
+                  "read_mcp_resource",
+                  "write_stdin"
+                ]
+              }
+            },
+            "forbidden_tools": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.:-]{0,127}$"
+              }
+            },
+            "enforcement_mode": {
+              "const": "server-allowlist-required"
+            },
+            "workload_class": {
+              "const": "operative"
+            },
+            "override_provenance": {
+              "type": "null"
+            },
+            "tool_profile": {
+              "enum": [
+                "mutating-core-resources-v2",
+                "read-only-core-resources-v2"
+              ]
+            }
           },
-          "then": {"properties": {"override_provenance": {"type": "null"}}}
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "workload_class": {
+                    "const": "operative"
+                  },
+                  "enforcement_mode": {
+                    "const": "server-allowlist-required"
+                  }
+                },
+                "required": [
+                  "workload_class",
+                  "enforcement_mode"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "override_provenance": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "workload_class": {
+                    "const": "operative"
+                  },
+                  "enforcement_mode": {
+                    "const": "trusted-detect-and-contain"
+                  }
+                },
+                "required": [
+                  "workload_class",
+                  "enforcement_mode"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "override_provenance": {
+                    "$ref": "#/$defs/toolEnforcementOverride"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "workload_class": {
+                    "const": "safety-canary"
+                  }
+                },
+                "required": [
+                  "workload_class"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "override_provenance": {
+                    "type": "null"
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "tool_profile": {
+                    "const": "mutating-core-resources-v2"
+                  }
+                },
+                "required": [
+                  "tool_profile"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "permitted_tools": {
+                    "const": [
+                      "apply_patch",
+                      "exec_command",
+                      "list_mcp_resource_templates",
+                      "list_mcp_resources",
+                      "read_mcp_resource",
+                      "write_stdin"
+                    ]
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "tool_profile": {
+                    "const": "read-only-core-resources-v2"
+                  }
+                },
+                "required": [
+                  "tool_profile"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "permitted_tools": {
+                    "const": [
+                      "exec_command",
+                      "list_mcp_resource_templates",
+                      "list_mcp_resources",
+                      "read_mcp_resource",
+                      "write_stdin"
+                    ]
+                  }
+                }
+              }
+            }
+          ]
         }
       ]
     },
     "required_evidence": {
-      "type": "object", "additionalProperties": false,
-      "required": ["predicates", "sha256"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "predicates",
+        "sha256"
+      ],
       "properties": {
         "predicates": {
-          "type": "array", "minItems": 1, "uniqueItems": true,
-          "items": {"enum": ["expected-workspace-mutation", "read-only-workspace-clean", "trusted-terminal-boundary", "trusted-tool-call"]}
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "expected-workspace-mutation",
+              "read-only-workspace-clean",
+              "trusted-terminal-boundary",
+              "trusted-tool-call"
+            ]
+          }
         },
-        "sha256": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/sha256"}}
+        "sha256": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/sha256"
+          }
+        }
       }
     },
     "scheduler": {
-      "type": "object", "additionalProperties": false,
-      "required": ["kind", "poll_interval_ms", "poll_lag_tolerance_ms", "certified_max_check_ms", "certified_max_scheduler_overhead_ms"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "poll_interval_ms",
+        "poll_lag_tolerance_ms",
+        "certified_max_check_ms",
+        "certified_max_scheduler_overhead_ms"
+      ],
       "properties": {
-        "kind": {"const": "earliest-deadline-rotating-v1"},
-        "poll_interval_ms": {"const": 1000},
-        "poll_lag_tolerance_ms": {"const": 1500},
-        "certified_max_check_ms": {"type": ["number", "null"], "minimum": 0, "maximum": 400},
-        "certified_max_scheduler_overhead_ms": {"type": ["number", "null"], "minimum": 0}
+        "kind": {
+          "const": "earliest-deadline-rotating-v1"
+        },
+        "poll_interval_ms": {
+          "const": 1000
+        },
+        "poll_lag_tolerance_ms": {
+          "const": 1500
+        },
+        "certified_max_check_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 400
+        },
+        "certified_max_scheduler_overhead_ms": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
       }
     },
     "budget": {
-      "type": "object", "additionalProperties": false,
-      "required": ["tool_calls", "runtime_seconds", "compactions", "full_suite_runs", "mutations"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tool_calls",
+        "runtime_seconds",
+        "compactions",
+        "full_suite_runs",
+        "mutations"
+      ],
       "properties": {
-        "tool_calls": {"type": "integer", "minimum": 1},
-        "runtime_seconds": {"type": "integer", "minimum": 1},
-        "compactions": {"type": "integer", "minimum": 0},
-        "full_suite_runs": {"type": "integer", "minimum": 0},
-        "mutations": {"type": "integer", "minimum": 0}
+        "tool_calls": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runtime_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "compactions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "full_suite_runs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mutations": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "topology": {
-      "type": "object", "additionalProperties": false,
-      "required": ["integration_root_identity", "shared_read_only_worktree"],
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "integration_root_identity",
+        "shared_read_only_worktree"
+      ],
       "properties": {
-        "integration_root_identity": {"$ref": "#/$defs/identity"},
-        "shared_read_only_worktree": {"type": "boolean"}
+        "integration_root_identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "shared_read_only_worktree": {
+          "type": "boolean"
+        }
       }
     }
   }
