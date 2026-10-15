@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Install Complex Work Orchestration, run the prompt coach, and start a Beads-backed workflow."
+      content="Check prerequisites and choose the right starting point for your first CWO project."
     >
-    <title>Get Started | Complex Work Orchestration</title>
+    <title>Prepare your first project | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="./styles.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -21,351 +22,27 @@
         </a>
         <div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html" aria-current="page">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html" aria-current="page">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
     </header>
 
-    <main id="main">
-      <section class="page-hero">
-        <p class="eyebrow">First task</p>
-        <h1>Get Started</h1>
-        <p class="lede">
-          Install CWO, start its Candidate E baseline, and complete one small
-          task with a durable record, supervised execution when needed, and a
-          validation note.
-        </p>
-      </section>
-
-      <section class="section doc-layout">
-        <nav class="page-nav" aria-label="Page sections">
-          <a href="#install">Install the Skill</a>
-          <a href="#profile">Start Candidate E</a>
-          <a href="#starting-path">Choose A Path</a>
-          <a href="#coach">Run the Coach</a>
-          <a href="#core-terms">Core Terms</a>
-          <a href="#beads">Record Beads</a>
-          <a href="#execute">Execute Safely</a>
-          <a href="./use-cases.html#simple-use-cases">Simple Use Case</a>
-          <a href="./workflows.html">Workflows</a>
-        </nav>
-        <div class="doc-body">
-          <section id="install">
-            <h2>Install the Skill</h2>
-            <p>
-              A Codex skill is a local instruction pack that Codex can load
-              during a conversation. Install CWO into your Codex skills
-              directory, then invoke it from the Codex prompt.
-            </p>
-            <p>
-              Clone the repository and run the guided installer. It detects a
-              Codex skills directory from <code>CODEX_SKILLS_DIR</code>,
-              <code>CODEX_HOME</code>, or <code>$HOME/.codex/skills</code>,
-              then prompts before copying files.
-            </p>
-            <pre><code>git clone https://github.com/gprocunier/complex-work-orchestration.git
-cd complex-work-orchestration
-./scripts/install.sh</code></pre>
-            <p>
-              For unattended installs, pass the destination explicitly:
-            </p>
-            <pre><code>./scripts/install.sh --skills-dir /path/to/codex/skills --yes</code></pre>
-            <p>
-              The installer verifies the copied skill with a source-vs-installed
-              content manifest and writes
-              <code>.cwo-install-manifest.json</code> inside the installed
-              skill. Check an existing install without modifying it:
-            </p>
-            <pre><code>python3 scripts/check_installed_skill.py --check</code></pre>
-            <p>
-              If the checker reports <code>missing</code> or
-              <code>drift</code>, rerun the installer against the same Codex
-              skills directory to reload the skill.
-            </p>
-            <p>
-              Beads is required for the durable workflow. The skill installer
-              only warns when <code>bd</code> is missing so the documentation can
-              still be installed and read.
-            </p>
-            <pre><code>command -v bd
-bd version</code></pre>
-            <p>
-              On Fedora, RHEL, or compatible systems, use your own Beads package
-              source if you have one. If you need a public example, the
-              installer points at the <code>greg-at-redhat/beads</code> COPR.
-              Set
-              <code>BEADS_COPR=owner/project</code> before running the installer
-              to show a different COPR hint.
-            </p>
-            <pre><code>sudo dnf copr enable greg-at-redhat/beads
-sudo dnf install beads</code></pre>
-            <p>
-              For non-RPM systems, use an upstream-supported Beads install
-              channel such as Homebrew on macOS or Linux, or the quick install
-              script for macOS, Linux, or FreeBSD.
-            </p>
-            <pre><code>brew install beads
-curl -fsSL https://raw.githubusercontent.com/gastownhall/beads/main/scripts/install.sh | bash
-bd version</code></pre>
-            <p>
-              For the current Beads installation matrix, use the upstream
-              Beads project at
-              <a href="https://github.com/gastownhall/beads">github.com/gastownhall/beads</a>.
-            </p>
-          </section>
-
-          <section id="profile">
-            <h2>Start The Candidate E Baseline</h2>
-            <p>
-              Candidate E is CWO's default instruction profile for the Codex
-              session that owns scope, integration, acceptance, and handoff.
-              Install and verify its named profile after the skill is in place:
-            </p>
-            <pre><code>python3 scripts/manage_instruction_profile.py install --profile operator-e
-python3 scripts/manage_instruction_profile.py verify --profile operator-e</code></pre>
-            <p>
-              The profile manager writes a hash-bound prompt under
-              <code>$CODEX_HOME</code> and installs the
-              <code>cwo-codex</code> launcher under
-              <code>~/.local/bin</code> by default. It does not edit the global
-              Codex configuration or change ordinary sessions.
-            </p>
-            <p>Start a fresh CWO session from the target project:</p>
-            <pre><code>cwo-codex -C "$PWD"</code></pre>
-            <p>If the launcher directory is not on <code>PATH</code>, use:</p>
-            <pre><code>codex --profile cwo-sol-operator-e -C "$PWD"</code></pre>
-            <div class="callout">
-              <strong>Fresh session required:</strong>
-              Resuming an older thread does not activate the named profile or
-              provide profile-selection evidence. If a fresh process is
-              unavailable, explicitly reading and following the Candidate E
-              prompt is a supported fallback for that thread, not equivalent
-              profile activation. The word <em>profile</em> here means the
-              operator instruction contract; Connected Codex, OpenCode, and
-              local endpoints are execution environments selected later.
-            </div>
-            <p>
-              Candidate C remains an opt-in compatibility alternative. Start a
-              fresh ordinary <code>codex -C "$PWD"</code> session for immediate
-              rollback. Exact profile removal is in
-              <a href="./reference.html#candidate-e">Reference</a>.
-            </p>
-          </section>
-
-          <section id="starting-path">
-            <h2>Choose Your Starting Path</h2>
-            <div class="tile-grid">
-              <article>
-                <h3>Connected Codex</h3>
-                <p>Use Candidate E and keep focused work in its session, adding one supervised Spark worker only when delegation helps.</p>
-              </article>
-              <article>
-                <h3>Review Needed</h3>
-                <p>Let the coach add bounded review lanes. Reviewer output stays evidence until the evaluator and Candidate E accept it.</p>
-              </article>
-              <article>
-                <h3>Restricted Or Airgapped</h3>
-                <p>Select the matching execution environment before dispatch. These paths use their own approved shell and model profiles.</p>
-              </article>
-            </div>
-          </section>
-
-          <section id="coach">
-            <h2>Run the Coach</h2>
-            <p>
-              In the fresh Candidate E session, ask the coach to size the work.
-              Codex can run the local helper, show the recommended
-              level, and ask any interactive questions before execution starts.
-              If you are already in an OpenCode or manual shell profile, run
-              the helper directly and choose that execution profile before
-              dispatch.
-            </p>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach:
-Clean up installer docs, tests, and handoff notes.</code></pre>
-            <p>
-              The simple path is five steps: ask for the coach, answer any
-              execution-changing choices, create or update one Beads task,
-              validate the work, and close the task with enough context for a
-              later session to pick up where you left off. The
-              <a href="./use-cases.html#simple-use-cases">simple use case</a>
-              shows that sequence without the full contractor workflow.
-            </p>
-            <p>
-              Codex may run this helper behind the scenes. Use direct script
-              execution only for automation, CI, troubleshooting, OpenCode, or
-              an operator shell outside Codex.
-            </p>
-            <details>
-              <summary><strong>Operator Reference: Coach Helper</strong></summary>
-              <pre><code>python3 scripts/coach_prompt.py \
-  "Clean up installer docs, tests, and handoff notes."</code></pre>
-            </details>
-            <div class="callout">
-              <strong>Default posture:</strong>
-              The skill always expects durable Beads tracking. Narrow work can
-              stay in the current thread, but it should still leave one Beads
-              task with evidence and validation notes.
-            </div>
-          </section>
-
-          <section id="core-terms">
-            <h2>Core Terms</h2>
-            <p>
-              Learn these terms for the first run. The expert vocabulary lives
-              in <a href="./reference.html">Reference</a>.
-            </p>
-            <div class="tile-grid">
-              <article>
-                <h3>CWO</h3>
-                <p>Complex Work Orchestration: the workflow that sizes, records, reviews, validates, and hands off complex agent work.</p>
-              </article>
-              <article>
-                <h3>Candidate E</h3>
-                <p>CWO's default instruction profile. Its session owns scope, integration, acceptance, and handoff.</p>
-              </article>
-              <article>
-                <h3>Prompt Coach</h3>
-                <p>Sizes a request before execution so Codex uses the right amount of tracking, review, and validation.</p>
-              </article>
-              <article>
-                <h3>Beads</h3>
-                <p>The durable task graph for scope, dependencies, evidence, validation, closure memory, and handoff.</p>
-              </article>
-              <article>
-                <h3>Validation</h3>
-                <p>The checks that prove the work is ready, such as tests, docs validation, install smoke, or Pages deployment.</p>
-              </article>
-              <article>
-                <h3>Native Supervision</h3>
-                <p>The local supervisor outside the worker verifies, binds, and monitors a fresh Spark session for a narrow implementation or validation task.</p>
-              </article>
-              <article>
-                <h3>Closure Memory</h3>
-                <p>The final Beads comment that explains what happened, how it was checked, and what a future agent should know.</p>
-              </article>
-            </div>
-          </section>
-
-          <section id="beads">
-            <h2>Record Beads</h2>
-            <p>
-              Use Beads as the shared work story. If the repository should own
-              the durable state, initialize it once. If a Dolt remote is
-              configured, pull before handoff work and commit or push after
-              recording evidence. Without a remote, the graph is durable local
-              state on this machine but not shared across machines.
-            </p>
-            <details>
-              <summary><strong>Operator Reference: Beads Checks</strong></summary>
-              <pre><code>command -v bd
-test -d .beads && bd ready --json || true
-bd init
-bd dolt remote list
-bd dolt pull
-bd dolt commit
-bd dolt push</code></pre>
-            </details>
-            <p>
-              If Beads is unavailable or cannot be installed, record the same
-              task or graph structure in a temporary Markdown plan file and
-              note that durability is reduced. The full workflow and fallback
-              limits are covered in <a href="./workflows.html#beads-graph">Workflows</a>.
-            </p>
-            <p>
-              When the work closes, the useful memory should be in the final
-              comment, not the terse close reason. Capture who was involved,
-              what changed, why it closed, how it was validated, when it closed,
-              where it ran, any residual risk, and follow-up.
-            </p>
-            <details>
-              <summary><strong>Operator Reference: Closure Comment</strong></summary>
-              <pre><code>bd comment "$BEAD_ID" --body "$(cat &lt;&lt;'EOF'
-Closure memory:
-- Who: Codex main thread; reviewer lane if applicable.
-- What: Changed docs, validation, or handoff artifact.
-- Why: Accepted and ready to close.
-- How: Validation command, CI run, install smoke, or review evidence.
-- Where: Repository, branch, and Beads local-only or Dolt-backed mode.
-- Residual risk: None known, or the exact remaining risk.
-EOF
-)"</code></pre>
-            </details>
-            <p>
-              Generated Beads populate native fields for <code>skills</code>,
-              <code>acceptance</code>, <code>design</code>, and
-              <code>notes</code>. The description remains the readable
-              assignment body. When creating Beads manually, use real newlines
-              through a heredoc, <code>--body-file</code>,
-              <code>--design-file</code>, or command substitution instead of
-              typing literal <code>\n</code> sequences.
-            </p>
-            <p>
-              Worker-facing ready work should exclude contractor and local
-              worker guard labels:
-            </p>
-            <details>
-              <summary><strong>Operator Reference: Ready Work Filter</strong></summary>
-              <pre><code>bd ready \
-  --exclude-label contractor-only \
-  --exclude-label local-worker-only \
-  --exclude-label no-codex-exec \
-  --json</code></pre>
-            </details>
-          </section>
-
-          <section id="execute">
-            <h2>Execute Safely</h2>
-            <p>
-              Let the coach decide whether the work stays in the current
-              conversation, becomes a lightweight Beads task, or needs a larger
-              work graph. Candidate E remains the decision owner. If work is
-              delegated in connected Codex, one supervised native Spark worker
-              is the standard path. Every delegated native worker is supervised;
-              there is no unsupervised mode or opt-out. Outside reviewers, local
-              workers, and concurrent pools are separate optional paths.
-            </p>
-            <ol class="check-list">
-              <li>Install and verify Candidate E, then start a fresh <code>cwo-codex</code> session.</li>
-              <li>Invoke the skill when sizing is unclear, or run the helper directly from another approved execution environment.</li>
-              <li>Let CWO route non-trivial work against the policy.</li>
-              <li>Create a Beads task, or an epic when the goal has several dependent parts.</li>
-              <li>Run validation before accepting findings or publishing.</li>
-            </ol>
-            <p>
-              Continue with <a href="./workflows.html">Workflows</a> for the
-              end-to-end path or
-              <a href="./native-supervision.html">Native Supervision</a> for
-              the worker control and failure model.
-            </p>
-          </section>
-
-        </div>
-      </section>
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--tutorial"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./get-started.html">Start Here</a></nav><h1 id="page-title">Prepare your first project</h1><p class="lede">Repair a small utility, save its decisions, then continue in a new session. Start where your tools are today.</p><nav class="tutorial-progress" aria-label="First project stages"><ol><li><a href="./get-started.html" aria-current="step">1. Prepare</a></li><li><a href="./install.html">2. Install</a></li><li><a href="./first-project.html">3. First task</a></li><li><a href="./continue-project.html">4. Continue</a></li></ol></nav></header><details class="contents"><summary>On this page</summary><nav aria-label="On this page"><a href="#before-you-start">Check readiness</a><a href="#prepare">Prepare missing tools</a><a href="#choose">The four stages</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="before-you-start"><span id="starting-path"></span><span id="core-terms"></span><h2>Check your starting point</h2><p>A terminal runs commands on your computer. Codex is the project agent you will use; CWO adds the work record and operating instructions. This walkthrough uses Linux, Python 3, Git, a working authenticated Codex CLI, and Beads for saved tasks.</p><p>Already have those tools? Run this check, then <a href="./install.html">go straight to installation</a>.</p><p class="input-label">Terminal</p><pre tabindex="0" role="region" aria-label="Check the four prerequisites"><code>python3 --version
+git --version
+codex --version
+bd version</code></pre><p><strong>Command check:</strong> all four print versions. That checks availability, not authentication or a working database. Before installing CWO, confirm an ordinary Codex session can start with your account. The practice-project Beads backend is checked with <code>bd ready --json</code> after initialization in step 3. A missing command is a setup step to finish, not a tutorial failure.</p></section>
+<section id="prepare"><h2>If a prerequisite is missing</h2><ol class="action-list"><li><strong>Start with your Linux terminal.</strong> Use your distribution’s package instructions for Python 3 and Git, then reopen the terminal and repeat their version checks.</li><li><strong>Set up Codex next.</strong> Follow the <a href="https://learn.chatgpt.com/docs/codex/cli">official Codex CLI installation and sign-in instructions</a>. You perform account sign-in yourself; never put credentials in a project prompt. Return when <code>codex --version</code> works and you can start an authenticated session.</li><li><strong>Add task storage.</strong> Follow the <a href="https://github.com/gastownhall/beads">maintained Beads installation instructions</a>, including the backend setup required by your version. Return when <code>bd version</code> works. You will initialize the separate practice project in step 3.</li></ol><p>Codex uses your model account and its quota; CWO does not supply model access. Beads can need a local database service. No contractor account or local-model server is needed for this exercise.</p><details><summary>Already have Codex and want help checking the rest?</summary><p class="input-label">Prompt inside Codex</p><pre class="prompt" tabindex="0" role="region" aria-label="Agent prompt"><code>Check whether Python 3, Git, Codex CLI, and Beads are available. Explain missing prerequisites using their official instructions. Do not install packages, change global settings, authenticate for me, or bypass permissions.</code></pre></details></section>
+<section id="choose"><h2>Your first project, in four stages</h2><ol class="action-list"><li><a href="./install.html">Install CWO</a> and verify its named profile.</li><li><a href="./first-project.html">Repair the checker</a> and inspect its saved decision.</li><li><a href="./continue-project.html">Continue in a fresh session</a> to add the CLI.</li></ol><p>The result is a local utility, passing tests, and a handoff you can inspect.</p></section><section id="moved-steps" class="migration-note"><h2>Arrived through an older link?</h2><p id="install"><span id="profile"></span><strong>Installation:</strong> <a href="./install.html#install">open the moved steps</a>.</p><p id="sandbox"><span id="beads"></span><strong>Create the practice project:</strong> <a href="./first-project.html#sandbox">open the moved steps</a>.</p><p id="fresh-session"><strong>Start the project agent:</strong> <a href="./first-project.html#fresh-session">open the moved steps</a>.</p><p id="first-task"><span id="execute"></span><span id="coach"></span><strong>First session: fix the validator:</strong> <a href="./first-project.html#first-task">open the moved steps</a>.</p><p id="continue"><strong>Continue your project:</strong> <a href="./continue-project.html#continue">open the moved steps</a>.</p><p id="recover"><strong>Stop, reset or remove CWO:</strong> <a href="./tutorial-recovery.html#recover">open the moved steps</a>.</p></section><section id="validation"><h2>Compatibility and execution record</h2><p>The earlier checker exercise was completed in two fresh sessions on a configured Linux host. This split presentation preserves its setup commands and has had source/rendering checks, but has not had another end-to-end model run. See <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/examples/first-project/VALIDATION.md">versions, observed outputs and limits</a>. Other platforms are not validated by this walkthrough. For a platform-specific Codex setup, use its official instructions before returning here.</p></section><nav class="next-action" aria-label="Next task"><a class="button" href="./install.html">Next: install CWO</a></nav></article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Native Supervision</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Contractors</a><a href="./local-workers.html">Local Workers</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Complete a bounded first task and inspect its tests, dependent work and handoff."
+    >
+    <title>Repair a checker and save the decision | CWO</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html" aria-current="true">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--tutorial"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./get-started.html">Start Here</a></nav><h1 id="page-title">Repair a checker and save the decision</h1><p class="lede">Your first session repairs validation. The CLI is left for the next session, with its prerequisite recorded.</p><nav class="tutorial-progress" aria-label="First project stages"><ol><li><a href="./get-started.html">1. Prepare</a></li><li><a href="./install.html">2. Install</a></li><li><a href="./first-project.html" aria-current="step">3. First task</a></li><li><a href="./continue-project.html">4. Continue</a></li></ol></nav></header><details class="contents"><summary>On this page</summary><nav aria-label="On this page"><a href="#sandbox">Create the practice project</a><a href="#fresh-session">Start the project agent</a><a href="#first-task">Repair and inspect</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="sandbox"><span id="beads"></span><h2>Create a separate disposable project</h2>
+        <p>From the source checkout, <code>~/cwo-source</code>, copy the starter into a new folder. The copy command refuses an existing destination.</p>
+        <p class="code-hint">Long commands keep their original lines. If a line continues beyond the edge, scroll inside its code block; select the text to copy it.</p><p class="input-label">Terminal</p>
+        <pre><code>cd &quot;$HOME/cwo-source&quot;
+python3 scripts/create_first_project.py &quot;$HOME/cwo-first-project&quot;
+cd &quot;$HOME/cwo-first-project&quot;
+git init
+python3 -m unittest -v</code></pre>
+        <p><strong>Expected:</strong> the tests fail. This is deliberate: the starter accepts invalid ports and does not reject non-object input correctly. If tests cannot import <code>checker</code>, check that <code>pwd</code> names <code>cwo-first-project</code>, not the source checkout.</p>
+        <p>Save a disposable baseline before the agent edits anything:</p>
+        <p class="input-label">Terminal</p>
+        <pre><code>git add checker.py test_checker.py service.json invalid.json README.md .gitignore
+git -c user.name=&quot;Tutorial&quot; -c user.email=&quot;tutorial@example.invalid&quot; commit -m &quot;Save disposable starter&quot;
+git tag cwo-tutorial-start
+bd init --prefix cwo-demo</code></pre>
+        <p><strong>Expected:</strong> Git records the starter, the local tag names that restore point, and Beads initializes local task storage. Beads may create project-local agent instructions and ignore entries; inspect those generated setup files rather than mistaking them for the checker repair. If Beads requests a database service or backend setup, follow its version-specific instructions; do not proceed until <code>bd ready --json</code> works in this project. No task may be ready yet; an empty list is fine. Do not configure a remote just for the tutorial.</p>
+        </section><section id="fresh-session"><h2>Start the project agent in the right folder</h2>
+        <p class="input-label">Terminal</p>
+        <pre><code>cd &quot;$HOME/cwo-first-project&quot;
+cwo-codex -C &quot;$HOME/cwo-first-project&quot;</code></pre>
+        <p><strong>Expected:</strong> a new Codex session in the disposable project. If <code>cwo-codex</code> is not on your PATH, use this alternative <em>instead</em>:</p>
+        <p class="input-label">Terminal</p>
+        <pre><code>codex --profile cwo-sol-operator-e -C &quot;$HOME/cwo-first-project&quot;</code></pre>
+        <p>Use a fresh session to load the named profile. If startup rejects the configured model, follow <a href="./tutorial-recovery.html#model-startup">startup recovery</a> before proceeding.</p>
+
+        </section><section id="first-task"><span id="execute"></span><span id="coach"></span><h2>Ask for the repair and saved decision</h2><p class="callout"><strong>Before starting:</strong> use only the generated synthetic files. Prompts and selected project context go to your configured provider and consume its applicable quota. The checker must not contact the configured host.</p><p class="input-label">Prompt inside Codex</p><pre class="prompt" tabindex="0" role="region" aria-label="Agent prompt"><code>Use $complex-work-orchestration in this disposable project. I authorize in-thread maintenance of checker.py.
+
+Read README.md and the tests. Create a validator task and a CLI task blocked by it; record both IDs. Fix only errors(config), preserving its list-of-messages interface. Reject boolean ports. Leave the CLI unimplemented and its task open.
+
+Run the tests without weakening them, inspect the diff, and accept the validator task only after its checks pass. Write HANDOFF.md with accepted behavior, evidence, task IDs, and the next step.
+
+Use only the existing local Beads backend. No delegation, service-host contact, tool-initiated external network requests, commits, pushes, publication, or global configuration changes. Stop after this phase.</code></pre><p><strong>What you should see:</strong> a changed <code>checker.py</code>, passing validator tests, two task IDs and <code>HANDOFF.md</code>. You decide whether the behavior meets your need; CWO keeps the decision with its checks and dependent work.</p><p>Open a second terminal in the practice directory to inspect the result. With one terminal, let the agent finish and exit the client first.</p><p class="input-label">Terminal</p><pre tabindex="0" role="region" aria-label="Inspect the repaired utility and handoff"><code>cd &quot;$HOME/cwo-first-project&quot;
+python3 -m unittest -v
+git status --short
+git diff cwo-tutorial-start -- checker.py test_checker.py
+cat HANDOFF.md
+bd list --all</code></pre><p><strong>Continue when:</strong> tests pass without weakened assertions, the validator is accepted, and the CLI task is still open with the validator as its prerequisite. The handoff must explain why boolean ports are invalid. If something is missing, ask the agent to correct it before leaving.</p></section><nav class="next-action" aria-label="Next task"><a class="button" href="./continue-project.html">Next: continue in a fresh session</a></nav></article></div></div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Native Supervision</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Contractors</a><a href="./local-workers.html">Local Workers</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
+    </footer>
+  </body>
+</html>

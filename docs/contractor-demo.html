@@ -21,19 +21,21 @@
         </a>
         <div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
     </header>
 
-    <main id="main">
+    <main id="main" tabindex="-1">
       <section class="page-hero">
         <p class="eyebrow">Case study</p>
         <h1>Contractor Demo</h1>
+        <p class="callout">Historical example, not the current first-run recipe or current native-worker routing. Read its evidence at its recorded scope; do not treat old model names, runs or screenshots as present qualification. Use the <a href="./use-cases.html">current worked examples</a> for adoption.</p>
         <p class="lede">
           The hello-world contractor demo shows the intended operating model:
           Codex acts as architect and project manager, Beads records the work
@@ -143,17 +145,15 @@ Ask before external sharing; choose subagent parallelism; set validation + publi
               contract and a patch branch, while Codex kept architecture, PM
               work, integration, validation, and publish authority.
             </p>
-            <div class="workflow-diagram contractor" role="img" aria-label="Codex PM flow from Beads graph to packet, agy or Claude branch, return evaluation, architect repair, and publish.">
-              <div class="flow-card"><strong>Beads</strong><span>epic and lanes</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Packet</strong><span>bounded prompt</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Branch</strong><span>agy or Claude</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Review</strong><span>evaluate return</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Publish</strong><span>Codex accepts</span></div>
-            </div>
+            <!-- diagram:contractor-demo -->
+            <figure class="flowchart">
+              <picture>
+                <source media="(max-width: 40rem)" srcset="./diagrams/contractor-demo-narrow.svg" width="320" height="880">
+                <img src="./diagrams/contractor-demo.svg" width="680" height="520" alt="Historical contractor demo flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Historical demo: Beads work lanes led to a bounded packet, a contractor branch, return review, and an accepted publication. This record does not authorize a new dispatch or publication.</figcaption>
+            </figure>
+            <!-- /diagram:contractor-demo -->
             <div class="tile-grid">
               <article>
                 <h3>Codex PM</h3>
@@ -294,18 +294,18 @@ python3 scripts/evaluate_return.py \
     <footer class="site-footer">
       <div>
         <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
+        <p>Keep decisions, progress, and evidence across agent sessions.</p>
       </div>
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
+        <a href="./get-started.html">Start Here</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
+        <a href="./workflows.html">Guides</a>
         <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
+        <a href="./use-cases.html">Examples</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
+        <a href="./contractor-demo.html">Historical Demo</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>

@@ -3,14 +3,13 @@
 ## Unreleased
 
 - Refresh README, skill guidance, operator references, and GitHub Pages around
-  the Candidate E baseline and the normal single-worker supervision path. Add
+  the default CWO system prompt and the normal single-worker supervision path. Add
   a dedicated Native Supervision guide, move dense activation detail behind
   operator references, and clearly separate the standard N=1 route from the
   opt-in N=2/N=3 concurrency preview and blocked N>=4 capacity.
-- Add Candidate E as the named default CWO operator profile, retain the exact
-  v5-qualified prompt as immutable evidence, add a post-v5 frozen-protocol
-  repair with deterministic lock validation, and include prompts in portable
-  installs and installed-copy drift checks.
+- Add the named default CWO operator profile, preserve archived prompt evidence,
+  enforce frozen-protocol fidelity with deterministic lock validation, and include
+  prompts in portable installs and installed-copy drift checks.
 - Treat `task_complete` events with non-null errors as failed terminal control
   loss instead of successful completion. Exact-trace cardinality, final-token,
   and expected-mutation obligations now finalize only on durable successful

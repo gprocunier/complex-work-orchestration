@@ -21,19 +21,21 @@
         </a>
         <div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
     </header>
 
-    <main id="main">
+    <main id="main" tabindex="-1">
       <section class="page-hero">
         <p class="eyebrow">Local review</p>
         <h1>Local Workers</h1>
+        <p class="callout">Optional local-inference reference. Model catalogs and rendered harness artifacts do not establish live availability, exact qualification, or an offline guarantee for your normal cloud agent. Verify the selected endpoint and allowed data boundary before dispatch.</p>
         <p class="lede">
           Use local workers from inside Codex first: ask the prompt coach to
           size the request, opt in to local inference, select a profile such as
@@ -64,15 +66,15 @@
               question, and prepare the Beads workstream only after the user
               chooses it.
             </p>
-            <div class="workflow-diagram linear" role="img" aria-label="Codex local worker flow from plan prompt to coach opt-in, profile, envelope, return evaluation, and architect decision.">
-              <div class="flow-card"><strong>/plan</strong><span>ask coach</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Opt In</strong><span>local-ok</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Profile</strong><span>OpenShift AI vLLM</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Evaluate</strong><span>architect decides</span></div>
-            </div>
+            <!-- diagram:local-workers -->
+            <figure class="flowchart">
+              <picture>
+                <source media="(max-width: 40rem)" srcset="./diagrams/local-workers-narrow.svg" width="320" height="700">
+                <img src="./diagrams/local-workers.svg" width="680" height="340" alt="Local review workflow flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Ask the coach, explicitly opt into local inference, select the configured profile, then evaluate the return. The architect—not the worker—decides what to accept.</figcaption>
+            </figure>
+            <!-- /diagram:local-workers -->
             <pre><code>/plan Use $complex-work-orchestration prompt coach:
 OpenShift AI vLLM local review of README command examples.</code></pre>
             <div class="callout">
@@ -462,18 +464,18 @@ python3 scripts/workspace_mutation_guard.py \
     <footer class="site-footer">
       <div>
         <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
+        <p>Keep decisions, progress, and evidence across agent sessions.</p>
       </div>
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
+        <a href="./get-started.html">Start Here</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
+        <a href="./workflows.html">Guides</a>
         <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
+        <a href="./use-cases.html">Examples</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
+        <a href="./contractor-demo.html">Historical Demo</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>

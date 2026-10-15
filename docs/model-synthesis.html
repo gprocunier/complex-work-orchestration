@@ -21,19 +21,21 @@
         </a>
         <div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
     </header>
 
-    <main id="main">
+    <main id="main" tabindex="-1">
       <section class="page-hero">
         <p class="eyebrow">Deep dive</p>
         <h1>Model Synthesis And Adjudication</h1>
+        <p class="callout">Optional comparison method, not a vote that grants authority. Record source-backed agreements, disagreements and assumptions; the authorized owner adjudicates. Distinct personas or contexts do not prove independent trust domains.</p>
         <p class="lede">
           CWO can ask several models for independent reviews, but it does not
           average their answers into truth. Synthesis reports the evidence;
@@ -72,17 +74,15 @@
 
           <section id="pipeline">
             <h2>Synthesis Pipeline</h2>
-            <div class="workflow-diagram contractor" role="img" aria-label="Model synthesis flow from architect plan to isolated review lanes, return evaluation, synthesis, and architect adjudication.">
-              <div class="flow-card"><strong>Plan</strong><span>Codex architect</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Review</strong><span>isolated model lanes</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Evaluate</strong><span>quality and boundary</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Synthesize</strong><span>consensus and conflict</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Adjudicate</strong><span>architect decides</span></div>
-            </div>
+            <!-- diagram:model-synthesis -->
+            <figure class="flowchart">
+              <picture>
+                <source media="(max-width: 40rem)" srcset="./diagrams/model-synthesis-narrow.svg" width="320" height="880">
+                <img src="./diagrams/model-synthesis.svg" width="680" height="520" alt="Review and synthesis flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>The architect plans the work; isolated review lanes return evidence. Evaluate each return before synthesis, then let the architect adjudicate agreement and conflict.</figcaption>
+            </figure>
+            <!-- /diagram:model-synthesis -->
             <ol class="sr-only">
               <li>The Codex architect creates the initial plan.</li>
               <li>Independent model lanes review bounded packets.</li>
@@ -205,18 +205,18 @@
     <footer class="site-footer">
       <div>
         <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
+        <p>Keep decisions, progress, and evidence across agent sessions.</p>
       </div>
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
+        <a href="./get-started.html">Start Here</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
+        <a href="./workflows.html">Guides</a>
         <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
+        <a href="./use-cases.html">Examples</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
+        <a href="./contractor-demo.html">Historical Demo</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>

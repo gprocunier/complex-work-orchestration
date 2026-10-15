@@ -1,5 +1,11 @@
 # Native Supervision Pools
 
+Current routing is exact-qualified Luna-first under active v3 policy. Historical
+Spark receipts mentioned below remain scoped to their recorded contracts and do
+not authorize fresh dispatch. N=1..3 fixed cohorts are a host-qualified preview;
+start from [the current overview](../docs/native-supervision.html), not an old
+pool command. Admission and lifecycle contracts below remain operator reference.
+
 ## Threat Model And Claim Boundaries
 
 Assets are worker-session identities, nonces, control turns, state files,

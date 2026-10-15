@@ -38,7 +38,7 @@ Precommit/qualification turns remain no-tools regardless of operative profile.
 # Native Worker Supervision
 
 Native worker supervision is the connected CWO control path for delegated
-operative work. Candidate E remains the architect and final decision owner. A
+operative work. The CWO lead remains the architect and final decision owner. A
 fresh native `gpt-5.3-codex-spark` worker receives one bounded assignment, and
 the trusted host monitors that assignment against its packet, model, tools,
 budget, workspace, telemetry, and completion contract.
@@ -62,7 +62,7 @@ One supervised worker is the default. The standard path requires:
 - operative release evidence for the exact packet and work plan;
 - the single-worker supervisor armed before task submission;
 - one uninterrupted control turn for submission, receipt binding, and polling;
-- bounded validation and Candidate E adjudication before acceptance.
+- bounded validation and lead adjudication before acceptance.
 
 CWO does not silently replace Spark with another model. A model self-report is
 not attestation. Missing trusted session metadata, wrong model identity, an
@@ -211,7 +211,7 @@ result.
   It shares the original budget and requires fresh attestation and exact
   evidence.
 
-A worker return is evidence. Candidate E decides whether it is retained,
+A worker return is evidence. The CWO lead decides whether it is retained,
 corrected, quarantined, deferred, or accepted after validation. CWO does not
 turn an interrupted artifact into implementation authority through an automatic
 salvage chain.

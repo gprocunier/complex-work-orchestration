@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Inspect changes, reset only the disposable example or remove the installed profile and skill safely."
+    >
+    <title>Stop or reset the practice project | CWO</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html" aria-current="true">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--tutorial"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./get-started.html">Start Here</a></nav><h1 id="page-title">Stop or reset the practice project</h1><p class="lede">Keep your files and task history in view. Choose only the recovery action you intend.</p></header><details class="contents"><summary>On this page</summary><nav aria-label="On this page"><a href="#recover">Stop, inspect or reset</a><a href="#model-startup">Recover startup</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="recover"><h2>Inspect, stop, reset the example, or remove CWO</h2>
+        <p><strong>Stop safely:</strong> request a bounded stop and a handoff; if a worker was actually launched, require its owned cleanup evidence before reusing its workspace. Ending the conversation does not undo file edits. In this exercise, no delegated worker was requested; inspect your files and handoff before starting again.</p>
+        <p><strong>Undo only this example:</strong> first confirm the directory and inspect the diff. The restore below discards staged and unstaged tutorial checker/test edits; it is intentionally limited to those files. Keep the handoff and task records if you want the evidence.</p>
+        <p class="code-hint">Long commands keep their original lines. If a line continues beyond the edge, scroll inside its code block; select the text to copy it.</p><p class="input-label">Terminal</p>
+        <pre><code>cd &quot;$HOME/cwo-first-project&quot;
+pwd
+git status --short
+git diff cwo-tutorial-start -- checker.py test_checker.py
+git restore --source=cwo-tutorial-start --staged --worktree -- checker.py test_checker.py</code></pre>
+        <p>Added files may be untracked, staged, or committed. The restored code no longer matches any earlier accepted Beads/handoff state; reconcile that record before continuing. Inspect <code>git status --short</code> and remove only a specifically identified disposable file if you want to reset it. Do not run a broad clean or delete an arbitrary project folder.</p>
+        <p><strong>Return to the default profile:</strong> start a fresh ordinary <code>codex -C "$HOME/cwo-first-project"</code> session. That drops the named operator profile, not the installed skill; CWO remains available to skill discovery until disabled or removed. To remove the managed profile and active skill install, run from the source checkout:</p>
+        <p class="input-label">Terminal</p>
+        <pre><code>cd &quot;$HOME/cwo-source&quot;
+python3 scripts/manage_instruction_profile.py remove --profile operator-e
+./scripts/install.sh --uninstall --yes</code></pre>
+        <p><strong>Expected:</strong> unmodified managed profile/launcher files are removed and the skill is moved out of the active skills directory into a backup. Modified managed files are refused for inspection. This does not delete project files, Beads history, Codex credentials, or all backups. For a custom install, use the same home/destination options you installed with. <a href="./reference.html#troubleshooting">Troubleshoot a failed step</a>.</p>
+        </section><section id="model-startup"><h2>If the launcher or model is unavailable</h2><h3>The launcher is not on PATH</h3><p>Use this command <em>instead of</em> <code>cwo-codex</code>:</p><p class="input-label">Terminal</p><pre tabindex="0" role="region" aria-label="Explicit named-profile startup"><code>codex --profile cwo-sol-operator-e -C &quot;$HOME/cwo-first-project&quot;</code></pre><h3>The profile’s model is rejected</h3><ol><li>Open an ordinary <code>codex</code> session using the account you checked during preparation. Enter <code>/model</code> to choose a model available to that account, then <code>/status</code> to read the selected model identifier. See the <a href="https://learn.chatgpt.com/docs/models">official model-selection instructions</a>. If the ordinary client cannot start or sign in either, resolve that prerequisite first.</li><li>Exit the ordinary session. In the next command, replace <code>YOUR_AVAILABLE_MAIN_MODEL</code> with that identifier; it is a placeholder, not a model name.</li></ol><p class="input-label">Terminal — replace the model placeholder before running</p><pre tabindex="0" role="region" aria-label="Named profile with an explicit main-model override"><code>codex --profile cwo-sol-operator-e \
+  --model YOUR_AVAILABLE_MAIN_MODEL \
+  -C &quot;$HOME/cwo-first-project&quot;</code></pre><p><strong>Ready when:</strong> the fresh session starts in the practice project with the named profile and chosen main-thread model. Record the exact working launch command, selected model and any observed deviation in <code>HANDOFF.md</code>. Reuse that same command for the continuation session rather than falling back to the rejected profile model.</p><p>This changes the main thread only. Do not substitute a delegated worker model or disable supervision. Rerun source-checkout profile verification if managed files appear modified.</p></section><nav class="next-action" aria-label="Next task"><a class="button" href="./get-started.html">Return to the walkthrough</a></nav></article></div></div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Native Supervision</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Contractors</a><a href="./local-workers.html">Local Workers</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
+    </footer>
+  </body>
+</html>

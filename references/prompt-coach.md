@@ -232,7 +232,16 @@ editor as the final public-copy acceptance expert before publish sanitization.
 Exact contract labels belong in reference/operator surfaces, not narrative
 Pages copy.
 
-## Operative Model Choice
+## Current operative model choice
+
+The active `task_selected_routing` version 3 sizes work before selecting a
+qualified exact Luna worker; Terra requires recorded fit/qualification/risk or
+economics escalation. Spark and GPT-5.5 version-2 routes remain readable but
+cannot authorize new dispatch. The coach/renderer is not admission authority;
+qualification, source/scope/attempt and unchanged budget bindings still apply.
+Consult [the current native overview](native-supervision.md) and active policy.
+
+### Historical version-2 model-choice interpretation
 
 The coach reports the same `cwo-operative-route` decision as `route_work.py`.
 Trusted-live usable Spark is selected automatically. Missing, ambiguous, stale,
@@ -264,8 +273,9 @@ implementation when disjoint write scopes are clear.
 
 The conservative default for narrow work is no subagents. The default for broad
 docs, Pages, policy, routing, tests, validation, and publish-sanitization work
-is `review-only` using Codex 5.3 Spark when available, otherwise the smallest
-available capable review model. Heavy review parallelism uses separate bounded
+is `review-only` when an actually authorized qualified review route is available.
+Native operative worker model selection still follows active v3 policy; adviser
+and peer routes are separate and never grant operative substitution. Heavy review parallelism uses separate bounded
 tracks for docs flow, terminology, web-design, validation, and publish checks.
 Implementation-capable subagents require explicit disjoint write scopes;
 otherwise the main thread keeps file integration and acceptance.

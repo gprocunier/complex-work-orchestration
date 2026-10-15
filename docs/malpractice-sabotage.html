@@ -21,20 +21,22 @@
         </a>
         <div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
     </header>
 
-    <main id="main">
+    <main id="main" tabindex="-1">
       <section class="page-hero">
         <p class="breadcrumb"><a href="./index.html">Home</a> / <a href="./use-cases.html">Use Cases</a> / Guardrails</p>
         <p class="eyebrow">Risk deep dive</p>
         <h1>Malpractice And Sabotage Guardrails</h1>
+        <p class="callout">Advanced risk reference. Detection and quarantine checks reduce specific risks; they do not make an unrestricted worker trustworthy or guarantee that every adversarial return is caught.</p>
         <p class="lede">
           CWO treats every model return as untrusted evidence. Frontier,
           local, and open-weight models can all be useful, but provider policy,
@@ -176,17 +178,15 @@
 
           <section id="gate">
             <h2>Guardrail Gate</h2>
-            <div class="workflow-diagram contractor" role="img" aria-label="Return safety gate from model return to mutation guard, scoring, quarantine or integration, and architect decision.">
-              <div class="flow-card"><strong>Return</strong><span>model output</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Boundary</strong><span>packet and mutation checks</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Score</strong><span>malpractice and sabotage</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Disposition</strong><span>accept, reject, or quarantine</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Decision</strong><span>architect adjudication</span></div>
-            </div>
+            <!-- diagram:malpractice-sabotage -->
+            <figure class="flowchart">
+              <picture>
+                <source media="(max-width: 40rem)" srcset="./diagrams/malpractice-sabotage-narrow.svg" width="320" height="880">
+                <img src="./diagrams/malpractice-sabotage.svg" width="680" height="520" alt="Return safety gate flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Check the return against its packet and mutation boundary, score malpractice and sabotage signals, and record an accepted, rejected, or quarantined disposition. The architect decides whether a finding may change the plan.</figcaption>
+            </figure>
+            <!-- /diagram:malpractice-sabotage -->
             <ol class="sr-only">
               <li>A model return arrives from an approved lane.</li>
               <li>CWO checks whether the return stayed inside its packet and mutation boundary.</li>
@@ -464,18 +464,18 @@
     <footer class="site-footer">
       <div>
         <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
+        <p>Keep decisions, progress, and evidence across agent sessions.</p>
       </div>
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
+        <a href="./get-started.html">Start Here</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
+        <a href="./workflows.html">Guides</a>
         <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
+        <a href="./use-cases.html">Examples</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
+        <a href="./contractor-demo.html">Historical Demo</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>

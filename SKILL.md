@@ -27,7 +27,7 @@ non-trivial work.
 
 ## Operating Defaults
 
-- Candidate E (`prompts/cwo-sol-operator-e.md`) is the default; post-v5 repair is deterministically validated, not model-requalified. Named-profile activation requires a fresh session. Reading it in an unprofiled thread is a fallback without profile-selection evidence. C remains opt-in; main thread decides.
+- CWO uses a system prompt optimized for complex project work rather than the default OpenAI system prompt (`prompts/cwo-sol-operator-e.md`; see `references/cwo-system-prompt.md`). Named-profile activation requires a fresh session. Reading it in an unprofiled thread is a fallback without profile-selection evidence. The main thread owns final decisions; instructions never override runtime authority.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
 - Prefer review-only workers before implementation unless write ownership is disjoint.
 - In connected Codex work, select a qualified exact Luna worker first after model-neutral sizing. Terra requires documented nonfit or justified escalation. Spark records remain historical, not authority for new routing. Sol handles architecture and adjudication; expressly authorized maintenance may be implemented directly.

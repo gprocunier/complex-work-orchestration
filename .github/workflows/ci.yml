@@ -32,6 +32,12 @@ jobs:
         run: python scripts/validate_site.py
       - name: Generated site shell check
         run: python scripts/generate_site.py --check
+      - name: Generated SVG diagram check
+        run: python scripts/generate_diagrams.py --check
+      - name: Maintained Markdown and legacy route checks
+        run: python scripts/check_documentation.py
+      - name: Worked evidence fixtures
+        run: python examples/worked-evidence/run_examples.py --check
       - name: Unit tests
         run: python scripts/run_parallel_unittest.py --workers 8 --verbose
       - name: Route dry run

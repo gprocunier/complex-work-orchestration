@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Complex Work Orchestration helps AI coding sessions become recoverable, reviewable, tested work instead of one long transcript."
+      content="Use CWO to organize dependent agent work, retain decisions and inspect checked results."
     >
-    <title>Complex Work Orchestration</title>
+    <title>From request to checked result | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="./styles.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -21,299 +22,26 @@
         </a>
         <div class="nav-links">
           <a href="./index.html" aria-current="page">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
     </header>
 
-    <main id="main">
-      <section id="top" class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">For work that has outgrown web chat</p>
-          <h1>Turn AI coding sessions into work you can resume, review, test, and trust.</h1>
-          <p class="lede">
-            ChatGPT and Claude.ai are excellent places to ask questions and
-            draft ideas. Coding-agent shells such as Codex and Claude Code can
-            go further: they work inside your project, inspect files, make
-            edits, run commands, test results, and hand you back evidence.
-          </p>
-          <div class="hero-actions" aria-label="Primary actions">
-            <a class="button primary" href="./get-started.html">Start the 5-minute path</a>
-            <a class="button secondary" href="./workflows.html">I already know agent shells</a>
-          </div>
-        </div>
-      </section>
-
-      <section id="crawl" class="band intro">
-        <div class="section-heading">
-          <p class="eyebrow">Crawl</p>
-          <h2>Why a shell changes the game.</h2>
-        </div>
-        <div class="split">
-          <div>
-            <p>
-              A web chat can explain code, propose a patch, or help you think.
-              A coding shell can do the project work with you. It can read the
-              repository, change the right files, run the test suite, inspect
-              failures, and verify that the result actually works.
-            </p>
-            <p>
-              That loop can change real project state. It is also easier to lose
-              track of what happened when the task gets long, a session is
-              compacted, another agent joins, or a reviewer gives advice that
-              still needs checking.
-            </p>
-            <p>
-              Because a shell can change the project, CWO also makes model
-              returns checkable before they shape implementation.
-            </p>
-          </div>
-          <div class="comparison-panel" aria-label="Web chat and coding shell comparison">
-            <div>
-              <h3>Web chat</h3>
-              <p>Great for answers, drafts, summaries, and brainstorming.</p>
-            </div>
-            <div>
-              <h3>Coding shell</h3>
-              <p>Works in the project, changes files, runs checks, and verifies outcomes.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section id="walk" class="section">
-        <div class="section-heading">
-          <p class="eyebrow">Walk</p>
-          <h2>Power needs a work story.</h2>
-          <p>
-            Complex Work Orchestration, or CWO, adds the missing operating
-            model around shell-based AI work. It keeps scope, decisions,
-            review, validation, and handoff from disappearing into a transcript.
-          </p>
-        </div>
-        <div class="problem-grid">
-          <article>
-            <h3>Context gets lost</h3>
-            <p>Long sessions get summarized, restarted, or handed to another agent.</p>
-          </article>
-          <article>
-            <h3>Decisions blur</h3>
-            <p>It becomes hard to tell what was accepted, rejected, deferred, or guessed.</p>
-          </article>
-          <article>
-            <h3>Review needs boundaries</h3>
-            <p>
-              Another model can critique the work, but its advice is not
-              automatically true. Guardrails keep unsupported, unsafe, or
-              boundary-breaking returns from becoming project direction.
-            </p>
-          </article>
-          <article>
-            <h3>Validation must be visible</h3>
-            <p>Tests, checks, and publication evidence need to be recorded where the next agent can find them.</p>
-          </article>
-        </div>
-      </section>
-
-      <section id="first-step" class="section narrow">
-        <p class="eyebrow">Default CWO path</p>
-        <h2>Start a fresh Candidate E session, then let the coach size the work.</h2>
-        <p>
-          Candidate E is CWO's default instruction profile for the Codex
-          session that owns scope, integration, acceptance, and handoff. After
-          completing the one-time
-          <a href="./get-started.html#profile">profile setup</a>, start
-          <code>cwo-codex</code> from the project you want to work on. This does
-          not change ordinary Codex sessions.
-        </p>
-        <div class="command-panel" aria-label="Candidate E startup example">
-          <pre><code>cwo-codex -C "$PWD"</code></pre>
-        </div>
-        <p>
-          Inside that fresh session, ask for the prompt coach. Candidate E keeps
-          architecture and final judgment; a supervised Spark worker handles a
-          narrow implementation or validation task when delegation helps. Every
-          delegated native worker is supervised; there is no unsupervised mode
-          or opt-out.
-        </p>
-        <div class="command-panel" aria-label="Prompt coach example">
-          <pre><code>/plan Use $complex-work-orchestration prompt coach:
-Describe the work you want to complete.</code></pre>
-        </div>
-        <p><a class="button primary" href="./get-started.html">Run the guided first task</a></p>
-      </section>
-
-      <section id="run" class="band">
-        <div class="section-heading">
-          <p class="eyebrow">Run</p>
-          <h2>The CWO path grows with the work.</h2>
-          <p>
-            Start small. Add structure only when the work needs it. The same
-            path can handle a simple documentation fix, a release-quality
-            review, or a multi-model planning pass.
-          </p>
-        </div>
-        <div class="stage-grid">
-          <article>
-            <p class="eyebrow">Crawl</p>
-            <h3>One operator, one task</h3>
-            <p>Ask Codex to size the request and keep one durable record of what changed.</p>
-          </article>
-          <article>
-            <p class="eyebrow">Walk</p>
-            <h3>Prompt coach and memory</h3>
-            <p>The coach asks only the choices that change execution. Beads is the durable task graph that records scope, evidence, and closure memory.</p>
-            <p><a href="./beads-memory.html">See how durable memory works</a></p>
-          </article>
-          <article>
-            <p class="eyebrow">Run</p>
-            <h3>Review and validation</h3>
-            <p>
-              Bounded review workers can inspect flow, terminology, tests, and
-              publish readiness while the main thread keeps final judgment.
-              The same gate checks whether returns are supported and safe to
-              use.
-            </p>
-            <p>
-              <a href="./model-synthesis.html">See how model synthesis stays evidence-based</a>
-            </p>
-          </article>
-          <article>
-            <p class="eyebrow">Advanced options</p>
-            <h3>Advanced environments</h3>
-            <p>
-              When needed, CWO can add outside reviewers, model synthesis,
-              local workers, OpenCode, airgapped paths, and RHOAI/vLLM model
-              profiles without letting any one return bypass evaluation.
-            </p>
-            <p><a href="./external-contracting.html">See outside review boundaries</a></p>
-          </article>
-        </div>
-      </section>
-
-      <section id="routes" class="section">
-        <div class="section-heading">
-          <p class="eyebrow">Choose your depth</p>
-          <h2>Start simple, then open the deeper pages when they match your work.</h2>
-        </div>
-        <div class="doc-grid">
-          <article class="doc-card">
-            <h3>Get Started</h3>
-            <p>Install the skill, learn the minimum terms, and complete one small CWO-guided task.</p>
-            <a href="./get-started.html">Run the first path</a>
-          </article>
-          <article class="doc-card">
-            <h3>Workflows</h3>
-            <p>Follow Candidate E, Beads, supervised work, validation, and handoff from end to end.</p>
-            <a href="./workflows.html">Use the guided workflow</a>
-          </article>
-          <article class="doc-card">
-            <h3>Native Supervision</h3>
-            <p>Understand the normal single-worker control path and the optional concurrency preview.</p>
-            <a href="./native-supervision.html">Open the supervision guide</a>
-          </article>
-          <article class="doc-card">
-            <h3>Use Cases</h3>
-            <p>Compare a small prompt-coach run with larger multi-review and publication patterns.</p>
-            <a href="./use-cases.html">Pick a use case</a>
-          </article>
-          <article class="doc-card">
-            <h3>Explanation</h3>
-            <p>Understand why CWO separates planning, memory, evidence, validation, and final judgment.</p>
-            <a href="./explanation.html">Read why it works</a>
-          </article>
-          <article class="doc-card">
-            <h3>Beads Memory</h3>
-            <p>Learn how durable task graphs help agents recover from compaction, handoff, and missing transcript context.</p>
-            <a href="./beads-memory.html">Open the memory deep dive</a>
-          </article>
-          <article class="doc-card">
-            <h3>Model Synthesis</h3>
-            <p>See how independent model reviews become evaluated evidence instead of automatic authority.</p>
-            <a href="./model-synthesis.html">Open the synthesis deep dive</a>
-          </article>
-          <article class="doc-card">
-            <h3>Zero-Trust Consensus</h3>
-            <p>Learn how CWO compares claims across independent trust domains without treating agreement as proof.</p>
-            <a href="./zero-trust-consensus.html">Open the consensus deep dive</a>
-          </article>
-          <article class="doc-card">
-            <h3>Guardrails</h3>
-            <p>Understand malpractice, sabotage, quarantine, and publication-safety checks for model returns.</p>
-            <a href="./malpractice-sabotage.html">Open the guardrails deep dive</a>
-          </article>
-          <article class="doc-card">
-            <h3>Demo</h3>
-            <p>See a hello-world contractor project where Codex coordinated outside tools and then validated the result.</p>
-            <a href="./contractor-demo.html">Study the demo</a>
-          </article>
-          <article class="doc-card">
-            <h3>Reference</h3>
-            <p>Look up exact policies, schemas, helper scripts, expert labels, and share boundaries.</p>
-            <a href="./reference.html">Open the reference</a>
-          </article>
-        </div>
-      </section>
-
-      <section id="reference" class="band narrow">
-        <p class="eyebrow">For returning operators</p>
-        <h2>The expert map is still one click away.</h2>
-        <p>
-          CWO is a governance, evidence, and handoff layer. It does not replace
-          Codex CLI, Claude Code, Gemini CLI, OpenCode, LangGraph, AutoGen,
-          CrewAI, OpenRouter Fusion, or local model serving. It records which
-          surface was used, what boundary applied, what evidence was accepted,
-          and what validation proved the work was ready.
-        </p>
-        <div class="reference-table" role="table" aria-label="Repository reference links">
-          <div role="row">
-            <span role="cell">Workflows</span>
-            <a role="cell" href="./workflows.html">In-Codex orchestration, optional workstreams, and execution environments</a>
-          </div>
-          <div role="row">
-            <span role="cell">Native supervision</span>
-            <a role="cell" href="./native-supervision.html">Single-worker controls, failure handling, and concurrent pool limits</a>
-          </div>
-          <div role="row">
-            <span role="cell">Reference</span>
-            <a role="cell" href="./reference.html">Policies, schemas, helpers, experts, and exact controls</a>
-          </div>
-          <div role="row">
-            <span role="cell">Source</span>
-            <a role="cell" href="https://github.com/gprocunier/complex-work-orchestration">GitHub repository</a>
-          </div>
-          <div role="row">
-            <span role="cell">License</span>
-            <a role="cell" href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-          </div>
-        </div>
-      </section>
-
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--landing"><article class="doc-content"><section id="start"><span id="top"></span><p class="eyebrow">Complex Work Orchestration</p><h1>Take complex work from request to checked result.</h1><p class="lede">CWO is a skill for Codex projects with dependent tasks, reviews, and work that continues across sessions.</p><p>You supply the goal, constraints and permission. CWO guides Codex in organizing the work, retaining decisions and bringing specialist findings into a result you can inspect.</p><div class="hero-actions"><a class="button" href="./get-started.html">Build your first project</a><a class="button secondary" href="./workflows.html#case-record">See CWO on a real change</a></div></section>
+<section id="walk"><h2>A passing test suite was not the whole answer</h2><p>A documentation-audit CLI needed a JSON mode while preserving its human output. The first candidate passed eight tests. Independent review found an encoding case the tests missed; the lead reproduced it, corrected the output and added a subprocess regression.</p><div class="artifact"><p class="eyebrow">Observed local result</p><p class="input-label">Recorded output</p><pre tabindex="0" role="region" aria-label="Actual CLI JSON result"><code>{&quot;version&quot;: 1, &quot;ok&quot;: true, &quot;errors&quot;: []}</code></pre><dl class="artifact-notes"><dt>Kept compatible</dt><dd>Human output, validation API and exit statuses.</dd><dt>Changed by review</dt><dd>JSON escaping and the test that exercises actual process encoding.</dd><dt>Checked</dt><dd>Eleven focused tests, a real CLI report and saved task decisions.</dd></dl></div><p><a href="./workflows.html#case-record">Inspect the change, finding and evidence</a>.</p></section>
+<section id="choose"><span id="routes"></span><span id="first-step"></span><span id="crawl"></span><h2>Start with the work you have</h2><dl><dt>New to project agents</dt><dd><a href="./get-started.html">Prepare, install and complete your first project.</a> A small checker teaches how a saved decision carries into a fresh session.</dd><dt>Already using an agent</dt><dd><a href="./workflows.html">Evaluate the CLI change and operating guides.</a> Inspect the dependencies, specialist finding and acceptance record before choosing a route for your project.</dd></dl></section>
+<section id="fit"><h2>When the structure earns its keep</h2><p>Use CWO when a restart, dependent change, review or handoff needs the same accepted decisions. Skip it for a short disposable task you can finish and check in one conversation.</p><p>Codex already plans, edits files, uses tools and delegates. CWO uses a system prompt optimized for complex project work rather than the default OpenAI system prompt, adding an operating contract, saved dependencies and evidence-led acceptance around those capabilities. <a href="./explanation.html">How the pieces fit</a>.</p></section>
+<section id="status"><span id="run"></span><span id="reference"></span><h2>Status and boundaries</h2><p>CWO is a development-stage public skill package. Your configured provider processes selected agent context; additional outside contractor sharing is off by default. Qualified worker execution depends on the exact tools and host. <a href="./reference.html">Compatibility and controls</a> · <a href="./use-cases.html">Teaching examples</a>.</p></section></article></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Native Supervision</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Contractors</a><a href="./local-workers.html">Local Workers</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="How Complex Work Orchestration uses Beads durable memory, closure comments, and context-depth choices to make AI coding work recoverable."
+      content="Inspect files, task dependencies, closure evidence and checks before starting a fresh session’s next task."
     >
-    <title>Beads Memory | Complex Work Orchestration</title>
+    <title>Continue a project from saved work | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="./styles.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -21,182 +22,43 @@
         </a>
         <div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html" aria-current="true">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
     </header>
 
-    <main id="main">
-      <section class="page-hero">
-        <p class="eyebrow">Deep dive</p>
-        <h1>Beads Memory</h1>
-        <p class="lede">
-          Beads gives long AI coding work a durable project memory. It records
-          scope, dependencies, evidence, decisions, validation, and
-          closure-memory comments outside the fragile chat transcript.
-        </p>
-      </section>
-
-      <section class="section doc-layout">
-        <nav class="page-nav" aria-label="Page sections">
-          <a href="#why">Why It Matters</a>
-          <a href="#flow">Memory Flow</a>
-          <a href="#example">Cold-Start Example</a>
-          <a href="#closure">Closure Memory</a>
-          <a href="#context-depth">Context Depth</a>
-          <a href="#sharing">Local And Shared</a>
-          <a href="./workflows.html#beads-graph">Workflow Step</a>
-          <a href="./reference.html#durable-memory">Exact Controls</a>
-        </nav>
-        <div class="doc-body">
-          <section id="why">
-            <h2>Why It Matters</h2>
-            <p>
-              Web-chat work often lives inside one long conversation. That is
-              fine until the task spans days, the context window fills, the
-              session is summarized, or another agent starts without the
-              original transcript. CWO uses Beads as the durable task graph so
-              the work story survives those breaks.
-            </p>
-            <p>
-              The graph is not just a todo list. It holds the recovery facts a
-              future agent needs: what was requested, what was changed, what
-              evidence was collected, what was rejected, what still blocks the
-              work, and how the result was validated.
-            </p>
-          </section>
-
-          <section id="flow">
-            <h2>Memory Flow</h2>
-            <div class="workflow-diagram linear" role="img" aria-label="Beads memory flow from user request to durable state and later recovery.">
-              <div class="flow-card"><strong>Request</strong><span>scope and intent</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Beads</strong><span>tasks and evidence</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Closure</strong><span>recovery summary</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Resume</strong><span>agent rehydrates context</span></div>
-            </div>
-            <ol class="sr-only">
-              <li>The user request defines the scope and intent.</li>
-              <li>Beads records tasks, dependencies, comments, and evidence.</li>
-              <li>A closure-memory comment captures what a future agent needs.</li>
-              <li>A later agent can resume from the durable record.</li>
-            </ol>
-            <p>
-              This is the main reason CWO scales beyond a single prompt. The
-              chat can be compacted or lost, but the project still has a work
-              graph with the accepted story.
-            </p>
-          </section>
-
-          <section id="example">
-            <h2>Cold-Start Example</h2>
-            <p>
-              Imagine a docs refactor that took three sessions. The original
-              transcript is gone, but the Beads record says the homepage was
-              changed for novice readers, validators were updated, Pages passed,
-              and a follow-up remains for deep-dive documentation. A new agent
-              can start from that record instead of asking the operator to
-              reconstruct the entire story.
-            </p>
-            <div class="reference-table compact" role="table" aria-label="Cold-start recovery comparison">
-              <div role="row">
-                <span role="cell">Without durable memory</span>
-                <span role="cell">The agent sees a vague summary and must rediscover scope, decisions, and validation.</span>
-              </div>
-              <div role="row">
-                <span role="cell">With Beads memory</span>
-                <span role="cell">The agent reads the task, dependencies, evidence, closure-memory comment, residual risk, and next action.</span>
-              </div>
-            </div>
-          </section>
-
-          <section id="closure">
-            <h2>Closure Memory</h2>
-            <p>
-              The close reason should stay short. The useful memory belongs in
-              the final comment before closing meaningful work. That comment
-              should answer who was involved, what changed, why the bead is
-              closing, how it was validated, when it closed, where it ran, what
-              decisions were made, what evidence matters, what risk remains,
-              and what should happen next.
-            </p>
-            <div class="callout">
-              <strong>Practical effect:</strong>
-              spawned agents with no transcript, or compacted sessions after
-              context compaction, can read the Beads brief and recover the
-              important story without replaying the whole conversation.
-            </div>
-          </section>
-
-          <section id="context-depth">
-            <h2>Context Depth</h2>
-            <p>
-              CWO does not make every agent read everything. The prompt coach
-              sizes Beads context depth for the work:
-            </p>
-            <ul class="check-list">
-              <li><code>none</code>: no Beads lookup.</li>
-              <li><code>summary</code>: assigned-bead fields without comments.</li>
-              <li><code>focused</code>: assigned-bead comments as internal evidence.</li>
-              <li><code>heavy</code>: broader related history for prior-work or synthesis-heavy tasks.</li>
-              <li><code>audit</code>: incident, quarantine, sabotage, credential, or forensic review.</li>
-            </ul>
-            <p>
-              Comment-bearing depths are for internal Codex or subagent
-              briefing: outside reviewers receive packets that have been boundary-checked, not the internal work graph.
-            </p>
-          </section>
-
-          <section id="sharing">
-            <h2>Local And Shared</h2>
-            <p>
-              A Beads graph is useful even when it is local-only. In that mode,
-              it preserves the story on this machine but does not imply that
-              another workstation can see it. If the repository has a shared
-              Dolt-backed Beads remote and the operator syncs it, the same
-              graph can become a handoff surface for other collaborators.
-            </p>
-            <p>
-              The key rule is simple: record what actually happened. If the
-              graph was local-only, say so. If it was synced, record the proof.
-              The durable memory is valuable because future agents can trust
-              its boundaries.
-            </p>
-            <p>
-              Continue with the <a href="./workflows.html#beads-graph">Beads
-              workflow step</a>, or use <a href="./reference.html#durable-memory">Reference</a>
-              for exact helper syntax.
-            </p>
-          </section>
-        </div>
-      </section>
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--guide"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./workflows.html">Guides</a></nav><h1 id="page-title">Continue a project from saved work</h1><p class="lede">Find the accepted result, rerun its checks, and choose the next ready task without rebuilding the project story from memory.</p></header><details class="contents"><summary>On this page</summary><nav aria-label="On this page"><a href="#why">Identify inputs and result</a><a href="#example">Inspect the work record</a><a href="#flow">See what persists</a><a href="#checks">Rerun the checks</a><a href="#closure">Save the decision</a><a href="#context-depth">Bound the next context</a><a href="#sharing">Check local versus shared</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="why"><h2>Read the project before starting a successor</h2><p>A new session needs the current files, accepted decisions and ready tasks. Beads Memory is the durable task graph around that work: save evidence and closure-memory comments so another person, spawned agents or compacted sessions can inspect the same state.</p><p><strong>Inputs:</strong> the project checkout, <code>HANDOFF.md</code>, task IDs and their evidence. <strong>Result:</strong> a verified starting point and either a ready successor, blocked work, or completed scope with no successor.</p></section>
+<section id="example"><h2>Inspect the actual work record</h2><p>For the documentation-audit CLI case, the contract task is <code>complex-work-orchestration-jtz4.11.1</code>, implementation is <code>complex-work-orchestration-jtz4.11.2</code>, and independent review disposition is <code>complex-work-orchestration-jtz4.11.3</code>. These are recorded local tasks, not IDs generated by an example script. Their local database is not distributed with the source; the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/examples/release-readiness/HANDOFF.md">saved case handoff</a> is the portable inspection artifact. Use your own project IDs for live Beads commands.</p><p class="code-hint">Long commands keep their original lines. If a line continues beyond the edge, scroll inside its code block; select the text to copy it.</p><p class="input-label">Terminal</p><pre tabindex="0" role="region" aria-label="Inspect saved project state"><code>cd /path/to/your/project
+pwd
+git status --short
+cat HANDOFF.md
+bd list --all
+bd ready --json
+bd show TASK_ID --json</code></pre><p>Replace the directory and task ID with the actual project values. <strong>Expected:</strong> the source, handoff and task agree on accepted behavior, current changes and remaining work. An empty ready list can mean prerequisites are incomplete or the authorized scope is already complete. Do not infer permission from a task being ready.</p><div class="callout"><strong>If the records disagree:</strong> stop dependent work, inspect the named source and checks, and record the uncertainty. Do not reconstruct a confident story from the old conversation.</div></section>
+<section id="flow"><h2>What the next session can recover</h2><!-- diagram:beads-memory -->
+            <figure class="flowchart">
+              <picture>
+                <source media="(max-width: 40rem)" srcset="./diagrams/beads-memory-narrow.svg" width="320" height="450">
+                <img src="./diagrams/beads-memory.svg" width="680" height="450" alt="What persists between sessions flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Session A saves project files and tests alongside task decisions. A fresh Session B reads both and verifies them before continuing; an unrecorded conversation is not part of that durable state. The two branches show saved information, not concurrent workers.</figcaption>
+            </figure>
+            <!-- /diagram:beads-memory --></section>
+<section id="checks"><h2>Verify before changing anything</h2><p>Use the project’s own README and saved commands. For the CLI case, from the CWO source checkout containing this change:</p><p class="input-label">Terminal</p><pre tabindex="0" role="region" aria-label="Recheck the release-readiness case"><code>python3 -m unittest discover -s tests -p test_documentation_cli.py -v
+python3 scripts/check_documentation.py --json</code></pre><p><strong>Expected:</strong> eleven focused tests pass and the report has <code>version: 1</code>, <code>ok: true</code>, and an empty errors list. A stale report is not a current check. Confirm task prerequisites before selecting a successor.</p></section>
+<section id="closure"><h2>Keep the decision with its evidence</h2><p>A useful closure record names the change, accepted behavior, actual checks, owner decision, residual risk and next action. In the CLI case, independent review found an encoding failure missed by the original in-memory test. The accepted decision was default JSON escaping plus an actual forced-ASCII subprocess regression—not weaker Unicode requirements.</p><p>Save a meaningful record before closing important work. Exact helper fields are in <a href="./reference.html#durable-memory">the durable-memory reference</a>.</p></section>
+<section id="context-depth"><h2>Give the next assignment enough context</h2><p>Use the accepted contract, direct dependencies, relevant files and decisive evidence. Do not send the whole project merely because it exists. Preserve uncertainty and source revision so a fresh reader can recheck the result.</p><p>Internal briefs are separate from outside contractor packets: outside reviewers receive packets minimized to the approved sharing boundary, not the whole work record.</p></section>
+<section id="sharing"><h2>Local records and shared continuity</h2><p>local-only storage is not remote backup. With a Dolt-backed project, configure and verify a remote separately if you need shared recovery. Inspect current Beads setup before assuming records are synced.</p><p><a href="./workflows.html#beads-graph">Read the workflow prerequisite step</a> or <a href="./reference.html#durable-memory">look up exact controls</a>.</p></section><nav class="next-action" aria-label="Next task"><a class="button" href="./workflows.html#validate-handoff">Next: inspect your handoff</a></nav></article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Native Supervision</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Contractors</a><a href="./local-workers.html">Local Workers</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

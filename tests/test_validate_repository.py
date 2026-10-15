@@ -33,35 +33,29 @@ class ValidateRepositoryTests(unittest.TestCase):
     # Independent golden fixture: the positive test is not allowed to read the
     # page that the production validator checks.
     NATIVE_SUPERVISION_TECH_PREVIEW_COPY = """
-      <nav>
-        <a href="#default-path">Default</a>
-        <a href="#concurrency-preview">Concurrency</a>
-      </nav>
-      <section id="default-path">
-        <p>Native supervision is the normal connected-Codex control when CWO delegates reading, editing, or validation.</p>
-        <p>Every delegated native worker is supervised; there is no unsupervised mode or opt-out.</p>
-        <p>Multi-worker concurrency is the experimental part, not supervision.</p>
-        <p><code>gpt-5.3-codex-spark</code>. Candidate E owns architecture.</p>
-        <p>A worker statement cannot widen the task.</p>
-      </section>
-      <section id="control-turn">
-        <p>The host persists supervision state and registers the observer before it sends the task.</p>
-        <p>All actions share one control-turn identity.</p>
-      </section>
-      <section id="workspace-authority"><p>The packet's declared working directory is authoritative.</p></section>
-      <section id="failure-recovery"><p>Control loss, unsafe tool use, or unattributed mutation stops the attempt.</p></section>
-      <section id="concurrency-preview">
-        <p>Running multiple supervised workers concurrently is experimental and disabled by default.</p>
-        <table><tr><th scope="row">Two workers</th><td>Opt-in Tech Preview</td></tr>
-        <tr><th scope="row">Three workers</th><td>Opt-in Tech Preview</td></tr>
-        <tr><th scope="row">Four or more</th><td>Blocked</td></tr></table>
-        <p>Fresh same-host capability and a safe fixed cohort use isolated mutable worktrees or shared read-only topology.</p>
-        <p>Precommit, packet construction, critics, integration, retry, replay, and publication remain single-flight.</p>
-      </section>
-      <p>Ordinary supervised workers require exact server-side tool allowlisting.</p>
-      <p><code>n1-read-only</code>, <code>n2-read-only</code>, and <code>n1-mutable</code></p>
-      <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md">Single worker</a>
-      <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Pools</a>
+<p>id="default-path"</p>
+<p>href="#single-worker"</p>
+<p>id="control-turn"</p>
+<p>id="workspace-authority"</p>
+<p>id="failure-recovery"</p>
+<p>id="concurrency-preview"</p>
+<p>no unsupervised native-worker opt-out</p>
+<p><code>task_selected_routing</code> v3</p>
+<p><code>gpt-5.6-luna</code></p>
+<p><code>gpt-5.6-terra</code></p>
+<p>Do not substitute another available model silently</p>
+<p>Register persistence and observers before triggering work</p>
+<p>enforced filesystem/network boundaries</p>
+<p>finite operation reservation</p>
+<p>final mutation attribution</p>
+<p>close owned resources</p>
+<p>N=1..3</p>
+<p>actual compatible host capability</p>
+<p>Optional concurrency is a preview</p>
+<p>stateful operations serial</p>
+<p>Stopped sessions stay terminal</p>
+<p>https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md</p>
+<p>https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md</p>
     """
 
     def test_repository_control_plane_is_consistent(self) -> None:
@@ -144,57 +138,29 @@ class ValidateRepositoryTests(unittest.TestCase):
 
     def test_native_supervision_tech_preview_copy_rejects_contract_gaps(self) -> None:
         cases = {
-            "default section anchor": ('id="default-path"', 'id="default"'),
-            "default navigation link": ('href="#default-path"', 'href="#default"'),
-            "control-turn section anchor": ('id="control-turn"', 'id="control"'),
-            "workspace section anchor": ('id="workspace-authority"', 'id="workspace"'),
-            "failure section anchor": ('id="failure-recovery"', 'id="failures"'),
-            "concurrency section anchor": ('id="concurrency-preview"', 'id="concurrency"'),
-            "concurrency navigation link": ('href="#concurrency-preview"', 'href="#concurrency"'),
-            "standard single-worker wording": (
-                "normal connected-Codex control",
-                "optional connected-Codex control",
-            ),
-            "exact native model wording": (
-                "<code>gpt-5.3-codex-spark</code>",
-                "<code>any-model</code>",
-            ),
-            "concurrency stability wording": (
-                "Running multiple supervised workers concurrently is experimental and disabled by default",
-                "Concurrency is the default",
-            ),
-            "mandatory supervision wording": (
-                "Every delegated native worker is supervised",
-                "Native workers may be supervised",
-            ),
-            "no opt-out wording": (
-                "there is no unsupervised mode or opt-out",
-                "supervision is optional",
-            ),
-            "preview boundary wording": (
-                "Multi-worker concurrency is the experimental part, not supervision",
-                "Supervision is experimental",
-            ),
-            "higher-capacity gate wording": (
-                "Four or more</th><td>Blocked",
-                "Four or more</th><td>Available",
-            ),
-            "exact tool boundary wording": (
-                "exact server-side tool",
-                "optional tool",
-            ),
-            "single-worker operator link": (
-                "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md",
-                "./reference.html#single-worker",
-            ),
-            "pool operator link": (
-                "https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md",
-                "./reference.html",
-            ),
-            "fixed activation profiles": (
-                "<code>n1-read-only</code>",
-                "<code>arbitrary-profile</code>",
-            ),
+            'default section anchor': ('id="default-path"', 'REMOVED_CONTRACT'),
+            'single-worker navigation': ('href="#single-worker"', 'REMOVED_CONTRACT'),
+            'control-turn section anchor': ('id="control-turn"', 'REMOVED_CONTRACT'),
+            'workspace section anchor': ('id="workspace-authority"', 'REMOVED_CONTRACT'),
+            'failure section anchor': ('id="failure-recovery"', 'REMOVED_CONTRACT'),
+            'concurrency section anchor': ('id="concurrency-preview"', 'REMOVED_CONTRACT'),
+            'mandatory supervision': ('no unsupervised native-worker opt-out', 'REMOVED_CONTRACT'),
+            'active routing version': ('<code>task_selected_routing</code> v3', 'REMOVED_CONTRACT'),
+            'exact Luna model': ('<code>gpt-5.6-luna</code>', 'REMOVED_CONTRACT'),
+            'exact Terra model': ('<code>gpt-5.6-terra</code>', 'REMOVED_CONTRACT'),
+            'no model substitution': ('Do not substitute another available model silently', 'REMOVED_CONTRACT'),
+            'persistence before triggering': ('Register persistence and observers before triggering work', 'REMOVED_CONTRACT'),
+            'enforced effect boundary': ('enforced filesystem/network boundaries', 'REMOVED_CONTRACT'),
+            'finite operation reservation': ('finite operation reservation', 'REMOVED_CONTRACT'),
+            'final attribution': ('final mutation attribution', 'REMOVED_CONTRACT'),
+            'owned cleanup': ('close owned resources', 'REMOVED_CONTRACT'),
+            'fixed cohort ceiling': ('N=1..3', 'REMOVED_CONTRACT'),
+            'actual host capability': ('actual compatible host capability', 'REMOVED_CONTRACT'),
+            'preview boundary': ('Optional concurrency is a preview', 'REMOVED_CONTRACT'),
+            'stateful operations serial': ('stateful operations serial', 'REMOVED_CONTRACT'),
+            'terminal attempts': ('Stopped sessions stay terminal', 'REMOVED_CONTRACT'),
+            'single-worker operator link': ('https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md', 'REMOVED_CONTRACT'),
+            'pool operator link': ('https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md', 'REMOVED_CONTRACT'),
         }
         for expected_label, (required, replacement) in cases.items():
             with self.subTest(contract=expected_label):

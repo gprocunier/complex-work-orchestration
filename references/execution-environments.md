@@ -4,6 +4,21 @@ This reference explains the v2 execution-environment abstraction. Codex remains
 the best-tested connected execution environment, but CWO should not require the
 Codex shell when an operator is working in a restricted or airgapped zone.
 
+## Current use and historical boundary
+
+The standard beginner route is the [first-project tutorial](../docs/get-started.html).
+Current connected native worker selection uses active task-selected v3 policy:
+qualified exact Luna first, Terra for recorded escalation. Historical Spark/v2
+role tables, native command recipes and fallback controls below are retained for
+interpreting old artifacts, not for fresh dispatch. Read the active policy and
+[current supervision overview](native-supervision.md) before selecting a worker.
+
+Restricted/OpenCode environment profiles and rendered dispatch artifacts are
+integration configuration, not proof of a live end-to-end rollout. Validate the
+specific harness/model/access combination; do not infer executable support from
+a profile name. Explicit maintenance and repair controls remain exceptional
+authority paths, not ordinary onboarding.
+
 ## Boundary
 
 CWO owns governance:
@@ -135,7 +150,7 @@ are recorded. Synthesis ownership moves from `frontier_architect` to the GLM
 primary architect for this environment only; the default `connected-codex`
 profile remains unchanged.
 
-### Native-only Spark route
+### Historical v2 native-only Spark route
 
 Spark dispatch is native-only. Use native subagents for Spark work and assert
 model attestation from trusted control-plane/session metadata, never from model

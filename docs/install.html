@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Install the skill and named profile while keeping source, installation and project directories separate."
+    >
+    <title>Install and verify CWO | CWO</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="./styles.css">
+    <script src="./site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html" aria-current="true">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div>
+      </nav>
+    </header>
+
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--tutorial"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./get-started.html">Start Here</a></nav><h1 id="page-title">Install and verify CWO</h1><p class="lede">Install from the source checkout. Continue when the skill check is current and profile verification reports “ok”: true.</p><nav class="tutorial-progress" aria-label="First project stages"><ol><li><a href="./get-started.html">1. Prepare</a></li><li><a href="./install.html" aria-current="step">2. Install</a></li><li><a href="./first-project.html">3. First task</a></li><li><a href="./continue-project.html">4. Continue</a></li></ol></nav></header><details class="contents"><summary>On this page</summary><nav aria-label="On this page"><a href="#install">Install and verify</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="install"><span id="profile"></span><h2>Install the skill, then the named profile</h2>
+        <p>There are three distinct locations: the <strong>source checkout</strong> below contains the installer; the <strong>installed skill</strong> normally lives under <code>~/.codex/skills/complex-work-orchestration</code>; your <strong>target project</strong> will be a separate directory. Keep them separate.</p>
+        <p>The following primary path assumes <code>~/cwo-source</code> does not already exist. If it does, choose a new source folder or follow <a href="./reference.html#updates">the update guide</a>; do not delete an existing checkout.</p>
+        <p class="code-hint">Long commands keep their original lines. If a line continues beyond the edge, scroll inside its code block; select the text to copy it.</p><p class="input-label">Terminal</p>
+        <pre><code>git clone https://github.com/gprocunier/complex-work-orchestration.git &quot;$HOME/cwo-source&quot;
+cd &quot;$HOME/cwo-source&quot;
+./scripts/install.sh --yes
+python3 scripts/check_installed_skill.py --check
+python3 scripts/manage_instruction_profile.py install --profile operator-e
+python3 scripts/manage_instruction_profile.py verify --profile operator-e</code></pre>
+        <p><strong>Expected:</strong> installation names its destination, the skill check reports current, and profile verification reports <code>"ok": true</code>. The named profile adds the operator's instructions and a launcher; it leaves default profile settings intact. The installed CWO skill remains available in ordinary sessions until disabled or removed. If a managed file is already modified, stop and inspect the reported path; do not add <code>--force</code> blindly. A missing <code>bd</code> warning is not a completed setup.</p>
+        <p>These commands use the default Codex home. If you deliberately use <code>CODEX_HOME</code> or <code>CODEX_SKILLS_DIR</code>, align the installer, check, profile, and launcher with that same home. The <a href="./reference.html#installation">installation reference</a> covers explicit destinations.</p>
+        </section><nav class="next-action" aria-label="Next task"><a class="button" href="./first-project.html">Next: repair the checker</a></nav></article></div></div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Native Supervision</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Contractors</a><a href="./local-workers.html">Local Workers</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
+    </footer>
+  </body>
+</html>

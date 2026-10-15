@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Simple and complex Complex Work Orchestration use cases, from prompt-coach invocation to multi-expert review with Gemini, Claude Opus, and ChatGPT Pro."
+      content="Four recognizable tasks with prompts, concrete artifacts, decisive checks and recovery boundaries."
     >
-    <title>Use Cases | Complex Work Orchestration</title>
+    <title>Worked examples | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="./styles.css">
   </head>
@@ -21,236 +21,118 @@
         </a>
         <div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html" aria-current="page">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html" aria-current="page">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
     </header>
 
-    <main id="main">
-      <section class="page-hero">
-        <p class="eyebrow">Use cases</p>
-        <h1>Simple And Complex Paths</h1>
-        <p class="lede">
-          Start in a fresh Candidate E session and keep focused work small.
-          Add one supervised Spark worker when delegation helps. Every delegated
-          native worker is supervised; there is no unsupervised mode or opt-out.
-          Add concurrent, local, or outside review lanes only when their extra
-          controls fit.
-        </p>
-      </section>
+    <main id="main" tabindex="-1">
+      <div class="doc-layout reader-layout"><details class="contents"><summary>On this page</summary><nav class="page-nav" aria-label="On this page"><a href="#examples">Look at the work, not the org chart</a><a href="#multi-session">1. A change that survives a fresh session</a><a href="#conflicting-review">2. Resolve contradictory retry proposals with a counterexample</a><a href="#lab-operations">3. Rehearse a configuration rollout without touching production</a><a href="#research-artifact">4. Turn source notes into a defensible decision memo</a><a href="#run-fixtures">Run and inspect the three evidence exercises</a></nav>
+        </details>
+        <article class="doc-content"><section id="examples"><span id="where-it-fits"></span><span id="simple-use-cases"></span><h1>Look at the work, not the org chart</h1>
+        <p class="lede">Each example starts with a problem, gives you a usable prompt, and shows what an accepted result must contain. Choose the reason for extra structure—not a number of agents.</p>
+        <p>The configuration checker has a documented live two-session run on one Linux host. The other three are explicitly authored, executable evidence exercises, not customer stories, actual reviewer transcripts, or benchmarks. Their results demonstrate the checks, not universal runtime integration.</p>
+        </section>
+        <section id="multi-session"><span id="durable-work-log"></span><span id="complex-use-cases"></span><h2>1. A change that survives a fresh session</h2>
+        <p><strong>Problem:</strong> a validator repair and a CLI depend on the same contract. Restarting must not reopen why booleans are invalid ports.</p>
+        <p class="input-label">Initiating prompt; full runnable steps in Start Here</p>
+        <pre><code>Use $complex-work-orchestration. In a disposable project, fix the validator first and record its accepted behavior. Create a dependent CLI task but leave it unstarted. Save task IDs, exact checks and a readable handoff. Continue in a fresh session using only project files and Beads. No production access or publication.</code></pre>
+        <p><strong>Operator decision:</strong> approve the list-of-errors API and scope. CWO records two tasks, verifies the prerequisite, and uses the saved decision to bound the second phase. Do not delegate this small exercise just to demonstrate a worker.</p>
+        <pre><code>Validator: accepted; booleans are not ports.
+CLI: depends on accepted validator; same error interface.
+Evidence: tests, diff, task records, HANDOFF.md.
+Authority: disposable local project only.</code></pre>
+        <p>The excerpt is illustrative; the <a href="./get-started.html">full tutorial</a> creates actual IDs and artifacts. The live run finished with an agent-produced checker, 11 project tests, and two completed linked tasks. Stronger final contract checks were then run independently. <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/examples/first-project/VALIDATION.md">Execution versions and limits</a>.</p>
+        <p><strong>Recovery:</strong> if the next session cannot establish acceptance, recheck files/tests and task records before implementing the CLI; mark missing evidence honestly. <strong>Not worth it:</strong> a throwaway one-line conversion with no meaningful continuation.</p>
+        </section>
+        <section id="conflicting-review"><h2>2. Resolve contradictory retry proposals with a counterexample</h2>
+        <p><strong>Problem:</strong> proposal A says retry transient failures for all requests; proposal B says retrying a non-idempotent write can duplicate its effect. These are genuinely contradictory authored proposals, not fabricated returns from real reviewers.</p>
+        <p class="input-label">Initiating prompt</p>
+        <pre><code>Use $complex-work-orchestration to review our retry design in a synthetic fixture. Compare “retry all transient failures” against “never replay non-idempotent writes.” Reproduce the counterexample; do not call a real API. Preserve both proposals, evidence and the owner’s decision. Do not implement until the acceptance invariant is settled.</code></pre>
+        <p><strong>Operator decision:</strong> whether the service supplies an actual idempotency guarantee. The fixture assumes it does not. CWO separates that assumption from implementation advice and records the rejected alternative rather than voting on reviewer confidence.</p>
+        <pre><code>Invariant: a POST must not silently produce two effects.
+Proposal A, POST: 2 attempts, 2 effects — rejected.
+Proposal B, POST: 1 attempt, 1 effect — ambiguity surfaced.
+Bounded GET retry: 2 attempts, 0 write effects — permitted.
+Decision: retry reads; do not replay ambiguous writes.</code></pre>
+        <p><strong>Concrete output:</strong> a decision record with its assumption, counterexample, accepted policy and rejected policy. The executable fixture asserts each count. This is not a complete HTTP retry library.</p>
+        <p><strong>Recovery:</strong> if later evidence proves server-side idempotency, reopen that assumption in a new bounded task; do not erase the earlier evidence. <strong>Not worth it:</strong> a retry-free offline transformation with no disputed effect.</p>
+        </section>
+        <section id="lab-operations"><span id="execution-profile-fit"></span><h2>3. Rehearse a configuration rollout without touching production</h2>
+        <p><strong>Problem:</strong> a staged configuration passes a shape check but the running service might not become healthy. “The file looks correct” is not acceptance.</p>
+        <p class="input-label">Initiating prompt</p>
+        <pre><code>Use $complex-work-orchestration to prepare a lab-only configuration change. Identify the execution host and exact writable paths before any mutation. Stage the candidate, preserve the prior bytes, define a health check and rollback trigger, then verify restored state after a failed check. No production hosts, privilege escalation, deployment or remote access is authorized.</code></pre>
+        <p><strong>Operator decision:</strong> name the real lab host and approve any actual service action in a separate task. CWO must not infer production authority from an infrastructure-flavored prompt.</p>
+        <pre><code>Boundary: temporary local files only; no network requests.
+Stage: port 8081, prior port 8080 preserved.
+Health: intentionally simulated failure.
+Recovery: restore prior content, reread active.json.
+Acceptance: restored_port=8080; rollback_verified=true.</code></pre>
+        <p><strong>Concrete output:</strong> a run record, staged/previous configuration, explicit failed health observation, and verified restoration. The fixture uses temporary local files and asserts restored content. It does not prove service restart, remote reachability, a real health check, or lab deployment.</p>
+        <p><strong>Recovery:</strong> failed rollback stops the affected operation; retain the backup and evidence, do not continue dependent rollout. <strong>Not worth it:</strong> inspecting a static file without any intended change.</p>
+        </section>
+        <section id="research-artifact"><h2>4. Turn source notes into a defensible decision memo</h2>
+        <p><strong>Problem:</strong> a team must choose an error-output format. Source notes mix a requirement, a reproducible fact and an unsupported performance claim. A polished summary can still launder the unsupported claim into “truth.”</p>
+        <p class="input-label">Initiating prompt</p>
+        <pre><code>Use $complex-work-orchestration to turn the supplied synthetic notes into an output-format decision memo. Trace every material claim to a note, run the available representation check, and exclude unsupported performance assertions. Produce decision.md plus claim-sources.json. Keep unresolved client compatibility as a human decision. Do not invent research, contact external sources, or publish.</code></pre>
+        <p><strong>Operator decision:</strong> confirm that downstream clients accept the proposed format. CWO keeps the requirement and evidence with the artifact and bounds further research instead of generating endless prose.</p>
+        <pre><code>N1: clients need a list of messages — requirement.
+N2: JSON round-trips the nested list — checked.
+N3: JSON is always faster — unsupported, excluded.
+Decision: JSON preserves the required shape (N1, N2).
+Remaining: client compatibility, not an invented speed claim.</code></pre>
+        <p><strong>Concrete output:</strong> the memo text and source mapping are returned in fixture JSON. The representation assertion is executed; the notes themselves are synthetic inputs, not findings from external research.</p>
+        <p><strong>Recovery:</strong> contradictory/new sources reopen only the affected decision, preserve earlier provenance, and rerun the corresponding check. <strong>Not worth it:</strong> paraphrasing one uncontroversial paragraph with no retained deliverable.</p>
 
-      <section class="section doc-layout">
-        <nav class="page-nav" aria-label="Page sections">
-          <a href="#simple-use-cases">Simple Use Cases</a>
-          <a href="#durable-work-log">Durable Work Log</a>
-          <a href="#where-it-fits">Where CWO Fits</a>
-          <a href="#execution-profile-fit">Execution Profile Fit</a>
-          <a href="#complex-use-cases">Complex Use Cases</a>
-          <a href="#acceptance">Acceptance Gates</a>
-          <a href="./workflows.html">Guided Workflow</a>
-      </nav>
-        <div class="doc-body">
-          <section id="simple-use-cases">
-            <h2>Simple Use Cases</h2>
-            <p>
-              Use the simple path for a focused change that still needs a work
-              record: a small bug fix, a docs cleanup, a validation pass, or a
-              short investigation that another agent may need to resume.
-            </p>
-            <pre><code>/plan Use $complex-work-orchestration prompt coach:
-Clean up installer docs, tests, and handoff notes.</code></pre>
-            <ol class="check-list">
-              <li>Start <code>cwo-codex -C "$PWD"</code> so Candidate E owns the decisions.</li>
-              <li>Candidate E runs the prompt coach and asks only execution-changing questions.</li>
-              <li>The work stays in the decision thread unless bounded delegation is worthwhile.</li>
-              <li>One Beads task captures scope, evidence, validation, and handoff.</li>
-              <li>The close reason stays short; the final comment preserves the reusable context.</li>
-            </ol>
-            <p>
-              Continue with <a href="./get-started.html#coach">Get Started</a>
-              for the first run, then use
-              <a href="./workflows.html#invoke-codex">Workflows</a> when the
-              coach recommends a broader graph.
-            </p>
-          </section>
-
-          <section id="durable-work-log">
-            <h2>Durable Work Log</h2>
-            <p>
-              Beads is the durable work log. The final closure-memory comment
-              should answer the recovery questions a future agent would ask:
-              who was involved, what changed, why it closed, how it was
-              validated, when it was closed, where it ran, what risk remains,
-              and what follows.
-            </p>
-            <p>
-              For exact closure helper syntax, use
-              <a href="./reference.html#durable-memory">Reference</a>. This
-              page keeps the use-case view focused on why the durable record
-              matters. The <a href="./beads-memory.html">Beads Memory deep dive</a>
-              explains the same idea from the perspective of context recovery
-              and agent handoff.
-            </p>
-            <p>
-              If no Dolt remote is configured, say that the Beads trail is
-              local-only. Do not imply remote sync, shared durability, or
-              completed publication until those checks have actually happened.
-            </p>
-          </section>
-
-          <section id="where-it-fits">
-            <h2>Where CWO Fits</h2>
-            <p>
-              CWO is a governance, evidence, and handoff layer for Codex-led
-              work. It does not replace OpenRouter Fusion, LangGraph, AutoGen,
-              CrewAI, Claude Code, Gemini CLI, or Codex CLI. Use those tools
-              for the model call, agent runtime, coding session, or workflow
-              they are built to provide; use CWO to decide when they are
-              appropriate, what boundary they get, how their output is
-              evaluated, and what durable Beads record a future agent can trust.
-            </p>
-            <ul class="check-list">
-              <li>OpenRouter Fusion is treated as a multi-model deliberation source, not as the durable project ledger.</li>
-              <li>LangGraph, AutoGen, and CrewAI are agent or workflow frameworks; CWO can govern work around them without claiming to be their runtime.</li>
-              <li>Claude Code, Gemini CLI, and Codex CLI remain coding-agent surfaces; CWO records which surface did what and whether the evidence was accepted.</li>
-              <li>Bring-your-own-subscription (BYOS) or bring-your-own-key (BYOK) access stays with the operator, provider account, local endpoint, or OpenRouter setup. CWO records approval and provenance; it does not broker credentials.</li>
-              <li>OpenShift AI vLLM is a local-worker option through an OpenAI-compatible profile, with evaluator and architect adjudication before findings become implementation work.</li>
-              <li>Beads provides the durable task graph, dependency state, closure rationale, evidence, residual risk, and follow-up brief for later agents.</li>
-            </ul>
-            <p>
-              Keep exact product claims in review packets and release notes
-              tied to current vendor documentation. Public CWO copy should stay
-              at the durable boundary: governance, provenance, Beads-backed
-              memory, evaluation, and handoff.
-            </p>
-          </section>
-
-          <section id="execution-profile-fit">
-            <h2>Execution Profile Fit</h2>
-            <p>
-              Use cases become easier to size when the execution profile is
-              explicit. CWO keeps the same Beads, evaluation, and adjudication
-              controls while the shell and model endpoints change.
-            </p>
-            <div class="reference-table compact" role="table" aria-label="Use case to execution profile mapping">
-              <div role="row">
-                <span role="cell">Small connected fix</span>
-                <span role="cell">Candidate E decision thread; one Beads task is often enough.</span>
-              </div>
-              <div role="row">
-                <span role="cell">Bounded connected implementation</span>
-                <span role="cell">Candidate E plus one supervised native Spark worker; validate before acceptance.</span>
-              </div>
-              <div role="row">
-                <span role="cell">High-risk plan review</span>
-                <span role="cell">Connected Codex path with approved contractor packets, evaluator scoring, peer-review disposition, and architect adjudication.</span>
-              </div>
-              <div role="row">
-                <span role="cell">Restricted shell</span>
-                <span role="cell">OpenCode or manual operator envelope; no contractor sharing unless the environment policy permits it.</span>
-              </div>
-              <div role="row">
-                <span role="cell">Airgapped local models</span>
-                <span role="cell">Local Beads plus approved RHOAI/vLLM model profiles for review, worker, architecture, or synthesis candidates after benchmark gates.</span>
-              </div>
-            </div>
-            <p>
-              Contractors, local workers, and synthesis lanes do not approve or
-              merge work. They produce evidence that must pass the evaluator and
-              be accepted by the architect.
-            </p>
-            <p>
-              Multi-worker concurrency is experimental; supervision is not.
-              Two- and three-worker native pools require a separate opt-in and
-              are not a faster version of the standard path. Read
-              <a href="./native-supervision.html#concurrency-preview">the
-              concurrency prerequisites</a> before selecting that path.
-            </p>
-          </section>
-
-          <section id="complex-use-cases">
-            <h2>Complex Use Cases</h2>
-            <p>
-              Use the complex pattern when a Codex architect plan is important
-              enough to benefit from independent model critique before
-              implementation. Codex still owns architecture, integration,
-              validation, and release judgment.
-            </p>
-            <div class="workflow-diagram contractor" role="img" aria-label="Complex use case flow from Codex plan to Gemini and Claude Opus critiques, ChatGPT Pro master review, architect adjudication, implementation, and validation.">
-              <div class="flow-card"><strong>Plan</strong><span>Codex architect</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Critique</strong><span>Gemini + Opus</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Master Review</strong><span>ChatGPT Pro 5.5</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Adjudicate</strong><span>Codex decides</span></div>
-            </div>
-            <ol class="check-list">
-              <li>Ask for the prompt coach and approve third-party sharing before any packet is built.</li>
-              <li>Use separate review lanes for Gemini and Claude Opus architecture critique.</li>
-              <li>Record dispatch IDs, packet SHA values, return files, and evaluation decisions.</li>
-              <li>Use ChatGPT Pro 5.5 Extended Reasoning only for the final plan bundle.</li>
-              <li>Accept only returns with the expected dispatch identity, packet hash, boundary fit, and model/share-link evidence.</li>
-            </ol>
-            <p>
-              The <a href="./model-synthesis.html">Model Synthesis deep dive</a>
-              shows why these reviews remain evidence until architect
-              adjudication. The
-              <a href="./zero-trust-consensus.html">Zero-Trust Consensus deep dive</a>
-              covers security-sensitive claim comparison when agreement and
-              disagreement both need explicit handling.
-            </p>
-            <p>
-              The operator details are in
-              <a href="./external-contracting.html#multi-expert-review">External Contracting</a>,
-              and the browser-mediated master review setup is in
-              <a href="./external-contracting.html#master-review">Master Review</a>.
-              The <a href="./contractor-demo.html">contractor demo</a> shows the
-              same evidence-first control model on a smaller public project.
-              The <a href="./malpractice-sabotage.html">Guardrails deep dive</a>
-              explains how rejected, quarantined, or boundary-tainted returns
-              stay out of implementation.
-            </p>
-          </section>
-
-          <section id="acceptance">
-            <h2>Acceptance Gates</h2>
-            <p>
-              Complex review output is evidence, not a merge decision. Codex
-              evaluates returns, quarantines unsupported or boundary-breaking
-              claims, turns accepted findings into follow-up work, validates
-              the implementation, runs publish sanitization when public output
-              is involved, and records the final durable work log.
-            </p>
-            <p>
-              For exact executor IDs, job labels, browser confirmation
-              requirements, and helper commands, use the
-              <a href="./reference.html#experts">Reference</a> page.
-            </p>
-          </section>
+<h3>A substantial artifact: rebuilding a documentation system</h3>
+<p><strong>Sanitized local example:</strong> this documentation set was maintained as a source-to-artifact project. The starting mismatch was concrete: the active worker policy selected Luna first while reader pages still described Spark as normal. Installation instructions existed, but not a complete useful first task and verified fresh-session continuation. This is a local implementation example, not a deployed-site claim or a productivity benchmark.</p>
+<p class="input-label">Initiating prompt for a documentation project</p>
+<pre><code>Use CWO to rebuild the human documentation around adoption. Audit current implementation and classify every document before editing. Give one editor ownership of the integrated copy. Build a complete novice project and a direct experienced-operator route. Map material claims to source evidence, preserve historical qualification, keep old URLs useful, and verify examples plus the rendered site. Do not change runtime policy or publish.</code></pre>
+<p><strong>Operator decision:</strong> select the source baseline and publication boundary; resolve disputed product promises against implementation, not marketing preference. CWO records dependencies between the truth audit, integrated first slice, independent reader review, expansion and final validation. Reviewer praise does not replace executing the tutorial.</p>
+<pre><code>Decision: one canonical first-project sequence; README summarizes and links.
+Source: active task-selected policy, installer/profile code and actual tests.
+Maturity: exact host qualification is required; historical Spark records stay historical.
+Artifact: README + reader pages + runnable examples + maintainer ownership map.
+Compatibility: retain 16 page routes and 139 existing IDs.
+Observed defect: four links existed in the repo but failed under the Pages subpath.
+Correction: explicit source links plus a regression for the published-root boundary.</code></pre>
+<p><strong>Acceptance:</strong> inspect the rewritten pages and <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/CONTRIBUTING.md">canonical ownership/checks</a>; execute both tutorial sessions, run claim/link/example checks, and inspect desktop/mobile and keyboard behavior. The source-to-claim record, page migration map, review dispositions and raw local evidence are work artifacts, not extra public navigation. <strong>Recovery:</strong> preserve accepted copy and failed evidence, correct the affected link or command, and rerun the relevant check rather than restarting the whole project. <strong>Not worth it:</strong> correcting a single typo with no behavioral or navigation effect.</p>
+</section>
+        <section id="run-fixtures"><span id="acceptance"></span><h2>Run and inspect the three evidence exercises</h2>
+<p>These exercises require only Python 3, Git, and a CWO source checkout. You do not need Codex authentication, Beads, an installed skill, or a model call. Choose a new source-only evaluation folder. If <code>~/cwo-example-source</code> already exists, use another name or inspect that checkout instead of deleting it.</p>
+        <p class="input-label">Terminal</p>
+        <pre><code>python3 --version
+git --version
+git clone https://github.com/gprocunier/complex-work-orchestration.git &quot;$HOME/cwo-example-source&quot;
+cd &quot;$HOME/cwo-example-source&quot;
+python3 examples/worked-evidence/run_examples.py --check</code></pre>
+        <p><strong>Expected:</strong> JSON with the retry effect counts, <code>rollback_verified: true</code>, and a memo excluding N3. All three exercises run in temporary local storage without model calls; generated temporary files are removed after their contents are captured in output. On failure, inspect the failing assertion; do not use production access to make a demo impressive.</p>
+        <p>For the actual agent exercise, use <a href="./get-started.html">Start Here</a>. For advanced controls, use <a href="./workflows.html">Guides</a> and <a href="./reference.html">Reference</a>.</p>
+        </section>
+        </article>
         </div>
-      </section>
     </main>
 
     <footer class="site-footer">
       <div>
         <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
+        <p>Keep decisions, progress, and evidence across agent sessions.</p>
       </div>
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
+        <a href="./get-started.html">Start Here</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
+        <a href="./workflows.html">Guides</a>
         <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
+        <a href="./use-cases.html">Examples</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
+        <a href="./contractor-demo.html">Historical Demo</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>

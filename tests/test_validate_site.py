@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from validate_site import validate_html  # noqa: E402
+from validate_site import validate_html, ONBOARDING_STEPS, ONBOARDING_PAGE_STEPS, validate_onboarding, validate_semantic_routes, SEMANTIC_ROUTES  # noqa: E402
 
 
 def internal_copy_errors(errors: list[str]) -> list[str]:
@@ -138,17 +138,37 @@ class ValidateSiteTests(unittest.TestCase):
             errors = validate_html(source)
         self.assertTrue(any("links to missing fragment" in error for error in errors), errors)
 
-    def test_candidate_e_onboarding_order_is_enforced(self) -> None:
-        correct = """
-<p>manage_instruction_profile.py install --profile operator-e</p>
-<p>manage_instruction_profile.py verify --profile operator-e</p>
-<p>cwo-codex -C "$PWD"</p>
-<p>/plan Use $complex-work-orchestration prompt coach:</p>
-"""
-        errors = self.validate_snippet("get-started.html", correct)
-        self.assertFalse(any("must present Candidate E" in error for error in errors), errors)
-        errors = self.validate_snippet("get-started.html", "\n".join(reversed(correct.splitlines())))
-        self.assertTrue(any("must present Candidate E" in error for error in errors), errors)
+    def test_split_tutorial_preserves_each_operational_step_in_order(self):
+        contents = {page: "\n".join(f"<p>{step}</p>" for step in steps) for page, steps in ONBOARDING_PAGE_STEPS.items()}
+        contents["get-started.html"] = ''.join(f'<a href="./{p}">Next</a>' for p in ("install.html", "first-project.html", "continue-project.html"))
+        self.assertEqual(validate_onboarding(contents), [])
+        for page, steps in ONBOARDING_PAGE_STEPS.items():
+            for step in steps:
+                missing = {**contents, page: contents[page].replace(step, "")}
+                self.assertTrue(validate_onboarding(missing), (page, step))
+            reversed_steps = {**contents, page: "\n".join(reversed(contents[page].splitlines()))}
+            self.assertTrue(validate_onboarding(reversed_steps), page)
+        self.assertTrue(validate_onboarding({**contents, "get-started.html": ""}))
+
+    def test_semantic_routes_require_real_task_sections_not_empty_aliases(self):
+        good = ''.join(f'<section id="{anchor}"><h2>Task</h2><pre>{command or ""}</pre><a href="{href}">Continue</a></section>' for anchor, (href, command) in SEMANTIC_ROUTES.items())
+        self.assertEqual(validate_semantic_routes(good), [])
+        for anchor in SEMANTIC_ROUTES:
+            self.assertTrue(validate_semantic_routes(good.replace(f'<section id="{anchor}">', f'<section><span id="{anchor}"></span>')))
+        self.assertTrue(validate_semantic_routes(good.replace('cat HANDOFF.md', 'A handoff exists')))
+        self.assertTrue(validate_semantic_routes(good.replace('./external-contracting.html#collaboration', './index.html')))
+
+    def test_allows_exact_official_prerequisite_source_not_lookalike(self) -> None:
+        for url, allowed in [("https://learn.chatgpt.com/docs/codex/cli", True),
+                             ("https://learn.chatgpt.com.evil.invalid/docs/codex/cli", False),
+                             ("https://learn.chatgpt.com/docs/models", True),
+                             ("https://learn.chatgpt.com/docs/models-pretend", False)]:
+            errors = self.validate_snippet("workflows.html", f'<a href="{url}">Prerequisites</a>')
+            self.assertEqual(any("non-source external URL" in e for e in errors), not allowed, errors)
+
+    def test_rejects_repository_file_outside_pages_publication_root(self) -> None:
+        errors = self.validate_snippet("workflows.html", '<a href="../SECURITY.md">Security</a>')
+        self.assertTrue(any("leaves published docs directory" in e for e in errors), errors)
 
     def test_rejects_unapproved_operator_source_blob(self) -> None:
         url = (
@@ -208,6 +228,8 @@ class ValidateSiteTests(unittest.TestCase):
 <section id="top"><p>Beads, model synthesis, sabotage, malpractice, quarantine, and adjudication make this powerful.</p></section>
 <section id="walk"><p>Now explain the ramp.</p></section>
 <a href="./workflows.html">Workflows</a>
+<a href="./use-cases.html">Examples</a>
+<a href="./explanation.html">Concepts</a>
 <a href="./native-supervision.html">Native Supervision</a>
 <a href="./beads-memory.html">Beads Memory</a>
 <a href="./model-synthesis.html">Model Synthesis</a>
@@ -236,12 +258,9 @@ class ValidateSiteTests(unittest.TestCase):
         )
         rendered = "\n".join(errors)
         self.assertIn("missing expert route link: ./workflows.html", rendered)
-        self.assertIn("missing expert route link: ./beads-memory.html", rendered)
-        self.assertIn("missing expert route link: ./model-synthesis.html", rendered)
-        self.assertIn("missing expert route link: ./zero-trust-consensus.html", rendered)
-        self.assertIn("missing expert route link: ./malpractice-sabotage.html", rendered)
+        self.assertIn("missing expert route link: ./use-cases.html", rendered)
+        self.assertIn("missing expert route link: ./explanation.html", rendered)
         self.assertIn("missing expert route link: ./reference.html", rendered)
-        self.assertIn("missing expert route link: ./contractor-demo.html", rendered)
 
     def test_allows_plain_index_opening_before_walk(self) -> None:
         errors = self.validate_snippet(
@@ -251,6 +270,8 @@ class ValidateSiteTests(unittest.TestCase):
 <section id="crawl"><p>A web chat answers questions. A coding shell works in the project.</p></section>
 <section id="walk"><p>Now introduce the workflow.</p></section>
 <a href="./workflows.html">Workflows</a>
+<a href="./use-cases.html">Examples</a>
+<a href="./explanation.html">Concepts</a>
 <a href="./native-supervision.html">Native Supervision</a>
 <a href="./beads-memory.html">Beads Memory</a>
 <a href="./model-synthesis.html">Model Synthesis</a>

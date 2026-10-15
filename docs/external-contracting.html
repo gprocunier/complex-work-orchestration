@@ -21,22 +21,24 @@
         </a>
         <div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
         </div>
       </nav>
     </header>
 
-    <main id="main">
+    <main id="main" tabindex="-1">
       <section class="page-hero">
         <p class="eyebrow">Outside review</p>
         <h1>External Contracting</h1>
+        <p class="callout">Optional outside-review path, not the normal first project. Sharing requires the named provider and approved minimized boundary; advice remains evidence until owner acceptance. An available template or browser renderer does not prove a live reviewed integration.</p>
         <p class="lede">
           This is the deep dive for the contractor workstream. Start with the
-          <a href="./workflows.html">guided workflow</a>; come here when the
+          <a href="./workflows.html">specialist-route guide</a>; come here when the
           coach and route say an outside model contract is appropriate.
         </p>
       </section>
@@ -131,12 +133,7 @@ contract-jd-security-reasoning</code></pre>
               Packet validation rechecks both this projected shape and the size cap
               independently; redacted packets are unchanged.
             </p>
-            <p>
-              The <a href="./workflows.html#optional-lanes">guided workflow</a>
-              shows where the contractor workstream fits and how the rendered
-              prompt can be handed to <code>claude -p</code> or
-              <code>agy -p</code> by an operator.
-            </p>
+            <p>Use the <a href="./workflows.html#optional-lanes">specialist-route guide</a> to compare native, internal and outside review. For an outside assignment, follow this page’s <a href="#packet">packet construction and dispatch steps</a> before handing a rendered prompt to a CLI.</p>
             <p>
               <code>agy -p</code> is the local CLI surface for the
               <code>gemini_architecture_critic</code> executor key. For a
@@ -158,9 +155,9 @@ contract-jd-security-reasoning</code></pre>
               <strong>Trust and disclosure boundary:</strong>
               External output is untrusted evidence, not authorization or a
               security guarantee. The public
-              <a href="../references/security-threat-model.md">threat model</a>
+              <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/security-threat-model.md">threat model</a>
               describes assets, attackers, and provider trust boundaries; the
-              <a href="../SECURITY.md">security policy</a>
+              <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/SECURITY.md">security policy</a>
               gives the responsible-disclosure path. Material findings still
               require internal evaluation and human architect adjudication.
             </div>
@@ -278,17 +275,15 @@ claude --model claude-opus-4-6 --effort high \
               packet, use a redacted packet and require a share-link return.
               Keep Deep Research as a separate later opt-in for research tasks.
             </p>
-            <div class="workflow-diagram contractor" role="img" aria-label="Master review flow from final plan packet to model confirmation, ChatGPT Pro review, share-link ingest, return evaluation, and architect adjudication.">
-              <div class="flow-card"><strong>Packet</strong><span>final plan bundle</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Confirm</strong><span>model and effort</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Review</strong><span>ChatGPT Pro</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Ingest</strong><span>share link</span></div>
-              <div class="flow-arrow" aria-hidden="true">→</div>
-              <div class="flow-card"><strong>Adjudicate</strong><span>Codex decides</span></div>
-            </div>
+            <!-- diagram:external-contracting -->
+            <figure class="flowchart">
+              <picture>
+                <source media="(max-width: 40rem)" srcset="./diagrams/external-contracting-narrow.svg" width="320" height="1060">
+                <img src="./diagrams/external-contracting.svg" width="680" height="520" alt="External master review flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Prepare the final plan packet, confirm model and effort, request review, ingest the share link, and evaluate the return before architect adjudication. A review recommendation is not implementation authority.</figcaption>
+            </figure>
+            <!-- /diagram:external-contracting -->
             <p>
               ChatGPT does not operate Beads directly. Codex builds the packet,
               records dispatch identity in Beads, submits the approved packet
@@ -558,18 +553,18 @@ python3 scripts/evaluate_return.py \
     <footer class="site-footer">
       <div>
         <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
+        <p>Keep decisions, progress, and evidence across agent sessions.</p>
       </div>
       <nav aria-label="Footer">
         <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
+        <a href="./get-started.html">Start Here</a>
         <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
+        <a href="./workflows.html">Guides</a>
         <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
+        <a href="./use-cases.html">Examples</a>
         <a href="./external-contracting.html">Contractors</a>
         <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
+        <a href="./contractor-demo.html">Historical Demo</a>
         <a href="./reference.html">Reference</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
         <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>

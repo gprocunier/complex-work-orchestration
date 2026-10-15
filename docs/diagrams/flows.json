@@ -1,0 +1,218 @@
+{
+  "external-contracting": {
+    "page": "external-contracting.html",
+    "title": "External master review",
+    "description": "Prepare the final plan packet, confirm model and effort, request review, ingest the share link, and evaluate the return before architect adjudication. A review recommendation is not implementation authority.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "Packet",
+        "detail": "final plan bundle"
+      },
+      {
+        "title": "Confirm",
+        "detail": "model and effort"
+      },
+      {
+        "title": "Review",
+        "detail": "ChatGPT Pro"
+      },
+      {
+        "title": "Ingest",
+        "detail": "share link"
+      },
+      {
+        "title": "Evaluate",
+        "detail": "quality and boundary"
+      },
+      {
+        "title": "Adjudicate",
+        "detail": "Codex decides"
+      }
+    ]
+  },
+  "local-workers": {
+    "page": "local-workers.html",
+    "title": "Local review workflow",
+    "description": "Ask the coach, explicitly opt into local inference, select the configured profile, then evaluate the return. The architect—not the worker—decides what to accept.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "/plan",
+        "detail": "ask coach"
+      },
+      {
+        "title": "Opt In",
+        "detail": "local-ok"
+      },
+      {
+        "title": "Profile",
+        "detail": "OpenShift AI vLLM"
+      },
+      {
+        "title": "Evaluate",
+        "detail": "architect decides"
+      }
+    ]
+  },
+  "contractor-demo": {
+    "page": "contractor-demo.html",
+    "title": "Historical contractor demo",
+    "description": "Historical demo: Beads work lanes led to a bounded packet, a contractor branch, return review, and an accepted publication. This record does not authorize a new dispatch or publication.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "Beads",
+        "detail": "epic and lanes"
+      },
+      {
+        "title": "Packet",
+        "detail": "bounded prompt"
+      },
+      {
+        "title": "Branch",
+        "detail": "agy or Claude"
+      },
+      {
+        "title": "Review",
+        "detail": "evaluate return"
+      },
+      {
+        "title": "Publish",
+        "detail": "Codex accepts"
+      }
+    ]
+  },
+  "beads-memory": {
+    "page": "beads-memory.html",
+    "title": "What persists between sessions",
+    "description": "Session A saves project files and tests alongside task decisions. A fresh Session B reads both and verifies them before continuing; an unrecorded conversation is not part of that durable state. The two branches show saved information, not concurrent workers.",
+    "kind": "durable-memory"
+  },
+  "model-synthesis": {
+    "page": "model-synthesis.html",
+    "title": "Review and synthesis",
+    "description": "The architect plans the work; isolated review lanes return evidence. Evaluate each return before synthesis, then let the architect adjudicate agreement and conflict.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "Plan",
+        "detail": "Codex architect"
+      },
+      {
+        "title": "Review",
+        "detail": "isolated model lanes"
+      },
+      {
+        "title": "Evaluate",
+        "detail": "quality and boundary"
+      },
+      {
+        "title": "Synthesize",
+        "detail": "consensus and conflict"
+      },
+      {
+        "title": "Adjudicate",
+        "detail": "architect decides"
+      }
+    ]
+  },
+  "zero-trust-consensus": {
+    "page": "zero-trust-consensus.html",
+    "title": "Evidence before consensus",
+    "description": "Evaluate returns, group their trust domains, compare structured claims, and report agreement and divergence before architect adjudication. Agreement alone does not establish correctness.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "Evaluate",
+        "detail": "return quality and boundary"
+      },
+      {
+        "title": "Group",
+        "detail": "independent trust domains"
+      },
+      {
+        "title": "Compare",
+        "detail": "structured claims"
+      },
+      {
+        "title": "Report",
+        "detail": "agreement and divergence"
+      },
+      {
+        "title": "Decide",
+        "detail": "architect adjudication"
+      }
+    ]
+  },
+  "malpractice-sabotage": {
+    "page": "malpractice-sabotage.html",
+    "title": "Return safety gate",
+    "description": "Check the return against its packet and mutation boundary, score malpractice and sabotage signals, and record an accepted, rejected, or quarantined disposition. The architect decides whether a finding may change the plan.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "Return",
+        "detail": "model output"
+      },
+      {
+        "title": "Boundary",
+        "detail": "packet and mutation checks"
+      },
+      {
+        "title": "Score",
+        "detail": "malpractice and sabotage"
+      },
+      {
+        "title": "Disposition",
+        "detail": "accept, reject, or quarantine"
+      },
+      {
+        "title": "Decision",
+        "detail": "architect adjudication"
+      }
+    ]
+  },
+  "codex-beads-hooks": {
+    "page": "codex-beads-hooks.html",
+    "title": "Hook display decision",
+    "description": "When SessionStart context is visible, inspect the installed Codex build. If the stable display hint is supported, quiet display is available; otherwise retain full-context display. Both paths preserve Beads additionalContext. Unsupported quiet mode fails closed.",
+    "kind": "hook-decision"
+  },
+  "task-acceptance": {
+    "page": "explanation.html",
+    "title": "From need to accepted work",
+    "description": "Define the need, acceptance criteria and scope; save the work record and dependencies; permit bounded execution; check the evidence; save the owner’s decision and handoff before selecting the next ready task.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "Need",
+        "detail": "desired result"
+      },
+      {
+        "title": "Define acceptance",
+        "detail": "criteria and scope"
+      },
+      {
+        "title": "Save work record",
+        "detail": "tasks and dependencies"
+      },
+      {
+        "title": "Bounded execution",
+        "detail": "within granted authority"
+      },
+      {
+        "title": "Check evidence",
+        "detail": "tests and review"
+      },
+      {
+        "title": "Save decision",
+        "detail": "owner’s ruling and handoff"
+      },
+      {
+        "title": "Next ready task",
+        "detail": "only when prerequisites pass"
+      }
+    ]
+  }
+}
