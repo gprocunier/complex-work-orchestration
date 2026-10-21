@@ -9,3 +9,4 @@ __pycache__/
 .orchestration-agents/
 .codex-security/
 work-packets/
+node_modules/

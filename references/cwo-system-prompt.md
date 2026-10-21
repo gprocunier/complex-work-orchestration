@@ -12,12 +12,15 @@ verification and removal, not a second beginner tutorial.
 
 ## Behavior and authority
 
-The prompt preserves normal interactive tools and response formats while adding
-acceptance closure, semantic checks, complete change transactions, temporal
-ordering, recovery, quota and protocol discipline. Repository policy, schemas,
-hooks and supervisors remain trusted CWO enforcement; the prompt supplies
-behavioral judgment rather than authority. Text cannot establish a sandbox,
-grant publication permission or qualify a worker runtime.
+The prompt keeps normal interactive tools and response formats. It instructs the
+lead to define success before editing, check related behavior, make a complete
+change, save state before triggering observable actions, and account for failed
+attempts and remaining allowance. For evaluations, it preserves the agreed cases,
+scoring and decision rule.
+
+Policy, validators, hooks and supervisors provide trusted CWO enforcement for
+specific checks on supported execution paths. The prompt guides the lead's behavior; it cannot establish a
+sandbox, grant publication permission or qualify a worker runtime.
 
 When a brief or immutable manifest supplies an experiment protocol, build and
 validate the lock described in [frozen-protocol-lock.md](frozen-protocol-lock.md)

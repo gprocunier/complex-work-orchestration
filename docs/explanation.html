@@ -7,9 +7,13 @@
       name="description"
       content="Separate agent abilities, work records, operating instructions and enforced execution controls."
     >
-    <title>What CWO adds and where it stops | CWO</title>
+    <title>What CWO does—and what it cannot do | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -19,7 +23,7 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Complex Work Orchestration</span>
         </a>
-        <div class="nav-links">
+        <details class="site-menu" open><summary>Menu</summary><div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html">Start Here</a>
           <a href="./use-cases.html">Examples</a>
@@ -27,73 +31,85 @@
           <a href="./explanation.html" aria-current="page">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-        </div>
+        </div></details>
+        <fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>
+          <label class="theme-choice" for="theme-system" title="System theme (default)">
+            <input class="sr-only" type="radio" id="theme-system" name="theme" value="system" checked>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="sr-only">System theme (default)</span>
+          </label>
+          <label class="theme-choice" for="theme-light" title="Light theme">
+            <input class="sr-only" type="radio" id="theme-light" name="theme" value="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="sr-only">Light theme</span>
+          </label>
+          <label class="theme-choice" for="theme-dark" title="Dark theme">
+            <input class="sr-only" type="radio" id="theme-dark" name="theme" value="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/></svg>
+            <span class="sr-only">Dark theme</span>
+          </label>
+        </fieldset>
       </nav>
     </header>
 
     <main id="main" tabindex="-1">
-      <div class="doc-layout reader-layout"><details class="contents"><summary>On this page</summary><nav class="page-nav" aria-label="On this page"><a href="#concepts">A project record is not a longer memory</a><a href="#value">Beyond subagents, Beads, or a better instruction file</a><a href="#flow">How a task becomes accepted work</a><a href="#authority">Evidence does not grant authority</a><a href="#enforcement">Instructions versus executable controls</a><a href="#privacy">Local, provider, and external sharing boundaries</a><a href="#limits">The honest tradeoff</a></nav>
-        </details>
-        <article class="doc-content"><section id="concepts"><span id="shells"></span><span id="memory"></span><h1>A project record is not a longer memory</h1>
-        <p class="lede">CWO makes project state explicit: what is required, what depends on it, what was checked, who accepted it, and what the next session may do. It cannot recover a decision that was never recorded.</p>
-        <p>A <strong>model</strong> generates reasoning and responses. An <strong>agent client/runtime</strong> gives it tools and permissions. A <strong>skill</strong> supplies reusable instructions and helpers. <strong>CWO</strong> combines a skill, a named operator contract, durable task records, execution controls, and acceptance/recovery procedures. The underlying client and operating system still own tool access.</p>
-        <p>Some browser agents can act on projects and some terminals only display text. Interface shape alone does not establish capabilities or safety. The canonical beginner route here uses a working Codex CLI because that is the exercised path.</p>
+<div class="page-shell reference-slice page--guide"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./explanation.html">Concepts</a></nav><h1 id="page-title">What CWO does—and what it cannot do</h1><p class="lede">CWO keeps a project record: requirements, tasks, dependencies, checks and accepted decisions. That record lets a new session verify where to continue. It cannot recover a decision that nobody saved.</p></header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page"><a href="#concepts">Models, agents and skills</a><a href="#value">How CWO relates to the tools you already use</a><a href="#ecosystem">How CWO fits the ecosystem</a><a href="#diversity">What different models add</a><a href="#flow">How a task becomes accepted work</a><a href="#authority">A review is not permission to act</a><a href="#enforcement">Instructions versus executable controls</a><a href="#privacy">Local, provider, and external sharing boundaries</a><a href="#limits">Every model needs guardrails</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="concepts"><span id="shells"></span><span id="memory"></span><h2>Models, agents and skills</h2>
+
+        <p>A <strong>model</strong> produces responses. An <strong>agent client</strong>, such as Codex, gives it tools and permissions. A <strong>skill</strong> adds reusable instructions and helpers. CWO is a skill that coordinates project work and records how results were checked and accepted. The client and operating system still control tool access.</p>
+        <p>This documentation uses Codex CLI for the practice example because that path has been exercised. A browser or terminal interface alone tells you nothing about which tools an agent can use or how its permissions are enforced.</p>
         </section>
-        <section id="value"><span id="roles"></span><h2>Beyond subagents, Beads, or a better instruction file</h2>
-        <dl><dt>Native agent features</dt><dd>The agent may already plan, use tools, run tests, compact context, and delegate. CWO specifies how assignments are bounded and results accepted; it does not invent tool use. See the current <a href="https://learn.chatgpt.com/docs/agent-configuration/subagents">official subagent documentation</a>.</dd><dt>Beads alone</dt><dd>Beads stores tasks and dependencies. CWO adds acceptance criteria, evidence discipline, review/owner decisions and recovery procedures around those records. You still have to write meaningful records and configure backups/remotes if wanted.</dd><dt>AGENTS.md alone</dt><dd>A good instruction file can direct behavior. CWO also ships schemas, validators and supervised native execution components for supported routes. Text instructions do not acquire the enforcement power of those components merely by naming them.</dd></dl>
-        </section>
+        <section id="value"><span id="roles"></span><h2>What CWO adds to Codex and Beads</h2><p><a href="./prompt-coach.html">Prompt Coach starts the planning process</a>: it helps define the result, size the work and choose useful review questions. The lead then drafts and revises the plan; <a href="./model-synthesis.html#planning-example">synthesis connects second opinions to concrete plan changes</a>.</p><p>Codex supplies the tools an agent uses. Beads stores tasks and dependencies. CWO connects them through a project workflow: agree on what finished work must do, assign focused tasks, check findings and results, and save what was accepted and why. Useful records must still be written, verified and backed up.</p><dl><dt>Beads alone</dt><dd>Stores tasks and dependencies; CWO supplies the acceptance-and-review procedure around them.</dd><dt>AGENTS.md alone</dt><dd>Tells an agent how to work; CWO also provides supporting validators and execution components.</dd></dl><p>An instruction tells an agent how to work. CWO also supplies data-format checks, validators and supervised components on supported routes. Neither instructions nor a saved record replace host permissions.</p></section>
+<section id="ecosystem"><h2>Why add CWO when agent tools already coordinate work?</h2><p>CWO packages an acceptance-and-review workflow for Codex: set the requirements, give specialists bounded assignments, evaluate their findings, check the result and retain the decision. Its strongest contribution is how these steps fit together, including cloud and local reviewers—not the invention of agents, memory or local inference.</p><p>These are complementary tools at different layers. The following comparison describes capabilities in their official documentation, checked on 19 October 2026. It is not a benchmark or a claim that another tool cannot implement CWO's practices.</p><dl><dt>Codex and Claude Code: agent clients</dt><dd>Codex already has separate-context <a href="https://learn.chatgpt.com/docs/agent-configuration/subagents">subagents</a>. Claude Code documents <a href="https://code.claude.com/docs/en/sub-agents">restricted subagents and persistent memory</a>, plus experimental <a href="https://code.claude.com/docs/en/agent-teams">teams with shared tasks and dependencies</a>. CWO adds a project-specific procedure for evaluating contributions and recording acceptance; it does not replace their tools or permission systems.</dd><dt>OpenCode: provider and local-model choice</dt><dd><a href="https://docs.opencode.ai/docs/providers/">OpenCode supports local models and many providers</a>, with <a href="https://docs.opencode.ai/docs/permissions/">configurable permissions</a>. CWO's local-review contribution is the connected request, response checks, evaluation and decision record—not merely configuring a base URL. See the <a href="./local-workers.html">local vLLM workflow</a>.</dd><dt>LangGraph and CrewAI: application workflow frameworks</dt><dd>LangGraph provides <a href="https://docs.langchain.com/oss/python/langgraph/persistence">persistent checkpoints and stores</a> and <a href="https://docs.langchain.com/oss/python/langgraph/interrupts">human interrupts</a>. CrewAI <a href="https://docs.crewai.com/en/concepts/flows">Flows</a> provides event-driven control and persisted state. CWO is a ready-made Codex skill and control package rather than a replacement general-purpose workflow engine.</dd><dt>OpenAI Agents SDK and AutoGen: multi-agent building blocks</dt><dd>The Agents SDK supports <a href="https://openai.github.io/openai-agents-python/models/">mixed providers and OpenAI-compatible endpoints</a>, plus <a href="https://openai.github.io/openai-agents-python/guardrails/">guardrails</a>. AutoGen supplies <a href="https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html">teams, termination conditions and human input</a>. CWO supplies an opinionated project acceptance policy and supporting helpers; developers can build comparable policies on those frameworks.</dd></dl><p>Choose CWO for the packaged discipline around a project: preserve evaluation criteria, inspect competing evidence, account for failed attempts and continue from accepted decisions. Use fewer coordination steps for smaller tasks; access limits and evidence checks still apply.</p></section>
+<section id="diversity"><h2>What different models add to the review</h2><p>A model trained or served differently may challenge an assumption another model repeats. CWO lets you retain that challenge, evaluate its source and compare explicit claims with the structured comparison helper. An eligible local review can be primary evidence: it can support the project decision directly, not just suggest a backup idea.</p><p>Three distinctions matter:</p><ol><li><strong>Different model names are not independent sources.</strong> Two models from the same provider may share assumptions. The default source-counting rules also group local/OpenShift endpoint aliases together.</li><li><strong>Agreement is not verification.</strong> Two accepted reviews can agree and still be wrong. Check the implementation or perform the relevant experiment.</li><li><strong>More evidence has a cost.</strong> Another review can expose a missed failure or create more disagreement to investigate. The public examples do not establish that adding models consistently improves accuracy or productivity.</li></ol><p>The structured comparison code is an explicitly invoked Python helper. Routing can flag it as required; the checked-in dispatch CLI does not automatically call it. Checking each individual review is a separate step. See the <a href="./zero-trust-consensus.html#tested-example">automated comparison test and exact limits</a>.</p><p><a href="./zero-trust-consensus.html#domains">See how source groups are counted—not just model names.</a></p></section>
+
         <section id="flow"><h2>How a task becomes accepted work</h2>
         <!-- diagram:task-acceptance -->
             <figure class="flowchart">
               <picture>
                 <source media="(max-width: 40rem)" srcset="./diagrams/task-acceptance-narrow.svg" width="320" height="1240">
-                <img src="./diagrams/task-acceptance.svg" width="680" height="700" alt="From need to accepted work flowchart. Text equivalent follows." loading="lazy" decoding="async">
+                <img src="./diagrams/task-acceptance.svg" width="680" height="700" alt="From request to accepted work flowchart. Text equivalent follows." loading="lazy" decoding="async">
               </picture>
-              <figcaption>Define the need, acceptance criteria and scope; save the work record and dependencies; permit bounded execution; check the evidence; save the owner’s decision and handoff before selecting the next ready task.</figcaption>
+              <figcaption>Define the result, requirements and allowed changes. Save tasks and dependencies, do the permitted work, check tests and reviews, then record the decision and handoff. Start dependent work only after its prerequisite is accepted.</figcaption>
             </figure>
             <!-- /diagram:task-acceptance -->
 
-        <p>One authorized main-thread maintenance task can stay small. When native work is delegated, precommit, qualification, exact identity, tool scope, workspace, budget and supervised lifecycle controls apply. More workers and more process are not default measures of quality.</p>
+        <p>Keep a small authorized task in the main thread when that is enough. Delegating adds checks for the worker’s identity, tools, workspace, time and usage allowance, plus monitoring and cleanup. Those checks are described in the <a href="./native-supervision.html">delegation guide</a>; adding workers does not by itself improve the result.</p>
         </section>
-        <section id="authority"><span id="publication"></span><span id="evidence"></span><h2>Evidence does not grant authority</h2>
-        <p>A worker return, reviewer recommendation, passing test or tool-generated JSON is evidence. It does not approve a production change, outside disclosure, publication, or a new paid attempt. The authorized owner decides against the task contract and current source.</p>
-        <p>When reviews conflict, preserve each finding and its assumptions, find a decisive check, and record what was rejected and why. Two agreeing personas are not independent trust domains and do not prove correctness. <a href="./use-cases.html#conflicting-review">The retry example</a> makes the disagreement testable.</p>
+        <section id="authority"><span id="publication"></span><span id="evidence"></span><h2>A review is not permission to act</h2>
+        <p>A reviewer may identify a real problem without having permission to fix it. Likewise, a passing test does not authorize deployment, outside sharing or another paid attempt. The lead checks the evidence against your requirements and acts only within the permission you granted.</p>
+        <p>If reviewers disagree, keep both findings and their assumptions, then look for a check that settles the question. Two models given different role prompts can still repeat the same unsupported claim. In the <a href="./use-cases.html#conflicting-review">retry exercise</a>, counting created jobs exposes the problem that confident recommendations miss.</p>
         </section>
         <section id="enforcement"><span id="supervision"></span><h2>Instructions versus executable controls</h2>
-        <p>CWO uses a system prompt optimized for complex project work rather than the default OpenAI system prompt. It directs acceptance closure, temporal ordering, protocol fidelity, scope and handoff discipline. Deterministic components validate packets, model/attempt bindings, worktree ownership, budgets and terminal results on supported native routes. Real sandbox/network/tool isolation must be established by the host. Removing a patch tool or asking for read-only behavior is not a filesystem boundary.</p>
-        <p>No schema, renderer or capability flag proves a live integration. A qualified run proves only its named model, host, source image, scope and lifetime. <a href="./native-supervision.html">Maturity and supervision</a> · <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/cwo-system-prompt.md">CWO system prompt and activation</a>.</p>
+        <p>CWO uses a system prompt optimized for complex project work rather than the default OpenAI system prompt. It instructs the lead to define success, check related behavior, preserve agreed evaluation rules and leave a usable handoff. On supported native routes, code checks assignment records, model identity, workspace ownership, budgets and final results. The host must enforce filesystem, network and tool restrictions; asking an agent to be read-only is not enough.</p>
+        <p>A successful check applies only to the model, host, source revision and assignment it actually checked. A configuration entry or generated prompt does not prove that an integration works. See <a href="./native-supervision.html">delegation requirements</a> and <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/cwo-system-prompt.md">system-prompt setup and limits</a>.</p>
         </section>
         <section id="privacy"><h2>Local, provider, and external sharing boundaries</h2>
         <p>Project files and Beads may be local while your agent sends selected context to its configured provider. Tool access can expose more than the final answer. Review the client's permissions and provider handling before adding sensitive material.</p>
-        <p>CWO defaults to no additional outside contractor sharing. External review requires an authorized share boundary, minimized packet, provider binding and evaluation; local inference is a separate explicit path, not a claim that ordinary cloud sessions are offline. <a href="./external-contracting.html">External review</a> · <a href="./local-workers.html">Local-model options</a> · <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/SECURITY.md">Security policy</a>.</p>
+        <p>Additional outside review is off by default. Before using it, agree which provider may receive which material, then prepare and check a brief containing only that material. Running a local model is a separate option; it does not make ordinary cloud sessions offline. <a href="./external-contracting.html">Outside review</a> · <a href="./local-workers.html">Local models</a> · <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/SECURITY.md">Security policy</a>.</p>
+
+            <!-- diagram:sharing-boundaries -->
+            <figure id="sharing-boundaries" class="memory-flow guide-flow">
+              <picture>
+                <source media="(max-width: 75rem)" srcset="./diagrams/sharing-boundaries-narrow.svg" width="360" height="1220">
+                <img src="./diagrams/sharing-boundaries.svg" width="1020" height="750" alt="Where project context can go flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Illustrative sharing map—not a network trace or enforcement guarantee. Local files and Beads can supply context to an agent client. That client may send selected context to its configured provider. An additional reviewer requires separate opt-in and only the approved material; a redacted brief is one explicitly chosen boundary. A local/private endpoint is a separately approved route, not proof that the cloud session is offline.</figcaption>
+            </figure>
+            <details class="diagram-text"><summary>Read the diagram as text</summary><ul><li>Project files and Beads may be stored locally. The agent client and its tools can read only what their actual permissions allow; tool access may expose more than the final answer.</li><li>The configured provider may receive selected context as part of the ordinary agent session. Check client permissions and provider handling before including sensitive files.</li><li>An additional reviewer is a separate recipient, not a component inside the configured provider. First approve the recipient and material. If the chosen boundary is a redacted brief, send only that checked brief; other disclosure boundaries need their own approval.</li><li>A local or private model endpoint requires separate opt-in and endpoint checks. Using it does not prevent the ordinary cloud agent session from sending context to its provider.</li></ul></details>
+            <!-- /diagram:sharing-boundaries -->
         </section>
-        <section id="limits"><span id="failure-modes"></span><h2>The honest tradeoff</h2>
-        <p>You gain an inspectable continuation, not perfect memory. You gain bounded supported routes, not universal model access. You gain explicit validation, not a proof that every failure was considered. Setup, records, qualification, review and context replay consume time and quota.</p>
-        <p>Use the least machinery that can establish acceptance. <a href="./get-started.html">Try a first project</a>, <a href="./use-cases.html">inspect the evidence exercises</a>, or <a href="./workflows.html">choose an operator route</a>.</p>
+        <section id="limits"><span id="failure-modes"></span><h2>Every model needs guardrails</h2>
+        <p>CWO treats every model as an untrusted contributor, whether it runs in a public cloud or on your own infrastructure. The lead is not exempt: its plans and acceptance decisions also need checks. A confident answer, a familiar provider or agreement between models is not proof that the work is correct or permission to act.</p>
+        <p><strong>Using a model without guardrails is a choice to trust it implicitly.</strong> Guardrails mean limiting what the agent can access and do, checking its work against agreed requirements and keeping consequential actions within your permissions. Instructions alone do not enforce access restrictions; the agent client and host must enforce them.</p>
+        <p>Scale the coordination to the task, not the trust you place in the model. A small edit may need one lead and focused validation. Saved dependencies, specialist reviews, supervised delegation and handoffs help when work spans decisions, contributors or sessions. Preparing assignments, keeping records and arranging reviews cost time and model quota; using fewer of those steps does not remove the need for access limits and evidence checks.</p>
+        <p>Guardrails reduce risk; they do not make a model trustworthy or guarantee safety. CWO also cannot provide perfect memory, access to every model or proof that every failure was considered.</p>
+        <p><a href="./get-started.html">Try the practice example</a>, <a href="./use-cases.html">inspect the examples</a> or <a href="./workflows.html">choose a project task</a>.</p>
         </section>
-        </article>
-        </div>
+        </article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Keep decisions, progress, and evidence across agent sessions.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Start Here</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Guides</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Examples</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Historical Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Codex Delegation</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Outside Review</a><a href="./local-workers.html">Local Models</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

@@ -5,12 +5,15 @@ from http.server import ThreadingHTTPServer
 import importlib.util
 from pathlib import Path
 import re
+import sys
 import threading
 import unittest
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
+from site_code import without_token_spans
 
 
 def load(name):
@@ -30,7 +33,7 @@ class DocumentationToolTests(unittest.TestCase):
                          {"a-test", "a-test-1", "old"})
 
     def test_direct_example_route_establishes_its_own_source_checkout(self):
-        page = (ROOT / "docs/use-cases.html").read_text()
+        page = without_token_spans((ROOT / "docs/use-cases.html").read_text())
         section = page.split('<section id="run-fixtures">', 1)[1]
         self.assertIn("do not need Codex authentication, Beads", section)
         self.assertLess(section.index("git clone"), section.index("run_examples.py --check"))

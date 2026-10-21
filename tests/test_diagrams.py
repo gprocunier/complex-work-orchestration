@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'scripts'))
 SPEC = importlib.util.spec_from_file_location('generate_diagrams', ROOT / 'scripts/generate_diagrams.py')
 DIAGRAMS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(DIAGRAMS)
@@ -18,8 +21,8 @@ class DiagramTests(unittest.TestCase):
     def setUp(self):
         self.flows = json.loads((ROOT / 'docs/diagrams/flows.json').read_text())
 
-    def test_all_nine_figures_and_eighteen_assets_are_current(self):
-        self.assertEqual(len(self.flows), 9)
+    def test_all_nineteen_figures_and_thirty_eight_assets_are_current(self):
+        self.assertEqual(len(self.flows), 19)
         expected = DIAGRAMS.outputs()
         self.assertEqual({p for p in expected if p.suffix == '.svg'},
                          set((ROOT / 'docs/diagrams').glob('*.svg')))
@@ -68,6 +71,37 @@ class DiagramTests(unittest.TestCase):
                 for path in tree.findall('s:path', NS):
                     self.assertEqual(path.attrib.get('marker-end'), 'url(#arrow)')
 
+    def test_purpose_arrows_have_fixed_size_clear_targets_and_visible_shafts(self):
+        for narrow in (False, True):
+            tree = ET.fromstring(DIAGRAMS.render(self.flows['purpose-preserving'], narrow)[0])
+            marker = tree.find('s:defs/s:marker', NS)
+            self.assertEqual(marker.attrib['markerUnits'], 'userSpaceOnUse')
+            self.assertEqual(marker.attrib['viewBox'], '0 0 8 8')
+            self.assertEqual(float(marker.attrib['markerWidth']), 8)
+            self.assertEqual(float(marker.attrib['markerHeight']), 8)
+            self.assertEqual(float(marker.attrib['refX']), 8)  # Tip at endpoint, not beyond it.
+            nodes = {n.attrib['data-node']: n.attrib for n in tree.findall('s:g', NS)}
+            for path in tree.findall('s:path', NS):
+                d = path.attrib['d']
+                start = re.match(r'M ([0-9.]+),([0-9.]+)', d)
+                x, y = map(float, start.groups())
+                for direction, number in re.findall(r'([HV]) ([0-9.]+)', d):
+                    old_x, old_y = x, y
+                    if direction == 'H': x = float(number)
+                    else: y = float(number)
+                self.assertEqual(direction, 'V', d)
+                self.assertEqual(x, old_x, d)
+                self.assertGreaterEqual(y-old_y, 14, d)  # Eight-pixel head plus visible shaft.
+                target = nodes[path.attrib['data-to']]
+                target_top = float(target['data-y'])-float(target['data-height'])/2
+                self.assertEqual(target_top-y, 6, d)
+            # Each evaluator input has its own clean port, not a duplicated central head.
+            inputs = [p.attrib['d'] for p in tree.findall('s:path', NS)
+                      if p.attrib['data-to'] == 'evaluate']
+            self.assertEqual(len(inputs), 2)
+            self.assertNotEqual(inputs[0], inputs[1])
+            self.assertTrue(all(' H ' not in d for d in inputs))
+
     def test_svg_has_text_equivalent_and_no_active_or_external_content(self):
         for name, diagram in self.flows.items():
             for narrow in (False, True):
@@ -88,10 +122,12 @@ class DiagramTests(unittest.TestCase):
             self.assertIn(('support', 'quiet'), edges)
             self.assertIn(('support', 'full'), edges)
             self.assertNotIn(('quiet', 'full'), edges)
-            self.assertIn(('quiet', 'preserve'), edges)
-            self.assertIn(('full', 'preserve'), edges)
-            self.assertEqual([t.text for t in tree.findall('s:text', NS)], ['Yes', 'No'])
-        self.assertIn('fails closed', self.flows['codex-beads-hooks']['description'])
+            self.assertIn(('quiet', 'delivery'), edges)
+            self.assertIn(('delivery', 'adopt'), edges)
+            self.assertIn(('delivery', 'fallback'), edges)
+            self.assertNotIn(('quiet', 'adopt'), edges)
+            self.assertFalse(any(a == 'full' for a, b in edges))
+        self.assertIn('Unsupported quiet mode is rejected', self.flows['codex-beads-hooks']['description'])
 
     def test_responsive_figures_have_visible_captions_and_no_legacy_text_diagrams(self):
         for name, diagram in self.flows.items():

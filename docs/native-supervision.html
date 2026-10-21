@@ -5,11 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Current Luna-first execution requirements, preview concurrency and historical compatibility boundaries."
+      content="Prepare, supervise and check a native assignment using the current qualified worker and host."
     >
-    <title>Native supervision and maturity | CWO</title>
+    <title>Delegate a focused task with clear limits | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -19,68 +23,79 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Complex Work Orchestration</span>
         </a>
-        <div class="nav-links">
+        <details class="site-menu" open><summary>Menu</summary><div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html">Start Here</a>
           <a href="./use-cases.html">Examples</a>
-          <a href="./workflows.html">Guides</a>
+          <a href="./workflows.html" aria-current="true">Guides</a>
           <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-        </div>
+        </div></details>
+        <fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>
+          <label class="theme-choice" for="theme-system" title="System theme (default)">
+            <input class="sr-only" type="radio" id="theme-system" name="theme" value="system" checked>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="sr-only">System theme (default)</span>
+          </label>
+          <label class="theme-choice" for="theme-light" title="Light theme">
+            <input class="sr-only" type="radio" id="theme-light" name="theme" value="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="sr-only">Light theme</span>
+          </label>
+          <label class="theme-choice" for="theme-dark" title="Dark theme">
+            <input class="sr-only" type="radio" id="theme-dark" name="theme" value="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/></svg>
+            <span class="sr-only">Dark theme</span>
+          </label>
+        </fieldset>
       </nav>
     </header>
 
     <main id="main" tabindex="-1">
-      <div class="doc-layout reader-layout"><details class="contents"><summary>On this page</summary><nav class="page-nav" aria-label="On this page"><a href="#supervision">Delegation is a controlled operation</a><a href="#current-routing">Current routing: size the task, then qualify the exact worker</a><a href="#single-worker">The normal single-worker path</a><a href="#preview">Optional concurrency is a preview</a><a href="#recovery">Recover at the affected scope</a><a href="#history">Historical contracts stay inspectable</a></nav>
-        </details>
-        <article class="doc-content"><section id="supervision"><h1>Delegation is a controlled operation</h1>
-        <p class="lede">If CWO delegates native work, the assignment is bounded and supervised. There is no unsupervised native-worker opt-out. A small explicitly authorized maintenance task can stay in its main thread; delegation is not a prerequisite for getting value from durable records.</p>
-        <p>Do not read this overview as a dispatch grant. Use the active policy and an admitted runtime with actual model, tools, workspace, qualification, ownership and budget evidence.</p>
-        </section>
-        <section id="current-routing"><h2>Current routing: size the task, then qualify the exact worker</h2>
+<div class="page-shell reference-slice page--guide"><div class="reading-layout">
+<header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./workflows.html">Guides</a></nav><h1 id="page-title">Delegate a focused task with clear limits</h1><p class="lede">Before launch, verify the worker can run this assignment with the required permissions, tools and limits. Afterward, check its changes and evidence before accepting the result.</p></header>
+<details class="contents" open><summary>On this page</summary><nav aria-label="On this page"><a href="#supervision">Confirm you can delegate this task</a><a href="#single-worker">The normal single-worker path</a><a href="#current-routing">Size the whole assignment before choosing the worker</a><a href="#preview">Optional concurrency is a preview</a><a href="#recovery">After a failure, determine which work must stop</a><a href="#history">Use older records to understand past runs—not to launch new ones</a></nav></details>
+<article class="doc-content" aria-labelledby="page-title"><section id="supervision"><h2>Confirm you can delegate this task</h2>
+        <p>A native worker is another Codex agent assigned a specific task. Every native worker CWO delegates to must be supervised; there is no unsupervised opt-out. A small, explicitly authorized maintenance task can stay in the main thread. Use delegation when it helps the project, not merely to demonstrate another agent.</p>
+        <p>This page explains the steps; it does not approve a launch. The active policy and trusted host must establish the exact worker model, allowed tools, workspace, ownership, time and usage allowance for this attempt.</p>
+        <p><a href="./index.html#supervised-execution">See the supervision overview: scope, monitoring, observed work, cleanup and acceptance.</a></p></section>
+        <section id="current-routing"><h2>Size the whole assignment before choosing the worker</h2>
         <p>The active <code>task_selected_routing</code> v3 policy selects <code>gpt-5.6-luna</code> first after model-neutral sizing. <code>gpt-5.6-terra</code> is escalation-only for documented fit, qualification, risk or economics reasons. Spark and GPT-5.5 v2 records are historical, not new dispatch authority.</p>
-        <p>Each current attempt needs exact requested/observed identity, source/context/scope and budget bindings, qualification, precommit and release evidence. A model name accepted by a CLI or a passed tool-surface probe does not prove a productive route is qualified. Do not substitute another available model silently.</p>
+        <p>For each attempt, verify that the observed model matches the requested model and that the assignment, source revision and allowance match the approved records. A CLI accepting a model name—or a probe showing tools—does not prove the worker can safely complete the task. Do not silently substitute an available model.</p>
         </section>
         <section id="single-worker"><span id="workspace-authority"></span><span id="default-path"></span><span id="control-turn"></span><span id="before-dispatch"></span><h2>The normal single-worker path</h2>
-        <ol><li>Close acceptance and scope in a durable task; estimate the complete work before model selection.</li><li>Establish exact model/tool/host qualification and present ownership. Check enforced filesystem/network boundaries, not just an instruction to be read-only.</li><li>Bind the fresh attempt, precommit, packet, release and finite operation reservation.</li><li>Register persistence and observers before triggering work. Use the admitted transaction and supervised lifecycle.</li><li>Validate product behavior and final mutation attribution, close owned resources, evaluate the return and record the owner's acceptance decision.</li></ol>
-        <p>Transport completion, a worker's success Boolean, or import success is not product acceptance. A realignment return is nonaccepted. Stopped sessions stay terminal; a new attempt requires a distinct fresh allowance.</p>
+        <p>You set the goal, allowed changes, spending and sharing boundaries. Ask the lead agent to prepare the assignment and report whether the exact worker route is available. The lead prepares and checks the execution records; you inspect the result and decide whether it meets your need. This overview is not a substitute for the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md">exact execution contract</a>.</p><ol><li>Record the required result, allowed changes and acceptance checks. Estimate preparation, execution, review, integration and validation before choosing a worker.</li><li>Establish exact model/tool/host qualification and present ownership. Check enforced filesystem/network boundaries, not just an instruction to be read-only.</li><li>Prepare a fresh attempt with four distinct records: a fit check without tool access (<code>precommit</code>, not a Git commit), the scoped assignment (<code>packet</code>), approval for that exact assignment (<code>operative release evidence</code>) and a finite time/usage allowance. Passing the fit check alone does not approve execution.</li><li>Save the control state and register monitoring before sending the assignment. Use the host-approved launch procedure (<code>admitted transaction</code>) so the supervisor can observe, interrupt and close the worker. Follow the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md">exact execution contract</a>.</li><li>Check the product behavior and which files actually changed. Confirm owned processes and resources are closed, evaluate the return, then record the lead’s acceptance decision.</li></ol>
+        <p>A finished connection or a worker’s claim of success is not proof that the task passed. A request to revise the assignment (<code>realignment</code>) is not completion. A stopped attempt cannot be resumed; another attempt needs its own fresh allowance.</p>
         </section>
         <section id="preview"><span id="concurrency-preview"></span><span id="activation-preview"></span><h2>Optional concurrency is a preview</h2>
-        <p>Supported fixed cohorts are N=1..3 only where actual compatible host capability, admission, workspace ownership, leases and aggregate capacity are established. A flag is not proof. Keep Beads, journals, reducers, promotion, model dispatch and other stateful operations serial as their contracts require.</p>
-        <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Pool contracts, admission, interruption and cleanup</a> preserve the details and historical evidence. Read-only semantic work still needs an actually enforced read-only boundary and zero consistent mutation claims.</p>
+        <p>Concurrent work is limited to fixed groups of N=1..3 on a host that has proved the required capabilities. Each group needs approved assignments, isolated write ownership and enough shared capacity; a flag does not establish any of these. Keep Beads updates, journals, result combining, promotion and model dispatch serial as their contracts require.</p>
+        <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Pool contracts, admission, interruption and cleanup</a> preserve the details and historical evidence. Read-only work needs enforced read-only access. Do not treat a return as read-only when consistent evidence reports a mutation.</p>
         </section>
-        <section id="recovery"><span id="failure-recovery"></span><h2>Recover at the affected scope</h2>
-        <p>After a failure, establish containment, ownership, consumed allowance, dependencies and remaining authority before deciding whether the parent must stop. Preserve failures and UNKNOWN findings. Continue independent ready work only when its own gates pass; dependent work remains blocked until its prerequisite is accepted.</p>
-        <p>Explicit self-maintenance uses a separately adopted mission with owner-issued in-process capabilities and bounded operations. A serialized authority snapshot is not a grant; do not turn maintenance machinery into ordinary onboarding.</p>
+        <section id="recovery"><span id="failure-recovery"></span><h2>After a failure, determine which work must stop</h2>
+        <p>After a failure, check whether the worker has stopped, who owns its resources, what allowance it consumed and which tasks depend on its result. A <code>CONTAINED</code> state label does not prove cleanup finished. Preserve failed and <code>UNKNOWN</code> observations. Continue unrelated, already-authorized work only if its own checks pass; dependent work waits for its prerequisite to be accepted.</p>
+        <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/8e05b6cce4c4cf89325112f019fdd8c69a28ecff/scripts/cwo_core/native_pool_transaction.py#L1474-L2135">Inspect the transaction and failure-accounting implementation</a>; the recovery helper does not promise automatic replay of a terminal attempt.</p><p>Self-maintenance is a separate explicitly adopted objective. Its owner must grant the required in-process permissions and bound each operation. A saved authority record is not itself permission to execute. These maintenance controls are not required for ordinary first use.</p>
+
+            <!-- diagram:scoped-work-graph -->
+            <figure id="scoped-work-graph" class="memory-flow guide-flow">
+              <picture>
+                <source media="(max-width: 75rem)" srcset="./diagrams/scoped-work-graph-narrow.svg" width="360" height="2080">
+                <img src="./diagrams/scoped-work-graph.svg" width="1020" height="920" alt="Which tasks must wait after an attempt fails flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Illustrative task graph—not an observed incident or concurrent execution trace. The ended attempt on A stays ended. B waits for accepted A. C does not need A’s result but must pass its own permission, prerequisite, safety and shared-capacity checks. A replacement of A requires a distinct newly authorized attempt with a fresh allowance. A CONTAINED label alone does not establish cleanup.</figcaption>
+            </figure>
+            <details class="diagram-text"><summary>Read the diagram as text</summary><ul><li>The attempt on task A has ended and cannot be resumed. Preserve its failure evidence, including failed and UNKNOWN observations.</li><li>Inspect actual process stop, resource ownership, changed files and consumed allowance. A CONTAINED status is not proof that these checks passed. Unresolved shared safety or capacity problems can still prevent other work.</li><li>Task B depends on accepted A and must wait. A replacement of A is a distinct attempt: it needs new permission, a fresh allowance and verified acceptance. B may start only after A is accepted and B’s own checks pass.</li><li>Task C does not depend on A’s result. It may continue only if its own permission, prerequisites, safety and shared capacity pass. A child failure does not by itself end all parent work.</li></ul></details>
+            <!-- /diagram:scoped-work-graph -->
         </section>
-        <section id="history"><span id="operator-reference"></span><h2>Historical contracts stay inspectable</h2>
+        <section id="history"><span id="operator-reference"></span><h2>Use older records to understand past runs—not to launch new ones</h2>
         <p>The source references retain Spark/v2 packets, fallback semantics and qualification records for interpretation and migration. Their present-tense historical command examples are not current instructions for new dispatch. The current overview and active v3 policy take precedence for selecting a fresh worker; they do not rewrite old evidence.</p>
         <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md">Current/historical source contract</a> · <a href="./reference.html#updates">Updates and migration</a> · <a href="./workflows.html">Return to the operator guide</a>.</p>
         </section>
-        </article>
-        </div>
+        </article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Keep decisions, progress, and evidence across agent sessions.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Start Here</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Guides</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Examples</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Historical Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Codex Delegation</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Outside Review</a><a href="./local-workers.html">Local Models</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

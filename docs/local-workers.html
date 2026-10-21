@@ -7,9 +7,13 @@
       name="description"
       content="Use local workers from inside Codex with prompt-coach opt-in, OpenShift AI vLLM profile selection, dispatch envelopes, and return evaluation."
     >
-    <title>Local Workers | Complex Work Orchestration</title>
+    <title>Review with a local model | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -19,7 +23,7 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Complex Work Orchestration</span>
         </a>
-        <div class="nav-links">
+        <details class="site-menu" open><summary>Menu</summary><div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html">Start Here</a>
           <a href="./use-cases.html">Examples</a>
@@ -27,56 +31,59 @@
           <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-        </div>
+        </div></details>
+        <fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>
+          <label class="theme-choice" for="theme-system" title="System theme (default)">
+            <input class="sr-only" type="radio" id="theme-system" name="theme" value="system" checked>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="sr-only">System theme (default)</span>
+          </label>
+          <label class="theme-choice" for="theme-light" title="Light theme">
+            <input class="sr-only" type="radio" id="theme-light" name="theme" value="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="sr-only">Light theme</span>
+          </label>
+          <label class="theme-choice" for="theme-dark" title="Dark theme">
+            <input class="sr-only" type="radio" id="theme-dark" name="theme" value="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/></svg>
+            <span class="sr-only">Dark theme</span>
+          </label>
+        </fieldset>
       </nav>
     </header>
 
     <main id="main" tabindex="-1">
-      <section class="page-hero">
+<div class="page-shell reference-slice page--guide"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./workflows.html">Guides</a></nav>
         <p class="eyebrow">Local review</p>
-        <h1>Local Workers</h1>
-        <p class="callout">Optional local-inference reference. Model catalogs and rendered harness artifacts do not establish live availability, exact qualification, or an offline guarantee for your normal cloud agent. Verify the selected endpoint and allowed data boundary before dispatch.</p>
-        <p class="lede">
-          Use local workers from inside Codex first: ask the prompt coach to
-          size the request, opt in to local inference, select a profile such as
-          OpenShift AI vLLM, then evaluate the return before any finding becomes
-          implementation work.
-        </p>
-      </section>
-
-      <section class="section doc-layout">
-        <nav class="page-nav" aria-label="Page sections">
-          <a href="#invoke-codex">Invoke From Codex</a>
-          <a href="#coach-opt-in">Coach Local Opt-In</a>
-          <a href="#openshift-ai">OpenShift AI vLLM</a>
-          <a href="#endpoint-config">Endpoint Config</a>
-          <a href="#dispatch-envelope">Dispatch Envelope</a>
+        <h1 id="page-title">Put your local models to work on the same project</h1>
+        <p class="callout">Use a local or private model endpoint—a server that receives your model requests—for a focused review question. vLLM is one way to serve that model. This optional route does not make your ordinary cloud-agent session offline. Verify the actual endpoint and the material it may receive before sending a request.</p>
+        <p class="lede">A local reviewer can check a command, code change or design alongside your cloud agent. CWO records the request, checks the response and evaluates its evidence. An eligible local finding can support the project decision directly. This is primary evidence—not the primary architect, automatic acceptance or permission to edit.</p><p>Explicitly opt into local inference and select a configured profile. Preparing a request does not call the model; execution requires a separate flag. See <a href="./model-synthesis.html">how local and cloud findings are combined</a>.</p>
+      </header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page">
+          <a href="#review-sequence">Local-review sequence</a><a href="#invoke-codex">Ask for a specific local review</a>
+          <a href="#coach-opt-in">Confirm local dispatch and review requirements</a>
+          <a href="#openshift-ai">Choose an endpoint and model profile</a>
+          <a href="#endpoint-config">Endpoint Configuration</a>
+          <a href="#dispatch-envelope">Prepare the request without calling the model</a>
           <a href="#endpoint-safety">Endpoint Safety</a>
-          <a href="#execute-local">Execute Explicitly</a>
-          <a href="#evaluate">Evaluate Returns</a>
+          <a href="#execute-local">Make the approved model call</a>
+          <a href="#evaluate">Check the answer and record what may be used</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
-        </nav>
-        <div class="doc-body">
-          <section id="invoke-codex">
-            <h2>Invoke From Codex</h2>
-            <p>
-              Start with the same workflow-first interface as any other
-              orchestration request. Ask Codex to use the skill and prompt
-              coach; Codex can run the helper, surface the local-worker opt-in
-              question, and prepare the Beads workstream only after the user
-              chooses it.
-            </p>
+        </nav></details><article class="doc-content" aria-labelledby="page-title">
+          <section id="review-sequence"><h2>From an approved question to an accepted finding</h2><ol><li>Choose a focused question, allowed material and approved endpoint.</li><li>Prepare and inspect the request without calling the model.</li><li>Execute the one approved call and retain its actual dispatch result.</li><li>Check response usability, evaluate the answer and record the lead’s decision.</li></ol><p>Generic OpenAI-compatible profiles and hardened exact-model profiles have different checks. Select the required profile deliberately; a configured model name does not prove which model weights the server actually runs. <a href="./use-cases.html#local-review-checks">Inspect the existing component tests</a>.</p></section><section id="invoke-codex">
+            <h2>Ask for a specific local review</h2>
+            <p>Ask Codex to size the task and propose the local-model route. If you have not already opted in, the coach asks before preparing a dispatch. The task and its evidence still need a Beads record.</p>
             <!-- diagram:local-workers -->
-            <figure class="flowchart">
+            <figure id="local-workers" class="memory-flow guide-flow">
               <picture>
-                <source media="(max-width: 40rem)" srcset="./diagrams/local-workers-narrow.svg" width="320" height="700">
-                <img src="./diagrams/local-workers.svg" width="680" height="340" alt="Local review workflow flowchart. Text equivalent follows." loading="lazy" decoding="async">
+                <source media="(max-width: 75rem)" srcset="./diagrams/local-workers-narrow.svg" width="360" height="2360">
+                <img src="./diagrams/local-workers.svg" width="1020" height="960" alt="From an approved local question to a checked answer flowchart. Text equivalent follows." loading="lazy" decoding="async">
               </picture>
-              <figcaption>Ask the coach, explicitly opt into local inference, select the configured profile, then evaluate the return. The architect—not the worker—decides what to accept.</figcaption>
+              <figcaption>Illustrative procedure—not a new endpoint run. Preparation makes no model call. Apply the selected profile’s checks before the one approved execution. Retain actual dispatch JSON, check response usability and compare the same attempt’s workspace. Arrows show procedure, not a replacement of the evaluator’s original inputs. Failed checks, an unusable answer or unexpected file changes require investigation.</figcaption>
             </figure>
+            <details class="diagram-text"><summary>Read the diagram as text</summary><ul><li>Approve the question, allowed material, local inference and configured endpoint/profile. Prepare and inspect the request without calling a model. Apply the selected profile’s safety checks; hardened exact-model checks are conditional on that profile, not universal.</li><li>Only after those checks pass, make one approved model call and save its actual dispatch JSON. Preparation output is not that result. Confirm that the response contains a usable answer; a configured model name alone does not attest the server’s weights.</li><li>Compare the workspace against the saved baseline for the same attempt. Retain the matching mutation report. Failed checks, an unusable answer or unexpected mutations stop this path for investigation; do not silently proceed to normalization.</li><li>The normalizer receives the raw answer and mutation report. The evaluator instead receives the raw answer, actual dispatch JSON and matching mutation report; the normalized bundle is not a substitute for those inputs.</li><li>The lead checks the evaluation and any required reviews, then records what may be used within the granted scope. Keep the selectable commands below for the complete transaction.</li></ul></details>
             <!-- /diagram:local-workers -->
-            <pre><code>/plan Use $complex-work-orchestration prompt coach:
-OpenShift AI vLLM local review of README command examples.</code></pre>
+            <pre data-language="text" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span>/plan Use $complex-work-orchestration prompt coach:</span></span>
+<span class="line"><span>OpenShift AI vLLM local review of README command examples.</span></span></code></pre>
             <div class="callout">
               <strong>Default posture:</strong>
               If the user mentions local workers but has not opted in, the
@@ -91,28 +98,18 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
           </section>
 
           <section id="coach-opt-in">
-            <h2>Coach Local Opt-In</h2>
-            <p>
-              Not every task needs frontier model reasoning. You do not need a
-              frontier model to sanity-check a <code>curl</code> command, review
-              a small diff for command shape, summarize a bounded log excerpt,
-              or confirm that a prompt envelope contains the right fields.
-            </p>
-            <p>
-              Local workers are useful when the work is narrow, low risk,
-              private, repetitive, or mostly mechanical. They return evidence
-              that still needs evaluation and architect review before it affects
-              implementation.
-            </p>
+            <h2>Confirm local dispatch and review requirements</h2>
+            <p>A short command example, small diff or bounded log excerpt can be a useful local-review task. State what the reviewer should check and what material it may receive. Use deterministic checks directly when they can answer the question without a model.</p>
+            <p>Choose the local model for demonstrated task fit and data-handling requirements, not merely because it is local. Its answer still needs evaluation and a lead’s decision before implementation.</p>
             <p>
               What Codex may run behind the scenes after explicit opt-in:
             </p>
-            <pre><code>python3 scripts/coach_prompt.py \
-  --local-ok \
-  --prefer-local \
-  --local-profile openshift-ai-vllm \
-  --requested-role documentation \
-  "OpenShift AI vLLM local review of README command examples."</code></pre>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/coach_prompt.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --prefer-local</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-profile</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift-ai-vllm</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --requested-role</span><span class="shiki-style-fccf53bf0d08ec6a"> documentation</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">  "OpenShift AI vLLM local review of README command examples."</span></span></code></pre>
             <p>
               The route should confirm that local-worker dispatch is enabled,
               that normal Codex workers cannot claim the assignment, and that
@@ -131,32 +128,11 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
           </section>
 
           <section id="openshift-ai">
-            <h2>OpenShift AI vLLM Profile</h2>
-            <p>
-              OpenShift AI is the documented exemplar for controlled local or
-              private model serving. Platform integration, operational
-              boundaries, identity, auditability, and vLLM-backed inference can
-              live close to the environment where the work is being done.
-            </p>
-            <p>
-              The skill does not require OpenShift AI. Any compatible local or
-              private model-serving stack can be wired through the generic
-              OpenAI-compatible profile. OpenShift AI is documented as the
-              reference-quality path, not a portability limit.
-            </p>
-            <p>
-              For restricted and airgapped execution environments, OpenShift AI
-              vLLM is the local serving exemplar. Codex may be unavailable in
-              those zones; CWO can still render work to OpenCode or a manual
-              operator shell while keeping Beads and architect adjudication in
-              the workflow.
-            </p>
-            <p>
-              Registered local endpoint profiles still live in the executor
-              registry for compatibility. Access profiles now record the access
-              class: Codex shell, external manual CLI, browser review, generic
-              local endpoint, OpenShift AI vLLM, GLM BF16, or human specialist.
-            </p>
+            <h2>Choose an endpoint and model profile</h2>
+            <p>The documented OpenShift AI vLLM profile connects CWO to an operator-managed model endpoint. Select it when that endpoint is the approved place to process the review material.</p>
+            <p>OpenShift AI is not required. The generic OpenAI-compatible profile supports other approved local or private serving stacks. A profile entry is configuration; verify the actual endpoint before using it.</p>
+            <p>In a restricted or airgapped environment, Codex may be unavailable. CWO can render a prompt and suggested command for OpenCode or a manual operator shell. That rendering is not proof of a working end-to-end integration; verify the exact harness, model and access combination.</p>
+<details><summary>Optional model and disconnected-environment catalog</summary>            <p>The executor registry names callable roles. Access profiles describe how each role reaches its model or tool and what it may access. The model-profile table below then selects the model for a role; it does not establish that the model is deployed or qualified.</p>
             <p>
               Use <code>openshift-ai-vllm</code> when targeting an OpenShift
               AI vLLM endpoint, or the generic OpenAI-compatible profile for
@@ -164,15 +140,7 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               names CWO may mention; it does not print API keys or endpoint
               values.
             </p>
-            <p>
-              Execution profiles add role-specific model profiles on top of
-              access profiles. The access profile says how the model is
-              reached; the model profile says which approved RHOAI/vLLM model
-              alias should handle a CWO role. In airgapped OpenCode flows, CWO
-              can bind architect, PM, workerbee, review, secure-review, and
-              synthesis lanes to local model profiles from
-              <code>policy/model-profiles.yaml</code>.
-            </p>
+            <p>An execution environment assigns roles to tools; an access profile records connection and permission requirements; a model profile names the model for a role. In airgapped OpenCode configurations, these roles include architect, project manager, worker, reviewer and synthesis input. Exact model profiles are in <code>policy/model-profiles.yaml</code>.</p>
             <table class="data-table">
               <caption>RHOAI Model Profile Examples</caption>
               <thead>
@@ -184,7 +152,7 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               </thead>
               <tbody>
                 <tr>
-                  <th scope="row">Workerbee</th>
+                  <th scope="row">Worker</th>
                   <td><code>rhoai-worker-qwen2-5-coder-32b-fp8</code></td>
                   <td>Code-oriented review, test triage, and bounded patch planning.</td>
                 </tr>
@@ -216,26 +184,18 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               </tbody>
             </table>
             <div class="callout">
-              <p>
-                Keep <code>airgapped-rhoai</code> as the reasonable practical
-                default until the larger endpoint proves itself. Use the
-                enterprise Nemotron or GLM architecture profiles for benchmark
-                runs on enterprise-scale OpenShift AI clusters. The benchmark
-                gate should cover GPU topology, P2P/NCCL behavior, exact vLLM
-                flags, endpoint smoke tests, CWO architect and synthesis
-                packets, evaluator scoring, and architect adjudication.
-              </p>
+              <p>The registry’s <code>airgapped-rhoai</code> configuration is a starting example, not qualification of your endpoint. Verify the deployed model and representative task before use. Benchmark larger Nemotron or GLM architecture profiles on enterprise-scale OpenShift AI clusters before promotion: record GPU topology, P2P/NCCL communication, exact vLLM flags, endpoint smoke tests, representative CWO tasks, evaluator scores and the lead’s decision.</p>
             </div>
-            <p>
+</details>            <p>
               Codex may run the route helper behind the scenes. Use it directly
               only for advanced automation or troubleshooting:
             </p>
-            <pre><code>python3 scripts/route_work.py \
-  --local-ok \
-  --prefer-local \
-  --local-profile openshift-ai-vllm \
-  --requested-role documentation \
-  "Documentation review for the public README examples."</code></pre>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/route_work.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --prefer-local</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-profile</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift-ai-vllm</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --requested-role</span><span class="shiki-style-fccf53bf0d08ec6a"> documentation</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">  "Documentation review for the public README examples."</span></span></code></pre>
           </section>
 
           <section id="endpoint-config">
@@ -246,38 +206,38 @@ OpenShift AI vLLM local review of README command examples.</code></pre>
               contain environment variable names, not URLs, API keys, tokens,
               or route-specific secrets.
             </p>
-            <pre><code>mkdir -p ~/.config/cwo
-chmod 700 ~/.config/cwo
-$EDITOR ~/.config/cwo/vllm-endpoints.env
-chmod 600 ~/.config/cwo/vllm-endpoints.env</code></pre>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">mkdir</span><span class="shiki-style-ab138001542cb31f"> -p</span><span class="shiki-style-fccf53bf0d08ec6a"> ~/.config/cwo</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">chmod</span><span class="shiki-style-ab138001542cb31f"> 700</span><span class="shiki-style-fccf53bf0d08ec6a"> ~/.config/cwo</span></span>
+<span class="line"><span class="shiki-style-d6f50f15d04b4a1d">$EDITOR </span><span class="shiki-style-a694eb0da6a49aaf">~</span><span class="shiki-style-d6f50f15d04b4a1d">/.config/cwo/vllm-endpoints.env</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">chmod</span><span class="shiki-style-ab138001542cb31f"> 600</span><span class="shiki-style-fccf53bf0d08ec6a"> ~/.config/cwo/vllm-endpoints.env</span></span></code></pre>
             <p>
               Use stable model aliases where possible so routing does not
               change when the serving backend changes.
             </p>
-            <pre><code>export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
-export CWO_OPENSHIFT_AI_VLLM_MODEL="rhoai/workerbee"
-export CWO_OPENSHIFT_AI_VLLM_API_KEY="..."
-
-export CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL="https://glm-route.example.internal"
-export CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL="glm-5.2-bf16-128k"
-
-export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL="https://glm-256k-route.example.internal"
-export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_MODEL="glm-5.2-bf16-256k"
-
-# Optional for private route trust.
-export CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE="$HOME/.config/cwo/rhoai-ca.pem"
-
-# Lab-only escape hatches when the endpoint route cannot yet be validated.
-# export CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY=false
-# export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_TLS_VERIFY=false</code></pre>
-            <pre><code>source ~/.config/cwo/vllm-endpoints.env
-
-python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
-python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16 --require-configured
-python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --require-configured
-
-curl -sS "$CWO_OPENSHIFT_AI_VLLM_BASE_URL/v1/models" \
-  -H "Authorization: Bearer $CWO_OPENSHIFT_AI_VLLM_API_KEY"</code></pre>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_BASE_URL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"https://vllm.example.internal"</span></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_MODEL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"rhoai/workerbee"</span></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_API_KEY</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"..."</span></span>
+<span class="line"></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"https://glm-route.example.internal"</span></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"glm-5.2-bf16-128k"</span></span>
+<span class="line"></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"https://glm-256k-route.example.internal"</span></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_MODEL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"glm-5.2-bf16-256k"</span></span>
+<span class="line"></span>
+<span class="line"><span class="shiki-style-bde5e9eefcce270a"># Optional for private route trust.</span></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_CA_BUNDLE</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/.config/cwo/rhoai-ca.pem"</span></span>
+<span class="line"></span>
+<span class="line"><span class="shiki-style-bde5e9eefcce270a"># Lab-only escape hatches when the endpoint route cannot yet be validated.</span></span>
+<span class="line"><span class="shiki-style-bde5e9eefcce270a"># export CWO_OPENSHIFT_AI_GLM_5_2_BF16_TLS_VERIFY=false</span></span>
+<span class="line"><span class="shiki-style-bde5e9eefcce270a"># export CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_TLS_VERIFY=false</span></span></code></pre>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-ab138001542cb31f">source</span><span class="shiki-style-fccf53bf0d08ec6a"> ~/.config/cwo/vllm-endpoints.env</span></span>
+<span class="line"></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/render_access_profile_status.py</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> rhoai-vllm</span><span class="shiki-style-ab138001542cb31f"> --require-configured</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/render_access_profile_status.py</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> rhoai-glm-bf16</span><span class="shiki-style-ab138001542cb31f"> --require-configured</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/render_access_profile_status.py</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> rhoai-glm-bf16-256k</span><span class="shiki-style-ab138001542cb31f"> --require-configured</span></span>
+<span class="line"></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">curl</span><span class="shiki-style-ab138001542cb31f"> -sS</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_OPENSHIFT_AI_VLLM_BASE_URL</span><span class="shiki-style-fccf53bf0d08ec6a">/v1/models"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  -H</span><span class="shiki-style-fccf53bf0d08ec6a"> "Authorization: Bearer </span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_OPENSHIFT_AI_VLLM_API_KEY</span><span class="shiki-style-fccf53bf0d08ec6a">"</span></span></code></pre>
             <p>
               The source access registry lives at
               <code>policy/access-profiles.yaml</code>. The installed skill copy
@@ -297,51 +257,31 @@ curl -sS "$CWO_OPENSHIFT_AI_VLLM_BASE_URL/v1/models" \
           </section>
 
           <section id="dispatch-envelope">
-            <h2>Dispatch Envelope</h2>
-            <p>
-              Dispatch prepares a local envelope by default. The envelope names
-              the selected access profile, endpoint environment variables, and
-              bounded prompt content; it does not include API key values or
-              endpoint URLs, and it does not call the endpoint unless
-              <code>--execute-local</code> is set.
-            </p>
-            <pre><code>export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
-export CWO_OPENSHIFT_AI_VLLM_MODEL="vllm-local"
+            <h2>Prepare the request without calling the model</h2>
+            <p>By default, dispatch writes a <strong>local envelope</strong>: a request record containing the selected profile, environment-variable names and bounded prompt. It contains neither API-key values nor endpoint URLs. No endpoint call occurs without <code>--execute-local</code>.</p>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_BASE_URL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"https://vllm.example.internal"</span></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_MODEL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"vllm-local"</span></span>
+<span class="line"></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/dispatch_work.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --prefer-local</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-profile</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift-ai-vllm</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --dispatch-id</span><span class="shiki-style-fccf53bf0d08ec6a"> dispatch-example</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> example</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">  "Summarize docs-review risks."</span></span></code></pre>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/render_access_profile_status.py</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> rhoai-vllm</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/render_access_profile_status.py</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> rhoai-vllm</span><span class="shiki-style-ab138001542cb31f"> --require-configured</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/render_access_profile_status.py</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> rhoai-glm-bf16-256k</span><span class="shiki-style-ab138001542cb31f"> --require-configured</span></span></code></pre>
+            <p>The hardened GLM profile requires exact model <code>glm-5.2-bf16-256k</code> and checks <code>/v1/models</code> before posting to <code>/v1/chat/completions</code>. Keep this profile offline until the operator has verified its route. Its executing example is in <a href="#execute-local">the model-call step</a>, after endpoint safety checks.</p>
+            <p>Verify and enable the intended route before execution; a configured profile alone does not establish availability.</p>
 
-python3 scripts/dispatch_work.py \
-  --local-ok \
-  --prefer-local \
-  --local-profile openshift-ai-vllm \
-  --dispatch-id dispatch-example \
-  --bead example \
-  --json \
-  "Summarize docs-review risks."</code></pre>
-            <pre><code>python3 scripts/render_access_profile_status.py --profile rhoai-vllm
-python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-configured
-python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --require-configured</code></pre>
-            <p>
-              The hardened GLM lane uses local profile
-              <code>openshift-ai-glm-256k</code>, requires exact model
-              <code>glm-5.2-bf16-256k</code>, and preflights
-              <code>/v1/models</code> before posting to
-              <code>/v1/chat/completions</code>.
-            </p>
-            <p>
-              After an operator verifies the route and marks the access
-              profile available, dispatch the hardened lane with:
-            </p>
-            <pre><code>python3 scripts/dispatch_work.py \
-  --local-ok \
-  --local-profile openshift-ai-glm-256k \
-  --requested-role architecture \
-  --execute-local \
-  "Use exact GLM-5.2 BF16 256K thinking as an independent architecture critic second opinion."</code></pre>
           </section>
 
           <section id="endpoint-safety">
-            <h2>Endpoint Safety</h2>
+            <h2>Endpoint Safety</h2><p>The local dispatcher rechecks the request against the selected executor, restricts the destination and disables proxy/redirect routing. Hardened profiles also require an exact model preflight and a usable final-response contract, separating reasoning from the returned answer. These checks are profile-specific; a generic OpenAI-compatible profile is not proof of the same hardening or of live endpoint qualification.</p>
             <p>
-              Execution is fail-closed. Before <code>--execute-local</code>
+              Execution is fail-closed: a failed check prevents the call. Before <code>--execute-local</code>
               sends a request, CWO validates the endpoint URL, disables proxy
               use, blocks redirects, and checks that the host resolves only to
               loopback, RFC1918 private, or RFC4193 local IPv6 addresses.
@@ -366,67 +306,90 @@ python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --
           </section>
 
           <section id="execute-local">
-            <h2>Execute Explicitly</h2>
+            <h2>Make the approved model call</h2><p>Run from a CWO source checkout whose output files you will keep private. Set <code>TASK_ID</code> to the approved local-review task. Confirm the profile, endpoint and prompt before making a call. This complete example captures workspace state <strong>before</strong> execution, saves the dispatch JSON, extracts only a usable final answer and compares the workspace afterward. Existing output files cause a stop rather than being overwritten.</p><p>Run this block as one transaction. A failed dispatch or extraction stops before evaluation. Use its <code>local-dispatch-result.json</code>, <code>local-return.md</code> and <code>mutation-report.json</code> in the normalization commands below; inspect them before accepting any finding. No live endpoint call was used to validate this documentation example.</p><pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-d6f50f15d04b4a1d">(</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  set</span><span class="shiki-style-ab138001542cb31f"> -e</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  :</span><span class="shiki-style-fccf53bf0d08ec6a"> "${</span><span class="shiki-style-d6f50f15d04b4a1d">TASK_ID</span><span class="shiki-style-a694eb0da6a49aaf">:?</span><span class="shiki-style-d6f50f15d04b4a1d">Set</span><span class="shiki-style-d6f50f15d04b4a1d"> TASK_ID</span><span class="shiki-style-d6f50f15d04b4a1d"> to</span><span class="shiki-style-d6f50f15d04b4a1d"> the</span><span class="shiki-style-d6f50f15d04b4a1d"> approved</span><span class="shiki-style-d6f50f15d04b4a1d"> local-review</span><span class="shiki-style-d6f50f15d04b4a1d"> Bead</span><span class="shiki-style-d6f50f15d04b4a1d"> ID</span><span class="shiki-style-fccf53bf0d08ec6a">}"</span></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">  for</span><span class="shiki-style-d6f50f15d04b4a1d"> file </span><span class="shiki-style-a694eb0da6a49aaf">in</span><span class="shiki-style-fccf53bf0d08ec6a"> before.json</span><span class="shiki-style-fccf53bf0d08ec6a"> local-dispatch-result.json</span><span class="shiki-style-fccf53bf0d08ec6a"> local-return.md</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span><span class="shiki-style-d6f50f15d04b4a1d">; </span><span class="shiki-style-a694eb0da6a49aaf">do</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">    test</span><span class="shiki-style-fccf53bf0d08ec6a"> !</span><span class="shiki-style-ab138001542cb31f"> -e</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$file</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> ||</span><span class="shiki-style-d6f50f15d04b4a1d"> { </span><span class="shiki-style-ab138001542cb31f">printf</span><span class="shiki-style-fccf53bf0d08ec6a"> 'Refusing to overwrite %s\n'</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$file</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-d6f50f15d04b4a1d">; </span><span class="shiki-style-ab138001542cb31f">exit</span><span class="shiki-style-ab138001542cb31f"> 1</span><span class="shiki-style-d6f50f15d04b4a1d">; }</span></span>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">  done</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">  python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/workspace_mutation_guard.py</span><span class="shiki-style-ab138001542cb31f"> --snapshot</span><span class="shiki-style-ab138001542cb31f"> --output</span><span class="shiki-style-fccf53bf0d08ec6a"> before.json</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">  python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/dispatch_work.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">    --local-ok</span><span class="shiki-style-ab138001542cb31f"> --prefer-local</span><span class="shiki-style-ab138001542cb31f"> --local-profile</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift-ai-vllm</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">    --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$TASK_ID</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-ab138001542cb31f"> --execute-local</span><span class="shiki-style-ab138001542cb31f"> --json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">    "Summarize docs-review risks."</span><span class="shiki-style-a694eb0da6a49aaf"> ></span><span class="shiki-style-fccf53bf0d08ec6a"> local-dispatch-result.json</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">  python3</span><span class="shiki-style-fccf53bf0d08ec6a"> -</span><span class="shiki-style-a694eb0da6a49aaf"> &#x3C;&#x3C;</span><span class="shiki-style-d6f50f15d04b4a1d">'PY'</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">import json</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">from pathlib import Path</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">result = json.loads(Path("local-dispatch-result.json").read_text(encoding="utf-8"))</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">response = result.get("local_response") or {}</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">if response.get("usable_final_content") is not True:</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">    raise SystemExit("No usable final answer; do not normalize or evaluate this attempt.")</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">answer = response.get("normalized_return") or response.get("final_content")</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">if not isinstance(answer, str) or not answer.strip():</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">    raise SystemExit("No final answer text; do not reuse an older return.")</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">Path("local-return.md").write_text(answer, encoding="utf-8")</span></span>
+<span class="line"><span class="shiki-style-d6f50f15d04b4a1d">PY</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">  python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/workspace_mutation_guard.py</span><span class="shiki-style-ab138001542cb31f"> --compare</span><span class="shiki-style-fccf53bf0d08ec6a"> before.json</span><span class="shiki-style-ab138001542cb31f"> --output</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span></span>
+<span class="line"><span class="shiki-style-d6f50f15d04b4a1d">)</span></span></code></pre><details><summary>Bare invocation examples (alternatives, not additional calls)</summary><p>The original commands below show the generic and exact-GLM options. They do not save the three evaluation artifacts by themselves. Do not run them after the complete example just to produce another answer. Use the capture procedure above around the one approved call.</p>
             <p>
               A real local model call is never implicit. Use
               <code>--execute-local</code> only after the operator has approved
               the local profile, endpoint, prompt envelope, and Beads
               assignment.
             </p>
-            <pre><code>python3 scripts/dispatch_work.py \
-  --local-ok \
-  --prefer-local \
-  --local-profile openshift-ai-vllm \
-  --execute-local \
-  "Summarize docs-review risks."</code></pre>
-          </section>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/dispatch_work.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --prefer-local</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-profile</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift-ai-vllm</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --execute-local</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">  "Summarize docs-review risks."</span></span></code></pre>
+          <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/dispatch_work.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-profile</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift-ai-glm-256k</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --requested-role</span><span class="shiki-style-fccf53bf0d08ec6a"> architecture</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --execute-local</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-fccf53bf0d08ec6a">  "Use exact GLM-5.2 BF16 256K thinking as an independent architecture critic second opinion."</span></span></code></pre></details><details><summary>Workspace guard order for a custom approved call</summary><pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/workspace_mutation_guard.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --snapshot</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> before.json</span></span>
+<span class="line"></span>
+<span class="line"><span class="shiki-style-bde5e9eefcce270a"># Run the approved local dispatch or capture the local return in local-return.md.</span></span>
+<span class="line"></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/workspace_mutation_guard.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --compare</span><span class="shiki-style-fccf53bf0d08ec6a"> before.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span></span></code></pre></details></section>
 
           <section id="evaluate">
-            <h2>Evaluate Returns</h2>
+            <h2>Check the answer and record what may be used</h2>
             <p>
               Local worker and secure-review executors must set
               <code>codex_pickup=forbidden</code>. They should not have web
               access, shell execution, or repository write authority.
             </p>
-            <p>
-              Before running, capture the workspace state to verify the local
-              worker did not perform unauthorized mutations. The guard is
-              tracked-only by default; add <code>--include-untracked</code> to
-              both commands when newly created files should also block
-              acceptance.
-            </p>
-            <pre><code>python3 scripts/workspace_mutation_guard.py \
-  --snapshot \
-  --output before.json
+            <p>The workspace comparison must describe the same attempt as the saved dispatch result. If files changed unexpectedly, stop before normalization and inspect the mutation report. The guard checks tracked files by default; include <code>--include-untracked</code> in both guard calls when new files matter.</p>
 
-# Run the approved local dispatch or capture the local return in local-return.md.
-
-python3 scripts/workspace_mutation_guard.py \
-  --compare before.json \
-  --output mutation-report.json</code></pre>
-            <p>
+            <p>The commands below continue the generic OpenShift AI example above with the same <code>TASK_ID</code> and executor. For a dedicated GLM route, preserve its actual executor and dispatch identity instead; do not relabel it as the generic worker.</p><p>The normalizer packages the answer into a standard saved record; it does not read the dispatch result or decide whether the response is usable. The evaluator reads the raw <code>local-return.md</code> together with the actual dispatch JSON, not the normalized JSON bundle.</p><p>
               Normalize the return using the target Bead ID and the workspace
               mutation report. Preserve the executor identity so adjudication
               can distinguish local-worker evidence from external frontier
               contractor evidence:
             </p>
-            <pre><code>python3 scripts/normalize_contractor_return.py \
-  --bead &lt;id&gt; \
-  --executor openshift_ai_vllm_worker \
-  --local-dispatch-result local-dispatch-result.json \
-  --file local-return.md \
-  --workspace-mutation-report mutation-report.json \
-  --output local-return-bundle.json</code></pre>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/normalize_contractor_return.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$TASK_ID</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift_ai_vllm_worker</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --file</span><span class="shiki-style-fccf53bf0d08ec6a"> local-return.md</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --workspace-mutation-report</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> local-return-bundle.json</span></span></code></pre>
             <p>
               Evaluate the return against the acceptance policy. Pass
               <code>--peer-review-required</code> only if route policy or
               provider-conflict flags require it:
             </p>
-            <pre><code>python3 scripts/evaluate_return.py \
-  --bead &lt;id&gt; \
-  --executor openshift_ai_vllm_worker \
-  --file local-return.md \
-  --workspace-mutation-report mutation-report.json</code></pre>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/evaluate_return.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$TASK_ID</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift_ai_vllm_worker</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --local-dispatch-result</span><span class="shiki-style-fccf53bf0d08ec6a"> local-dispatch-result.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --file</span><span class="shiki-style-fccf53bf0d08ec6a"> local-return.md</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --workspace-mutation-report</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span></span></code></pre>
             <p>
               The normalized bundle and acceptance decision should show
               <code>provider_key=openshift_ai_vllm</code>,
@@ -444,11 +407,11 @@ python3 scripts/workspace_mutation_guard.py \
               adjudication path as other sabotage signals.
             </div>
             <ol class="check-list">
-              <li>Use local workers only after explicit local opt-in.</li>
-              <li>Evaluate local output before it can shape implementation.</li>
-              <li>Normalize and evaluate local returns before use.</li>
-              <li>Require architect adjudication before follow-up implementation.</li>
-              <li>Quarantine failed, disputed, or suspicious returns.</li>
+              <li>Keep local dispatch disabled until explicitly approved.</li>
+              <li>Capture workspace state and check for unauthorized changes.</li>
+              <li>Normalize the returned answer and evaluate its evidence.</li>
+              <li>Record the lead’s decision before acting on the findings.</li>
+              <li>Keep failed, disputed or suspicious returns out of implementation until reviewed.</li>
             </ol>
             <div class="callout">
               <strong>Publication handoff:</strong>
@@ -457,29 +420,11 @@ python3 scripts/workspace_mutation_guard.py \
               design, and editorial review before publish sanitization.
             </div>
           </section>
-        </div>
-      </section>
+        </article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Keep decisions, progress, and evidence across agent sessions.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Start Here</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Guides</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Examples</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Historical Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Codex Delegation</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Outside Review</a><a href="./local-workers.html">Local Models</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

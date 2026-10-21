@@ -1,10 +1,16 @@
 # Native Supervision Pools
 
-Current routing is exact-qualified Luna-first under active v3 policy. Historical
-Spark receipts mentioned below remain scoped to their recorded contracts and do
-not authorize fresh dispatch. N=1..3 fixed cohorts are a host-qualified preview;
-start from [the current overview](../docs/native-supervision.html), not an old
-pool command. Admission and lifecycle contracts below remain operator reference.
+A pool lets one trusted host supervise a fixed group of workers. Concurrent
+execution is an opt-in, host-qualified preview for groups of N=1..3; it does not
+make assignment preparation, integration or publication concurrent. Start with
+[the delegation guide](../docs/native-supervision.html), then use this reference
+for admission, monitoring, interruption and cleanup.
+
+Current v3 routing selects a qualified exact Luna worker first. Historical Spark
+receipts apply only to their recorded contracts and cannot approve new dispatch.
+Here, **admission** means the trusted host has approved this exact group to run; a
+**receipt** records what a check or execution observed. A receipt alone is not
+permission to launch.
 
 ## Threat Model And Claim Boundaries
 

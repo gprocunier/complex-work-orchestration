@@ -41,7 +41,7 @@ subprocess checks; equality with `True` alone would also accept the integer `1`.
 The lead chose exact-only `--json` opt-in rather than argparse abbreviations.
 
 Inspect the [implementation](../../scripts/check_documentation.py) and the
-[independent acceptance checks in source](https://github.com/gprocunier/complex-work-orchestration/blob/main/tests/test_documentation_cli.py).
+[independent acceptance checks in source](https://github.com/gprocunier/complex-work-orchestration/blob/8e05b6cce4c4cf89325112f019fdd8c69a28ecff/tests/test_documentation_cli.py).
 
 ## Saved work and dependencies
 
@@ -80,3 +80,9 @@ This used independent internal specialist review, not productive native-worker
 execution or native concurrency. Those routes were unavailable on the active
 surface; no model substitution, weaker tool profile, live installation,
 publication or deployment was used. Raw review/session records remain private.
+
+## Immutable source locator
+
+After the original observation, revision `8e05b6cce4c4cf89325112f019fdd8c69a28ecff` was verified locally to contain the exact three helper/test/harness file hashes in [SOURCE-SNAPSHOT.json](SOURCE-SNAPSHOT.json). This identifies the historical implementation without changing the original observation date or claiming a new orchestration run.
+
+[Inspect that revision](https://github.com/gprocunier/complex-work-orchestration/tree/8e05b6cce4c4cf89325112f019fdd8c69a28ecff) and check out that exact source before running the reproduction commands above. The current branch may contain later documentation changes.

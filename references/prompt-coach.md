@@ -1,22 +1,35 @@
 # Prompt Coach Operator Guide
 
-Use the prompt coach when a user is unsure how much of
-`$complex-work-orchestration` to invoke.
+Use the prompt coach to decide how much coordination a task needs before
+creating assignments. Give it the required result, allowed changes and completion
+checks. It recommends a tracked task or work graph, identifies missing decisions
+and prepares a launch prompt. It does not authorize execution.
 
-The prompt coach is a compiler, not a second router. It calls the same policy
-router as `scripts/route_work.py`, then emits a right-sized launch prompt,
-missing high-value questions, bounded interactive questions, enabled levers,
-disabled levers, warnings, `beads_tracking_required=true`,
-`workerbee_parallelism`, `model_synthesis`, `beads_context_depth`, and the
-underlying route result.
+The helper calls the same policy router as `scripts/route_work.py`. Its output
+includes the route, warnings, permitted and disabled options,
+`beads_tracking_required=true`, `workerbee_parallelism`, `model_synthesis` and
+`beads_context_depth`. The sections below define those exact fields.
 
 Provider names in explicit prohibitions are not opt-ins. Phrases such as
-`do not add Gemini`, `without ChatGPT Pro`, or `Claude is not authorized`
+`do not add Gemini` or `Claude is not authorized`
 exclude those providers from critic routing and model-synthesis recommendations.
 When explicit architecture-critic contracts are selected, the synthesis panel
 uses those exact executors rather than adding optional entries from the default
 provider catalog. Contradictory instructions that both request and prohibit the
 same architecture critic fail closed in `hard_stops`.
+
+## How coaching connects to planning
+
+The coach helps shape and size the request; it does not generate trusted second
+opinions by itself. The lead drafts a plan, assigns useful independent reviews
+through approved routes, evaluates returns and synthesizes concrete plan changes.
+Save assumptions, unresolved findings, required checks and revised tasks before
+implementation. A small task may not need additional reviewers.
+
+The [copy-ready planning request](../docs/prompt-coach.html#run) and
+[retry-planning example](../docs/model-synthesis.html#planning-example) connect
+this sizing step to a draft plan, separate cloud/local second opinions and the
+lead's revised work plan. The findings are illustrative, not live model returns.
 
 ## Basic Use
 
@@ -143,11 +156,11 @@ Allowed values are `public`, `redacted`, `internal`, and `restricted`. An
 operator declaration overrides the heuristic estimate, but the heuristic value
 is still recorded for auditability.
 
-ChatGPT Pro 5.5 Extended Reasoning language paired with "master plan",
-"final execution plan", or "total work packet" asks for the outside-sharing
-boundary and routes to the browser-mediated master-plan review lane after
-explicit opt-in. This is separate from OpenAI Deep Research; mentioning Deep
-Research should not happen implicitly during an Extended Reasoning plan review.
+A final-plan review is a separate assignment with its own question, allowed
+material and required evidence. If the user makes a named review a prerequisite,
+keep dependent implementation blocked until that requirement is met or explicitly
+changed by the operator. Browser-plugin instructions are deferred; do not use
+historical browser examples as current setup instructions.
 
 Local-worker language such as `vLLM`, `local worker`, or `OpenShift AI` asks for
 local-worker opt-in before dispatch. Without `--local-ok`, the conservative
@@ -189,10 +202,9 @@ dependencies, descriptions, closure notes, and process artifacts.
 ## Operator-Calibrated Execution
 
 `operator_calibration` tells the coach when to add the
-`contract-jd-operator-calibrated-execution` lens. This is not a global expert
-default. It is a closeout and evidence-discipline circuit breaker for work that
-could otherwise look complete because execution stopped early, safety limits
-blocked the natural path, or reviewers disagree about the disposition.
+`contract-jd-operator-calibrated-execution` lens. This is not required for every task. It adds a check on why work is
+being closed: did the requested result pass, or did a limit, failed attempt or
+unresolved disagreement stop the work before completion?
 
 The coach marks this lane `required` when task text includes false-closure or
 closure-risk language such as `clean-negative`, `source-negative`, `not run`,
@@ -310,7 +322,7 @@ or `--model-synthesis` conflicts with a prohibition, routing fails closed with a
 `conflicting model synthesis intent` hard stop.
 
 The v1 implementation is CWO-native. It does not call OpenRouter Fusion
-directly. External panel members such as Claude Opus, Gemini, or ChatGPT Pro
+directly. External panel members such as Claude Opus or Gemini
 still require explicit outside-sharing opt-in and a selected share boundary;
 the default boundary is `redacted-packet`. The synthesis artifact is evidence
 for architect adjudication, not authority to bypass evaluator, peer-review, or
@@ -349,8 +361,6 @@ The coach asks only for information that materially changes sizing:
 - whether to add a model-synthesis lane when conservative synthesis triggers
   match but the user did not explicitly request synthesis
 - outside-sharing boundary for Claude, Opus, Mythos, or another external model
-- outside-sharing boundary for ChatGPT Pro 5.5 Extended Reasoning master-plan
-  review when the user explicitly asks for it
 - local-worker opt-in and local profile
 - validation bar for security, production, publish, or release work
 

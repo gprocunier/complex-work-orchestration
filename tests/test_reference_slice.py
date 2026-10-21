@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 import generate_site
 from validate_site import validate_onboarding, validate_semantic_routes
+from site_code import without_token_spans
 
 class ReferenceSliceTests(unittest.TestCase):
     def test_canonical_stages_and_semantic_destinations_are_complete(self):
@@ -15,8 +16,10 @@ class ReferenceSliceTests(unittest.TestCase):
         self.assertEqual(validate_onboarding(pages), [])
         self.assertEqual(validate_semantic_routes(pages['workflows.html']), [])
 
-    def test_slice_scope_and_parent_navigation_are_explicit(self):
-        self.assertEqual(len(generate_site.REFERENCE_SLICE), 8)
+    def test_shared_article_scope_and_parent_navigation_are_explicit(self):
+        self.assertEqual(generate_site.ARTICLE_PAGES, set(generate_site.PAGES) - {'index.html'})
+        self.assertIn('use-cases.html', generate_site.ARTICLE_PAGES)
+        self.assertIn('native-supervision.html', generate_site.ARTICLE_PAGES)
         self.assertIn('first-project.html', generate_site.PAGES)
         self.assertIn('aria-current="true"', generate_site.render_link('./get-started.html', 'Start Here', 'first-project.html'))
         self.assertNotIn('aria-current', generate_site.render_link('./reference.html', 'Reference', 'first-project.html'))
@@ -37,13 +40,13 @@ class ReferenceSliceTests(unittest.TestCase):
         for anchor,target in {'install':'./install.html#install','first-task':'./first-project.html#first-task','continue':'./continue-project.html#continue','recover':'./tutorial-recovery.html#recover'}.items():
             self.assertIn(target,parser.anchors[anchor])
 
-    def test_local_contents_enhancement_is_scoped_and_progressive(self):
+    def test_local_contents_enhancement_is_shared_and_progressive(self):
         root=ROOT/'docs'
         new=generate_site.render_page(root/'first-project.html')
         old=generate_site.render_page(root/'local-workers.html')
         self.assertIn('<script src="./site.js" defer>',new)
-        self.assertNotIn('<script src="./site.js"',old)
-        self.assertIn('<details class="contents">',new)
+        self.assertIn('<script src="./site.js" defer>',old)
+        self.assertIn('<details class="contents" open>',new)
         self.assertIn('<summary>On this page</summary>',new)
 
     def test_handoff_hashes_bind_the_actual_case_code_and_tests(self):
@@ -54,7 +57,7 @@ class ReferenceSliceTests(unittest.TestCase):
 
     def test_reviewed_startup_recovery_has_an_explicit_main_override(self):
         import html
-        source=html.unescape((ROOT/'docs/tutorial-recovery.html').read_text())
+        source=html.unescape(without_token_spans((ROOT/'docs/tutorial-recovery.html').read_text()))
         self.assertIn('--model YOUR_AVAILABLE_MAIN_MODEL',source)
         self.assertIn('--profile cwo-sol-operator-e',source)
         self.assertIn('/model',source)
@@ -63,7 +66,7 @@ class ReferenceSliceTests(unittest.TestCase):
         self.assertIn('HANDOFF.md',source)
 
     def test_reviewed_continuation_checks_saved_completion_not_only_code(self):
-        source=(ROOT/'docs/continue-project.html').read_text()
+        source=without_token_spans((ROOT/'docs/continue-project.html').read_text())
         section=source.split('<section id="finish-check">',1)[1].split('</section>',1)[0]
         for command in ['cat HANDOFF.md','bd show VALIDATOR_TASK_ID --json','bd show CLI_TASK_ID --json','git diff cwo-tutorial-start']:
             self.assertIn(command,section)

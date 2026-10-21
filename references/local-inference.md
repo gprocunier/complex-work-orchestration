@@ -3,10 +3,15 @@
 This reference covers local OpenAI-compatible workers for
 `complex-work-orchestration`, including OpenShift AI vLLM endpoints.
 
-Local inference is not third-party contracting, but it is still contract-style
-work. A local worker receives a bounded prompt envelope, returns evidence, and
-cannot authorize implementation. Evaluator scoring and architect adjudication
-remain required.
+A local reviewer receives a specific question and approved material. CWO writes
+a request record (`local_envelope`) before any call; `--execute-local` makes the
+actual endpoint request. Evaluate the answer and record the lead's decision before
+using it in implementation. This route does not make an ordinary cloud Codex
+session offline.
+
+Use the [local-model guide](../docs/local-workers.html) for the sequence, then
+this reference for endpoint variables, exact profiles, request limits and failure
+handling. Registered model names are configuration, not proof of availability.
 
 ## In-Codex Invocation
 
@@ -261,6 +266,10 @@ python3 scripts/dispatch_work.py \
   "Summarize docs-review risks."
 ```
 
+For a complete call that saves the dispatch JSON, usable final answer and
+workspace comparison together, follow the [capture procedure](../docs/local-workers.html#execute-local).
+The bare invocation above does not create those evaluation files by itself.
+
 The envelope follows `schemas/local-dispatch-envelope.schema.json` and includes
 the selected `access_profile`, sanitized `access_profile_details`, readiness
 booleans for required and optional env var names, and only endpoint environment
@@ -438,9 +447,10 @@ materially distinct question while preserving the failed evidence.
 The dispatch command emits its audited JSON artifact and then exits nonzero when
 an executed local response is unusable. Automation must check both the process
 status and `local_response.usable_final_content`; an evaluator verdict never
-overrides the dispatcher's final eligibility decision. Current limits bound the
-model-visible final text, not the complete HTTP response body, so this profile
-does not claim a separately calibrated wire-byte resource ceiling.
+overrides the dispatcher's final eligibility decision. The profile has a final-text character ceiling. Separately, the shared HTTP
+reader bounds the complete response body with a byte cap and checks response
+framing. Neither limit establishes an independently calibrated resource envelope
+for every serving configuration.
 
 For a render-only harness envelope under the GLM-primary bridge:
 

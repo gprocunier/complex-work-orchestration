@@ -144,7 +144,6 @@ three units or six reads warn; four or eleven require replanning.
 - Prompt coach: `references/prompt-coach.md`
 - External contracting and trust boundary: `references/external-contracting.md`
 - Contractor briefing: `references/contractor-brief.md`
-- ChatGPT Pro browser lane: `references/chatgpt-pro-browser.md`
 - Execution environments and local inference: `references/execution-environments.md`,
   `references/local-inference.md`
 - Native supervision: `references/native-supervision.md`
@@ -172,8 +171,10 @@ python3 scripts/normalize_contractor_return.py --bead <id> --dispatch-id <id> --
 python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
 ```
 
-ChatGPT Pro browser review requires `scripts/chatgpt_browser_review.py`, confirmed
-model attestation, and a share-link return. Local inference requires `--local-ok`;
+Required plan reviews remain blocking until the named model and effort, approved
+route, return evidence, evaluation and adjudication are established or the operator
+explicitly changes that requirement. Browser-plugin documentation is deferred;
+legacy browser configuration is not current setup guidance. Local inference requires `--local-ok`;
 use `--prefer-local` only for an intended low-risk local review lane.
 
 Current native workers use the qualified exact task-selected model from the

@@ -1,5 +1,15 @@
 # Zero-Trust Consensus
 
+Use this comparison when requested or required by policy. It is not a
+prerequisite for the first-project tutorial. Apply it when a consequential decision
+depends on claims from several accepted reviews. CWO matches explicit claim fields and reports where the
+values differ; it does not infer truth from a vote. A **trust domain** groups
+reviews by provider or deployment boundary for source counting, not as proof of
+statistical independence. The lead resolves material disagreements.
+
+For the reader walkthrough, see [claim comparison](../docs/zero-trust-consensus.html).
+The exact input fields, normalization rules and blocked states follow below.
+
 ## Threat Model And Claim Boundaries
 
 The assets are structured security claims, evidence references, trust-domain
@@ -36,7 +46,27 @@ authorization, TLS, cryptography, supply chain, privilege boundaries,
 concurrency, or network configuration when the surrounding request is
 implementation, architecture, review, contractor, or synthesis work.
 
+## Invocation boundary
+
+The checked-in Python helper `evaluate_synthesis_inputs` must be invoked explicitly
+with evaluated input records and comparable claims. Routing can emit
+`zero_trust_consensus_required`; that flag does not execute the comparison. No
+checked-in dispatch CLI directly calls this helper. Individual-return evaluation
+is a separate path through `evaluate_return.py` and `cwo_core/returns.py`.
+Tests exercise the helper directly; they are not live multi-provider runs.
+
+Different models can broaden review evidence, but model count is not a measured
+accuracy guarantee. Default local/OpenShift aliases form one local trust domain;
+same-provider cloud models do not automatically add independent domains.
+Conflicting supplied domain fields and an unbound self-declared domain are
+excluded. Domain counting does not establish statistical independence.
+
 ## What Counts
+
+Provider-camp restrictions also require canonical upstream metadata. The helper's
+salvage policy reads `provider_camp`; it does not derive that field automatically
+from `provider_family`. Verify the binding instead of relying on a display name.
+
 
 Only primary synthesis inputs with known trust domains count toward independent
 domain coverage. Boundary-tainted, rejected, quarantined, salvage-only,
@@ -81,18 +111,18 @@ different local wording. Without `claim_id`, CWO falls back to `category:key`.
 
 ## Claim Value Normalization
 
-CWO normalizes only narrow, low-risk formatting differences before comparing
-claim values. For short technical identifiers in cryptography, authentication,
-and network categories, punctuation and spacing differences such as
-`AES-256-GCM` versus `aes256gcm` can compare as the same value. This reduces
-false divergence for identifiers that are commonly written with different
-separators.
+Current comparison lowercases values and normalizes whitespace, then applies
+additional separator normalization to some short technical identifiers. For
+example, `AES-256-GCM` and `aes256gcm` can match, while `TLS-1.2` and `TLS-1.3`
+remain different.
 
-The normalizer deliberately avoids broad semantic cleanup. URLs, paths,
-configuration fragments, version-like values such as `TLS-1.2`, and ordinary
-prose remain distinct unless the architect explicitly adjudicates them. This
-keeps zero-trust consensus conservative: agreement is easier to compare, but it
-still is not validation.
+Do not rely on normalized equality for case-sensitive paths, URLs or configuration
+values: `/Admin` and `/admin` currently normalize identically. Inspect original
+values and reconcile category, key and claim type before sharing a claim ID.
+The helper does not reject inconsistent categories under a shared ID; the first
+category can determine the weight and change escalation according to input order.
+These are limits to investigate, not a basis for treating agreement as validation.
+
 
 ## Output Fields
 

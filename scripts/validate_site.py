@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from cwo_core.public_copy import find_public_copy_issues
 from generate_site import PAGES, PRIMARY_NAV, FOOTER_NAV
+from site_code import without_token_spans
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -36,8 +37,22 @@ SOURCE_BLOB_LINK_ALLOWLIST.update(
         "policy/native-worker-execution.yaml", "policy/executor-registry.yaml",
         "policy/access-profiles.yaml", "policy/execution-environments.yaml",
         "scripts/manage_instruction_profile.py", "scripts/check_installed_skill.py",
+        "scripts/close_bead_with_summary.py", "references/external-contracting.md",
         "examples/first-project/README.md",
         "examples/first-project/VALIDATION.md", "examples/release-readiness/RECORD.md", "examples/release-readiness/HANDOFF.md",
+    )
+)
+SOURCE_BLOB_LINK_ALLOWLIST.add(
+    f"{REPO_URL}/blob/8e05b6cce4c4cf89325112f019fdd8c69a28ecff/examples/release-readiness/RECORD.md"
+)
+# Immutable implementation evidence for the positioning/reference slice.
+SOURCE_BLOB_LINK_ALLOWLIST.update(
+    f"{REPO_URL}/blob/8e05b6cce4c4cf89325112f019fdd8c69a28ecff/{name}"
+    for name in (
+        "scripts/cwo_core/frozen_protocol.py", "scripts/cwo_core/synthesis.py",
+        "scripts/cwo_core/native_pool_transaction.py", "tests/test_frozen_protocol.py",
+        "tests/test_zero_trust_consensus.py", "tests/test_local_dispatch.py",
+        "tests/test_model_synthesis.py",
     )
 )
 SOURCE_LINK_PATTERNS = [
@@ -49,6 +64,7 @@ SOURCE_LINK_PATTERNS = [
     "https://github.com/gprocunier/hello-world-contractor-demo",
     "https://gprocunier.github.io/hello-world-contractor-demo/",
     "https://github.com/gastownhall/beads",
+    "https://beads.gascity.com/",
     "https://diataxis.fr/",
     "https://www.anthropic.com/news/claude-fable-5-mythos-5",
     "https://www.anthropic.com/system-cards",
@@ -60,6 +76,19 @@ SOURCE_LINK_PATTERNS.extend([
     "https://learn.chatgpt.com/docs/models",
     "https://learn.chatgpt.com/docs/agent-configuration/subagents",
     "https://learn.chatgpt.com/docs/config-file/config-reference",
+])
+# Exact primary sources for the dated ecosystem comparison; fragments are allowed.
+SOURCE_LINK_PATTERNS.extend([
+    'https://code.claude.com/docs/en/sub-agents',
+    'https://code.claude.com/docs/en/agent-teams',
+    'https://docs.opencode.ai/docs/providers/',
+    'https://docs.opencode.ai/docs/permissions/',
+    'https://docs.langchain.com/oss/python/langgraph/persistence',
+    'https://docs.langchain.com/oss/python/langgraph/interrupts',
+    'https://docs.crewai.com/en/concepts/flows',
+    'https://openai.github.io/openai-agents-python/models/',
+    'https://openai.github.io/openai-agents-python/guardrails/',
+    'https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html',
 ])
 # Shell/navigation inventory has one producer. Content safety stays independent.
 REQUIRED_PAGES = list(PAGES)
@@ -123,7 +152,7 @@ def validate_onboarding(contents: dict[str, str]) -> list[str]:
     from html import unescape
     errors = []
     for page, steps in ONBOARDING_PAGE_STEPS.items():
-        plain = unescape(contents.get(page, ""))
+        plain = unescape(without_token_spans(contents.get(page, "")))
         positions = [plain.find(step) for step in steps]
         if any(p < 0 for p in positions) or positions != sorted(positions):
             errors.append(f"docs/{page} must preserve canonical onboarding steps in order")
@@ -261,6 +290,23 @@ class SiteParser(HTMLParser):
             self.internal_copy_errors.append(issue.render())
 
 
+def first_screen_term_text(first_screen: str, term: str) -> str:
+    """Allow a definition-first Beads introduction only in its memory section.
+
+    The owner requested a named explanation of durable memory. This is not a
+    blanket exemption for unexplained brand/internal terms on the landing page.
+    """
+    if term == "Beads":
+        section = re.search(r'<section id="durable-memory"[^>]*>.*?</section>', first_screen, re.DOTALL)
+        if section:
+            plain = re.sub(r"<[^>]+>", " ", section.group(0))
+            plain = " ".join(plain.split())
+            first_beads = re.search(r"\bBeads\b", plain, re.IGNORECASE)
+            if first_beads and plain[first_beads.start():].startswith("Beads is the task database CWO uses for durable project memory."):
+                first_screen = first_screen[:section.start()] + first_screen[section.end():]
+    return re.sub(r"<[^>]+>", " ", first_screen)
+
+
 def validate_html(path: Path) -> list[str]:
     errors: list[str] = []
     text = path.read_text(encoding="utf-8")
@@ -302,8 +348,8 @@ def validate_html(path: Path) -> list[str]:
                 errors.append(f"{path.relative_to(ROOT)} missing prompt-coach output level: {term}")
     if path.name == "index.html":
         first_screen = text.split('<section id="walk"', 1)[0]
-        first_screen_plain = re.sub(r"<[^>]+>", " ", first_screen)
         for term in INDEX_FIRST_SCREEN_FORBIDDEN_TERMS:
+            first_screen_plain = first_screen_term_text(first_screen, term)
             if re.search(rf"\b{re.escape(term)}\b", first_screen_plain, re.IGNORECASE):
                 errors.append(
                     f"{path.relative_to(ROOT)} introduces advanced term before novice ramp: {term}"

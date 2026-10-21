@@ -1,9 +1,9 @@
 # Codex Beads Hooks
 
-This reference covers Codex lifecycle hooks that inject Beads context into the
-model. It exists because new Codex CLI versions may display SessionStart hook
-context in the shell transcript, but the fix must not weaken automatic Beads
-context injection.
+Beads startup hooks give Codex saved project context before it acts. Some Codex
+versions also print that context in the terminal. Use this reference to adjust the
+display without removing information from the model. Preview changes first; an
+unsupported quiet mode must fail rather than silently drop context.
 
 ## Rule
 

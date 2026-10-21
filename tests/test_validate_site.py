@@ -248,6 +248,38 @@ class ValidateSiteTests(unittest.TestCase):
         self.assertIn("advanced term before novice ramp: quarantine", rendered)
         self.assertIn("advanced term before novice ramp: adjudication", rendered)
 
+    def test_beads_definition_is_allowed_only_in_the_named_memory_section(self) -> None:
+        definition = "<strong>Beads is the task database CWO uses for durable project memory.</strong>"
+        allowed = f'<section id="durable-memory"><h2>Saved project state</h2><p>{definition} Beads stores tasks.</p></section>'
+        cases = [
+            (allowed, False),
+            (allowed.replace('Beads is', '<a href="https://beads.gascity.com/">Beads</a> is'), False),
+            ('<section id="durable-memory"><p>Beads stores tasks.</p></section>', True),
+            (f'<section id="durable-memory"><p>Beads is powerful.</p><p>{definition}</p></section>', True),
+            (allowed + '<p>Beads outside the explanation.</p>', True),
+            ('<p>Beads before the explanation.</p>' + allowed, True),
+            (allowed.replace('durable-memory', 'another-section'), True),
+            (allowed.replace('task database', 'magic memory'), True),
+            (allowed.replace('Beads stores tasks.', 'Beads offers synthesis.'), False),
+        ]
+        for source, forbidden in cases:
+            with self.subTest(source=source):
+                errors = self.validate_snippet('index.html', source + '<section id="walk"><p>Examples</p></section>')
+                self.assertEqual(any('advanced term before novice ramp: Beads' in e for e in errors), forbidden)
+        errors = self.validate_snippet('index.html', allowed.replace('Beads stores tasks.', 'Beads offers synthesis.'))
+        self.assertTrue(any('advanced term before novice ramp: synthesis' in e for e in errors))
+
+    def test_beads_upstream_link_allowlist_is_exact(self) -> None:
+        for url, allowed in (
+            ('https://beads.gascity.com/', True),
+            ('https://beads.gascity.com/#introduction', True),
+            ('https://beads.gascity.com/unapproved', False),
+            ('https://beads.gascity.com.evil.invalid/', False),
+        ):
+            with self.subTest(url=url):
+                errors = self.validate_snippet('reference.html', f'<a href="{url}">Beads</a>')
+                self.assertEqual(any('non-source external URL' in e for e in errors), not allowed, errors)
+
     def test_index_requires_expert_routes(self) -> None:
         errors = self.validate_snippet(
             "index.html",

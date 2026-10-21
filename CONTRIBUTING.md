@@ -28,6 +28,12 @@ pipeline. Change the appropriate body, then regenerate the shell. The site
 validator imports the shell inventory; safety, privacy, source-link and reader
 journey checks remain independently tested.
 
+All public pages use the same `page-shell` container and shared header/footer.
+Article pages place a `page-intro`, native `contents` disclosure and `doc-content`
+article in one `reading-layout`. Keep contents open in source so links remain
+available without JavaScript; the shared script sets desktop/mobile defaults.
+Do not add a narrower per-page wrapper or cap the whole article to a text measure.
+
 The shared shell also owns parent-navigation metadata. `docs/site.js` only sets
 responsive defaults for native local-contents disclosures; navigation remains
 usable without JavaScript. There are no remote scripts or assets. A bounded
@@ -65,6 +71,38 @@ vendor sources before comparing agent features or documenting prerequisites.
 Add deliberate exact source URLs to `SOURCE_LINK_PATTERNS` and source-blob
 allowlists, with a positive and a lookalike/negative test. Do not disable link
 restrictions to make a page pass.
+
+## Plain-language review
+
+Review every affected section, not only its headings or a list of banned words.
+The reader should be able to answer: what problem is this about, what should I do,
+what does CWO check, and what result should I expect?
+
+- For a tutorial, name the supplied program, show a recognizable input and result,
+  and explain what the reader will learn before the first setup command. Do not
+  assume “checker,” “validator” or “save the decision” identifies a useful task.
+- Distinguish an existing requirement from a decision the reader or agent must make.
+  Say “record the requirements and test results” when that is what happens.
+- Read each page as a direct entry point, not only as a step in a familiar sequence.
+  Explain necessary roles and terms locally; readers may arrive from a search result.
+- Name the concrete problem before the internal mechanism. Prefer “the server
+  creates a job but its reply is lost” to “lost-acknowledgement counterexample.”
+- Explain an essential technical term at first use, then keep exact field names,
+  commands and policy terms in their reference context. Do not simplify a command
+  or a contract into something that behaves differently.
+- Say who does what. Define the lead/architect and reviewer roles rather than
+  relying on “lanes,” “signals,” “gates” or “adjudication” without explanation.
+- Remove author-facing process notes, filler, repeated caveats and metaphors that
+  require the reader to decode the intended action. Keep permission, privacy and
+  destructive-action warnings where the action occurs.
+- Label proposed designs, authored fixtures and observed executions separately.
+  Do not turn a component test or a positive review into an end-to-end claim.
+- Check the connected reader path and visible mobile headings after editing.
+  Passing tests, word counts and readability scores do not establish comprehension.
+
+Keep a section-by-section review record with a reason for material rewrites and
+for technical or historical material deliberately retained. Do not rewrite
+archived evidence or machine/agent contracts merely to change their voice.
 
 ## Validation
 

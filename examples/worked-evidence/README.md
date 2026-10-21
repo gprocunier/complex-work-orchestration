@@ -1,9 +1,9 @@
-# Inspectable evidence exercises
+# Run three small evidence exercises
 
 These are authored, deterministic fixtures, **not** measured CWO-agent runs or
-actual reviewer transcripts. They exercise a genuinely contradictory pair of
-retry proposals, local-file rollback after an intentionally simulated failed
-health check, and source-note-to-decision traceability. Nothing accesses a live
+actual reviewer transcripts. They show how a retry can create duplicate jobs, how to restore a local
+configuration after a simulated failed health check, and how to exclude an
+unsupported source claim from a decision memo. Nothing accesses a live
 service, changes infrastructure, or makes a model call.
 
 From the CWO source checkout:
@@ -19,7 +19,6 @@ directory and removed afterward; the output contains their meaningful content.
 If an assertion fails, inspect the named exercise; do not run a production
 rollout to make the demonstration pass.
 
-The [worked examples guide](../../docs/use-cases.html) supplies initiating
-prompts, scope, operator decisions, record excerpts, acceptance, recovery and
-non-fit. The [first project](../first-project/) is the separate two-session live
+The [worked examples guide](../../docs/use-cases.html) explains each problem,
+provides a starting prompt and shows what the result does—and does not—establish. The [first project](../first-project/) is the separate two-session live
 agent exercise. Fixture checks are not integration qualification.

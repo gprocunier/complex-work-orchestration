@@ -53,19 +53,19 @@ FOOTER_NAV = [
     ("./get-started.html", "Start Here"),
     ("./prompt-coach.html", "Prompt Coach"),
     ("./workflows.html", "Guides"),
-    ("./native-supervision.html", "Native Supervision"),
+    ("./native-supervision.html", "Codex Delegation"),
     ("./use-cases.html", "Examples"),
-    ("./external-contracting.html", "Contractors"),
-    ("./local-workers.html", "Local Workers"),
+    ("./external-contracting.html", "Outside Review"),
+    ("./local-workers.html", "Local Models"),
     ("./contractor-demo.html", "Historical Demo"),
     ("./reference.html", "Reference"),
     (REPO_URL, "Source"),
     (f"{REPO_URL}/blob/main/LICENSE", "GPL-3.0"),
 ]
 
-# Pages using the article shell and progressive local-contents navigation.
-REFERENCE_SLICE = {"index.html", "get-started.html", "install.html", "first-project.html", "continue-project.html", "tutorial-recovery.html", "workflows.html", "beads-memory.html"}
-PAGE_PARENTS = {**{p: "get-started.html" for p in ("install.html", "first-project.html", "continue-project.html", "tutorial-recovery.html")}, "beads-memory.html": "workflows.html"}
+# One shared site shell; only the landing page omits article navigation.
+ARTICLE_PAGES = frozenset(PAGES) - {"index.html"}
+PAGE_PARENTS = {**{p: "get-started.html" for p in ("install.html", "first-project.html", "continue-project.html", "tutorial-recovery.html")}, "beads-memory.html": "workflows.html", "native-supervision.html": "workflows.html"}
 
 TITLE_RE = re.compile(r"<title>(?P<title>.*?)</title>", re.DOTALL)
 DESCRIPTION_RE = re.compile(r'<meta\s+name="description"\s+content="(?P<description>.*?)"\s*>', re.DOTALL)
@@ -85,6 +85,23 @@ def render_link(href: str, label: str, current_page: str) -> str:
     return f'          <a href="{href}"{current_attr}>{label}</a>'
 
 
+def render_theme_control() -> str:
+    icons = (
+        ("system", "System theme (default)", '<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/>'),
+        ("light", "Light theme", '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+        ("dark", "Dark theme", '<path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/>'),
+    )
+    choices = []
+    for value, label, icon in icons:
+        checked = " checked" if value == "system" else ""
+        choices.append(f'''          <label class="theme-choice" for="theme-{value}" title="{label}">
+            <input class="sr-only" type="radio" id="theme-{value}" name="theme" value="{value}"{checked}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">{icon}</svg>
+            <span class="sr-only">{label}</span>
+          </label>''')
+    return '<fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>\n' + "\n".join(choices) + '\n        </fieldset>'
+
+
 def render_page(path: Path) -> str:
     text = path.read_text(encoding="utf-8")
     title = extract_required(TITLE_RE, text, path, "title")
@@ -96,16 +113,14 @@ def render_page(path: Path) -> str:
         '<main id="main">', '<main id="main" tabindex="-1">', 1
     )
     primary_nav = "\n".join(render_link(href, label, path.name) for href, label in PRIMARY_NAV)
-    footer_nav = "\n".join(f'        <a href="{href}">{label}</a>' for href, label in FOOTER_NAV)
-    enhancement = '<script src="./site.js" defer></script>' if path.name in REFERENCE_SLICE else ""
-    if path.name in REFERENCE_SLICE:
-        groups = [("Learn", FOOTER_NAV[:4]), ("Operate", FOOTER_NAV[4:10]), ("Project", FOOTER_NAV[10:])]
-        footer = '<div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div>'
-        for label, links in groups:
-            footer += f'<nav class="footer-group" aria-label="Footer {label}"><strong>{label}</strong>' + ''.join(f'<a href="{href}">{name}</a>' for href, name in links) + '</nav>'
-        footer += '</div>'
-    else:
-        footer = f'<div>\n        <strong>Complex Work Orchestration</strong>\n        <p>Keep decisions, progress, and evidence across agent sessions.</p>\n      </div>\n      <nav aria-label="Footer">\n{footer_nav}\n      </nav>'
+    nav_links = f'<div class="nav-links">\n{primary_nav}\n        </div>'
+    nav_links = f'<details class="site-menu" open><summary>Menu</summary>{nav_links}</details>'
+    enhancement = '<script src="./site.js" defer></script>'
+    groups = [("Learn", FOOTER_NAV[:4]), ("Operate", FOOTER_NAV[4:10]), ("Project", FOOTER_NAV[10:])]
+    footer = '<div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div>'
+    for label, links in groups:
+        footer += f'<nav class="footer-group" aria-label="Footer {label}"><strong>{label}</strong>' + ''.join(f'<a href="{href}">{name}</a>' for href, name in links) + '</nav>'
+    footer += '</div>'
     rendered = f"""<!doctype html>
 <html lang="en">
   <head>
@@ -117,7 +132,10 @@ def render_page(path: Path) -> str:
     >
     <title>{title}</title>
     <link rel="icon" href="{FAVICON}">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
     {enhancement}
   </head>
   <body>
@@ -128,9 +146,8 @@ def render_page(path: Path) -> str:
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Complex Work Orchestration</span>
         </a>
-        <div class="nav-links">
-{primary_nav}
-        </div>
+        {nav_links}
+        {render_theme_control()}
       </nav>
     </header>
 

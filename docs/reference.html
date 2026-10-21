@@ -7,9 +7,13 @@
       name="description"
       content="Find canonical installation, updates, current controls, historical references and concrete failure recovery."
     >
-    <title>Reference and troubleshooting | CWO</title>
+    <title>Setup, troubleshooting and exact controls | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -19,7 +23,7 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Complex Work Orchestration</span>
         </a>
-        <div class="nav-links">
+        <details class="site-menu" open><summary>Menu</summary><div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html">Start Here</a>
           <a href="./use-cases.html">Examples</a>
@@ -27,24 +31,39 @@
           <a href="./explanation.html">Concepts</a>
           <a href="./reference.html" aria-current="page">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-        </div>
+        </div></details>
+        <fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>
+          <label class="theme-choice" for="theme-system" title="System theme (default)">
+            <input class="sr-only" type="radio" id="theme-system" name="theme" value="system" checked>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="sr-only">System theme (default)</span>
+          </label>
+          <label class="theme-choice" for="theme-light" title="Light theme">
+            <input class="sr-only" type="radio" id="theme-light" name="theme" value="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="sr-only">Light theme</span>
+          </label>
+          <label class="theme-choice" for="theme-dark" title="Dark theme">
+            <input class="sr-only" type="radio" id="theme-dark" name="theme" value="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/></svg>
+            <span class="sr-only">Dark theme</span>
+          </label>
+        </fieldset>
       </nav>
     </header>
 
     <main id="main" tabindex="-1">
-      <div class="doc-layout reader-layout"><details class="contents"><summary>On this page</summary><nav class="page-nav" aria-label="On this page"><a href="#reference">Find the control you need</a><a href="#installation">Installation locations and profile verification</a><a href="#updates">Update an existing installation without losing local work</a><a href="#troubleshooting">Troubleshoot the failed step, not the whole project</a><a href="#controls">Current executable controls and source owners</a><a href="#advanced">Optional guides, not universal prerequisites</a><a href="#maintain">Maintain and preview these docs</a></nav>
-        </details>
-        <article class="doc-content"><section id="reference"><h1>Find the control you need</h1>
-        <p class="lede">Start with the reader task. Exact policy, schema and helper details live in the linked source references. A command that renders an artifact does not itself grant execution authority.</p>
-        <p><a href="./get-started.html">Complete first project</a> · <a href="./workflows.html">Experienced operator guide</a> · <a href="./explanation.html">Concepts and limits</a>.</p>
+<div class="page-shell reference-slice page--guide"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./reference.html">Reference</a></nav><h1 id="page-title">Setup, troubleshooting and exact controls</h1><p class="lede">Use this page to find an installation setting, diagnose a failed step or look up the exact execution rules. Generating an artifact does not approve its execution.</p></header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page"><a href="#reference">Choose your starting point</a><a href="#installation">Installation locations and profile verification</a><a href="#updates">Update an existing installation without losing local work</a><a href="#troubleshooting">Find and fix the step that failed</a><a href="#controls">Find the current execution rules and their source files</a><a href="#durable-memory">Task closure and handoff controls</a><a href="#experts">Find exact reviewer and tool identifiers</a><a href="#advanced">Optional guides for specific needs</a><a href="#maintain">Maintain and preview these docs</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="reference"><h2>Choose your starting point</h2>
+
+        <p><a href="./get-started.html">Optional practice example</a> · <a href="./workflows.html">Experienced operator guide</a> · <a href="./explanation.html">Concepts and limits</a>.</p>
         </section>
         <section id="installation"><span id="candidate-e"></span><h2>Installation locations and profile verification</h2>
-        <p>The <a href="./get-started.html#install">canonical installation sequence</a> owns beginner setup. Source checkout, installed skill, and target project are different folders. Installer detection order is <code>CODEX_SKILLS_DIR</code>, <code>CODEX_HOME/skills</code>, then <code>~/.codex/skills</code>.</p>
+        <p>Follow the <a href="./install.html">installation sequence</a> for default setup. Keep the source checkout, installed skill and target project in separate folders. The installer chooses its destination from <code>CODEX_SKILLS_DIR</code>, then <code>CODEX_HOME/skills</code>, then <code>~/.codex/skills</code>.</p>
         <p>For an intentionally isolated/custom installation, run this alternative from your source checkout, using your real destination. Do not combine it with the default sequence blindly:</p>
         <p class="input-label">Terminal</p>
-        <pre><code>./scripts/install.sh --codex-home /path/to/isolated-codex --yes
-python3 scripts/manage_instruction_profile.py install --profile operator-e --codex-home /path/to/isolated-codex --launcher-dir /path/to/private-bin
-python3 scripts/manage_instruction_profile.py verify --profile operator-e --codex-home /path/to/isolated-codex --launcher-dir /path/to/private-bin</code></pre>
+        <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">./scripts/install.sh</span><span class="shiki-style-ab138001542cb31f"> --codex-home</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/isolated-codex</span><span class="shiki-style-ab138001542cb31f"> --yes</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> install</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> operator-e</span><span class="shiki-style-ab138001542cb31f"> --codex-home</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/isolated-codex</span><span class="shiki-style-ab138001542cb31f"> --launcher-dir</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/private-bin</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> verify</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> operator-e</span><span class="shiki-style-ab138001542cb31f"> --codex-home</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/isolated-codex</span><span class="shiki-style-ab138001542cb31f"> --launcher-dir</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/private-bin</span></span></code></pre>
         <p>Start the launcher with the same <code>CODEX_HOME</code>; otherwise it will look for the profile in another home. Check installed/source parity with <code>scripts/check_installed_skill.py --check</code> using the same home/destination environment. A successful dry run did not install anything.</p>
         <p><strong>Model settings:</strong> the source <code>operator-e</code> profile requests <code>gpt-5.6-sol</code> and does not itself pin reasoning effort; other configuration may supply it. A supported client model/effort override can retain the named profile. Observe the actual runtime settings; neither a file setting nor model self-identification attests prior turns. <a href="https://learn.chatgpt.com/docs/config-file/config-reference">Official configuration reference</a>.</p>
         </section>
@@ -53,53 +72,37 @@ python3 scripts/manage_instruction_profile.py verify --profile operator-e --code
         <p><strong>Changed defaults:</strong> current task-selected native routing is Luna-first after neutral sizing, with recorded Terra escalation. Spark/v2 fallback records remain historical and cannot grant new dispatch. Old packets, qualifications, budgets or terminal sessions must not be silently reused. Concurrency remains host-qualified preview. Explicit self-maintenance is a separate authority path, not an ordinary setup requirement.</p>
         <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/CHANGELOG.md">Release history</a> · <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-pool-capacity-migration.md">Capacity migration</a> · <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/cwo-system-prompt.md">CWO system prompt and activation</a>.</p>
         </section>
-        <section id="troubleshooting"><h2>Troubleshoot the failed step, not the whole project</h2>
-        <dl><dt>Command not found</dt><dd>Verify the prerequisite; reopen the terminal after PATH changes. For a missing launcher use the explicit fresh-profile command in Start Here. Do not add privileged commands or permission bypasses as a generic fix.</dd><dt>Authentication or requested model unavailable</dt><dd>Complete vendor sign-in yourself. For the main thread use a supported available model setting while retaining the profile and record the deviation. Delegated worker identity/qualification still has to pass; no silent substitution.</dd><dt>Profile verify reports modified files</dt><dd>Inspect the exact paths and compare with the intended source. Keep custom files/evidence. Do not pass <code>--force</code> without deciding which bytes should win.</dd><dt>Skill check reports drift</dt><dd>Confirm the intended source and destination first. README/install-only drift is still drift, but it is not proof every runtime file changed. Do not install an unrelated dirty checkout wholesale.</dd><dt>Beads backend unavailable</dt><dd>Run <code>bd version</code> and follow that release's local backend setup. An empty ready list is valid; a connection error is not. Local records are not synced without a configured Dolt remote.</dd><dt>Native tool/host gate fails</dt><dd>Preserve the nonaccepting evidence and owned cleanup result. Check exact model, current tool surface, MCP inventory, sandbox, image and qualification. Configuration readiness or a tool-surface capture is not productive-worker qualification.</dd><dt>A worker is stopped or a dependent task is blocked</dt><dd>Establish containment, consumed allowance and trusted stop scope. Continue independently authorized ready work; do not resume a terminal child or bypass its dependent acceptance.</dd></dl>
+        <section id="troubleshooting"><h2>Find and fix the step that failed</h2>
+        <dl><dt>Command not found</dt><dd>Verify the prerequisite; reopen the terminal after PATH changes. For a missing launcher use the explicit fresh-profile command in Start Here. Do not add privileged commands or permission bypasses as a generic fix.</dd><dt>Authentication or requested model unavailable</dt><dd>Complete vendor sign-in yourself. For the main thread use a supported available model setting while retaining the profile and record the deviation. Delegated worker identity/qualification still has to pass; no silent substitution.</dd><dt>Profile verify reports modified files</dt><dd>Inspect the exact paths and compare with the intended source. Keep custom files/evidence. Do not pass <code>--force</code> without deciding which bytes should win.</dd><dt>Skill check reports drift</dt><dd>Confirm the intended source and destination first. README/install-only drift is still drift, but it is not proof every runtime file changed. Do not install an unrelated dirty checkout wholesale.</dd><dt>Beads backend unavailable</dt><dd>Run <code>bd version</code> and follow that release's local backend setup. An empty ready list is valid; a connection error is not. Local records are not synced without a configured Dolt remote.</dd><dt>Native tool/host gate fails</dt><dd>Keep the failed-check evidence and record which processes and resources were stopped. Check the exact model, available tools, MCP integrations, sandbox, source revision and worker qualification. A configuration check or tool list does not prove that the worker can complete real assignments.</dd><dt>A worker is stopped or a dependent task is blocked</dt><dd>Verify that the worker has stopped, account for the time or usage it consumed, and identify which tasks depend on it. Continue unrelated work only if it is already authorized and its own checks pass. Do not resume a stopped attempt or start tasks whose prerequisites have not been accepted.</dd></dl>
         <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/incident-response-playbook.md">Incident playbook</a> · <a href="./get-started.html#recover">Restore the disposable example or remove CWO</a>.</p>
         </section>
-        <section id="controls"><span id="activation-artifacts"></span><span id="scripts"></span><span id="schemas"></span><span id="run-readiness"></span><span id="policies"></span><span id="operator-controls"></span><span id="native-supervision"></span><h2>Current executable controls and source owners</h2>
-<p>For temporary audited tool activation, result version 2 binds the tool trace and child-Bead closure artifacts. Historical version-1 results are inspection-only. The <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">pool/activation reference</a> owns exact trace cardinality, failed-terminal handling and the prohibition on closing parent or publication work.</p>
+        <section id="controls"><span id="activation-artifacts"></span><span id="scripts"></span><span id="schemas"></span><span id="run-readiness"></span><span id="policies"></span><span id="operator-controls"></span><span id="native-supervision"></span><h2>Find the current execution rules and their source files</h2>
+<p>The optional audited tool-activation preview uses version-2 results that link the observed tool calls and child-task closures. Version-1 results are historical only. The <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">activation reference</a> specifies exact call counts and failure handling; activation cannot close parent or publication tasks.</p>
         <dl><dt>Native model routing / exact execution</dt><dd><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/native-worker-execution.yaml">Worker policy</a>; <a href="./native-supervision.html">human overview</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md">current and historical contract</a>.</dd><dt>Executor and access boundary</dt><dd><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/executor-registry.yaml">Executor registry</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/access-profiles.yaml">access profiles</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/execution-environments.md">environment reference</a>.</dd><dt>Readiness and handoff</dt><dd><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/run-readiness.md">Run readiness</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/pre-dispatch-readiness.md">costly dispatch readiness</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/frozen-protocol-lock.md">frozen protocols</a>.</dd><dt>Security</dt><dd><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/security-threat-model.md">Threat model</a>; <a href="./malpractice-sabotage.html">malpractice and sabotage</a>; <a href="./zero-trust-consensus.html">return evaluation and conflicts</a>.</dd></dl>
-        <p>Model/attempt/source-image/qualification bindings, proportionality, budgets, admitted cohorts, controlled lifecycle and final workspace validation are distinct checks. Do not infer them from a schema name, CLI parser success or serialized success Boolean.</p>
+        <p>Check model identity, attempt identity, source revision, qualification, budgets, group admission, monitoring and final workspace state separately. A schema name, accepted CLI argument or saved success flag does not prove those checks passed.</p>
         </section>
-        <section id="advanced"><span id="flow-references"></span><span id="experts"></span><span id="durable-memory"></span><span id="deep-dives"></span><span id="codex-hooks"></span><h2>Optional guides, not universal prerequisites</h2>
-        <ul><li><a href="./prompt-coach.html">Prompt coach and task sizing</a></li><li><a href="./beads-memory.html">Beads records and closure memory</a></li><li><a href="./codex-beads-hooks.html">Beads hook display and context</a></li><li><a href="./model-synthesis.html">Model synthesis</a> and <a href="./zero-trust-consensus.html">evidence evaluation</a></li><li><a href="./external-contracting.html">External contractors and sharing</a></li><li><a href="./local-workers.html">Local inference and restricted environments</a></li><li><a href="./contractor-demo.html">Historical contractor demo</a></li></ul>
-        <p>The browser lane, local models, and alternate harnesses each need their own availability, permissions and maturity check. An artifact renderer is not evidence that live execution occurred. Historical demo IDs and timings do not describe current routing.</p>
+        <section id="durable-memory"><h2>Task closure and handoff controls</h2><p><code>scripts/close_bead_with_summary.py</code> records closure memory before optionally closing a task. A meaningful closure requires who was involved, what changed, how and when it was validated/closed, where it ran, evidence, residual risk and follow-up. It also records why the task is closing and the decision.</p><p>The exact options and validation belong to <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/scripts/close_bead_with_summary.py">the closure helper</a>; the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/run-readiness.md">readiness reference</a> owns the handoff packet and stopping rules. A summary is not proof the checks ran.</p></section>
+<section id="experts"><h2>Find exact reviewer and tool identifiers</h2><p>Use the exact executor IDs and capabilities in the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/executor-registry.yaml">executor registry</a>, with the corresponding <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/access-profiles.yaml">access profile</a>. For packet, evaluation and adjudication commands, use the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/external-contracting.md">contracting reference</a>. Registry names do not prove current runtime availability.</p></section>
+<section id="advanced"><span id="flow-references"></span><span id="deep-dives"></span><span id="codex-hooks"></span><h2>Optional guides for specific needs</h2>
+        <ul><li><a href="./prompt-coach.html">Prompt coach and task sizing</a></li><li><a href="./beads-memory.html">Beads task records and completion summaries</a></li><li><a href="./codex-beads-hooks.html">Beads hook display and context</a></li><li><a href="./model-synthesis.html">Model synthesis</a> and <a href="./zero-trust-consensus.html">evidence evaluation</a></li><li><a href="./external-contracting.html">External contractors and sharing</a></li><li><a href="./local-workers.html">Local inference and restricted environments</a></li><li><a href="./contractor-demo.html">Historical contractor demo</a></li></ul>
+        <p>Browser review, local models and alternate agent tools each need their own availability and permission checks. A rendered prompt does not mean execution occurred. Use historical demo IDs and timings only to understand that recorded run.</p>
         </section>
         <section id="maintain"><span id="validation"></span><h2>Maintain and preview these docs</h2>
 <p>Run the following from a CWO source checkout. These are documentation-maintainer checks, not requirements for the installed skill runtime.</p>
-        <p>Page bodies are authored HTML; the shared shell is generated. README summarizes and links rather than duplicating the full setup. The guide's <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/CONTRIBUTING.md">maintenance instructions</a> identify claim owners, focused/final checks and URL retention.</p>
+        <p>Edit page bodies in their HTML files, then regenerate the shared navigation and footer. README summarizes the reader routes rather than repeating setup. The <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/CONTRIBUTING.md">maintenance guide</a> lists source owners, checks and URL-preservation rules.</p>
         <p class="input-label">Terminal</p>
-        <pre><code>python3 scripts/generate_site.py --check
-python3 scripts/validate_site.py
-python3 scripts/validate_public_copy.py
-python3 scripts/check_documentation.py
-python3 scripts/preview_site.py --port 8765</code></pre>
+        <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/generate_site.py</span><span class="shiki-style-ab138001542cb31f"> --check</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/validate_site.py</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/validate_public_copy.py</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/check_documentation.py</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/preview_site.py</span><span class="shiki-style-ab138001542cb31f"> --port</span><span class="shiki-style-ab138001542cb31f"> 8765</span></span></code></pre>
         <p>Open <code>http://127.0.0.1:8765/complex-work-orchestration/</code>. The preview is local-only. Publication, remote settings, installed-skill updates and commits remain separate authorized operations.</p>
         </section>
-        </article>
-        </div>
+        </article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Keep decisions, progress, and evidence across agent sessions.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Start Here</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Guides</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Examples</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Historical Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Codex Delegation</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Outside Review</a><a href="./local-workers.html">Local Models</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

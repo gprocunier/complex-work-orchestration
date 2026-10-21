@@ -1,0 +1,74 @@
+{
+  "description": "Unmodified model/provider marks for identification,not endorsement or model-route qualification. Diagrams are illustrative,not observed execution traces.",
+  "illustrations": {
+    "connected-ecosystem.svg": "55a6ecbfe280df76dc26fd8a36b3d50b559824958e2f6fd5292c499911a90f78",
+    "supervised-delegation.svg": "17c6ef99eade3378c320dcde2546c2b4a22228314cd214a15154afdd4b6cabdb"
+  },
+  "review_hotspot": {
+    "viewbox": [
+      1760,
+      1280
+    ],
+    "rect": [
+      1012,
+      610,
+      220,
+      88
+    ]
+  },
+  "brands": {
+    "openai": {
+      "asset_url": "https://raw.githubusercontent.com/openai/openai-agents-python/main/docs/assets/logo.svg",
+      "source_page": null,
+      "file": "openai.svg",
+      "sha256": "b94ea61d860fae6f82f43571f36f17111fcf5d348e8e9cc22ae4b441c7560011"
+    },
+    "google": {
+      "asset_url": "https://www.google.com/images/branding/google_wordmark/v1/1x/googlelogo_color_white_background_272x92dp.png",
+      "source_page": null,
+      "file": "google.png",
+      "sha256": "7700adbd25c8c9775c660116b7447384e6f676209739b8a303a9c4852ff6436e"
+    },
+    "zai": {
+      "asset_url": "https://z-cdn.chatglm.cn/z-ai/static/logo.svg",
+      "source_page": null,
+      "file": "zai.svg",
+      "sha256": "07a45e8e35b0b631ed2c68cd1cb041f9721b1ceeb0bd0e34f1459b0304a741c7"
+    },
+    "moonshot": {
+      "asset_url": "https://statics.kimi.ai/moonshot-ai/assets/static/moonshot-ai-wordmark.DeMGOuiG.svg",
+      "source_page": null,
+      "file": "moonshot.svg",
+      "sha256": "441f80552221dbb5bac7af7b84265f0fee03655426359cd48d10952c65058c11"
+    },
+    "qwen": {
+      "asset_url": "https://raw.githubusercontent.com/QwenLM/Qwen-MM-Plugins/main/src/capabilities/video-edit/skill/assets/images/qwen-icon.svg",
+      "source_page": null,
+      "file": "qwen.svg",
+      "sha256": "5bd37a2a98f32c73b133d64abe10962141a9555905c8e1d9b826e0b18d9e4d5e"
+    },
+    "nvidia": {
+      "asset_url": null,
+      "source_page": "https://www.nvidia.com/en-us/ai/",
+      "file": "nvidia.svg",
+      "sha256": "e0f720729717e747800e365a68e3d73356538947fd08d647cdd8fb8182204a54"
+    },
+    "mistral": {
+      "asset_url": null,
+      "source_page": "https://mistral.ai/",
+      "file": "mistral.svg",
+      "sha256": "4af90f5941c959b554b4f3eb82c5633044ad06fdf2d8daa837eea0357fbd7e22"
+    },
+    "anthropic": {
+      "asset_url": "https://avatars.githubusercontent.com/u/76263028?v=4",
+      "source_page": "https://github.com/anthropics",
+      "file": "anthropic.png",
+      "sha256": "4124b8d03b154d23afe1d6b9a0b9b7813c5b40407d8d039c38d6ff3b2e923239"
+    }
+  },
+  "original_illustrations": {
+    "connected-ecosystem.svg": "d48e879cc86cb8a1e6ee58006fb6dd19d729c681327c2395c0b25e7bcd190216",
+    "supervised-delegation.svg": "8e5c283b75ce60bb0d1599e57f3f77e3466f655e0bc3582d1a1e45c668125876"
+  },
+  "theme": "Palette-only embedded CSS follows the embedding element color-scheme. Original illustration hashes exclude only the generated diagram-theme style; logo bytes and all geometry/text remain unchanged."
+}

@@ -9,7 +9,10 @@
     >
     <title>Install and verify CWO | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
     <script src="./site.js" defer></script>
   </head>
   <body>
@@ -20,7 +23,7 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Complex Work Orchestration</span>
         </a>
-        <div class="nav-links">
+        <details class="site-menu" open><summary>Menu</summary><div class="nav-links">
           <a href="./index.html">Home</a>
           <a href="./get-started.html" aria-current="true">Start Here</a>
           <a href="./use-cases.html">Examples</a>
@@ -28,28 +31,127 @@
           <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-        </div>
+        </div></details>
+        <fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>
+          <label class="theme-choice" for="theme-system" title="System theme (default)">
+            <input class="sr-only" type="radio" id="theme-system" name="theme" value="system" checked>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="sr-only">System theme (default)</span>
+          </label>
+          <label class="theme-choice" for="theme-light" title="Light theme">
+            <input class="sr-only" type="radio" id="theme-light" name="theme" value="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="sr-only">Light theme</span>
+          </label>
+          <label class="theme-choice" for="theme-dark" title="Dark theme">
+            <input class="sr-only" type="radio" id="theme-dark" name="theme" value="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/></svg>
+            <span class="sr-only">Dark theme</span>
+          </label>
+        </fieldset>
       </nav>
     </header>
 
     <main id="main" tabindex="-1">
-<div class="page-shell reference-slice page--tutorial"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./get-started.html">Start Here</a></nav><h1 id="page-title">Install and verify CWO</h1><p class="lede">Install from the source checkout. Continue when the skill check is current and profile verification reports “ok”: true.</p><nav class="tutorial-progress" aria-label="First project stages"><ol><li><a href="./get-started.html">1. Prepare</a></li><li><a href="./install.html" aria-current="step">2. Install</a></li><li><a href="./first-project.html">3. First task</a></li><li><a href="./continue-project.html">4. Continue</a></li></ol></nav></header><details class="contents"><summary>On this page</summary><nav aria-label="On this page"><a href="#install">Install and verify</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="install"><span id="profile"></span><h2>Install the skill, then the named profile</h2>
-        <p>There are three distinct locations: the <strong>source checkout</strong> below contains the installer; the <strong>installed skill</strong> normally lives under <code>~/.codex/skills/complex-work-orchestration</code>; your <strong>target project</strong> will be a separate directory. Keep them separate.</p>
+<div class="page-shell reference-slice page--tutorial"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./get-started.html">Start Here</a></nav><h1 id="page-title">Install and verify CWO</h1><p class="lede">Install the CWO skill and a named Codex profile: a set of CWO-specific settings selected when you start a session. Verify both before starting the optional practice example.</p><nav class="tutorial-progress" aria-label="Practice walkthrough stages"><ol><li><a href="./get-started.html">1. Prepare</a></li><li><a href="./install.html" aria-current="step">2. Install</a></li><li><a href="./first-project.html">3. Practice example</a></li><li><a href="./continue-project.html">4. Continue the example</a></li></ol></nav></header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page"><a href="#agent-install">Have your agent install CWO</a><a href="#install">Keep source, installed files and project separate</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="agent-install" aria-labelledby="agent-install-title">
+<h2 id="agent-install-title">If you want your agent to install this skill, give it this</h2>
+<p>Copy this prompt into an ordinary Codex CLI session. It does not require CWO to be installed. Your agent checks the machine, sets up missing prerequisites within your permissions, installs CWO and verifies the result.</p>
+<details class="install-prompt"><summary>Show the installation prompt</summary>
+<pre class="prompt shiki github-dark-default shiki-style-8930c6a81784fc59" data-language="text" tabindex="0" role="region" aria-label="Agent installation prompt" data-theme="github-dark-default"><code><span class="line"><span>Install Complex Work Orchestration (CWO) for my local Codex CLI setup.</span></span>
+<span class="line"><span>CWO is not installed yet: use ordinary tools and a short setup checklist,</span></span>
+<span class="line"><span>not CWO commands or a CWO work graph, to get started.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Repository: https://github.com/gprocunier/complex-work-orchestration</span></span>
+<span class="line"><span>CWO setup: https://gprocunier.github.io/complex-work-orchestration/install.html</span></span>
+<span class="line"><span>Codex setup: https://learn.chatgpt.com/docs/cli</span></span>
+<span class="line"><span>Beads setup: https://beads.gascity.com/getting-started/installation</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>1. Check this machine first.</span></span>
+<span class="line"><span>Identify the OS, shell, starting directory and intended Codex home. Check</span></span>
+<span class="line"><span>Bash, Git, Python 3, Codex CLI and Beads (bd), including their versions.</span></span>
+<span class="line"><span>Inspect CODEX_HOME and CODEX_SKILLS_DIR without displaying credentials.</span></span>
+<span class="line"><span>Confirm Codex account access using its documented checks; a version string</span></span>
+<span class="line"><span>alone is not proof of authentication. Let me complete any sign-in myself.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>2. Set up missing prerequisites.</span></span>
+<span class="line"><span>Use the current official OS/vendor instructions for this platform. Install</span></span>
+<span class="line"><span>only what is missing, within my existing permissions. Explain the exact</span></span>
+<span class="line"><span>change and request approval when elevated privileges, a new package source</span></span>
+<span class="line"><span>or an otherwise unpermitted change is needed. Do not bypass the sandbox,</span></span>
+<span class="line"><span>weaken security settings, collect credentials or overwrite my configuration.</span></span>
+<span class="line"><span>The CWO walkthrough has been checked on Linux; do not assume it proves</span></span>
+<span class="line"><span>support on another platform. Report an unsupported step rather than improvise.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>3. Verify Beads task storage, not just the bd executable.</span></span>
+<span class="line"><span>Follow the instructions for the installed Beads version and build. Set up a</span></span>
+<span class="line"><span>local backend such as Dolt only if that version needs it; do not replace or</span></span>
+<span class="line"><span>migrate an existing working backend. In a new disposable scratch project,</span></span>
+<span class="line"><span>use that version's documented initialization and run bd ready --json.</span></span>
+<span class="line"><span>Isolate its database and any service from my existing projects and task data.</span></span>
+<span class="line"><span>An empty ready list is valid; a connection error is not. Record the test's</span></span>
+<span class="line"><span>location and stop only temporary services you started. Do not configure a</span></span>
+<span class="line"><span>remote, publish task records or initialize Beads in my real project yet.</span></span>
+<span class="line"><span>If storage cannot be verified, report that gap rather than claim full setup.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>4. Get and inspect CWO's source.</span></span>
+<span class="line"><span>Use a separate source folder, outside the installed skill and my project.</span></span>
+<span class="line"><span>For example, use ~/cwo-source only if that folder does not already exist.</span></span>
+<span class="line"><span>Clone the repository above and record its origin and commit. Never delete,</span></span>
+<span class="line"><span>reset or overwrite an existing checkout; inspect it and use the update guide</span></span>
+<span class="line"><span>or a new folder instead. Read its repository instructions, README.md,</span></span>
+<span class="line"><span>docs/install.html, scripts/install.sh and scripts/manage_instruction_profile.py</span></span>
+<span class="line"><span>before running the installer. Do not require an installed CWO to do this.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>5. Install the skill and its named settings profile.</span></span>
+<span class="line"><span>From the source checkout, inspect the installer's dry-run destination first.</span></span>
+<span class="line"><span>The following commands use the default paths. If I use CODEX_HOME or</span></span>
+<span class="line"><span>CODEX_SKILLS_DIR, use each helper's --help to align installation, checking,</span></span>
+<span class="line"><span>profile and launcher with that same intended setup; do not unset overrides</span></span>
+<span class="line"><span>or install into a second home by accident.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>./scripts/install.sh --yes --dry-run</span></span>
+<span class="line"><span>./scripts/install.sh --yes</span></span>
+<span class="line"><span>python3 scripts/check_installed_skill.py --check</span></span>
+<span class="line"><span>python3 scripts/manage_instruction_profile.py install --profile operator-e</span></span>
+<span class="line"><span>python3 scripts/manage_instruction_profile.py verify --profile operator-e</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Inspect any existing installation and preserve its local changes and backup.</span></span>
+<span class="line"><span>Do not use --force to overwrite a modified profile or launcher without asking</span></span>
+<span class="line"><span>which version to keep. Leave my default Codex settings unchanged. A dry run</span></span>
+<span class="line"><span>has not installed anything; a missing-bd warning is not verified task storage.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>6. Verify and hand back a usable starting point.</span></span>
+<span class="line"><span>Require the skill check to report current and profile verification to report</span></span>
+<span class="line"><span>"ok": true. Report failures separately; do not label a partial install ready.</span></span>
+<span class="line"><span>Check that the launcher can be found, or give its full path. If the profile's</span></span>
+<span class="line"><span>model is unavailable, report it and propose a supported per-session override</span></span>
+<span class="line"><span>that retains the named profile; do not silently rewrite defaults.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Summarize the source commit, installed paths, prerequisite/backend checks,</span></span>
+<span class="line"><span>backups, actual verification results and any remaining blocker. Give me the</span></span>
+<span class="line"><span>command to start a fresh CWO session, explaining how to supply my project</span></span>
+<span class="line"><span>directory. Do not start project work or launch additional models. Explain</span></span>
+<span class="line"><span>that this existing conversation has not acquired the new instruction profile.</span></span></code></pre>
+</details>
+<p class="scope-note">You handle account sign-in and any required approvals. The prompt does not authorize project work, extra model calls or changes to your default Codex settings. Prefer to install by hand? Follow the commands below.</p>
+</section>
+<section id="install"><span id="profile"></span><h2>Keep source, installed files and project separate</h2>
+        <p>Use three separate folders: the source checkout contains the installer; the installed skill normally lives at <code>~/.codex/skills/complex-work-orchestration</code>; your target project contains the work Codex will change.</p>
         <p>The following primary path assumes <code>~/cwo-source</code> does not already exist. If it does, choose a new source folder or follow <a href="./reference.html#updates">the update guide</a>; do not delete an existing checkout.</p>
-        <p class="code-hint">Long commands keep their original lines. If a line continues beyond the edge, scroll inside its code block; select the text to copy it.</p><p class="input-label">Terminal</p>
-        <pre><code>git clone https://github.com/gprocunier/complex-work-orchestration.git &quot;$HOME/cwo-source&quot;
-cd &quot;$HOME/cwo-source&quot;
-./scripts/install.sh --yes
-python3 scripts/check_installed_skill.py --check
-python3 scripts/manage_instruction_profile.py install --profile operator-e
-python3 scripts/manage_instruction_profile.py verify --profile operator-e</code></pre>
-        <p><strong>Expected:</strong> installation names its destination, the skill check reports current, and profile verification reports <code>"ok": true</code>. The named profile adds the operator's instructions and a launcher; it leaves default profile settings intact. The installed CWO skill remains available in ordinary sessions until disabled or removed. If a managed file is already modified, stop and inspect the reported path; do not add <code>--force</code> blindly. A missing <code>bd</code> warning is not a completed setup.</p>
+        <p class="input-label">Terminal</p>
+        <pre tabindex="0" role="region" aria-label="Terminal commands or recorded output" data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">git</span><span class="shiki-style-fccf53bf0d08ec6a"> clone</span><span class="shiki-style-fccf53bf0d08ec6a"> https://github.com/gprocunier/complex-work-orchestration.git</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/cwo-source"</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">cd</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/cwo-source"</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">./scripts/install.sh</span><span class="shiki-style-ab138001542cb31f"> --yes</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/check_installed_skill.py</span><span class="shiki-style-ab138001542cb31f"> --check</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> install</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> operator-e</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> verify</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> operator-e</span></span></code></pre>
+        <p>Expected: the installer reports its destination, the skill check reports <code>current</code>, and profile verification reports <code>"ok": true</code>. The named profile adds CWO instructions and a launcher without changing your default profile settings. The installed skill remains discoverable in ordinary sessions until disabled or removed. If a managed file has local changes, inspect the reported path before deciding what to keep; do not add <code>--force</code> blindly. Resolve a missing <code>bd</code> warning before continuing.</p>
         <p>These commands use the default Codex home. If you deliberately use <code>CODEX_HOME</code> or <code>CODEX_SKILLS_DIR</code>, align the installer, check, profile, and launcher with that same home. The <a href="./reference.html#installation">installation reference</a> covers explicit destinations.</p>
-        </section><nav class="next-action" aria-label="Next task"><a class="button" href="./first-project.html">Next: repair the checker</a></nav></article></div></div>
+        </section><nav class="next-action" aria-label="Next task"><a class="button" href="./first-project.html">Next: try the practice example</a></nav></article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Native Supervision</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Contractors</a><a href="./local-workers.html">Local Workers</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Codex Delegation</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Outside Review</a><a href="./local-workers.html">Local Models</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

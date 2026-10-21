@@ -39,21 +39,21 @@ class ValidateRepositoryTests(unittest.TestCase):
 <p>id="workspace-authority"</p>
 <p>id="failure-recovery"</p>
 <p>id="concurrency-preview"</p>
-<p>no unsupervised native-worker opt-out</p>
+<p>no unsupervised opt-out</p>
 <p><code>task_selected_routing</code> v3</p>
 <p><code>gpt-5.6-luna</code></p>
 <p><code>gpt-5.6-terra</code></p>
-<p>Do not substitute another available model silently</p>
-<p>Register persistence and observers before triggering work</p>
+<p>Do not silently substitute an available model</p>
+<p>Save the control state and register monitoring before sending the assignment</p>
 <p>enforced filesystem/network boundaries</p>
-<p>finite operation reservation</p>
-<p>final mutation attribution</p>
-<p>close owned resources</p>
+<p>finite time/usage allowance</p>
+<p>which files actually changed</p>
+<p>Confirm owned processes and resources are closed</p>
 <p>N=1..3</p>
-<p>actual compatible host capability</p>
+<p>host that has proved the required capabilities</p>
 <p>Optional concurrency is a preview</p>
-<p>stateful operations serial</p>
-<p>Stopped sessions stay terminal</p>
+<p>model dispatch serial</p>
+<p>A stopped attempt cannot be resumed; another attempt needs its own fresh allowance</p>
 <p>https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md</p>
 <p>https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md</p>
     """
@@ -136,6 +136,14 @@ class ValidateRepositoryTests(unittest.TestCase):
         )
         self.assertEqual(errors, [])
 
+    def test_native_supervision_copy_rejects_permission_to_resume_stopped_attempt(self) -> None:
+        errors: list[str] = []
+        content = self.NATIVE_SUPERVISION_TECH_PREVIEW_COPY.replace(
+            'A stopped attempt cannot be resumed', 'A stopped attempt may be resumed'
+        )
+        validate_native_supervision_tech_preview_copy(errors, content=content)
+        self.assertTrue(any('terminal attempts' in error for error in errors), errors)
+
     def test_native_supervision_tech_preview_copy_rejects_contract_gaps(self) -> None:
         cases = {
             'default section anchor': ('id="default-path"', 'REMOVED_CONTRACT'),
@@ -144,21 +152,21 @@ class ValidateRepositoryTests(unittest.TestCase):
             'workspace section anchor': ('id="workspace-authority"', 'REMOVED_CONTRACT'),
             'failure section anchor': ('id="failure-recovery"', 'REMOVED_CONTRACT'),
             'concurrency section anchor': ('id="concurrency-preview"', 'REMOVED_CONTRACT'),
-            'mandatory supervision': ('no unsupervised native-worker opt-out', 'REMOVED_CONTRACT'),
+            'mandatory supervision': ('no unsupervised opt-out', 'REMOVED_CONTRACT'),
             'active routing version': ('<code>task_selected_routing</code> v3', 'REMOVED_CONTRACT'),
             'exact Luna model': ('<code>gpt-5.6-luna</code>', 'REMOVED_CONTRACT'),
             'exact Terra model': ('<code>gpt-5.6-terra</code>', 'REMOVED_CONTRACT'),
-            'no model substitution': ('Do not substitute another available model silently', 'REMOVED_CONTRACT'),
-            'persistence before triggering': ('Register persistence and observers before triggering work', 'REMOVED_CONTRACT'),
+            'no model substitution': ('Do not silently substitute an available model', 'REMOVED_CONTRACT'),
+            'persistence before triggering': ('Save the control state and register monitoring before sending the assignment', 'REMOVED_CONTRACT'),
             'enforced effect boundary': ('enforced filesystem/network boundaries', 'REMOVED_CONTRACT'),
-            'finite operation reservation': ('finite operation reservation', 'REMOVED_CONTRACT'),
-            'final attribution': ('final mutation attribution', 'REMOVED_CONTRACT'),
-            'owned cleanup': ('close owned resources', 'REMOVED_CONTRACT'),
+            'finite operation reservation': ('finite time/usage allowance', 'REMOVED_CONTRACT'),
+            'final attribution': ('which files actually changed', 'REMOVED_CONTRACT'),
+            'owned cleanup': ('Confirm owned processes and resources are closed', 'REMOVED_CONTRACT'),
             'fixed cohort ceiling': ('N=1..3', 'REMOVED_CONTRACT'),
-            'actual host capability': ('actual compatible host capability', 'REMOVED_CONTRACT'),
+            'actual host capability': ('host that has proved the required capabilities', 'REMOVED_CONTRACT'),
             'preview boundary': ('Optional concurrency is a preview', 'REMOVED_CONTRACT'),
-            'stateful operations serial': ('stateful operations serial', 'REMOVED_CONTRACT'),
-            'terminal attempts': ('Stopped sessions stay terminal', 'REMOVED_CONTRACT'),
+            'stateful operations serial': ('model dispatch serial', 'REMOVED_CONTRACT'),
+            'terminal attempts': ('A stopped attempt cannot be resumed; another attempt needs its own fresh allowance', 'REMOVED_CONTRACT'),
             'single-worker operator link': ('https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md', 'REMOVED_CONTRACT'),
             'pool operator link': ('https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md', 'REMOVED_CONTRACT'),
         }

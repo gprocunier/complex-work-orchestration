@@ -22,8 +22,8 @@ bounded follow-up Beads, and evidence requirements over broad commentary.
 ## Invocation triggers
 - A final plan needs outside review before execution.
 - The work packet spans architecture, policy, tests, docs, or contractors.
-- The user asks for ChatGPT Pro, GPT 5.5 Pro, Extended Reasoning, or a total
-  work packet review.
+- The user asks for a second opinion on the revised plan or a total work packet
+  readiness review.
 - The architect wants an independent readiness check before worker handoff.
 
 ## Required inputs

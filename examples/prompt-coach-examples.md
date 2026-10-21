@@ -1,7 +1,7 @@
 # Prompt Coach Examples
 
-Use these examples to right-size `$complex-work-orchestration` before launching
-the harness. The first-class path is an in-Codex `/plan` request. Direct
+Use these examples to choose how much coordination a task needs. Start with an
+in-Codex `/plan` request when you want options before execution. Direct
 `python3 scripts/coach_prompt.py` execution is the advanced helper equivalent
 for automation, CI, troubleshooting, or an operator shell outside Codex.
 
@@ -90,9 +90,8 @@ python3 scripts/coach_prompt.py \
 Expected sizing: `full-harness` with an `outside_sharing_boundary` question
 until the user explicitly chooses a sharing boundary.
 
-The example uses legacy routing words that the coach still understands. In
-reader-facing docs, describe the same choice as internal review workers and
-contractor workstreams.
+The example uses routing words retained for compatibility. It does not authorize
+an outside model call; the provider and shared material still need approval.
 
 The JSON output includes `interactive_questions` for Plan-mode prompts when the
 recommended harness level, sharing boundary, local worker use, or validation
@@ -119,10 +118,10 @@ Expected sizing: `publish-release` or `full-harness` depending policy route,
 with `workerbee_parallelism.recommended_mode=review-only`,
 `workerbee-parallelism=review-only`, and a Plan-mode
 `workerbee_parallelism` question whose recommended option is
-`review-subagents`. Use Codex 5.3 Spark when available, otherwise the
-smallest available capable review model, for bounded parallel
-review/investigation workstreams while the main thread keeps integration and final
-acceptance.
+`review-subagents`. Current native selection sizes the task before choosing a
+qualified exact Luna worker; Terra requires recorded escalation. Historical Spark
+examples do not approve new dispatches. Do not silently substitute an available
+model. The main thread keeps integration and final acceptance.
 
 ## Heavy Subagent Review
 
@@ -170,8 +169,10 @@ autosized or explicitly selected depth. Internal agents may use
 
 ```text
 /plan Use $complex-work-orchestration prompt coach:
-Use model synthesis to combine Claude Opus, Gemini, and ChatGPT Pro findings
-into consensus, disagreements, and recommended plan revisions.
+Use model synthesis to combine separate Claude Opus and configured local vLLM
+second opinions into supported findings, disagreements and specific plan revisions.
+I authorize only a redacted design brief for the outside reviewer and opt in to
+the configured local reviewer. Stop after the reviewed plan; do not implement.
 ```
 
 Advanced helper equivalent after explicit outside-sharing opt-in:
@@ -181,8 +182,8 @@ python3 scripts/coach_prompt.py \
   --external-ok \
   --share-boundary redacted-packet \
   --requested-role architecture \
-  --requested-role master-plan-review \
-  "Use model synthesis to combine Claude Opus, Gemini, and ChatGPT Pro findings."
+  --local-ok \
+  "Use model synthesis to combine Claude Opus and configured local vLLM second opinions."
 ```
 
 Expected sizing includes `model_synthesis.recommended_mode=requested`,

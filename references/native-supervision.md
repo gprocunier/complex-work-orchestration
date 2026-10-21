@@ -1,10 +1,16 @@
 # Native supervision: current and historical contracts
 
-Current operative routing is neutral-sized, qualified exact Luna first, with
-Terra only for recorded nonfit or justified escalation. Spark/v2 examples below
-are historical compatibility material: parseability is not fresh dispatch
-authority. Current v3 routes require current qualification, source/context/scope,
-candidate/attempt and budget bindings through precommit, packet and release.
+For a new assignment, estimate the whole task before selecting a worker. Current
+v3 policy selects a qualified exact Luna model first; Terra needs a recorded fit,
+qualification, risk or cost reason. A current launch must bind the qualified model,
+source revision and context, task scope, candidate and attempt identities, and
+allowance through the fit check (`precommit`), scoped brief (`packet`) and exact
+launch approval (`release evidence`).
+
+The Spark/v2 examples below are retained to interpret historical artifacts. An
+old packet passing its format check does not approve a new dispatch. Start with
+the [current delegation guide](../docs/native-supervision.html) for the reader
+procedure, then use this reference for the exact contracts.
 
 Read-only semantic reviews require zero mutations and an enforced filesystem
 and network boundary. Removing a patch tool or giving read-only instructions
