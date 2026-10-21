@@ -8,6 +8,8 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from cwo_core.public_copy import find_public_copy_issues
+from generate_site import PAGES, PRIMARY_NAV, FOOTER_NAV
+from site_code import without_token_spans
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
@@ -25,24 +27,34 @@ SOURCE_BLOB_LINK_ALLOWLIST = {
     NATIVE_SUPERVISION_POOL_REFERENCE_URL,
     f"{REPO_URL}/blob/main/LICENSE",
 }
-REQUIRED_PAGES = [
-    "index.html",
-    "get-started.html",
-    "explanation.html",
-    "prompt-coach.html",
-    "workflows.html",
-    "native-supervision.html",
-    "use-cases.html",
-    "external-contracting.html",
-    "local-workers.html",
-    "contractor-demo.html",
-    "beads-memory.html",
-    "model-synthesis.html",
-    "zero-trust-consensus.html",
-    "malpractice-sabotage.html",
-    "codex-beads-hooks.html",
-    "reference.html",
-]
+SOURCE_BLOB_LINK_ALLOWLIST.update(
+    f"{REPO_URL}/blob/main/{name}" for name in (
+        "CONTRIBUTING.md", "SKILL.md", "SECURITY.md", "CHANGELOG.md",
+        "references/cwo-system-prompt.md",
+        "references/execution-environments.md", "references/native-pool-capacity-migration.md",
+        "references/run-readiness.md", "references/security-threat-model.md",
+        "references/frozen-protocol-lock.md", "references/pre-dispatch-readiness.md",
+        "policy/native-worker-execution.yaml", "policy/executor-registry.yaml",
+        "policy/access-profiles.yaml", "policy/execution-environments.yaml",
+        "scripts/manage_instruction_profile.py", "scripts/check_installed_skill.py",
+        "scripts/close_bead_with_summary.py", "references/external-contracting.md",
+        "examples/first-project/README.md",
+        "examples/first-project/VALIDATION.md", "examples/release-readiness/RECORD.md", "examples/release-readiness/HANDOFF.md",
+    )
+)
+SOURCE_BLOB_LINK_ALLOWLIST.add(
+    f"{REPO_URL}/blob/8e05b6cce4c4cf89325112f019fdd8c69a28ecff/examples/release-readiness/RECORD.md"
+)
+# Immutable implementation evidence for the positioning/reference slice.
+SOURCE_BLOB_LINK_ALLOWLIST.update(
+    f"{REPO_URL}/blob/8e05b6cce4c4cf89325112f019fdd8c69a28ecff/{name}"
+    for name in (
+        "scripts/cwo_core/frozen_protocol.py", "scripts/cwo_core/synthesis.py",
+        "scripts/cwo_core/native_pool_transaction.py", "tests/test_frozen_protocol.py",
+        "tests/test_zero_trust_consensus.py", "tests/test_local_dispatch.py",
+        "tests/test_model_synthesis.py",
+    )
+)
 SOURCE_LINK_PATTERNS = [
     REPO_URL,
     f"{REPO_URL}/blob/main/LICENSE",
@@ -52,33 +64,36 @@ SOURCE_LINK_PATTERNS = [
     "https://github.com/gprocunier/hello-world-contractor-demo",
     "https://gprocunier.github.io/hello-world-contractor-demo/",
     "https://github.com/gastownhall/beads",
+    "https://beads.gascity.com/",
     "https://diataxis.fr/",
     "https://www.anthropic.com/news/claude-fable-5-mythos-5",
     "https://www.anthropic.com/system-cards",
     "https://www-cdn.anthropic.com/2f9323abbcc4abe219577539efe19a623c9ca2bd/Claude%20Fable%205%20%26%20Claude%20Mythos%205%20System%20Card.pdf",
 ]
-PRIMARY_NAV_HREFS = [
-    "./index.html",
-    "./get-started.html",
-    "./workflows.html",
-    "./use-cases.html",
-    "./reference.html",
-    REPO_URL,
-]
-FOOTER_HREFS = [
-    "./index.html",
-    "./get-started.html",
-    "./prompt-coach.html",
-    "./workflows.html",
-    "./native-supervision.html",
-    "./use-cases.html",
-    "./external-contracting.html",
-    "./local-workers.html",
-    "./contractor-demo.html",
-    "./reference.html",
-    REPO_URL,
-    f"{REPO_URL}/blob/main/LICENSE",
-]
+SOURCE_LINK_PATTERNS.extend(sorted(SOURCE_BLOB_LINK_ALLOWLIST))
+SOURCE_LINK_PATTERNS.extend([
+    "https://learn.chatgpt.com/docs/codex/cli",
+    "https://learn.chatgpt.com/docs/models",
+    "https://learn.chatgpt.com/docs/agent-configuration/subagents",
+    "https://learn.chatgpt.com/docs/config-file/config-reference",
+])
+# Exact primary sources for the dated ecosystem comparison; fragments are allowed.
+SOURCE_LINK_PATTERNS.extend([
+    'https://code.claude.com/docs/en/sub-agents',
+    'https://code.claude.com/docs/en/agent-teams',
+    'https://docs.opencode.ai/docs/providers/',
+    'https://docs.opencode.ai/docs/permissions/',
+    'https://docs.langchain.com/oss/python/langgraph/persistence',
+    'https://docs.langchain.com/oss/python/langgraph/interrupts',
+    'https://docs.crewai.com/en/concepts/flows',
+    'https://openai.github.io/openai-agents-python/models/',
+    'https://openai.github.io/openai-agents-python/guardrails/',
+    'https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html',
+])
+# Shell/navigation inventory has one producer. Content safety stays independent.
+REQUIRED_PAGES = list(PAGES)
+PRIMARY_NAV_HREFS = [href for href, _ in PRIMARY_NAV]
+FOOTER_HREFS = [href for href, _ in FOOTER_NAV]
 
 PRIVATE_PATTERNS = [
     re.compile(r"/home/[A-Za-z0-9_.-]+"),
@@ -110,14 +125,82 @@ INDEX_FIRST_SCREEN_FORBIDDEN_TERMS = [
 INDEX_EXPERT_ROUTE_HREFS = [
     "./workflows.html",
     "./native-supervision.html",
-    "./beads-memory.html",
-    "./model-synthesis.html",
-    "./zero-trust-consensus.html",
-    "./malpractice-sabotage.html",
+    "./use-cases.html",
+    "./explanation.html",
     "./reference.html",
-    "./contractor-demo.html",
     REPO_URL,
 ]
+
+ONBOARDING_STEPS = [
+    "manage_instruction_profile.py install --profile operator-e",
+    "manage_instruction_profile.py verify --profile operator-e",
+    "scripts/create_first_project.py",
+    'cwo-codex -C "$HOME/cwo-first-project"',
+    "Fix only errors(config)",
+]
+
+
+ONBOARDING_PAGE_STEPS = {"install.html": ONBOARDING_STEPS[:2], "first-project.html": ONBOARDING_STEPS[2:]}
+SEMANTIC_ROUTES = {
+    "beads-graph": ("./beads-memory.html#example", "bd show TASK_ID --json"),
+    "validate-handoff": ("./beads-memory.html", "cat HANDOFF.md"),
+    "optional-lanes": ("./external-contracting.html#collaboration", None),
+}
+
+
+def validate_onboarding(contents: dict[str, str]) -> list[str]:
+    from html import unescape
+    errors = []
+    for page, steps in ONBOARDING_PAGE_STEPS.items():
+        plain = unescape(without_token_spans(contents.get(page, "")))
+        positions = [plain.find(step) for step in steps]
+        if any(p < 0 for p in positions) or positions != sorted(positions):
+            errors.append(f"docs/{page} must preserve canonical onboarding steps in order")
+    entry = contents.get("get-started.html", "")
+    stages = [entry.find(f'href="./{page}"') for page in ("install.html", "first-project.html", "continue-project.html")]
+    if any(p < 0 for p in stages) or stages != sorted(stages):
+        errors.append("docs/get-started.html must link the install, first task and continuation stages in order")
+    return errors
+
+
+class FragmentContent(HTMLParser):
+    """Collect one real section, so a stray alias elsewhere cannot satisfy it."""
+    def __init__(self, target):
+        super().__init__()
+        self.target = target
+        self.depth = 0
+        self.found = False
+        self.hrefs = []
+        self.text = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if tag == "section":
+            if self.depth:
+                self.depth += 1
+            elif attrs.get("id") == self.target:
+                self.depth = 1
+                self.found = True
+        if self.depth and tag == "a":
+            self.hrefs.append(attrs.get("href"))
+
+    def handle_endtag(self, tag):
+        if tag == "section" and self.depth:
+            self.depth -= 1
+
+    def handle_data(self, data):
+        if self.depth:
+            self.text.append(data)
+
+
+def validate_semantic_routes(source: str) -> list[str]:
+    errors = []
+    for anchor, (href, command) in SEMANTIC_ROUTES.items():
+        section = FragmentContent(anchor)
+        section.feed(source)
+        if not section.found or href not in section.hrefs or (command and command not in "".join(section.text)):
+            errors.append(f"docs/workflows.html#{anchor} must provide its promised task and exact continuation link")
+    return errors
 
 
 class SiteParser(HTMLParser):
@@ -207,6 +290,23 @@ class SiteParser(HTMLParser):
             self.internal_copy_errors.append(issue.render())
 
 
+def first_screen_term_text(first_screen: str, term: str) -> str:
+    """Allow a definition-first Beads introduction only in its memory section.
+
+    The owner requested a named explanation of durable memory. This is not a
+    blanket exemption for unexplained brand/internal terms on the landing page.
+    """
+    if term == "Beads":
+        section = re.search(r'<section id="durable-memory"[^>]*>.*?</section>', first_screen, re.DOTALL)
+        if section:
+            plain = re.sub(r"<[^>]+>", " ", section.group(0))
+            plain = " ".join(plain.split())
+            first_beads = re.search(r"\bBeads\b", plain, re.IGNORECASE)
+            if first_beads and plain[first_beads.start():].startswith("Beads is the task database CWO uses for durable project memory."):
+                first_screen = first_screen[:section.start()] + first_screen[section.end():]
+    return re.sub(r"<[^>]+>", " ", first_screen)
+
+
 def validate_html(path: Path) -> list[str]:
     errors: list[str] = []
     text = path.read_text(encoding="utf-8")
@@ -232,6 +332,7 @@ def validate_html(path: Path) -> list[str]:
             "workflows.html",
             "use-cases.html",
             "reference.html",
+            "explanation.html",
         }
         if path.name in primary_pages:
             expected = f'href="./{path.name}" aria-current="page"'
@@ -247,8 +348,8 @@ def validate_html(path: Path) -> list[str]:
                 errors.append(f"{path.relative_to(ROOT)} missing prompt-coach output level: {term}")
     if path.name == "index.html":
         first_screen = text.split('<section id="walk"', 1)[0]
-        first_screen_plain = re.sub(r"<[^>]+>", " ", first_screen)
         for term in INDEX_FIRST_SCREEN_FORBIDDEN_TERMS:
+            first_screen_plain = first_screen_term_text(first_screen, term)
             if re.search(rf"\b{re.escape(term)}\b", first_screen_plain, re.IGNORECASE):
                 errors.append(
                     f"{path.relative_to(ROOT)} introduces advanced term before novice ramp: {term}"
@@ -256,18 +357,8 @@ def validate_html(path: Path) -> list[str]:
         for href in INDEX_EXPERT_ROUTE_HREFS:
             if f'href="{href}"' not in text:
                 errors.append(f"{path.relative_to(ROOT)} missing expert route link: {href}")
-    if path.name == "get-started.html":
-        ordered_terms = [
-            "manage_instruction_profile.py install --profile operator-e",
-            "manage_instruction_profile.py verify --profile operator-e",
-            'cwo-codex -C "$PWD"',
-            "/plan Use $complex-work-orchestration prompt coach:",
-        ]
-        positions = [text.find(term) for term in ordered_terms]
-        if any(position < 0 for position in positions) or positions != sorted(positions):
-            errors.append(
-                f"{path.relative_to(ROOT)} must present Candidate E install, verify, fresh launch, then coach in order"
-            )
+    if path.name == "workflows.html":
+        errors.extend(validate_semantic_routes(text))
     if path.name in {"external-contracting.html", "local-workers.html"} and "Publication handoff" not in text:
         errors.append(f"{path.relative_to(ROOT)} missing publication handoff note")
     for landmark in ["main", "nav", "header", "footer"]:
@@ -295,6 +386,8 @@ def validate_html(path: Path) -> list[str]:
                 errors.append(f"{path.relative_to(ROOT)} links to missing anchor #{anchor}")
             continue
         target = (path.parent / parsed.path).resolve()
+        if parsed.path.startswith("../"):
+            errors.append(f"{path.relative_to(ROOT)} link leaves published docs directory: {href}")
         try:
             target.relative_to(ROOT)
         except ValueError:
@@ -328,6 +421,7 @@ def main() -> int:
             errors.append(f"missing required site file: {path.relative_to(ROOT)}")
     for path in sorted(DOCS.glob("*.html")):
         errors.extend(validate_html(path))
+    errors.extend(validate_onboarding({page: (DOCS / page).read_text() for page in ["get-started.html", *ONBOARDING_PAGE_STEPS] if (DOCS / page).is_file()}))
     if (DOCS / "styles.css").exists():
         css = (DOCS / "styles.css").read_text(encoding="utf-8")
         if "@media" not in css:

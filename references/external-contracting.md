@@ -1,7 +1,14 @@
 # External Contracting Operator Guide
 
-This reference explains how to post and manage outside model contracts for the
-`complex-work-orchestration` skill.
+Use this reference after the user has approved an outside reviewer and the
+material it may receive. Create a separate task, prepare and inspect its brief,
+make the approved model call, then evaluate the answer before the lead decides
+what changes. The [outside-review guide](../docs/external-contracting.html) explains
+the sequence; this file retains the exact fields and commands.
+
+A **packet** is the checked brief. An **executor** names the tool/model route. A
+**disposition** records whether a return or finding is usable, rejected or held
+for review. **Adjudication** is the lead's decision after examining that evidence.
 
 ## Threat Model And Disclosure Boundary
 
@@ -140,14 +147,12 @@ returns as evidence and require return evaluation plus architect adjudication
 before implementation.
 ```
 
-Master plan review:
+Final-plan review:
 
-```text
-/plan Use $complex-work-orchestration prompt coach:
-Use ChatGPT Pro 5.5 Extended Reasoning as a master reviewer for the final
-execution plan and total work packet. Share a redacted packet only. Treat the
-return as critique evidence for Codex plan revision before implementation.
-```
+Use the revised plan, dependencies, scope, validation steps and open questions as
+the review brief. Select a reviewer and approved route explicitly; a prepared
+brief is not permission to send it or start implementation. See the
+[multi-model planning example](../docs/model-synthesis.html#planning-example).
 
 Domain-specific review:
 
@@ -260,139 +265,44 @@ agy --add-dir "$WORK_PACKET_DIR" --print "Read gemini-architect-critique-dispatc
 
 The returned critique is evidence for the architect. Accepted concerns become
 new Beads only after evaluation, required peer review, and architect
-adjudication. ChatGPT Pro master review remains a later explicit opt-in after
-the Codex architect has amended the plan.
+adjudication. Any further review of the amended plan needs a defined question,
+explicit permission and its own allowance; it is not an automatic extra call.
 Gemini/Agy critique is salvage-only by default. It can contribute alternate
 framing, risk notes, and follow-up questions, but it does not count toward
 model-synthesis `minimum_usable_inputs` unless the architect explicitly
 upgrades a specific evaluated finding.
 
-For ChatGPT Pro 5.5 Extended Reasoning master-plan review, route and packet
-with the browser executor. This lane is not OpenAI Deep Research; use Deep
-Research only when the user explicitly asks for research rather than plan
-review:
+### Review the revised plan
 
-```mermaid
-sequenceDiagram
-    participant C as Codex PM
-    participant B as Beads
-    participant P as Packet
-    participant G as ChatGPT Pro
-    participant R as Local reader
-    C->>B: Record final plan bundle and approval boundary
-    C->>P: Build redacted master-review packet
-    P-->>C: dispatch_id and packet_sha256
-    C->>G: Dry run, confirm model and effort, submit once
-    G-->>C: Share URL
-    C->>R: Ingest with dispatch_id and packet_sha256
-    R-->>B: Return evidence for evaluation
-    C->>B: Evaluate, peer review if required, adjudicate
-```
+Use `contract-jd-master-plan-review` when the assignment is a final readiness
+review. `templates/master-review-plan-packet.md` describes the material to
+include: the actual revised plan, Beads graph, route and coach outputs,
+validation steps, evidence, risks and open questions. A metadata-only task
+summary is not a sufficient review brief. Retain the packet's model/provider,
+assignment identity, approved material and required return contract.
 
-```bash
-python3 scripts/route_work.py \
-  --external-ok \
-  --share-boundary redacted-packet \
-  --requested-role master-plan-review \
-  "Use ChatGPT Pro 5.5 Extended Reasoning as a master reviewer for the final execution plan."
+Keep the actual brief and returns private by default. A `--snippet-file` must
+resolve to repository-safe text: outside paths, blocked control directories,
+secret-looking names, binary files and private-key suffixes are rejected. Build
+and inspect the packet before sending it; these file checks do not replace the
+operator's review of the approved material.
 
-WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
-mkdir -p "$WORK_PACKET_DIR"
-cp templates/master-review-plan-packet.md "$WORK_PACKET_DIR/master-review-plan.md"
+A **required reviewer gate** remains blocking when the user made that review a
+prerequisite for implementation. Confirm the named model and effort, approved
+route and required return evidence. If those cannot be established, record the
+failed prerequisite and stop dependent implementation. Only an explicit operator
+decision may change the requirement; do not silently substitute another model,
+skip evaluation or treat an incomplete return as acceptance.
 
-python3 scripts/build_contractor_packet.py \
-  --bead <id> \
-  --executor chatgpt_pro_browser_master_reviewer \
-  --share-boundary redacted-packet \
-  --external-ok \
-  --job-description contract-jd-master-plan-review \
-  --snippet-file "$WORK_PACKET_DIR/master-review-plan.md" \
-  --attest-packet \
-  --format json \
-  --output "$WORK_PACKET_DIR/master-plan-review-packet.json"
-```
+Capture conclusions, evidence, rejected alternatives, risks and recommended
+edits—not hidden reasoning. Evaluate the return, perform required peer review,
+and record the lead's decision before creating implementation work. A review
+does not authorize release, deployment, wider disclosure or extra paid calls.
 
-Use `templates/master-review-plan-packet.md` for the snippet file and copy it
-to a repository-local ignored path such as `work-packets/master-review-plan.md`.
-`--snippet-file` is intentionally repository-safe: absolute paths are accepted
-only when they resolve inside the repository, and outside paths, blocked control
-directories, secret-looking names, binary files, and private-key suffixes are
-rejected. Fill the file with the actual final plan, Beads graph summary, route
-and coach outputs, validation plan, repository evidence, risks, and open
-questions; a metadata-only Bead summary is not sufficient for master review.
-
-Browser helper prerequisites:
-
-- Playwright must be installed for browser automation.
-- Chrome or Google Chrome must be available for the operator-managed profile.
-- `jq` is used below to carry the exact dispatch identity into ingest.
-- Optional local clipboard tools such as `wl-paste`, `xclip`, `xsel`, or
-  `qdbus` may help capture the share URL after ChatGPT's Share action.
-
-Configure browser automation with `CWO_CHATGPT_BROWSER_CONFIG` or the default
-`$HOME/.config/cwo/chatgpt-browser.json`. The config must live outside the
-repository, must not be group/world accessible, and should point at an
-operator-managed Chrome profile that can already use ChatGPT. Do not store
-Google credentials, browser session data, packet secrets, or private repo
-content in Beads, prompts, audit logs, or public docs. Dispatch summaries report
-safe booleans and labels, not local config paths, browser profile paths, or CDP
-URLs.
-Use `references/chatgpt-pro-browser.md` as the durable ChatGPT Pro browser
-runbook. Use the systemd/Wayland helper or
-`scripts/launch_chatgpt_cdp_chrome.sh --print-chrome-command` from an operator
-shell instead of leaving visible Chrome as a foreground Codex child. The helper
-uses a dedicated Chrome profile, a localhost CDP port, and a safe local config
-for `chatgpt_browser_review.py`.
-
-When the user explicitly requests ChatGPT Pro 5.5 master review before
-execution, this lane is a blocking ChatGPT Pro gate. If model confirmation,
-dispatch, share-link ingest, return evaluation, or architect adjudication fails,
-stop before implementation and record the failed gate in Beads. Continue only
-after the operator fixes the Pro lane or explicitly records a waiver/downgrade
-in Beads. Do not silently substitute Gemini, Opus, OpenAI Deep Research, or an
-internal review for the requested Pro review.
-
-The ChatGPT Pro lane is intentionally fail-closed. Keep
-`require_model_confirmation` enabled for real Pro work and configure selectors
-that prove the selected model and effort before prompt submission. The dispatch
-JSON must contain a confirmed `model_attestation`; otherwise the response is
-not valid master-review evidence, even if the share link ingests cleanly. Wrong
-model, wrong effort, or unproven effort returns should be invalidated in the
-assigned Beads task and rerun only after the browser confirmation is fixed.
-Use `--dry-run` first and confirm the summary reports
-`model_confirmation_configured: true`; dry runs do not submit the prompt.
-Then run `--confirm-only` to prove the live browser has a confirmed
-`model_attestation` before spending a Pro query.
-Keep the rendered prompt compact. The browser helper rejects prompts above
-`max_prompt_chars` before opening or touching Chrome; the default limit is
-`50000`. If a packet renders larger than that, build a compact
-`--snippet-file` plan bundle instead of retrying the visible browser.
-If a normal browser session is required for Cloudflare or account prompts,
-start the dedicated profile with `scripts/launch_chatgpt_cdp_chrome.sh`, complete
-the prompts, then use the generated `connect_over_cdp_url` localhost endpoint.
-Never expose the debugging port remotely.
-If ChatGPT copies the public share URL directly to the OS clipboard, the helper
-may read the local clipboard after pressing Share. It accepts only validated
-ChatGPT share URLs and does not ask the ChatGPT page to read clipboard
-contents.
-If a Pro response leaves the page above the final answer, the helper attempts
-to click ChatGPT's scroll-to-bottom control before opening Share. Override the
-default selector with `selectors.scroll_to_bottom_button` when the UI changes.
-Last verified: July 5, 2026. ChatGPT UI labels, selectors, CDP behavior, and
-share-link behavior can drift; run `--dry-run` and `--confirm-only` before each
-expensive master-review query and update only the local config when labels
-change.
-If share-link creation fails, do not infer master-review evidence from the
-browser response. Rerun after fixing sharing, or create a degraded manual return
-that includes the dispatch ID, packet SHA, model attestation, source note,
-required return sections, and residual risk, then evaluate and adjudicate it.
-Markdown Mermaid diagrams are the authoritative flow source; the GitHub Pages
-diagrams are simplified static views unless a generator is added later.
-
-This lane does not authorize a release, tag, production mutation, wider share
-boundary, credential or session sharing, Deep Research, or implementation based
-only on contractor advice. The Codex architect still adjudicates the return and
-turns accepted findings into normal Beads work before execution.
+Browser-plugin instructions are deferred. The previous browser-automation setup
+is not current guidance; this document provides no replacement browser procedure.
+Legacy runtime identifiers and enforcement remain compatibility records, not a
+claim that a present browser route is available or qualified.
 
 Use these adjudication dispositions for contractor critique findings:
 
@@ -709,8 +619,8 @@ python3 scripts/build_contractor_packet.py \
    adjudication.
 
    Packet dispatch is audit-bound by default. `build_contractor_packet.py`
-   records a quota-reservation `packet_built` event, and `dispatch_work.py` or
-   `chatgpt_browser_review.py` require the matching `dispatch_id`, Bead, and
+   records a quota-reservation `packet_built` event, and `dispatch_work.py`
+   requires the matching `dispatch_id`, Bead, and
    `packet_sha256` before preparing or submitting the packet. Use
    `--allow-unlinked-packet` only for an explicitly degraded/operator-managed
    packet that cannot be linked to the local audit ledger.
@@ -736,40 +646,9 @@ python3 scripts/build_contractor_packet.py \
    `patch-branch` is a proposal lane by default: return a diff, patch artifact,
    or branch reference unless direct checkout mutation is explicitly authorized.
 
-   For the ChatGPT Pro browser lane, the PM uses the dedicated browser helper
-   and ingests the returned share link through the local reader:
-
-   ```bash
-   WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
-
-   python3 scripts/chatgpt_browser_review.py \
-     --packet "$WORK_PACKET_DIR/master-plan-review-packet.json" \
-     --confirm-only \
-     --json \
-     > "$WORK_PACKET_DIR/master-plan-review-confirmation.json"
-
-   python3 scripts/chatgpt_browser_review.py \
-     --packet "$WORK_PACKET_DIR/master-plan-review-packet.json" \
-     --json \
-     > "$WORK_PACKET_DIR/master-plan-review-dispatch.json"
-
-   SHARE_URL="$(jq -r '.share_url' "$WORK_PACKET_DIR/master-plan-review-dispatch.json")"
-   DISPATCH_ID="$(jq -r '.dispatch_id' "$WORK_PACKET_DIR/master-plan-review-dispatch.json")"
-   PACKET_SHA256="$(jq -r '.packet_sha256' "$WORK_PACKET_DIR/master-plan-review-dispatch.json")"
-
-   python3 scripts/ingest_chatgpt_share_return.py \
-     "$SHARE_URL" \
-     --bead <id> \
-     --dispatch-id "$DISPATCH_ID" \
-     --packet-sha256 "$PACKET_SHA256" \
-     --output "$WORK_PACKET_DIR/master-plan-review-return.md"
-   ```
-
-   The share link is a return channel, not a new share boundary. Evaluate the
-   rendered return and confirm the dispatch `model_attestation` before revising
-   the plan. Clipboard fallback accepts only a fresh copied ChatGPT share URL,
-   not a stale URL already present on the operator clipboard. Keep Deep
-   Research as a later explicit opt-in.
+   Capture the selected reviewer's answer through its approved route and retain
+   the assignment identity and model confirmation with the return. Do not treat
+   a prepared dispatch prompt as a submitted or completed review.
 
 8. Contractor returns a Beads comment or patch branch.
 9. PM normalizes the return and checks format, evidence, boundary fit, and

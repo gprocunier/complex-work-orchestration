@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      name="description"
+      content="Continue the disposable practice example: add a terminal command in a fresh agent session using saved requirements, tests and task records."
+    >
+    <title>Continue the practice example in a fresh session | CWO</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
+    <script src="./site.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+    <header class="site-header">
+      <nav class="top-nav" aria-label="Primary">
+        <a class="brand" href="./index.html" aria-label="Complex Work Orchestration home">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>Complex Work Orchestration</span>
+        </a>
+        <details class="site-menu" open><summary>Menu</summary><div class="nav-links">
+          <a href="./index.html">Home</a>
+          <a href="./get-started.html" aria-current="true">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
+          <a href="./reference.html">Reference</a>
+          <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+        </div></details>
+        <fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>
+          <label class="theme-choice" for="theme-system" title="System theme (default)">
+            <input class="sr-only" type="radio" id="theme-system" name="theme" value="system" checked>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="sr-only">System theme (default)</span>
+          </label>
+          <label class="theme-choice" for="theme-light" title="Light theme">
+            <input class="sr-only" type="radio" id="theme-light" name="theme" value="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="sr-only">Light theme</span>
+          </label>
+          <label class="theme-choice" for="theme-dark" title="Dark theme">
+            <input class="sr-only" type="radio" id="theme-dark" name="theme" value="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/></svg>
+            <span class="sr-only">Dark theme</span>
+          </label>
+        </fieldset>
+      </nav>
+    </header>
+
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--tutorial"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./get-started.html">Start Here</a></nav><h1 id="page-title">Continue the practice example in a fresh session</h1><p class="lede">Keep using the disposable sample project from the practice example. The first session fixed configuration validation. Now start a new conversation and ask CWO to add <code>python3 checker.py service.json</code>. The new agent must read the saved requirements, tests and task records before editing; it cannot rely on the earlier chat.</p><nav class="tutorial-progress" aria-label="Practice walkthrough stages"><ol><li><a href="./get-started.html">1. Prepare</a></li><li><a href="./install.html">2. Install</a></li><li><a href="./first-project.html">3. Practice example</a></li><li><a href="./continue-project.html" aria-current="step">4. Continue the example</a></li></ol></nav></header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page"><a href="#continue">Start a new conversation, then extend the program</a><a href="#finish-check">Check the saved completion record</a><a href="#finished">Inspect the result</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="continue"><h2>Start a new conversation, then extend the program</h2>
+        <p>Inspect your diff and handoff, then exit the first session using the client’s controls. Start a <strong>fresh</strong> named session in the same practice project; do not resume the earlier conversation. Use the same working launch command as the first session, including the explicit named-profile alternative if you used it. If you used a main-model override, keep that override too. Reuse the exact working command saved in <code>HANDOFF.md</code> instead of the default command below when they differ. <a href="./tutorial-recovery.html#model-startup">Startup recovery</a> covers the explicit launcher alternative.</p>
+        <p class="input-label">Terminal</p>
+        <pre tabindex="0" role="region" aria-label="Terminal commands or recorded output" data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default"><code><span class="line"><span class="shiki-style-ab138001542cb31f">cd</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/cwo-first-project"</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">cwo-codex</span><span class="shiki-style-ab138001542cb31f"> -C</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/cwo-first-project"</span></span></code></pre>
+        <p class="input-label">Prompt inside Codex</p><pre class="prompt shiki github-dark-default shiki-style-8930c6a81784fc59" tabindex="0" role="region" aria-label="Agent prompt" data-language="text" data-theme="github-dark-default"><code><span class="line"><span>Use $complex-work-orchestration. Reconstruct this project’s state from README.md, HANDOFF.md, current files, and local Beads records. Identify the saved validation requirements and dependent CLI task. Verify the accepted validator tests before editing.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>I authorize in-thread maintenance to add the CLI described in README.md. Preserve the validation contract. Add subprocess tests for valid input (exit 0), invalid configuration (exit 1), and file, JSON, and usage errors (exit 2).</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Run validation and inspect the final diff. Accept and close the CLI task only after its checks pass; preserve the accepted validator task and its dependency. Update HANDOFF.md with the final result, actual checks, both task IDs and the next action (or completed scope with no successor). Identify any missing or uncertain state.</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Use only the existing local Beads backend. No delegation, service-host contact, tool-initiated external network requests, commits, pushes, publication, or global configuration changes.</span></span></code></pre>
+        <p>Expected: the new session finds the requirement that ports must be whole numbers, not boolean values, and reruns the validator tests before adding the CLI. Check the files and task records rather than accepting a claim that it remembers the earlier conversation:</p>
+        <p>Open a second terminal in the practice directory, or exit the finished client before these checks. Replace the two task placeholders with IDs from your handoff.</p><p class="input-label">Terminal</p>
+        <pre tabindex="0" role="region" aria-label="Terminal commands or recorded output" data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default"><code><span class="line"><span class="shiki-style-ab138001542cb31f">cd</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/cwo-first-project"</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-ab138001542cb31f"> -m</span><span class="shiki-style-fccf53bf0d08ec6a"> unittest</span><span class="shiki-style-ab138001542cb31f"> -v</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> checker.py</span><span class="shiki-style-fccf53bf0d08ec6a"> service.json</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> checker.py</span><span class="shiki-style-fccf53bf0d08ec6a"> invalid.json</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">echo</span><span class="shiki-style-ab138001542cb31f"> $?</span></span></code></pre>
+        <p>Expected: the valid file prints <code>valid</code>; invalid input prints an error and the last command prints <code>1</code>. The agent’s subprocess tests must also cover exit <code>2</code> for a missing file. Inspect both task IDs from the handoff with <code>bd show TASK_ID</code>; the CLI must name the accepted validator as its prerequisite. If a task is missing, search with <code>bd list --all</code>. Recover missing information from files and tests, and mark anything you cannot verify.</p>
+        </section><section id="finish-check"><h2>Check the saved completion record</h2><p class="input-label">Terminal</p><pre tabindex="0" role="region" aria-label="Inspect code and both completed task records" data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default"><code><span class="line"><span class="shiki-style-ab138001542cb31f">cd</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/cwo-first-project"</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">git</span><span class="shiki-style-fccf53bf0d08ec6a"> diff</span><span class="shiki-style-fccf53bf0d08ec6a"> cwo-tutorial-start</span><span class="shiki-style-ab138001542cb31f"> --</span><span class="shiki-style-fccf53bf0d08ec6a"> checker.py</span><span class="shiki-style-fccf53bf0d08ec6a"> test_checker.py</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">cat</span><span class="shiki-style-fccf53bf0d08ec6a"> HANDOFF.md</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">bd</span><span class="shiki-style-fccf53bf0d08ec6a"> show</span><span class="shiki-style-fccf53bf0d08ec6a"> VALIDATOR_TASK_ID</span><span class="shiki-style-ab138001542cb31f"> --json</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">bd</span><span class="shiki-style-fccf53bf0d08ec6a"> show</span><span class="shiki-style-fccf53bf0d08ec6a"> CLI_TASK_ID</span><span class="shiki-style-ab138001542cb31f"> --json</span></span></code></pre><p>Finish only when the tests pass, both tasks are accepted and closed, and the CLI still depends on the validator. Check that the diff preserves validation behavior and that the handoff describes the actual result. Ask the agent to fix an open task or stale handoff even if the utility works; do not weaken the accepted tests.</p></section><section id="finished"><h2>Inspect the result</h2><p>You now have a command that reads a configuration file, reports whether it is valid and returns an exit status other tools can use. You also have tests and a project record explaining the requirements and completed tasks. The second session used those files and task records, not the earlier conversation. Keep them together when handing the project to another person or agent.</p><p><a href="./beads-memory.html">Learn how to inspect a larger project handoff</a>, or <a href="./tutorial-recovery.html#recover">reset the practice files or remove CWO</a>.</p></section></article></div></div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Codex Delegation</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Outside Review</a><a href="./local-workers.html">Local Models</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
+    </footer>
+  </body>
+</html>

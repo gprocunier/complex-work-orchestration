@@ -1,6 +1,12 @@
-# Opt-in C Sol operator profile
+# Compatibility operator profile
 
-Candidate C is the compact opt-in architect contract.
+For the complete current setup/continuation/removal journey, use
+[Start Here](../docs/get-started.html). This page retains exact operator-profile
+reference, not a second novice tutorial. The normal route uses the
+[CWO system prompt](cwo-system-prompt.md).
+
+
+This compact compatibility profile remains opt-in.
 `cwo-sol-operator-experimental` is retained as the installed profile name for
 compatibility. It replaces the model instruction file only when the profile is
 selected at the start of a new Codex session.
@@ -19,8 +25,8 @@ home, export `CODEX_HOME` before running any command on this page.
 python3 scripts/manage_instruction_profile.py install --profile operator
 ```
 
-The command installs the C profile and its prompt without changing the
-Candidate E `cwo-codex` launcher.
+The command installs the compatibility profile and its prompt without changing
+the default `cwo-codex` launcher.
 Successful JSON
 output reports `"default_profile_changed": false`. If a managed file already
 exists with different contents, the manager stops rather than overwriting it.
@@ -48,8 +54,8 @@ codex --profile cwo-sol-operator-experimental -C "$PWD"
 
 Profile selection happens when this new Codex session starts. Installing the
 files does not switch an already-running session, and resuming an older session
-does not turn it into an arm C trial. Use a new session for each trial and keep
-the verification output with the trial record; model self-report is not proof
+does not activate this profile. Use a new session and keep
+the verification output with the session record; model self-report is not proof
 that the profile was selected.
 
 ## Roll back
@@ -71,5 +77,5 @@ python3 scripts/manage_instruction_profile.py remove --profile operator
 Removal reports the prompt and profile as `removed` or `absent` and again reports
 `"default_profile_changed": false`. It refuses to delete a locally modified
 managed file unless `--force` is supplied. Inspect and preserve unexpected
-changes instead of forcing removal by default. It does not remove the Candidate
-E `cwo-codex` launcher, rewrite `config.toml`, or weaken trusted CWO enforcement.
+changes instead of forcing removal by default. It does not remove the default
+`cwo-codex` launcher, rewrite `config.toml`, or weaken trusted CWO enforcement.

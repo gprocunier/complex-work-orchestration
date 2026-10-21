@@ -1,12 +1,29 @@
 # Execution Environments
 
-This reference explains the v2 execution-environment abstraction. Codex remains
-the best-tested connected execution environment, but CWO should not require the
-Codex shell when an operator is working in a restricted or airgapped zone.
+An execution environment assigns CWO roles to agent tools and model connections.
+Use this operator reference to inspect those assignments and render prompts for
+a selected tool. Rendering is not execution or proof that an integration works.
+The first-project tutorial uses Codex; restricted and airgapped configurations
+require separate verification.
+
+## Current use and historical boundary
+
+The standard beginner route is the [first-project tutorial](../docs/get-started.html).
+Current connected native worker selection uses active task-selected v3 policy:
+qualified exact Luna first, Terra for recorded escalation. Historical Spark/v2
+role tables, native command recipes and fallback controls below are retained for
+interpreting old artifacts, not for fresh dispatch. Read the active policy and
+[current supervision overview](native-supervision.md) before selecting a worker.
+
+Restricted/OpenCode environment profiles and rendered dispatch artifacts are
+integration configuration, not proof of a live end-to-end rollout. Validate the
+specific harness/model/access combination; do not infer executable support from
+a profile name. Explicit maintenance and repair controls remain exceptional
+authority paths, not ordinary onboarding.
 
 ## Boundary
 
-CWO owns governance:
+CWO records and checks the project process:
 
 - Beads work graph and closure memory
 - prompt coach sizing
@@ -27,13 +44,13 @@ runtime shape described by `schemas/model-profile.schema.json`.
 Access profiles live in `policy/access-profiles.yaml`, with runtime shape
 described by `schemas/access-profile.schema.json`. They classify how a role
 reaches a model or tool: Codex shell, Codex review lane, external manual CLI,
-ChatGPT browser review, generic local OpenAI-compatible endpoint, OpenShift AI
+generic local OpenAI-compatible endpoint, OpenShift AI
 vLLM, GLM BF16, or human specialist.
 
-- `connected-codex`: current production-quality path. Codex owns architecture
-  and integration; OpenShift AI vLLM, Claude, Gemini, or ChatGPT Pro lanes are
+- `connected-codex`: default connected configuration. Codex owns architecture
+  and integration; OpenShift AI vLLM, Claude or Gemini reviews are
   optional evidence after opt-in.
-- `connected-opencode-exemplar`: v2 proof point showing that CWO can render work
+- `connected-opencode-exemplar`: v2 configuration showing how CWO renders work
   to an open harness while retaining Beads, route, evaluation, and acceptance.
 - `restricted-opencode-rhoai`: restricted-zone profile using OpenCode plus
   approved providers or local OpenShift AI vLLM.
@@ -84,9 +101,9 @@ credential values.
 ## Airgapped Model Matrix
 
 The model-profile registry is RedHatAI-first because OpenShift AI vLLM is the
-documented local serving exemplar. These profiles are high-confidence starting
-points for airgapped GPU-backed operation, not promises of proprietary frontier
-model parity. Endpoint model aliases such as `rhoai/architect` are operator
+documented local serving exemplar. These profiles are configuration candidates for airgapped GPU-backed
+operation. Verify the exact model, hardware and workload before use; the registry
+does not establish reliability or parity with proprietary frontier models. Endpoint model aliases such as `rhoai/architect` are operator
 conventions; the backing Hugging Face model IDs remain recorded in
 `policy/model-profiles.yaml`.
 
@@ -99,7 +116,7 @@ conventions; the backing Hugging Face model IDs remain recorded in
 | Local secure reviewer | Local secure reviewer or Codex evaluator | `rhoai-secure-review-qwen3-6-35b-a3b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code> for high-stakes local review</li></ul> | High after benchmark |
 | Synthesis input | CWO-native synthesis plus architect adjudication | `rhoai-synthesis-qwen3-5-122b-a10b-nvfp4` | <ul><li><code>rhoai-architect-nemotron-3-ultra-550b-a55b-fp8</code></li><li><code>rhoai-architect-glm-5-2-fp8</code></li></ul> | High after benchmark |
 
-The OpenCode path can therefore run without public frontier providers when the
+The OpenCode configuration avoids public frontier providers when the
 selected execution environment binds architect, PM, worker, review,
 local-secure-review, and synthesis roles to RHOAI vLLM profiles. CWO still owns
 Beads memory, dispatch rendering, validation, return evaluation, synthesis
@@ -135,7 +152,7 @@ are recorded. Synthesis ownership moves from `frontier_architect` to the GLM
 primary architect for this environment only; the default `connected-codex`
 profile remains unchanged.
 
-### Native-only Spark route
+### Historical v2 native-only Spark route
 
 Spark dispatch is native-only. Use native subagents for Spark work and assert
 model attestation from trusted control-plane/session metadata, never from model

@@ -5,11 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Reference overview for Complex Work Orchestration policies, schemas, experts, scripts, and validation gates."
+      content="Find canonical installation, updates, current controls, historical references and concrete failure recovery."
     >
-    <title>Reference | Complex Work Orchestration</title>
+    <title>Setup, troubleshooting and exact controls | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -19,706 +23,86 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Complex Work Orchestration</span>
         </a>
-        <div class="nav-links">
+        <details class="site-menu" open><summary>Menu</summary><div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html" aria-current="page">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-        </div>
+        </div></details>
+        <fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>
+          <label class="theme-choice" for="theme-system" title="System theme (default)">
+            <input class="sr-only" type="radio" id="theme-system" name="theme" value="system" checked>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="sr-only">System theme (default)</span>
+          </label>
+          <label class="theme-choice" for="theme-light" title="Light theme">
+            <input class="sr-only" type="radio" id="theme-light" name="theme" value="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="sr-only">Light theme</span>
+          </label>
+          <label class="theme-choice" for="theme-dark" title="Dark theme">
+            <input class="sr-only" type="radio" id="theme-dark" name="theme" value="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/></svg>
+            <span class="sr-only">Dark theme</span>
+          </label>
+        </fieldset>
       </nav>
     </header>
 
-    <main id="main">
-      <section class="page-hero">
-        <p class="eyebrow">Reference</p>
-        <h1>Control Plane</h1>
-        <p class="lede">
-          Start with the guided workflow when you are doing the work. Use this
-          page when you need the exact policy, schema, expert, or helper behind
-          a coach decision.
-        </p>
-      </section>
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--guide"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./reference.html">Reference</a></nav><h1 id="page-title">Setup, troubleshooting and exact controls</h1><p class="lede">Use this page to find an installation setting, diagnose a failed step or look up the exact execution rules. Generating an artifact does not approve its execution.</p></header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page"><a href="#reference">Choose your starting point</a><a href="#installation">Installation locations and profile verification</a><a href="#updates">Update an existing installation without losing local work</a><a href="#troubleshooting">Find and fix the step that failed</a><a href="#controls">Find the current execution rules and their source files</a><a href="#durable-memory">Task closure and handoff controls</a><a href="#experts">Find exact reviewer and tool identifiers</a><a href="#advanced">Optional guides for specific needs</a><a href="#maintain">Maintain and preview these docs</a></nav></details><article class="doc-content" aria-labelledby="page-title"><section id="reference"><h2>Choose your starting point</h2>
 
-      <section class="section doc-layout">
-        <nav class="page-nav" aria-label="Page sections">
-          <a href="#flow-references">Flow References</a>
-          <a href="#candidate-e">Candidate E</a>
-          <a href="#native-supervision">Native Supervision</a>
-          <a href="#operator-controls">Operator Controls</a>
-          <a href="#policies">Policies</a>
-          <a href="#schemas">Schemas</a>
-          <a href="#activation-artifacts">Activation Artifacts</a>
-          <a href="#run-readiness">Run Readiness</a>
-          <a href="#codex-hooks">Codex Hooks</a>
-          <a href="#experts">Experts</a>
-          <a href="#scripts">Scripts</a>
-          <a href="#deep-dives">Deep Dives</a>
-          <a href="#durable-memory">Durable Memory</a>
-          <a href="#validation">Validation</a>
-          <a href="./explanation.html">Explanation</a>
-          <a href="./workflows.html">Workflows</a>
-        </nav>
-        <div class="doc-body">
-          <section id="flow-references">
-            <h2>Flow References</h2>
-            <p>
-              Use <a href="./get-started.html">Get Started</a> for the
-              tutorial, <a href="./workflows.html">Workflows</a> for the
-              end-to-end how-to, <a href="./prompt-coach.html">Prompt Coach</a>
-              for request sizing, and <a href="./explanation.html">Explanation</a>
-              for the rationale behind role separation, durable memory, and
-              evidence boundaries.
-            </p>
-            <div class="reference-table compact" role="table" aria-label="Quick operator paths">
-              <div role="row">
-                <span role="cell">Connected single operator</span>
-                <span role="cell">Start <code>cwo-codex</code>, invoke the prompt coach, then use Beads, validation, and closure memory.</span>
-              </div>
-              <div role="row">
-                <span role="cell">Contractor-assisted</span>
-                <span role="cell">Approve the share boundary, build a packet, evaluate the return, then architect-adjudicate.</span>
-              </div>
-              <div role="row">
-                <span role="cell">Restricted OpenCode</span>
-                <span role="cell">Render a harness dispatch envelope and keep CWO as the Beads/evaluator control plane.</span>
-              </div>
-              <div role="row">
-                <span role="cell">Airgapped RHOAI</span>
-                <span role="cell">Use local Beads and approved RHOAI/vLLM model profiles; no outside sharing by default.</span>
-              </div>
-              <div role="row">
-                <span role="cell">Codex hook output</span>
-                <span role="cell">Use <a href="./codex-beads-hooks.html">Codex Beads Hooks</a> when SessionStart context is visible but full Beads injection must remain intact.</span>
-              </div>
-            </div>
-          </section>
-
-          <section id="candidate-e">
-            <h2>Candidate E Baseline</h2>
-            <p>
-              Candidate E is CWO's default instruction profile for the Codex
-              session that owns scope, integration, acceptance, and handoff.
-              Install and verify its named profile, then select it by starting
-              a fresh process. The profile manager does not edit the ordinary
-              Codex configuration.
-            </p>
-            <pre><code>python3 scripts/manage_instruction_profile.py install --profile operator-e
-python3 scripts/manage_instruction_profile.py verify --profile operator-e
-cwo-codex -C "$PWD"
-
-# Equivalent explicit launch
-codex --profile cwo-sol-operator-e -C "$PWD"
-
-# Remove the named profile and launcher
-python3 scripts/manage_instruction_profile.py remove --profile operator-e</code></pre>
-            <div class="reference-table compact" role="table" aria-label="Candidate E prompt evidence">
-              <div role="row"><span role="cell">Active prompt</span><code role="cell">prompts/cwo-sol-operator-e.md</code></div>
-              <div role="row"><span role="cell">Active SHA-256</span><code role="cell">ce85010acb60ea9fafd81f84790524a86f685067b65f86c352e07a5d3367ef67</code></div>
-              <div role="row"><span role="cell">Qualified archive</span><code role="cell">prompts/archive/cwo-sol-operator-e-v5-qualified.md</code></div>
-              <div role="row"><span role="cell">Qualified SHA-256</span><code role="cell">75b3bdf7624d7e3913f2879f4a20306c74805ad8409ce785597da67e1011c3f8</code></div>
-              <div role="row"><span role="cell">Operator guide</span><code role="cell">references/cwo-candidate-e-operator-profile.md</code></div>
-            </div>
-            <p>
-              The archived v5 prompt is the exact prompt tested in the final
-              no-retry comparison. The active prompt adds a deterministic
-              post-v5 frozen-protocol repair and has not been through another
-              model comparison. Candidate C remains an opt-in compatibility
-              profile. Start ordinary <code>codex -C "$PWD"</code> for an
-              immediate session-level rollback.
-            </p>
-          </section>
-
-          <section id="native-supervision">
-            <h2>Native Supervision</h2>
-            <p>
-              Every delegated native worker is supervised; there is no
-              unsupervised mode or opt-out. One supervised native Spark worker
-              is the standard connected delegation path. The packet, precommit
-              receipt, operative release evidence, and live supervisor are
-              separate controls. Persist and arm the supervisor before task
-              submission; bind and poll it in the same uninterrupted control
-              turn.
-            </p>
-            <div class="reference-table compact" role="table" aria-label="Native supervision contracts">
-              <div role="row"><span role="cell">Work estimate</span><code role="cell">schemas/native-work-estimate.schema.json</code></div>
-              <div role="row"><span role="cell">Worker packet</span><code role="cell">schemas/native-worker-packet.schema.json</code></div>
-              <div role="row"><span role="cell">Precommit receipt</span><code role="cell">schemas/native-precommit-receipt.schema.json</code></div>
-              <div role="row"><span role="cell">Release evidence</span><code role="cell">schemas/native-release-evidence.schema.json</code></div>
-              <div role="row"><span role="cell">Supervisor state</span><code role="cell">schemas/native-supervision-state.schema.json</code></div>
-              <div role="row"><span role="cell">Supervisor decision</span><code role="cell">schemas/native-supervision-decision.schema.json</code></div>
-              <div role="row"><span role="cell">Pool contract v2</span><code role="cell">schemas/native-supervision-pool-contract-v2.schema.json</code></div>
-              <div role="row"><span role="cell">Pool preflight v2</span><code role="cell">schemas/native-supervision-pool-preflight-result-v2.schema.json</code></div>
-              <div role="row"><span role="cell">Pool receipt v2</span><code role="cell">schemas/native-supervision-pool-receipt-v2.schema.json</code></div>
-            </div>
-            <p>
-              Productive concurrency uses the admission-bound version-2 host
-              path. Multi-worker concurrency, not supervision, is the
-              experimental feature. Two- and three-worker pools are an explicit
-              opt-in Tech Preview; four or more workers are blocked. The separate
-              detect-and-contain activation preview does not replace exact
-              server-side tool allowlisting for normal operative work.
-            </p>
-            <p>
-              Read <a href="./native-supervision.html">Native Supervision</a>
-              before using the exact single-worker or pool operator references.
-            </p>
-          </section>
-
-          <section id="operator-controls">
-            <h2>Operator Controls</h2>
-            <p>
-              The sections below are exact lookup surfaces for policies,
-              schemas, expert labels, scripts, and validation gates. Use them
-              after the guided workflow has selected a route or when automation
-              needs the same controls Codex runs behind the scenes.
-              OpenCode appears here as the first v2 open-source harness
-              exemplar, not as a replacement for CWO governance.
-            </p>
-            <div class="reference-table compact" role="table" aria-label="Core operating terms">
-              <div role="row"><span role="cell">CWO</span><span role="cell">The workflow that sizes, records, reviews, validates, and hands off complex agent work.</span></div>
-              <div role="row"><span role="cell">Candidate E</span><span role="cell">The default instruction profile for the Codex session that owns scope, integration, acceptance, and handoff.</span></div>
-              <div role="row"><span role="cell">Beads</span><span role="cell">The durable task graph for scope, dependencies, evidence, validation, closure memory, and handoff.</span></div>
-              <div role="row"><span role="cell">Native supervisor</span><span role="cell">The local trusted controller outside the worker that binds and observes a delegated Spark assignment.</span></div>
-              <div role="row"><span role="cell">Review worker</span><span role="cell">A bounded helper that gathers evidence while the architect keeps final judgment.</span></div>
-              <div role="row"><span role="cell">Contractor packet</span><span role="cell">A policy-checked brief for an outside reviewer, built only after the sharing boundary is approved.</span></div>
-              <div role="row"><span role="cell">Evidence lane</span><span role="cell">A contractor, local worker, or peer-review return that must be evaluated before implementation can use it.</span></div>
-              <div role="row"><span role="cell">Run readiness</span><span role="cell">A pre-handoff gate for broad runs that proves owners, exits, evidence, and validation are ready.</span></div>
-            </div>
-          </section>
-
-          <section id="policies">
-            <h2>Policies</h2>
-            <p>
-              The skill is a small control plane over Beads task tracking:
-              policy chooses routes, schemas define exchanged artifacts,
-              experts calibrate review lenses, and scripts enforce gates.
-            </p>
-            <p>
-              Policies are JSON-compatible YAML files used by helper scripts.
-              They describe route classes, executors, providers, experts,
-              sharing boundaries, peer-review requirements, acceptance rules,
-              execution environment profiles, harness capabilities, access
-              profiles, RHOAI model substitutions, and contracting controls.
-            </p>
-            <p>
-              Model-profile registries include <code>deployment_tier</code>,
-              <code>benchmark_gate</code>, and <code>promotion_status</code>
-              fields so practical defaults and enterprise evaluation targets
-              are visible in dispatch envelopes as well as docs.
-            </p>
-            <p>
-              Access profiles describe how CWO reaches a model or reviewer:
-              Codex shell, Codex review lane, external manual CLI, browser
-              review, generic local endpoint, OpenShift AI vLLM, GLM BF16, or
-              human specialist. They record env var names and authority limits,
-              not credential values.
-            </p>
-            <div class="reference-table compact" role="table" aria-label="Policy files">
-              <div role="row"><span role="cell">Routing</span><code role="cell">policy/routing-policy.yaml</code></div>
-              <div role="row"><span role="cell">Executors</span><code role="cell">policy/executor-registry.yaml</code></div>
-              <div role="row"><span role="cell">Providers</span><code role="cell">policy/provider-registry.yaml</code></div>
-              <div role="row"><span role="cell">Experts</span><code role="cell">policy/expert-registry.yaml</code></div>
-              <div role="row"><span role="cell">Harnesses</span><code role="cell">policy/harness-registry.yaml</code></div>
-              <div role="row"><span role="cell">Execution environments</span><code role="cell">policy/execution-environments.yaml</code></div>
-              <div role="row"><span role="cell">Access profiles</span><code role="cell">policy/access-profiles.yaml</code></div>
-              <div role="row"><span role="cell">Model profiles</span><code role="cell">policy/model-profiles.yaml</code></div>
-              <div role="row"><span role="cell">Zero-trust consensus</span><code role="cell">policy/zero-trust-consensus-policy.yaml</code></div>
-            </div>
-          </section>
-
-          <section id="schemas">
-            <h2>Schemas</h2>
-            <p>
-              Schemas make helper outputs reviewable: prompt coach results,
-              route results, contractor handoff packets, contractor returns,
-              local dispatch envelopes, versioned harness dispatch envelopes,
-              execution environment profiles, access-profile and model-profile
-              registries, run readiness plans, sprint continuation briefs, acceptance
-              decisions, audit events, and attestations.
-            </p>
-            <div class="reference-table compact" role="table" aria-label="Schema files">
-              <div role="row"><span role="cell">Contractor return</span><code role="cell">schemas/contractor-return.schema.json</code></div>
-              <div role="row"><span role="cell">Return bundle</span><code role="cell">schemas/contractor-return-bundle.schema.json</code></div>
-              <div role="row"><span role="cell">Acceptance decision</span><code role="cell">schemas/acceptance-decision.schema.json</code></div>
-              <div role="row"><span role="cell">Harness dispatch</span><code role="cell">schemas/harness-dispatch-envelope.schema.json</code></div>
-              <div role="row"><span role="cell">Execution environment</span><code role="cell">schemas/execution-environment.schema.json</code></div>
-              <div role="row"><span role="cell">Access profile</span><code role="cell">schemas/access-profile.schema.json</code></div>
-              <div role="row"><span role="cell">Model profile</span><code role="cell">schemas/model-profile.schema.json</code></div>
-              <div role="row"><span role="cell">Sprint continuation</span><code role="cell">schemas/sprint-continuation.schema.json</code></div>
-              <div role="row"><span role="cell">Execution status report</span><code role="cell">schemas/execution-status-report.schema.json</code></div>
-              <div role="row"><span role="cell">Native worker packet</span><code role="cell">schemas/native-worker-packet.schema.json</code></div>
-              <div role="row"><span role="cell">Native precommit receipt</span><code role="cell">schemas/native-precommit-receipt.schema.json</code></div>
-              <div role="row"><span role="cell">Native release evidence</span><code role="cell">schemas/native-release-evidence.schema.json</code></div>
-              <div role="row"><span role="cell">Native supervision state</span><code role="cell">schemas/native-supervision-state.schema.json</code></div>
-              <div role="row"><span role="cell">Native pool contract v2</span><code role="cell">schemas/native-supervision-pool-contract-v2.schema.json</code></div>
-              <div role="row"><span role="cell">Activation result v2</span><code role="cell">schemas/native-tool-activation-result-v2.schema.json</code></div>
-              <div role="row"><span role="cell">Activation exact trace</span><code role="cell">schemas/native-tool-activation-trace.schema.json</code></div>
-              <div role="row"><span role="cell">Activation Bead closure</span><code role="cell">schemas/native-tool-activation-bead-closure.schema.json</code></div>
-            </div>
-            <p>
-              Research-style contractor returns can add optional source-grounded
-              evidence fields to those schemas. They remain evaluator input,
-              not direct synthesis or implementation authority.
-            </p>
-          </section>
-
-          <section id="activation-artifacts">
-            <h2>Activation Artifacts</h2>
-            <p>
-              The disabled one-shot activation runner derives an exact ordered
-              two-call trace for each fixed profile. Every failed, retried,
-              extra, reordered, wrong-argument, unknown-result, or
-              contradictory call counts and makes the pool and result
-              non-accepting. Only a durable successful terminal event can
-              finalize required trace cardinality. A non-null
-              <code>task_complete.error</code> is failed terminal control loss,
-              never a successful completion missing its final token, required
-              calls, or expected mutation.
-            </p>
-            <p>
-              An accepting controller writes private
-              <code>activation-tool-trace.json</code> evidence, then closes
-              only the pool-authorized implementation child Beads, once and in
-              task order. It never closes the parent or publication Bead,
-              retries a close, reopens a Bead, or rolls back a partial close.
-              The private <code>activation-bead-closure.json</code> records
-              exact reconciliation.
-            </p>
-            <p>
-              Accepted activation result v2 binds both artifact hashes through
-              <code>tool_trace_sha256</code> and
-              <code>bead_closure_sha256</code>. Result v1 remains historical
-              inspection only.
-            </p>
-          </section>
-
-          <section id="run-readiness">
-            <h2>Run Readiness</h2>
-            <p>
-              The run readiness plan is the pre-handoff control that proves a
-              broad CWO run has owners, exit conditions, validation evidence,
-              artifact authority, provider provenance, quarantine handling,
-              boundary negative tests, next-version deferrals, and handoff
-              evidence before workers execute.
-            </p>
-            <p>
-              The schema is
-              <code>schemas/run-readiness-plan.schema.json</code>. The sample
-              input is <code>examples/sample-run-readiness-plan.json</code>.
-              The readable template is
-              <code>templates/run-readiness-plan.md</code>. The operator
-              reference is <code>references/run-readiness.md</code>.
-            </p>
-            <pre><code>python3 scripts/validate_run_readiness_plan.py \
-  examples/sample-run-readiness-plan.json
-python3 scripts/render_run_projection.py \
-  examples/sample-run-readiness-plan.json --projection run-sheet
-python3 scripts/render_run_projection.py \
-  examples/sample-run-readiness-plan.json --projection wrap-up-status
-python3 scripts/import_execution_telemetry.py --file usage-sidecar.json
-python3 scripts/replay_epic_convergence.py --input convergence-ledger.json &gt; convergence-summary.json
-python3 scripts/render_execution_status_report.py --convergence-summary convergence-summary.json --format terminal
-python3 scripts/scaffold_workgraph.py \
-  --title "&lt;goal&gt;" --description "&lt;scope&gt;" \
-  --closure-pressure-active \
-  --closure-action continue-current-work-unit \
-  --closure-disposition correct --dry-run
-python3 scripts/render_execution_status_report.py --format terminal
-python3 scripts/render_execution_status_report.py --format terminal --layout expanded
-python3 scripts/render_execution_status_report.py --format terminal --layout summary</code></pre>
-            <p>
-              The key field is the
-              <strong>criterion-to-evidence matrix</strong>: every acceptance
-              criterion must point at an artifact, validator, or review gate.
-              The rubric owns the criterion IDs, and the matrix proves each one.
-              Run sheets, wrap-up/status reports, and next-version rails stay
-              typed projections from Beads; contractor and local-worker returns
-              stay evidence until evaluation and architect adjudication.
-              The execution status report is a separate end-of-plan accounting
-              view over explicit audit and evaluator artifacts. Convergence
-              replay supplies absolute productive, validation, attestation,
-              fit, monitoring, recovery, PM, architect, and unknown call counts.
-              It also reports avoided nonaccepted segments and calls,
-              control-plane reduction, and whether each target was met.
-              Ledgers and replay are append-only; unavailable historical values
-              remain null rather than being inferred or rewritten. Closure
-              pressure reuses the current work unit and records one
-              <code>retain</code>, <code>correct</code>,
-              <code>quarantine</code>, <code>defer</code>, or
-              <code>close</code> disposition. Its default
-              terminal layout is a compact dashboard for 80-column,
-              half-height terminals, the expanded layout fans out long
-              utilization cells into readable rows, the summary layout keeps
-              the grouped table, expected but unavailable calls, retries, token
-              counts, and timings are shown as <code>?</code>, and structurally
-              irrelevant telemetry is shown as <code>n/a</code>.
-            </p>
-            <p>
-              Allowed projection types are <code>run-sheet</code>,
-              <code>wrap-up-status</code>, and <code>next-version</code>.
-              Allowed next-version reasons are <code>out-of-scope</code>,
-              <code>needs-credential</code>, <code>needs-research</code>,
-              <code>hardening</code>, <code>later-version</code>, and
-              <code>blocked</code>. Patrol or recurring work remains research
-              only until <code>ownership</code>, <code>locking</code>,
-              <code>history</code>, <code>failure_containment</code>, and
-              <code>provider_neutral_execution</code> are accepted.
-            </p>
-            <p>
-              Main-thread model and effort guidance remains advisory; the user's
-              selection is authoritative. A different recommendation does not
-              stop or pivot execution.
-            </p>
-          </section>
-
-          <section id="experts">
-            <h2>Experts</h2>
-            <p>
-              Expert profiles calibrate the reasoning lens for documentation,
-              architecture, security, web design, editorial review, Red Hat
-              product areas, and other disciplines. Contractor handoff packets
-              include the matched profile by default so review output is
-              grounded in the intended role.
-            </p>
-            <p>
-              <strong>Operator terminology:</strong> The exact job-description
-              labels, such as <code>contract-jd-security-reasoning</code>, and
-              executor IDs, such as
-              <code>claude_architecture_critic</code> or
-              <code>gemini_architecture_critic</code>,
-              are technical reference terms. Narrative pages introduce the
-              plain workflow first.
-            </p>
-            <p>
-              The editor profile uses
-              <code>contract-jd-editorial-reasoning</code> as the final
-              reference label for public docs, README/install docs, GitHub
-              Pages, and documentation-architecture work. It checks reader
-              flow, redundancy, circular content, draft-like wording, and
-              publishable narrative before publish sanitization.
-            </p>
-            <p>
-              The architecture profile uses
-              <code>contract-jd-architecture-reasoning</code>. When the user
-              explicitly asks for Claude, Gemini, or both as second opinions
-              on a Codex architect design, routing can create independent
-              contractor-only critique lanes with
-              <code>claude_architecture_critic</code> and
-              <code>gemini_architecture_critic</code>. Claude uses
-              <code>claude --model claude-opus-4-6 --effort high -p</code>
-              or stronger effort for higher-complexity architecture. The
-              returns are evaluated evidence, not replacement architecture
-              authority.
-              Gemini/Agy returns are salvage-only by default: they can inform
-              alternate framing, missing cases, and risk notes, but they do not
-              count as primary synthesis inputs unless the architect explicitly
-              upgrades a specific evaluated finding. The acceptance decision
-              may report advisory <code>recommended_synthesis_use</code>, but
-              synthesis still enforces provider-camp policy and readiness.
-            </p>
-            <p>
-              <code>agy -p</code> is the local CLI surface for the
-              <code>gemini_architecture_critic</code> executor key.
-            </p>
-            <p>
-              The master-plan profile uses
-              <code>contract-jd-master-plan-review</code>. When the user
-              explicitly asks for ChatGPT Pro 5.5 Extended Reasoning to review
-              the final execution plan or total work packet, routing can select
-              <code>chatgpt_pro_browser_master_reviewer</code>. The
-              result is share-link evidence for Codex plan revision, not
-              implementation authority and not OpenAI Deep Research. For real
-              Pro reviews, the dispatch JSON must include a confirmed
-              <code>model_attestation</code>; otherwise the return is
-              invalidated instead of used. Explicit Pro master review requests
-              are blocking gates before implementation; failed confirmation,
-              dispatch, ingest, evaluation, or adjudication requires operator
-              repair or an explicit Beads-recorded waiver/downgrade before the
-              work can continue.
-            </p>
-            <p>
-              The operator-calibrated execution profile uses
-              <code>contract-jd-operator-calibrated-execution</code>. Use it
-              when a work packet needs execution-discipline review: current
-              instruction fit, evidence classification, safety-deferred
-              residual risk, false-closure checks, artifact hygiene, and
-              requested closeout such as validation, commit, push, or handoff.
-              The prompt coach reports this as <code>operator_calibration</code>:
-              required for false-closure, not-run, safety-deferred,
-              exhausted-lane, or conflicting-review closeout language;
-              recommended for autonomous, publish, commit/push, mixed-evidence,
-              or multi-target work; and off for ordinary focused tasks.
-            </p>
-            <p>
-              The project-manager sprint steward profile uses
-              <code>contract-jd-project-manager-sprint-steward</code>. Use it
-              when planning the next sprint, translating goals into Beads work,
-              refining blocked or ready issues, continuing a planned sprint, or
-              closing a sprint. The read-only continuation helper is
-              <code>python3 scripts/cwo.py continue --epic &lt;id&gt;</code>.
-              Beads has native epics and issues, not stories or sprints; the steward uses
-              issue metadata, labels, descriptions, dependencies, status, and
-              sprint artifacts to express standard PM workflow without
-              misrepresenting the tool.
-            </p>
-            <p>
-              Red Hat lenses include OpenShift Platform, OpenShift Application
-              Developer, OpenShift AI, Red Hat OpenStack Services on OpenShift,
-              Advanced Cluster Management, Advanced Cluster Security, and Red
-              Hat Enterprise Linux with Identity Management and Satellite
-              sub-specialties.
-            </p>
-          </section>
-
-          <section id="codex-hooks">
-            <h2>Codex Beads Hooks</h2>
-            <p>
-              Codex lifecycle hooks can inject Beads recovery context at
-              session start, prompt submit, and compaction boundaries. If the
-              shell displays that context, treat it as a presentation issue:
-              keep <code>bd codex-hook SessionStart</code> as the
-              <code>full-context</code> path unless the installed Codex binary
-              supports a stable <code>visibilityHint</code> display hint.
-            </p>
-            <pre><code>python3 scripts/configure_codex_beads_hooks.py \
-  --project-dir . \
-  --mode full-context \
-  --json
-
-python3 scripts/configure_codex_beads_hooks.py \
-  --project-dir . \
-  --mode quiet \
-  --apply</code></pre>
-            <p>
-              Quiet mode fails closed when support is not detected. The
-              degraded profile requires <code>--allow-degraded-context</code>
-              because memories-only context is not equivalent to the full
-              Beads hook. The operator reference is
-              <code>references/codex-beads-hooks.md</code>, and the
-              reader-facing page is
-              <a href="./codex-beads-hooks.html">Codex Beads Hooks</a>.
-            </p>
-          </section>
-
-          <section id="scripts">
-            <h2>Scripts</h2>
-            <p>
-              Helper scripts are the implementation surface that Codex can run
-              inside the workspace. The user-facing path is still the guided
-              Codex workflow; this section is for exact command lookup,
-              automation, and CI.
-            </p>
-            <p>
-              Scripts perform sizing, routing, stale-agent cleanup, scaffolding,
-              internal Beads briefing, closure-memory comments, packet building,
-              dispatch prompt rendering, return normalization, evaluation, audit verification, and
-              repository validation.
-              Scaffolded and expert-review Beads carry native
-              <code>skills</code>, <code>acceptance</code>,
-              <code>design</code>, and <code>notes</code> fields so the work
-              graph is queryable instead of relying only on description text.
-            </p>
-            <p>
-              Candidate E installation and launch commands are canonical under
-              <a href="#candidate-e">Candidate E</a>. The commands below cover
-              additional helper surfaces.
-            </p>
-            <pre><code>python3 scripts/prepare_native_worker.py build --help
-python3 scripts/supervise_native_precommit.py --help
-python3 scripts/manage_native_release.py --help
-python3 scripts/supervise_native_worker.py --help
-python3 scripts/supervise_native_pool.py --help
-python3 scripts/validate_native_pool_preflight.py --help
-python3 scripts/coach_prompt.py "&lt;task text&gt;"
-python3 scripts/coach_prompt.py --scaffold-size tight "&lt;task text&gt;"
-python3 scripts/route_work.py "&lt;task text&gt;"
-python3 scripts/coach_prompt.py --model-synthesis "&lt;task text&gt;"
-python3 scripts/route_work.py --model-synthesis "&lt;task text&gt;"
-python3 scripts/route_work.py --data-sensitivity redacted "&lt;task text&gt;"
-python3 scripts/coach_prompt.py --beads-context-depth focused "&lt;task text&gt;"
-python3 scripts/build_beads_brief.py --bead "&lt;id&gt;" --depth focused --for subagent
-python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --scaffold-size tight --dry-run
-python3 scripts/scaffold_workgraph.py --title "&lt;goal&gt;" --description "&lt;scope&gt;" --dry-run --format markdown-workgraph
-WORKGRAPH="$(python3 scripts/cwo.py temp path --purpose markdown-workgraph --name cwo-workgraph.md)"
-python3 scripts/summarize_resume_state.py --markdown-workgraph "$WORKGRAPH"
-python3 scripts/cwo.py continue --epic "&lt;id&gt;"
-python3 scripts/cwo.py continue --epic epic --markdown-workgraph "$WORKGRAPH"
-python3 scripts/cwo.py temp path --purpose workgraph --name cwo-workgraph.md
-python3 scripts/cwo.py temp cleanup --older-than 48h --json
-python3 scripts/cleanup_stale_agents.py --json
-python3 scripts/close_bead_with_summary.py --bead "&lt;id&gt;" --disposition completed --why "validated" --who "Codex main thread" --what "changed files" --how "validation command" --when "commit or run ID" --where "repo and Beads mode" --evidence "validation command" --residual-risk none --follow-up none --meaningful --dry-run --json
-python3 scripts/configure_codex_beads_hooks.py --project-dir . --mode full-context --json
-scripts/launch_chatgpt_cdp_chrome.sh --write-config
-WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
-python3 scripts/chatgpt_browser_review.py --packet "$WORK_PACKET_DIR/master-plan-review-packet.json" --confirm-only --json
-python3 scripts/chatgpt_browser_review.py --packet "$WORK_PACKET_DIR/master-plan-review-packet.json" --json
-python3 scripts/ingest_chatgpt_share_return.py "&lt;share link&gt;" --bead "&lt;id&gt;"
-python3 scripts/render_harness_dispatch.py --environment connected-opencode-exemplar --harness opencode --role worker --json "&lt;task text&gt;"
-python3 scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json
-python3 scripts/import_execution_telemetry.py --file usage-sidecar.json
-python3 scripts/render_execution_status_report.py --format terminal
-python3 scripts/render_execution_status_report.py --format terminal --layout expanded
-python3 scripts/render_execution_status_report.py --format terminal --layout summary
-python3 scripts/check_installed_skill.py --check
-python3 scripts/generate_site.py --check
-python3 scripts/workspace_mutation_guard.py --snapshot --output before.json
-python3 scripts/validate_repository.py
-python3 scripts/validate_public_copy.py
-python3 scripts/validate_site.py</code></pre>
-            <p>
-              <code>build_beads_brief.py</code> is for internal Codex and
-              subagent Beads context memory. Comment-bearing depths fail closed for
-              <code>--for contractor</code>; outside models use
-              <code>build_contractor_packet.py</code>.
-            </p>
-            <p>
-              The <a href="./workflows.html">Workflows guide</a> shows the
-              in-Codex helper sequence, project-manager flow, and manual
-              <code>claude -p</code>, <code>gemini -p</code>, or
-              <code>agy -p</code> contractor handoff.
-            </p>
-          </section>
-
-          <section id="deep-dives">
-            <h2>Deep Dives</h2>
-            <p>
-              Contractor and local-worker pages are specialized workstream
-              references. Use them after the coach has selected the workstream
-              and the user has approved the relevant external-sharing or local
-              inference boundary.
-            </p>
-            <p>
-              Four differentiator deep dives explain the concepts most likely
-              to make CWO different from a normal web-chat or shell-only
-              workflow: durable memory, native supervision, evidence-based
-              synthesis, and zero-trust return handling.
-            </p>
-            <p>
-              The local-worker deep dive shows the first-class
-              <code>/plan</code> path, <code>--local-ok</code> opt-in,
-              <code>--local-profile openshift-ai-vllm</code> profile selection,
-              dispatch envelope generation, return evaluation, and architect adjudication.
-              The local-worker return is evidence until architect adjudication
-              accepts follow-up work.
-            </p>
-            <p>
-              Local-worker evaluation starts with the base
-              <code>evaluate_return.py --file local-return.md</code> command,
-              but production handoff should pass the executor or equivalent
-              provider fields so the result records
-              <code>provenance_class=local-worker</code> instead of unknown
-              provenance. For OpenShift AI vLLM, use
-              <code>evaluate_return.py --file local-return.md --executor openshift_ai_vllm_worker</code>.
-              Add <code>--peer-review-required</code> only when route policy,
-              provider-conflict handling, or evaluator context requires peer
-              review for that return.
-            </p>
-            <ul class="link-list">
-              <li><a href="./beads-memory.html">Beads durable memory and closure context</a></li>
-              <li><a href="./native-supervision.html">Native worker supervision and bounded recovery</a></li>
-              <li><a href="./model-synthesis.html">Model synthesis and architect adjudication</a></li>
-              <li><a href="./zero-trust-consensus.html">Zero-trust consensus and cross-domain divergence</a></li>
-              <li><a href="./malpractice-sabotage.html">Malpractice and sabotage guardrails</a></li>
-              <li><a href="./codex-beads-hooks.html">Codex Beads hook display controls</a></li>
-              <li><a href="./external-contracting.html">External contracting controls</a></li>
-              <li><a href="./local-workers.html">Local worker and OpenShift AI controls</a></li>
-              <li><a href="./explanation.html">Operating model explanation</a></li>
-              <li><a href="./contractor-demo.html">Hello-world contractor demo case study</a></li>
-            </ul>
-            <p>
-              Operator details for cross-domain claim comparison live in
-              <code>references/zero-trust-consensus.md</code>.
-            </p>
-          </section>
-
-          <section id="durable-memory">
-            <h2>Durable Memory</h2>
-            <p>
-              Closure-memory comments are the compact recovery record for
-              future agents. Use <code>scripts/close_bead_with_summary.py</code>
-              before closing meaningful Beads and fill the recovery fields:
-              who was involved, what changed, why closed, how validated, when
-              closed, where executed, decisions, evidence, residual risk, and
-              follow-up. Pass <code>--meaningful</code> to fail fast when a
-              non-trivial closure is missing required recovery fields.
-            </p>
-            <p>
-              Beads context depth controls how much of that durable record an
-              internal agent should read. <code>none</code> performs no Beads
-              lookup. <code>summary</code> reads assigned-Bead JSON without
-              comments. <code>focused</code> reads assigned-Bead comments as
-              internal evidence. <code>heavy</code> adds broader related
-              history when prior work or synthesis matters. <code>audit</code>
-              is reserved for incident, quarantine, or forensics work. Outside
-              contractors do not receive raw Beads comments; they get boundary-checked packets.
-            </p>
-            <pre><code>python3 scripts/close_bead_with_summary.py \
-  --bead "&lt;id&gt;" \
-  --disposition completed \
-  --why "accepted change validated" \
-  --who "Codex main thread; reviewer lane or operator if applicable" \
-  --what "docs/use-cases.html added" \
-  --how "python3 scripts/validate_repository.py, python3 scripts/validate_public_copy.py, and python3 scripts/validate_site.py" \
-  --when "main at &lt;commit-sha&gt;; CI run &lt;id&gt;" \
-  --where "repo path; branch main; Beads local-only or Dolt-backed" \
-  --decision "kept exact contract labels in reference pages" \
-  --evidence "Pages deploy run &lt;id&gt;" \
-  --residual-risk "none known" \
-  --follow-up "none" \
-  --meaningful \
-  --close</code></pre>
-            <p>
-              If <code>bd dolt remote list</code> reports no remotes, record
-              Beads as local-only in the <code>--where</code> field. Do not
-              claim remote sync, CI success, Pages deployment, or publication
-              until those checks have actually completed.
-            </p>
-          </section>
-
-          <section id="validation">
-            <h2>Validation</h2>
-            <p>
-              Publication work should pass repository validation, site
-              validation, unit tests, install smoke checks, browser checks, and
-              publish sanitization before pushing upstream. For meaningful
-              Beads, add a final closure-memory comment before closing so future
-              agents can recover who was involved, what changed, why it closed,
-              how it was validated, when it closed, where executed, residual
-              risk, and follow-up from the work graph.
-            </p>
-            <ol class="check-list">
-              <li>Run validators locally.</li>
-              <li>Check desktop and mobile rendering.</li>
-              <li>Scan for local paths, private attribution, tokens, and keys.</li>
-              <li>Verify GitHub CI, Pages deploy, and live HTTP 200 after push.</li>
-              <li>Use the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/incident-response-playbook.md">incident-response playbook</a> for sabotage, malpractice, or quarantine cases.</li>
-            </ol>
-          </section>
-        </div>
-      </section>
+        <p><a href="./get-started.html">Optional practice example</a> · <a href="./workflows.html">Experienced operator guide</a> · <a href="./explanation.html">Concepts and limits</a>.</p>
+        </section>
+        <section id="installation"><span id="candidate-e"></span><h2>Installation locations and profile verification</h2>
+        <p>Follow the <a href="./install.html">installation sequence</a> for default setup. Keep the source checkout, installed skill and target project in separate folders. The installer chooses its destination from <code>CODEX_SKILLS_DIR</code>, then <code>CODEX_HOME/skills</code>, then <code>~/.codex/skills</code>.</p>
+        <p>For an intentionally isolated/custom installation, run this alternative from your source checkout, using your real destination. Do not combine it with the default sequence blindly:</p>
+        <p class="input-label">Terminal</p>
+        <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">./scripts/install.sh</span><span class="shiki-style-ab138001542cb31f"> --codex-home</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/isolated-codex</span><span class="shiki-style-ab138001542cb31f"> --yes</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> install</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> operator-e</span><span class="shiki-style-ab138001542cb31f"> --codex-home</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/isolated-codex</span><span class="shiki-style-ab138001542cb31f"> --launcher-dir</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/private-bin</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> verify</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> operator-e</span><span class="shiki-style-ab138001542cb31f"> --codex-home</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/isolated-codex</span><span class="shiki-style-ab138001542cb31f"> --launcher-dir</span><span class="shiki-style-fccf53bf0d08ec6a"> /path/to/private-bin</span></span></code></pre>
+        <p>Start the launcher with the same <code>CODEX_HOME</code>; otherwise it will look for the profile in another home. Check installed/source parity with <code>scripts/check_installed_skill.py --check</code> using the same home/destination environment. A successful dry run did not install anything.</p>
+        <p><strong>Model settings:</strong> the source <code>operator-e</code> profile requests <code>gpt-5.6-sol</code> and does not itself pin reasoning effort; other configuration may supply it. A supported client model/effort override can retain the named profile. Observe the actual runtime settings; neither a file setting nor model self-identification attests prior turns. <a href="https://learn.chatgpt.com/docs/config-file/config-reference">Official configuration reference</a>.</p>
+        </section>
+        <section id="updates"><h2>Update an existing installation without losing local work</h2>
+        <ol><li>Identify your old source, installed destination, current profile and local modifications. Record the revision and inspect the diff; do not reset, stash, or overwrite a dirty checkout to manufacture cleanliness.</li><li>Obtain the intended new source in a separate checkout, review release notes and the current profile/routing references, and run its checks. Do not treat a working-tree version label as a published release.</li><li>Use that source's installer with the same intended destination. It stages content and retains a backup outside the active skill directory. Verify installed/source parity afterward.</li><li>Install/verify the matching named profile, inspecting any modified-managed-file refusal instead of forcing it. Start a fresh named session; an older thread is not upgraded by copying files.</li></ol>
+        <p><strong>Changed defaults:</strong> current task-selected native routing is Luna-first after neutral sizing, with recorded Terra escalation. Spark/v2 fallback records remain historical and cannot grant new dispatch. Old packets, qualifications, budgets or terminal sessions must not be silently reused. Concurrency remains host-qualified preview. Explicit self-maintenance is a separate authority path, not an ordinary setup requirement.</p>
+        <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/CHANGELOG.md">Release history</a> · <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-pool-capacity-migration.md">Capacity migration</a> · <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/cwo-system-prompt.md">CWO system prompt and activation</a>.</p>
+        </section>
+        <section id="troubleshooting"><h2>Find and fix the step that failed</h2>
+        <dl><dt>Command not found</dt><dd>Verify the prerequisite; reopen the terminal after PATH changes. For a missing launcher use the explicit fresh-profile command in Start Here. Do not add privileged commands or permission bypasses as a generic fix.</dd><dt>Authentication or requested model unavailable</dt><dd>Complete vendor sign-in yourself. For the main thread use a supported available model setting while retaining the profile and record the deviation. Delegated worker identity/qualification still has to pass; no silent substitution.</dd><dt>Profile verify reports modified files</dt><dd>Inspect the exact paths and compare with the intended source. Keep custom files/evidence. Do not pass <code>--force</code> without deciding which bytes should win.</dd><dt>Skill check reports drift</dt><dd>Confirm the intended source and destination first. README/install-only drift is still drift, but it is not proof every runtime file changed. Do not install an unrelated dirty checkout wholesale.</dd><dt>Beads backend unavailable</dt><dd>Run <code>bd version</code> and follow that release's local backend setup. An empty ready list is valid; a connection error is not. Local records are not synced without a configured Dolt remote.</dd><dt>Native tool/host gate fails</dt><dd>Keep the failed-check evidence and record which processes and resources were stopped. Check the exact model, available tools, MCP integrations, sandbox, source revision and worker qualification. A configuration check or tool list does not prove that the worker can complete real assignments.</dd><dt>A worker is stopped or a dependent task is blocked</dt><dd>Verify that the worker has stopped, account for the time or usage it consumed, and identify which tasks depend on it. Continue unrelated work only if it is already authorized and its own checks pass. Do not resume a stopped attempt or start tasks whose prerequisites have not been accepted.</dd></dl>
+        <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/incident-response-playbook.md">Incident playbook</a> · <a href="./get-started.html#recover">Restore the disposable example or remove CWO</a>.</p>
+        </section>
+        <section id="controls"><span id="activation-artifacts"></span><span id="scripts"></span><span id="schemas"></span><span id="run-readiness"></span><span id="policies"></span><span id="operator-controls"></span><span id="native-supervision"></span><h2>Find the current execution rules and their source files</h2>
+<p>The optional audited tool-activation preview uses version-2 results that link the observed tool calls and child-task closures. Version-1 results are historical only. The <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">activation reference</a> specifies exact call counts and failure handling; activation cannot close parent or publication tasks.</p>
+        <dl><dt>Native model routing / exact execution</dt><dd><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/native-worker-execution.yaml">Worker policy</a>; <a href="./native-supervision.html">human overview</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md">current and historical contract</a>.</dd><dt>Executor and access boundary</dt><dd><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/executor-registry.yaml">Executor registry</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/access-profiles.yaml">access profiles</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/execution-environments.md">environment reference</a>.</dd><dt>Readiness and handoff</dt><dd><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/run-readiness.md">Run readiness</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/pre-dispatch-readiness.md">costly dispatch readiness</a>; <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/frozen-protocol-lock.md">frozen protocols</a>.</dd><dt>Security</dt><dd><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/security-threat-model.md">Threat model</a>; <a href="./malpractice-sabotage.html">malpractice and sabotage</a>; <a href="./zero-trust-consensus.html">return evaluation and conflicts</a>.</dd></dl>
+        <p>Check model identity, attempt identity, source revision, qualification, budgets, group admission, monitoring and final workspace state separately. A schema name, accepted CLI argument or saved success flag does not prove those checks passed.</p>
+        </section>
+        <section id="durable-memory"><h2>Task closure and handoff controls</h2><p><code>scripts/close_bead_with_summary.py</code> records closure memory before optionally closing a task. A meaningful closure requires who was involved, what changed, how and when it was validated/closed, where it ran, evidence, residual risk and follow-up. It also records why the task is closing and the decision.</p><p>The exact options and validation belong to <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/scripts/close_bead_with_summary.py">the closure helper</a>; the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/run-readiness.md">readiness reference</a> owns the handoff packet and stopping rules. A summary is not proof the checks ran.</p></section>
+<section id="experts"><h2>Find exact reviewer and tool identifiers</h2><p>Use the exact executor IDs and capabilities in the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/executor-registry.yaml">executor registry</a>, with the corresponding <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/access-profiles.yaml">access profile</a>. For packet, evaluation and adjudication commands, use the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/external-contracting.md">contracting reference</a>. Registry names do not prove current runtime availability.</p></section>
+<section id="advanced"><span id="flow-references"></span><span id="deep-dives"></span><span id="codex-hooks"></span><h2>Optional guides for specific needs</h2>
+        <ul><li><a href="./prompt-coach.html">Prompt coach and task sizing</a></li><li><a href="./beads-memory.html">Beads task records and completion summaries</a></li><li><a href="./codex-beads-hooks.html">Beads hook display and context</a></li><li><a href="./model-synthesis.html">Model synthesis</a> and <a href="./zero-trust-consensus.html">evidence evaluation</a></li><li><a href="./external-contracting.html">External contractors and sharing</a></li><li><a href="./local-workers.html">Local inference and restricted environments</a></li><li><a href="./contractor-demo.html">Historical contractor demo</a></li></ul>
+        <p>Browser review, local models and alternate agent tools each need their own availability and permission checks. A rendered prompt does not mean execution occurred. Use historical demo IDs and timings only to understand that recorded run.</p>
+        </section>
+        <section id="maintain"><span id="validation"></span><h2>Maintain and preview these docs</h2>
+<p>Run the following from a CWO source checkout. These are documentation-maintainer checks, not requirements for the installed skill runtime.</p>
+        <p>Edit page bodies in their HTML files, then regenerate the shared navigation and footer. README summarizes the reader routes rather than repeating setup. The <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/CONTRIBUTING.md">maintenance guide</a> lists source owners, checks and URL-preservation rules.</p>
+        <p class="input-label">Terminal</p>
+        <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/generate_site.py</span><span class="shiki-style-ab138001542cb31f"> --check</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/validate_site.py</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/validate_public_copy.py</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/check_documentation.py</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/preview_site.py</span><span class="shiki-style-ab138001542cb31f"> --port</span><span class="shiki-style-ab138001542cb31f"> 8765</span></span></code></pre>
+        <p>Open <code>http://127.0.0.1:8765/complex-work-orchestration/</code>. The preview is local-only. Publication, remote settings, installed-skill updates and commits remain separate authorized operations.</p>
+        </section>
+        </article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Codex Delegation</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Outside Review</a><a href="./local-workers.html">Local Models</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

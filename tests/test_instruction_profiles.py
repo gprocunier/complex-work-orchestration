@@ -10,7 +10,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "manage_instruction_profile.py"
 GUIDE = ROOT / "references" / "cwo-sol-operator-profile.md"
-E_GUIDE = ROOT / "references" / "cwo-candidate-e-operator-profile.md"
+OPERATOR_GUIDE = ROOT / "references" / "cwo-system-prompt.md"
 C_PROMPT = ROOT / "prompts" / "cwo-sol-operator.md"
 E_PROMPT = ROOT / "prompts" / "cwo-sol-operator-e.md"
 QUALIFIED_E_PROMPT = ROOT / "prompts" / "archive" / "cwo-sol-operator-e-v5-qualified.md"
@@ -131,7 +131,7 @@ class InstructionProfileTests(unittest.TestCase):
             self.assertFalse((launcher_dir / "cwo-codex").exists())
 
     def test_operator_guide_commands_and_discoverability_do_not_drift(self) -> None:
-        guide = E_GUIDE.read_text(encoding="utf-8")
+        guide = OPERATOR_GUIDE.read_text(encoding="utf-8")
         for command in (
             "python3 scripts/manage_instruction_profile.py install --profile operator-e",
             "python3 scripts/manage_instruction_profile.py verify --profile operator-e",
@@ -144,7 +144,7 @@ class InstructionProfileTests(unittest.TestCase):
         self.assertIn("does not edit `config.toml`", guide)
         self.assertIn("trusted CWO enforcement", guide)
         self.assertIn(
-            "[Candidate E CWO operator profile](references/cwo-candidate-e-operator-profile.md)",
+            "[CWO system prompt](references/cwo-system-prompt.md)",
             README.read_text(encoding="utf-8"),
         )
 
@@ -204,7 +204,7 @@ class InstructionProfileTests(unittest.TestCase):
         ):
             self.assertNotIn(evaluation_only, prompt)
 
-        guide = E_GUIDE.read_text(encoding="utf-8")
+        guide = OPERATOR_GUIDE.read_text(encoding="utf-8")
         for command in (
             "python3 scripts/manage_instruction_profile.py install --profile operator-e",
             "python3 scripts/manage_instruction_profile.py verify --profile operator-e",
@@ -214,7 +214,7 @@ class InstructionProfileTests(unittest.TestCase):
             self.assertIn(command, guide)
         self.assertIn("prompts/cwo-sol-operator-e.md", CWO_SKILL.read_text(encoding="utf-8"))
         self.assertIn(
-            "[Candidate E CWO operator profile](references/cwo-candidate-e-operator-profile.md)",
+            "[CWO system prompt](references/cwo-system-prompt.md)",
             README.read_text(encoding="utf-8"),
         )
         combined = "\n".join(
@@ -225,7 +225,8 @@ class InstructionProfileTests(unittest.TestCase):
             )
         )
         self.assertNotIn("interim incumbent", combined)
-        self.assertIn("fewest recorded tokens", combined)
+        self.assertIn("optimized for complex project work", combined)
+        self.assertNotIn("fewest recorded tokens", combined)
 
     def test_candidate_e_protocol_repair_preserves_qualified_prompt_evidence(self) -> None:
         qualified = QUALIFIED_E_PROMPT.read_bytes()
@@ -248,12 +249,15 @@ class InstructionProfileTests(unittest.TestCase):
             "--require-scoped-continuation",
         ):
             self.assertIn(expected, normalized)
-        guide = E_GUIDE.read_text(encoding="utf-8")
-        self.assertIn("post-v5 repair", guide)
-        self.assertIn("No new model comparison has qualified", guide)
+        guide = OPERATOR_GUIDE.read_text(encoding="utf-8")
+        history = " ".join(
+            (ROOT / "references/candidate-e-qualification-summary.md").read_text().split()
+        )
+        self.assertIn("post-v5 repair", history)
+        self.assertIn("No new model comparison has qualified", history)
         self.assertIn("frozen-protocol-lock.md", guide)
         self.assertIn("does not set `model_reasoning_effort`", guide)
-        self.assertIn("post-v5 frozen-protocol repair", README.read_text(encoding="utf-8"))
+        self.assertIn("default OpenAI system prompt", README.read_text(encoding="utf-8"))
         # Prospectively version the active source for scoped continuation. The
         # previously pinned post-v5 bytes remain in the v110 preimage evidence;
         # this assertion does not claim the installed profile has reloaded.

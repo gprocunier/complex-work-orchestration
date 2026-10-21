@@ -1,0 +1,173 @@
+{
+  "beads-memory.html": [
+    "main",
+    "why",
+    "flow",
+    "example",
+    "closure",
+    "context-depth",
+    "sharing"
+  ],
+  "codex-beads-hooks.html": [
+    "main",
+    "principle",
+    "profiles",
+    "helper",
+    "subagents",
+    "validation"
+  ],
+  "contractor-demo.html": [
+    "main",
+    "project",
+    "invocation",
+    "executor-access",
+    "flow",
+    "dispatch",
+    "returns",
+    "validation"
+  ],
+  "explanation.html": [
+    "main",
+    "shells",
+    "roles",
+    "supervision",
+    "memory",
+    "evidence",
+    "publication",
+    "failure-modes"
+  ],
+  "external-contracting.html": [
+    "main",
+    "collaboration",
+    "labels",
+    "packet",
+    "multi-expert-review",
+    "master-review",
+    "return",
+    "demo-lessons"
+  ],
+  "get-started.html": [
+    "main",
+    "install",
+    "profile",
+    "starting-path",
+    "coach",
+    "core-terms",
+    "beads",
+    "execute"
+  ],
+  "index.html": [
+    "main",
+    "top",
+    "crawl",
+    "walk",
+    "first-step",
+    "run",
+    "routes",
+    "reference"
+  ],
+  "local-workers.html": [
+    "main",
+    "invoke-codex",
+    "coach-opt-in",
+    "openshift-ai",
+    "endpoint-config",
+    "dispatch-envelope",
+    "endpoint-safety",
+    "execute-local",
+    "evaluate"
+  ],
+  "malpractice-sabotage.html": [
+    "main",
+    "zero-trust",
+    "why-now",
+    "source",
+    "gate",
+    "handlers",
+    "signals",
+    "return-language",
+    "work-rerouting",
+    "provider-policy",
+    "evidence",
+    "quarantine",
+    "publication"
+  ],
+  "model-synthesis.html": [
+    "main",
+    "why",
+    "pipeline",
+    "input-quality",
+    "example",
+    "adjudication",
+    "use-it"
+  ],
+  "native-supervision.html": [
+    "main",
+    "default-path",
+    "before-dispatch",
+    "control-turn",
+    "workspace-authority",
+    "failure-recovery",
+    "concurrency-preview",
+    "activation-preview",
+    "operator-reference"
+  ],
+  "prompt-coach.html": [
+    "main",
+    "run",
+    "levels",
+    "questions",
+    "local",
+    "defaults"
+  ],
+  "reference.html": [
+    "main",
+    "flow-references",
+    "candidate-e",
+    "native-supervision",
+    "operator-controls",
+    "policies",
+    "schemas",
+    "activation-artifacts",
+    "run-readiness",
+    "experts",
+    "codex-hooks",
+    "scripts",
+    "deep-dives",
+    "durable-memory",
+    "validation"
+  ],
+  "use-cases.html": [
+    "main",
+    "simple-use-cases",
+    "durable-work-log",
+    "where-it-fits",
+    "execution-profile-fit",
+    "complex-use-cases",
+    "acceptance"
+  ],
+  "workflows.html": [
+    "main",
+    "candidate-e",
+    "invoke-codex",
+    "coach-decide",
+    "beads-graph",
+    "run-readiness",
+    "native-supervision",
+    "native-supervision-tech-preview",
+    "optional-lanes",
+    "execution-environments",
+    "contractor-demo",
+    "validate-handoff"
+  ],
+  "zero-trust-consensus.html": [
+    "main",
+    "problem",
+    "flow",
+    "claims",
+    "normalization",
+    "domains",
+    "divergence",
+    "guardrails"
+  ]
+}

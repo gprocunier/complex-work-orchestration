@@ -32,6 +32,20 @@ jobs:
         run: python scripts/validate_site.py
       - name: Generated site shell check
         run: python scripts/generate_site.py --check
+      - name: Shiki GitHub theme check
+        working-directory: tools/site
+        run: |
+          npm ci --ignore-scripts
+          npm run check
+          npm test
+      - name: Generated SVG diagram check
+        run: |
+          python scripts/generate_diagrams.py --check
+          python scripts/generate_diagram_themes.py --check
+      - name: Maintained Markdown and legacy route checks
+        run: python scripts/check_documentation.py
+      - name: Worked evidence fixtures
+        run: python examples/worked-evidence/run_examples.py --check
       - name: Unit tests
         run: python scripts/run_parallel_unittest.py --workers 8 --verbose
       - name: Route dry run

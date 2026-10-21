@@ -1,0 +1,15 @@
+{
+  "name": "cwo-site-highlighting",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node highlight.mjs --write",
+    "check": "node highlight.mjs --check",
+    "test": "node --test highlight.test.mjs"
+  },
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "parse5": "8.0.1",
+    "shiki": "4.5.0"
+  }
+}

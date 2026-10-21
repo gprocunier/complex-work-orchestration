@@ -7,9 +7,13 @@
       name="description"
       content="How Complex Work Orchestration compares model claims across independent trust domains without treating agreement as proof."
     >
-    <title>Zero-Trust Consensus | Complex Work Orchestration</title>
+    <title>Compare claims from separate model reviews | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -19,59 +23,58 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Complex Work Orchestration</span>
         </a>
-        <div class="nav-links">
+        <details class="site-menu" open><summary>Menu</summary><div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-        </div>
+        </div></details>
+        <fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>
+          <label class="theme-choice" for="theme-system" title="System theme (default)">
+            <input class="sr-only" type="radio" id="theme-system" name="theme" value="system" checked>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="sr-only">System theme (default)</span>
+          </label>
+          <label class="theme-choice" for="theme-light" title="Light theme">
+            <input class="sr-only" type="radio" id="theme-light" name="theme" value="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="sr-only">Light theme</span>
+          </label>
+          <label class="theme-choice" for="theme-dark" title="Dark theme">
+            <input class="sr-only" type="radio" id="theme-dark" name="theme" value="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/></svg>
+            <span class="sr-only">Dark theme</span>
+          </label>
+        </fieldset>
       </nav>
     </header>
 
-    <main id="main">
-      <section class="page-hero">
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--guide"><div class="reading-layout"><header class="page-intro">
         <p class="breadcrumb"><a href="./index.html">Home</a> / <a href="./model-synthesis.html">Model Synthesis</a> / Zero-Trust Consensus</p>
         <p class="eyebrow">Deep dive</p>
-        <h1>Zero-Trust Consensus</h1>
-        <p class="lede">
-          Multiple models can agree and still be wrong. CWO compares structured
-          claims across independent trust domains, reports agreement and
-          divergence, and keeps final authority with the architect.
-        </p>
-      </section>
-
-      <section class="section doc-layout">
-        <nav class="page-nav" aria-label="Page sections">
-          <a href="#problem">Problem</a>
-          <a href="#flow">Flow</a>
-          <a href="#claims">Structured Claims</a>
-          <a href="#normalization">Normalization</a>
-          <a href="#domains">Trust Domains</a>
-          <a href="#divergence">Divergence</a>
-          <a href="#guardrails">Guardrails</a>
+        <h1 id="page-title">Compare claims from separate model reviews</h1>
+        <p class="callout">CWO calls this zero-trust consensus: compare explicit claims from accepted reviews without treating agreement as proof. Sources are counted by trust domain—a provider or deployment group—not simply by the number of models. It is optional for the practice example. When a task or policy requires it, the minimum-source and disagreement checks below must pass.</p>
+        <p class="lede">Two models may repeat the same unsupported assumption. CWO records which reviews counted, which claims were compared and where the answers differed. The lead decides what the evidence supports.</p>
+      </header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page">
+          <a href="#problem">Why counting votes is not enough</a><a href="#tested-example">Inspect the actual disagreement test</a>
+          <a href="#flow">From checked reviews to resolved disagreements</a>
+          <a href="#claims">Record claims the helper can compare</a>
+          <a href="#normalization">Claim Normalization</a>
+          <a href="#domains">Which sources count separately?</a>
+          <a href="#divergence">When comparable claims disagree</a>
+          <a href="#guardrails">When comparison must stop the work</a>
           <a href="./model-synthesis.html">Model Synthesis</a>
           <a href="./malpractice-sabotage.html">Return Guardrails</a>
           <a href="./reference.html#deep-dives">Reference Index</a>
-        </nav>
-        <div class="doc-body">
+        </nav></details><article class="doc-content" aria-labelledby="page-title">
           <section id="problem">
-            <h2>The Problem</h2>
-            <p>
-              Cross-model review is valuable because different providers,
-              local deployments, and model families catch different issues. The
-              mistake is treating agreement as proof. Shared training data,
-              copied assumptions, benchmark pressure, provider policy, and
-              prompt wording can make several models converge on the same weak
-              answer.
-            </p>
-            <p>
-              Zero-trust consensus makes that risk explicit. It records which
-              inputs counted, which were excluded, what claims were comparable,
-              and where independent trust domains disagreed. The output is
-              evidence for architect adjudication, not a release approval.
-            </p>
+            <h2>Why counting votes is not enough</h2><p>The lead is usually the coordinating Codex agent. It may accept routine results only within your granted authority. Decisions reserved to you, or requiring human adjudication under the task or policy, stay with a human. The agent can prepare evidence and record that decision; it cannot approve it for you.</p>
+            <p>Different providers or deployments may catch different issues, but they can also share training data, assumptions and prompt biases. Agreement may repeat a common mistake rather than confirm a fact.</p>
+            <p>The comparison report shows the included and excluded reviews, comparable claims and disagreements between trust domains. The lead must resolve those disagreements; the report is not a release approval.</p>
             <div class="callout">
               <strong>Simple rule:</strong>
               agreement can reduce uncertainty, but it never becomes
@@ -82,29 +85,29 @@
               Consensus compares evidence across documented provider trust
               domains; it does not establish security or replace human
               adjudication. See the public
-              <a href="../references/security-threat-model.md">threat model</a>
+              <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/security-threat-model.md">threat model</a>
               for attacker assumptions and the
-              <a href="../SECURITY.md">security policy</a>
+              <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/SECURITY.md">security policy</a>
               for responsible disclosure.
             </div>
           </section>
+<section id="tested-example"><h2>Two reviews disagree about encryption. What happens next?</h2><p><strong>Existing component test · authored inputs, not live model quotations.</strong> The repository fixture supplies accepted input records claiming AES-256-GCM and AES-128-CBC for the same cipher setting. No actual configuration or provider response is established. These are different settings, not alternative spellings of the same setting.</p><p>The real helper retains both values, their supplied sources and synthetic evidence, reports the conflict and returns an escalation recommendation. With structured comparison required, the enclosing synthesis result is blocked. The lead still needs to inspect the implementation to establish which claim is correct; the test does not perform that investigation.</p><p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/8e05b6cce4c4cf89325112f019fdd8c69a28ecff/tests/test_zero_trust_consensus.py#L78-L102">Inspect the disagreement test</a> and <a href="https://github.com/gprocunier/complex-work-orchestration/blob/8e05b6cce4c4cf89325112f019fdd8c69a28ecff/scripts/cwo_core/synthesis.py#L719-L872">the comparison implementation</a>. The neighboring test checks that matching claims produce an informational result, never a validated status. Other disagreements may stay below the escalation threshold; divergence does not always block synthesis.</p><p><strong>How this is invoked:</strong> the operator or integration calls <code>evaluate_synthesis_inputs(..., zero_trust_required=True)</code> with evaluated inputs and explicit comparable claims. This is a tested Python helper, not an automatic step in every dispatched review. Its result is evidence for the lead's decision, not permission to act.</p></section>
+
 
           <section id="flow">
-            <h2>Flow</h2>
-            <div class="workflow-diagram contractor" role="img" aria-label="Zero-trust consensus flow from evaluated returns to trust-domain grouping, claim comparison, divergence report, and architect adjudication.">
-              <div class="flow-card"><strong>Evaluate</strong><span>return quality and boundary</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Group</strong><span>independent trust domains</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Compare</strong><span>structured claims</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Report</strong><span>agreement and divergence</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Decide</strong><span>architect adjudication</span></div>
-            </div>
+            <h2>From checked reviews to resolved disagreements</h2>
+            <!-- diagram:zero-trust-consensus -->
+            <figure class="flowchart">
+              <picture>
+                <source media="(max-width: 40rem)" srcset="./diagrams/zero-trust-consensus-narrow.svg" width="320" height="880">
+                <img src="./diagrams/zero-trust-consensus.svg" width="680" height="520" alt="Compare explicit claims flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Check each review, group accepted inputs by trust domain, compare matching claim fields and report agreement and disagreement. The lead resolves material differences; agreement is not proof of correctness.</figcaption>
+            </figure>
+            <!-- /diagram:zero-trust-consensus -->
             <ol class="sr-only">
-              <li>Normal evaluator gates run first.</li>
-              <li>Only primary inputs with known trust domains count for independence.</li>
+              <li>Check each review’s evidence and permitted actions first.</li>
+              <li>Only reviews eligible to support the decision directly, with known provider or deployment groups, count toward the source minimum.</li>
               <li>CWO compares explicit structured claims.</li>
               <li>The report shows divergence, exclusions, and weakness-pattern hints.</li>
               <li>The architect resolves what affects implementation.</li>
@@ -112,21 +115,21 @@
           </section>
 
           <section id="claims">
-            <h2>Structured Claims</h2>
+            <h2>Record claims the helper can compare</h2>
             <p>
               CWO does not infer security claims from fluent prose. The
               synthesis input must carry explicit <code>zero_trust_claims</code>
               with stable claim IDs, categories, keys, values, claim types, and
               evidence. This keeps the comparison deterministic and reviewable.
             </p>
-            <pre><code>{
-  "claim_id": "auth:jwt_algorithms",
-  "category": "auth",
-  "key": "jwt_algorithms",
-  "value": "RS256 only",
-  "claim_type": "security_assertion",
-  "evidence": "Reviewer cited the configured allow-list."
-}</code></pre>
+            <pre data-language="json" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-d6f50f15d04b4a1d">{</span></span>
+<span class="line"><span class="shiki-style-140a21b5d2a01208">  "claim_id"</span><span class="shiki-style-d6f50f15d04b4a1d">: </span><span class="shiki-style-fccf53bf0d08ec6a">"auth:jwt_algorithms"</span><span class="shiki-style-d6f50f15d04b4a1d">,</span></span>
+<span class="line"><span class="shiki-style-140a21b5d2a01208">  "category"</span><span class="shiki-style-d6f50f15d04b4a1d">: </span><span class="shiki-style-fccf53bf0d08ec6a">"auth"</span><span class="shiki-style-d6f50f15d04b4a1d">,</span></span>
+<span class="line"><span class="shiki-style-140a21b5d2a01208">  "key"</span><span class="shiki-style-d6f50f15d04b4a1d">: </span><span class="shiki-style-fccf53bf0d08ec6a">"jwt_algorithms"</span><span class="shiki-style-d6f50f15d04b4a1d">,</span></span>
+<span class="line"><span class="shiki-style-140a21b5d2a01208">  "value"</span><span class="shiki-style-d6f50f15d04b4a1d">: </span><span class="shiki-style-fccf53bf0d08ec6a">"RS256 only"</span><span class="shiki-style-d6f50f15d04b4a1d">,</span></span>
+<span class="line"><span class="shiki-style-140a21b5d2a01208">  "claim_type"</span><span class="shiki-style-d6f50f15d04b4a1d">: </span><span class="shiki-style-fccf53bf0d08ec6a">"security_assertion"</span><span class="shiki-style-d6f50f15d04b4a1d">,</span></span>
+<span class="line"><span class="shiki-style-140a21b5d2a01208">  "evidence"</span><span class="shiki-style-d6f50f15d04b4a1d">: </span><span class="shiki-style-fccf53bf0d08ec6a">"Reviewer cited the configured allow-list."</span></span>
+<span class="line"><span class="shiki-style-d6f50f15d04b4a1d">}</span></span></code></pre>
             <p>
               Supported categories live in
               <code>policy/zero-trust-consensus-policy.yaml</code>. The initial
@@ -136,32 +139,11 @@
             </p>
           </section>
 
-          <section id="normalization">
-            <h2>Claim Normalization</h2>
-            <p>
-              CWO reduces only narrow formatting noise before comparing claim
-              values. Short technical identifiers in cryptography,
-              authentication, and network categories can match across common
-              punctuation or spacing differences, such as
-              <code>AES-256-GCM</code> and <code>aes256gcm</code>.
-            </p>
-            <p>
-              The normalizer does not rewrite URLs, paths, configuration
-              fragments, version-like values such as <code>TLS-1.2</code>, or
-              ordinary prose. That keeps the comparison useful without turning
-              a formatting helper into semantic approval.
-            </p>
-          </section>
+          <section id="normalization"><h2>What comparison normalizes—and what it does not prove</h2><p>Current comparison lowercases values and normalizes whitespace. It also removes some separator differences in short technical identifiers, so AES-256-GCM and aes256gcm can match. Version-like values such as TLS-1.2 and TLS-1.3 remain different.</p><p>Lowercasing can collapse case-sensitive paths or configuration values. Inspect their original values separately; normalized equality is not semantic validation. Before comparing claims with the same ID, reconcile their category, key and claim type. Conflicting categories can currently change the escalation score according to input order. This helper is not a schema-consistency or truth check.</p></section>
 
           <section id="domains">
-            <h2>Trust Domains</h2>
-            <p>
-              A trust domain is the independence unit CWO counts. It is not a
-              quality score. CWO resolves it from <code>trust_domain</code>,
-              then <code>provider_family</code>, then <code>provider_camp</code>.
-              Unknown domains and non-primary returns are excluded from the
-              independent-domain count.
-            </p>
+            <h2>Which sources count separately?</h2><p>Adding a second model at the same local endpoint does not automatically add another counted domain. The default aliases group local/OpenShift inputs together; same-provider cloud models also do not establish separate provider domains. Conflicting domain metadata or an unbound self-declared domain is excluded. Distinct domains are a source-accounting rule, not measured statistical independence.</p>
+            <p>A <strong>trust domain</strong> groups reviews that share a provider or deployment boundary. CWO uses it for source counting, not as a quality score or proof of statistical independence. It reads <code>trust_domain</code> first, then <code>provider_family</code>, then <code>provider_camp</code>. Unknown domains and non-primary returns do not count toward the independent-domain minimum.</p>
             <div class="reference-table compact" role="table" aria-label="Trust-domain handling">
               <div role="row">
                 <span role="cell">Counts</span>
@@ -176,17 +158,22 @@
                 <span role="cell">Two independent trust domains by default.</span>
               </div>
             </div>
-          </section>
+
+            <!-- diagram:source-count-groups -->
+            <figure id="source-count-groups" class="memory-flow guide-flow">
+              <picture>
+                <source media="(max-width: 75rem)" srcset="./diagrams/source-count-groups-narrow.svg" width="360" height="1400">
+                <img src="./diagrams/source-count-groups.svg" width="1020" height="930" alt="Count source groups, not model names flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Illustrative source accounting, not measured statistical independence or a provider ranking. Two eligible models from provider A count as one group; eligible local/OpenShift aliases share a default group. Only known, bound, eligible primary inputs count. When required, enough groups allow the explicitly invoked claim comparison—not a truth verdict or permission to act. Exact exclusions and metadata precedence remain below.</figcaption>
+            </figure>
+            <details class="diagram-text"><summary>Read the diagram as text</summary><ul><li>Evaluate each record before counting sources. The examples here are hypothetical eligible records, not a claim about any completed review campaign.</li><li>Two accepted primary models from the same provider count as one provider group under the default rules. Eligible local/OpenShift endpoint aliases also share one default group, even when the model names differ.</li><li>Unknown or conflicting domain metadata, unbound self-declared domains and non-primary or held inputs do not count. The table below retains the exact exclusions and the metadata-field precedence.</li><li>Count the remaining eligible groups. The default minimum is two. When structured comparison is required, explicitly invoke the helper with sufficient eligible inputs and comparable claims. Passing the source-count requirement proves neither truth, statistical independence nor authority to act.</li></ul></details>
+            <!-- /diagram:source-count-groups -->
+        </section>
 
           <section id="divergence">
-            <h2>Divergence</h2>
-            <p>
-              CWO compares claims with the same <code>claim_id</code>, or the
-              same <code>category:key</code> fallback. If two independent
-              domains make comparable claims with different normalized values,
-              the report records the competing values, the lanes that made
-              them, supporting evidence, and the required resolution owner.
-            </p>
+            <h2>When comparable claims disagree</h2>
+            <p>CWO matches claims by <code>claim_id</code>, or by <code>category:key</code> when no ID is supplied. If two counted domains give different normalized values for the same claim, the report records both values, their sources and evidence, and who must resolve the difference. This disagreement is called <strong>divergence</strong>.</p>
             <p>
               The allowed states are intentionally narrow:
               <code>informational</code>, <code>blocked</code>, and
@@ -196,13 +183,13 @@
           </section>
 
           <section id="guardrails">
-            <h2>Guardrails</h2>
+            <h2>When comparison must stop the work</h2>
             <ul class="check-list">
               <li>Required zero-trust consensus blocks synthesis if too few independent domains are available.</li>
-              <li>Material divergence blocks implementation conversion until architect adjudication.</li>
+              <li>Material disagreements block using those findings in implementation until the lead resolves them.</li>
               <li>Weakness-pattern matches are informational unless another gate escalates them.</li>
               <li>Excluded inputs remain visible so operators can see what did not count.</li>
-              <li>Agreement remains evidence, not authority; in short, agreement remains evidence.</li>
+              <li>Agreement remains evidence, not permission to implement or a proof of correctness.</li>
             </ul>
             <p>
               Continue with <a href="./model-synthesis.html">Model Synthesis</a>
@@ -211,29 +198,11 @@
               quarantine, malpractice, sabotage, and provider-policy handling.
             </p>
           </section>
-        </div>
-      </section>
+        </article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Codex Delegation</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Outside Review</a><a href="./local-workers.html">Local Models</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

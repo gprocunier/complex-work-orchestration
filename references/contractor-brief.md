@@ -93,8 +93,8 @@ packet says no profile was included, treat the context as degraded and say so in
 your return; use the packet's degraded-context justification to understand why
 the profile is missing.
 
-For ChatGPT Pro browser-mediated master-plan review, the share link is the
-return channel. Do not ask for raw hidden reasoning. Return conclusions,
+For final-plan review, retain the assignment identity, model confirmation and
+source record with the answer. Do not ask for raw hidden reasoning. Return conclusions,
 evidence, plan risks, rejected alternatives, recommended revisions, confidence,
 and escalation triggers in the required contractor return template.
 

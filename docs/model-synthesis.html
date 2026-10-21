@@ -7,9 +7,13 @@
       name="description"
       content="How Complex Work Orchestration evaluates independent model reviews, synthesizes evidence, and keeps final adjudication with the architect."
     >
-    <title>Model Synthesis | Complex Work Orchestration</title>
+    <title>Compare model reviews and decide what to change | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
+    <meta name="color-scheme" content="light dark">
+    <script src="./theme.js"></script>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./shiki.css">
+    <script src="./site.js" defer></script>
   </head>
   <body>
     <a class="skip-link" href="#main">Skip to content</a>
@@ -19,164 +23,143 @@
           <span class="brand-mark" aria-hidden="true"></span>
           <span>Complex Work Orchestration</span>
         </a>
-        <div class="nav-links">
+        <details class="site-menu" open><summary>Menu</summary><div class="nav-links">
           <a href="./index.html">Home</a>
-          <a href="./get-started.html">Get Started</a>
-          <a href="./workflows.html">Workflows</a>
-          <a href="./use-cases.html">Use Cases</a>
+          <a href="./get-started.html">Start Here</a>
+          <a href="./use-cases.html">Examples</a>
+          <a href="./workflows.html">Guides</a>
+          <a href="./explanation.html">Concepts</a>
           <a href="./reference.html">Reference</a>
           <a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-        </div>
+        </div></details>
+        <fieldset class="theme-control" id="site-theme"><legend class="sr-only">Color theme</legend>
+          <label class="theme-choice" for="theme-system" title="System theme (default)">
+            <input class="sr-only" type="radio" id="theme-system" name="theme" value="system" checked>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+            <span class="sr-only">System theme (default)</span>
+          </label>
+          <label class="theme-choice" for="theme-light" title="Light theme">
+            <input class="sr-only" type="radio" id="theme-light" name="theme" value="light">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+            <span class="sr-only">Light theme</span>
+          </label>
+          <label class="theme-choice" for="theme-dark" title="Dark theme">
+            <input class="sr-only" type="radio" id="theme-dark" name="theme" value="dark">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M20.9 13.5A9 9 0 0 1 10.5 3.1 9 9 0 1 0 20.9 13.5Z"/></svg>
+            <span class="sr-only">Dark theme</span>
+          </label>
+        </fieldset>
       </nav>
     </header>
 
-    <main id="main">
-      <section class="page-hero">
-        <p class="eyebrow">Deep dive</p>
-        <h1>Model Synthesis And Adjudication</h1>
-        <p class="lede">
-          CWO can ask several models for independent reviews, but it does not
-          average their answers into truth. Synthesis reports the evidence;
-          the architect decides what to accept.
-        </p>
-      </section>
-
-      <section class="section doc-layout">
-        <nav class="page-nav" aria-label="Page sections">
-          <a href="#why">Why It Exists</a>
-          <a href="#pipeline">Synthesis Pipeline</a>
-          <a href="#input-quality">Input Quality</a>
-          <a href="#example">Contradiction Example</a>
-          <a href="#adjudication">Adjudication</a>
+    <main id="main" tabindex="-1">
+<div class="page-shell reference-slice page--guide"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./workflows.html">Guides</a></nav>
+        <p class="eyebrow">Plan with second opinions</p>
+        <h1 id="page-title">Compare model reviews and decide what to change</h1>
+        <p class="callout">Use this when independent reviews could expose different failure modes. Several models agreeing does not prove a result correct or authorize a change.</p>
+        <p class="lede">CWO keeps reviews separate, checks their evidence, then summarizes what agrees, what conflicts and what is missing. This is <strong>model synthesis</strong>. The lead—called the architect in the exact controls—decides which findings to accept; that decision is <strong>adjudication</strong>.</p>
+      </header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page">
+          <a href="#planning-example">Example: two second opinions change a plan</a>
+          <a href="#why">Use local and cloud reviewers</a>
+          <a href="#pipeline">From separate reviews to a recorded decision</a>
+          <a href="#input-quality">Decide which reviews can support the decision</a>
+          <a href="#example">Example: conflicting retry recommendations</a>
+          <a href="#adjudication">Record what was accepted and why</a>
           <a href="#use-it">When To Use It</a>
           <a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
           <a href="./external-contracting.html#multi-expert-review">Contracting Flow</a>
           <a href="./reference.html#deep-dives">Reference Index</a>
-        </nav>
-        <div class="doc-body">
+        </nav></details><article class="doc-content" aria-labelledby="page-title">
+          <section id="planning-example">
+<h2>Plan retries without creating duplicate jobs</h2>
+<p class="evidence-label">Illustrative planning example · authored findings, not live model responses</p>
+<p><strong>The request:</strong> make a job-submission client recover from timeouts, while ensuring that one user request cannot create two jobs. The <a href="./prompt-coach.html#run">copy-ready Prompt Coach request</a> sizes the work and asks for two separate second opinions before implementation.</p>
+<div class="callout"><h3>Initial plan from the coordinating model</h3><p>“After a timeout, retry the submission up to twice.”</p><p><strong>The hidden assumption:</strong> no reply means no job was created. If the server committed the job but its reply was lost, that assumption fails.</p></div>
+<h3>Give two reviewers the same starting brief</h3>
+<p>Each receives the requirement, initial plan, known API behavior and open questions—but not the other reviewer’s conclusions. The following findings are authored to explain the workflow; they do not claim that either model was called.</p>
+<dl class="decision-spec">
+<dt>Cloud second opinion: challenge the design</dt><dd>A Claude Opus reviewer could flag the lost-reply case: the server may already have created the job. Ask for the server guarantee or a test that makes repeated submissions create only one job.</dd>
+<dt>Local vLLM second opinion: challenge recovery</dt><dd>A configured open-weight reviewer could ask whether the client keeps the same request identifier after a restart. A newly generated identifier could defeat duplicate protection. Add that as a requirement to investigate, not a verified service fact.</dd>
+</dl>
+<h3>Synthesize findings into decisions, not a vote</h3>
+<ul class="check-list">
+<li><strong>Change the plan:</strong> remove unconditional retries. The <a href="./use-cases.html#conflicting-review">scripted retry-and-effect-count exercise</a> shows why this assumption needs a check; it does not establish your API’s behavior.</li>
+<li><strong>Keep an open question:</strong> does this server recognize repeated submissions with the same identifier, and what happens when the payload changes or the identifier expires? No reviewer’s confidence can answer that without evidence.</li>
+<li><strong>Add validation:</strong> test a lost reply, a repeated submission and a client restart. Count created jobs, not just successful client responses. The restart finding is a proposed new test, not a claim that the existing exercise covers it.</li>
+</ul>
+<h3>The revised work plan</h3>
+<ol class="action-list">
+<li><strong>Check the server contract first.</strong> Verify whether a stable request identifier actually prevents duplicate jobs. Record the guarantee, its limits and the evidence.</li>
+<li><strong>Choose the retry policy from that result.</strong> If the guarantee is established, plan to save the identifier before the first send and reuse it across retries and restarts. If it is not, do not automatically resubmit an unknown-outcome request; plan how to report and check its status.</li>
+<li><strong>Implement and test the chosen behavior.</strong> Give the implementation task the accepted conditions and failure tests. Review the result before enabling retries.</li>
+</ol>
+<p><strong>What changed:</strong> two second opinions turned a retry count into a design decision, a prerequisite investigation and concrete tests. Save the original proposal, evaluated findings, reasons for each decision and revised tasks in Beads and project files. Unresolved server behavior blocks the dependent retry implementation, not unrelated authorized work.</p>
+<p>In a real run, outside and local reviews require their own opt-in, available routes and response checks. Evaluate each return before synthesis; preserve missing or rejected reviews and any mandatory holds. More models do not guarantee better answers. See <a href="#input-quality">which inputs may support a decision</a> and <a href="./external-contracting.html#multi-expert-review">how to assign outside reviews</a>.</p>
+</section>
+
           <section id="why">
-            <h2>Why It Exists</h2>
-            <p>
-              Independent reviews are useful because different model families
-              notice different risks. One model may catch a docs-flow problem,
-              another may challenge a security boundary, and a third may find a
-              missing validation gate. The value comes from preserving those
-              independent findings before combining them.
-            </p>
-            <p>
-              The danger is treating agreement as permission. CWO keeps model
-              returns as advisory evidence until they are evaluated,
-              dispositioned, synthesized, and adjudicated by the architect.
-            </p>
+            <h2>Use different models to challenge the same assumptions</h2><p>Bring an approved local vLLM reviewer and a cloud specialist to the same question. Preserve their independent findings, then check which evidence changes the decision. Eligible local reviews can support the final project decision directly; local does not mean automatically trusted. <a href="./local-workers.html">Configure the local-review path</a>.</p><p>The lead is usually the coordinating Codex agent. It may accept routine results only within your granted authority. Decisions reserved to you, or requiring human adjudication under the task or policy, stay with a human. The agent can prepare evidence and record that decision; it cannot approve it for you.</p>
+            <p>Reviewers can notice different problems: an unclear setup step, an unsafe permission assumption or an untested failure case. Give each a specific question and preserve its findings before showing it other reviews.</p>
+            <p>A return is a reviewer’s answer and supporting evidence. Check each return before combining it. A useful observation may still rest on missing context, unsupported evidence or actions the reviewer was not allowed to take.</p>
           </section>
 
-          <section id="pipeline">
-            <h2>Synthesis Pipeline</h2>
-            <div class="workflow-diagram contractor" role="img" aria-label="Model synthesis flow from architect plan to isolated review lanes, return evaluation, synthesis, and architect adjudication.">
-              <div class="flow-card"><strong>Plan</strong><span>Codex architect</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Review</strong><span>isolated model lanes</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Evaluate</strong><span>quality and boundary</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Synthesize</strong><span>consensus and conflict</span></div>
-              <div class="flow-arrow" aria-hidden="true">&rarr;</div>
-              <div class="flow-card"><strong>Adjudicate</strong><span>architect decides</span></div>
-            </div>
-            <ol class="sr-only">
-              <li>The Codex architect creates the initial plan.</li>
-              <li>Independent model lanes review bounded packets.</li>
-              <li>Returns are evaluated for evidence, quality, and boundary fit.</li>
-              <li>Synthesis records consensus, conflict, unsupported claims, and risk deltas.</li>
-              <li>The architect decides what changes the work plan.</li>
-            </ol>
-          </section>
+          <section id="pipeline"><h2>From separate reviews to a recorded decision</h2><p>Local and cloud reviewers contribute to the same project decision process, using route-specific checks.</p>
+            <!-- diagram:model-synthesis -->
+            <figure id="model-synthesis" class="memory-flow guide-flow">
+              <picture>
+                <source media="(max-width: 75rem)" srcset="./diagrams/model-synthesis-narrow.svg" width="360" height="1640">
+                <img src="./diagrams/model-synthesis.svg" width="1020" height="1160" alt="Separate reviews, one recorded decision flowchart. Text equivalent follows." loading="lazy" decoding="async">
+              </picture>
+              <figcaption>Illustrative planning workflow—not a concurrency trace. Assign reviewers separate bounded questions and retain each original return and evaluation. Compare eligible findings while preserving held or excluded inputs separately. The lead records one decision; neither agreement nor a review grants implementation authority. Branches do not prove statistical independence or simultaneous execution.</figcaption>
+            </figure>
+            <details class="diagram-text"><summary>Read the diagram as text</summary><ul><li>The lead prepares the plan, approved material and separate review questions. Reviewer A and reviewer B receive distinct bounded assignments through their permitted routes; the branches do not imply simultaneous execution or statistical independence.</li><li>Retain each original answer and evaluate it separately for evidence, scope and required holds. Keep each evaluation with the matching return; do not combine unchecked text into an accepted answer.</li><li>Compare eligible findings, retaining agreement, disagreement and assumptions. Held or excluded returns remain separate and are not silently promoted. The comparison helper must be explicitly invoked when required; dispatch does not automatically perform synthesis.</li><li>One lead resolves material differences using source checks or tests and records what changes and why. A review, agreement or passing comparison does not grant new implementation, spending, sharing or publication permission.</li></ul></details>
+            <!-- /diagram:model-synthesis -->
+<ol><li><strong>Assign:</strong> give each reviewer a focused question and approved material; preserve its findings before sharing the other reviews.</li><li><strong>Evaluate each return:</strong> check its evidence, quality, permitted actions and applicable response contract.</li><li><strong>Classify and compare:</strong> identify reviews that may be used, must wait for further review or must be excluded. When structured comparison is needed, explicitly invoke the comparison API with compatible claim fields.</li><li><strong>Investigate and decide:</strong> check material disagreements against implementation or tests, then retain the lead’s decision and resulting work. The architect decides within the granted authority.</li></ol><p>Neither input eligibility nor model agreement establishes correctness or permission to act.</p></section>
 
           <section id="input-quality">
-            <h2>Input Quality</h2>
-            <p>
-              Synthesis is only as useful as the returns it receives. CWO
-              tracks input dispositions before synthesis: accepted,
-              accepted-with-modification, salvage-only, open-risk, missing,
-              timed-out, process-held, rejected, quarantined, or boundary-tainted.
-            </p>
+            <h2>Decide which reviews can support the decision</h2><p>Individual returns go through the return evaluator. Cross-return eligibility and claim comparison are available through <code>evaluate_synthesis_inputs</code>; the operator or integration must invoke this helper explicitly. A route flag requiring comparison is not evidence that it ran.</p>
+            <p>CWO records a status for each review before combining findings: accepted, accepted-with-modification, salvage-only, open-risk, missing, timed-out, process-held, rejected, quarantined or boundary-tainted. These exact labels distinguish usable evidence from missing, limited or unsafe inputs.</p>
             <div class="callout">
               <strong>Salvage-only means useful but limited.</strong>
               A return may provide wording ideas, alternate framing, or risk
               prompts without counting toward the minimum usable primary inputs.
-              Gemini architecture critique is treated this way by default unless
-              the architect explicitly upgrades a specific evaluated finding.
+              The configured provider-camp policy treats Google/Gemini architecture critique this way unless the architect explicitly upgrades an evaluated finding. Canonicalize verified provider metadata before comparison: the helper does not infer <code>provider_camp</code> from <code>provider_family</code>.
             </div>
-            <p>
-              Boundary-tainted returns are not silently blended into the result.
-              If a reviewer used unapproved context, claimed shell work it was
-              not allowed to perform, or crossed the sharing boundary, that
-              return must be rejected or quarantined before synthesis can be
-              trusted.
-            </p>
-            <p>
-              Provider-policy limitations are also carried as provenance, not
-              erased. When opaque intervention risk or provider conflict is
-              present, the
-              <a href="./malpractice-sabotage.html#provider-policy">Guardrails provider-policy workflow</a>
-              keeps peer review and architect adjudication in the path. Pending
-              peer review uses <code>implementation_blocked</code> and open-risk
-              synthesis handling instead of masquerading as substantive
-              quarantine.
-            </p>
-            <p>
-              For security-sensitive synthesis, CWO can also require
-              <a href="./zero-trust-consensus.html">zero-trust consensus</a>.
-              Accepted primary inputs provide structured claims, CWO compares
-              those claims across independent trust domains, and unresolved
-              divergence blocks implementation conversion until the architect
-              adjudicates it.
-            </p>
+            <p>A <strong>boundary-tainted</strong> review used material or actions outside its approved assignment—for example, claiming to inspect files that were not shared. Do not blend it into accepted evidence. Reject it or isolate it for review before deciding whether any finding is usable.</p>
+            <p>Keep disclosed provider-policy limits with the review. If provider conflict requires peer review, hold implementation until that review and the lead’s decision are recorded. The evaluator marks this <code>implementation_blocked</code>; a pending review is not the same as a substantively unsafe return. See <a href="./malpractice-sabotage.html#provider-policy">provider-policy handling</a>.</p>
+            <p>For security-sensitive decisions, CWO can require <a href="./zero-trust-consensus.html">comparison of explicit claims across trust domains</a>. A trust domain groups sources that may share the same provider or operating assumptions; it is not proof of statistical independence. Unresolved material differences must be decided before findings become implementation work.</p>
           </section>
 
           <section id="example">
-            <h2>Contradiction Example</h2>
-            <p>
-              A Codex architect proposes a public-docs refactor. One reviewer
-              says three deep-dive pages are the clearest structure. Another
-              says to merge guardrails into the synthesis page to reduce
-              navigation. Synthesis does not vote. It records the disagreement,
-              checks which recommendation matches the operator requirement,
-              and asks the architect to decide.
-            </p>
+            <h2>Example: conflicting retry recommendations</h2>
+            <p>One reviewer recommends retrying a failed job submission. Another warns that the server may have created the job before its reply was lost. Record the competing assumptions, then check whether repeated submissions can create duplicate jobs. The number of reviewers backing either design cannot settle that service behavior.</p>
             <div class="reference-table compact" role="table" aria-label="Synthesis contradiction example">
               <div role="row">
-                <span role="cell">Accepted signal</span>
-                <span role="cell">Use problem-first intros, examples, accessible diagrams, and top-nav restraint.</span>
+                <span role="cell">Required behavior</span>
+                <span role="cell">Keep the requirement that one user submission must not create duplicate jobs.</span>
               </div>
               <div role="row">
-                <span role="cell">Rejected signal</span>
-                <span role="cell">Collapse the guardrails page when the operator explicitly requested a dedicated page.</span>
+                <span role="cell">Unsupported recommendation</span>
+                <span role="cell">Do not accept unconditional retries without a service guarantee or a test that supports them.</span>
               </div>
               <div role="row">
-                <span role="cell">Architect decision</span>
-                <span role="cell">Keep three pages, but make the guardrails page concrete and evidence-focused.</span>
+                <span role="cell">Lead’s decision</span>
+                <span role="cell">Choose a policy only after checking the service guarantee and duplicate-job case. The <a href="./use-cases.html#conflicting-review">authored retry exercise</a> makes this check concrete.</span>
               </div>
             </div>
           </section>
 
           <section id="adjudication">
-            <h2>Adjudication</h2>
-            <p>
-              The synthesis artifact should say what the reviewers agreed on,
-              where they disagreed, which claims lacked evidence, what risks
-              changed, which inputs were salvage-only or missing, and what plan
-              revisions are recommended. It should preserve provider provenance
-              and should not make the release decision.
-            </p>
+            <h2>Record what was accepted and why</h2>
+            <p>Save the agreements, disagreements, unsupported claims and missing reviews. For each material finding, record the supporting evidence, the lead’s decision and any resulting plan change. Keep provider identity and unresolved holds with that record; the summary does not authorize release.</p>
             <ul class="check-list">
-              <li>Synthesis reports; it does not decide.</li>
+              <li>The combined review summary reports findings; the lead makes the decision.</li>
               <li>Outside models provide evidence; they do not gain authority.</li>
               <li>Research claims need source locators, citation spans or excerpts, contradiction handling, and reflection before they become usable synthesis input.</li>
-              <li>Zero-trust consensus reports cross-domain claim divergence; it does not turn agreement into validation.</li>
+              <li>Zero-trust consensus reports where claims from separately counted sources disagree; agreement is not validation.</li>
               <li>Accepted findings become plan changes only after architect adjudication.</li>
               <li>Process-held findings stay visible as open-risk evidence until peer review or architect adjudication resolves the hold.</li>
-              <li>Rejected or quarantined findings stay in the record as boundary evidence.</li>
+              <li>Keep rejected findings and findings held apart for investigation in the record, including why they were excluded.</li>
             </ul>
           </section>
 
@@ -198,29 +181,11 @@
               executor IDs and helper commands.
             </p>
           </section>
-        </div>
-      </section>
+        </article></div></div>
     </main>
 
     <footer class="site-footer">
-      <div>
-        <strong>Complex Work Orchestration</strong>
-        <p>Public Codex skill for durable multi-agent work.</p>
-      </div>
-      <nav aria-label="Footer">
-        <a href="./index.html">Home</a>
-        <a href="./get-started.html">Get Started</a>
-        <a href="./prompt-coach.html">Prompt Coach</a>
-        <a href="./workflows.html">Workflows</a>
-        <a href="./native-supervision.html">Native Supervision</a>
-        <a href="./use-cases.html">Use Cases</a>
-        <a href="./external-contracting.html">Contractors</a>
-        <a href="./local-workers.html">Local Workers</a>
-        <a href="./contractor-demo.html">Demo</a>
-        <a href="./reference.html">Reference</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration">Source</a>
-        <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a>
-      </nav>
+      <div class="page-shell footer-grid"><div><strong>Complex Work Orchestration</strong><p>Dependent tasks, saved decisions, checked results.</p></div><nav class="footer-group" aria-label="Footer Learn"><strong>Learn</strong><a href="./index.html">Home</a><a href="./get-started.html">Start Here</a><a href="./prompt-coach.html">Prompt Coach</a><a href="./workflows.html">Guides</a></nav><nav class="footer-group" aria-label="Footer Operate"><strong>Operate</strong><a href="./native-supervision.html">Codex Delegation</a><a href="./use-cases.html">Examples</a><a href="./external-contracting.html">Outside Review</a><a href="./local-workers.html">Local Models</a><a href="./contractor-demo.html">Historical Demo</a><a href="./reference.html">Reference</a></nav><nav class="footer-group" aria-label="Footer Project"><strong>Project</strong><a href="https://github.com/gprocunier/complex-work-orchestration">Source</a><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/LICENSE">GPL-3.0</a></nav></div>
     </footer>
   </body>
 </html>

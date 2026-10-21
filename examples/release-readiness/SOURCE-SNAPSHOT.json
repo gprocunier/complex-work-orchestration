@@ -1,0 +1,12 @@
+{
+  "snapshot_id": "sha256:b076eee327b15d2a25383150bd66c8472b03c8551aac4ad271d7e21fc1e43265",
+  "source_scope": "unpublished local source snapshot observed on 2026-10-15; use the file hashes to identify the candidate",
+  "files": {
+    "scripts/check_documentation.py": "852c5c0236e80f25cd45accc3b9b1dcd245809097e6185c8915a44683d338238",
+    "tests/test_documentation_cli.py": "0c0a467373158ac320f0bd5cad3879c4fe88b3172cb3ffb0fecdeb6d020718d9",
+    "examples/release-readiness/reproduce_encoding_case.py": "59f913864f1840a4d2e6f88cce1ed9c6f1b6d183b486ae522ebe139c76d72b53"
+  },
+  "reproduce": "python3 examples/release-readiness/reproduce_encoding_case.py",
+  "note": "For the encoding regression, obtain these three files from the supplied candidate snapshot, preserving their relative paths. Full repository scanning requires the complete corresponding source checkout.",
+  "observed_date": "2026-10-15"
+}

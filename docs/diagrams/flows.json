@@ -1,0 +1,287 @@
+{
+  "external-contracting": {
+    "page": "external-contracting.html",
+    "title": "Review the final plan with an outside model",
+    "description": "Prepare a brief containing the approved plan material. Confirm the model and effort, request the review, capture its answer and check the evidence. The lead records what changes; a review does not authorize implementation.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "Prepare brief",
+        "detail": "approved plan"
+      },
+      {
+        "title": "Confirm",
+        "detail": "model and effort"
+      },
+      {
+        "title": "Review",
+        "detail": "second opinion"
+      },
+      {
+        "title": "Capture answer",
+        "detail": "assigned reviewer"
+      },
+      {
+        "title": "Check answer",
+        "detail": "evidence and scope"
+      },
+      {
+        "title": "Lead decides",
+        "detail": "record what changes"
+      }
+    ]
+  },
+  "local-workers": {
+    "kind": "local-review",
+    "page": "local-workers.html",
+    "section": "invoke-codex",
+    "title": "From an approved local question to a checked answer",
+    "description": "Illustrative procedure—not a new endpoint run. Preparation makes no model call. Apply the selected profile’s checks before the one approved execution. Retain actual dispatch JSON, check response usability and compare the same attempt’s workspace. Arrows show procedure, not a replacement of the evaluator’s original inputs. Failed checks, an unusable answer or unexpected file changes require investigation.",
+    "text_equivalent": [
+      "Approve the question, allowed material, local inference and configured endpoint/profile. Prepare and inspect the request without calling a model. Apply the selected profile’s safety checks; hardened exact-model checks are conditional on that profile, not universal.",
+      "Only after those checks pass, make one approved model call and save its actual dispatch JSON. Preparation output is not that result. Confirm that the response contains a usable answer; a configured model name alone does not attest the server’s weights.",
+      "Compare the workspace against the saved baseline for the same attempt. Retain the matching mutation report. Failed checks, an unusable answer or unexpected mutations stop this path for investigation; do not silently proceed to normalization.",
+      "The normalizer receives the raw answer and mutation report. The evaluator instead receives the raw answer, actual dispatch JSON and matching mutation report; the normalized bundle is not a substitute for those inputs.",
+      "The lead checks the evaluation and any required reviews, then records what may be used within the granted scope. Keep the selectable commands below for the complete transaction."
+    ],
+    "figure_class": "memory-flow guide-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "contractor-demo": {
+    "kind": "historical-contractors",
+    "page": "contractor-demo.html",
+    "section": "flow",
+    "title": "Historical contractor ownership",
+    "description": "Historical ownership map—not evidence of concurrent execution or a current launch recipe. Codex coordinated the work. Antigravity handled documentation and Claude Code handled Pages on separate branches. Codex reviewed and corrected the work, validated the combined candidate, then merged and retained the historical publication decision. Preparing a brief was not an actual CLI call. This record authorizes no new dispatch or publication.",
+    "text_equivalent": [
+      "In this historical demo, Codex retained architecture and task coordination and prepared separate limited briefs and patch branches. Preparation alone was not a contractor invocation.",
+      "Antigravity performed the documentation assignment through the historical agy CLI route. Claude Code performed the Pages assignment through its historical CLI route. Separate ownership branches do not establish concurrent execution.",
+      "Codex reviewed the returned work, corrected attribution and path issues, assembled a combined candidate and validated it before merging.",
+      "After acceptance, Codex merged the changes and retained the historical publication decision. These historical actions are not current permission for another dispatch, merge or publication."
+    ],
+    "figure_class": "memory-flow guide-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "beads-memory": {
+    "page": "beads-memory.html",
+    "title": "What persists between sessions",
+    "description": "Session A saves files, tests, task decisions and remaining work. Session B reads those records and checks the current files before continuing. The branches show saved information, not concurrent workers.",
+    "kind": "durable-memory"
+  },
+  "model-synthesis": {
+    "kind": "separate-reviews",
+    "page": "model-synthesis.html",
+    "section": "pipeline",
+    "title": "Separate reviews, one recorded decision",
+    "description": "Illustrative planning workflow—not a concurrency trace. Assign reviewers separate bounded questions and retain each original return and evaluation. Compare eligible findings while preserving held or excluded inputs separately. The lead records one decision; neither agreement nor a review grants implementation authority. Branches do not prove statistical independence or simultaneous execution.",
+    "text_equivalent": [
+      "The lead prepares the plan, approved material and separate review questions. Reviewer A and reviewer B receive distinct bounded assignments through their permitted routes; the branches do not imply simultaneous execution or statistical independence.",
+      "Retain each original answer and evaluate it separately for evidence, scope and required holds. Keep each evaluation with the matching return; do not combine unchecked text into an accepted answer.",
+      "Compare eligible findings, retaining agreement, disagreement and assumptions. Held or excluded returns remain separate and are not silently promoted. The comparison helper must be explicitly invoked when required; dispatch does not automatically perform synthesis.",
+      "One lead resolves material differences using source checks or tests and records what changes and why. A review, agreement or passing comparison does not grant new implementation, spending, sharing or publication permission."
+    ],
+    "figure_class": "memory-flow guide-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "zero-trust-consensus": {
+    "page": "zero-trust-consensus.html",
+    "title": "Compare explicit claims",
+    "description": "Check each review, group accepted inputs by trust domain, compare matching claim fields and report agreement and disagreement. The lead resolves material differences; agreement is not proof of correctness.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "Check reviews",
+        "detail": "evidence and scope"
+      },
+      {
+        "title": "Group sources",
+        "detail": "by trust domain"
+      },
+      {
+        "title": "Compare",
+        "detail": "explicit claim fields"
+      },
+      {
+        "title": "Report",
+        "detail": "matches and conflicts"
+      },
+      {
+        "title": "Decide",
+        "detail": "lead resolves claims"
+      }
+    ]
+  },
+  "malpractice-sabotage": {
+    "kind": "evidence-and-holds",
+    "page": "malpractice-sabotage.html",
+    "section": "gate",
+    "title": "A usable answer can still need review",
+    "description": "Illustrative evaluation map. Evidence disposition and required process/peer-review status are separate results, not successive or mutually exclusive verdicts. A usable answer can still be held from implementation pending review. Unsafe or boundary-unresolved evidence stays isolated with broader reuse restrictions. Honest disclosure of provider limits is not automatic rejection.",
+    "text_equivalent": [
+      "Check the answer’s evidence, allowed material and allowed actions. Keep two separate properties: evidence disposition (usable, rejected or isolated) and required process/peer-review status (pending or complete).",
+      "An answer can be usable evidence while implementation remains blocked by a required review. Completing a review does not make rejected evidence usable.",
+      "Unsafe or unresolved-boundary evidence stays apart for investigation. Its reuse restrictions can extend beyond implementation. Resolve those boundaries before broader reuse; do not treat isolation as only a pending-review checkbox.",
+      "An honest provider-limit disclosure is not automatically disqualifying. Evaluate what the record actually supports. The lead checks both properties, resolves required reviews and acts only on permitted findings within the owner’s authority."
+    ],
+    "figure_class": "memory-flow guide-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "codex-beads-hooks": {
+    "kind": "hook-delivery",
+    "page": "codex-beads-hooks.html",
+    "section": "helper",
+    "title": "Verify context delivery before hiding its display",
+    "description": "Illustrative configuration decision—not a new hook installation or delivery test. Inspect the installed client. Unsupported quiet mode is rejected; keep full-context display. Supported quiet configuration retains the Beads command and adds only a presentation hint. Before adopting it, obtain host-observed evidence that the full context still reaches the model. Missing or failed evidence keeps the full-context fallback while you investigate; character count alone is not proof.",
+    "text_equivalent": [
+      "Inspect the installed client and preview changes. If a stable display hint is supported, the quiet option retains the Beads command and adds only a presentation hint. If support is absent, quiet mode is rejected; keep full-context display.",
+      "Supported configuration is not delivery proof. Before adopting quiet display, obtain host-observed evidence that the full context still reaches the model. Compare content and relevant lifecycle delivery; a character count does not prove equality or delivery.",
+      "Adopt only after that evidence succeeds. If it is missing or fails, keep full-context display and investigate. Full-context configuration alone also does not establish that every lifecycle event has been delivered.",
+      "This diagram does not apply a hook configuration. The commands are selectable examples; installation or changes to a live setup require their own authority."
+    ],
+    "figure_class": "memory-flow guide-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "task-acceptance": {
+    "page": "explanation.html",
+    "title": "From request to accepted work",
+    "description": "Define the result, requirements and allowed changes. Save tasks and dependencies, do the permitted work, check tests and reviews, then record the decision and handoff. Start dependent work only after its prerequisite is accepted.",
+    "kind": "sequence",
+    "nodes": [
+      {
+        "title": "Define result",
+        "detail": "what the user needs"
+      },
+      {
+        "title": "Agree checks",
+        "detail": "requirements and scope"
+      },
+      {
+        "title": "Save tasks",
+        "detail": "and dependencies"
+      },
+      {
+        "title": "Do the work",
+        "detail": "within permission"
+      },
+      {
+        "title": "Check result",
+        "detail": "tests and review"
+      },
+      {
+        "title": "Save decision",
+        "detail": "and handoff"
+      },
+      {
+        "title": "Next task",
+        "detail": "prerequisite accepted"
+      }
+    ]
+  },
+  "purpose-preserving": {
+    "page": "index.html",
+    "title": "Check the result against the agreed requirements",
+    "description": "Set requirements and permissions before build and review. Check each finding against its evidence. The lead accepts work that meets the requirements and keeps unanswered questions open. The lead decides within your granted authority; decisions outside it remain yours. Illustrative workflow, not an observed concurrent execution trace.",
+    "kind": "purpose-preserving",
+    "figure_class": "decision-flow"
+  },
+  "durable-recovery": {
+    "page": "index.html",
+    "additional_pages": [
+      "beads-memory.html"
+    ],
+    "title": "Recover project context after compaction",
+    "description": "Save task state and decisions in Beads, and retain files and evidence outside the conversation. After compaction or a restart, read those records, verify the current project and continue only permitted work. Illustrative workflow, not an automatic capture guarantee or an observed compaction test.",
+    "kind": "durable-recovery",
+    "figure_class": "memory-flow"
+  },
+  "example-retry": {
+    "kind": "example-retry",
+    "page": "use-cases.html",
+    "section": "conflicting-review",
+    "title": "When a retry repeats the effect",
+    "description": "Scripted exercise — deliberately authored inputs; no live service or reviewer calls. Each POST attempt adds a write effect before the stop decision. Retrying gives two attempts and two effects. Stopping gives one effect but leaves the caller uncertain. The GET trace has two attempts and no write effects. Here 503 means temporary failure and 200 means success; these are scripted statuses, not network observations.",
+    "figure_class": "memory-flow example-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "example-recovery": {
+    "kind": "example-recovery",
+    "page": "use-cases.html",
+    "section": "multi-session",
+    "title": "What survives a fresh session",
+    "description": "Recorded earlier two-session exercise. Session 1 accepts the validator: booleans are not ports, and the list-of-errors API stays intact. Beads records that acceptance and the waiting CLI task; project files retain code, tests and HANDOFF.md. Session 2 reads both, verifies current acceptance, then adds the CLI. Missing or stale evidence requires investigation first. The current split presentation has not had a new equivalent two-fresh-session agent run; no automatic memory transfer is claimed.",
+    "figure_class": "memory-flow example-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "example-migration": {
+    "kind": "example-migration",
+    "page": "use-cases.html",
+    "section": "migration-evaluation",
+    "title": "Compare converters without changing the requirements",
+    "description": "Proposed demonstration — not executed. Save cases, compatibility requirements, scoring and the selection rule. Explicitly invoke the check before both converters use the same baseline. A runner repair must preserve that baseline and be rechecked. Changed cases or rules must not continue the old evaluation; intentionally revised requirements start a separate evaluation while preserving the original evidence. The comparison may find that neither converter qualifies. Existing component regressions are not this integrated converter comparison.",
+    "figure_class": "memory-flow example-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "example-encoding": {
+    "kind": "example-encoding",
+    "page": "use-cases.html",
+    "section": "cli-review",
+    "title": "The test missed the process-output boundary",
+    "description": "Recorded local CLI maintenance. A missing café.md diagnostic fits an in-memory Unicode text stream, but unescaped JSON fails at a real process’s ASCII stdout boundary. Default JSON escaping makes the transport ASCII-safe; decoding restores the original filename. The added subprocess regression checks the actual process under forced ASCII, including status and decoded text. This depicts the historical finding and correction, not a new agent run.",
+    "figure_class": "memory-flow example-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "example-restore": {
+    "kind": "example-restore",
+    "page": "use-cases.html",
+    "section": "lab-operations",
+    "title": "Restore configuration and check the result",
+    "description": "Scripted temporary-local-file exercise — intentionally simulated health failure. Previous values, including port 8080, stay in a Python object in memory, not a durable backup file. The fixture stages port 8081, writes active.json, then forces a false health result. It serializes the saved values back, rereads the file and compares parsed JSON content. This does not establish byte-exact recovery or real service health; temporary files are cleaned up when the exercise ends.",
+    "figure_class": "memory-flow example-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "sharing-boundaries": {
+    "kind": "sharing-boundaries",
+    "page": "explanation.html",
+    "section": "privacy",
+    "title": "Where project context can go",
+    "description": "Illustrative sharing map—not a network trace or enforcement guarantee. Local files and Beads can supply context to an agent client. That client may send selected context to its configured provider. An additional reviewer requires separate opt-in and only the approved material; a redacted brief is one explicitly chosen boundary. A local/private endpoint is a separately approved route, not proof that the cloud session is offline.",
+    "text_equivalent": [
+      "Project files and Beads may be stored locally. The agent client and its tools can read only what their actual permissions allow; tool access may expose more than the final answer.",
+      "The configured provider may receive selected context as part of the ordinary agent session. Check client permissions and provider handling before including sensitive files.",
+      "An additional reviewer is a separate recipient, not a component inside the configured provider. First approve the recipient and material. If the chosen boundary is a redacted brief, send only that checked brief; other disclosure boundaries need their own approval.",
+      "A local or private model endpoint requires separate opt-in and endpoint checks. Using it does not prevent the ordinary cloud agent session from sending context to its provider."
+    ],
+    "figure_class": "memory-flow guide-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "scoped-work-graph": {
+    "kind": "scoped-work-graph",
+    "page": "native-supervision.html",
+    "section": "recovery",
+    "title": "Which tasks must wait after an attempt fails",
+    "description": "Illustrative task graph—not an observed incident or concurrent execution trace. The ended attempt on A stays ended. B waits for accepted A. C does not need A’s result but must pass its own permission, prerequisite, safety and shared-capacity checks. A replacement of A requires a distinct newly authorized attempt with a fresh allowance. A CONTAINED label alone does not establish cleanup.",
+    "text_equivalent": [
+      "The attempt on task A has ended and cannot be resumed. Preserve its failure evidence, including failed and UNKNOWN observations.",
+      "Inspect actual process stop, resource ownership, changed files and consumed allowance. A CONTAINED status is not proof that these checks passed. Unresolved shared safety or capacity problems can still prevent other work.",
+      "Task B depends on accepted A and must wait. A replacement of A is a distinct attempt: it needs new permission, a fresh allowance and verified acceptance. B may start only after A is accepted and B’s own checks pass.",
+      "Task C does not depend on A’s result. It may continue only if its own permission, prerequisites, safety and shared capacity pass. A child failure does not by itself end all parent work."
+    ],
+    "figure_class": "memory-flow guide-flow",
+    "narrow_media": "(max-width: 75rem)"
+  },
+  "source-count-groups": {
+    "kind": "source-count-groups",
+    "page": "zero-trust-consensus.html",
+    "section": "domains",
+    "title": "Count source groups, not model names",
+    "description": "Illustrative source accounting, not measured statistical independence or a provider ranking. Two eligible models from provider A count as one group; eligible local/OpenShift aliases share a default group. Only known, bound, eligible primary inputs count. When required, enough groups allow the explicitly invoked claim comparison—not a truth verdict or permission to act. Exact exclusions and metadata precedence remain below.",
+    "text_equivalent": [
+      "Evaluate each record before counting sources. The examples here are hypothetical eligible records, not a claim about any completed review campaign.",
+      "Two accepted primary models from the same provider count as one provider group under the default rules. Eligible local/OpenShift endpoint aliases also share one default group, even when the model names differ.",
+      "Unknown or conflicting domain metadata, unbound self-declared domains and non-primary or held inputs do not count. The table below retains the exact exclusions and the metadata-field precedence.",
+      "Count the remaining eligible groups. The default minimum is two. When structured comparison is required, explicitly invoke the helper with sufficient eligible inputs and comparable claims. Passing the source-count requirement proves neither truth, statistical independence nor authority to act."
+    ],
+    "figure_class": "memory-flow guide-flow",
+    "narrow_media": "(max-width: 75rem)"
+  }
+}

@@ -4,9 +4,11 @@ Use a run readiness plan before worker handoff when a CWO run has broad
 implementation scope, contractor or local-worker evidence, model synthesis, or
 public/release risk.
 
-The readiness plan is not a second source of truth. Beads remain canonical.
-The plan is a reviewable projection that proves the run has enough structure
-for workers to execute without guessing from a transcript.
+The plan answers four questions before handoff: who owns each assignment, what
+result is required, which checks establish completion, and what happens if work
+cannot continue. It summarizes saved Beads state rather than creating a second
+task database. Passing its validator checks the required structure; it does not
+prove the work or a live integration succeeds.
 
 ## Adaptation Roadmap
 
@@ -16,7 +18,7 @@ for workers to execute without guessing from a transcript.
 | Rubric-first readiness | Implemented as required readiness field | Create before worker handoff; evaluations, synthesis, wrap-up/status, and adjudication cite the same immutable version. |
 | Run sheet projection | Implemented as projection renderer | Regenerate from Beads-backed readiness state; do not edit as parallel state. |
 | Wrap-up/status projection | Implemented as projection renderer | Regenerate from Beads, validation, evaluation, and adjudication evidence. |
-| Typed next-version rail | Implemented as required typed entries | Every deferred item needs a reason type and follow-up Bead. |
+| Deferred work (`next_version_rail`) | Implemented as required typed entries | Every deferred item needs a reason type and follow-up Bead. |
 | Patrol or recurring work | Research-only | No scheduler or autonomous recurring execution until accepted research exists. |
 
 ## Required Decisions
@@ -118,8 +120,8 @@ Allowed `next_version_rail.reason_type` values are:
 - `later-version`
 - `blocked`
 
-Every next-version item must name a follow-up Bead. Loose wish-list text is not
-durable enough for CWO handoff.
+Every deferred item must name a follow-up Bead as well as its reason. A wish list
+without a task leaves the next session unable to establish ownership or readiness.
 
 ## Patrol Boundary
 
