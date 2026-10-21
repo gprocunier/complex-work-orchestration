@@ -1095,19 +1095,10 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
             with self.subTest(server=server_type.__name__), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 server = server_type(root)
-                record_dir = root / "records"
-                record_dir.mkdir()
+                # Reach the intended filesystem-boundary assertion without
+                # host scheduling masquerading as a controller polling stall.
                 with self.assertRaisesRegex(LIVE.AppServerError, expected):
-                    LIVE.calibration(
-                        server,
-                        root,
-                        record_dir,
-                        self.owner(),
-                        run_nonce=str(uuid.uuid4()),
-                        phase_nonce=str(uuid.uuid4()),
-                        startup_timeout_seconds=3.0,
-                        materialization_timeout_seconds=3.0,
-                    )
+                    self.run_calibration(server, root)
 
 
 if __name__ == "__main__":
