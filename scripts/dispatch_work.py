@@ -14,21 +14,32 @@ import ssl
 import time
 import unicodedata
 import uuid
-from pathlib import Path
 from typing import Any
 from urllib import request
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 
-from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt
+from generate_manual_dispatch_prompt import (
+    content_free_route,
+    load_packet_file,
+    read_task_segments,
+    render_packet_prompt,
+    render_prompt,
+    screen_export,
+    write_export,
+)
 from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.errors import CWOError
+from cwo_core.adjudication import dispatch_provenance
+from cwo_core.local_invocation import reserved_local_invocation
+from cwo_core.host_records import configured_store
+from cwo_core.outbound_screen import ScreenedRequest, ScreeningArgumentParser, screen_request, withheld_diagnostics
+from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import classify_work
 from cwo_core.audit import (
     enforce_contracting_quota,
     record_audit_event,
-    require_packet_build_audit,
 )
 from cwo_core.telemetry import telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
@@ -42,9 +53,9 @@ from cwo_core.return_language import analyze_return_language, default_expected_r
 from cwo_core.util import (
     artifact_hash,
     make_dispatch_id,
-    read_text_arg,
 )
-from cwo_core.packets import contractor_packet_language_metadata, redact_text, require_valid_contractor_packet
+from cwo_core.packet_provenance import require_production_contractor_packet
+from cwo_core.packets import contractor_packet_language_metadata, redact_text
 
 
 LOCAL_ENDPOINT_NETWORKS = tuple(
@@ -741,7 +752,7 @@ def _resolve_local_endpoint_addresses(host: str, port: int | None) -> list[ipadd
     try:
         records = socket.getaddrinfo(host, port or 0, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
-        raise SystemExit(f"local endpoint host could not be resolved: {host}") from exc
+        raise SystemExit(f"local endpoint host could not be resolved (host sha256 {_host_digest(host)})") from exc
     addresses: list[ipaddress._BaseAddress] = []
     for record in records:
         sockaddr = record[4]
@@ -753,8 +764,18 @@ def _resolve_local_endpoint_addresses(host: str, port: int | None) -> list[ipadd
             raise SystemExit(f"local endpoint resolved to an invalid address: {sockaddr[0]}") from exc
     unique = sorted(set(addresses), key=str)
     if not unique:
-        raise SystemExit(f"local endpoint host resolved no usable addresses: {host}")
+        raise SystemExit(f"local endpoint host resolved no usable addresses (host sha256 {_host_digest(host)})")
     return unique
+
+
+def _input_digest(value: object) -> str:
+    """A short digest for a diagnostic that would otherwise repeat caller input no screen has seen yet."""
+    return hashlib.sha256(str(value).encode("utf-8", errors="surrogatepass")).hexdigest()[:12]
+
+
+def _host_digest(host: str) -> str:
+    """A short digest for diagnostics, so an error never repeats the hostname itself."""
+    return hashlib.sha256(host.encode("utf-8", errors="surrogatepass")).hexdigest()[:12]
 
 
 def validate_local_endpoint_base_url(base_url: str, *, allow_private_dns: bool = False) -> list[str]:
@@ -762,13 +783,13 @@ def validate_local_endpoint_base_url(base_url: str, *, allow_private_dns: bool =
         parsed = urlparse(base_url)
         port = parsed.port
     except ValueError as exc:
-        raise SystemExit(f"local endpoint URL is invalid: {base_url}") from exc
+        raise SystemExit("local endpoint URL is invalid") from exc
     if parsed.scheme not in {"http", "https"}:
         raise SystemExit(f"local endpoint must use http or https, got: {parsed.scheme or 'missing'}")
     if parsed.username or parsed.password:
         raise SystemExit("local endpoint URL must not contain credentials")
     if not parsed.hostname:
-        raise SystemExit(f"local endpoint URL must include a host: {base_url}")
+        raise SystemExit("local endpoint URL must include a host")
     hostname = parsed.hostname.lower()
     literal_host = True
     try:
@@ -1402,7 +1423,8 @@ def build_local_envelope(
     required_model = transport.get("required_model")
     if isinstance(required_model, str) and required_model and model != required_model:
         raise SystemExit(
-            f"selected local executor requires exact model {required_model!r}; got {model!r}"
+            f"selected local executor requires exact model {required_model!r}; got a different model "
+            f"(sha256 {_input_digest(model)})"
         )
     try:
         task.encode("utf-8", errors="strict")
@@ -1572,6 +1594,10 @@ def _read_local_http_response(response: Any, *, cap: int, phase: str) -> bytes:
     return raw_bytes
 
 
+def local_model_preflight_url(base_url: str, transport: dict[str, Any]) -> str:
+    return endpoint_url(base_url, str(transport.get("model_preflight_endpoint_path", "/v1/models")))
+
+
 def _preflight_local_model(
     opener: Any,
     *,
@@ -1579,9 +1605,11 @@ def _preflight_local_model(
     transport: dict[str, Any],
     headers: dict[str, str],
     model: str,
+    screened: ScreenedRequest | None = None,
 ) -> dict[str, Any]:
-    endpoint_path = str(transport.get("model_preflight_endpoint_path", "/v1/models"))
-    req = request.Request(endpoint_url(base_url, endpoint_path), headers=headers, method="GET")
+    req = request.Request(local_model_preflight_url(base_url, transport), headers=headers, method="GET")
+    if screened is not None:
+        screened.require_unchanged(req.get_method(), req.full_url, req.header_items(), req.data)
     started = time.monotonic()
     with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
         raw_bytes = _read_local_http_response(
@@ -1625,7 +1653,49 @@ def _preflight_local_model(
         }
 
 
-def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
+# Controlled local invocation is unavailable until CWO binds workload-derived
+# sizing to the exact request and holds an atomic one-use reservation within an
+# aggregate budget before the call (issue #41). The reservation, durable intent,
+# aggregate accounting and crash-ambiguity guard are wired into
+# execute_local_envelope (cwo_core.local_invocation). The explicit registered
+# advisory scope now connects original sizing/admission through the same HTTP
+# consumer for deterministic qualification. It grants no live authority and
+# does not restore this flag. Envelope preparation and manual export remain
+# available; restoration requires a separate reviewed decision.
+LOCAL_INVOCATION_AVAILABLE = False
+LOCAL_INVOCATION_UNAVAILABLE = (
+    "controlled local invocation is unavailable: CWO cannot yet bind workload-derived sizing to the exact request "
+    "and hold an atomic one-use reservation within an aggregate budget before the call (issue #41). Nothing was "
+    "sent. Without --execute-local, dispatch still writes the local envelope, and manual export remains available."
+)
+
+
+def _local_review_scope(envelope, post, preflight, qualified_review):
+    if qualified_review is None:
+        return reserved_local_invocation(envelope, post, preflight)
+    from qualified_review_dispatch import invocation_scope
+    return invocation_scope(qualified_review, envelope, post, preflight)
+
+
+def _local_review_transport(transport, qualified_review):
+    if qualified_review is None:
+        return transport
+    from qualified_review_dispatch import admitted_transport
+    return admitted_transport(qualified_review, transport)
+
+
+def _local_review_result(result, qualified_review):
+    if qualified_review is not None:
+        from qualified_review_dispatch import observe_result
+        observe_result(qualified_review, result)
+    return result
+
+
+def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str, Any], args: argparse.Namespace,
+                           *, qualified_review=None) -> dict[str, Any]:
+    if not LOCAL_INVOCATION_AVAILABLE:
+        raise SystemExit(LOCAL_INVOCATION_UNAVAILABLE)
+    require_audited_local_execution(args)
     require_access_profile_online_for_execution(envelope, args)
     executor_key = str(envelope.get("executor_key") or "")
     authoritative_executor = executor_config(executor_key)
@@ -1644,7 +1714,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         raise SystemExit(
             "selected local executor changed after policy routing; rebuild the dispatch envelope"
         )
-    transport = local_transport(authoritative_executor, args)
+    transport = _local_review_transport(local_transport(authoritative_executor, args), qualified_review)
     request_options = validate_local_execution_binding(
         envelope,
         authoritative_executor,
@@ -1662,9 +1732,9 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     required_model = transport.get("required_model")
     if isinstance(required_model, str) and required_model and model != required_model:
         raise SystemExit(
-            f"selected local executor requires exact model {required_model!r}; got {model!r}"
+            f"selected local executor requires exact model {required_model!r}; got a different model "
+            f"(sha256 {_input_digest(model)})"
         )
-    pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get("allow_private_dns")))
     api_key_env = str(transport.get("api_key_env") or "")
     auth_mode = str(transport.get("auth_mode") or "")
     if auth_mode == "none":
@@ -1697,166 +1767,190 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         api_key = os.environ.get(api_key_env)
         if api_key:
             headers["Authorization"] = f"Bearer {api_key}"
-    req = request.Request(
-        endpoint_url(str(base_url), str(transport.get("endpoint_path", "/v1/chat/completions"))),
-        data=body,
-        headers=headers,
-        method="POST",
+    endpoint = endpoint_url(str(base_url), str(transport.get("endpoint_path", "/v1/chat/completions")))
+    # Both requests (the model preflight when required, and the POST) are
+    # screened as the exact method, URL, headers and body sent, before either
+    # goes out, and each is checked against its screen immediately before
+    # it is sent.
+    preflight_required = transport.get("model_preflight_required") is True
+    screened_preflight = (
+        screen_request("GET", local_model_preflight_url(str(base_url), transport), headers, b"", surface="local HTTP model preflight")
+        if preflight_required
+        else None
     )
-    started = time.monotonic()
-    try:
-        opener = _build_local_opener(str(base_url), transport, args, pinned_address)
-        model_preflight = None
-        if transport.get("model_preflight_required") is True:
-            model_preflight = _preflight_local_model(
-                opener,
-                base_url=str(base_url),
-                transport=transport,
-                headers=headers,
-                model=str(model),
-            )
-            completed_monotonic = float(model_preflight.pop("_completed_monotonic"))
-            preflight_to_post_ms = max(0, int((time.monotonic() - completed_monotonic) * 1000))
-            model_preflight["to_post_ms"] = preflight_to_post_ms
-            maximum_gap = int(transport.get("max_preflight_to_post_ms", 1000))
-            if preflight_to_post_ms > maximum_gap:
-                raise SystemExit(
-                    "local model preflight expired before POST; "
-                    f"gap_ms={preflight_to_post_ms}, maximum_ms={maximum_gap}"
+    screened_request = screen_request("POST", endpoint, headers, body, surface="local HTTP request")
+    # Both requests are built as they will be sent and checked against their
+    # screens before resolution: Request normalizes a URL (it strips
+    # surrounding spaces, for example), and a request that would be refused
+    # for that must not send its hostname to a resolver first.
+    req = request.Request(endpoint, data=screened_request.body.data, headers=headers, method="POST")
+    screened_request.require_unchanged(req.get_method(), req.full_url, req.header_items(), req.data)
+    preflight = None
+    if screened_preflight is not None:
+        preflight = request.Request(local_model_preflight_url(str(base_url), transport), headers=headers, method="GET")
+        screened_preflight.require_unchanged(preflight.get_method(), preflight.full_url, preflight.header_items(), preflight.data)
+    # The reservation within the aggregate budget, durable intent and the
+    # registered observers come before resolution, the first network effect;
+    # every request then goes through the reservation's gate (issue #41).
+    with _local_review_scope(envelope, req, preflight, qualified_review) as gate:
+        record_local_execution(envelope, selected_executor, request_payload_sha256, qualified_review=qualified_review)
+        # Resolution comes after screening: a hostname is sent to a resolver, so
+        # it must already have passed the screen.
+        pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get("allow_private_dns")))
+        started = time.monotonic()
+        try:
+            opener = gate.bind(_build_local_opener(str(base_url), transport, args, pinned_address))
+            screened_request.require_unchanged(req.get_method(), req.full_url, req.header_items(), req.data)
+            model_preflight = None
+            if preflight_required:
+                model_preflight = _preflight_local_model(
+                    opener,
+                    base_url=str(base_url),
+                    transport=transport,
+                    headers=headers,
+                    model=str(model),
+                    screened=screened_preflight,
                 )
-        with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
-            raw_bytes = _read_local_http_response(
-                response, cap=LOCAL_COMPLETION_RESPONSE_CAP, phase="completion"
-            )
-            raw_response_sha256 = hashlib.sha256(raw_bytes).hexdigest()
-            try:
-                raw = raw_bytes.decode("utf-8", errors="strict")
-                raw_decode_error = None
-            except UnicodeDecodeError:
-                raw = ""
-                raw_decode_error = "invalid UTF-8"
-            if getattr(response, "status", None) != 200:
-                raise SystemExit(
-                    "local endpoint did not return HTTP 200; response body omitted "
-                    f"(status={getattr(response, 'status', None)!r}, "
-                    f"sha256={raw_response_sha256}, bytes={len(raw_bytes)})"
+                completed_monotonic = float(model_preflight.pop("_completed_monotonic"))
+                maximum_gap = int(transport.get("max_preflight_to_post_ms", 1000))
+
+                gate.validated_preflight(completed_monotonic=completed_monotonic, maximum_gap_ms=maximum_gap)
+            screened_request.require_unchanged(req.get_method(), req.full_url, req.header_items(), req.data)
+            with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
+                if model_preflight is not None:
+                    model_preflight["to_post_ms"] = gate.preflight_to_post_ms
+                raw_bytes = _read_local_http_response(
+                    response, cap=LOCAL_COMPLETION_RESPONSE_CAP, phase="completion"
                 )
-            parsed: Any = None
-            parse_error = raw_decode_error
-            if parse_error is None:
-                parsed, parse_error = strict_json_loads(raw)
-            if parse_error:
-                parsed = {
-                    "malformed_response_sha256": raw_response_sha256,
-                    "malformed_response_bytes": len(raw_bytes),
-                    "malformed_response_classification": parse_error,
-                }
-            response_model = parsed.get("model") if isinstance(parsed, dict) else None
-            sanitized, response_metadata = sanitize_local_response_payload(
-                parsed,
-                transport.get("thinking_parser"),
-                required_finish_reason=(
-                    str(transport.get("required_finish_reason"))
-                    if transport.get("required_finish_reason")
-                    else None
-                ),
-            )
-            if parse_error:
-                response_metadata["payload_validation_error"] = parse_error
-                response_metadata["completion_status"] = "malformed-response"
-                response_metadata["usable_final_content"] = False
-            response_model_status = "not-required"
-            if transport.get("response_model_required") is True:
-                response_model_status = "matched" if response_model == model else "mismatch"
-                if response_model_status != "matched":
+                raw_response_sha256 = hashlib.sha256(raw_bytes).hexdigest()
+                try:
+                    raw = raw_bytes.decode("utf-8", errors="strict")
+                    raw_decode_error = None
+                except UnicodeDecodeError:
+                    raw = ""
+                    raw_decode_error = "invalid UTF-8"
+                if getattr(response, "status", None) != 200:
+                    raise SystemExit(
+                        "local endpoint did not return HTTP 200; response body omitted "
+                        f"(status={getattr(response, 'status', None)!r}, "
+                        f"sha256={raw_response_sha256}, bytes={len(raw_bytes)})"
+                    )
+                parsed: Any = None
+                parse_error = raw_decode_error
+                if parse_error is None:
+                    parsed, parse_error = strict_json_loads(raw)
+                if parse_error:
+                    parsed = {
+                        "malformed_response_sha256": raw_response_sha256,
+                        "malformed_response_bytes": len(raw_bytes),
+                        "malformed_response_classification": parse_error,
+                    }
+                response_model = parsed.get("model") if isinstance(parsed, dict) else None
+                sanitized, response_metadata = sanitize_local_response_payload(
+                    parsed,
+                    transport.get("thinking_parser"),
+                    required_finish_reason=(
+                        str(transport.get("required_finish_reason"))
+                        if transport.get("required_finish_reason")
+                        else None
+                    ),
+                )
+                if parse_error:
+                    response_metadata["payload_validation_error"] = parse_error
                     response_metadata["completion_status"] = "malformed-response"
                     response_metadata["usable_final_content"] = False
-            response_contract = str(transport.get("response_contract") or "") or None
-            normalized_return = None
-            review = None
-            contract_errors: list[str] = []
-            contract_diagnostics: list[dict[str, Any]] = []
-            if response_contract:
+                response_model_status = "not-required"
+                if transport.get("response_model_required") is True:
+                    response_model_status = "matched" if response_model == model else "mismatch"
+                    if response_model_status != "matched":
+                        response_metadata["completion_status"] = "malformed-response"
+                        response_metadata["usable_final_content"] = False
+                response_contract = str(transport.get("response_contract") or "") or None
+                normalized_return = None
+                review = None
+                contract_errors: list[str] = []
+                contract_diagnostics: list[dict[str, Any]] = []
+                if response_contract:
+                    content = str(response_metadata.get("final_content") or "")
+                    max_final_chars = int(transport.get("max_final_chars") or 0)
+                    review, contract_errors, contract_diagnostics = _validate_local_response_contract_detailed(
+                        content,
+                        response_contract,
+                        max_final_chars=max_final_chars,
+                    )
+                    response_metadata["response_contract"] = response_contract
+                    response_metadata["response_contract_status"] = (
+                        "valid" if review is not None and not contract_errors else "invalid"
+                    )
+                    response_metadata["response_contract_errors"] = contract_errors
+                    response_metadata["response_contract_diagnostics"] = contract_diagnostics
+                    if (review is None or contract_errors) and response_metadata.get("completion_status") == "completed":
+                        if any("dangerous Unicode controls" in error for error in contract_errors):
+                            response_metadata["content_security_status"] = "rejected"
+                            response_metadata["completion_status"] = "content-unsafe"
+                        else:
+                            response_metadata["completion_status"] = "contract-invalid"
                 content = str(response_metadata.get("final_content") or "")
-                max_final_chars = int(transport.get("max_final_chars") or 0)
-                review, contract_errors, contract_diagnostics = _validate_local_response_contract_detailed(
-                    content,
-                    response_contract,
-                    max_final_chars=max_final_chars,
+                eligible = (
+                    response_metadata.get("completion_status") == "completed"
+                    and response_model_status in {"matched", "not-required"}
+                    and (not response_contract or (review is not None and not contract_errors))
                 )
-                response_metadata["response_contract"] = response_contract
-                response_metadata["response_contract_status"] = (
-                    "valid" if review is not None and not contract_errors else "invalid"
+                response_metadata["usable_final_content"] = eligible
+                if eligible and response_contract and review is not None:
+                    render_metadata = {**response_metadata, "model_preflight": model_preflight}
+                    normalized_return = render_local_critic_return(
+                        review,
+                        envelope=envelope,
+                        response_metadata=render_metadata,
+                    )
+                    response_metadata["normalized_return_sha256"] = artifact_hash(normalized_return)
+                    response_metadata["normalized_return_chars"] = len(normalized_return)
+                elif content and (
+                    transport.get("quarantine_unusable_content") is True
+                    or (
+                        response_contract
+                        and transport.get("quarantine_contract_invalid_content") is True
+                    )
+                ):
+                    response_metadata["quarantined_content_sha256"] = artifact_hash(content)
+                    response_metadata["quarantined_content_chars"] = len(content)
+                    quarantine_local_response_content(sanitized)
+                    response_metadata["final_content"] = ""
+                    response_metadata["final_content_sha256"] = artifact_hash("")
+                    response_metadata["final_content_chars"] = 0
+                sanitized = project_local_response_payload(sanitized)
+                return _local_review_result({
+                    "status_code": response.status,
+                    "response": sanitized,
+                    "elapsed_seconds": round(time.monotonic() - started, 3),
+                    "raw_response_sha256": raw_response_sha256,
+                    "raw_response_chars": len(raw),
+                    "raw_response_bytes": len(raw_bytes),
+                    "request_payload_sha256": request_payload_sha256,
+                    "request_options_sha256": request_options_sha256,
+                    "server_structured_outputs_status": envelope.get(
+                        "server_structured_outputs_status"
+                    ),
+                    "model_preflight": model_preflight,
+                    "response_model_status": response_model_status,
+                    "normalized_return": normalized_return,
+                    **response_metadata,
+                }, qualified_review)
+        except HTTPError as exc:
+            try:
+                body = _read_local_http_response(
+                    exc, cap=LOCAL_HTTP_ERROR_RESPONSE_CAP, phase="HTTP error"
                 )
-                response_metadata["response_contract_errors"] = contract_errors
-                response_metadata["response_contract_diagnostics"] = contract_diagnostics
-                if (review is None or contract_errors) and response_metadata.get("completion_status") == "completed":
-                    if any("dangerous Unicode controls" in error for error in contract_errors):
-                        response_metadata["content_security_status"] = "rejected"
-                        response_metadata["completion_status"] = "content-unsafe"
-                    else:
-                        response_metadata["completion_status"] = "contract-invalid"
-            content = str(response_metadata.get("final_content") or "")
-            eligible = (
-                response_metadata.get("completion_status") == "completed"
-                and response_model_status in {"matched", "not-required"}
-                and (not response_contract or (review is not None and not contract_errors))
-            )
-            response_metadata["usable_final_content"] = eligible
-            if eligible and response_contract and review is not None:
-                render_metadata = {**response_metadata, "model_preflight": model_preflight}
-                normalized_return = render_local_critic_return(
-                    review,
-                    envelope=envelope,
-                    response_metadata=render_metadata,
-                )
-                response_metadata["normalized_return_sha256"] = artifact_hash(normalized_return)
-                response_metadata["normalized_return_chars"] = len(normalized_return)
-            elif content and (
-                transport.get("quarantine_unusable_content") is True
-                or (
-                    response_contract
-                    and transport.get("quarantine_contract_invalid_content") is True
-                )
-            ):
-                response_metadata["quarantined_content_sha256"] = artifact_hash(content)
-                response_metadata["quarantined_content_chars"] = len(content)
-                quarantine_local_response_content(sanitized)
-                response_metadata["final_content"] = ""
-                response_metadata["final_content_sha256"] = artifact_hash("")
-                response_metadata["final_content_chars"] = 0
-            sanitized = project_local_response_payload(sanitized)
-            return {
-                "status_code": response.status,
-                "response": sanitized,
-                "elapsed_seconds": round(time.monotonic() - started, 3),
-                "raw_response_sha256": raw_response_sha256,
-                "raw_response_chars": len(raw),
-                "raw_response_bytes": len(raw_bytes),
-                "request_payload_sha256": request_payload_sha256,
-                "request_options_sha256": request_options_sha256,
-                "server_structured_outputs_status": envelope.get(
-                    "server_structured_outputs_status"
-                ),
-                "model_preflight": model_preflight,
-                "response_model_status": response_model_status,
-                "normalized_return": normalized_return,
-                **response_metadata,
-            }
-    except HTTPError as exc:
-        try:
-            body = _read_local_http_response(
-                exc, cap=LOCAL_HTTP_ERROR_RESPONSE_CAP, phase="HTTP error"
-            )
-            raise SystemExit(
-                f"local endpoint returned HTTP {exc.code}; response body omitted "
-                f"(sha256={hashlib.sha256(body).hexdigest()}, bytes={len(body)})"
-                + _debug_local_http_excerpt("")
-            ) from exc
-        finally:
-            exc.close()
-    except URLError as exc:
-        raise SystemExit(f"local endpoint request failed: {exc}") from exc
+                raise SystemExit(
+                    f"local endpoint returned HTTP {exc.code}; response body omitted "
+                    f"(sha256={hashlib.sha256(body).hexdigest()}, bytes={len(body)})"
+                    + _debug_local_http_excerpt("")
+                ) from exc
+            finally:
+                exc.close()
+        except URLError as exc:
+            raise SystemExit(f"local endpoint request failed: {exc}") from exc
 
 
 def _debug_local_http_excerpt(body: str) -> str:
@@ -2072,8 +2166,113 @@ def local_execution_exit_code(local_response: dict[str, Any] | None) -> int:
     return LOCAL_UNUSABLE_RESPONSE_EXIT_CODE
 
 
+def record_prepared_dispatch(dispatch_id: str, *, provider: str | None,
+                             request_sha256: str, packet_sha256: str | None = None,
+                             bead_id: str | None = None, executor: str | None = None,
+                             evaluation_metadata: dict[str, Any] | None = None) -> str:
+    """Record preparation without turning caller/model labels into identity.
+
+    A manual prompt or local HTTP request does not attest an actual model,
+    reasoning effort or session. These unknowns cannot clear peer review.
+    """
+    return configured_store().write_dispatch(
+        dispatch_id=dispatch_id, dispatch_role="executor", provider=prepared_provider(executor, provider),
+        model_family=None, model_id=None, reasoning_effort=None, session_id=None,
+        request_sha256=request_sha256, packet_sha256=packet_sha256,
+        bead_id=bead_id, executor=executor, provider_key=provider,
+        evaluation_metadata=evaluation_metadata,
+    )
+
+
+def prepared_provider(executor: str | None, provider_key: str | None) -> str | None:
+    """Derive the underlying vendor through registries; unresolved identity stays unknown."""
+    provenance = dispatch_provenance({'executor': executor, 'provider_key': provider_key})
+    return provenance['provider_family'] if provenance['known'] is True else None
+
+
+def local_request_sha256(envelope: dict[str, Any]) -> str:
+    """Digest the same model request bytes constructed by local execution."""
+    payload = {'model': envelope['model'], 'messages': envelope['messages'], 'temperature': 0}
+    payload.update(envelope['request_options'])
+    return hashlib.sha256(json.dumps(payload).encode('utf-8')).hexdigest()
+
+
+def require_audited_local_execution(args: argparse.Namespace) -> None:
+    if getattr(args, 'audit', True) is not True:
+        raise SystemExit('actual local execution requires audited host provenance; --no-audit is export-only')
+
+
+def audited_dispatch(args: argparse.Namespace) -> bool:
+    return args.audit and (args.execute_local or not args.rehearsal)
+
+
+def require_requested_local_execution(args: argparse.Namespace) -> None:
+    if args.execute_local:
+        if not LOCAL_INVOCATION_AVAILABLE:
+            raise SystemExit(LOCAL_INVOCATION_UNAVAILABLE)
+        require_audited_local_execution(args)
+
+
+def record_local_execution(envelope: dict[str, Any], selected: dict[str, Any], request_sha256: str,
+                           *, qualified_review=None) -> str:
+    """After screening and reservation, record provenance before resolution."""
+    store = configured_store()
+    dispatch_id = envelope['dispatch_id']
+    requirements = {'peer_review_required': True}
+    if qualified_review is not None:
+        from qualified_review_dispatch import evaluation_requirements
+        requirements = evaluation_requirements(qualified_review, envelope)
+    metadata = {'dispatch_mode': selected['dispatch_mode'], 'share_boundary': envelope.get('share_boundary'),
+                'job_description_label': envelope.get('job_description_label'), **requirements}
+    if store.find('dispatch', dispatch_id=dispatch_id):
+        existing = store.require_dispatch(dispatch_id)
+        expected = {'request_sha256': request_sha256, 'dispatch_role': 'executor',
+                    'executor': envelope['executor_key'], 'provider_key': selected.get('provider_key'),
+                    'bead_id': envelope.get('bead_id'), 'evaluation_metadata': metadata}
+        if _canonical_json_hash({key: existing.get(key) for key in expected}) != _canonical_json_hash(expected):
+            raise SystemExit('local execution differs from its recorded host dispatch')
+        return existing['_record_sha256']
+    return store.write_dispatch(
+        dispatch_id=dispatch_id, dispatch_role='executor',
+        provider=prepared_provider(envelope['executor_key'], selected.get('provider_key')),
+        model_family=None, model_id=None, reasoning_effort=None, session_id=None,
+        request_sha256=request_sha256, bead_id=envelope.get('bead_id'),
+        executor=envelope['executor_key'], provider_key=selected.get('provider_key'),
+        evaluation_metadata=metadata,
+    )
+
+
+def record_route_preparation(args: argparse.Namespace, route: dict[str, Any], task: str,
+                             dispatch_id: str, manual_prompt: str | None,
+                             local_envelope: dict[str, Any] | None, *, manual_phase: bool = False) -> None:
+    if (not args.audit or getattr(args, 'rehearsal', False) or getattr(args, 'execute_local', False)
+            or (manual_prompt is not None) != manual_phase):
+        return
+    request_sha256 = (
+        local_request_sha256(local_envelope) if local_envelope
+        else hashlib.sha256((manual_prompt or task).encode('utf-8')).hexdigest()
+    )
+    record_prepared_dispatch(
+        dispatch_id, provider=route['selected_executor'].get('provider_key'),
+        request_sha256=request_sha256, bead_id=args.bead, executor=route['recommended_executor'],
+        evaluation_metadata={
+            'share_boundary': route.get('share_boundary'),
+            'job_description_label': (route.get('ranked_experts') or [{}])[0].get('job_description_label'),
+            'dispatch_mode': route['selected_executor']['dispatch_mode'],
+            'peer_review_required': route.get('peer_review_required', True),
+            'provider_conflict_domains': route.get('provider_conflict_domains', []),
+        },
+    )
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Prepare a manual dispatch artifact from a route result or packet.")
+    # Diagnostics before the final screen can repeat caller input; withhold any the screen refuses.
+    with withheld_diagnostics("dispatch_work"):
+        _main()
+
+
+def _main() -> None:
+    parser = ScreeningArgumentParser("dispatch_work", description="Prepare a manual dispatch artifact from a route result or packet.")
     parser.add_argument("text", nargs="*")
     parser.add_argument("--file")
     parser.add_argument("--packet", help="Boundary-gated JSON contractor packet from build_contractor_packet.py.")
@@ -2164,7 +2363,10 @@ def main() -> None:
     parser.add_argument("--json", action="store_true")
     add_waiver_reason_argument(parser)
     parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
+    refuse_risk_narrowing_arguments(args, source="dispatch_work.py")
+    require_requested_local_execution(args)
     if not args.audit and not args.rehearsal:
         raise SystemExit("--no-audit is allowed only with --rehearsal for local tests or rehearsals")
     require_waiver_reason(
@@ -2182,22 +2384,12 @@ def main() -> None:
     )
 
     if args.packet:
-        packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
-        require_valid_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
-        expected_language, expected_language_source = contractor_packet_language_metadata(packet)
-        if not args.allow_unlinked_packet:
-            require_packet_build_audit(
-                dispatch_id=str(packet.get("dispatch_id") or ""),
-                bead_id=packet.get("bead_id"),
-                packet_sha256=str(packet.get("packet_sha256") or ""),
-            )
-        quota_info = enforce_contracting_quota(
-            packet.get("epic_id") or args.epic,
-            packet["executor"],
-            "external-contract",
-            dispatch_id=packet.get("dispatch_id"),
-            packet_sha256=packet.get("packet_sha256"),
+        packet = load_packet_file(args.packet)
+        require_production_contractor_packet(
+            packet, allow_degraded_packet=args.allow_degraded_packet, allow_unlinked_packet=args.allow_unlinked_packet
         )
+        expected_language, expected_language_source = contractor_packet_language_metadata(packet)
+        manual_prompt = render_packet_prompt(packet)
         artifact = {
             "dispatch_id": packet.get("dispatch_id"),
             "bead_id": packet.get("bead_id"),
@@ -2212,10 +2404,36 @@ def main() -> None:
             "packet_version": packet.get("packet_version"),
             "expected_return_language": expected_language,
             "expected_return_language_source": expected_language_source,
-            "manual_prompt": render_packet_prompt(packet),
-            **quota_info,
+            "manual_prompt": manual_prompt,
         }
-        if args.audit:
+        # The quota check only reads the audit log; consumption is the audit
+        # event below. The exact output is screened before that event and
+        # before anything is printed.
+        quota_info = enforce_contracting_quota(
+            packet.get("epic_id") or args.epic,
+            packet["executor"],
+            "external-contract",
+            dispatch_id=packet.get("dispatch_id"),
+            packet_sha256=packet.get("packet_sha256"),
+        )
+        artifact.update(quota_info)
+        screened_output = screen_export(
+            json.dumps(artifact, indent=2, sort_keys=True) if args.json else artifact["manual_prompt"], as_json=args.json
+        )
+        if audited_dispatch(args):
+            record_prepared_dispatch(
+                artifact["dispatch_id"], provider=artifact["provider_key"],
+                packet_sha256=artifact["packet_sha256"],
+                request_sha256=hashlib.sha256(manual_prompt.encode("utf-8")).hexdigest(),
+                bead_id=artifact["bead_id"], executor=artifact["executor_key"],
+                evaluation_metadata={
+                    "share_boundary": artifact["share_boundary"],
+                    "job_description_label": packet.get("job_description_label"),
+                    "dispatch_mode": "manual_ui", "peer_review_required": True,
+                    "expected_return_language": expected_language,
+                    "expected_return_language_source": expected_language_source,
+                },
+            )
             profile = packet.get("expert_profile") if isinstance(packet.get("expert_profile"), dict) else {}
             transport = packet.get("executor_transport") if isinstance(packet.get("executor_transport"), dict) else {}
             record_audit_event(
@@ -2255,16 +2473,15 @@ def main() -> None:
                     ),
                 }
             )
-        if args.json:
-            print(json.dumps(artifact, indent=2, sort_keys=True))
-        else:
-            print(artifact["manual_prompt"])
+        write_export(screened_output)
         return
 
-    task = read_text_arg(" ".join(args.text).strip() or None, args.file)
+    task_segments = read_task_segments(" ".join(args.text).strip() or None, args.file)
+    task = "\n\n".join(task_segments)
     try:
         route = classify_work(
             task,
+            text_segments=task_segments,
             external_ok=args.external_ok,
             allow_disclosure_escalation=args.allow_disclosure_escalation,
             local_ok=args.local_ok,
@@ -2286,6 +2503,8 @@ def main() -> None:
     if args.allow_raw_manual_prompt:
         task = redact_text(task)
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead or "unassigned")
+    manual_prompt = render_prompt(task, route) if route["selected_executor"]["dispatch_mode"] == "manual_ui" else None
+    # Reads the audit log only; consumption is recorded by the audit event.
     quota_info = enforce_contracting_quota(
         args.epic,
         route["recommended_executor"],
@@ -2305,6 +2524,8 @@ def main() -> None:
         else None
     )
     local_response = None
+    # The host record must exist before a local invocation or prompt export.
+    record_route_preparation(args, route, task, dispatch_id, manual_prompt, local_envelope)
     if args.execute_local:
         if not local_envelope:
             raise SystemExit("--execute-local is only valid for local worker dispatch routes")
@@ -2314,14 +2535,23 @@ def main() -> None:
         "dispatch_id": dispatch_id,
         "bead_id": args.bead,
         "epic_id": args.epic,
-        "route": route,
+        # A manual export is copied out, so its route carries no credential-named field.
+        "route": content_free_route(route) if manual_prompt is not None else route,
         "dispatch_mode": route["selected_executor"]["dispatch_mode"],
-        "manual_prompt": render_prompt(task, route) if route["selected_executor"]["dispatch_mode"] == "manual_ui" else None,
+        "manual_prompt": manual_prompt,
         "local_envelope": local_envelope,
         "local_response": local_response,
         **quota_info,
     }
-    if args.audit:
+    screened_output = None
+    if manual_prompt is not None:
+        # A manual export's exact output is screened before the audit event
+        # that records the dispatch and before anything is printed.
+        screened_output = screen_export(
+            json.dumps(artifact, indent=2, sort_keys=True) if args.json else manual_prompt, as_json=args.json
+        )
+        record_route_preparation(args, route, task, dispatch_id, manual_prompt, local_envelope, manual_phase=True)
+    if audited_dispatch(args):
         selected_executor = route["selected_executor"]
         dispatch_mode = artifact["dispatch_mode"]
         job_label = ((route.get("ranked_experts") or [{}])[0] or {}).get("job_description_label")
@@ -2398,13 +2628,14 @@ def main() -> None:
             "local_telemetry": local_response_telemetry(local_response),
             **quota_info,
         }
-    if args.json:
+    if screened_output is not None:
+        write_export(screened_output)
+    elif args.json:
         print(json.dumps(rendered_artifact, indent=2, sort_keys=True))
     else:
-        print(
-            rendered_artifact.get("manual_prompt")
-            or json.dumps(rendered_artifact.get("local_envelope") or rendered_artifact.get("route"), indent=2, sort_keys=True)
-        )
+        # A local route's envelope is shown to the operator, not exported for
+        # pasting; its content is screened where it is sent (local HTTP).
+        print(json.dumps(rendered_artifact.get("local_envelope") or rendered_artifact.get("route"), indent=2, sort_keys=True))
     if args.execute_local:
         exit_code = local_execution_exit_code(local_response)
         if exit_code:

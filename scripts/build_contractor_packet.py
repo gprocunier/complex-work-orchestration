@@ -40,6 +40,7 @@ from cwo_core.packets import (
     file_snippet,
     load_expert_profile,
     make_attestation,
+    NONPRODUCTION_RESULT_CLASS,
     redact_text,
     sanitize_bead,
     validate_contractor_packet,
@@ -214,6 +215,7 @@ def build_packet(
     requested_executor: str | None = None,
     packet_version: int = 2,
     expected_return_language: str | None = None,
+    nonproduction: bool = False,
 ) -> dict[str, Any]:
     boundary = boundary_config(share_boundary)
     executor_info = load_policy("executor-registry").get("executors", {}).get(executor, {})
@@ -356,8 +358,38 @@ def build_packet(
         packet["requested_executor"] = requested_executor
         packet["canonical_executor"] = executor
     packet.update(quota_info or {"quota_checked": False, "quota_remaining": None})
+    packet.update(_result_class_fields(nonproduction))
     packet["packet_sha256"] = packet_payload_hash(packet)
     return packet
+
+
+def _result_class_fields(nonproduction: bool) -> dict[str, str]:
+    # Inside the hashed payload, so removing the label changes packet_sha256.
+    return {"result_class": NONPRODUCTION_RESULT_CLASS} if nonproduction else {}
+
+
+def _result_class_line(packet: dict[str, Any]) -> str:
+    if "result_class" not in packet:
+        return ""
+    return f"\nResult class: {packet['result_class']} (not production dispatch or acceptance evidence)"
+
+
+def resolve_share_boundary(explicit: str | None) -> str:
+    """The packet's share boundary: the explicit argument, or the contracting-controls default.
+
+    The default share boundary comes from policy
+    (no-outside-sharing), so a build that names no boundary refuses outside disclosure here,
+    before any Bead read, quota check, packet file or audit event. Explicit callers are unchanged.
+    """
+    if explicit is not None:
+        return explicit
+    default = str(load_policy("contracting-controls")["default_share_boundary"])
+    if not boundary_allows_external(default):
+        raise SystemExit(
+            f"no --share-boundary given: the contracting-controls default {default!r} does not allow outside "
+            "disclosure; pass --share-boundary redacted-packet (or another outside boundary) explicitly"
+        )
+    return default
 
 
 def packet_markdown(packet: dict[str, Any]) -> str:
@@ -393,7 +425,7 @@ Job-description label: {packet['job_description_label']}
 Share boundary: {packet['share_boundary']}
 Disclosure stage: {packet['disclosure_stage']}
 Disclosure escalation approved: {packet['disclosure_escalation_approved']}
-Packet SHA-256: {packet['packet_sha256']}
+Packet SHA-256: {packet['packet_sha256']}{_result_class_line(packet)}
 Expected return language: {packet.get('expected_return_language', 'policy-default')}
 
 ## Boundary
@@ -436,7 +468,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Build a boundary-aware contractor packet.")
     parser.add_argument("--bead", required=True)
     parser.add_argument("--executor", default="openai_deep_research_manual")
-    parser.add_argument("--share-boundary", default="redacted-packet")
+    parser.add_argument(
+        "--share-boundary",
+        help=(
+            "Disclosure boundary. Defaults to contracting-controls default_share_boundary "
+            "(no-outside-sharing), which refuses an external packet; pass the outside boundary explicitly."
+        ),
+    )
     parser.add_argument(
         "--allow-disclosure-escalation",
         action="store_true",
@@ -467,12 +505,17 @@ def main() -> None:
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
-    parser.add_argument("--rehearsal", action="store_true", help="Allow no-audit packet rehearsals that must not consume audit quota.")
+    parser.add_argument(
+        "--rehearsal",
+        action="store_true",
+        help="Allow no-audit packet rehearsals; the packet is labelled nonproduction and refused by production consumers.",
+    )
     add_waiver_reason_argument(parser)
     args = parser.parse_args()
     if not args.audit and not args.rehearsal:
         raise SystemExit("--no-audit is allowed only with --rehearsal for packet build tests or rehearsals")
     require_waiver_reason(args, ["allow_disclosure_escalation", "audit"])
+    args.share_boundary = resolve_share_boundary(args.share_boundary)
     executor_info = executor_config(args.executor)
     requested_executor = executor_info.get("requested_key")
     args.executor = str(executor_info.get("key", args.executor))
@@ -527,10 +570,12 @@ def main() -> None:
         disclosure_escalation_approved=args.allow_disclosure_escalation,
         requested_executor=requested_executor,
         expected_return_language=args.expected_return_language,
+        nonproduction=args.rehearsal,
     )
     packet_errors = validate_contractor_packet(
         packet,
         allow_degraded_packet=not args.include_expert_profile,
+        allow_nonproduction=args.rehearsal,
     )
     if packet_errors:
         raise SystemExit("contractor packet validation failed before render: " + "; ".join(packet_errors))

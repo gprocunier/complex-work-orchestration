@@ -1,5 +1,15 @@
 # Native supervision: current and historical contracts
 
+The registered single-worker route, concurrent pools, live campaigns and
+activation preview are held in this release. New worker-surface qualification is
+also held. The contracts below describe required controls; they do not enable a
+live route. See [the live holds](native-live-route-holds.md).
+
+Running multiple supervised native workers concurrently is experimental and disabled by default.
+Current default-off source holds keep live execution unavailable. No shipped
+trusted controller unlocks these routes; plans, receipts, environment settings
+and CLI switches cannot override the holds.
+
 For a new assignment, estimate the whole task before selecting a worker. Current
 v3 policy selects a qualified exact Luna model first; Terra needs a recorded fit,
 qualification, risk or cost reason. A current launch must bind the qualified model,
@@ -168,6 +178,10 @@ persist state
 ```
 
 The first poll follows task submission without an assistant or model round-trip.
+
+This loop is cooperative. The lead runs each check and acts on its exit code;
+no shipped component polls or interrupts the worker on its own, and nothing
+stops a lead that skips a check.
 The same control-turn ID binds arming, the dispatch receipt, checks, interruption,
 and finalization. A long passive wait is not a substitute for one-second checks.
 
@@ -192,6 +206,33 @@ paths without following a symlinked authority boundary. During execution it
 distinguishes expected mutations from unattributed or out-of-scope changes.
 Incomplete comparison, unexpected untracked files, path aliasing, or mutation
 outside the packet stops the attempt.
+
+Baselines are retrospective observations, not a write or network boundary.
+Capture never runs `git status` or `git diff`, so repository-configured
+monitors, hooks and filters do not run. It records HEAD and index manifests, an
+inventory of every worktree entry with its type, mode and (for files) content
+digest, ignored files included, and digests of Git metadata such as config and
+the files it names, hooks and references. A change made and reverted between
+two captures is not seen. A capped, unreadable, sparse or otherwise incomplete
+capture cannot pass the mutation check, so large ignored trees (for example a
+virtual environment inside the worktree) can make captures incomplete, as does
+a `core.fsmonitor` hook program (only boolean values are supported, and with
+Git 2.35, which resolves every non-empty value as a program, any non-empty
+value).
+Git never opens a file of the inspected workspace or its repository. Capture
+copies the index and ignore files into a private scratch repository and runs
+Git only there; config, HEAD, references and HEAD's tree are read without Git,
+each object checked against its identifier, and nothing is fetched. Every
+repository file read must be a regular file, and repositories whose config
+names more files (includes, excludes or attributes files), split indexes,
+chained symbolic references, alternate object stores, reftable references and
+`core.worktree` are refused as unsupported. A writer still running during
+capture can still change what the capture observes, so capture belongs after
+the worker has stopped. Capture assumes that its own code, its execution
+configuration and its private scratch directory (with the directories above
+it) are not modified by untrusted processes while it runs. It is not a
+confinement boundary against a process of the same user that can modify them,
+and hostile concurrent workers need a separately qualified boundary.
 
 Mutable concurrent workers require separate clean worktrees with non-overlapping
 integration targets. Read-only workers may share a clean worktree only when
@@ -224,15 +265,16 @@ salvage chain.
 
 ## Multi-Worker Concurrency Tech Preview
 
-Running multiple supervised native workers concurrently is experimental and
-disabled by default. Supervision remains mandatory for every worker; only the
-concurrent pool requires a separate opt-in.
+The live registered single-worker, pool and campaign routes are held by
+default-off source decisions in this release. New worker-surface qualification
+is held too. The following capacity contract does not enable execution; any
+future restoration still requires supervision and all existing admission checks.
 
 | Capacity | Status | Additional requirements |
 | --- | --- | --- |
-| One worker | Standard default | Normal trusted single-worker controls |
-| Two workers | Opt-in Tech Preview | Fresh same-host capability receipt and safe fixed cohort |
-| Three workers | Opt-in Tech Preview | Same requirements; released and hard ceiling |
+| One worker | Live route held | Source restoration and trusted single-worker controls |
+| Two workers | Live route held | Source restoration, fresh same-host capability receipt and safe fixed cohort |
+| Three workers | Live route held | Same requirements; contract hard ceiling |
 | Four or more | Blocked | Not represented by the operative contract |
 
 A concurrent pool also requires deterministic admission, an economical and
@@ -244,9 +286,9 @@ retry, replay, or publication concurrent.
 Do not run several single-worker supervisors in parallel by hand. Serialized
 contracts, hashes, receipts, proportionality assessments, and preflight results
 are evidence; none of them can replace the one-use admission capability held by
-the trusted process. Productive concurrent execution uses the admitted pool
-launcher, `run_admitted_native_pool`, not direct `NativePoolCoordinator`
-construction.
+the trusted process. Any future productive concurrent execution must use the
+admitted pool launcher, `run_admitted_native_pool`, after source restoration
+and admission; direct `NativePoolCoordinator` construction cannot enable it.
 
 A protected pool fault interrupts affected admitted children and makes the pool
 receipt non-accepting. An isolated child failure may allow healthy peers to
@@ -268,7 +310,9 @@ The preview accepts only the fixed `n1-read-only`, `n2-read-only`, and
 `n1-mutable` profiles. A serialized override records risk intent but cannot
 authorize dispatch. Live use requires an exact prepared plan, a signed and
 unexpired operator approval, a permanent one-use claim, and explicit
-`--enable-tech-preview`. Use `--dry-run` for non-consuming validation.
+`--enable-tech-preview`; live use is currently refused before any claim or RPC
+(see [Native Supervision Pools](native-supervision-pools.md)). Use `--dry-run`
+for non-consuming validation.
 
 Live canary campaign artifacts prove a specific certification run. They do not
 grant general authority, convert historical schemas into current dispatch

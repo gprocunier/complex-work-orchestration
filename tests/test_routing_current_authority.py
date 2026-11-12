@@ -70,6 +70,32 @@ class PublicCurrentAuthorityTests(unittest.TestCase):
             self.assertEqual(routing.validate_operative_route_for_model(
                 route, routing.LUNA_MODEL, current_authority=authority, now=NOW), [])
 
+            # A qualified Terra escalation is compatible with work outside the
+            # Luna-fit shape. This remains synthetic route evidence, never a
+            # live allocation or a bypass of current qualification checks.
+            authority = synthetic_authority(routing.TERRA_MODEL)
+            authority['fit_inputs']['work_estimate'] = work_plan(requested_model=routing.TERRA_MODEL)
+            fit = routing.build_task_selected_fit(**authority['fit_inputs'], evaluated_at=NOW)
+            self.assertFalse(fit['classifications']['luna_fit'])
+            authority['escalation'] = {
+                'kind': 'fit', 'reason': 'Synthetic work outside the Luna-fit shape.',
+                'evidence_sha256': 'c' * 64, 'fit_sha256': fit['fit_sha256'],
+                'attempt_id': authority['attempt']['attempt_id'],
+            }
+            route = classify_work('Bounded CWO implementation', current_authority=authority,
+                                  operative_evaluated_at=NOW)['operative_route']
+            self.assertTrue(route['dispatch_authorized'], route['stop_reason'])
+            self.assertEqual(route['selected_model'], routing.TERRA_MODEL)
+            self.schema_check(route)
+            self.assertEqual(routing.validate_operative_route_for_model(
+                route, routing.TERRA_MODEL, current_authority=authority, now=NOW), [])
+            unrecorded = copy.deepcopy(authority)
+            unrecorded['escalation'] = None
+            refused = classify_work('Bounded CWO implementation', current_authority=unrecorded,
+                                    operative_evaluated_at=NOW)['operative_route']
+            self.assertFalse(refused['dispatch_authorized'])
+            self.assertEqual(refused['stop_reason'], 'terra-selection-requires-recorded-escalation')
+
     def test_omitted_is_not_forwarded_as_private_sentinel(self):
         route = classify_work('Inspect existing historical route',
             operative_evaluated_at=NOW)['operative_route']

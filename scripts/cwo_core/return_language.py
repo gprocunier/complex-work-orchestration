@@ -5,7 +5,7 @@ from typing import Any
 
 from .errors import CWOPolicyError
 from .policy import load_contracting_controls
-from .return_common import add_signal, strip_fenced_blocks
+from .return_common import add_signal, production_thresholds, strip_fenced_blocks
 from .types import ReturnLanguageResult, ReturnSignal
 
 
@@ -268,10 +268,11 @@ def analyze_return_language(
         )
 
     score = sum(int(item["weight"]) for item in findings)
-    thresholds = load_contracting_controls().get("sabotage_policy", {}).get("thresholds", {})
-    if score >= int(thresholds.get("quarantine", 50)):
+    thresholds = production_thresholds(
+        load_contracting_controls(), "sabotage_policy", ("peer_review", "architect_escalation", "quarantine"))
+    if score >= thresholds["quarantine"]:
         status = "quarantine"
-    elif score >= int(thresholds.get("peer_review", 20)):
+    elif score >= thresholds["peer_review"]:
         status = "review"
     else:
         status = "clear"

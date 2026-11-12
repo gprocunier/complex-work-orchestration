@@ -219,8 +219,26 @@ def _is_int(value: Any, *, minimum: int = 0) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
 
 
+def _is_version(value: Any, expected: int) -> bool:
+    return _is_int(value, minimum=1) and value == expected
+
+
+def _is_string_mapping(value: Any) -> bool:
+    return isinstance(value, Mapping) and all(
+        isinstance(key, str) for key in value
+    )
+
+
+def _override_scope_valid(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and value in AUTHORIZED_SCOPE_RANK
+        and AUTHORIZED_SCOPE_RANK[value] >= AUTHORIZED_SCOPE_RANK["complete-task"]
+    )
+
+
 def _mapping(value: Any, *, label: str) -> Mapping[str, Any]:
-    if not isinstance(value, Mapping):
+    if not _is_string_mapping(value):
         raise PoolProportionalityError(f"{label}-must-be-object")
     return value
 
@@ -255,10 +273,13 @@ def load_pool_proportionality_policy(
 ) -> PoolProportionalityPolicy:
     """Load the exact provisional economic defaults from repository policy."""
 
-    document = (
-        policy_document
-        if policy_document is not None
-        else load_policy("native-worker-execution")
+    document = _mapping(
+        (
+            policy_document
+            if policy_document is not None
+            else load_policy("native-worker-execution")
+        ),
+        label="native-worker-policy",
     )
     pool = _mapping(
         document.get("native_supervision_pool"),
@@ -276,7 +297,10 @@ def load_pool_proportionality_policy(
         raise PoolProportionalityError(
             "proportionality-policy-fields-invalid:" + ";".join(detail)
         )
-    if raw.get("version") != 1 or raw.get("status") != "provisional":
+    if (
+        not _is_version(raw.get("version"), 1)
+        or raw.get("status") != "provisional"
+    ):
         raise PoolProportionalityError("proportionality-policy-header-invalid")
     positive_fields = (
         "minimum_child_runtime_p90_ms",
@@ -321,9 +345,7 @@ def load_pool_proportionality_policy(
             "proportionality-policy-override-change-type-invalid"
         )
     required_scope = raw.get("override_required_scope")
-    if required_scope not in AUTHORIZED_SCOPE_RANK or (
-        AUTHORIZED_SCOPE_RANK[required_scope] < AUTHORIZED_SCOPE_RANK["complete-task"]
-    ):
+    if not _override_scope_valid(required_scope):
         raise PoolProportionalityError("proportionality-policy-override-scope-invalid")
     return PoolProportionalityPolicy(
         minimum_child_runtime_p90_ms=int(raw["minimum_child_runtime_p90_ms"]),
@@ -367,7 +389,7 @@ def _snapshot_and_projections(
     )
     if (
         snapshot.get("snapshot_type") != READINESS_SNAPSHOT_TYPE
-        or snapshot.get("version") != 2
+        or not _is_version(snapshot.get("version"), 2)
     ):
         raise PoolProportionalityError("readiness-snapshot-header-invalid")
     snapshot_sha256 = snapshot.get("snapshot_sha256")
@@ -504,7 +526,10 @@ def _validated_cohorts(
             raise PoolProportionalityError(
                 f"compatible-ready-set-fields-invalid:{index}"
             )
-        if cohort.get("cohort_type") != READY_COHORT_TYPE or cohort.get("version") != 1:
+        if (
+            cohort.get("cohort_type") != READY_COHORT_TYPE
+            or not _is_version(cohort.get("version"), 1)
+        ):
             raise PoolProportionalityError(
                 f"compatible-ready-set-header-invalid:{index}"
             )
@@ -633,7 +658,7 @@ def _validated_estimates(
     projections: Mapping[str, Mapping[str, Any]],
     policy_document: Mapping[str, Any],
 ) -> tuple[dict[str, dict[str, Any]], str]:
-    if not isinstance(work_estimates, Mapping):
+    if not _is_string_mapping(work_estimates):
         raise PoolProportionalityError("work-estimates-must-be-object")
     required_ids = {
         str(issue_id) for cohort in cohorts for issue_id in cohort["issue_ids"]
@@ -850,13 +875,26 @@ def _cohort_evaluation(
     return body
 
 
+def _selection_integer(value: Any, *, minimum: int | None = None) -> int:
+    """Validate one selection operand before its existing integer conversion."""
+
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise PoolProportionalityError("cohort-selection-integer-invalid")
+    if minimum is not None and value < minimum:
+        raise PoolProportionalityError("cohort-selection-integer-invalid")
+    return int(value)
+
+
 def _selection_key(evaluation: Mapping[str, Any]) -> tuple[Any, ...]:
     economics = _mapping(evaluation.get("economics"), label="cohort-economics")
     ready_order = _sequence(evaluation.get("ready_order"), label="ready-order")
     return (
-        -int(evaluation["worker_count"]),
-        -int(economics["net_parallel_savings_ms"]),
-        tuple((int(item["rank"]), str(item["id"])) for item in ready_order),
+        -_selection_integer(evaluation["worker_count"], minimum=1),
+        -_selection_integer(economics["net_parallel_savings_ms"]),
+        tuple(
+            (_selection_integer(item["rank"], minimum=0), str(item["id"]))
+            for item in ready_order
+        ),
     )
 
 
@@ -877,6 +915,7 @@ def _base_assessment(
 ) -> dict[str, Any]:
     if not _is_int(requested_workers, minimum=1):
         raise PoolProportionalityError("requested-workers-must-be-positive-integer")
+    proportionality_policy = load_pool_proportionality_policy(policy_document)
     try:
         limits = load_pool_capacity(policy_document)
     except NativePoolCapacityPolicyError as error:
@@ -891,7 +930,6 @@ def _base_assessment(
         raise PoolProportionalityError(
             "measured-fixed-overhead-ms-must-be-nonnegative-integer"
         )
-    proportionality_policy = load_pool_proportionality_policy(policy_document)
     readiness = _mapping(readiness_evidence, label="readiness-evidence")
     snapshot, projections = _snapshot_and_projections(
         readiness, policy_document=policy_document
@@ -1484,7 +1522,7 @@ def validate_pool_proportionality_assessment(
     """Validate the strict, self-consistent assessment artifact shape."""
 
     errors: list[str] = []
-    if not isinstance(value, Mapping):
+    if not _is_string_mapping(value):
         return ["assessment-must-be-object"]
     assessment = dict(value)
     missing = sorted(ASSESSMENT_FIELDS - set(assessment))
@@ -1501,9 +1539,10 @@ def validate_pool_proportionality_assessment(
         else load_policy("native-worker-execution")
     )
     try:
+        document = _mapping(document, label="native-worker-policy")
         policy_sha256 = canonical_proportionality_sha256(document)
-        limits = load_pool_capacity(document)
         proportionality_policy = load_pool_proportionality_policy(document)
+        limits = load_pool_capacity(document)
     except (NativePoolCapacityPolicyError, PoolProportionalityError):
         errors.append("assessment-bound-policy-invalid")
         policy_sha256 = None
@@ -1511,7 +1550,7 @@ def validate_pool_proportionality_assessment(
         proportionality_policy = None
     if (
         assessment.get("assessment_type") != ASSESSMENT_TYPE
-        or assessment.get("version") != ASSESSMENT_VERSION
+        or not _is_version(assessment.get("version"), ASSESSMENT_VERSION)
         or assessment.get("schema") != ASSESSMENT_SCHEMA
     ):
         errors.append("assessment-header-invalid")

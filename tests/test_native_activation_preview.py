@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 import copy
-from contextlib import redirect_stderr
-import hashlib
+from contextlib import ExitStack, redirect_stderr
 import importlib.util
 import io
 import json
@@ -15,6 +14,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,15 +26,16 @@ from cwo_core.native_activation_preview import (  # noqa: E402
     acquire_activation_claim,
     activation_dry_run,
     approve_activation_plan,
+    canonical_activation_sha256,
     fixed_activation_tool_trace,
     generate_activation_key,
     load_activation_plan,
     prepare_activation_plan,
     read_activation_key,
+    validate_activation_plan,
 )
 from cwo_core.native_activation_ledger import (  # noqa: E402
     NativeActivationLedgerStore,
-    validate_activation_ledger,
 )
 from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
 from cwo_core.native_pool_admission import BeadsClaimAdapter  # noqa: E402
@@ -42,7 +43,6 @@ from cwo_core.native_tool_activation import (  # noqa: E402
     verify_tool_enforcement_activation,
 )
 from run_native_pool_activation_preview import (  # noqa: E402
-    ActivationLedgerTransport,
     _close_accepted_activation_beads,
     _contain_allocated_threads,
     _persist_activation_tool_trace,
@@ -53,11 +53,33 @@ from run_native_pool_activation_preview import (  # noqa: E402
     _result,
     parser,
 )
+from tests.real_beads_fixture import configure_git_fixture
+import hashlib
 
 
 BD_PATH = shutil.which("bd")
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 RISK = "unlisted-built-ins-may-act-before-detection"
+
+
+from cwo_core.native_activation_ledger import validate_activation_ledger
+from run_native_pool_activation_preview import ActivationLedgerTransport
+
+def setUpModule() -> None:
+    # These tests exercise the live run's closing step with private databases
+    # and fakes; live activation itself ships disabled.
+    global _LIVE_PATCH
+    import run_native_pool_activation_preview as preview_runner
+
+    _LIVE_PATCH = ExitStack()
+    _LIVE_PATCH.enter_context(patch.multiple(preview_runner.live_availability,
+                                           N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True))
+    # The database-identity preview hold remains independent of N1/pool availability.
+    _LIVE_PATCH.enter_context(patch.object(preview_runner, "LIVE_ACTIVATION_AVAILABLE", True))
+
+
+def tearDownModule() -> None:
+    _LIVE_PATCH.close()
 
 
 class IntentObservingServer:
@@ -135,6 +157,7 @@ def initialize_source(root: Path) -> Path:
     source = root / "source"
     source.mkdir(mode=0o700)
     subprocess.run(["git", "init", "-q"], cwd=source, check=True)
+    configure_git_fixture(source)
     subprocess.run(
         ["git", "config", "user.name", "Activation Preview Test"],
         cwd=source,
@@ -178,6 +201,79 @@ def claim_worker(
 
 @unittest.skipUnless(BD_PATH, "bd CLI not available")
 class NativeActivationPreviewTests(unittest.TestCase):
+    def test_prepare_root_refuses_before_graph_and_private_graph_uses_only_fake_bd(self) -> None:
+        from cwo_core import native_activation_preview as preview
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            source.mkdir(mode=0o700)
+            with patch.object(preview, "_source_identity", return_value=(source, "a" * 40, "b" * 40)), \
+                    patch.object(preview, "_create_git_layout", return_value={"integration": root / "integration"}), \
+                    patch.object(preview, "_create_beads_graph", side_effect=NativeActivationPreviewError("EXAMPLE graph reached")) as graph, \
+                    patch.object(preview.subprocess, "run", side_effect=AssertionError("real process")):
+                for selected in (source, source / "nested"):
+                    with self.subTest(control_root=selected):
+                        failure = None
+                        try:
+                            prepare_activation_plan(selected, profile="n1-read-only", source_repository=source)
+                        except NativeActivationPreviewError as exc:
+                            failure = exc
+                        graph.assert_not_called()
+                        self.assertIn("activation-control-root-inside-source-forbidden", str(failure))
+                graph.reset_mock()
+                with self.assertRaisesRegex(NativeActivationPreviewError, "EXAMPLE graph reached"):
+                    prepare_activation_plan(root / "control", profile="n1-read-only", source_repository=source)
+                graph.assert_called_once()
+                self.assertEqual(graph.call_args.kwargs["profile"], "n1-read-only")
+                self.assertEqual(graph.call_args.args[0].parent, root / "control" / "runs")
+
+            # Exercise actual _create_beads_graph -> _bd -> _run for all finite
+            # profiles. Only the bd process and private Git are replaced.
+            for profile in preview.PROFILE:
+                with self.subTest(profile=profile):
+                    run_root = root / profile
+                    run_root.mkdir(mode=0o700)
+                    private = run_root / "private-beads"
+                    children = [f"EXAMPLE-{i}" for i in range(preview.PROFILE[profile]["workers"])]
+                    creates = iter(["EXAMPLE-epic", *children])
+                    history = []
+
+                    def fake_bd(command, **kwargs):
+                        self.assertEqual(command[0], "bd")
+                        self.assertEqual(kwargs["cwd"], private)
+                        self.assertEqual(kwargs["env"]["BEADS_DIR"], str(private / ".beads"))
+                        self.assertEqual(kwargs["env"]["BEADS_ACTOR"], "native-activation-preview-controller")
+                        self.assertEqual(kwargs["timeout"], 60)
+                        self.assertFalse(kwargs["check"])
+                        self.assertTrue(kwargs["capture_output"])
+                        history.append(command)
+                        action = command[1]
+                        if action == "init":
+                            (private / ".beads" / "embeddeddolt").mkdir(parents=True)
+                            output = ""
+                        elif action == "create":
+                            output = next(creates)
+                        elif action == "ready":
+                            output = json.dumps([{"id": child} for child in children])
+                        elif action == "show":
+                            output = json.dumps([{"id": child} for child in ["EXAMPLE-epic", *children]])
+                        else:
+                            self.assertEqual(action, "update")
+                            output = "{}"
+                        return subprocess.CompletedProcess(command, 0, output, "")
+
+                    with patch.object(preview.shutil, "which", return_value="/EXAMPLE/bd"), \
+                            patch.object(preview, "_private_git"), \
+                            patch.object(preview, "_admission_metadata", return_value=({}, {})), \
+                            patch.object(preview, "_normalize_issue", side_effect=lambda raw, **_kw: raw), \
+                            patch.object(preview.subprocess, "run", side_effect=fake_bd):
+                        result = preview._create_beads_graph(run_root, profile=profile,
+                            integration=root / "integration", override={}, now=None)
+                    self.assertEqual(result[:4], (private, private / ".beads" / "embeddeddolt", "EXAMPLE-epic", children))
+                    self.assertEqual([command[1] for command in history],
+                                     ["init", "create", *[action for _ in children for action in ("create", "update")], "ready", "show"])
+
     def fixture(
         self,
         *,
@@ -210,6 +306,31 @@ class NativeActivationPreviewTests(unittest.TestCase):
             plan,
             approval,
         )
+
+    def test_a_plan_must_use_the_private_beads_database_of_its_run(self) -> None:
+        temporary, control, _plan_path, _approval_path, plan, _approval = (
+            self.fixture()
+        )
+        self.addCleanup(temporary.cleanup)
+        self.assertEqual(validate_activation_plan(plan, check_live_source=False), [])
+        project = Path(temporary.name) / "project"
+        for directory, database in (
+            (project, project / ".beads" / "embeddeddolt"),
+            (
+                Path(plan["paths"]["beads_directory"]),
+                Path(temporary.name) / "other-database",
+            ),
+        ):
+            with self.subTest(directory=directory, database=database):
+                tampered = copy.deepcopy(plan)
+                tampered["paths"]["beads_directory"] = str(directory)
+                tampered["paths"]["beads_database"] = str(database)
+                tampered.pop("plan_sha256")
+                tampered["plan_sha256"] = canonical_activation_sha256(tampered)
+                self.assertEqual(
+                    validate_activation_plan(tampered, check_live_source=False),
+                    ["activation-plan-beads-not-private"],
+                )
 
     def test_keygen_prepare_approve_and_dry_run_are_non_live(self) -> None:
         temporary, control, plan_path, approval_path, plan, _approval = (
@@ -488,94 +609,6 @@ class NativeActivationPreviewTests(unittest.TestCase):
                         result,
                     )
 
-    def test_n2_partial_close_stops_without_rollback_or_parent_close(
-        self,
-    ) -> None:
-        temporary, _control, _path, _approval_path, plan, _approval = (
-            self.fixture(profile="n2-read-only")
-        )
-        self.addCleanup(temporary.cleanup)
-        actor = "activation-partial-close-test"
-
-        class FailSecondCloseAdapter(BeadsClaimAdapter):
-            def __init__(self, **kwargs: object) -> None:
-                super().__init__(**kwargs)
-                self.close_calls: list[str] = []
-
-            def close_owned(
-                self,
-                bead_id: str,
-                *,
-                expected_pre_show_sha256: str,
-                reason: str,
-            ):
-                self.close_calls.append(bead_id)
-                if len(self.close_calls) == 2:
-                    expected_pre_show_sha256 = "0" * 64
-                return super().close_owned(
-                    bead_id,
-                    expected_pre_show_sha256=expected_pre_show_sha256,
-                    reason=reason,
-                )
-
-        adapter = FailSecondCloseAdapter(
-            directory=Path(plan["paths"]["beads_directory"]),
-            database=Path(plan["paths"]["beads_database"]),
-            actor=actor,
-            timeout=20,
-        )
-        tasks = sorted(plan["tasks"], key=lambda item: item["ordinal"])
-        claims = [adapter.claim(task["bead_id"]) for task in tasks]
-        self.assertTrue(all(claim.owned for claim in claims))
-        reservation = {
-            "reservation_sha256": "b" * 64,
-            "claim_actor": actor,
-            "issue_ids": [task["bead_id"] for task in tasks],
-            "claims": [claim.receipt for claim in claims],
-        }
-        pool_receipt = {
-            "child_dispositions": [
-                {
-                    "child_id": task["child_id"],
-                    "bead_id": task["bead_id"],
-                    "implementation_bead_close_authorized": True,
-                    "parent_close_authorized": False,
-                    "publication_close_authorized": False,
-                }
-                for task in tasks
-            ]
-        }
-        artifact = _close_accepted_activation_beads(
-            plan,
-            reservation,
-            pool_receipt,
-            adapter,
-            pool_receipt_sha256="e" * 64,
-        )
-        bead_ids = [task["bead_id"] for task in tasks]
-        self.assertFalse(artifact["all_closed"])
-        self.assertEqual(adapter.close_calls, bead_ids)
-        self.assertEqual(artifact["attempted_bead_ids"], bead_ids)
-        self.assertEqual(artifact["unattempted_bead_ids"], [])
-        self.assertEqual(
-            [adapter.show_exact(bead_id)["status"] for bead_id in bead_ids],
-            ["closed", "in_progress"],
-        )
-        self.assertEqual(
-            adapter.show_exact(plan["epic_id"])["status"],
-            "open",
-        )
-        self.assertFalse(artifact["parent_close_attempted"])
-        self.assertFalse(artifact["publication_close_attempted"])
-        self.assertEqual(
-            [error["code"] for error in artifact["errors"]],
-            ["child-close-unproven"],
-        )
-        self.validate_schema(
-            "native-tool-activation-bead-closure",
-            artifact,
-        )
-
     def test_child_close_rejects_tampered_claim_receipt_before_command(
         self,
     ) -> None:
@@ -694,31 +727,6 @@ class NativeActivationPreviewTests(unittest.TestCase):
                 controller_identity=capture_owner_identity(os.getpid()),
             )
 
-    def test_primary_claim_reconstructs_missing_markers(self) -> None:
-        temporary, _control, _plan_path, _approval_path, plan, approval = (
-            self.fixture()
-        )
-        self.addCleanup(temporary.cleanup)
-        acquire_activation_claim(
-            plan,
-            approval,
-            controller_identity=capture_owner_identity(os.getpid()),
-        )
-        claims = Path(plan["paths"]["claims"])
-        for marker in claims.glob("marker-*.json"):
-            marker.unlink()
-        self.assertEqual(list(claims.glob("marker-*.json")), [])
-        with self.assertRaisesRegex(
-            NativeActivationPreviewError,
-            "activation-claim-activation-reused",
-        ):
-            acquire_activation_claim(
-                plan,
-                approval,
-                controller_identity=capture_owner_identity(os.getpid()),
-            )
-        self.assertEqual(len(list(claims.glob("marker-*.json"))), 2)
-
     def test_two_processes_racing_same_claim_have_one_winner(self) -> None:
         temporary, _control, _plan_path, _approval_path, plan, approval = (
             self.fixture()
@@ -777,93 +785,6 @@ class NativeActivationPreviewTests(unittest.TestCase):
                 ),
             )
 
-    def test_transport_records_calibration_and_worker_intents_before_rpc(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            root.chmod(0o700)
-            ledger = NativeActivationLedgerStore.create(
-                root / "ledger",
-                profile="n1-read-only",
-                plan_sha256="a" * 64,
-                claim_sha256="b" * 64,
-                action_sha256="c" * 64,
-                campaign_nonce=str(uuid.uuid4()),
-            )
-            ledger.append("approval-consume-intent")
-            ledger.append("approval-verified")
-            ledger.append("activation-dispatch-intent")
-            calibration_intent = ledger.allocation_intent("calibration")
-            server = IntentObservingServer(ledger)
-            transport = ActivationLedgerTransport(
-                server,
-                ledger,
-                pending_allocation_intents={
-                    "calibration": calibration_intent,
-                },
-            )
-            calibration_thread = transport.start_thread(
-                root,
-                mutable=False,
-                role="capability-calibration",
-            )[0]["thread"]["id"]
-            transport.start_turn(calibration_thread, "fixed calibration")
-            worker_thread = transport.start_thread(
-                root,
-                mutable=False,
-                role="read-only-0",
-            )[0]["thread"]["id"]
-            transport.start_turn(worker_thread, "fixed worker")
-
-            self.assertEqual(
-                server.observed_events,
-                [
-                    "allocation-intent",
-                    "turn-intent",
-                    "allocation-intent",
-                    "turn-intent",
-                ],
-            )
-            self.assertEqual(validate_activation_ledger(ledger.load()), [])
-            self.assertEqual(ledger.summary()["phase"], "dispatched")
-
-    def test_failed_rpc_leaves_unresolved_durable_intent(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            root.chmod(0o700)
-            ledger = NativeActivationLedgerStore.create(
-                root / "ledger",
-                profile="n1-read-only",
-                plan_sha256="a" * 64,
-                claim_sha256="b" * 64,
-                action_sha256="c" * 64,
-                campaign_nonce=str(uuid.uuid4()),
-            )
-            ledger.append("approval-consume-intent")
-            ledger.append("approval-verified")
-            ledger.append("activation-dispatch-intent")
-            intent = ledger.allocation_intent("calibration")
-            transport = ActivationLedgerTransport(
-                IntentObservingServer(
-                    ledger,
-                    fail_thread_start=True,
-                ),
-                ledger,
-                pending_allocation_intents={"calibration": intent},
-            )
-            with self.assertRaisesRegex(
-                RuntimeError,
-                "fixed-thread-start-failure",
-            ):
-                transport.start_thread(
-                    root,
-                    mutable=False,
-                    role="capability-calibration",
-                )
-            self.assertTrue(ledger.summary()["pending_allocation"])
-            self.assertEqual(validate_activation_ledger(ledger.load()), [])
-
     def test_containment_requires_terminal_observation(self) -> None:
         contained = ContainmentServer()
         evidence = _contain_allocated_threads(contained, None)
@@ -919,90 +840,6 @@ class NativeActivationPreviewTests(unittest.TestCase):
             evidence = _contain_allocated_threads(server, ledger)
             self.assertTrue(evidence["preview_pending_allocation"])
             self.assertFalse(evidence["all_contained"])
-
-    def test_activation_containment_deletes_fresh_never_turned_thread(
-        self,
-    ) -> None:
-        class FreshNeverTurnedServer:
-            def __init__(self, *, delete_fails: bool = False) -> None:
-                self.thread_id = str(uuid.uuid4())
-                self.allocation_ledger = None
-                self.started_threads = {self.thread_id: None}
-                self._turn_dispatch_records: dict[str, dict] = {}
-                self.delete_fails = delete_fails
-                self.deleted: list[str] = []
-                self.proof: dict | None = None
-
-            def same_process_containment_proof(
-                self,
-                _thread_id: str,
-            ) -> dict | None:
-                return self.proof
-
-            @staticmethod
-            def fresh_never_turned_thread_proof(
-                _thread_id: str,
-            ) -> dict:
-                return {"proof_sha256": "a" * 64}
-
-            def delete_thread(self, thread_id: str) -> None:
-                if self.delete_fails:
-                    raise RuntimeError("fixed-delete-failure")
-                self.deleted.append(thread_id)
-
-            def record_never_turned_delete_containment(
-                self,
-                _thread_id: str,
-            ) -> dict:
-                self.proof = {
-                    "proof_type": "app-server-same-process-containment",
-                    "version": 2,
-                    "kind": "never-turned-deleted",
-                    "proof_sha256": "b" * 64,
-                }
-                return self.proof
-
-            def same_process_containment_proofs(self) -> list[dict]:
-                return [self.proof] if self.proof is not None else []
-
-            @staticmethod
-            def read_thread(_thread_id: str) -> tuple[dict, float]:
-                raise AssertionError("thread/read must not run")
-
-            @staticmethod
-            def archive_thread(_thread_id: str) -> None:
-                raise AssertionError("thread/archive must not run")
-
-        contained = FreshNeverTurnedServer()
-        evidence = _contain_allocated_threads(contained, None)
-        self.assertTrue(evidence["all_contained"])
-        self.assertEqual(contained.deleted, [contained.thread_id])
-        self.assertEqual(evidence["deleted_count"], 1)
-        self.assertEqual(
-            evidence["same_process_containment_proofs"],
-            [contained.proof],
-        )
-        self.assertNotIn("failure_diagnostics", evidence)
-
-        ambiguous = FreshNeverTurnedServer(delete_fails=True)
-        evidence = _contain_allocated_threads(ambiguous, None)
-        self.assertFalse(evidence["all_contained"])
-        self.assertNotIn("deleted_count", evidence)
-        self.assertEqual(
-            evidence["failure_diagnostics"],
-            [
-                {
-                    "thread_id_sha256": hashlib.sha256(
-                        ambiguous.thread_id.encode("utf-8")
-                    ).hexdigest(),
-                    "substep": "never-turned-delete",
-                    "failure_class": "RuntimeError",
-                    "failure_message_sha256": hashlib.sha256(
-                        b"fixed-delete-failure"
-                    ).hexdigest(),
-                }
-            ],
-        )
 
     def test_pool_receipt_must_be_exactly_accepting(self) -> None:
         accepted = {
@@ -1095,6 +932,305 @@ class NativeActivationPreviewTests(unittest.TestCase):
             )
         )
 
+    def validate_schema(self, name: str, artifact: dict) -> None:
+        if not HAS_JSONSCHEMA:
+            return
+        from jsonschema import Draft202012Validator
+
+        schema = json.loads(
+            (ROOT / "schemas" / f"{name}.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        Draft202012Validator.check_schema(schema)
+        Draft202012Validator(schema).validate(artifact)
+
+    def test_n2_partial_close_stops_without_rollback_or_parent_close(
+        self,
+    ) -> None:
+        temporary, _control, _path, _approval_path, plan, _approval = (
+            self.fixture(profile="n2-read-only")
+        )
+        self.addCleanup(temporary.cleanup)
+        actor = "activation-partial-close-test"
+
+        class FailSecondCloseAdapter(BeadsClaimAdapter):
+            def __init__(self, **kwargs: object) -> None:
+                super().__init__(**kwargs)
+                self.close_calls: list[str] = []
+
+            def close_owned(
+                self,
+                bead_id: str,
+                *,
+                expected_pre_show_sha256: str,
+                reason: str,
+            ):
+                self.close_calls.append(bead_id)
+                if len(self.close_calls) == 2:
+                    expected_pre_show_sha256 = "0" * 64
+                return super().close_owned(
+                    bead_id,
+                    expected_pre_show_sha256=expected_pre_show_sha256,
+                    reason=reason,
+                )
+
+        adapter = FailSecondCloseAdapter(
+            directory=Path(plan["paths"]["beads_directory"]),
+            database=Path(plan["paths"]["beads_database"]),
+            actor=actor,
+            timeout=20,
+        )
+        tasks = sorted(plan["tasks"], key=lambda item: item["ordinal"])
+        claims = [adapter.claim(task["bead_id"]) for task in tasks]
+        self.assertTrue(all(claim.owned for claim in claims))
+        reservation = {
+            "reservation_sha256": "b" * 64,
+            "claim_actor": actor,
+            "issue_ids": [task["bead_id"] for task in tasks],
+            "claims": [claim.receipt for claim in claims],
+        }
+        pool_receipt = {
+            "child_dispositions": [
+                {
+                    "child_id": task["child_id"],
+                    "bead_id": task["bead_id"],
+                    "implementation_bead_close_authorized": True,
+                    "parent_close_authorized": False,
+                    "publication_close_authorized": False,
+                }
+                for task in tasks
+            ]
+        }
+        artifact = _close_accepted_activation_beads(
+            plan,
+            reservation,
+            pool_receipt,
+            adapter,
+            pool_receipt_sha256="e" * 64,
+        )
+        bead_ids = [task["bead_id"] for task in tasks]
+        self.assertFalse(artifact["all_closed"])
+        self.assertEqual(adapter.close_calls, bead_ids)
+        self.assertEqual(artifact["attempted_bead_ids"], bead_ids)
+        self.assertEqual(artifact["unattempted_bead_ids"], [])
+        self.assertEqual(
+            [adapter.show_exact(bead_id)["status"] for bead_id in bead_ids],
+            ["closed", "in_progress"],
+        )
+        self.assertEqual(
+            adapter.show_exact(plan["epic_id"])["status"],
+            "open",
+        )
+        self.assertFalse(artifact["parent_close_attempted"])
+        self.assertFalse(artifact["publication_close_attempted"])
+        self.assertEqual(
+            [error["code"] for error in artifact["errors"]],
+            ["child-close-unproven"],
+        )
+        self.validate_schema(
+            "native-tool-activation-bead-closure",
+            artifact,
+        )
+
+    def test_activation_containment_deletes_fresh_never_turned_thread(
+        self,
+    ) -> None:
+        class FreshNeverTurnedServer:
+            def __init__(self, *, delete_fails: bool = False) -> None:
+                self.thread_id = str(uuid.uuid4())
+                self.allocation_ledger = None
+                self.started_threads = {self.thread_id: None}
+                self._turn_dispatch_records: dict[str, dict] = {}
+                self.delete_fails = delete_fails
+                self.deleted: list[str] = []
+                self.proof: dict | None = None
+
+            def same_process_containment_proof(
+                self,
+                _thread_id: str,
+            ) -> dict | None:
+                return self.proof
+
+            @staticmethod
+            def fresh_never_turned_thread_proof(
+                _thread_id: str,
+            ) -> dict:
+                return {"proof_sha256": "a" * 64}
+
+            def delete_thread(self, thread_id: str) -> None:
+                if self.delete_fails:
+                    raise RuntimeError("fixed-delete-failure")
+                self.deleted.append(thread_id)
+
+            def record_never_turned_delete_containment(
+                self,
+                _thread_id: str,
+            ) -> dict:
+                self.proof = {
+                    "proof_type": "app-server-same-process-containment",
+                    "version": 2,
+                    "kind": "never-turned-deleted",
+                    "proof_sha256": "b" * 64,
+                }
+                return self.proof
+
+            def same_process_containment_proofs(self) -> list[dict]:
+                return [self.proof] if self.proof is not None else []
+
+            @staticmethod
+            def read_thread(_thread_id: str) -> tuple[dict, float]:
+                raise AssertionError("thread/read must not run")
+
+            @staticmethod
+            def archive_thread(_thread_id: str) -> None:
+                raise AssertionError("thread/archive must not run")
+
+        contained = FreshNeverTurnedServer()
+        evidence = _contain_allocated_threads(contained, None)
+        self.assertTrue(evidence["all_contained"])
+        self.assertEqual(contained.deleted, [contained.thread_id])
+        self.assertEqual(evidence["deleted_count"], 1)
+        self.assertEqual(
+            evidence["same_process_containment_proofs"],
+            [contained.proof],
+        )
+        self.assertNotIn("failure_diagnostics", evidence)
+
+        ambiguous = FreshNeverTurnedServer(delete_fails=True)
+        evidence = _contain_allocated_threads(ambiguous, None)
+        self.assertFalse(evidence["all_contained"])
+        self.assertNotIn("deleted_count", evidence)
+        self.assertEqual(
+            evidence["failure_diagnostics"],
+            [
+                {
+                    "thread_id_sha256": hashlib.sha256(
+                        ambiguous.thread_id.encode("utf-8")
+                    ).hexdigest(),
+                    "substep": "never-turned-delete",
+                    "failure_class": "RuntimeError",
+                    "failure_message_sha256": hashlib.sha256(
+                        b"fixed-delete-failure"
+                    ).hexdigest(),
+                }
+            ],
+        )
+
+    def test_primary_claim_reconstructs_missing_markers(self) -> None:
+        temporary, _control, _plan_path, _approval_path, plan, approval = (
+            self.fixture()
+        )
+        self.addCleanup(temporary.cleanup)
+        acquire_activation_claim(
+            plan,
+            approval,
+            controller_identity=capture_owner_identity(os.getpid()),
+        )
+        claims = Path(plan["paths"]["claims"])
+        for marker in claims.glob("marker-*.json"):
+            marker.unlink()
+        self.assertEqual(list(claims.glob("marker-*.json")), [])
+        with self.assertRaisesRegex(
+            NativeActivationPreviewError,
+            "activation-claim-activation-reused",
+        ):
+            acquire_activation_claim(
+                plan,
+                approval,
+                controller_identity=capture_owner_identity(os.getpid()),
+            )
+        self.assertEqual(len(list(claims.glob("marker-*.json"))), 2)
+
+
+    def test_transport_records_calibration_and_worker_intents_before_rpc(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            ledger = NativeActivationLedgerStore.create(
+                root / "ledger",
+                profile="n1-read-only",
+                plan_sha256="a" * 64,
+                claim_sha256="b" * 64,
+                action_sha256="c" * 64,
+                campaign_nonce=str(uuid.uuid4()),
+            )
+            ledger.append("approval-consume-intent")
+            ledger.append("approval-verified")
+            ledger.append("activation-dispatch-intent")
+            calibration_intent = ledger.allocation_intent("calibration")
+            server = IntentObservingServer(ledger)
+            transport = ActivationLedgerTransport(
+                server,
+                ledger,
+                pending_allocation_intents={
+                    "calibration": calibration_intent,
+                },
+            )
+            calibration_thread = transport.start_thread(
+                root,
+                mutable=False,
+                role="capability-calibration",
+            )[0]["thread"]["id"]
+            transport.start_turn(calibration_thread, "fixed calibration")
+            worker_thread = transport.start_thread(
+                root,
+                mutable=False,
+                role="read-only-0",
+            )[0]["thread"]["id"]
+            transport.start_turn(worker_thread, "fixed worker")
+
+            self.assertEqual(
+                server.observed_events,
+                [
+                    "allocation-intent",
+                    "turn-intent",
+                    "allocation-intent",
+                    "turn-intent",
+                ],
+            )
+            self.assertEqual(validate_activation_ledger(ledger.load()), [])
+            self.assertEqual(ledger.summary()["phase"], "dispatched")
+
+    def test_failed_rpc_leaves_unresolved_durable_intent(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            root.chmod(0o700)
+            ledger = NativeActivationLedgerStore.create(
+                root / "ledger",
+                profile="n1-read-only",
+                plan_sha256="a" * 64,
+                claim_sha256="b" * 64,
+                action_sha256="c" * 64,
+                campaign_nonce=str(uuid.uuid4()),
+            )
+            ledger.append("approval-consume-intent")
+            ledger.append("approval-verified")
+            ledger.append("activation-dispatch-intent")
+            intent = ledger.allocation_intent("calibration")
+            transport = ActivationLedgerTransport(
+                IntentObservingServer(
+                    ledger,
+                    fail_thread_start=True,
+                ),
+                ledger,
+                pending_allocation_intents={"calibration": intent},
+            )
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "fixed-thread-start-failure",
+            ):
+                transport.start_thread(
+                    root,
+                    mutable=False,
+                    role="capability-calibration",
+                )
+            self.assertTrue(ledger.summary()["pending_allocation"])
+            self.assertEqual(validate_activation_ledger(ledger.load()), [])
+
+
     def test_all_new_schemas_validate_emitted_artifacts(self) -> None:
         temporary, _control, _plan_path, _approval_path, plan, approval = (
             self.fixture()
@@ -1132,19 +1268,6 @@ class NativeActivationPreviewTests(unittest.TestCase):
         ):
             with self.subTest(schema=name):
                 self.validate_schema(name, artifact)
-
-    def validate_schema(self, name: str, artifact: dict) -> None:
-        if not HAS_JSONSCHEMA:
-            return
-        from jsonschema import Draft202012Validator
-
-        schema = json.loads(
-            (ROOT / "schemas" / f"{name}.schema.json").read_text(
-                encoding="utf-8"
-            )
-        )
-        Draft202012Validator.check_schema(schema)
-        Draft202012Validator(schema).validate(artifact)
 
 
 def canonical_json_hash(value: object) -> str:

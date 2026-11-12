@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/share-boundaries:v2",
+  "title": "CWO Share Boundaries",
+  "description": "Current v2 configuration shape only. Flags, lists and descriptive metadata do not grant disclosure, repository access, patch permission or qualified execution. Existing consumer checks remain additional contracts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "boundaries", "redaction_patterns", "secret_field_policy", "never_share"],
+  "properties": {
+    "version": {"type": "integer", "const": 2},
+    "schema": {"type": "string", "const": "json-compatible-yaml"},
+    "boundaries": {
+      "type": "object",
+      "description": "Boundary IDs are dynamic; no particular boundary roster is required.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "allows_external", "allows_repo_access", "allows_patches",
+          "disclosure_stage", "requires_disclosure_escalation",
+          "artifact_whitelist", "field_whitelist", "snippet_line_limit", "description"
+        ],
+        "properties": {
+          "allows_external": {"type": "boolean"},
+          "allows_repo_access": {"type": "boolean"},
+          "allows_patches": {"type": "boolean"},
+          "disclosure_stage": {"type": "string"},
+          "requires_disclosure_escalation": {"type": "boolean"},
+          "artifact_whitelist": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "field_whitelist": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "forbidden_fields": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "snippet_line_limit": {"type": "integer", "minimum": 0},
+          "redaction_profile": {"type": "string"},
+          "bead_summary_max_bytes": {"type": ["integer", "null"], "minimum": 1},
+          "patch_prerequisites": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "description": {"type": "string"}
+        }
+      }
+    },
+    "redaction_patterns": {
+      "type": "array",
+      "description": "Regex strings are data here; schema validation does not compile or execute them.",
+      "items": {"type": "string"}
+    },
+    "secret_field_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["parser_owner", "categories", "parser_notes"],
+      "properties": {
+        "parser_owner": {"type": "string"},
+        "categories": {
+          "type": "object",
+          "description": "Category IDs are dynamic; the consumer retains its mandatory alias floor.",
+          "additionalProperties": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        },
+        "parser_notes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "notes"],
+          "properties": {
+            "source": {"type": "string"},
+            "notes": {"type": "string"}
+          }
+        }
+      }
+    },
+    "never_share": {
+      "type": "array",
+      "items": {"type": "string"}
+    }
+  }
+}

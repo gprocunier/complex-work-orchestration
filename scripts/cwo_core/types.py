@@ -70,6 +70,9 @@ class ReturnProvenance(TypedDict, total=False):
     executor: str | None
     provider_key: str | None
     provider_trust_tier: str | None
+    configured_provider_access_class: str | None
+    generated_output_trust: Literal["evidence-requires-validation"]
+    provider_metadata_authority: Literal["informational-not-access-grant"]
     provider_family: str | None
     provider_retention_class: str | None
     provider_external: bool | None
@@ -180,6 +183,7 @@ class RouteResult(TypedDict, total=False):
     route: RouteName
     task_class: str
     risk_level: RiskLevel
+    risk_assessment: dict[str, Any]
     data_sensitivity: SensitivityLevel
     data_sensitivity_source: str
     data_sensitivity_heuristic: SensitivityLevel
@@ -274,6 +278,7 @@ class CoachResult(TypedDict, total=False):
     route: RouteResult
     paste_ready_prompt: str
     warnings: list[str]
+    execution_availability: dict[str, Any]
 
 
 class ResearchEvidenceQuality(TypedDict, total=False):
@@ -313,6 +318,9 @@ class ContractorReturnBundle(TypedDict, total=False):
     executor: str | None
     provider_key: str | None
     provider_trust_tier: str | None
+    configured_provider_access_class: str | None
+    generated_output_trust: Literal["evidence-requires-validation"]
+    provider_metadata_authority: Literal["informational-not-access-grant"]
     provider_family: str | None
     provider_retention_class: str | None
     provider_external: bool | None
@@ -354,6 +362,9 @@ class AcceptanceDecision(TypedDict, total=False):
     executor: str | None
     provider_key: str | None
     provider_trust_tier: str | None
+    configured_provider_access_class: str | None
+    generated_output_trust: Literal["evidence-requires-validation"]
+    provider_metadata_authority: Literal["informational-not-access-grant"]
     provider_family: str | None
     provider_retention_class: str | None
     provider_external: bool | None
@@ -397,6 +408,9 @@ class AcceptanceDecision(TypedDict, total=False):
     signal_categories: list[str]
     peer_review_required: bool
     peer_review_status: str
+    peer_review_reviewer: dict[str, str]
+    peer_review_record: dict[str, Any]
+    peer_review_separation: dict[str, Any]
     review_surface: str
     source_inspection: str
     sources_inspected: str
@@ -423,6 +437,12 @@ class AcceptanceDecision(TypedDict, total=False):
     escalation_flagged: bool
     architect_review_required: bool
     sections: dict[str, str]
+    screening_eligible: bool
+    evidence_use_hold: bool
+    adjudication_required: bool
+    accepted_for_use: bool
+    execution_permitted: bool
+    tripwire_hits: list[dict[str, Any]]
 
 
 class SynthesisInputSummary(TypedDict, total=False):

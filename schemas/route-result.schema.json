@@ -31,6 +31,43 @@
     "route": {"type": "string"},
     "task_class": {"type": "string"},
     "risk_level": {"type": "string"},
+    "risk_assessment": {
+      "type": "object",
+      "description": "Risk features found in the task text, independent of expert matches, and the floor they set. Absent from routes recorded before routing risk features existed.",
+      "required": ["version", "features", "floor", "floor_reasons", "required_experts", "expert_risk", "risk_level"],
+      "properties": {
+        "version": {"type": "integer"},
+        "features": {"type": "array", "items": {"type": "object", "required": ["feature", "terms", "resolved"], "properties": {"feature": {"type": "string"}, "terms": {"type": "array", "items": {"type": "string"}}, "resolved": {"type": ["string", "null"], "description": "Always null in this version: risk narrowing is not supported. A string appears only in older records."}}}},
+        "floor": {"type": ["string", "null"]},
+        "floor_reasons": {"type": "array", "items": {"type": "string"}},
+        "required_experts": {"type": "array", "items": {"type": "string"}},
+        "expert_risk": {"type": "string"},
+        "risk_level": {"type": "string"},
+        "assessed_segments": {"type": "integer", "minimum": 1, "description": "The joined text plus each original or appended segment the caller passed."},
+        "assessed_prefixes": {"type": "integer", "minimum": 0, "description": "How many cumulative prefixes of the segments (segments 0..i, concatenated directly) were also assessed; 0 when no segments were passed."},
+        "unmet_required_experts": {"type": "array", "items": {"type": "object", "required": ["expert", "reason"], "properties": {"expert": {"type": "string"}, "reason": {"type": "string"}}}, "description": "Each expert a risk feature requires that routing could not add, with the reason. Empty when every required expert is in ranked_experts; absent from older records."},
+        "scope_resolution": {
+          "type": "object",
+          "description": "Kept for compatibility with records written before narrowing was removed. This version never writes it: risk narrowing is not supported and every narrowing input is refused.",
+          "required": ["action", "paths", "environment", "evidence", "applied", "resolved", "reasons", "floor_before"],
+          "properties": {
+            "action": {"type": ["string", "null"]},
+            "paths": {"type": "array", "items": {"type": "string"}},
+            "environment": {"type": ["string", "null"]},
+            "evidence": {"type": ["string", "null"], "description": "The evidence file path the scope named, or the bare reference it supplied instead (which never resolves)."},
+            "evidence_sha256": {"type": ["string", "null"], "description": "The sha256 the scope declared for the evidence file."},
+            "evidence_root": {"enum": ["repository", "evidence-dir", null], "description": "What the evidence path is relative to."},
+            "evidence_status": {"type": "string", "description": "verified, or why the evidence was not accepted (absent, not-a-recorded-file, unsafe-path, unsafe-root, symlink, missing, not-a-regular-file, too-large, unreadable, digest-mismatch, malformed, mismatch)."},
+            "evidence_lists": {"type": "array", "items": {"type": "string"}, "description": "The features a verified evidence file lists as resolved."},
+            "applied": {"type": "boolean"},
+            "resolved": {"type": "array", "items": {"type": "object", "required": ["feature", "evidence"], "properties": {"feature": {"type": "string"}, "evidence": {"type": "string"}, "sha256": {"type": "string"}}}},
+            "retained": {"type": "array", "items": {"type": "object", "required": ["feature", "reason"], "properties": {"feature": {"type": "string"}, "reason": {"type": "string"}}}, "description": "Each feature the scope did not resolve, with the reason."},
+            "reasons": {"type": "array", "items": {"type": "string"}},
+            "floor_before": {"type": ["string", "null"]}
+          }
+        }
+      }
+    },
     "data_sensitivity": {"enum": ["public", "redacted", "internal", "restricted"]},
     "data_sensitivity_source": {"enum": ["heuristic", "operator-declared"]},
     "data_sensitivity_heuristic": {"enum": ["public", "redacted", "internal", "restricted"]},

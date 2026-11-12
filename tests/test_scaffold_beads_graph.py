@@ -46,7 +46,10 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
 
         self.assertIn({"from_key": "implementation", "to_key": "architect", "type": "blocks"}, edges)
         self.assertIn({"from_key": "validation", "to_key": "implementation", "type": "blocks"}, edges)
-        self.assertIn({"from_key": "docs", "to_key": "validation", "type": "blocks"}, edges)
+        self.assertIn({"from_key": "docs", "to_key": "implementation", "type": "blocks"}, edges)
+        self.assertIn({"from_key": "validation", "to_key": "docs", "type": "blocks"}, edges)
+        self.assertIn({"from_key": "wrap-up-report", "to_key": "validation", "type": "blocks"}, edges)
+        self.assertNotIn({"from_key": "docs", "to_key": "validation", "type": "blocks"}, edges)
 
     def test_beads_graph_plan_preserves_cwo_fields_in_metadata(self) -> None:
         route = classify_work("Document Beads graph import behavior.")

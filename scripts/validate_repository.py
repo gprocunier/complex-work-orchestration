@@ -4,14 +4,13 @@ from __future__ import annotations
 import ast
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import scaffold_workgraph
 from site_code import without_token_spans
-from cwo_core import epic_convergence
+from cwo_core import epic_convergence, release_effect_routes
 from cwo_core.packets import (
     CONTRACTOR_PACKET_REQUIRED_FIELDS,
     LOCAL_DISPATCH_REQUIRED_FIELDS,
@@ -36,7 +35,10 @@ from cwo_core.harness import (
     MODEL_PROFILE_REQUIRED_FIELDS,
     validate_execution_environment_registry,
 )
+from cwo_core.model_identity_scope import lint_model_identities
 from cwo_core.policy import load_json_compatible_yaml, load_policy
+from cwo_core.policy_schema import POLICY_SCHEMAS, POLICY_VALIDATION_BOUNDARIES, policy_document_errors
+from cwo_core.workspace_capture import WorkspaceDiscoveryError, trusted_git_ignored
 from cwo_core.public_copy import (
     validate_markdown_public_copy,
     validate_required_doc_terms,
@@ -50,18 +52,20 @@ EMITTED_PACKET_ARTIFACT_TYPES = {
     "expert_profile",
 }
 CI_REQUIRED_COMMANDS = [
+    "timeout --kill-after=10 300 python -B scripts/check_release_filesystem.py",
     "python -m compileall -j 8 -x '(^|/)(\\.git|\\.beads|\\.orchestration-audit|__pycache__|\\.ruff_cache)(/|$)' .",
     "python scripts/validate_repository.py",
     "python scripts/validate_public_copy.py",
+    "python scripts/check_code_health.py",
     "python scripts/validate_site.py",
     "python scripts/generate_site.py --check",
-    "python scripts/run_parallel_unittest.py --workers 8",
+    "python scripts/run_parallel_unittest.py --workers 4",
     "bash examples/sample-prompt-coach-command.sh",
     "python scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json",
     "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet",
     "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection wrap-up-status",
     "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection next-version",
-    "python scripts/close_bead_with_summary.py --bead example-1 --disposition completed --why \"validated\" --follow-up none --dry-run --json",
+    "python scripts/close_bead_with_summary.py --bead example-1 --disposition superseded --why \"replaced by a follow-up Bead\" --follow-up none --dry-run --json",
     "python scripts/cleanup_stale_agents.py --dry-run --json",
 ]
 APPROVED_ACTION_PINS = {
@@ -74,29 +78,60 @@ APPROVED_ACTION_PINS = {
     "ludeeus/action-shellcheck": ("00cae500b08a931fb5698e11e79bfbd38e612a38", "2.0.0"),
 }
 CWO_CORE_ALLOWED_IMPORTS = {
-    "access_profiles": {"policy"},
+    "release_effect_routes": set(),
+    "ownership_producer": {"process_identity"},
+    "server_request_preparation": set(),
+    "access_profiles": {"codex_hook_enforcement", "policy"},
+    "codex_hook_enforcement": {"codex_protocol_pin", "errors"},
     "paths": set(),
     "util": set(),
     "chatgpt_urls": set(),
-    "policy": {"paths", "util"},
-    "routing": {"access_profiles", "errors", "native_containment", "operative_routing", "policy", "routing_signals", "synthesis", "types", "util"},
+    "path_contract": set(),
+    "private_artifact": set(),
+    "process_identity": set(),
+    "invocation_ledger": {"paths", "process_identity"},
+    "local_invocation": {"invocation_ledger", "policy"},
+    "policy": {"errors", "paths", "policy_schema", "util"},
+    "policy_schema": {"paths"},
+    "model_identity_scope": {"policy", "policy_schema"},
+    "routing": {"access_profiles", "errors", "native_containment", "operative_routing", "policy", "risk_features", "routing_signals", "synthesis", "types", "util"},
     "routing_signals": {"util"},
-    "synthesis": {"policy", "util"},
-    "coach": {"routing", "synthesis", "types", "util"},
+    "adjudication": {"policy", "synthesis_inputs"},
+    "adjudication_binding": {"adjudication", "errors", "path_contract", "policy", "returns", "synthesis_inputs"},
+    "adjudication_source": {"adjudication", "adjudication_binding", "errors", "synthesis_inputs"},
+    "synthesis": {"adjudication", "policy", "synthesis_inputs", "util"},
+    "synthesis_inputs": {"policy"},
+    "coach": {"model_identities", "routing", "synthesis", "types", "util"},
     "frozen_protocol": set(),
+    "comparative_evaluation": {"frozen_protocol"},
     "packets": {"errors", "paths", "policy", "return_language", "util"},
-    "return_common": {"policy"},
+    "packet_provenance": {"audit", "packets"},
+    "model_identities": set(),
+    "outbound_screen": {"policy"},
+    "return_common": {"errors", "policy"},
     "return_language": {"errors", "policy", "return_common", "types"},
     "return_sections": {"errors", "policy"},
     "return_boundary": {"return_common", "return_sections"},
     "return_evidence": {"return_common", "return_sections", "types"},
-    "return_risk": {"policy", "return_common", "return_evidence", "return_language", "return_sections", "types"},
+    "return_risk": {"errors", "peer_review", "policy", "return_common", "return_evidence", "return_language", "return_sections", "types"},
+    "peer_review": {"errors", "peer_review_identity"},
+    "peer_review_identity": {"adjudication", "errors", "host_records", "peer_review", "policy"},
+    "host_records": {"audit", "audit_segments", "errors", "host_record_inventory", "host_record_quarantine", "paths"},
+    "host_record_inventory": {"host_records"},
+    "host_record_quarantine": {"audit", "audit_segments", "host_record_inventory", "host_records"},
+    "host_acceptance": {"errors", "host_records", "peer_review", "peer_review_identity", "policy", "policy_schema", "returns"},
+    "audit_segments": {"audit", "host_records"},
+    "host_return_intake": {"errors", "peer_review", "policy_schema"},
+    "return_tripwires": {"policy", "return_language"},
+    "risk_features": {"errors", "policy"},
     "return_language_calibration": {"return_language", "returns"},
-    "returns": {"policy", "return_boundary", "return_common", "return_evidence", "return_language", "return_risk", "return_sections", "types", "util"},
-    "workspace": {"paths", "util"},
+    "returns": {"peer_review", "policy", "return_boundary", "return_common", "return_evidence", "return_language", "return_risk", "return_sections", "return_tripwires", "types", "util"},
+    "workspace": {"path_contract", "paths", "util", "workspace_capture"},
+    "workspace_capture": {"git_store", "path_contract"},
+    "git_store": set(),
     "workgraph_markdown": set(),
-    "telemetry": {"epic_convergence", "util"},
-    "audit": {"paths", "policy", "telemetry", "util"},
+    "telemetry": {"epic_convergence", "peer_review", "peer_review_identity", "util"},
+    "audit": {"audit_segments", "host_record_quarantine", "host_records", "paths", "policy", "telemetry", "util"},
     "waivers": set(),
     "beads": {"paths", "util"},
     "beads_ready_set": {
@@ -108,17 +143,19 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "policy",
         "work_sizing",
     },
-    "harness": {"access_profiles", "policy", "util"},
+    "harness": {"access_profiles", "operative_routing", "policy", "util"},
     "native_disposition": set(),
-    "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "paths"},
+    "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "model_identities", "paths"},
     "execution_enhancement_metrics": set(),
     "native_session": {"native_disposition"},
     "native_session_boundary": {"native_session"},
+    "native_live_availability": set(),
     "native_worker_contracts": {"native_disposition"},
     "native_authority": set(),
     "native_activation_ledger": set(),
     "native_activation_preview": {
         "beads_ready_set",
+        "model_identities",
         "native_activation_ledger",
         "native_authority",
         "native_capability",
@@ -131,6 +168,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_tool_isolation",
         "policy",
         "work_sizing",
+        "workspace",
+        "workspace_capture",
     },
     "native_capability": {"native_authority"},
     "native_canary_contracts": {"native_stop_scope", "util"},
@@ -138,6 +177,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_authority",
         "native_canary_contracts",
         "native_live_allocation_ledger",
+        "workspace",
+        "workspace_capture",
     },
     "native_live_allocation_ledger": {
         "audit",
@@ -146,10 +187,10 @@ CWO_CORE_ALLOWED_IMPORTS = {
     },
     "native_turn_dispatch": set(),
     "native_containment": {"native_release", "policy"},
-    "native_precommit": {"maintenance_authority", "audit", "native_session", "native_session_boundary", "operative_routing", "paths", "policy", "util", "workspace"},
+    "native_precommit": {"maintenance_authority", "audit", "model_identities", "native_session", "native_session_boundary", "operative_routing", "paths", "policy", "util", "workspace"},
     "native_release": {
         "maintenance_release", "work_sizing","native_precommit", "operative_routing", "paths", "policy", "util"},
-    "operative_routing": {"policy", "work_sizing"},
+    "operative_routing": {"model_identities", "policy", "work_sizing"},
     "proportional_execution": {"native_capability", "native_containment"},
     "native_recovery": set(),
     "native_recovery_authority": {
@@ -192,15 +233,18 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_tool_isolation",
     },
     "native_pool_scheduler": {"native_pool_contracts"},
-    "maintenance_native_runtime": {'maintenance_qualification', 'maintenance_image', 'native_precommit', 'native_pool_config', 'native_pool_contracts', 'native_pool_preflight', 'workspace', 'native_control', 'native_tool_isolation', 'native_pool_transaction', 'maintenance_runtime_support', 'native_pool_leases', 'paths', 'policy', 'native_pool_workspace', 'native_pool_admission', 'native_stop_scope'},
+    "maintenance_native_runtime": {'native_live_availability', 'maintenance_qualification', 'maintenance_image', 'native_precommit', 'native_pool_config', 'native_pool_contracts', 'native_pool_preflight', 'workspace', 'native_control', 'native_tool_isolation', 'native_pool_transaction', 'maintenance_runtime_support', 'native_pool_leases', 'paths', 'policy', 'native_pool_workspace', 'native_pool_admission', 'native_stop_scope', 'supervision.transport.app_server', 'supervision.transport.errors', 'supervision.turn_observations'},
     "maintenance_runtime_support": {'maintenance_authority', 'native_pool_admission', 'native_pool_contracts'},
     "maintenance_authority": {"native_authority", "native_pool_contracts"},
     "maintenance_image": {"native_pool_contracts", "paths"},
-    "maintenance_readiness": {"maintenance_authority", "native_pool_contracts", "native_pool_transaction", "native_precommit", "work_sizing"},
-    'maintenance_qualification': {'maintenance_image', 'native_tool_isolation', 'native_pool_contracts', 'maintenance_runtime_support', 'maintenance_authority', 'native_authority', 'native_canary_contracts', 'checked_command', 'native_turn_dispatch'},
+    "maintenance_readiness": {"model_identities", "maintenance_authority", "native_pool_contracts", "native_pool_transaction", "native_precommit", "work_sizing"},
+    'maintenance_qualification': {'native_live_availability', 'maintenance_image', 'native_tool_isolation', 'native_pool_contracts', 'maintenance_runtime_support', 'maintenance_authority', 'native_authority', 'native_canary_contracts', 'checked_command', 'native_turn_dispatch', 'codex_tool_surface', 'supervision.transport.app_server', 'supervision.transport.errors'},
     'maintenance_release': {'native_precommit', 'native_pool_contracts', 'maintenance_authority', 'maintenance_qualification', 'operative_routing', 'work_sizing'},
     'private_authority_input': {'native_precommit', 'operative_routing'},
 
+    "requirement_baseline": set(),
+    "typed_artifact_requirement": {"requirement_baseline"},
+    "candidate_identity": {"git_store", "requirement_baseline", "workspace_capture"},
     "stage_evidence": set(),
     "stage_completion": {"stage_evidence", "checked_command", "native_pool_transaction"},
     "native_pool_transaction": {
@@ -210,7 +254,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "util",
     },
     "native_pool_leases": {"native_pool_contracts"},
-    "native_pool_workspace": {"native_pool_contracts", "workspace"},
+    "native_pool_workspace": {"native_pool_contracts", "workspace", "workspace_capture"},
     "native_pool": {
         "native_authority",
         "native_control",
@@ -264,9 +308,26 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_pool_reporting": {"audit", "native_pool_contracts"},
     "native_replanning": {"native_authority", "policy"},
     "native_progress": {"native_authority", "native_stop_scope", "policy"},
-    "checked_command": set(),
+    "checked_command": {"path_contract"},
     "checked_command_sequence": {"checked_command"},
-    "work_sizing": {"checked_command", "native_authority", "native_containment", "native_precommit", "policy"},
+    "codex_protocol_pin": {"policy"},
+    "codex_tool_surface": {"native_tool_isolation"},
+    "supervision": set(),
+    "supervision.turn_observations": set(),
+    "supervision.transport": set(),
+    "supervision.transport.errors": {"native_turn_dispatch"},
+    "supervision.transport.private_io": {"native_live_campaign_contracts", "supervision.transport.errors"},
+    "supervision.transport.app_server": {
+        "native_live_availability",
+        "codex_tool_surface",
+        "native_canary_contracts",
+        "native_live_allocation_ledger",
+        "native_pool_contracts",
+        "native_turn_dispatch",
+        "supervision.transport.errors",
+        "supervision.transport.private_io",
+    },
+    "work_sizing": {"model_identities", "checked_command", "native_authority", "native_containment", "native_precommit", "policy"},
     "epic_convergence": set(),
     "public_copy": set(),
     "errors": set(),
@@ -376,29 +437,9 @@ def validate_retired_beads_context_aliases(
     *,
     repo_root: Path = REPO_ROOT,
 ) -> None:
-    def _is_git_ignored(path: Path) -> bool:
-        if not (repo_root / ".git").is_dir():
-            return False
-        try:
-            result = subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    str(repo_root),
-                    "check-ignore",
-                    "-q",
-                    "--",
-                    str(path),
-                ],
-                capture_output=True,
-                text=True,
-            )
-        except (OSError, subprocess.SubprocessError):
-            return False
-        return result.returncode == 0
-
     allowed_names = {"CHANGELOG.md"}
     skipped_dirs = {".git", "__pycache__"}
+    candidates: list[tuple[Path, Path]] = []
     for path in sorted(repo_root.rglob("*")):
         if not path.is_file() or path.name in allowed_names:
             continue
@@ -406,11 +447,22 @@ def validate_retired_beads_context_aliases(
             relative = path.relative_to(repo_root)
         except ValueError:
             continue
-        if _is_git_ignored(relative):
-            continue
         if any(part in skipped_dirs for part in relative.parts):
             continue
         if path.suffix not in {".py", ".json", ".md", ".html", ".sh", ".yaml", ".yml"}:
+            continue
+        candidates.append((path, relative))
+    ignored: set[str] = set()
+    if (repo_root / ".git").is_dir():
+        # One check through the trusted executable, after every ignore file it
+        # reads has been checked; any failure counts as "nothing ignored", so
+        # every file is still validated.
+        try:
+            ignored = trusted_git_ignored(repo_root, [relative.as_posix() for _, relative in candidates])
+        except WorkspaceDiscoveryError:
+            ignored = set()
+    for path, relative in candidates:
+        if relative.as_posix() in ignored:
             continue
         try:
             text = path.read_text(encoding="utf-8")
@@ -594,6 +646,7 @@ _CAPACITY_SOURCE_GLOBS = (
     "scripts/cwo_core/native_activation_preview.py",
     "scripts/run_native_pool_activation_preview.py",
     "scripts/run_native_pool_live_canaries.py",
+    "scripts/cwo_core/supervision/transport/*.py",
     "scripts/supervise_native_pool.py",
 )
 _CAPACITY_COMPATIBILITY_SOURCES = {
@@ -716,8 +769,17 @@ def validate_native_pool_capacity_invariants(
                 )
 
 
+def validate_release_effect_inventory(errors: list[str]) -> None:
+    """Validate current repository coverage without generating review evidence."""
+    try:
+        release_effect_routes.trace(REPO_ROOT)
+    except (release_effect_routes.Refused, OSError) as exc:
+        errors.append(f"release effect inventory refused: {exc}")
+
+
 def validate_repository() -> list[str]:
     errors: list[str] = []
+    validate_release_effect_inventory(errors)
     validate_cwo_core_contract(errors)
     validate_native_pool_capacity_invariants(errors)
     validate_retired_beads_context_aliases(errors)
@@ -807,11 +869,8 @@ def validate_repository() -> list[str]:
     )
     validate_closure_pressure_contract(errors)
 
-    for path in sorted(POLICY_DIR.glob("*.yaml")):
-        try:
-            load_json_compatible_yaml(path)
-        except SystemExit as exc:
-            errors.append(str(exc))
+    validate_policy_validation_boundaries(errors)
+    errors.extend(lint_model_identities(REPO_ROOT))
 
     normalized_schemas: dict[str, str] = {}
     for path in sorted((REPO_ROOT / "schemas").glob("*.json")):
@@ -2023,6 +2082,32 @@ def validate_repository() -> list[str]:
     return errors
 
 
+def validate_policy_validation_boundaries(errors: list[str], policy_dir: Path = POLICY_DIR) -> None:
+    """Every policy parses, matches its registered schema, and has a recorded validation boundary."""
+    present = {path.name for path in policy_dir.glob("*.yaml")}
+    for name in sorted(present):
+        try:
+            value = load_json_compatible_yaml(policy_dir / name)
+        except SystemExit as exc:
+            errors.append(str(exc))
+            continue
+        try:
+            schema_errors = policy_document_errors(name, value)
+        except SystemExit as exc:
+            errors.append(str(exc))
+            continue
+        errors.extend(f"policy/{name} does not match schemas/{POLICY_SCHEMAS[name]}: {error}" for error in schema_errors)
+        if name not in POLICY_VALIDATION_BOUNDARIES:
+            errors.append(f"policy/{name} has no recorded validation boundary in cwo_core.policy_schema")
+    for name, (kind, _detail) in sorted(POLICY_VALIDATION_BOUNDARIES.items()):
+        if name not in present:
+            errors.append(f"validation boundary recorded for missing policy/{name}")
+        if (kind == "schema") != (name in POLICY_SCHEMAS):
+            errors.append(f"policy/{name} validation boundary {kind!r} disagrees with the registered schemas")
+    for name in sorted(set(POLICY_SCHEMAS) - present):
+        errors.append(f"schema registered for missing policy/{name}")
+
+
 def validate_cwo_core_contract(errors: list[str]) -> None:
     core_dir = REPO_ROOT / "scripts" / "cwo_core"
     legacy_name = "orchestration" + "_lib"
@@ -2037,14 +2122,16 @@ def validate_cwo_core_contract(errors: list[str]) -> None:
                 errors.append(f"legacy monolith reference remains in {path.relative_to(REPO_ROOT)}")
 
     for module_name in CWO_CORE_ALLOWED_IMPORTS:
-        module_path = core_dir / f"{module_name}.py"
+        module_path = cwo_core_module_path(core_dir, module_name)
         if not module_path.is_file():
             errors.append(f"missing cwo_core module: {module_path.relative_to(REPO_ROOT)}")
 
-    for path in sorted(core_dir.glob("*.py")):
-        if path.name == "__init__.py":
+    # Subpackages are covered too: a module under scripts/cwo_core/<package>/ is
+    # named by its dotted path and needs its own allowlist entry.
+    for path in sorted(core_dir.rglob("*.py")):
+        if path == core_dir / "__init__.py":
             continue
-        module_name = path.stem
+        module_name = cwo_core_module_name(core_dir, path)
         allowed = CWO_CORE_ALLOWED_IMPORTS.get(module_name)
         if allowed is None:
             errors.append(f"unexpected cwo_core module: {path.relative_to(REPO_ROOT)}")
@@ -2055,18 +2142,79 @@ def validate_cwo_core_contract(errors: list[str]) -> None:
             errors.append(f"{path.relative_to(REPO_ROOT)} has invalid Python syntax: {exc}")
             continue
         for node in ast.walk(tree):
-            imported: str | None = None
-            if isinstance(node, ast.ImportFrom):
-                if node.level == 1 and node.module:
-                    imported = node.module.split(".", 1)[0]
-                elif node.module and node.module.startswith("cwo_core."):
-                    imported = node.module.split(".", 1)[1].split(".", 1)[0]
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name.startswith("cwo_core."):
-                        imported = alias.name.split(".", 1)[1].split(".", 1)[0]
-            if imported and imported != module_name and imported not in allowed:
-                errors.append(f"cwo_core dependency violation: {module_name} imports {imported}")
+            for imported in cwo_core_import_targets(
+                node,
+                module_name,
+                is_package=path.name == "__init__.py",
+                known=CWO_CORE_ALLOWED_IMPORTS,
+            ):
+                if imported != module_name and imported not in allowed:
+                    errors.append(f"cwo_core dependency violation: {module_name} imports {imported}")
+
+
+def cwo_core_module_name(core_dir: Path, path: Path) -> str:
+    """Dotted name below ``cwo_core`` (``routing``, ``supervision.transport``)."""
+
+    parts = path.relative_to(core_dir).with_suffix("").parts
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts)
+
+
+def cwo_core_module_path(core_dir: Path, module_name: str) -> Path:
+    module_path = core_dir.joinpath(*module_name.split("."))
+    if module_path.is_dir():
+        return module_path / "__init__.py"
+    return module_path.with_name(module_path.name + ".py")
+
+
+def _import_from_core_base(node: ast.ImportFrom, module_name: str, is_package: bool) -> list[str] | None:
+    module_parts = node.module.split(".") if node.module else []
+    if node.level == 0:
+        return module_parts[1:] if module_parts and module_parts[0] == "cwo_core" else None
+    package = module_name.split(".") if is_package else module_name.split(".")[:-1]
+    if node.level - 1 > len(package):
+        return ["<outside cwo_core>"]
+    return package[:len(package) - (node.level - 1)] + module_parts
+
+
+def cwo_core_import_targets(
+    node: ast.AST,
+    module_name: str,
+    *,
+    is_package: bool,
+    known: dict[str, set[str]],
+) -> set[str]:
+    """Return the cwo_core modules one import statement depends on.
+
+    A target is named by its longest dotted prefix that is a known module, so
+    ``cwo_core.routing.classify_work`` is ``routing`` and
+    ``cwo_core.supervision.transport.app_server`` is itself; an unknown target
+    is named by its first component. Relative imports
+    resolve from the importing module's package; one that climbs above
+    ``cwo_core`` is reported as ``<outside cwo_core>``.
+    """
+
+    candidates: list[list[str]] = []
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            parts = alias.name.split(".")
+            if parts[0] == "cwo_core" and len(parts) > 1:
+                candidates.append(parts[1:])
+    elif isinstance(node, ast.ImportFrom):
+        base = _import_from_core_base(node, module_name, is_package)
+        if base is None:
+            return set()
+        if base:
+            candidates.append(base)
+        for alias in node.names:
+            if alias.name != "*":
+                candidates.append(base + [alias.name])
+    targets: set[str] = set()
+    for parts in candidates:
+        prefixes = [".".join(parts[:end]) for end in range(len(parts), 0, -1)]
+        targets.add(next((prefix for prefix in prefixes if prefix in known), parts[0]))
+    return targets
 
 
 def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None:
@@ -2158,7 +2306,7 @@ def validate_native_supervision_tech_preview_copy(
         ('owned cleanup', 'Confirm owned processes and resources are closed'),
         ('fixed cohort ceiling', 'N=1..3'),
         ('actual host capability', 'host that has proved the required capabilities'),
-        ('preview boundary', 'Optional concurrency is a preview'),
+        ('preview boundary', 'Concurrent native work is held'),
         ('stateful operations serial', 'model dispatch serial'),
         ('terminal attempts', 'A stopped attempt cannot be resumed; another attempt needs its own fresh allowance'),
         ('single-worker operator link', 'https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md'),

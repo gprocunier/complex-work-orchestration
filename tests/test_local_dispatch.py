@@ -8,11 +8,13 @@ import sys
 import tempfile
 import threading
 import unittest
+import unittest.mock
 from argparse import Namespace
 from io import BytesIO
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from unittest.mock import patch
 from pathlib import Path
+from typing import NamedTuple
 from urllib.error import HTTPError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,6 +42,57 @@ from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.return_sections import parse_return_sections  # noqa: E402
 from cwo_core.policy import load_policy  # noqa: E402
 
+
+def run_dispatch_cli(argv: list[str]) -> subprocess.CompletedProcess[str]:
+    """dispatch_work.main() in-process with ``argv``, shaped like a subprocess result.
+
+    Controlled local invocation is disabled in shipped code (issue #41); these
+    tests exercise its machinery against a local fake endpoint, so they run the
+    CLI in-process with the route enabled for the test only.
+    """
+    import contextlib
+    import io
+
+    import dispatch_work
+    import cwo_core.audit as audit
+    from cwo_core.host_records import HostRecordStore, using_test_store
+
+    stdout, stderr = io.StringIO(), io.StringIO()
+    code = 0
+    with tempfile.TemporaryDirectory() as temporary:
+        store = HostRecordStore.for_tests(Path(temporary) / 'host')
+        with using_test_store(store), unittest.mock.patch.object(audit, 'AUDIT_LOG', store.audit_file), \
+                unittest.mock.patch.object(audit, 'HOST_AUDIT_LOG', store.audit_file), \
+                unittest.mock.patch.object(sys, "argv", ["dispatch_work.py", *argv]), \
+            unittest.mock.patch.object(dispatch_work, "LOCAL_INVOCATION_AVAILABLE", True), \
+            contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            try:
+                dispatch_work.main()
+            except SystemExit as exc:
+                if isinstance(exc.code, str):
+                    print(exc.code, file=stderr)
+                    code = 1
+                else:
+                    code = int(exc.code or 0)
+    return subprocess.CompletedProcess(["dispatch_work.py", *argv], code, stdout.getvalue(), stderr.getvalue())
+
+
+def setUpModule() -> None:
+    # These tests exercise the local invocation route's machinery with fakes;
+    # the route itself is disabled in shipped code until issue #41 is resolved.
+    import dispatch_work
+
+    from tests.local_invocation_fixtures import isolate_local_invocation_ledgers
+
+    global _ROUTE_PATCH
+    _ROUTE_PATCH = unittest.mock.patch.object(dispatch_work, "LOCAL_INVOCATION_AVAILABLE", True)
+    _ROUTE_PATCH.start()
+    # Each call reserves against its own temporary ledger; accounting is tested in test_local_invocation_reservation.
+    isolate_local_invocation_ledgers()
+
+
+def tearDownModule() -> None:
+    _ROUTE_PATCH.stop()
 
 def _bounded_bytes(data: bytes, size: int | None) -> bytes:
     return data if size is None else data[:size]
@@ -343,6 +396,46 @@ class InvalidGLM53HTTPHandler(BaseHTTPRequestHandler):
         )
 
 
+def _local_dispatch_args(*, _include_offline: bool = True, **changes: object) -> Namespace:
+    """Fresh full Namespace for the repeated local dispatch fixture shape."""
+    values = {
+        "local_api_key_env": None,
+        "local_timeout": None,
+        "local_base_url": "http://127.0.0.1:8000",
+        "local_model": None,
+        "local_allow_private_dns": False,
+        "local_ca_bundle": None,
+        "local_insecure_tls": False,
+        "local_max_tokens": None,
+        "local_thinking": "default",
+        "allow_offline_access_profile": True,
+        "execute_local": True,
+    }
+    if not _include_offline:
+        values.pop("allow_offline_access_profile")
+    values.update(changes)
+    return Namespace(**values)
+
+
+class ResponseFrameCase(NamedTuple):
+    original: str
+    body: bytes
+    headers: dict[str, str] | None
+    getheader: bool
+    cap: int
+    outcome: bytes | str
+
+
+class RequestOverrideCase(NamedTuple):
+    original: str
+    variant: str
+    max_tokens: int | None
+    thinking: str
+    dispatch_id: str
+    expected_options: dict | None
+    enabled: bool
+
+
 class LocalDispatchTests(unittest.TestCase):
     def _hardened_glm_route(self) -> dict[str, object]:
         return classify_work(
@@ -353,19 +446,7 @@ class LocalDispatchTests(unittest.TestCase):
         )
 
     def _hardened_glm_args(self) -> Namespace:
-        return Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model=None,
-            local_allow_private_dns=False,
-            local_ca_bundle=None,
-            local_insecure_tls=False,
-            local_max_tokens=None,
-            local_thinking="default",
-            allow_offline_access_profile=True,
-            execute_local=True,
-        )
+        return _local_dispatch_args()
 
     def _glm53_route(self) -> dict[str, object]:
         return classify_work(
@@ -376,67 +457,28 @@ class LocalDispatchTests(unittest.TestCase):
         )
 
     def _glm53_args(self) -> Namespace:
-        return Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000/v1",
-            local_model=None,
-            local_allow_private_dns=False,
-            local_ca_bundle=None,
-            local_insecure_tls=False,
-            local_max_tokens=None,
-            local_thinking="default",
-            allow_offline_access_profile=False,
-            execute_local=True,
+        return _local_dispatch_args(local_base_url="http://127.0.0.1:8000/v1", allow_offline_access_profile=False)
+
+    def test_bounded_local_response_frame_rows(self) -> None:
+        rows = (
+            ResponseFrameCase("test_bounded_local_response_accepts_absent_getheader_headers", b"ok", None, True, 8, b"ok"),
+            ResponseFrameCase("test_bounded_local_response_accepts_absent_mapping_headers", b"ok", {}, False, 8, b"ok"),
+            ResponseFrameCase("test_bounded_local_response_accepts_valid_content_length", b"okay", {"Content-Length": "4"}, True, 8, b"okay"),
+            ResponseFrameCase("test_bounded_local_response_rejects_conflicting_framing", b"okay",
+                              {"Content-Length": "4", "Transfer-Encoding": "chunked"}, True, 8, "conflicting framing"),
+            ResponseFrameCase("test_bounded_local_response_rejects_response_over_cap", b"12345", None, True, 4, "exceeded response cap"),
         )
+        for row in rows:
+            with self.subTest(original=row.original):
+                response = BoundedResponse(row.body, row.headers)
+                if not row.getheader:
+                    response.getheader = None  # type: ignore[method-assign]
+                if isinstance(row.outcome, str):
+                    with self.assertRaisesRegex(SystemExit, row.outcome):
+                        _read_local_http_response(response, cap=row.cap, phase="test")
+                else:
+                    self.assertEqual(_read_local_http_response(response, cap=row.cap, phase="test"), row.outcome)
 
-    def test_bounded_local_response_accepts_absent_getheader_headers(self) -> None:
-        response = BoundedResponse(b"ok")
-        response.headers = None
-        self.assertEqual(
-            _read_local_http_response(response, cap=8, phase="test"), b"ok"
-        )
-
-    def test_bounded_local_response_accepts_absent_mapping_headers(self) -> None:
-        response = BoundedResponse(b"ok")
-        response.getheader = None  # type: ignore[method-assign]
-        response.headers = {}
-        self.assertEqual(
-            _read_local_http_response(response, cap=8, phase="test"), b"ok"
-        )
-
-    def test_bounded_local_response_accepts_valid_content_length(self) -> None:
-        response = BoundedResponse(b"okay", {"Content-Length": "4"})
-        self.assertEqual(
-            _read_local_http_response(response, cap=8, phase="test"), b"okay"
-        )
-
-    def test_bounded_local_response_rejects_malformed_content_length(self) -> None:
-        response = BoundedResponse(b"okay", {"Content-Length": "four"})
-        with self.assertRaisesRegex(SystemExit, "malformed Content-Length"):
-            _read_local_http_response(response, cap=8, phase="test")
-
-    def test_bounded_local_response_rejects_conflicting_framing(self) -> None:
-        response = BoundedResponse(
-            b"okay", {"Content-Length": "4", "Transfer-Encoding": "chunked"}
-        )
-        with self.assertRaisesRegex(SystemExit, "conflicting framing"):
-            _read_local_http_response(response, cap=8, phase="test")
-
-    def test_bounded_local_response_rejects_unsupported_content_encoding(self) -> None:
-        response = BoundedResponse(b"okay", {"Content-Encoding": "gzip"})
-        with self.assertRaisesRegex(SystemExit, "unsupported content encoding"):
-            _read_local_http_response(response, cap=8, phase="test")
-
-    def test_bounded_local_response_rejects_premature_eof(self) -> None:
-        response = BoundedResponse(b"ok", {"Content-Length": "4"})
-        with self.assertRaisesRegex(SystemExit, "ended before Content-Length"):
-            _read_local_http_response(response, cap=8, phase="test")
-
-    def test_bounded_local_response_rejects_response_over_cap(self) -> None:
-        response = BoundedResponse(b"12345")
-        with self.assertRaisesRegex(SystemExit, "exceeded response cap"):
-            _read_local_http_response(response, cap=4, phase="test")
 
     def test_endpoint_url_accepts_origin_or_v1_base_without_duplication(self) -> None:
         self.assertEqual(
@@ -449,6 +491,13 @@ class LocalDispatchTests(unittest.TestCase):
         )
 
     def test_glm53_compact_contract_validation_is_exact(self) -> None:
+        historical_prompt = local_response_contract_prompt("cwo-glm-critic-v1")
+        self.assertIn("Historical v1 also requires", historical_prompt)
+        self.assertIn("at most 320", historical_prompt)
+        self.assertIn("at most 300", historical_prompt)
+        self.assertIn("at most 240", historical_prompt)
+        self.assertNotIn("Historical v1 also requires", local_response_contract_prompt("cwo-glm-critic-v2"))
+        self.assertIsNone(local_response_contract_prompt("unsupported-contract"))
         parsed, errors = validate_local_response_contract(
             json.dumps(GLM53_VALID_REVIEW, separators=(",", ":")),
             "cwo-glm-critic-v1",
@@ -760,34 +809,6 @@ class LocalDispatchTests(unittest.TestCase):
                         execute_local_envelope(envelope, route["selected_executor"], args)
                 self.assertEqual(opener.urls, [])
 
-    def test_glm53_noauth_profile_rejects_override_and_ignores_shared_key(self) -> None:
-        route = self._glm53_route()
-        args = self._glm53_args()
-        args.local_api_key_env = "CWO_LOCAL_OPENAI_API_KEY"
-        with self.assertRaisesRegex(SystemExit, "no-auth"):
-            build_local_envelope(
-                task="Review one bounded architecture concern.",
-                route=route,
-                dispatch_id="dispatch-glm53-auth-override",
-                bead_id="cwo-glm53",
-                epic_id=None,
-                args=args,
-            )
-
-        args.local_api_key_env = None
-        envelope = build_local_envelope(
-            task="Review one bounded architecture concern.",
-            route=route,
-            dispatch_id="dispatch-glm53-auth-shared",
-            bead_id="cwo-glm53",
-            epic_id=None,
-            args=args,
-        )
-        opener = FakeGLM53Opener()
-        with patch.dict(os.environ, {"CWO_LOCAL_OPENAI_API_KEY": "must-not-be-sent"}):
-            with patch("dispatch_work.request.build_opener", return_value=opener):
-                execute_local_envelope(envelope, route["selected_executor"], args)
-        self.assertTrue(all("authorization" not in headers for headers in opener.headers))
 
     def test_glm53_duplicate_outer_keys_and_invalid_utf8_fail_closed(self) -> None:
         content = json.dumps(GLM53_VALID_REVIEW, separators=(",", ":"))
@@ -925,11 +946,8 @@ class LocalDispatchTests(unittest.TestCase):
                     "Use exact GLM-5.3 BF16 as an independent architecture critic second opinion."
                 )
                 task_file.flush()
-                result = subprocess.run(
+                result = run_dispatch_cli(
                     [
-                        sys.executable,
-                        "-B",
-                        str(ROOT / "scripts" / "dispatch_work.py"),
                         "--file",
                         task_file.name,
                         "--local-ok",
@@ -938,7 +956,7 @@ class LocalDispatchTests(unittest.TestCase):
                         "--local-base-url",
                         f"http://127.0.0.1:{server.server_port}",
                         "--execute-local",
-                        "--no-audit",
+                        "--audit",
                         "--waiver-reason",
                         "focused GLM failure-exit rehearsal",
                         "--rehearsal",
@@ -947,12 +965,7 @@ class LocalDispatchTests(unittest.TestCase):
                         "--local-result-view",
                         "compact",
                         "--json",
-                    ],
-                    cwd=ROOT,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=20,
+                    ]
                 )
         finally:
             server.shutdown()
@@ -1161,7 +1174,7 @@ class LocalDispatchTests(unittest.TestCase):
                     str(return_path),
                     "--local-dispatch-result",
                     str(dispatch_path),
-                    "--no-audit",
+                    "--advisory", "--no-audit",
                     "--waiver-reason",
                     "compact-dispatch evaluator regression test",
                     "--json",
@@ -1302,86 +1315,21 @@ class LocalDispatchTests(unittest.TestCase):
             )
         self.assertIn("known access profile", str(context.exception))
 
-    def test_execute_local_posts_openai_compatible_payload(self) -> None:
-        route = classify_work(
-            "Documentation review for internal example notes.",
-            local_ok=True,
-            prefer_local=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["documentation"],
-        )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url=None,
-            local_model=None,
-            execute_local=True,
-        )
-        with patch.dict(
-            os.environ,
-            {
-                "CWO_OPENSHIFT_AI_VLLM_BASE_URL": "http://127.0.0.1:8000",
-                "CWO_OPENSHIFT_AI_VLLM_MODEL": "test-model",
-            },
-            clear=False,
-        ):
-            envelope = build_local_envelope(
-                task="Documentation review for internal example notes.",
-                route=route,
-                dispatch_id="dispatch-local-test",
-                bead_id="cwo-local",
-                epic_id=None,
-                args=args,
-            )
-            opener = FakeOpener()
-            with patch("dispatch_work.request.build_opener", return_value=opener):
-                response = execute_local_envelope(envelope, route["selected_executor"], args)
-        self.assertEqual(response["status_code"], 200)
-        self.assertIn("elapsed_seconds", response)
-        self.assertTrue(opener.called)
 
-        telemetry = local_response_telemetry(response)
-        self.assertEqual(telemetry["input_tokens"], 11)
-        self.assertEqual(telemetry["output_tokens"], 7)
-        self.assertEqual(telemetry["total_tokens"], 18)
-        self.assertEqual(telemetry["agent_model_calls"], 1)
-        self.assertIn("local_response_sha256", telemetry)
-        self.assertNotIn("response", telemetry)
-        self.assertNotIn("\"content\"", json.dumps(telemetry))
-        self.assertNotIn("\"message\"", json.dumps(telemetry))
-
-    def test_execute_local_rejects_public_endpoint_before_post(self) -> None:
-        route = classify_work(
-            "Documentation review for internal example notes.",
-            local_ok=True,
-            prefer_local=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["documentation"],
+    def test_local_endpoint_refusal_variants(self) -> None:
+        variants = (
+            ('test_execute_local_rejects_url_credentials',
+             'http://user:pass@127.0.0.1:8000',
+             'must not contain credentials'),
+            ('test_execute_local_rejects_private_http_non_loopback',
+             'http://10.0.0.25:8000',
+             'http only for loopback'),
         )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="https://example.com",
-            local_model="test-model",
-            execute_local=True,
-        )
-        envelope = build_local_envelope(
-            task="Documentation review for internal example notes.",
-            route=route,
-            dispatch_id="dispatch-local-test",
-            bead_id="cwo-local",
-            epic_id=None,
-            args=args,
-        )
-        fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
-        with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
-            with self.assertRaises(SystemExit):
-                execute_local_envelope(envelope, route["selected_executor"], args)
-
-    def test_execute_local_rejects_url_credentials(self) -> None:
-        with self.assertRaises(SystemExit) as context:
-            validate_local_endpoint_base_url("http://user:pass@127.0.0.1:8000")
-        self.assertIn("must not contain credentials", str(context.exception))
+        for original, url, diagnostic in variants:
+            with self.subTest(original=original):
+                with self.assertRaises(SystemExit) as context:
+                    validate_local_endpoint_base_url(url)
+                self.assertIn(diagnostic, str(context.exception))
 
     def test_execute_local_rejects_private_hostname_to_avoid_dns_rebinding(self) -> None:
         fake_records = [
@@ -1421,10 +1369,6 @@ class LocalDispatchTests(unittest.TestCase):
             with self.assertRaises(SystemExit):
                 validate_local_endpoint_base_url("https://mixed.example.com")
 
-    def test_execute_local_rejects_private_http_non_loopback(self) -> None:
-        with self.assertRaises(SystemExit) as context:
-            validate_local_endpoint_base_url("http://10.0.0.25:8000")
-        self.assertIn("http only for loopback", str(context.exception))
 
     def test_execute_local_rejects_unallowlisted_api_key_env(self) -> None:
         route = classify_work(
@@ -1453,68 +1397,6 @@ class LocalDispatchTests(unittest.TestCase):
             execute_local_envelope(envelope, route["selected_executor"], args)
         self.assertIn("not allowlisted", str(context.exception))
 
-    def test_execute_local_omits_raw_http_error_body(self) -> None:
-        route = classify_work(
-            "Documentation review for internal example notes.",
-            local_ok=True,
-            prefer_local=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["documentation"],
-        )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model="test-model",
-            execute_local=True,
-        )
-        envelope = build_local_envelope(
-            task="Documentation review for internal example notes.",
-            route=route,
-            dispatch_id="dispatch-local-test",
-            bead_id="cwo-local",
-            epic_id=None,
-            args=args,
-        )
-        with patch("dispatch_work.request.build_opener", return_value=FakeHTTPErrorOpener()):
-            with self.assertRaises(SystemExit) as context:
-                execute_local_envelope(envelope, route["selected_executor"], args)
-
-        rendered = str(context.exception)
-        self.assertIn("response body omitted", rendered)
-        self.assertIn("sha256=", rendered)
-        self.assertNotIn("plain-secret", rendered)
-        self.assertNotIn("Status: injected", rendered)
-
-    def test_execute_local_rejects_non_200_response_without_body(self) -> None:
-        route = classify_work(
-            "Documentation review for internal example notes.",
-            local_ok=True,
-            prefer_local=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["documentation"],
-        )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model="test-model",
-            execute_local=True,
-        )
-        envelope = build_local_envelope(
-            task="Documentation review for internal example notes.",
-            route=route,
-            dispatch_id="dispatch-local-redirect",
-            bead_id="cwo-local",
-            epic_id=None,
-            args=args,
-        )
-        with patch("dispatch_work.request.build_opener", return_value=FakeRedirectOpener()):
-            with self.assertRaises(SystemExit) as context:
-                execute_local_envelope(envelope, route["selected_executor"], args)
-        rendered = str(context.exception)
-        self.assertIn("did not return HTTP 200", rendered)
-        self.assertNotIn("redirected content", rendered)
 
     def test_glm_envelope_carries_thinking_options_and_tls_metadata(self) -> None:
         route = classify_work(
@@ -1714,25 +1596,6 @@ class LocalDispatchTests(unittest.TestCase):
         self.assertIn("exact requested model", str(context.exception))
         self.assertFalse(opener.chat_called)
 
-    def test_hardened_glm_expired_preflight_blocks_chat(self) -> None:
-        route = self._hardened_glm_route()
-        args = self._hardened_glm_args()
-        envelope = build_local_envelope(
-            task="Compact independent architecture review.",
-            route=route,
-            dispatch_id="dispatch-glm-256k-expired",
-            bead_id="cwo-glm-256k",
-            epic_id=None,
-            args=args,
-        )
-        opener = FakeHardenedOpener()
-        monotonic_values = [0.0, 0.1, 0.2, 0.2, 1.5]
-        with patch("dispatch_work.request.build_opener", return_value=opener):
-            with patch("dispatch_work.time.monotonic", side_effect=monotonic_values):
-                with self.assertRaises(SystemExit) as context:
-                    execute_local_envelope(envelope, route["selected_executor"], args)
-        self.assertIn("preflight expired", str(context.exception))
-        self.assertFalse(opener.chat_called)
 
     def test_hardened_glm_malformed_think_tag_is_not_usable(self) -> None:
         payload = {
@@ -1860,11 +1723,8 @@ class LocalDispatchTests(unittest.TestCase):
                     "Use exact GLM-5.2 BF16 256K thinking as an independent architecture critic second opinion."
                 )
                 task_file.flush()
-                result = subprocess.run(
+                result = run_dispatch_cli(
                     [
-                        sys.executable,
-                        "-B",
-                        str(ROOT / "scripts" / "dispatch_work.py"),
                         "--file",
                         task_file.name,
                         "--local-ok",
@@ -1874,7 +1734,7 @@ class LocalDispatchTests(unittest.TestCase):
                         f"http://127.0.0.1:{server.server_port}",
                         "--execute-local",
                         "--allow-offline-access-profile",
-                        "--no-audit",
+                        "--audit",
                         "--waiver-reason",
                         "focused compact CLI test uses offline profile and no-audit",
                         "--rehearsal",
@@ -1883,12 +1743,7 @@ class LocalDispatchTests(unittest.TestCase):
                         "--local-result-view",
                         "compact",
                         "--json",
-                    ],
-                    cwd=ROOT,
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                    timeout=20,
+                    ]
                 )
         finally:
             server.shutdown()
@@ -1912,18 +1767,7 @@ class LocalDispatchTests(unittest.TestCase):
             local_profile="openshift-ai-vllm",
             requested_roles=["architecture"],
         )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model=None,
-            local_allow_private_dns=False,
-            local_ca_bundle=None,
-            local_insecure_tls=False,
-            local_max_tokens=None,
-            local_thinking="default",
-            execute_local=True,
-        )
+        args = _local_dispatch_args(_include_offline=False)
         envelope = build_local_envelope(
             task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
             route=route,
@@ -1943,19 +1787,7 @@ class LocalDispatchTests(unittest.TestCase):
             local_profile="openshift-ai-vllm",
             requested_roles=["architecture"],
         )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model=None,
-            local_allow_private_dns=False,
-            local_ca_bundle=None,
-            local_insecure_tls=False,
-            local_max_tokens=None,
-            local_thinking="default",
-            allow_offline_access_profile=True,
-            execute_local=True,
-        )
+        args = _local_dispatch_args()
         envelope = build_local_envelope(
             task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
             route=route,
@@ -1976,256 +1808,36 @@ class LocalDispatchTests(unittest.TestCase):
         self.assertEqual(opener.payload.get("max_tokens"), 4096)
         self.assertEqual(response["status_code"], 200)
 
-    def test_glm_execute_posts_thinking_options_and_strips_reasoning(self) -> None:
-        route = classify_work(
-            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            local_ok=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["architecture"],
-        )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model=None,
-            local_allow_private_dns=False,
-            local_ca_bundle=None,
-            local_insecure_tls=False,
-            allow_offline_access_profile=True,
-            execute_local=True,
-        )
-        envelope = build_local_envelope(
-            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            route=route,
-            dispatch_id="dispatch-glm-test",
-            bead_id="cwo-glm",
-            epic_id=None,
-            args=args,
-        )
-        opener = FakePayloadOpener()
-        with patch("dispatch_work.request.build_opener", return_value=opener):
-            response = execute_local_envelope(envelope, route["selected_executor"], args)
 
-        self.assertEqual(opener.payload["chat_template_kwargs"], {"enable_thinking": True})
-        self.assertEqual(opener.payload["model"], "glm-5.2-bf16-128k")
-        message = response["response"]["choices"][0]["message"]
-        self.assertEqual(message["content"], "GLM final")
-        self.assertTrue(response["reasoning_stripped"])
-        self.assertIn("raw_response_sha256", response)
-        self.assertNotIn("private reasoning", json.dumps(response))
+    def test_local_dispatch_request_override_rows(self) -> None:
+        task = "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion."
+        route = classify_work(task, local_ok=True, local_profile="openshift-ai-vllm", requested_roles=["architecture"])
+        rows = (
+            RequestOverrideCase("test_local_dispatch_respects_local_max_tokens_override", "default", 1234, "default",
+                                "dispatch-glm-test", {"chat_template_kwargs": {"enable_thinking": True}, "max_tokens": 1234}, True),
+            RequestOverrideCase("test_local_dispatch_respects_local_thinking_on_and_off_overrides", "off", None, "off",
+                                "dispatch-glm-test", None, False),
+            RequestOverrideCase("test_local_dispatch_respects_local_thinking_on_and_off_overrides", "on", None, "on",
+                                "dispatch-glm-test-on", None, True),
+            RequestOverrideCase("test_local_dispatch_combined_max_tokens_and_thinking_override", "combined", 4096, "off",
+                                "dispatch-glm-test", {"chat_template_kwargs": {"enable_thinking": False}, "max_tokens": 4096}, False),
+        )
+        for row in rows:
+            with self.subTest(original=row.original, variant=row.variant):
+                args = _local_dispatch_args(local_max_tokens=row.max_tokens, local_thinking=row.thinking)
+                envelope = build_local_envelope(task=task, route=route, dispatch_id=row.dispatch_id,
+                                                bead_id="cwo-glm", epic_id=None, args=args)
+                if row.expected_options is not None:
+                    self.assertEqual(envelope["request_options"], row.expected_options)
+                else:
+                    self.assertEqual(envelope["request_options"]["chat_template_kwargs"]["enable_thinking"], row.enabled)
+                opener = FakePayloadOpener()
+                with patch("dispatch_work.request.build_opener", return_value=opener):
+                    execute_local_envelope(envelope, route["selected_executor"], args)
+                if row.max_tokens is not None:
+                    self.assertEqual(opener.payload["max_tokens"], row.max_tokens)
+                self.assertEqual(opener.payload["chat_template_kwargs"]["enable_thinking"], row.enabled)
 
-        telemetry = local_response_telemetry(response)
-        self.assertTrue(telemetry["reasoning_stripped"])
-        self.assertEqual(telemetry["reasoning_chars"], len("private reasoning"))
-        self.assertIn("raw_response_sha256", telemetry)
-        self.assertNotIn("private reasoning", json.dumps(telemetry))
-
-    def test_glm_execute_records_truncated_finish_reason(self) -> None:
-        route = classify_work(
-            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            local_ok=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["architecture"],
-        )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model=None,
-            local_allow_private_dns=False,
-            local_ca_bundle=None,
-            local_insecure_tls=False,
-            allow_offline_access_profile=True,
-            execute_local=True,
-        )
-        envelope = build_local_envelope(
-            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            route=route,
-            dispatch_id="dispatch-glm-test",
-            bead_id="cwo-glm",
-            epic_id=None,
-            args=args,
-        )
-        opener = FakeTruncatedPayloadOpener()
-        with patch("dispatch_work.request.build_opener", return_value=opener):
-            response = execute_local_envelope(envelope, route["selected_executor"], args)
-
-        self.assertTrue(response["response_truncated"])
-        self.assertEqual(response["finish_reasons"], ["length"])
-        telemetry = local_response_telemetry(response)
-        self.assertTrue(telemetry["response_truncated"])
-        self.assertEqual(telemetry["finish_reasons"], ["length"])
-        self.assertNotIn("private reasoning", json.dumps(telemetry))
-
-    def test_local_dispatch_respects_local_max_tokens_override(self) -> None:
-        route = classify_work(
-            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            local_ok=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["architecture"],
-        )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model=None,
-            local_allow_private_dns=False,
-            local_ca_bundle=None,
-            local_insecure_tls=False,
-            local_max_tokens=1234,
-            local_thinking="default",
-            allow_offline_access_profile=True,
-            execute_local=True,
-        )
-        envelope = build_local_envelope(
-            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            route=route,
-            dispatch_id="dispatch-glm-test",
-            bead_id="cwo-glm",
-            epic_id=None,
-            args=args,
-        )
-        self.assertEqual(
-            envelope["request_options"],
-            {"chat_template_kwargs": {"enable_thinking": True}, "max_tokens": 1234},
-        )
-        opener = FakePayloadOpener()
-        with patch("dispatch_work.request.build_opener", return_value=opener):
-            execute_local_envelope(envelope, route["selected_executor"], args)
-        self.assertEqual(opener.payload["max_tokens"], 1234)
-        self.assertEqual(opener.payload["chat_template_kwargs"]["enable_thinking"], True)
-
-    def test_local_dispatch_respects_local_thinking_on_and_off_overrides(self) -> None:
-        route = classify_work(
-            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            local_ok=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["architecture"],
-        )
-        with self.subTest("off"):
-            args = Namespace(
-                local_api_key_env=None,
-                local_timeout=None,
-                local_base_url="http://127.0.0.1:8000",
-                local_model=None,
-                local_allow_private_dns=False,
-                local_ca_bundle=None,
-                local_insecure_tls=False,
-                local_max_tokens=None,
-                local_thinking="off",
-                allow_offline_access_profile=True,
-                execute_local=True,
-            )
-            envelope = build_local_envelope(
-                task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-                route=route,
-                dispatch_id="dispatch-glm-test",
-                bead_id="cwo-glm",
-                epic_id=None,
-                args=args,
-            )
-            self.assertEqual(envelope["request_options"]["chat_template_kwargs"]["enable_thinking"], False)
-
-            opener = FakePayloadOpener()
-            with patch("dispatch_work.request.build_opener", return_value=opener):
-                execute_local_envelope(envelope, route["selected_executor"], args)
-            self.assertEqual(opener.payload["chat_template_kwargs"]["enable_thinking"], False)
-
-        with self.subTest("on"):
-            args = Namespace(
-                local_api_key_env=None,
-                local_timeout=None,
-                local_base_url="http://127.0.0.1:8000",
-                local_model=None,
-                local_allow_private_dns=False,
-                local_ca_bundle=None,
-                local_insecure_tls=False,
-                local_max_tokens=None,
-                local_thinking="on",
-                allow_offline_access_profile=True,
-                execute_local=True,
-            )
-            envelope = build_local_envelope(
-                task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-                route=route,
-                dispatch_id="dispatch-glm-test-on",
-                bead_id="cwo-glm",
-                epic_id=None,
-                args=args,
-            )
-            self.assertEqual(envelope["request_options"]["chat_template_kwargs"]["enable_thinking"], True)
-
-            opener = FakePayloadOpener()
-            with patch("dispatch_work.request.build_opener", return_value=opener):
-                execute_local_envelope(envelope, route["selected_executor"], args)
-            self.assertEqual(opener.payload["chat_template_kwargs"]["enable_thinking"], True)
-
-    def test_local_dispatch_combined_max_tokens_and_thinking_override(self) -> None:
-        route = classify_work(
-            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            local_ok=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["architecture"],
-        )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model=None,
-            local_allow_private_dns=False,
-            local_ca_bundle=None,
-            local_insecure_tls=False,
-            local_max_tokens=4096,
-            local_thinking="off",
-            allow_offline_access_profile=True,
-            execute_local=True,
-        )
-        envelope = build_local_envelope(
-            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            route=route,
-            dispatch_id="dispatch-glm-test",
-            bead_id="cwo-glm",
-            epic_id=None,
-            args=args,
-        )
-        self.assertEqual(
-            envelope["request_options"],
-            {"chat_template_kwargs": {"enable_thinking": False}, "max_tokens": 4096},
-        )
-        opener = FakePayloadOpener()
-        with patch("dispatch_work.request.build_opener", return_value=opener):
-            execute_local_envelope(envelope, route["selected_executor"], args)
-        self.assertEqual(opener.payload["max_tokens"], 4096)
-        self.assertEqual(opener.payload["chat_template_kwargs"]["enable_thinking"], False)
-
-    def test_local_dispatch_rejects_non_positive_max_tokens(self) -> None:
-        route = classify_work(
-            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-            local_ok=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["architecture"],
-        )
-        args = Namespace(
-            local_api_key_env=None,
-            local_timeout=None,
-            local_base_url="http://127.0.0.1:8000",
-            local_model=None,
-            local_allow_private_dns=False,
-            local_ca_bundle=None,
-            local_insecure_tls=False,
-            local_max_tokens=0,
-            local_thinking="default",
-            execute_local=True,
-        )
-        with self.assertRaises(SystemExit):
-            build_local_envelope(
-                task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
-                route=route,
-                dispatch_id="dispatch-glm-test",
-                bead_id="cwo-glm",
-                epic_id=None,
-                args=args,
-            )
 
     def test_glm_private_dns_execution_uses_pinned_https_handler(self) -> None:
         route = classify_work(
@@ -2430,6 +2042,366 @@ class LocalDispatchTests(unittest.TestCase):
                 if rejected_token is not None:
                     self.assertNotIn(rejected_token, rendered)
                     self.assertNotIn(rejected_token, compact)
+
+    def test_execute_local_omits_raw_http_error_body(self) -> None:
+        route = classify_work(
+            "Documentation review for internal example notes.",
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["documentation"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model="test-model",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Documentation review for internal example notes.",
+            route=route,
+            dispatch_id="dispatch-local-test",
+            bead_id="cwo-local",
+            epic_id=None,
+            args=args,
+        )
+        with patch("dispatch_work.request.build_opener", return_value=FakeHTTPErrorOpener()):
+            with self.assertRaises(SystemExit) as context:
+                execute_local_envelope(envelope, route["selected_executor"], args)
+
+        rendered = str(context.exception)
+        self.assertIn("response body omitted", rendered)
+        self.assertIn("sha256=", rendered)
+        self.assertNotIn("plain-secret", rendered)
+        self.assertNotIn("Status: injected", rendered)
+
+    def test_execute_local_rejects_non_200_response_without_body(self) -> None:
+        route = classify_work(
+            "Documentation review for internal example notes.",
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["documentation"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model="test-model",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Documentation review for internal example notes.",
+            route=route,
+            dispatch_id="dispatch-local-redirect",
+            bead_id="cwo-local",
+            epic_id=None,
+            args=args,
+        )
+        with patch("dispatch_work.request.build_opener", return_value=FakeRedirectOpener()):
+            with self.assertRaises(SystemExit) as context:
+                execute_local_envelope(envelope, route["selected_executor"], args)
+        rendered = str(context.exception)
+        self.assertIn("did not return HTTP 200", rendered)
+        self.assertNotIn("redirected content", rendered)
+
+    def test_glm53_noauth_profile_rejects_override_and_ignores_shared_key(self) -> None:
+        route = self._glm53_route()
+        args = self._glm53_args()
+        args.local_api_key_env = "CWO_LOCAL_OPENAI_API_KEY"
+        with self.assertRaisesRegex(SystemExit, "no-auth"):
+            build_local_envelope(
+                task="Review one bounded architecture concern.",
+                route=route,
+                dispatch_id="dispatch-glm53-auth-override",
+                bead_id="cwo-glm53",
+                epic_id=None,
+                args=args,
+            )
+
+        args.local_api_key_env = None
+        envelope = build_local_envelope(
+            task="Review one bounded architecture concern.",
+            route=route,
+            dispatch_id="dispatch-glm53-auth-shared",
+            bead_id="cwo-glm53",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakeGLM53Opener()
+        with patch.dict(os.environ, {"CWO_LOCAL_OPENAI_API_KEY": "must-not-be-sent"}):
+            with patch("dispatch_work.request.build_opener", return_value=opener):
+                execute_local_envelope(envelope, route["selected_executor"], args)
+        self.assertTrue(all("authorization" not in headers for headers in opener.headers))
+
+    def test_hardened_glm_expired_preflight_blocks_chat(self) -> None:
+        route = self._hardened_glm_route()
+        args = self._hardened_glm_args()
+        envelope = build_local_envelope(
+            task="Compact independent architecture review.",
+            route=route,
+            dispatch_id="dispatch-glm-256k-expired",
+            bead_id="cwo-glm-256k",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakeHardenedOpener()
+        monotonic_values = iter([0.0, 0.1, 0.2, 0.2, 1.5])
+        last_monotonic = [0.0]
+
+        def monotonic():
+            # Additional read-only guard work cannot exhaust the clock fixture;
+            # time remains expired after reaching1.5, rather than moving backward.
+            last_monotonic[0] = next(monotonic_values, last_monotonic[0])
+            return last_monotonic[0]
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            with patch("dispatch_work.time.monotonic", side_effect=monotonic):
+                with self.assertRaises(SystemExit) as context:
+                    execute_local_envelope(envelope, route["selected_executor"], args)
+        self.assertIn("preflight expired", str(context.exception))
+        self.assertFalse(opener.chat_called)
+
+    def test_bounded_local_response_refusal_variants(self) -> None:
+        variants = (
+            ('test_bounded_local_response_rejects_malformed_content_length',
+             b'okay',
+             'Content-Length',
+             'four',
+             'malformed Content-Length'),
+            ('test_bounded_local_response_rejects_unsupported_content_encoding',
+             b'okay',
+             'Content-Encoding',
+             'gzip',
+             'unsupported content encoding'),
+            ('test_bounded_local_response_rejects_premature_eof',
+             b'ok',
+             'Content-Length',
+             '4',
+             'ended before Content-Length'),
+        )
+        for original, body, header, header_value, diagnostic in variants:
+            with self.subTest(original=original):
+                response = BoundedResponse(body, {header: header_value})
+                with self.assertRaisesRegex(SystemExit, diagnostic):
+                    _read_local_http_response(response, cap=8, phase="test")
+
+
+    def test_execute_local_posts_openai_compatible_payload(self) -> None:
+        route = classify_work(
+            "Documentation review for internal example notes.",
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["documentation"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url=None,
+            local_model=None,
+            execute_local=True,
+        )
+        with patch.dict(
+            os.environ,
+            {
+                "CWO_OPENSHIFT_AI_VLLM_BASE_URL": "http://127.0.0.1:8000",
+                "CWO_OPENSHIFT_AI_VLLM_MODEL": "test-model",
+            },
+            clear=False,
+        ):
+            envelope = build_local_envelope(
+                task="Documentation review for internal example notes.",
+                route=route,
+                dispatch_id="dispatch-local-test",
+                bead_id="cwo-local",
+                epic_id=None,
+                args=args,
+            )
+            opener = FakeOpener()
+            with patch("dispatch_work.request.build_opener", return_value=opener):
+                response = execute_local_envelope(envelope, route["selected_executor"], args)
+            for encoding in ("", "identity", "IDENTITY", "gzip"):
+                with self.subTest(public_content_encoding=encoding):
+                    class EncodedResponse(FakeResponse):
+                        def getheader(self, name, content_encoding=encoding):
+                            return content_encoding if name == "Content-Encoding" else None
+
+                    class EncodedOpener(FakeOpener):
+                        def open(self, *arguments, **options):
+                            self.called = True
+                            return EncodedResponse()
+
+                    framed = build_local_envelope(
+                        task="Documentation review for internal example notes.", route=route,
+                        dispatch_id=f"dispatch-local-encoding-{encoding or 'empty'}",
+                        bead_id="cwo-local", epic_id=None, args=args,
+                    )
+                    transport = EncodedOpener()
+                    try:
+                        with patch("dispatch_work.request.build_opener", return_value=transport):
+                            observed = execute_local_envelope(framed, route["selected_executor"], args)
+                    except SystemExit as exc:
+                        observed = exc
+                    self.assertTrue(transport.called)
+                    if encoding == "gzip":
+                        self.assertIsInstance(observed, SystemExit)
+                        self.assertIn("unsupported content encoding", str(observed))
+                    else:
+                        self.assertIsInstance(observed, dict, "Identity encoding is a supported public response")
+                        self.assertEqual(observed["status_code"], 200)
+                        self.assertEqual(observed["response"]["choices"][0]["message"]["content"], "ok")
+        self.assertEqual(response["status_code"], 200)
+        self.assertIn("elapsed_seconds", response)
+        self.assertTrue(opener.called)
+
+        telemetry = local_response_telemetry(response)
+        self.assertEqual(telemetry["input_tokens"], 11)
+        self.assertEqual(telemetry["output_tokens"], 7)
+        self.assertEqual(telemetry["total_tokens"], 18)
+        self.assertEqual(telemetry["agent_model_calls"], 1)
+        self.assertIn("local_response_sha256", telemetry)
+        self.assertNotIn("response", telemetry)
+        self.assertNotIn("\"content\"", json.dumps(telemetry))
+        self.assertNotIn("\"message\"", json.dumps(telemetry))
+
+    def test_execute_local_rejects_public_endpoint_before_post(self) -> None:
+        route = classify_work(
+            "Documentation review for internal example notes.",
+            local_ok=True,
+            prefer_local=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["documentation"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="https://example.com",
+            local_model="test-model",
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Documentation review for internal example notes.",
+            route=route,
+            dispatch_id="dispatch-local-test",
+            bead_id="cwo-local",
+            epic_id=None,
+            args=args,
+        )
+        fake_records = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+        with patch("dispatch_work.socket.getaddrinfo", return_value=fake_records):
+            with self.assertRaises(SystemExit):
+                execute_local_envelope(envelope, route["selected_executor"], args)
+
+    def test_glm_execute_posts_thinking_options_and_strips_reasoning(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            allow_offline_access_profile=True,
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-test",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakePayloadOpener()
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            response = execute_local_envelope(envelope, route["selected_executor"], args)
+
+        self.assertEqual(opener.payload["chat_template_kwargs"], {"enable_thinking": True})
+        self.assertEqual(opener.payload["model"], "glm-5.2-bf16-128k")
+        message = response["response"]["choices"][0]["message"]
+        self.assertEqual(message["content"], "GLM final")
+        self.assertTrue(response["reasoning_stripped"])
+        self.assertIn("raw_response_sha256", response)
+        self.assertNotIn("private reasoning", json.dumps(response))
+
+        telemetry = local_response_telemetry(response)
+        self.assertTrue(telemetry["reasoning_stripped"])
+        self.assertEqual(telemetry["reasoning_chars"], len("private reasoning"))
+        self.assertIn("raw_response_sha256", telemetry)
+        self.assertNotIn("private reasoning", json.dumps(telemetry))
+
+    def test_glm_execute_records_truncated_finish_reason(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            allow_offline_access_profile=True,
+            execute_local=True,
+        )
+        envelope = build_local_envelope(
+            task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            route=route,
+            dispatch_id="dispatch-glm-test",
+            bead_id="cwo-glm",
+            epic_id=None,
+            args=args,
+        )
+        opener = FakeTruncatedPayloadOpener()
+        with patch("dispatch_work.request.build_opener", return_value=opener):
+            response = execute_local_envelope(envelope, route["selected_executor"], args)
+
+        self.assertTrue(response["response_truncated"])
+        self.assertEqual(response["finish_reasons"], ["length"])
+        telemetry = local_response_telemetry(response)
+        self.assertTrue(telemetry["response_truncated"])
+        self.assertEqual(telemetry["finish_reasons"], ["length"])
+        self.assertNotIn("private reasoning", json.dumps(telemetry))
+
+    def test_local_dispatch_rejects_non_positive_max_tokens(self) -> None:
+        route = classify_work(
+            "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+            local_ok=True,
+            local_profile="openshift-ai-vllm",
+            requested_roles=["architecture"],
+        )
+        args = Namespace(
+            local_api_key_env=None,
+            local_timeout=None,
+            local_base_url="http://127.0.0.1:8000",
+            local_model=None,
+            local_allow_private_dns=False,
+            local_ca_bundle=None,
+            local_insecure_tls=False,
+            local_max_tokens=0,
+            local_thinking="default",
+            execute_local=True,
+        )
+        with self.assertRaises(SystemExit):
+            build_local_envelope(
+                task="Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion.",
+                route=route,
+                dispatch_id="dispatch-glm-test",
+                bead_id="cwo-glm",
+                epic_id=None,
+                args=args,
+            )
 
 
 if __name__ == "__main__":

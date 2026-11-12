@@ -500,6 +500,30 @@ class NativeControlTest(unittest.TestCase):
         self.assertIn("interrupt:completion-race", progress["receipt"]["decisions"])
         self.assertEqual(validate_control_turn_receipt(progress["receipt"]), [])
 
+    def test_r3_outer_cleanup_bound_seals_failure_without_claiming_close(self) -> None:
+        adapter = DeferredCloseAdapter(["interrupt"])
+        runner = NativeControlTurn(contract(), adapter.callbacks())
+        progress = runner.step(TASK)
+        runner.request_interrupt("control-lost")
+        for _ in range(8):
+            progress = runner.step()
+            if progress["phase"] == "waiting-close-interrupt":
+                break
+        self.assertEqual(progress["phase"], "waiting-close-interrupt")
+        calls = list(adapter.calls)
+        with self.assertRaises(ValueError):
+            runner.fail_control(" ")
+        terminal = runner.fail_control("interrupt-cleanup-step-bound-exhausted")
+        receipt = terminal["receipt"]
+        self.assertEqual(validate_control_turn_receipt(receipt, contract=contract()), [])
+        self.assertEqual(receipt["terminal_state"], "control-failed")
+        self.assertIn("interrupt:control-lost", receipt["decisions"])
+        self.assertEqual(receipt["errors"], ["interrupt-cleanup-step-bound-exhausted"])
+        self.assertNotIn("finalize:close-confirmed", receipt["actions"])
+        self.assertEqual(runner.fail_control("later failure"), terminal)
+        self.assertEqual(runner.step(), terminal)
+        self.assertEqual(adapter.calls, calls)
+
     def test_invalid_start_and_invalid_resume_use_zero_callbacks(self) -> None:
         adapter = FakeAdapter(["complete"])
         runner = NativeControlTurn(contract(), adapter.callbacks())

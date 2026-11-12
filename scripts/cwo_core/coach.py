@@ -3,9 +3,11 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .model_identities import SPARK_MODEL
 from .routing import (
     classify_work,
     expert_uses_external_contract,
+    refuse_risk_narrowing,
     resolve_beads_context_depth,
 )
 from .synthesis import recommend_model_synthesis
@@ -14,7 +16,7 @@ from .util import term_hits
 
 _COACH_AUTHORITY_OMITTED = object()
 
-SPARK_MODEL_ALIAS = "gpt-5.3-codex-spark"
+SPARK_MODEL_ALIAS = SPARK_MODEL
 
 
 PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
@@ -196,7 +198,7 @@ def prompt_coach_has_native_spark_control_context(text: str) -> bool:
             "spark worker",
             "spark model",
             "codex 5.3 spark",
-            "gpt-5.3-codex-spark",
+            SPARK_MODEL,
             "local spark",
             "local codex cli",
             "local cli",
@@ -1011,7 +1013,8 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     if mode == "none":
         rationale.append("No separate parallel workstream is needed; continue in-thread under existing authority.")
 
-    if mode != "none" and operative_route_authoritative:
+    # Native containment takes precedence: an authorized operative route cannot reopen a contained dispatch.
+    if mode != "none" and operative_route_authoritative and not native_precommit_contained:
         if operative_route.get("dispatch_authorized") is True:
             selected_model = str(operative_route.get("selected_model") or "")
             spark_dispatch.update(
@@ -1081,7 +1084,8 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     return {
         "recommended_mode": mode,
         "recommended_model": (
-            operative_route.get("selected_model") if operative_route.get("dispatch_authorized") is True
+            None if hard_stop
+            else operative_route.get("selected_model") if operative_route.get("dispatch_authorized") is True
             else SPARK_MODEL_ALIAS
             if mode != "none" and not hard_stop and not operative_route_authoritative
             else None
@@ -1455,11 +1459,12 @@ def prompt_coach_missing_questions(
     return questions
 
 
-def workerbee_model_phrase(workerbee_parallelism: dict[str, Any] | None) -> str:
+def workerbee_route_model(workerbee_parallelism: dict[str, Any] | None) -> str | None:
+    """The operative route subagents would use, as a noun phrase for a sentence, or None when none is available."""
     if not workerbee_parallelism:
         return "Codex 5.3 Spark as the default operative route"
-    if workerbee_parallelism.get("registry_tool_mismatch"):
-        return "no available Codex 5.3 Spark path until a registry/tool mismatch is resolved"
+    if workerbee_parallelism.get("registry_tool_mismatch") or workerbee_parallelism.get("hard_stop"):
+        return None
     dispatch = workerbee_parallelism.get("spark_dispatch")
     if not isinstance(dispatch, dict):
         return "Codex 5.3 Spark as the default operative route"
@@ -1467,7 +1472,20 @@ def workerbee_model_phrase(workerbee_parallelism: dict[str, Any] | None) -> str:
         return f"qualified exact {workerbee_parallelism['recommended_model']} on the current task-selected route"
     if workerbee_parallelism.get("recommended_model") == SPARK_MODEL_ALIAS:
         return "Codex 5.3 Spark natively"
-    return "no qualified operative route until current authority and admission gates pass"
+    return None
+
+
+def workerbee_unavailable_reason(workerbee_parallelism: dict[str, Any] | None) -> str:
+    """Why no operative route can run subagents now, as a complete sentence."""
+    if (workerbee_parallelism or {}).get("registry_tool_mismatch"):
+        return "No Codex 5.3 Spark path is available until a registry/tool mismatch is resolved."
+    return "No qualified operative route is available until current authority and admission gates pass."
+
+
+def workerbee_use_phrase(workerbee_parallelism: dict[str, Any] | None) -> str:
+    """The start of an option description: which route to use, without denial text when none is available."""
+    model = workerbee_route_model(workerbee_parallelism)
+    return f"Use {model}" if model else "Use subagents"
 
 
 def prompt_coach_interactive_questions(
@@ -1588,17 +1606,17 @@ def prompt_coach_interactive_questions(
     ):
         recommended = workerbee_parallelism or {}
         recommended_mode = recommended.get("recommended_mode") or "review-only"
-        model_phrase = workerbee_model_phrase(workerbee_parallelism)
+        use_phrase = workerbee_use_phrase(workerbee_parallelism)
         option_map = {
             "heavy-review": {
                 "label": "Heavy review subagents (Recommended)",
                 "value": "heavy-review-subagents",
-                "description": f"Use {model_phrase} for parallel docs-flow, terminology, web-design, validation, and publish checks.",
+                "description": f"{use_phrase} for parallel docs-flow, terminology, web-design, validation, and publish checks.",
             },
             "review-only": {
                 "label": "Review subagents (Recommended)",
                 "value": "review-subagents",
-                "description": f"Use {model_phrase} for bounded review or investigation workstreams.",
+                "description": f"{use_phrase} for bounded review or investigation workstreams.",
             },
             "implementation-capable": {
                 "label": "Split implementation (Recommended)",
@@ -1618,7 +1636,7 @@ def prompt_coach_interactive_questions(
                 "header": "Subagents",
                 "question": "Should CWO parallelize this work with subagent lanes?",
                 "why": "The answer changes whether sidecar review or disjoint implementation work runs in parallel.",
-                "options": workerbee_parallelism_options(str(recommended_mode), first, model_phrase),
+                "options": workerbee_parallelism_options(str(recommended_mode), first, use_phrase),
             }
         )
 
@@ -1777,12 +1795,12 @@ def dedupe_interactive_options(options: list[dict[str, str]]) -> list[dict[str, 
 def workerbee_parallelism_options(
     recommended_mode: str,
     first: dict[str, str],
-    model_phrase: str,
+    use_phrase: str,
 ) -> list[dict[str, str]]:
     heavy = {
         "label": "Heavy review subagents",
         "value": "heavy-review-subagents",
-        "description": f"Use {model_phrase} for multiple bounded review tracks before integration.",
+        "description": f"{use_phrase} for multiple bounded review tracks before integration.",
     }
     review = {
         "label": "Review subagents",
@@ -2023,11 +2041,17 @@ def prompt_coach_rationale(
             "The user explicitly requested ChatGPT Pro 5.5 master review; treat that lane as a blocking gate before implementation."
         )
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
-        rationale.append(
-            "Subagent parallelism is recommended as "
-            f"{workerbee_parallelism.get('recommended_mode')} using {workerbee_model_phrase(workerbee_parallelism)} "
-            "for bounded sidecar workstreams."
-        )
+        model = workerbee_route_model(workerbee_parallelism)
+        if model and workerbee_parallelism.get("recommended_mode") != "blocked":
+            rationale.append(
+                f"Subagent parallelism is recommended as {workerbee_parallelism.get('recommended_mode')} using {model} "
+                "for bounded sidecar workstreams."
+            )
+        else:
+            rationale.append(
+                "Subagent lanes would suit bounded sidecar workstreams, but none can run now. "
+                + workerbee_unavailable_reason(workerbee_parallelism)
+            )
     if model_synthesis and model_synthesis.get("active"):
         rationale.append(
             "CWO-native model synthesis is active; independent evidence lanes should be synthesized before architect adjudication."
@@ -2069,7 +2093,8 @@ def prompt_coach_warnings(
     warnings: list[str] = []
     hard_stops = route.get("hard_stops") or []
     for stop in hard_stops:
-        warnings.append(f"Policy hard stop: {stop}")
+        # A route stop blocks dispatching models for this work; planning and manual preparation can continue.
+        warnings.append(f"Model dispatch is unavailable for this work ({stop}); planning and manual preparation can continue.")
     if "registry_tool_mismatch" in [str(stop) for stop in hard_stops]:
         warnings.append(
             "Spark registry/tool mismatch is a hard stop: execution of Spark-dependent workerbees is blocked until the mismatch is recorded and resolved."
@@ -2119,6 +2144,34 @@ def prompt_coach_warnings(
     return warnings
 
 
+def execution_availability(route: dict[str, Any]) -> dict[str, Any]:
+    """Whether models can be dispatched for this work, kept apart from the planning recommendation.
+
+    Checks both route-level hard_stops and native containment gates. Native containment denial
+    makes dispatch unavailable even when the operative route is otherwise authorized.
+    """
+    operative = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
+    stops = [str(stop) for stop in route.get("hard_stops") or []]
+
+    # Native containment denies dispatch independently of the operative route and takes precedence over it.
+    native_dispatch = route.get("native_operative_dispatch")
+    if isinstance(native_dispatch, dict) and not native_dispatch.get("dispatch_authorized"):
+        detail = str(native_dispatch.get("stop_reason") or native_dispatch.get("reason") or "denied")
+        release = native_dispatch.get("release_requires")
+        native_reason = f"native containment: {detail}" + (f" until {release}" if release else "")
+        if native_reason not in stops:
+            stops.append(native_reason)
+
+    authorized = bool(operative.get("dispatch_authorized")) and not stops
+    if authorized:
+        summary = "Model dispatch is available for this work under its current operative route."
+    else:
+        reason = ", ".join(stops) or str(operative.get("stop_reason") or "no authorized operative route")
+        summary = (f"Model dispatch is unavailable for this work ({reason}). This blocks dispatching workers, not planning, "
+                   "and dispatch stays refused until the gate passes.")
+    return {"dispatch_authorized": authorized, "stops": stops, "summary": summary}
+
+
 def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
     if not workerbee_parallelism or workerbee_parallelism.get("recommended_mode") == "none":
         return "Always ask the user whether to parallelize with subagents; default to no subagents for narrow work unless the user opts in.\n"
@@ -2132,12 +2185,13 @@ def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
         dispatch_notice = "Native Spark dispatch is the preferred route.\n"
     lanes = workerbee_parallelism.get("suggested_lanes") or ["bounded sidecar review"]
     prefix = "heavy review" if workerbee_parallelism.get("recommended_mode") == "heavy-review" else workerbee_parallelism.get("recommended_mode")
+    availability = "" if workerbee_route_model(workerbee_parallelism) else workerbee_unavailable_reason(workerbee_parallelism) + " "
     return (
         dispatch_notice +
-        f"Use {workerbee_model_phrase(workerbee_parallelism)} for "
+        f"{workerbee_use_phrase(workerbee_parallelism)} for "
         f"{prefix} parallelism on: "
         + ", ".join(str(item) for item in lanes)
-        + ". Keep main-thread architecture, file integration, and acceptance decisions with the architect.\n"
+        + ". " + availability + "Keep main-thread architecture, file integration, and acceptance decisions with the architect.\n"
     )
 
 
@@ -2411,9 +2465,15 @@ def coach_orchestration_prompt(
     previous_operative_route: dict[str, Any] | None = None,
     operative_evaluated_at: str | None = None,
     current_authority: Any = _COACH_AUTHORITY_OMITTED,
+    text_segments: list[str] | None = None,
+    risk_scope: dict[str, Any] | None = None,
+    risk_evidence_dir: str | None = None,
 ) -> CoachResult:
+    # Risk narrowing is not supported in this version; any narrowing input is refused first.
+    refuse_risk_narrowing(risk_scope=risk_scope, risk_evidence_dir=risk_evidence_dir, source="coach_orchestration_prompt")
     route = classify_work(
         text,
+        text_segments=text_segments,
         external_ok=external_ok,
         allow_disclosure_escalation=allow_disclosure_escalation,
         local_ok=local_ok,
@@ -2557,4 +2617,5 @@ def coach_orchestration_prompt(
             beads_context_depth_signal,
             operator_calibration,
         ),
+        "execution_availability": execution_availability(route),
     }

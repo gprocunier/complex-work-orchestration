@@ -24,6 +24,7 @@ import subprocess
 import time
 import uuid
 from typing import Any, Mapping, Sequence
+from cwo_core import native_live_availability as live_availability
 
 from cwo_core.maintenance_runtime_support import (
     MaintenanceControllerContext, MaintenanceRelease, MaintenanceRuntimeError, MaintenanceSessionLedger, MaintenanceTask,
@@ -63,9 +64,11 @@ from cwo_core.workspace import capture_workspace_baseline, compare_workspace_bas
 from prepare_native_worker import (
     _render_prompt, validate_native_worker_packet, validate_native_worker_return,
 )
+from cwo_core.supervision.transport.app_server import AppServer, THREAD_PHASE_PRECOMMIT_FIT
+from cwo_core.supervision.transport.errors import AppServerError as AppServerError
+from cwo_core.supervision.turn_observations import turn_items
 from run_native_pool_live_canaries import (
-    AppServer, AppServerError, LiveThreadAdapter, THREAD_PHASE_PRECOMMIT_FIT,
-    capture_server_tool_surface, contain_started_threads, pool_sleep, turn_items,
+    LiveThreadAdapter, capture_server_tool_surface, contain_started_threads, pool_sleep,
 )
 
 
@@ -423,6 +426,7 @@ class _Runtime:
         return surface
 
     def prepare(self, plan):
+        live_availability.require_n1_live()
         require(not self.prepared and plan == self.plan, "prepare-reused-or-plan-mismatch")
         self._guard()
         self._qualified_guard()
@@ -677,7 +681,8 @@ class _Runtime:
             read_only_command_authority=self.task.read_only_command_authority,
             completion_evidence_policy=child["completion_evidence_policy"], tool_policy=self.tool_policy,
             prompt_preflight_receipt=prompt_receipt, preflight_tool_surface=surface,
-            tool_surface_reader=self._surface, record_dir=self.context.run_dir)
+            tool_surface_reader=self._surface, record_dir=self.context.run_dir,
+            campaign_live_route=False)
         adapter.bind_workspace_baseline(self.monitor.child_baseline(self.task.child_id))
         adapter.bind_effective_boundary(planned_child=planned, runtime_child=child, pool_contract=contract,
             control_contract=control, predispatch_proof=proof,

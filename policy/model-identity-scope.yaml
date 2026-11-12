@@ -1,0 +1,312 @@
+{
+  "version": 1,
+  "schema": "json-compatible-yaml",
+  "name": "model-identity-scope",
+  "authority": "none",
+  "scope": "Classification register for the scoped model-identity lint (cwo_core.model_identity_scope), run by scripts/validate_repository.py. It classifies every gpt- model identity found in scripts/ and in policy/*.yaml other than this file, and pins exact counts. It grants no selection, dispatch, qualification, clearance or acceptance authority, and no runtime consumer reads it. Archived and historical records (schemas/, tests/, calibration/, docs/, references/, examples/, CHANGELOG.md) are outside the lint and are never rewritten to satisfy it.",
+  "current_models": [
+    "gpt-5.6-luna",
+    "gpt-5.6-terra",
+    "gpt-6.1-sol",
+    "gpt-6-astra"
+  ],
+  "policy_locations": [
+    {
+      "file": "provider-registry.yaml",
+      "pointer": "/review_models",
+      "class": "current",
+      "literals": {
+        "gpt-6.1-sol": 2,
+        "gpt-6-astra": 1
+      },
+      "reason": "Recorded peer-review identity and explicit escalation metadata only. This table neither selects nor invokes a model and does not change active worker routing, qualification or held effects. Exact counts freeze this product review vocabulary; the register grants no authority."
+    },
+    {
+      "file": "execution-environments.yaml",
+      "pointer": "/profiles/connected-codex/role_bindings",
+      "class": "current",
+      "literals": {
+        "gpt-6.1-sol": 1,
+        "gpt-5.6-luna": 1
+      },
+      "reason": "Current connected-Codex role bindings: architect and operative worker."
+    },
+    {
+      "file": "execution-environments.yaml",
+      "pointer": "/profiles/connected-codex/operative_routing",
+      "class": "historical",
+      "literals": {
+        "gpt-5.3-codex-spark": 1
+      },
+      "reason": "The profile's notes state that legacy operative_routing describes historical v2 records only and that task_selected_routing governs dispatch; this block is part of the v2 policy digest (operative_routing.operative_policy_sha256)."
+    },
+    {
+      "file": "execution-environments.yaml",
+      "pointer": "/profiles/connected-codex-glm-primary/role_bindings",
+      "class": "nonoperative",
+      "literals": {
+        "gpt-5.3-codex-spark": 1
+      },
+      "reason": "The GLM-primary worker binding names gpt-5.3-codex-spark, which the active task_selected_routing v3 marks historical-nonoperative. Operator decision 2026-10-22 (policy validation): Spark is deprecated and this binding follows the general deprecated-model path. The binding is kept as recorded; harness dispatch (cwo_core.harness.build_harness_dispatch) refuses it through operative_routing.nonoperative_model_refusal, the routing summary marks it model_status historical-nonoperative, and operative selection never reads it (resolve_operative_route returns a v3 route). No other model is substituted."
+    },
+    {
+      "file": "execution-environments.yaml",
+      "pointer": "/profiles/connected-codex-glm-primary/operative_routing",
+      "class": "historical",
+      "literals": {
+        "gpt-5.3-codex-spark": 1
+      },
+      "reason": "Legacy v2 operative_routing block of the GLM-primary profile. It is bound into that environment's v2 and v3 policy digests (operative_routing.operative_policy_sha256 and task_selected_policy_sha256), and while task_selected_routing v3 is active the operative route never reads it for selection (resolve_operative_route returns a v3 route for every environment) and historical_v2 keeps it readable, nonoperative for v3 and without new dispatch authority, as for the connected-codex block. The profile's notes do not say so; the digest and the v3 policy do."
+    },
+    {
+      "file": "executor-registry.yaml",
+      "pointer": "/executors/internal_worker",
+      "class": "unadjudicated",
+      "literals": {
+        "gpt-5.3-codex-spark": 1
+      },
+      "reason": "Executor definition whose model label task_selected_routing v3 does not select; read by v2 fallback-fit records and executor routing."
+    },
+    {
+      "file": "executor-registry.yaml",
+      "pointer": "/executors/internal_worker_gpt55",
+      "class": "unadjudicated",
+      "literals": {
+        "gpt-5.5": 2
+      },
+      "reason": "Executor definition for a model task_selected_routing v3 prohibits for dispatch (gpt55_dispatch); an approved v2 fallback executor whose entry is part of the v2 policy digest."
+    },
+    {
+      "file": "executor-registry.yaml",
+      "pointer": "/executors/internal_worker_terra",
+      "class": "current",
+      "literals": {
+        "gpt-5.6-terra": 1
+      },
+      "reason": "Executor for the current escalation-only operative model."
+    },
+    {
+      "file": "executor-registry.yaml",
+      "pointer": "/executors/internal_worker_luna",
+      "class": "current",
+      "literals": {
+        "gpt-5.6-luna": 1
+      },
+      "reason": "Executor for the current primary operative model."
+    },
+    {
+      "file": "model-profiles.yaml",
+      "pointer": "/role_substitution_matrix",
+      "class": "current",
+      "literals": {
+        "gpt-6.1-sol": 1,
+        "gpt-5.6-luna": 2,
+        "gpt-5.6-terra": 1
+      },
+      "reason": "Connected defaults described for current roles."
+    },
+    {
+      "file": "native-worker-execution.yaml",
+      "pointer": "/task_selected_routing",
+      "class": "current",
+      "literals": {
+        "gpt-5.6-luna": 3,
+        "gpt-5.6-terra": 2
+      },
+      "reason": "Active v3 routing policy: approved portfolio, primary model and operative roles."
+    },
+    {
+      "file": "native-worker-execution.yaml",
+      "pointer": "/task_selected_routing/operative_roles/gpt-5.3-codex-spark",
+      "class": "historical",
+      "literals": {
+        "gpt-5.3-codex-spark": 1
+      },
+      "reason": "The active v3 policy marks this model historical-nonoperative."
+    },
+    {
+      "file": "native-worker-execution.yaml",
+      "pointer": "/operative_routing",
+      "class": "historical",
+      "literals": {
+        "gpt-5.3-codex-spark": 2,
+        "gpt-5.5": 2,
+        "gpt-5.6-terra": 3,
+        "gpt-5.6-luna": 3
+      },
+      "reason": "v2 operative routing contract. task_selected_routing.historical_v2 keeps v2 readable, nonoperative for v3 and without new dispatch authority; the block is part of the v2 policy digest bound into v2 fallback-fit records."
+    },
+    {
+      "file": "native-worker-execution.yaml",
+      "pointer": "/governance/spark",
+      "class": "unadjudicated",
+      "literals": {
+        "gpt-5.3-codex-spark": 1
+      },
+      "reason": "Pre-v3 governance entry for the Spark worker, read by native helpers."
+    },
+    {
+      "file": "native-worker-execution.yaml",
+      "pointer": "/governance/native_operative_worker",
+      "class": "unadjudicated",
+      "literals": {
+        "gpt-5.3-codex-spark": 2,
+        "gpt-5.5": 2,
+        "gpt-5.6-terra": 2,
+        "gpt-5.6-luna": 2
+      },
+      "reason": "Pre-v3 operative worker model lists; part of the v2 policy digest and compared with precommit and release model lists by native_precommit."
+    },
+    {
+      "file": "native-worker-execution.yaml",
+      "pointer": "/native_release_evidence",
+      "class": "unadjudicated",
+      "literals": {
+        "gpt-5.3-codex-spark": 2,
+        "gpt-5.5": 1,
+        "gpt-5.6-terra": 1,
+        "gpt-5.6-luna": 1
+      },
+      "reason": "Release-evidence model requirements; part of the v2 policy digest."
+    },
+    {
+      "file": "native-worker-execution.yaml",
+      "pointer": "/precommit_supervision",
+      "class": "unadjudicated",
+      "literals": {
+        "gpt-5.3-codex-spark": 2,
+        "gpt-5.5": 1,
+        "gpt-5.6-terra": 1,
+        "gpt-5.6-luna": 1
+      },
+      "reason": "Precommit supervision model requirements; part of the v2 policy digest."
+    },
+    {
+      "file": "native-worker-execution.yaml",
+      "pointer": "/native_supervision_pool/trusted_live_canary",
+      "class": "unadjudicated",
+      "literals": {
+        "gpt-5.3-codex-spark": 1
+      },
+      "reason": "Exact model of the trusted live canary used by the supervision-pool canary path."
+    },
+    {
+      "file": "synthesis-policy.yaml",
+      "pointer": "/provider_camps/codex/terms",
+      "class": "detection-term",
+      "literals": {
+        "gpt-5.3": 1,
+        "gpt-5.5": 1,
+        "gpt-5.6": 1
+      },
+      "reason": "Vocabulary that marks text as mentioning the Codex provider camp; not a model identity."
+    }
+  ],
+  "source_literals": [
+    {
+      "path": "scripts/cwo_core/coach.py",
+      "literal": "gpt-5",
+      "count": 2,
+      "class": "detection-term",
+      "reason": "Regular-expression fragments that recognize Spark mentions in prompts."
+    },
+    {
+      "path": "scripts/cwo_core/model_identities.py",
+      "literal": "gpt-5.3-codex-spark",
+      "count": 1,
+      "class": "unadjudicated",
+      "reason": "The one definition of the exact Spark identity (policy validation centralization; until then each consumer repeated the literal). Current runtime defaults and requirements import it and are not adjudicated: check_codex_worker_surface.DEFAULT_MODEL (--model default of the loopback tool-surface proof), check_native_worker_session.DEFAULT_REQUESTED_MODEL (default requested model), prepare_native_worker.REQUESTED_MODEL, scaffold_workgraph.SPARK_WORKER_MODEL, coach.SPARK_MODEL_ALIAS and one coach prompt term, native_precommit.REQUIRED_MODEL, native_activation_preview.MODEL, the policy-fit commitment requirement in work_sizing, the deterministic precommit receipt check in maintenance_readiness, the native disposition record check in execution_status_report, and operative_routing.SPARK_MODEL (v2 record validation and recognition of the v3 historical-nonoperative role). task_selected_routing v3 marks this model historical-nonoperative; replacing these defaults is an operator model choice. Frozen validator-contract files keep their own literals."
+    },
+    {
+      "path": "scripts/cwo_core/model_identities.py",
+      "literal": "gpt-5.5",
+      "count": 1,
+      "class": "unadjudicated",
+      "reason": "The one definition of the v2 fallback identity, imported by operative_routing to validate v2 fallback records."
+    },
+    {
+      "path": "scripts/cwo_core/model_identities.py",
+      "literal": "gpt-5.6-terra",
+      "count": 1,
+      "class": "current",
+      "reason": "The one definition of the current escalation-only operative model, imported by operative_routing."
+    },
+    {
+      "path": "scripts/cwo_core/model_identities.py",
+      "literal": "gpt-5.6-luna",
+      "count": 1,
+      "class": "current",
+      "reason": "The one definition of the current primary operative model, imported by operative_routing and scaffold_workgraph (scaffold notes)."
+    },
+    {
+      "path": "scripts/cwo_core/native_canary_contracts.py",
+      "literal": "gpt-5.6-sol",
+      "count": 3,
+      "class": "historical",
+      "reason": "Frozen validator-contract path: its blob SHA-256 is bound into historical live-campaign evidence (native_live_campaign_contracts.VALIDATOR_CONTRACT_PATHS_V1 to _V6), so editing the file breaks verification of those records."
+    },
+    {
+      "path": "scripts/cwo_core/native_live_campaign_contracts.py",
+      "literal": "gpt-5.3-codex-spark",
+      "count": 4,
+      "class": "historical",
+      "reason": "Frozen validator-contract path: its blob SHA-256 is bound into historical live-campaign evidence (native_live_campaign_contracts.VALIDATOR_CONTRACT_PATHS_V1 to _V6), so editing the file breaks verification of those records."
+    },
+    {
+      "path": "scripts/cwo_core/native_live_campaign_contracts.py",
+      "literal": "gpt-5.6-sol",
+      "count": 1,
+      "class": "historical",
+      "reason": "Frozen validator-contract path: its blob SHA-256 is bound into historical live-campaign evidence (native_live_campaign_contracts.VALIDATOR_CONTRACT_PATHS_V1 to _V6), so editing the file breaks verification of those records."
+    },
+    {
+      "path": "scripts/cwo_core/routing_signals.py",
+      "literal": "gpt-5",
+      "count": 1,
+      "class": "detection-term",
+      "reason": "Provider vocabulary for text classification."
+    },
+    {
+      "path": "scripts/launch_chatgpt_cdp_chrome.sh",
+      "literal": "gpt-5.5",
+      "count": 1,
+      "class": "unadjudicated",
+      "reason": "Browser model-label confirmation text for the ChatGPT page; browser confirmation is disabled."
+    },
+    {
+      "path": "scripts/manage_instruction_profile.py",
+      "literal": "gpt-5.6-sol",
+      "count": 2,
+      "class": "unadjudicated",
+      "reason": "Current runtime default or requirement that names a model task_selected_routing v3 does not select. Not adjudicated or centralized in policy validation; frozen against growth until policy validation decides whether it is a historical verifier or a current default to replace. (model written into generated Codex profile configs; the connected-Codex architect binding names gpt-6.1-sol)."
+    },
+    {
+      "path": "scripts/cwo_core/supervision/transport/app_server.py",
+      "literal": "gpt-5.3-codex-spark",
+      "count": 1,
+      "class": "historical",
+      "reason": "Exact extraction of the existing historical transport constant from scripts/run_native_pool_live_canaries.py; same bytes/count/classification, no model selection or dispatch authority. Historical V1\u2013V6 path lists and evidence remain unchanged."
+    },
+    {
+      "path": "scripts/validate_repository.py",
+      "literal": "gpt-5.5",
+      "count": 1,
+      "class": "unadjudicated",
+      "reason": "Comment naming the GPT-5.5 executor key exception."
+    },
+    {
+      "path": "scripts/validate_repository.py",
+      "literal": "gpt-5.6-luna",
+      "count": 1,
+      "class": "current",
+      "reason": "Public documentation term check for the current primary model."
+    },
+    {
+      "path": "scripts/validate_repository.py",
+      "literal": "gpt-5.6-terra",
+      "count": 1,
+      "class": "current",
+      "reason": "Public documentation term check for the current escalation model."
+    }
+  ]
+}

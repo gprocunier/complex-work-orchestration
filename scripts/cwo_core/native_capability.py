@@ -103,13 +103,12 @@ def _canonical_json(value: Any) -> str:
 
 
 def _evaluate_base(evidence: dict[str, Any]) -> tuple[dict[str, bool], bool, bool, bool, bool]:
+    # The base states use only these fields; tool_surface_id, canary_session_id and advertised_models are bound
+    # by evaluate_native_capability, the receipt digest and validate_native_capability_receipt instead.
     requested_model = evidence.get("requested_model")
     configured_model = evidence.get("configured_model")
-    tool_surface_id = evidence.get("tool_surface_id")
-    canary_session_id = evidence.get("canary_session_id")
     attestation_source = evidence.get("attestation_source")
     attested_model = evidence.get("attested_model")
-    advertised_models = evidence.get("advertised_models")
 
     configured = bool(requested_model and configured_model == requested_model)
     advertised = bool(evidence.get("advertised"))
@@ -159,11 +158,10 @@ def evaluate_native_capability(evidence: dict[str, Any], authorized_models: Iter
     attested_model = evidence.get("attested_model")
     advertised_models = evidence.get("advertised_models")
     spawn_accepted_raw = evidence.get("spawn_accepted")
-    spawn_accepted_state = spawn_accepted_raw is True
     advertising = evidence.get("advertised")
     advertised_bool = advertising is True
 
-    states, _, _, _, attested_state = _evaluate_base(evidence)
+    states, _, _, _, _ = _evaluate_base(evidence)
     configured = states["configured"]
 
     reasons: List[str] = []
@@ -215,7 +213,6 @@ def evaluate_native_capability(evidence: dict[str, Any], authorized_models: Iter
             outcome = "native-attestation-mismatch"
             reasons = ["native-attestation-mismatch"]
             states["attested"] = False
-            attested_state = False
         elif closure_receipt is not True:
             outcome = "missing-closure"
             reasons = ["missing-closure"]
@@ -578,16 +575,27 @@ def build_native_capability_receipt(
     evidence_sha256 = canonical_capability_evidence_sha256(evidence)
     if not isinstance(session_authority, VerifiedAuthority):
         raise ValueError("capability verified session authority is required")
-    if (
-        session_authority.source_type != "worker-discovery"
-        or session_authority.source_id != evidence.get("canary_session_id")
-        or session_authority.source_sha256 != evidence_sha256
-        or session_authority.actor_role != "operative-worker"
-        or session_authority.identity_source != evidence.get("attestation_source")
-        or session_authority.authorized_scope != "child"
-        or session_authority.serialize().get("parent_receipt_sha256") is not None
-    ):
-        raise ValueError("capability session authority does not match trusted evidence")
+    # Each binding reports its own reason, named as in validate_native_capability_receipt, so a refusal says which
+    # bindings failed and every binding is observable on its own.
+    mismatches: list[str] = []
+    if session_authority.source_type != "worker-discovery":
+        mismatches.append("capability-authority-source-type-mismatch")
+    if session_authority.source_id != evidence.get("canary_session_id"):
+        mismatches.append("capability-authority-session-mismatch")
+    if session_authority.source_sha256 != evidence_sha256:
+        mismatches.append("capability-authority-evidence-mismatch")
+    if session_authority.actor_role != "operative-worker":
+        mismatches.append("capability-authority-role-mismatch")
+    if session_authority.identity_source != evidence.get("attestation_source"):
+        mismatches.append("capability-authority-identity-source-mismatch")
+    if session_authority.authorized_scope != "child":
+        mismatches.append("capability-authority-scope-mismatch")
+    if session_authority.serialize().get("parent_receipt_sha256") is not None:
+        mismatches.append("capability-authority-parent-receipt-forbidden")
+    if mismatches:
+        raise ValueError(
+            "capability session authority does not match trusted evidence: " + "; ".join(mismatches)
+        )
 
     receipt_body = {
         "receipt_type": CAPABILITY_RECEIPT_TYPE,

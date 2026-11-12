@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-import argparse
+import hashlib
 import json
+import sys
 from pathlib import Path
 from typing import Any
 
 from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.errors import CWOError
-from cwo_core.packets import fenced_block, redact_text, require_valid_contractor_packet
-from cwo_core.routing import classify_work
-from cwo_core.util import read_text_arg
+from cwo_core.outbound_screen import ScreenedPayload, ScreeningArgumentParser, require_clean, withheld_diagnostics
+from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
+from cwo_core.packet_provenance import require_production_contractor_packet
+from cwo_core.packets import fenced_block, redact_text
+from cwo_core.routing import classify_work, experts_with_required
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
@@ -78,7 +81,7 @@ def architecture_critic_contract_lines(route: dict[str, object]) -> str:
 def render_prompt(task: str, route: dict[str, object]) -> str:
     expert_lines = "\n".join(
         f"- {expert['display_name']} ({expert['job_description_label']})"
-        for expert in route.get("ranked_experts", [])[:3]  # type: ignore[index]
+        for expert in experts_with_required(route, 3)  # type: ignore[arg-type]
     )
     manual_command = manual_command_for_route(route)
     command_line = f"Manual dispatch command: {manual_command}\n" if manual_command else ""
@@ -209,8 +212,104 @@ Rules:
 """
 
 
+def read_input_file(path: str, label: str) -> str:
+    """Read a file named on the command line. The path is caller input that no screen has
+    seen, so an error names it only by digest and does not chain the original exception."""
+    try:
+        return Path(path).read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        digest = hashlib.sha256(str(path).encode("utf-8", errors="surrogatepass")).hexdigest()[:12]
+        reason = exc.strerror if isinstance(exc, OSError) and exc.strerror else type(exc).__name__
+        raise SystemExit(f"cannot read the {label} (path sha256 {digest}): {reason}") from None
+
+
+def load_packet_file(path: str) -> dict[str, Any]:
+    """The contractor packet in ``path``; unreadable or malformed files refuse with digest-only diagnostics."""
+    text = read_input_file(path, "packet file")
+    try:
+        packet = json.loads(text)
+    except (ValueError, RecursionError) as exc:
+        digest = hashlib.sha256(str(path).encode("utf-8", errors="surrogatepass")).hexdigest()[:12]
+        where = f"line {exc.lineno} column {exc.colno}" if isinstance(exc, json.JSONDecodeError) else type(exc).__name__
+        raise SystemExit(f"the packet file is not valid JSON (path sha256 {digest}): {where}") from None
+    if not isinstance(packet, dict):
+        raise SystemExit("the packet file must hold a JSON object")
+    return packet
+
+
+def read_task_segments(text: str | None, file_path: str | None) -> list[str]:
+    """The task text and the --file contents appended to it, as separate segments in order, read with
+    digest-only file errors. Routing assesses each segment and the append history, not only the joined text."""
+    parts = [text] if text else []
+    if file_path:
+        parts.append(read_input_file(file_path, "task file"))
+    if not parts:
+        raise SystemExit("provide task text or --file")
+    return parts
+
+
+def read_task(text: str | None, file_path: str | None) -> str:
+    """The task from the command line and an optional --file, read with digest-only file errors."""
+    return "\n\n".join(read_task_segments(text, file_path))
+
+
+def content_free_route(route: Any) -> Any:
+    """The route as exported for copying out. Credential references become a count: each access
+    profile's ``credential_sources`` (the names of the environment variables it reads) and each
+    transport's ``api_key_env`` (the name of the variable holding its API key) are replaced by
+    ``credential_source_count``, the number of names they held. No export carries a credential-named
+    field with text in it, so the screen needs no exemption for one."""
+    if isinstance(route, dict):
+        exported: dict[str, Any] = {}
+        sources: int | None = None
+        for key, value in route.items():
+            if key == "credential_sources" and isinstance(value, dict):
+                sources = (sources or 0) + sum(len(names) for names in value.values() if isinstance(names, list))
+            elif key == "api_key_env" and (value is None or isinstance(value, str)):
+                sources = (sources or 0) + (1 if value else 0)
+            else:
+                exported[key] = content_free_route(value)
+        if sources is not None:
+            exported["credential_source_count"] = sources
+        return exported
+    if isinstance(route, list):
+        return [content_free_route(item) for item in route]
+    return route
+
+
+def screen_export(text: str, *, as_json: bool) -> ScreenedPayload:
+    """Screen exactly the bytes a manual export will print (output plus newline)."""
+    return require_clean(text + "\n", surface="manual export", content_type="application/json" if as_json else "text/plain")
+
+
+def write_export(screened: ScreenedPayload) -> None:
+    """Write screened bytes to the byte stream under stdout.
+
+    No text encoding, error handler or newline translation can change them.
+    A text-only stream (as in tests) stores the string itself, unencoded.
+    """
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is None:
+        sys.stdout.write(screened.text())
+        return
+    sys.stdout.flush()
+    buffer.write(screened.data)
+    buffer.flush()
+
+
+def export_screened(text: str, *, as_json: bool) -> None:
+    """Screen exactly the bytes about to be printed for copying, then write those bytes."""
+    write_export(screen_export(text, as_json=as_json))
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate a copy-paste prompt for manual UI dispatch.")
+    # Diagnostics before the final screen can repeat caller input; withhold any the screen refuses.
+    with withheld_diagnostics("generate_manual_dispatch_prompt"):
+        _main()
+
+
+def _main() -> None:
+    parser = ScreeningArgumentParser("generate_manual_dispatch_prompt", description="Generate a copy-paste prompt for manual UI dispatch.")
     parser.add_argument("text", nargs="*")
     parser.add_argument("--file")
     parser.add_argument("--packet", help="Boundary-gated contractor packet JSON to render.")
@@ -237,7 +336,7 @@ def main() -> None:
     )
     parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
     parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
-    parser.add_argument("--share-boundary", default="redacted-packet")
+    parser.add_argument("--share-boundary", default="no-outside-sharing", help="Disclosure boundary for routing; outside disclosure must be chosen explicitly.")
     parser.add_argument(
         "--data-sensitivity",
         choices=["public", "redacted", "internal", "restricted"],
@@ -247,23 +346,28 @@ def main() -> None:
     parser.add_argument("--json", action="store_true")
     add_waiver_reason_argument(parser)
     parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
+    refuse_risk_narrowing_arguments(args, source="generate_manual_dispatch_prompt.py")
     require_waiver_reason(args, ["allow_degraded_packet", "allow_raw_manual_prompt", "allow_disclosure_escalation"])
 
     if args.packet:
-        packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
-        require_valid_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
+        packet = load_packet_file(args.packet)
+        # Production provenance (the packet_built audit event), not only the content checks; no waiver.
+        require_production_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
         prompt = render_packet_prompt(packet)
         if args.json:
-            print(json.dumps({"packet": packet, "prompt": prompt}, indent=2, sort_keys=True))
+            export_screened(json.dumps({"packet": packet, "prompt": prompt}, indent=2, sort_keys=True), as_json=True)
         else:
-            print(prompt)
+            export_screened(prompt, as_json=False)
         return
 
-    task = read_text_arg(" ".join(args.text).strip() or None, args.file)
+    task_segments = read_task_segments(" ".join(args.text).strip() or None, args.file)
+    task = "\n\n".join(task_segments)
     try:
         route = classify_work(
             task,
+            text_segments=task_segments,
             external_ok=args.external_ok,
             allow_disclosure_escalation=args.allow_disclosure_escalation,
             local_ok=args.local_ok,
@@ -283,9 +387,9 @@ def main() -> None:
         raise SystemExit("--allow-raw-manual-prompt requires --rehearsal and must not be used as production dispatch evidence")
     prompt = render_prompt(redact_text(task) if args.allow_raw_manual_prompt else task, route)
     if args.json:
-        print(json.dumps({"route": route, "prompt": prompt}, indent=2, sort_keys=True))
+        export_screened(json.dumps({"route": content_free_route(route), "prompt": prompt}, indent=2, sort_keys=True), as_json=True)
     else:
-        print(prompt)
+        export_screened(prompt, as_json=False)
 
 
 if __name__ == "__main__":

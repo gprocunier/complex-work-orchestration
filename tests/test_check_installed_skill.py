@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Callable, NamedTuple
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,6 +19,17 @@ from check_installed_skill import (  # noqa: E402
     write_install_manifest,
 )
 from cwo_core import util as cwo_util  # noqa: E402
+
+
+class InstalledOracleRow(NamedTuple):
+    original_id: str
+    oracle: Callable[[dict, dict], None]
+
+
+class InstalledDriftRow(NamedTuple):
+    original_id: str
+    edits: tuple[tuple[str, str], ...]
+    calibration: bool
 
 
 class CheckInstalledSkillTests(unittest.TestCase):
@@ -38,8 +51,14 @@ class CheckInstalledSkillTests(unittest.TestCase):
         (calibration / "skl-return-language-corpus-v1.json").write_text("{\"artifact_type\": \"skl-return-language-corpus\"}\n", encoding="utf-8")
         (calibration / "skl-return-language-tuning-v1.json").write_text("{\"artifact_type\": \"skl-return-language-tuning-v1\"}\n", encoding="utf-8")
         (calibration / "skl-return-language-calibration-report-latest.json").write_text("{\"artifact_type\": \"skl-return-language-calibration-report\"}\n", encoding="utf-8")
+        (root / "policy").mkdir()
+        entries = [{"path": name, "kind": "file"} for name in ("README.md", "SKILL.md", "VERSION")]
+        entries += [{"path": name, "kind": "directory"} for name in ("scripts", "docs", "prompts", "calibration", "policy")]
+        projection = {"version": 1, "description": "Fixture projection.", "skill_name": "complex-work-orchestration",
+                      "entries": entries, "excluded": []}
+        (root / "policy" / "install-projection.yaml").write_text(json.dumps(projection, indent=2) + "\n", encoding="utf-8")
 
-    def test_status_is_current_for_matching_install_tree(self) -> None:
+    def test_matching_install_and_manifest_oracle_family(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             source = Path(tmpdir) / "source"
             installed = Path(tmpdir) / "skills" / "complex-work-orchestration"
@@ -48,7 +67,17 @@ class CheckInstalledSkillTests(unittest.TestCase):
             shutil.copytree(source, installed)
 
             status = installed_status(source, installed)
+            write_install_manifest(installed, status)
+            after = installed_status(source, installed)
 
+        rows = (
+            InstalledOracleRow("tests.test_check_installed_skill.CheckInstalledSkillTests.test_status_is_current_for_matching_install_tree", self.assert_current_install),
+        )
+        for row in rows:
+            with self.subTest(original_id=row.original_id):
+                row.oracle(status, after)
+
+    def assert_current_install(self, status: dict, after: dict) -> None:
         self.assertEqual(status["status"], "current")
         self.assertEqual(status["source_version"], "1.2.3")
         self.assertEqual(status["installed_version"], "1.2.3")
@@ -63,43 +92,34 @@ class CheckInstalledSkillTests(unittest.TestCase):
         self.assertIsNotNone(calibration["source"]["latest_report"])
 
 
-    def test_status_reports_changed_and_extra_installed_files(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            source = Path(tmpdir) / "source"
-            installed = Path(tmpdir) / "skills" / "complex-work-orchestration"
-            source.mkdir()
-            self.make_skill_tree(source)
-            shutil.copytree(source, installed)
-            (installed / "SKILL.md").write_text("# Drifted\n", encoding="utf-8")
-            (installed / "docs" / "extra.html").write_text("<p>extra</p>\n", encoding="utf-8")
-
-            status = installed_status(source, installed)
-
-            self.assertIn("source", status["calibration_artifacts"])
-            self.assertIsNotNone(status["calibration_artifacts"]["source"]["contract"])
-            self.assertEqual(
-                status["calibration_artifacts"]["source"]["contract"],
-                status["calibration_artifacts"]["installed"]["contract"],
-            )
-
-            self.assertEqual(status["status"], "drift")
-            self.assertIn("SKILL.md", status["changed_files"])
-            self.assertIn("docs/extra.html", status["extra_files"])
-
-    def test_status_reports_archived_prompt_drift(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            source = Path(tmpdir) / "source"
-            installed = Path(tmpdir) / "skills" / "complex-work-orchestration"
-            source.mkdir()
-            self.make_skill_tree(source)
-            shutil.copytree(source, installed)
-            archived = installed / "prompts" / "archive" / "cwo-sol-operator-e-v5-qualified.md"
-            archived.write_text("drifted\n", encoding="utf-8")
-
-            status = installed_status(source, installed)
-
-        self.assertEqual(status["status"], "drift")
-        self.assertIn("prompts/archive/cwo-sol-operator-e-v5-qualified.md", status["changed_files"])
+    def test_installed_file_drift_family(self) -> None:
+        rows = (
+            InstalledDriftRow("tests.test_check_installed_skill.CheckInstalledSkillTests.test_status_reports_changed_and_extra_installed_files",
+                              (("SKILL.md", "# Drifted\n"), ("docs/extra.html", "<p>extra</p>\n")), True),
+        )
+        for row in rows:
+            with self.subTest(original_id=row.original_id):
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    source = Path(tmpdir) / "source"
+                    installed = Path(tmpdir) / "skills" / "complex-work-orchestration"
+                    source.mkdir()
+                    self.make_skill_tree(source)
+                    shutil.copytree(source, installed)
+                    for path, text in row.edits:
+                        (installed / path).write_text(text, encoding="utf-8")
+                    status = installed_status(source, installed)
+                    if row.calibration:
+                        # Keep these original oracles inside the private tree
+                        # lifetime.
+                        self.assertIn("source", status["calibration_artifacts"])
+                        self.assertIsNotNone(status["calibration_artifacts"]["source"]["contract"])
+                        self.assertEqual(
+                            status["calibration_artifacts"]["source"]["contract"],
+                            status["calibration_artifacts"]["installed"]["contract"],
+                        )
+                        self.assertEqual(status["status"], "drift")
+                        self.assertIn("SKILL.md", status["changed_files"])
+                        self.assertIn("docs/extra.html", status["extra_files"])
 
     def test_generated_manifest_and_python_caches_are_ignored(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -116,6 +136,32 @@ class CheckInstalledSkillTests(unittest.TestCase):
         self.assertNotIn(INSTALL_MANIFEST_NAME, paths)
         self.assertFalse(any("__pycache__" in path for path in paths))
 
+    def test_atomic_write_preserves_existing_file_when_replace_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = Path(tmpdir) / "manifest.json"
+            target.write_text("old\n", encoding="utf-8")
+            with patch("cwo_core.util.os.replace", side_effect=OSError("boom")):
+                with self.assertRaises(OSError):
+                    cwo_util.atomic_write_text(target, "new\n")
+            self.assertEqual(target.read_text(encoding="utf-8"), "old\n")
+            self.assertEqual(list(Path(tmpdir).glob(".manifest.json.*.tmp")), [])
+
+
+    def test_status_reports_archived_prompt_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            source = Path(tmpdir) / "source"
+            installed = Path(tmpdir) / "skills" / "complex-work-orchestration"
+            source.mkdir()
+            self.make_skill_tree(source)
+            shutil.copytree(source, installed)
+            archived = installed / "prompts" / "archive" / "cwo-sol-operator-e-v5-qualified.md"
+            archived.write_text("drifted\n", encoding="utf-8")
+
+            status = installed_status(source, installed)
+
+        self.assertEqual(status["status"], "drift")
+        self.assertIn("prompts/archive/cwo-sol-operator-e-v5-qualified.md", status["changed_files"])
+
     def test_write_install_manifest_does_not_change_content_hash(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             source = Path(tmpdir) / "source"
@@ -131,16 +177,6 @@ class CheckInstalledSkillTests(unittest.TestCase):
         self.assertEqual(before["status"], "current")
         self.assertEqual(after["status"], "current")
         self.assertEqual(before["installed_content_sha256"], after["installed_content_sha256"])
-
-    def test_atomic_write_preserves_existing_file_when_replace_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            target = Path(tmpdir) / "manifest.json"
-            target.write_text("old\n", encoding="utf-8")
-            with patch("cwo_core.util.os.replace", side_effect=OSError("boom")):
-                with self.assertRaises(OSError):
-                    cwo_util.atomic_write_text(target, "new\n")
-            self.assertEqual(target.read_text(encoding="utf-8"), "old\n")
-            self.assertEqual(list(Path(tmpdir).glob(".manifest.json.*.tmp")), [])
 
 
 if __name__ == "__main__":

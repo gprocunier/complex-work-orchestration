@@ -50,6 +50,8 @@ export async function highlightHtml(source) {
     // Extract Shiki's own styles into a local stylesheet. Keep the preview's
     // strict style-src 'self' policy; never enable unsafe-inline for tokens.
     const inner = highlighted.match(/<code>([\s\S]*)<\/code>/)[1]
+      // Keep generated less-than references in the public-copy named spelling.
+      .replaceAll('&#x3C;', '&lt;')
       .replace(/style="([^"]*)"/g, (_, declaration) => `class="${styleClass(declaration)}"`);
     const classes = (attrs.class ?? '').split(/\s+/).filter(c => c && c !== 'shiki' && !generatedThemes.has(c) && !c.startsWith('shiki-style-'));
     const location = pre.sourceCodeLocation;

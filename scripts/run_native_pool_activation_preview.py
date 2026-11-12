@@ -18,6 +18,7 @@ from typing import Any, Mapping
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from cwo_core import native_live_availability as live_availability  # noqa: E402
 from cwo_core.native_activation_ledger import (  # noqa: E402
     NativeActivationLedgerStore,
     canonical_activation_sha256,
@@ -82,10 +83,10 @@ from cwo_core.native_tool_isolation import (  # noqa: E402
     require_unchanged_tool_surface,
 )
 from cwo_core.policy import load_policy  # noqa: E402
+from cwo_core.supervision.transport.app_server import AppServer  # noqa: E402
+from cwo_core.supervision.transport.errors import AppServerError  # noqa: E402
 from run_native_pool_live_canaries import (  # noqa: E402
     CONTROL_TURN_ID,
-    AppServer,
-    AppServerError,
     LiveThreadAdapter,
     calibration,
     capture_server_tool_surface,
@@ -171,6 +172,8 @@ class ActivationLedgerTransport:
         permitted_tools: list[str] | None = None,
         allowlist_parameter: str | None = None,
     ) -> tuple[dict[str, Any], float]:
+        _require_live_activation()
+        _require_live_activation(self.ledger.load()["profile"])
         if role is None:
             raise AppServerError("activation-preview-role-required")
         ledger_role = (
@@ -205,6 +208,8 @@ class ActivationLedgerTransport:
         timeout: float = 30,
         ambiguity_timeout: float = 5,
     ) -> tuple[dict[str, Any], float]:
+        _require_live_activation()
+        _require_live_activation(self.ledger.load()["profile"])
         role = self.thread_roles.get(thread_id)
         if role is None:
             raise AppServerError("activation-preview-thread-role-missing")
@@ -288,6 +293,8 @@ def _write_worker_contracts(
     dict[str, dict[str, Any]],
     dict[str, ActivationThreadAdapter],
 ]:
+    _require_live_activation()
+    _require_live_activation(plan["profile"])
     records = Path(plan["paths"]["records"])
     claims = {
         item["bead_id"]: item
@@ -447,6 +454,7 @@ def _write_worker_contracts(
                 )
             ),
             record_dir=records,
+            campaign_live_route=False,
         )
     return render_children, child_contracts, adapters
 
@@ -671,6 +679,34 @@ def _closure_error(
     }
 
 
+# The path-only Beads database binding holds this preview independently of
+# N1/pool restoration. Only isolated tests with fake effects patch this hold.
+LIVE_ACTIVATION_AVAILABLE = False
+LIVE_ACTIVATION_UNAVAILABLE = (
+    "live activation is unavailable: the database-identity hold or its native N1/pool route is held in installed source. "
+    "Nothing was claimed, started or written. "
+    "keygen, prepare, approve and run --dry-run remain available."
+)
+
+
+class LiveActivationUnavailable(RuntimeError):
+    """Live activation refused before any claim, RPC or Beads write."""
+
+
+def _require_live_activation(profile: str | None = None) -> None:
+    if LIVE_ACTIVATION_AVAILABLE is not True:
+        raise LiveActivationUnavailable(LIVE_ACTIVATION_UNAVAILABLE)
+    try:
+        live_availability.require_activation_live(profile)
+    except live_availability.NativeLiveUnavailable as exc:
+        raise LiveActivationUnavailable(LIVE_ACTIVATION_UNAVAILABLE) from exc
+
+
+def _start_activation_server(profile: str) -> AppServer:
+    _require_live_activation(profile)
+    return AppServer()
+
+
 def _close_accepted_activation_beads(
     plan: Mapping[str, Any],
     reservation: Mapping[str, Any],
@@ -679,6 +715,8 @@ def _close_accepted_activation_beads(
     *,
     pool_receipt_sha256: str,
 ) -> dict[str, Any]:
+    _require_live_activation()
+    _require_live_activation(plan["profile"])
     tasks = sorted(plan["tasks"], key=lambda item: int(item["ordinal"]))
     expected_pairs = [
         (str(task["child_id"]), str(task["bead_id"]))
@@ -1032,6 +1070,7 @@ def run_live_activation(
     actor_id: str,
     identity_source: str,
 ) -> dict[str, Any]:
+    _require_live_activation()
     started_at = activation_iso()
     control_root = ensure_private_directory(control_root, create=False)
     plan = load_activation_plan(
@@ -1039,6 +1078,7 @@ def run_live_activation(
         check_live_source=True,
         now=dt.datetime.now(dt.timezone.utc),
     )
+    _require_live_activation(plan["profile"])
     if Path(plan["control_root"]) != control_root:
         raise NativeActivationPreviewError(
             "activation-control-root-mismatch"
@@ -1141,7 +1181,7 @@ def run_live_activation(
         # The calibration allocation intent also precedes app-server
         # initialization, so every possible live RPC follows durable intent.
         calibration_intent = ledger.allocation_intent("calibration")
-        server = AppServer()
+        server = _start_activation_server(plan["profile"])
         transport = ActivationLedgerTransport(
             server,
             ledger,
@@ -1565,19 +1605,17 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, sort_keys=True))
         return 0
     except BaseException as exc:
-        print(
-            json.dumps(
-                {
-                    "status": "rejected",
-                    "failure_class": type(exc).__name__,
-                    "failure_message_sha256": hashlib.sha256(
-                        str(exc).encode("utf-8")
-                    ).hexdigest(),
-                },
-                sort_keys=True,
-            ),
-            file=sys.stderr,
-        )
+        rejection = {
+            "status": "rejected",
+            "failure_class": type(exc).__name__,
+            "failure_message_sha256": hashlib.sha256(
+                str(exc).encode("utf-8")
+            ).hexdigest(),
+        }
+        if isinstance(exc, LiveActivationUnavailable):
+            # A fixed message with no run content, so it is shown in full.
+            rejection["failure_message"] = str(exc)
+        print(json.dumps(rejection, sort_keys=True), file=sys.stderr)
         return 1
 
 

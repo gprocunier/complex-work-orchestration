@@ -69,59 +69,38 @@ class AccessProfileTests(unittest.TestCase):
         details = route["selected_executor"]["access_profile_details"]
         self.assertEqual(details["status"], "offline")
 
-    def test_glm_bf16_matching_is_case_insensitive(self) -> None:
-        profile_key = "rhoai-architect-GLM-5-2-BF16-thinking"
-        self.assertEqual(
-            access_profile_for_model_profile(profile_key, {"provider_key": "openshift_ai_vllm"}),
-            "rhoai-glm-bf16",
+    def test_glm_model_profile_matching_variants(self) -> None:
+        variants = (
+            ('test_glm_bf16_matching_is_case_insensitive',
+             'rhoai-architect-GLM-5-2-BF16-thinking',
+             'rhoai-glm-bf16'),
+            ('test_glm_bf16_256k_matching_precedes_generic_bf16',
+             'rhoai-architect-GLM-5-2-BF16-256K-thinking',
+             'rhoai-glm-bf16-256k'),
+            ('test_glm53_matching_resolves_to_direct_access_profile',
+             'rhoai-architect-GLM-5-3-BF16-compact-critic',
+             'rhoai-glm-5-3-direct'),
         )
-        self.assertEqual(
-            access_profile_for_executor(
-                {
-                    "provider_key": "openshift_ai_vllm",
-                    "dispatch_mode": "local_secure_review",
-                    "model_profile": profile_key,
-                    "external": False,
-                }
-            ),
-            "rhoai-glm-bf16",
-        )
+        for original, model_profile, expected_profile in variants:
+            with self.subTest(original=original):
+                profile_key = model_profile
+                self.assertEqual(
+                    access_profile_for_model_profile(profile_key, {"provider_key": "openshift_ai_vllm"}),
+                    expected_profile,
+                )
+                self.assertEqual(
+                    access_profile_for_executor(
+                        {
+                            "provider_key": "openshift_ai_vllm",
+                            "dispatch_mode": "local_secure_review",
+                            "model_profile": profile_key,
+                            "external": False,
+                        }
+                    ),
+                    expected_profile,
+                )
 
-    def test_glm_bf16_256k_matching_precedes_generic_bf16(self) -> None:
-        profile_key = "rhoai-architect-GLM-5-2-BF16-256K-thinking"
-        self.assertEqual(
-            access_profile_for_model_profile(profile_key, {"provider_key": "openshift_ai_vllm"}),
-            "rhoai-glm-bf16-256k",
-        )
-        self.assertEqual(
-            access_profile_for_executor(
-                {
-                    "provider_key": "openshift_ai_vllm",
-                    "dispatch_mode": "local_secure_review",
-                    "model_profile": profile_key,
-                    "external": False,
-                }
-            ),
-            "rhoai-glm-bf16-256k",
-        )
 
-    def test_glm53_matching_resolves_to_direct_access_profile(self) -> None:
-        profile_key = "rhoai-architect-GLM-5-3-BF16-compact-critic"
-        self.assertEqual(
-            access_profile_for_model_profile(profile_key, {"provider_key": "openshift_ai_vllm"}),
-            "rhoai-glm-5-3-direct",
-        )
-        self.assertEqual(
-            access_profile_for_executor(
-                {
-                    "provider_key": "openshift_ai_vllm",
-                    "dispatch_mode": "local_secure_review",
-                    "model_profile": profile_key,
-                    "external": False,
-                }
-            ),
-            "rhoai-glm-5-3-direct",
-        )
     def test_runtime_status_reports_env_names_without_values(self) -> None:
         with patch.dict(
             os.environ,

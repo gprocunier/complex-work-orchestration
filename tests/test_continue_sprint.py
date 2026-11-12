@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -16,6 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from continue_sprint import (  # noqa: E402
     MODELING_NOTE,
     build_continuation_brief,
+    load_beads_items,
     load_markdown_items,
 )
 from cwo_core.beads_ready_set import (  # noqa: E402
@@ -28,9 +30,11 @@ from tests.test_beads_ready_set import (  # noqa: E402
 )
 from tests.real_beads_fixture import (  # noqa: E402
     REAL_BEADS_FIXTURE_TIMEOUT_SECONDS,
+    continuation_fixture_timeout_seconds,
     initialize_real_beads,
     run_fixture_subprocess,
 )
+from tests.real_beads_fixture import configure_git_fixture
 
 BD_PATH = shutil.which("bd")
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
@@ -50,6 +54,36 @@ V2_READY_SET_FIELDS = {
 
 
 class ContinueSprintTests(unittest.TestCase):
+    def test_real_beads_cli_budget_counts_original_graph_queries(self) -> None:
+        # Match the actual traversal, including empty list queries for leaves
+        # and a second exact-show batch when the fixture grows beyond 50 issues.
+        for issue_count in (4, 9, 51):
+            with self.subTest(issue_count=issue_count):
+                items = [{"id": "epic"}] + [
+                    {"id": f"leaf-{index}", "parent": "epic"}
+                    for index in range(issue_count - 1)
+                ]
+                by_id = {item["id"]: item for item in items}
+                commands = []
+
+                def bd_json(args, *, items=items, by_id=by_id, commands=commands):
+                    commands.append(args)
+                    if args[0] == "ready":
+                        return items[1:]
+                    if args[0] == "list":
+                        parent = args[args.index("--parent") + 1]
+                        return items[1:] if parent == "epic" else []
+                    self.assertEqual(args[:3], ["show", "--json", "--"])
+                    return [by_id[item_id] for item_id in args[3:]]
+
+                with patch("continue_sprint.bd_json", side_effect=bd_json):
+                    observed = load_beads_items("epic")
+                self.assertEqual(len(observed), issue_count)
+                self.assertEqual(
+                    continuation_fixture_timeout_seconds(issue_count),
+                    (len(commands) + 1) * REAL_BEADS_FIXTURE_TIMEOUT_SECONDS,
+                )
+
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
     def test_v2_output_and_historical_v1_shape_validate(self) -> None:
         from jsonschema import Draft202012Validator, ValidationError
@@ -190,32 +224,6 @@ class ContinueSprintTests(unittest.TestCase):
         blockers = {item["id"]: item["blockers"] for item in result["blocked_issues"]}
 
         self.assertEqual(blockers["implementation"], ["depends on design-open (open)"])
-
-    def test_reports_blockers_and_guard_labels(self) -> None:
-        items = [
-            {"id": "epic", "title": "Continuation", "type": "epic", "status": "open"},
-            {"id": "architect", "title": "Frame", "status": "open", "labels": ["architect"]},
-            {
-                "id": "implementation",
-                "title": "Implement",
-                "status": "open",
-                "labels": ["workerbee"],
-                "dependencies": ["architect"],
-            },
-            {
-                "id": "contract",
-                "title": "External lane",
-                "status": "open",
-                "labels": ["contractor-only", "no-codex-exec"],
-            },
-        ]
-
-        result = build_continuation_brief(items, epic_id="epic")
-        blockers = {item["id"]: item["blockers"] for item in result["blocked_issues"]}
-
-        self.assertIn("depends on architect (open)", blockers["implementation"])
-        self.assertIn("guard label contractor-only prevents normal Codex pickup", blockers["contract"])
-        self.assertIn("guard label no-codex-exec prevents normal Codex pickup", blockers["contract"])
 
     def test_markdown_fallback_is_reduced_durability_and_preserves_modeling_note(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -489,6 +497,7 @@ class ContinueSprintTests(unittest.TestCase):
     def test_cwo_continue_reads_real_bd_dependency_objects(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             run_fixture_subprocess(["git", "init", "-q"], cwd=temp_dir, check=True)
+            configure_git_fixture(temp_dir)
             initialize_real_beads(
                 [
                     BD_PATH,
@@ -582,6 +591,9 @@ class ContinueSprintTests(unittest.TestCase):
                 ],
                 cwd=ROOT,
                 env=env,
+                timeout_seconds=continuation_fixture_timeout_seconds(
+                    len((epic, package, architect, implementation))
+                ),
                 check=True,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -612,6 +624,30 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertFalse(result["dispatch_authorized"])
         self.assertIn("operator_handoff_packet", result)
 
+    def test_equal_timestamp_content_drift_changes_snapshot_seal(self) -> None:
+        # Synthetic collision isolates the seal invariant from host/CLI latency.
+        before = ready_item("equal-timestamp", write_paths=["scripts/toy.py"])["raw"]
+        before.pop("_cwo_executable_leaf")  # Controller annotation is not a bd show field.
+        before["description"] = "Original description"
+        for field in ("title", "description"):
+            with self.subTest(field=field):
+                after = json.loads(json.dumps(before))
+                after[field] = f"Changed {field}"
+                self.assertEqual(before["updated_at"], after["updated_at"])
+                old_seal = build_ready_set_evidence(
+                    [before], epic_id="synthetic-epic", policy_document=released_three_policy()
+                )
+                new_seal = build_ready_set_evidence(
+                    [after], epic_id="synthetic-epic", policy_document=released_three_policy()
+                )
+                self.assertNotEqual(
+                    old_seal["beads_readiness_snapshot_sha256"],
+                    new_seal["beads_readiness_snapshot_sha256"],
+                )
+                projection = new_seal["beads_readiness_snapshot"]["issue_projections"][0]
+                self.assertEqual(projection[field], after[field])
+                self.assertEqual(projection["exact_show_raw_sha256"], canonical_json_sha256(after))
+
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")
     def test_real_beads_metadata_yields_released_n3_and_structured_exclusions(self) -> None:
@@ -619,6 +655,7 @@ class ContinueSprintTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             run_fixture_subprocess(["git", "init", "-q"], cwd=temp_dir, check=True)
+            configure_git_fixture(temp_dir)
             initialize_real_beads(
                 [
                     BD_PATH,
@@ -783,6 +820,9 @@ class ContinueSprintTests(unittest.TestCase):
                 ],
                 cwd=ROOT,
                 env=env,
+                timeout_seconds=continuation_fixture_timeout_seconds(
+                    len((epic, package, *valid_ids, claimed, restricted, invalid))
+                ),
                 check=True,
                 text=True,
                 stdout=subprocess.PIPE,
@@ -843,34 +883,11 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertIn("restricted-label", excluded[restricted])
         self.assertIn("invalid-admission-metadata", excluded[invalid])
 
-    def test_equal_timestamp_content_drift_changes_snapshot_seal(self) -> None:
-        # Synthetic collision isolates the seal invariant from host/CLI latency.
-        before = ready_item("equal-timestamp", write_paths=["scripts/toy.py"])["raw"]
-        before.pop("_cwo_executable_leaf")  # Controller annotation is not a bd show field.
-        before["description"] = "Original description"
-        for field in ("title", "description"):
-            with self.subTest(field=field):
-                after = json.loads(json.dumps(before))
-                after[field] = f"Changed {field}"
-                self.assertEqual(before["updated_at"], after["updated_at"])
-                old_seal = build_ready_set_evidence(
-                    [before], epic_id="synthetic-epic", policy_document=released_three_policy()
-                )
-                new_seal = build_ready_set_evidence(
-                    [after], epic_id="synthetic-epic", policy_document=released_three_policy()
-                )
-                self.assertNotEqual(
-                    old_seal["beads_readiness_snapshot_sha256"],
-                    new_seal["beads_readiness_snapshot_sha256"],
-                )
-                projection = new_seal["beads_readiness_snapshot"]["issue_projections"][0]
-                self.assertEqual(projection[field], after[field])
-                self.assertEqual(projection["exact_show_raw_sha256"], canonical_json_sha256(after))
-
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_beads_issue_and_admission_drift_changes_snapshot_seal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             run_fixture_subprocess(["git", "init", "-q"], cwd=temp_dir, check=True)
+            configure_git_fixture(temp_dir)
             initialize_real_beads(
                 [
                     BD_PATH,
@@ -925,6 +942,9 @@ class ContinueSprintTests(unittest.TestCase):
                     ],
                     cwd=ROOT,
                     env=env,
+                    timeout_seconds=continuation_fixture_timeout_seconds(
+                        len((epic, package, leaf, blocker))
+                    ),
                     check=True,
                     text=True,
                     stdout=subprocess.PIPE,
@@ -1097,6 +1117,31 @@ class ContinueSprintTests(unittest.TestCase):
                 prior_sha256, scope_drift["beads_readiness_snapshot_sha256"]
             )
 
+    def test_reports_blockers_and_guard_labels(self) -> None:
+        items = [
+            {"id": "epic", "title": "Continuation", "type": "epic", "status": "open"},
+            {"id": "architect", "title": "Frame", "status": "open", "labels": ["architect"]},
+            {
+                "id": "implementation",
+                "title": "Implement",
+                "status": "open",
+                "labels": ["workerbee"],
+                "dependencies": ["architect"],
+            },
+            {
+                "id": "contract",
+                "title": "External lane",
+                "status": "open",
+                "labels": ["contractor-only", "no-codex-exec"],
+            },
+        ]
+
+        result = build_continuation_brief(items, epic_id="epic")
+        blockers = {item["id"]: item["blockers"] for item in result["blocked_issues"]}
+
+        self.assertIn("depends on architect (open)", blockers["implementation"])
+        self.assertIn("guard label contractor-only prevents normal Codex pickup", blockers["contract"])
+        self.assertIn("guard label no-codex-exec prevents normal Codex pickup", blockers["contract"])
 
 if __name__ == "__main__":
     unittest.main()

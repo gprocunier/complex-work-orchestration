@@ -10,7 +10,7 @@ import json
 import unittest
 from unittest.mock import patch
 
-from tests.test_operative_routing import BUDGET, NOW, ROOT, cache_profile, capability_evidence
+from tests.test_operative_routing import NOW, ROOT
 from tests.test_routing_current_authority import synthetic_authority
 from tests.test_semantic_read_only_contract import semantic_review
 from cwo_core import operative_routing as routing
@@ -18,6 +18,8 @@ from cwo_core.policy import load_policy
 from cwo_core.routing import classify_work
 from cwo_core.work_sizing import evaluate_work_estimate, is_read_only_work_estimate
 
+
+from tests.test_operative_routing import BUDGET, cache_profile, capability_evidence
 
 def maintenance_budget():
     return {
@@ -210,65 +212,50 @@ class MaintenanceRouteFitTests(unittest.TestCase):
         record["context_headroom"]["reserved_output_tokens"] += 1
         self.assert_fit_denied(authority, "model-headroom-insufficient")
 
-    def test_headroom_requires_exact_complete_unambiguous_shapes(self):
-        for field in ("context_headroom", "context_window_source"):
-            for value in (None, [], True, {}, "unknown"):
-                with self.subTest(field=field, value=value):
-                    authority = maintenance_authority(); luna_record(authority)[field] = value
-                    self.assert_fit_denied(authority, "model-headroom-insufficient")
+    def test_model_record_rejection_matrix(self):
+        # Concrete model-record mutations; every input gets a private authority and
+        # the original real fit, route and schema checks in assert_fit_denied.
+        rows: list[tuple[str, dict, str, str | None, object, str, bool]] = []
+        original_id = 'test_headroom_requires_exact_complete_unambiguous_shapes'
+        for field in ('context_headroom', 'context_window_source'):
+            for value in (None, [], True, {}, 'unknown'):
+                rows.append((original_id, {'field': field, 'value': value}, field, None, value, 'replace', False))
             for key in luna_record(maintenance_authority())[field]:
-                authority = maintenance_authority(); del luna_record(authority)[field][key]
-                with self.subTest(field=field, missing=key):
-                    self.assert_fit_denied(authority, "model-headroom-insufficient")
-            authority = maintenance_authority(); luna_record(authority)[field]["extra"] = True
-            self.assert_fit_denied(authority, "model-headroom-insufficient")
+                rows.append((original_id, {'field': field, 'missing': key}, field, key, None, 'delete', False))
+            rows.append((original_id, {'field': field, 'extra': True}, field, 'extra', True, 'replace', False))
         for value in (None, 999_999):
-            authority = maintenance_authority(); luna_record(authority)["remaining_input_tokens"] = value
-            self.assert_fit_denied(authority, "model-headroom-insufficient")
-
-    def test_headroom_integer_types_and_source_pin_are_not_coerced(self):
-        for object_name, key in (("context_headroom", "context_window_tokens"),
-                                 ("context_headroom", "reserved_output_tokens"),
-                                 ("context_window_source", "context_window_tokens")):
-            for value in (True, False, 0, -1, 32_000.0, "32000"):
-                with self.subTest(object=object_name, key=key, value=value):
-                    authority = maintenance_authority(); luna_record(authority)[object_name][key] = value
-                    self.assert_fit_denied(authority, "model-headroom-insufficient")
-        for key, value in (("basis", "remaining-account-tokens"), ("source_sha256", "b" * 64),
-                           ("source_sha256", True), ("source_sha256", None)):
-            authority = maintenance_authority(); luna_record(authority)["context_headroom"][key] = value
-            self.assert_fit_denied(authority, "model-headroom-insufficient")
-
-    def test_context_source_exact_model_trust_freshness_and_capacity_must_join(self):
-        changes = (("model", routing.TERRA_MODEL), ("source", "worker-asserted"),
-                   ("observed_at", "2026-09-03T18:14:59Z"),
-                   ("observed_at", "2026-09-03T19:15:01Z"),
-                   ("observed_at", "not-a-time"), ("model", " " + routing.LUNA_MODEL),
-                   ("context_window_tokens", 99_999))
+            rows.append((original_id, {'value': value}, 'remaining_input_tokens', None, value, 'replace', False))
+        original_id = 'test_headroom_integer_types_and_source_pin_are_not_coerced'
+        for object_name, key in (('context_headroom', 'context_window_tokens'),
+                                 ('context_headroom', 'reserved_output_tokens'),
+                                 ('context_window_source', 'context_window_tokens')):
+            for value in (True, False, 0, -1, 32_000.0, '32000'):
+                rows.append((original_id, {'object': object_name, 'key': key, 'value': value}, object_name, key, value, 'replace', False))
+        for key, value in (('basis', 'remaining-account-tokens'), ('source_sha256', 'b' * 64),
+                           ('source_sha256', True), ('source_sha256', None)):
+            rows.append((original_id, {'key': key, 'value': value}, 'context_headroom', key, value, 'replace', False))
+        original_id = 'test_context_source_exact_model_trust_freshness_and_capacity_must_join'
+        changes = (('model', routing.TERRA_MODEL), ('source', 'worker-asserted'),
+                   ('observed_at', '2026-09-03T18:14:59Z'),
+                   ('observed_at', '2026-09-03T19:15:01Z'),
+                   ('observed_at', 'not-a-time'), ('model', ' ' + routing.LUNA_MODEL),
+                   ('context_window_tokens', 99_999))
         for key, value in changes:
-            with self.subTest(key=key, value=value):
-                authority = maintenance_authority(); record = luna_record(authority)
-                record["context_window_source"][key] = value
-                # Even resealing cannot fix a semantic identity/freshness mismatch.
-                record["context_headroom"]["source_sha256"] = routing._canonical_sha256(record["context_window_source"])
-                self.assert_fit_denied(authority, "model-headroom-insufficient")
+            rows.append((original_id, {'key': key, 'value': value}, 'context_window_source', key, value, 'replace', True))
+        for original_id, labels, field, key, value, operation, reseal in rows:
+            with self.subTest(original_id=original_id, **labels):
+                authority = maintenance_authority()
+                record = luna_record(authority)
+                if key is None:
+                    record[field] = copy.deepcopy(value)
+                elif operation == 'delete':
+                    del record[field][key]
+                else:
+                    record[field][key] = copy.deepcopy(value)
+                if reseal:
+                    record['context_headroom']['source_sha256'] = routing._canonical_sha256(record['context_window_source'])
+                self.assert_fit_denied(authority, 'model-headroom-insufficient')
 
-    def test_context_source_mutation_invalidates_previous_sealed_fit(self):
-        authority = maintenance_authority(); fit = self.fit(authority)
-        record = luna_record(authority)
-        record["context_window_source"]["context_window_tokens"] += 1
-        record["context_headroom"]["context_window_tokens"] += 1
-        record["context_headroom"]["source_sha256"] = routing._canonical_sha256(record["context_window_source"])
-        inputs = dict(authority["fit_inputs"]); inputs.pop("cache_profile")
-        self.assertTrue(routing.validate_task_selected_fit(fit, **inputs))
-
-    def test_unbounded_mission_does_not_bypass_quota_capacity_or_controls(self):
-        for key, value, reason in (("quota_status", "exhausted", "model-quota-not-usable"),
-                                   ("quota_status", "unknown", "model-quota-not-usable"),
-                                   ("capacity_status", "unavailable", "model-capacity-not-available"),
-                                   ("workspace_enforced", False, "required-operative-controls-missing")):
-            authority = maintenance_authority(); luna_record(authority)[key] = value
-            self.assert_fit_denied(authority, reason)
 
     def test_bounded_semantic_readonly_exact_limits_remain_semantic(self):
         raw = semantic_review()
@@ -284,45 +271,51 @@ class MaintenanceRouteFitTests(unittest.TestCase):
         self.assertFalse(fit["classifications"]["deterministic"])
         self.assertTrue(self.route(authority)["dispatch_authorized"])
 
-    def test_semantic_readonly_over_tool_or_time_limit_is_not_luna_fit(self):
-        for key, value in (("tool_calls_p90", 13), ("runtime_seconds_p90", 301)):
-            authority = maintenance_authority(); raw = semantic_review(); raw["estimates"][key] = value
-            for observer in ("pm_estimate", "domain_expert_estimate"):
-                raw[observer][key] = value
-            authority["fit_inputs"]["work_estimate"] = evaluate_work_estimate(raw)
-            self.assertEqual(authority["fit_inputs"]["work_estimate"]["fit_mode"], "semantic")
-            self.assertTrue(self.fit(authority)["classifications"]["work_route_eligible"])
-            self.assert_fit_denied(authority, "luna-fit-required")
-
-    def test_thirteen_reads_and_unresolved_authority_are_not_relabelled(self):
-        for kind in ("reads", "unresolved"):
+    def test_semantic_work_estimate_rejection_matrix(self):
+        rows: list[tuple[str, dict, str, bool]] = []
+        original_id = 'test_semantic_readonly_over_tool_or_time_limit_is_not_luna_fit'
+        for key, value in (('tool_calls_p90', 13), ('runtime_seconds_p90', 301)):
             raw = semantic_review()
-            if kind == "reads":
-                raw["context_manifest"] += [dict(raw["context_manifest"][0], path=f"context/{i}.py") for i in range(9, 13)]
-                raw["task_profile"]["read_context_count"] = 13
-                raw["semantic_estimate"].update(expected_context_reads=13, read_to_mutation_ratio=13)
+            raw['estimates'][key] = value
+            for observer in ('pm_estimate', 'domain_expert_estimate'):
+                raw[observer][key] = value
+            rows.append((original_id, raw, 'luna-fit-required', True))
+        original_id = 'test_thirteen_reads_and_unresolved_authority_are_not_relabelled'
+        for kind in ('reads', 'unresolved'):
+            raw = semantic_review()
+            if kind == 'reads':
+                raw['context_manifest'] += [dict(raw['context_manifest'][0], path=f'context/{i}.py') for i in range(9, 13)]
+                raw['task_profile']['read_context_count'] = 13
+                raw['semantic_estimate'].update(expected_context_reads=13, read_to_mutation_ratio=13)
             else:
-                raw["unresolved_decisions"] = ["Synthetic unresolved authority decision"]
-            authority = maintenance_authority(); authority["fit_inputs"]["work_estimate"] = evaluate_work_estimate(raw)
-            self.assert_fit_denied(authority, "work-estimate-not-operative-route")
+                raw['unresolved_decisions'] = ['Synthetic unresolved authority decision']
+            rows.append((original_id, raw, 'work-estimate-not-operative-route', False))
+        original_id = 'test_mutation_contradiction_unsafe_argv_and_changed_behavior_are_denied'
+        raw = semantic_review()
+        raw['semantic_estimate']['expected_mutations'] = 1
+        rows.append((original_id, raw, 'luna-fit-required', False))
+        raw = semantic_review()
+        raw['task_profile'].update(command_count=1, commands=[{'argv': ['git', 'diff', '--output', 'unsafe']}])
+        rows.append((original_id, raw, 'luna-fit-required', False))
+        for key in ('estimated_diff_p90', 'behavioral_changes', 'state_machine_changes', 'schema_changes'):
+            raw = semantic_review()
+            raw['semantic_estimate'][key] = 1
+            rows.append((original_id, raw, 'luna-fit-required', False))
+        original_id = 'test_complexity_and_live_control_risk_do_not_gain_luna_fit'
+        for key, value in (('command_complexity', 2), ('test_construction_complexity', 2),
+                           ('self_hosting_risk', 3), ('live_control_risk', 3)):
+            raw = semantic_review()
+            raw['semantic_estimate'][key] = value
+            rows.append((original_id, raw, 'luna-fit-required', False))
+        for index, (original_id, raw, reason, operative_semantic) in enumerate(rows):
+            with self.subTest(original_id=original_id, input_index=index):
+                authority = maintenance_authority()
+                authority['fit_inputs']['work_estimate'] = evaluate_work_estimate(raw)
+                if operative_semantic:
+                    self.assertEqual(authority['fit_inputs']['work_estimate']['fit_mode'], 'semantic')
+                    self.assertTrue(self.fit(authority)['classifications']['work_route_eligible'])
+                self.assert_fit_denied(authority, reason)
 
-    def test_mutation_contradiction_unsafe_argv_and_changed_behavior_are_denied(self):
-        cases = []
-        raw = semantic_review(); raw["semantic_estimate"]["expected_mutations"] = 1; cases.append(raw)
-        raw = semantic_review(); raw["task_profile"].update(command_count=1,
-            commands=[{"argv": ["git", "diff", "--output", "unsafe"]}]); cases.append(raw)
-        for key in ("estimated_diff_p90", "behavioral_changes", "state_machine_changes", "schema_changes"):
-            raw = semantic_review(); raw["semantic_estimate"][key] = 1; cases.append(raw)
-        for raw in cases:
-            authority = maintenance_authority(); authority["fit_inputs"]["work_estimate"] = evaluate_work_estimate(raw)
-            self.assert_fit_denied(authority, "luna-fit-required")
-
-    def test_complexity_and_live_control_risk_do_not_gain_luna_fit(self):
-        for key, value in (("command_complexity", 2), ("test_construction_complexity", 2),
-                           ("self_hosting_risk", 3), ("live_control_risk", 3)):
-            authority = maintenance_authority(); raw = semantic_review(); raw["semantic_estimate"][key] = value
-            authority["fit_inputs"]["work_estimate"] = evaluate_work_estimate(raw)
-            self.assert_fit_denied(authority, "luna-fit-required")
 
     def test_malformed_or_tampered_work_estimate_is_not_accepted(self):
         for key, value in (("fit_mode", "deterministic"), ("route", "architect"),
@@ -389,6 +382,36 @@ class MaintenanceRouteFitTests(unittest.TestCase):
                 self.assertTrue(routing.validate_operative_route_for_model(route, routing.LUNA_MODEL,
                     current_authority=authority, now=NOW))
 
+
+    def test_existing_finite_terminal_reserve_boundary_still_denies_final_gate(self):
+        authority = synthetic_authority(); budget = authority["fit_inputs"]["aggregate_budget"]
+        budget["allocation_before"] = budget["allocation_ceiling"] - budget["terminal_reserve"] - 1
+        self.schema_check(self.route(authority))
+        for delta in (1, 2):
+            current = copy.deepcopy(authority); current["fit_inputs"]["aggregate_budget"]["allocation_before"] += delta
+            route = self.route(current)
+            self.assertIn("aggregate_budget leaves no protected terminal allocation",
+                          routing.validate_task_selected_route_shape(route))
+            self.assertTrue(routing.validate_operative_route_for_model(route, routing.LUNA_MODEL,
+                current_authority=current, now=NOW))
+
+    def test_unbounded_mission_does_not_bypass_quota_capacity_or_controls(self):
+        for key, value, reason in (("quota_status", "exhausted", "model-quota-not-usable"),
+                                   ("quota_status", "unknown", "model-quota-not-usable"),
+                                   ("capacity_status", "unavailable", "model-capacity-not-available"),
+                                   ("workspace_enforced", False, "required-operative-controls-missing")):
+            authority = maintenance_authority(); luna_record(authority)[key] = value
+            self.assert_fit_denied(authority, reason)
+
+    def test_context_source_mutation_invalidates_previous_sealed_fit(self):
+        authority = maintenance_authority(); fit = self.fit(authority)
+        record = luna_record(authority)
+        record["context_window_source"]["context_window_tokens"] += 1
+        record["context_headroom"]["context_window_tokens"] += 1
+        record["context_headroom"]["source_sha256"] = routing._canonical_sha256(record["context_window_source"])
+        inputs = dict(authority["fit_inputs"]); inputs.pop("cache_profile")
+        self.assertTrue(routing.validate_task_selected_fit(fit, **inputs))
+
     def test_finite_normalization_and_headroom_values_remain_unchanged(self):
         authority = synthetic_authority(); budget = authority["fit_inputs"]["aggregate_budget"]
         self.assertEqual(routing._normalize_current_budget(budget), budget)
@@ -408,17 +431,6 @@ class MaintenanceRouteFitTests(unittest.TestCase):
             with self.subTest(key=key, value=value), self.assertRaises(ValueError):
                 routing._normalize_current_budget(changed)
 
-    def test_existing_finite_terminal_reserve_boundary_still_denies_final_gate(self):
-        authority = synthetic_authority(); budget = authority["fit_inputs"]["aggregate_budget"]
-        budget["allocation_before"] = budget["allocation_ceiling"] - budget["terminal_reserve"] - 1
-        self.schema_check(self.route(authority))
-        for delta in (1, 2):
-            current = copy.deepcopy(authority); current["fit_inputs"]["aggregate_budget"]["allocation_before"] += delta
-            route = self.route(current)
-            self.assertIn("aggregate_budget leaves no protected terminal allocation",
-                          routing.validate_task_selected_route_shape(route))
-            self.assertTrue(routing.validate_operative_route_for_model(route, routing.LUNA_MODEL,
-                current_authority=current, now=NOW))
 
     def test_historical_v2_classification_and_budget_are_not_reinterpreted(self):
         work = evaluate_work_estimate(semantic_review())

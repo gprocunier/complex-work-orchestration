@@ -1,0 +1,13 @@
+{
+  "schema_version": "cwo-comparative-evaluation-build-freeze:v1",
+  "codex_harness": {
+    "form": null,
+    "reference": null,
+    "sha256": null
+  },
+  "observer_harness": {
+    "form": null,
+    "reference": null,
+    "sha256": null
+  }
+}

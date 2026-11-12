@@ -12,6 +12,17 @@ REAL_BEADS_FIXTURE_TIMEOUT_SECONDS = 20
 _real_beads_unavailable_reason: str | None = None
 
 
+def continuation_fixture_timeout_seconds(issue_count: int) -> int:
+    """Budget the CLI's ready, per-issue list, and batched exact-show calls.
+
+    One additional primitive-command allowance covers Python startup and JSON
+    evaluation. Individual Beads commands keep their original 20-second bound.
+    """
+    show_batches = (issue_count + 49) // 50
+    command_count = 1 + issue_count + show_batches
+    return (command_count + 1) * REAL_BEADS_FIXTURE_TIMEOUT_SECONDS
+
+
 def run_fixture_subprocess(
     command: Sequence[str | os.PathLike[str]],
     *,
@@ -22,6 +33,7 @@ def run_fixture_subprocess(
     stdout: int | None = None,
     stderr: int | None = None,
     env: Mapping[str, str] | None = None,
+    timeout_seconds: float = REAL_BEADS_FIXTURE_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str] | subprocess.CompletedProcess[bytes]:
     """Run one fixture command with a hard deadline and descendant cleanup."""
 
@@ -42,7 +54,7 @@ def run_fixture_subprocess(
         start_new_session=True,
     )
     try:
-        output, errors = process.communicate(timeout=REAL_BEADS_FIXTURE_TIMEOUT_SECONDS)
+        output, errors = process.communicate(timeout=timeout_seconds)
     except subprocess.TimeoutExpired:
         try:
             os.killpg(process.pid, signal.SIGKILL)
@@ -53,7 +65,7 @@ def run_fixture_subprocess(
         output, errors = process.communicate()
         raise subprocess.TimeoutExpired(
             argv,
-            REAL_BEADS_FIXTURE_TIMEOUT_SECONDS,
+            timeout_seconds,
             output=output,
             stderr=errors,
         ) from None
@@ -67,6 +79,22 @@ def run_fixture_subprocess(
     if check:
         completed.check_returncode()
     return completed
+
+
+def configure_git_fixture(root: str | os.PathLike[str], *, env: Mapping[str, str] | None = None) -> None:
+    """Give disposable Git repositories a synthetic identity and disable maintenance.
+
+    Persist the settings locally so commits do not depend on a contributor's
+    identity, including product invocations that construct their own environment.
+    """
+    for name, value in (
+        ("maintenance.auto", "false"), ("gc.auto", "0"),
+        ("user.name", "CWO test"), ("user.email", "cwo-test@example.invalid"),
+    ):
+        run_fixture_subprocess(
+            ["git", "-C", str(root), "config", "--local", name, value],
+            cwd=root, env=env, check=True, capture_output=True,
+        )
 
 
 def initialize_real_beads(

@@ -52,6 +52,8 @@ def bound_fixture_proof(captured, **kwargs):
 
 class CodexToolSurfaceTests(unittest.TestCase):
     def setUp(self) -> None:
+        from cwo_core import native_live_availability
+        self.enterContext(mock.patch.object(native_live_availability, 'N1_LIVE_AVAILABLE', True))
         self.temp = tempfile.TemporaryDirectory()
         self.home = Path(self.temp.name)
         (self.home / "config.toml").write_text(

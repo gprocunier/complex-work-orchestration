@@ -220,8 +220,8 @@
                 primary expert lane and required gates are enough.
               </p>
               <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/scaffold_workgraph.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --title</span><span class="shiki-style-fccf53bf0d08ec6a"> "&#x3C;goal>"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --description</span><span class="shiki-style-fccf53bf0d08ec6a"> "&#x3C;scope>"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --title</span><span class="shiki-style-fccf53bf0d08ec6a"> "&lt;goal>"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --description</span><span class="shiki-style-fccf53bf0d08ec6a"> "&lt;scope>"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --scaffold-size</span><span class="shiki-style-fccf53bf0d08ec6a"> tight</span></span></code></pre>
             </details>
             <div class="callout">
@@ -257,8 +257,8 @@
               <code>data_sensitivity_provenance</code>. Keyword matching can
               miss paraphrases or context, so operators should declare known
               boundaries explicitly.
-              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/coach_prompt.py</span><span class="shiki-style-ab138001542cb31f"> --data-sensitivity</span><span class="shiki-style-fccf53bf0d08ec6a"> restricted</span><span class="shiki-style-fccf53bf0d08ec6a"> "&#x3C;task text>"</span></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/route_work.py</span><span class="shiki-style-ab138001542cb31f"> --data-sensitivity</span><span class="shiki-style-fccf53bf0d08ec6a"> redacted</span><span class="shiki-style-fccf53bf0d08ec6a"> "&#x3C;task text>"</span></span></code></pre>
+              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/coach_prompt.py</span><span class="shiki-style-ab138001542cb31f"> --data-sensitivity</span><span class="shiki-style-fccf53bf0d08ec6a"> restricted</span><span class="shiki-style-fccf53bf0d08ec6a"> "&lt;task text>"</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/route_work.py</span><span class="shiki-style-ab138001542cb31f"> --data-sensitivity</span><span class="shiki-style-fccf53bf0d08ec6a"> redacted</span><span class="shiki-style-fccf53bf0d08ec6a"> "&lt;task text>"</span></span></code></pre>
             </details>
             <div class="callout">
               <strong>Subagents:</strong>

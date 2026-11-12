@@ -454,6 +454,16 @@
     },
     "route": {"type": "object"},
     "paste_ready_prompt": {"type": "string"},
-    "warnings": {"type": "array", "items": {"type": "string"}}
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "execution_availability": {
+      "type": "object",
+      "description": "Whether models can be dispatched for this work, separate from the planning recommendation.",
+      "required": ["dispatch_authorized", "stops", "summary"],
+      "properties": {
+        "dispatch_authorized": {"type": "boolean"},
+        "stops": {"type": "array", "items": {"type": "string"}},
+        "summary": {"type": "string"}
+      }
+    }
   }
 }

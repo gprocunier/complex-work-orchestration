@@ -18,21 +18,21 @@ from cwo_core.routing_signals import explicit_openai_deep_research_requested  # 
 
 
 class RoutingTests(unittest.TestCase):
-    def test_invalid_data_sensitivity_raises_typed_validation_error(self) -> None:
-        with self.assertRaisesRegex(CWOValidationError, "data_sensitivity must be one of"):
-            normalize_data_sensitivity("customer-secret")
-
-    def test_invalid_beads_context_depth_raises_typed_validation_error(self) -> None:
-        with self.assertRaisesRegex(CWOValidationError, "beads_context_depth must be one of"):
-            normalize_beads_context_depth("deepest")
-
-    def test_unknown_execution_environment_raises_typed_policy_error(self) -> None:
-        with self.assertRaisesRegex(CWOPolicyError, "unknown execution environment: missing-env"):
-            resolve_execution_environment("missing-env")
-
-    def test_classify_work_propagates_typed_execution_environment_error(self) -> None:
-        with self.assertRaisesRegex(CWOPolicyError, "unknown execution environment: missing-env"):
-            classify_work("Review the architecture plan.", execution_environment="missing-env")
+    def test_typed_entry_refusal_rows(self) -> None:
+        rows = (
+            ("test_invalid_data_sensitivity_raises_typed_validation_error",
+             normalize_data_sensitivity, "customer-secret", {}, CWOValidationError, "data_sensitivity must be one of"),
+            ("test_invalid_beads_context_depth_raises_typed_validation_error",
+             normalize_beads_context_depth, "deepest", {}, CWOValidationError, "beads_context_depth must be one of"),
+            ("test_unknown_execution_environment_raises_typed_policy_error",
+             resolve_execution_environment, "missing-env", {}, CWOPolicyError, "unknown execution environment: missing-env"),
+            ("test_classify_work_propagates_typed_execution_environment_error",
+             classify_work, "Review the architecture plan.", {"execution_environment": "missing-env"},
+             CWOPolicyError, "unknown execution environment: missing-env"),
+        )
+        for row_id, action, value, options, error, diagnostic in rows:
+            with self.subTest(row=row_id), self.assertRaisesRegex(error, diagnostic):
+                action(value, **options)
 
     def test_ranks_security_and_architecture_experts(self) -> None:
         result = classify_work(
@@ -48,6 +48,21 @@ class RoutingTests(unittest.TestCase):
         self.assertTrue(result["ranked_executors"])
         self.assertIn(result["route"], {"external-contract", "architect-review", "internal-worker"})
 
+        for path, trivial in (("docs/guide.md", True), ("scripts/guide.md", False), ("docs/worker.py", False)):
+            with self.subTest(public_docs_path=path):
+                routed = classify_work("Fix one typo.", file_paths=[path])
+                self.assertEqual(routed["risk_level"] == "low", trivial)
+                if path == "docs/worker.py":
+                    self.assertTrue(routed["editor_gate_required"])
+        for prompt, roles in (
+            ("Use Gemini as an architecture critic.", ["architecture", "general_reasoning"]),
+            ("Use ChatGPT Pro for master plan review.", ["master_plan_review", "general_reasoning"]),
+        ):
+            with self.subTest(explicit_general_role=prompt):
+                routed = classify_work(prompt, requested_roles=roles, external_ok=True,
+                                       share_boundary="redacted-packet")
+                self.assertIn("general_reasoning", [expert["name"] for expert in routed["ranked_experts"]])
+
     def test_external_without_opt_in_has_hard_stop_or_non_external_route(self) -> None:
         result = classify_work(
             "Claude security review for auth token handling.",
@@ -60,31 +75,59 @@ class RoutingTests(unittest.TestCase):
         else:
             self.assertNotEqual(result["route"], "external-contract")
 
-    def test_local_worker_requires_explicit_opt_in(self) -> None:
-        result = classify_work(
-            "Documentation review for internal example notes.",
-            requested_roles=["documentation"],
-            share_boundary="no-outside-sharing",
-            prefer_local=True,
+    def test_local_worker_opt_in_rows(self) -> None:
+        rows = (
+            ("test_local_worker_requires_explicit_opt_in", {}),
+            ("test_prefer_local_selects_low_risk_local_worker_when_allowed", {"local_ok": True}),
         )
-        self.assertNotEqual(result["route"], "local-worker")
-        local_candidate = next(item for item in result["ranked_executors"] if item["key"] == "local_openai_compatible_worker")
-        self.assertIn("local worker dispatch requires --local-ok", local_candidate["policy_violations"])
+        for row_id, options in rows:
+            with self.subTest(row=row_id):
+                result = classify_work(
+                    "Documentation review for internal example notes.",
+                    requested_roles=["documentation"],
+                    share_boundary="no-outside-sharing",
+                    prefer_local=True,
+                    **options,
+                )
+                if options:
+                    self.assertEqual(result["route"], "local-worker")
+                    self.assertEqual(result["recommended_executor"], "local_openai_compatible_worker")
+                    self.assertTrue(result["has_local_worker_contracts"])
+                    self.assertIn("local-worker-only", result["guard_labels"])
+                    self.assertIn("no-codex-exec", result["guard_labels"])
+                    self.assertTrue(result["evaluator_required"])
+                else:
+                    self.assertNotEqual(result["route"], "local-worker")
+                    local_candidate = next(item for item in result["ranked_executors"] if item["key"] == "local_openai_compatible_worker")
+                    self.assertIn("local worker dispatch requires --local-ok", local_candidate["policy_violations"])
 
-    def test_prefer_local_selects_low_risk_local_worker_when_allowed(self) -> None:
-        result = classify_work(
-            "Documentation review for internal example notes.",
-            requested_roles=["documentation"],
-            share_boundary="no-outside-sharing",
-            local_ok=True,
-            prefer_local=True,
-        )
-        self.assertEqual(result["route"], "local-worker")
-        self.assertEqual(result["recommended_executor"], "local_openai_compatible_worker")
-        self.assertTrue(result["has_local_worker_contracts"])
-        self.assertIn("local-worker-only", result["guard_labels"])
-        self.assertIn("no-codex-exec", result["guard_labels"])
-        self.assertTrue(result["evaluator_required"])
+        # Candidate explanations are part of the public routing result; these
+        # rows do not dispatch or clear any independent admission violation.
+        docs = {"local_ok": True, "prefer_local": True, "requested_roles": ["documentation"]}
+        for name, text, options, reason, included, excluded in (
+            ("prefer-local", "Documentation review for internal example notes.", docs,
+             "preferred local worker", "local_openai_compatible_worker", "frontier_architect"),
+            ("web-capability", "Research the latest vendor standards.",
+             {"local_ok": True, "external_ok": True, "share_boundary": "redacted-packet"},
+             "web/tooling fit", "gemini_architecture_critic", "local_openai_compatible_worker"),
+            ("named-gemini", "Use Gemini as an architecture critic.",
+             {"external_ok": True, "share_boundary": "redacted-packet", "requested_roles": ["architecture"]},
+             "explicit Gemini/Agy architect critique request", "gemini_architecture_critic", "frontier_architect"),
+            ("named-glm", "Use exact GLM-5.3 as an architecture critic.",
+             {"local_ok": True, "local_profile": "openshift-ai-glm-5-3-direct", "requested_roles": ["architecture"]},
+             "explicit GLM-5.3 BF16 architect critique request", "rhoai_glm_compact_architecture_critic", "frontier_architect"),
+        ):
+            with self.subTest(public_candidate_contract=name):
+                routed = classify_work(text, **options)
+                candidates = {row["key"]: row for row in routed["ranked_executors"]}
+                self.assertIn(reason, candidates[included]["reasons"])
+                self.assertNotIn(reason, candidates[excluded]["reasons"])
+        shell = classify_work("Review the repo script and test command.", **docs)
+        local = next(row for row in shell["ranked_executors"] if row["key"] == "local_openai_compatible_worker")
+        self.assertNotIn("least-privilege local fit", local["reasons"])
+        quiet = classify_work("Documentation review for internal example notes.", **docs)
+        self.assertFalse(quiet["peer_review_required"])
+        self.assertFalse(quiet["provider_diversity_required"])
 
     def test_openai_deep_research_requires_provider_co_signal(self) -> None:
         self.assertFalse(explicit_openai_deep_research_requested("Do a deep research pass on this design."))
@@ -101,6 +144,14 @@ class RoutingTests(unittest.TestCase):
         self.assertEqual(primary["name"], "operator_calibrated_execution")
         self.assertEqual(primary["job_description_label"], "contract-jd-operator-calibrated-execution")
         self.assertIn("closure disposition", primary["output_contract"])
+
+        environment = "connected-codex-glm-primary"
+        inferred = classify_work("Review internal example notes.", execution_environment=environment)
+        explicit = "openshift-ai-glm-5-3-direct"
+        self.assertNotEqual(inferred["local_profile"], explicit)
+        overridden = classify_work("Review internal example notes.", execution_environment=environment,
+                                   local_profile=explicit)
+        self.assertEqual(overridden["local_profile"], explicit)
 
 
 if __name__ == "__main__":

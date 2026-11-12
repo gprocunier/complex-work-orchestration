@@ -42,7 +42,10 @@ from prepare_native_worker import (  # noqa: E402
     build_native_worker_packet,
     validate_native_worker_packet,
 )
-from tests.native_precommit_fixtures import issue_accepting_precommit_receipt  # noqa: E402
+from tests.native_precommit_fixtures import (  # noqa: E402
+    create_precommit_workspace,
+    issue_accepting_precommit_receipt,
+)
 from tests.test_native_work_sizing import _valid_v2_payload  # noqa: E402
 
 
@@ -156,6 +159,10 @@ class NativePrecommitPacketTests(unittest.TestCase):
         self.receipt_file = self.root / "receipt.json"
         self.audit_file = self.root / "audit.jsonl"
         self.plan = evaluate_work_estimate(_valid_v2_payload())
+        self.workspace = create_precommit_workspace(
+            Path(self.temp.name) / "workspace",
+            {"scripts/cwo_core/a.py": "# Harmless receipt-bound write target.\n"},
+        )
         self.packet_id = "packet-receipt-bound-candidate"
         self.receipt = self.make_receipt()
 
@@ -173,7 +180,7 @@ class NativePrecommitPacketTests(unittest.TestCase):
             session_id=self.session_id,
             session_file=self.session_file,
             agent_id="spark-fit-agent",
-            workdir=ROOT,
+            workdir=self.workspace,
             state_file=self.state_file,
             owner_pid=os.getpid(),
             audit_file=self.audit_file,
@@ -206,7 +213,7 @@ class NativePrecommitPacketTests(unittest.TestCase):
         return build_native_worker_packet(
             bead_id=self.plan["bead_id"],
             lane="implementation",
-            workdir=str(ROOT),
+            workdir=str(self.workspace),
             allowed_paths=self.plan["write_paths"],
             acceptance_checks=self.plan["acceptance_checks"],
             work_plan=self.plan,
@@ -477,7 +484,7 @@ class NativePrecommitPacketTests(unittest.TestCase):
             build_native_worker_packet(
                 bead_id=altered["bead_id"],
                 lane="implementation",
-                workdir=str(ROOT),
+                workdir=str(self.workspace),
                 allowed_paths=altered["write_paths"],
                 acceptance_checks=altered["acceptance_checks"],
                 work_plan=altered,
@@ -489,7 +496,7 @@ class NativePrecommitPacketTests(unittest.TestCase):
             build_native_worker_packet(
                 bead_id=self.plan["bead_id"],
                 lane="implementation",
-                workdir=str(ROOT),
+                workdir=str(self.workspace),
                 allowed_paths=self.plan["write_paths"],
                 acceptance_checks=self.plan["acceptance_checks"],
                 work_plan=self.plan,
@@ -517,7 +524,7 @@ class NativePrecommitPacketTests(unittest.TestCase):
             build_native_worker_packet(
                 bead_id=self.plan["bead_id"],
                 lane="unknown-lane",
-                workdir=str(ROOT),
+                workdir=str(self.workspace),
                 allowed_paths=self.plan["write_paths"],
                 acceptance_checks=self.plan["acceptance_checks"],
                 work_plan=self.plan,
@@ -543,7 +550,18 @@ class NativePrecommitPacketTests(unittest.TestCase):
         sleeper.terminate()
         sleeper.wait(timeout=5)
         replacement = reserve_precommit_receipt(self.receipt, "replacement-build")
+        self.assertNotEqual(replacement, reservation_id)
+        current = json.loads(registry_path.read_text(encoding="utf-8"))[self.receipt["receipt_sha256"]]
+        self.assertEqual(current["reservation_id"], replacement)
+        self.assertEqual(current["packet_build_id"], "replacement-build")
+        self.assertEqual(current["owner_identity"], native_precommit._capture_owner_identity(os.getpid(), replacement))
+        self.assertEqual(current["owner_identity"]["pid"], os.getpid())
+        self.assertEqual(current["owner_identity"]["execution_handle"], replacement)
+        for field in ("packet_id", "attempt_nonce", "state_id", "state_file"):
+            with self.subTest(field=field):
+                self.assertEqual(current[field], self.receipt[field])
         release_precommit_receipt_reservation(self.receipt, replacement)
+        self.assertNotIn(self.receipt["receipt_sha256"], json.loads(registry_path.read_text(encoding="utf-8")))
 
     def test_render_and_native_supervisor_reject_candidate(self) -> None:
         packet = self.build()

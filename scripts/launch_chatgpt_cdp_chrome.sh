@@ -23,7 +23,7 @@ Options:
   --replace             stop the named unit before launching it
   --stop                stop the named unit and exit
   --status              print unit and CDP port status and exit
-  --dry-run             print the systemd-run command without launching
+  --dry-run             preview without launching, stopping, or changing config/profile
   --print-chrome-command
                         print a foreground Chrome/CDP command and exit
   -h, --help            show this help
@@ -196,7 +196,11 @@ PROFILE="$(realpath -m "$PROFILE")"
 CONFIG_PATH="$(realpath -m "$CONFIG_PATH")"
 
 if [[ "$STOP" -eq 1 ]]; then
-  systemctl --user stop "${UNIT}.service" || true
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    quote_cmd systemctl --user stop "${UNIT}.service"
+  else
+    systemctl --user stop "${UNIT}.service" || true
+  fi
   exit 0
 fi
 
@@ -209,7 +213,7 @@ if [[ -z "$CHROME" ]]; then
   CHROME="$(detect_chrome)"
 fi
 
-if [[ "$WRITE_CONFIG" -eq 1 ]]; then
+if [[ "$WRITE_CONFIG" -eq 1 && "$DRY_RUN" -eq 0 ]]; then
   write_config "$CONFIG_PATH" "$PORT"
 fi
 
@@ -235,7 +239,7 @@ if ! command -v systemd-run >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ "$REPLACE" -eq 1 ]]; then
+if [[ "$REPLACE" -eq 1 && "$DRY_RUN" -eq 0 ]]; then
   systemctl --user stop "${UNIT}.service" || true
 fi
 
@@ -249,7 +253,9 @@ if ss -ltn "sport = :${PORT}" | awk 'NR > 1 {found=1} END {exit found ? 0 : 1}';
   exit 1
 fi
 
-mkdir -p "$PROFILE"
+if [[ "$DRY_RUN" -eq 0 ]]; then
+  mkdir -p "$PROFILE"
+fi
 
 RUNTIME_DIR="$(runtime_dir)"
 DISPLAY_VALUE="${DISPLAY:-:0}"

@@ -211,7 +211,7 @@ def load_beads_items(epic_id: str) -> list[dict[str, Any]]:
     exact_ids = sorted(discovered_ids)
     for start in range(0, len(exact_ids), 50):
         chunk = exact_ids[start : start + 50]
-        exact_items.extend(coerce_items(bd_json(["show", *chunk, "--json"])))
+        exact_items.extend(coerce_items(bd_json(["show", "--json", "--", *chunk])))
     exact_by_id = {issue_id(item): item for item in exact_items if issue_id(item)}
     missing = sorted(discovered_ids - set(exact_by_id))
     if missing:

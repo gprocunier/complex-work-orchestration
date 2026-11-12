@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "description": "The installed projection of the complex-work-orchestration skill and the single source of truth for it. scripts/install.sh copies exactly the files these entries enumerate into <skills-dir>/complex-work-orchestration, at the same relative path as in the source checkout, and scripts/check_installed_skill.py hashes the same files for drift. Every entry is required: a missing entry, an entry of the wrong kind, a symbolic link or a special file refuses installation and checking. Python caches, .DS_Store and the install record are not part of the projection. Excluded paths are maintainer-only material with no runtime or first-run reference; each is listed with its reason so a new top-level path cannot be silently left out.",
+  "skill_name": "complex-work-orchestration",
+  "entries": [
+    {
+      "path": "README.md",
+      "kind": "file"
+    },
+    {
+      "path": "LICENSE",
+      "kind": "file"
+    },
+    {
+      "path": "SECURITY.md",
+      "kind": "file"
+    },
+    {
+      "path": "SKILL.md",
+      "kind": "file"
+    },
+    {
+      "path": "AGENTS.md",
+      "kind": "file"
+    },
+    {
+      "path": "VERSION",
+      "kind": "file"
+    },
+    {
+      "path": "CHANGELOG.md",
+      "kind": "file"
+    },
+    {
+      "path": "agents",
+      "kind": "directory"
+    },
+    {
+      "path": "policy",
+      "kind": "directory"
+    },
+    {
+      "path": "templates",
+      "kind": "directory"
+    },
+    {
+      "path": "experts",
+      "kind": "directory"
+    },
+    {
+      "path": "references",
+      "kind": "directory"
+    },
+    {
+      "path": "schemas",
+      "kind": "directory"
+    },
+    {
+      "path": "examples",
+      "kind": "directory"
+    },
+    {
+      "path": "docs",
+      "kind": "directory"
+    },
+    {
+      "path": "scripts",
+      "kind": "directory"
+    },
+    {
+      "path": "calibration",
+      "kind": "directory"
+    },
+    {
+      "path": "prompts",
+      "kind": "directory"
+    }
+  ],
+  "excluded": [
+    {
+      "path": "CONTRIBUTING.md",
+      "reason": "contributor guide for the source checkout; read only by maintainer validators"
+    },
+    {
+      "path": "requirements-test.txt",
+      "reason": "test-only dependencies for CI and contributors"
+    },
+    {
+      "path": "tests",
+      "reason": "test suite and fixtures; reference documents cite test files as evidence, and no runtime path reads them"
+    },
+    {
+      "path": "tools",
+      "reason": "site build tooling for docs/; the generated pages are installed under docs"
+    },
+    {
+      "path": ".github",
+      "reason": "CI and Pages workflows"
+    },
+    {
+      "path": ".gitignore",
+      "reason": "source checkout configuration"
+    },
+    {
+      "path": "evaluation",
+      "reason": "maintainer-only never-run study protocol, hidden checks, inert probes/rehearsals and incomplete build locks; no runtime or first-run dependency and no study execution authority"
+    }
+  ]
+}

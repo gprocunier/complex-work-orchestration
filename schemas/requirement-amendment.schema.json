@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "requirement-amendment.schema.json",
+  "title": "CWO Requirement Amendment",
+  "description": "A change to a recorded requirement baseline. It names the prior baseline's digest and version and carries the complete next baseline; the added, removed and changed criterion IDs must be exactly the difference between the two. In this version only amendments that add criteria are supported: an amendment that removes or changes a criterion is refused, because the authority that removing or weakening an obligation needs cannot be verified yet.",
+  "type": "object",
+  "required": [
+    "record_type",
+    "version",
+    "bead_id",
+    "amendment_id",
+    "prior_digest",
+    "prior_baseline_version",
+    "added_criterion_ids",
+    "removed_criterion_ids",
+    "changed_criterion_ids",
+    "rationale",
+    "authority",
+    "baseline"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "record_type": {
+      "const": "cwo-requirement-amendment"
+    },
+    "version": {
+      "const": 1
+    },
+    "bead_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "amendment_id": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[A-Za-z][A-Za-z0-9]*(?:[._-][A-Za-z0-9]+)*$"
+    },
+    "prior_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "prior_baseline_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "added_criterion_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "removed_criterion_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 0
+    },
+    "changed_criterion_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 0
+    },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "role",
+        "reference"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "reference": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "description": "Recorded, not verified. Adding obligations needs no verified authority; removing or weakening them is refused in this version."
+    },
+    "baseline": {
+      "$ref": "requirement-baseline.schema.json"
+    }
+  }
+}

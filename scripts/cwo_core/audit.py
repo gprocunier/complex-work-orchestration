@@ -1,19 +1,28 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import os
 from pathlib import Path
 from typing import Any
 
-from .paths import AUDIT_LOG
+from .paths import AUDIT_LOG, HOST_AUDIT_LOG
 from .policy import executor_dispatch_mode, executor_external, load_contracting_controls
 from .telemetry import sanitize_audit_event
 from .util import artifact_hash
 
 
+def _configured_audit_file(audit_file: Path) -> bool:
+    from .host_records import configured_store
+    return audit_file == HOST_AUDIT_LOG or audit_file == configured_store().audit_file
+
+
 def iter_audit_events(audit_file: Path | None = None, *, strict: bool = True) -> list[dict[str, Any]]:
     audit_file = audit_file or AUDIT_LOG
+    if _configured_audit_file(audit_file):
+        from .host_records import configured_store
+        return configured_store().audit_events()
     if not audit_file.exists():
         return []
     events: list[dict[str, Any]] = []
@@ -139,7 +148,9 @@ def enforce_contracting_quota(
     )
     remaining_before = limit - used
     if remaining_before <= 0:
-        scope = epic_id or "global"
+        # The epic ID is caller input that no screen has seen yet, so the
+        # message names it only by a digest prefix.
+        scope = f"epic sha256:{hashlib.sha256(epic_id.encode('utf-8')).hexdigest()[:12]}" if epic_id else "global"
         raise SystemExit(f"{quota_key} exhausted for {scope}: used {used} of {limit}")
     return {
         "quota_checked": True,
@@ -197,8 +208,15 @@ def require_packet_build_audit(
     return matches[-1]
 
 
-def record_audit_event(event: dict[str, Any], audit_file: Path | None = None) -> dict[str, Any]:
+def record_audit_event(event: dict[str, Any], audit_file: Path | None = None, *,
+                       _directory_fd: int | None = None, _limits: Any = None,
+                       _lock_fd: int | None = None) -> dict[str, Any]:
     audit_file = audit_file or AUDIT_LOG
+    if _directory_fd is not None:
+        return _record_private_audit_event(event, _directory_fd, _limits, _lock_fd=_lock_fd)
+    if _configured_audit_file(audit_file):
+        from .host_records import configured_store
+        return configured_store().record_audit_event(event)
     audit_file.parent.mkdir(parents=True, exist_ok=True)
     lock_handle, lock_mode = acquire_audit_lock(audit_file)
     try:
@@ -264,6 +282,8 @@ def audit_event_payload_hash(event: dict[str, Any]) -> str:
 
 def verify_audit_log(audit_file: Path | None = None) -> dict[str, Any]:
     audit_file = audit_file or AUDIT_LOG
+    if _configured_audit_file(audit_file):
+        return _verify_host_audit()
     errors: list[str] = []
     previous_hash: str | None = None
     unlinked_events = 0
@@ -300,3 +320,146 @@ def verify_audit_log(audit_file: Path | None = None) -> dict[str, Any]:
         "unlinked_event_count": unlinked_events,
         "last_event_hash": previous_hash,
     }
+
+
+def _verify_host_audit() -> dict[str, Any]:
+    from .host_records import configured_store, HostRecordError
+    try:
+        events = configured_store().audit_events()
+    except (HostRecordError, OSError) as failure:
+        return dict(valid=False, errors=[str(failure)], event_count=0,
+                    unlinked_event_count=0, last_event_hash=None)
+    return dict(valid=True, errors=[], event_count=len(events), unlinked_event_count=0,
+                last_event_hash=events[-1]['event_hash'] if events else None)
+
+
+def _prepare_private_audit_event(event: dict[str, Any], directory: int, limits: Any,
+                                 prior: list[dict[str, Any]] | None = None) -> tuple[dict[str, Any], bytes]:
+    """Exact capacity preflight under the audit lock, before record creation."""
+    from .host_records import _audit_snapshot
+    from .audit_segments import append_plan
+    prior = _audit_snapshot(directory, limits) if prior is None else prior
+    enriched = sanitize_audit_event(dict(event))
+    enriched.setdefault('timestamp', dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+    enriched.setdefault('audit_lock_mode', 'posix-flock')
+    enriched.pop('previous_event_hash', None)
+    if prior:
+        enriched['previous_event_hash'] = prior[-1]['event_hash']
+    enriched.pop('event_hash', None)
+    enriched['event_hash'] = audit_event_payload_hash(enriched)
+    raw = (json.dumps(enriched, sort_keys=True) + '\n').encode('utf-8')
+    append_plan(directory, limits, raw, prior)
+    return enriched, raw
+
+
+def _restore_private_audit(directory: int, fd: int, before: bytes | None,
+                           head: bytes | None, limits: Any) -> None:
+    from .host_records import _audit_snapshot, _write_at
+    os.ftruncate(fd, len(before or b''))
+    os.fsync(fd)
+    if head is None:
+        for name in ('audit.jsonl.head.json', 'audit.jsonl'):
+            try:
+                os.unlink(name, dir_fd=directory)
+            except FileNotFoundError:
+                pass
+    else:
+        _write_at(directory, 'audit.jsonl.head.json', head, replace=True)
+    os.fsync(directory)
+    _audit_snapshot(directory, limits)
+
+
+def _record_private_audit_event(event: dict[str, Any], directory: int, limits: Any, *,
+                                _lock_fd: int | None = None) -> dict[str, Any]:
+    """Append through the shared writer; restore an uncommitted partial append.
+
+    Once the matching event and head verify, retain that committed evidence even
+    when confirmation raises. Recovery that cannot be verified reports uncertainty
+    and leaves verification closed; it never claims the operation did not occur.
+    """
+    from .host_records import _audit_lock
+    from .audit_segments import recover_rotation
+    from .host_record_quarantine import require_no_pending
+    lock = _lock_fd if _lock_fd is not None else _audit_lock(directory, create=True, exclusive=True)
+    try:
+        require_no_pending(directory)
+        recover_rotation(directory, limits)
+        return _append_private_audit(event, directory, limits)
+    finally:
+        if _lock_fd is None:
+            os.close(lock)
+
+
+def _append_private_audit(event: dict[str, Any], directory: int, limits: Any) -> dict[str, Any]:
+    import stat
+    from .host_records import _audit_snapshot, _need
+    prior = _audit_snapshot(directory, limits)
+    enriched, raw = _prepare_private_audit_event(event, directory, limits, prior)
+    from .audit_segments import append_plan, commit_rotation, segment_name
+    rotate, head, index, _, before = append_plan(directory, limits, raw, prior)
+    if rotate:
+        return commit_rotation(directory, limits, enriched, raw, prior)
+    before = before if head is not None else None
+    fd = os.open(segment_name(index), os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW
+                 | os.O_NONBLOCK | os.O_CLOEXEC, 0o600, dir_fd=directory)
+    try:
+        info = os.fstat(fd)
+        _need(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+              and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1,
+              'host audit must be private and regular')
+        return _commit_private_append(directory, fd, enriched, raw, before, head, prior, limits)
+    finally:
+        os.close(fd)
+
+
+def _verify_uncommitted_append(directory: int, before: bytes | None, head: bytes | None,
+                                raw: bytes, limits: Any) -> None:
+    """A readable old checkpoint plus exact pending bytes proves noncommit."""
+    from .host_records import _need, _read_at
+    try:
+        from .audit_segments import MAX_HEAD_BYTES
+        current_head = _read_at(directory, 'audit.jsonl.head.json', MAX_HEAD_BYTES)
+    except FileNotFoundError:
+        current_head = None
+    _need(current_head == head, 'host audit checkpoint no longer proves an uncommitted append')
+    from .audit_segments import layout, segment_name
+    current = _read_at(directory, segment_name(layout(head)[0]), limits.max_audit_bytes)
+    prefix = before or b''
+    _need(current.startswith(prefix) and raw.startswith(current[len(prefix):]),
+          'host audit bytes do not prove an uncommitted append')
+
+
+def _commit_private_append(directory: int, fd: int, enriched: dict[str, Any], raw: bytes,
+                            before: bytes | None, head: bytes | None,
+                            prior: list[dict[str, Any]], limits: Any) -> dict[str, Any]:
+    from .host_records import HostRecordError, _audit_snapshot, _json, _need, _write_at
+    try:
+        view = memoryview(raw)
+        while view:
+            count = os.write(fd, view)
+            _need(count > 0, 'host audit write did not progress')
+            view = view[count:]
+        os.fsync(fd)
+        from .audit_segments import append_head
+        checkpoint = append_head(head, event_count=len(prior) + 1, event_hash=enriched['event_hash'],
+                                 byte_count=len(before or b'') + len(raw))
+        _write_at(directory, 'audit.jsonl.head.json', _json(checkpoint), replace=True)
+    except BaseException as exc:
+        try:
+            current = _audit_snapshot(directory, limits)
+        except (FileNotFoundError, ValueError):
+            current = []
+        except OSError as verification:
+            raise HostRecordError('host audit append outcome uncertain; verification unavailable, evidence preserved') from verification
+        if current and current[-1].get('event_hash') == enriched['event_hash']:
+            raise HostRecordError('host audit event committed; confirmation interrupted, verify before retry') from exc
+        try:
+            _verify_uncommitted_append(directory, before, head, raw, limits)
+        except (OSError, ValueError) as verification:
+            raise HostRecordError('host audit append outcome uncertain; noncommit could not be verified, evidence preserved') from verification
+        try:
+            _restore_private_audit(directory, fd, before, head, limits)
+        except BaseException as recovery:
+            raise HostRecordError('host audit append outcome uncertain; recovery could not be verified') from recovery
+        raise
+    return enriched

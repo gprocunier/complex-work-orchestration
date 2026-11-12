@@ -55,10 +55,10 @@ task family, candidate set, scoring contract, threshold, budget, or decision rul
 record and validate a frozen protocol lock before planning or costly dispatch.
 For experiments these bound fields are scope boundaries, not summaries.
 
-General steering such as “proceed,” “repair until complete,” `full_auto`, or
-“step over blocking ceremony” authorizes continuation within the lock; it does
-not authorize a replacement benchmark, task family, controller, prompt, scorer,
-threshold, budget, or decision rule. A same-scope repair may restore mechanical
+General steering such as “proceed,” “repair until complete,” or `full_auto`
+authorizes continuation within the lock; it does not authorize a replacement
+benchmark, task family, controller, prompt, scorer, threshold, budget, or
+decision rule. A same-scope repair may restore mechanical
 readiness only while every locked field remains unchanged. Explicit replacement
 authority starts a new protocol and evidence boundary; it never rewrites or
 substitutes for the frozen run.
@@ -125,9 +125,11 @@ Use a bounded delivery loop:
 Do not request another user authorization for routine same-scope repair already
 covered by the request. Do not start broad searches, repeated critic rounds,
 speculative infrastructure, or experimental retries merely because the desired
-result has not yet been reached. If ceremony blocks useful work, record the block
-durably and use only an already-authorized bypass that preserves experimental,
-security, and acceptance integrity.
+result has not yet been reached. If a required step blocks useful work, record
+the block durably. Use an alternative workflow only when the applicable CWO
+contract already authorizes it within the existing task scope. Provider
+safeguards, security and access gates, required validation, and frozen protocol
+bindings are not optional workflow steps.
 
 ## Scoped stops and autonomous continuation
 

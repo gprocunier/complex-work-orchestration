@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run one parameterized readiness-first admitted native-pool transaction."""
+"""Public finite pool host client and original admitted transaction entry point."""
 
 from __future__ import annotations
 
@@ -44,10 +44,12 @@ def _load_runtime(plan: Mapping[str, Any], *, maintenance_operation=None,
     from types import ModuleType
     from cwo_core.native_pool_transaction import MAINTENANCE_PLAN_VERSION
     if plan.get("version") == MAINTENANCE_PLAN_VERSION:
+        from cwo_core.native_live_availability import require_v8_live_routes
         from cwo_core.maintenance_authority import require_maintenance_operation
         capability = require_maintenance_operation(
             maintenance_operation, plan=plan, verifier=maintenance_verifier,
             require_claimed=False)
+        require_v8_live_routes(plan)
         capability.claim()  # Durable one-shot ownership precedes module effects.
         source = capability.read_adapter_source()
         path = capability.adapter_path
@@ -116,16 +118,30 @@ def build_parser() -> argparse.ArgumentParser:
             "run_admitted_native_pool."
         )
     )
-    parser.add_argument("--plan", required=True, type=Path)
+    ingress = parser.add_mutually_exclusive_group(required=True)
+    ingress.add_argument("--plan", type=Path)
+    ingress.add_argument("--pool-request", type=Path,
+                         help="Finite host request; local validation grants no authority")
     parser.add_argument("--journal", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--validate-only", action="store_true")
     return parser
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, host=None) -> int:
+    """A trusted Python parent may inject its protected host, never via argv."""
     args = build_parser().parse_args(argv)
     try:
+        if args.pool_request is not None:
+            from registered_native_pool_client import submit, validate_structure
+            request = _load_json(args.pool_request, "pool request")
+            validate_structure(request)
+            if args.journal is not None or args.output is not None:
+                raise ValueError("pool journals and evidence are owned by the protected host")
+            if args.validate_only:
+                request = dict(request, mode="validate-only")
+            print(json.dumps(submit(request, host=host), indent=2, sort_keys=True))
+            return 0
         plan = _load_json(args.plan.expanduser().resolve(), "transaction plan")
         errors = validate_transaction_plan(plan)
         if errors:

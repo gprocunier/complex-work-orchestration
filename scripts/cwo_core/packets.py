@@ -1141,7 +1141,32 @@ def find_forbidden_fields(value: Any, forbidden_fields: set[str], prefix: str = 
     return hits
 
 
-def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet: bool = False) -> list[str]:
+# A packet built with ``build_contractor_packet.py --rehearsal`` carries this label inside the
+# payload that ``packet_sha256`` covers. Production consumers (dispatch, manual prompt, browser
+# review, return normalization and evaluation) refuse it; only the rehearsal build itself
+# validates it. The label check alone does not stop an edited packet: removing the label and
+# recomputing packet_sha256 passes every content check here. Production consumers therefore also
+# require production provenance (cwo_core.packet_provenance: the packet_built audit event of the
+# build), which no build recorded for the edited hash.
+NONPRODUCTION_RESULT_CLASS = "nonproduction-rehearsal"
+
+
+def nonproduction_packet_errors(packet: dict[str, Any], *, allow_nonproduction: bool) -> list[str]:
+    if "result_class" not in packet:
+        return []
+    if packet["result_class"] != NONPRODUCTION_RESULT_CLASS:
+        return [f"packet result_class must be {NONPRODUCTION_RESULT_CLASS!r} when present"]
+    if allow_nonproduction:
+        return []
+    return [
+        "packet is a nonproduction rehearsal result and cannot be used by a production consumer; "
+        "build the packet without --rehearsal"
+    ]
+
+
+def validate_contractor_packet(
+    packet: dict[str, Any], *, allow_degraded_packet: bool = False, allow_nonproduction: bool = False
+) -> list[str]:
     errors: list[str] = []
     if not isinstance(packet, dict):
         return ["packet must contain a top-level object"]
@@ -1265,6 +1290,7 @@ def validate_contractor_packet(packet: dict[str, Any], *, allow_degraded_packet:
     expected_hash = packet_payload_hash(packet)
     if packet.get("packet_sha256") != expected_hash:
         errors.append("packet_sha256 does not match packet payload")
+    errors.extend(nonproduction_packet_errors(packet, allow_nonproduction=allow_nonproduction))
 
     forbidden_fields = set(boundary.get("forbidden_fields", [])) if boundary else set()
     forbidden_hits = find_forbidden_fields(packet, forbidden_fields)

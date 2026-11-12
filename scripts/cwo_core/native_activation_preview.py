@@ -22,6 +22,7 @@ from .beads_ready_set import (
     build_ready_set_evidence,
     canonical_json_sha256,
 )
+from .model_identities import SPARK_MODEL
 from .native_activation_ledger import (
     NativeActivationLedgerError,
     activation_iso,
@@ -70,6 +71,8 @@ from .work_sizing import (
     canonical_work_estimate_sha256,
     evaluate_work_estimate,
 )
+from .workspace import workspace_is_clean
+from .workspace_capture import trusted_git_completed, trusted_git_private
 
 
 PLAN_TYPE = "cwo-native-tool-activation-plan"
@@ -82,7 +85,7 @@ RESULT_TYPE = "cwo-native-tool-activation-result"
 RESULT_VERSION = 2
 RESULT_SCHEMA = "schemas/native-tool-activation-result-v2.schema.json"
 KEY_NAME = "activation-preview.key"
-MODEL = "gpt-5.3-codex-spark"
+MODEL = SPARK_MODEL
 MUTABLE_PATCH_INPUT = (
     "*** Begin Patch\n"
     "*** Update File: targets/activation.txt\n"
@@ -273,7 +276,25 @@ def _run(
 
 
 def _git(cwd: Path, *args: str) -> str:
-    return _run(["git", *args], cwd=cwd, label="activation-git")
+    """Read-only Git through the trusted executable and controlled environment."""
+    completed = trusted_git_completed(cwd, list(args), text=True)
+    if completed.returncode != 0:
+        raise NativeActivationPreviewError(
+            f"activation-git-failed:{completed.returncode}:"
+            + hashlib.sha256(completed.stderr.encode("utf-8")).hexdigest()
+        )
+    return completed.stdout.strip()
+
+
+def _private_git(cwd: Path, *args: str) -> str:
+    """Git on a scratch repository this preview creates (init, commit, worktree add)."""
+    completed = trusted_git_private(cwd, list(args))
+    if completed.returncode != 0:
+        raise NativeActivationPreviewError(
+            f"activation-git-failed:{completed.returncode}:"
+            + hashlib.sha256(completed.stderr.encode("utf-8")).hexdigest()
+        )
+    return completed.stdout.strip()
 
 
 def _bd_environment(directory: Path) -> dict[str, str]:
@@ -321,7 +342,8 @@ def _source_identity(source_repository: Path) -> tuple[Path, str, str]:
         raise NativeActivationPreviewError(
             "activation-source-git-identity-invalid"
         )
-    if _git(source, "status", "--porcelain=v1", "--untracked-files=all"):
+    # Inert inspection: the source repository's own config must not run.
+    if not workspace_is_clean(source, include_untracked=True):
         raise NativeActivationPreviewError(
             "activation-source-repository-dirty"
         )
@@ -469,9 +491,9 @@ def fixed_activation_tool_trace(
 def _create_git_layout(run_root: Path, activation_id: str, profile: str) -> dict[str, Any]:
     integration = run_root / "integration"
     integration.mkdir(mode=0o700)
-    _git(integration, "init", "-q")
-    _git(integration, "config", "user.name", "CWO Activation Preview")
-    _git(
+    _private_git(integration, "init", "-q")
+    _private_git(integration, "config", "user.name", "CWO Activation Preview")
+    _private_git(
         integration,
         "config",
         "user.email",
@@ -487,12 +509,12 @@ def _create_git_layout(run_root: Path, activation_id: str, profile: str) -> dict
         "activation-preview-mutable-baseline\n",
         encoding="utf-8",
     )
-    _git(integration, "add", ".")
-    _git(integration, "commit", "-qm", "activation preview baseline")
+    _private_git(integration, "add", ".")
+    _private_git(integration, "commit", "-qm", "activation preview baseline")
     worktrees: list[Path] = []
     if profile == "n1-mutable":
         mutable = run_root / "mutable-0"
-        _git(
+        _private_git(
             integration,
             "worktree",
             "add",
@@ -505,7 +527,7 @@ def _create_git_layout(run_root: Path, activation_id: str, profile: str) -> dict
         worktrees.append(mutable)
     else:
         read_shared = run_root / "read-shared"
-        _git(
+        _private_git(
             integration,
             "worktree",
             "add",
@@ -754,7 +776,7 @@ def _create_beads_graph(
         raise NativeActivationPreviewError("activation-beads-cli-unavailable")
     beads_directory = run_root / "private-beads"
     beads_directory.mkdir(mode=0o700)
-    _git(beads_directory, "init", "-q")
+    _private_git(beads_directory, "init", "-q")
     _bd(
         beads_directory,
         "init",
@@ -1115,6 +1137,15 @@ def validate_activation_plan(
         if any(not Path(str(item)).is_absolute() for item in paths.values()):
             raise NativeActivationPreviewError(
                 "activation-plan-artifact-path-not-absolute"
+            )
+        # The live run closes its children with an "accepted" reason, so its
+        # Beads must be the private database prepared under this run root.
+        private_beads = run_root / "private-beads"
+        if Path(str(paths["beads_directory"])) != private_beads or Path(
+            str(paths["beads_database"])
+        ) != private_beads / ".beads" / "embeddeddolt":
+            raise NativeActivationPreviewError(
+                "activation-plan-beads-not-private"
             )
         tasks = value.get("tasks")
         if type(tasks) is not list or len(tasks) != PROFILE[str(profile)][

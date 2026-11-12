@@ -37,10 +37,11 @@ class RunBdTests(unittest.TestCase):
             [
                 "dep",
                 "add",
-                "publication",
-                "implementation",
                 "--type",
                 "validates",
+                "--",
+                "publication",
+                "implementation",
             ]
         )
 

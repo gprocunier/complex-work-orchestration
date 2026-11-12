@@ -6,13 +6,10 @@ import json
 from copy import deepcopy
 from typing import Any, Mapping
 
+from .model_identities import GPT55_MODEL, LUNA_MODEL, SPARK_MODEL, TERRA_MODEL
 from .policy import RISK_ORDER, load_policy
 
 
-SPARK_MODEL = "gpt-5.3-codex-spark"
-GPT55_MODEL = "gpt-5.5"
-TERRA_MODEL = "gpt-5.6-terra"
-LUNA_MODEL = "gpt-5.6-luna"
 FALLBACK_MODELS = (GPT55_MODEL, TERRA_MODEL, LUNA_MODEL)
 AVAILABILITY_STATUSES = (
     "available",
@@ -79,6 +76,7 @@ TASK_SELECTED_FIT_FIELDS = {
     "fit_sha256",
 }
 TASK_SELECTED_PORTFOLIO = (LUNA_MODEL, TERRA_MODEL)
+NONOPERATIVE_ROLE = "historical-nonoperative"
 TASK_SELECTED_ROLES = {
     LUNA_MODEL: "luna-first-operative-worker",
     TERRA_MODEL: "escalation-only-operative-worker",
@@ -253,7 +251,7 @@ def _task_selected_policy(
     roles = source.get("operative_roles")
     expected_roles = {
         **TASK_SELECTED_ROLES,
-        SPARK_MODEL: "historical-nonoperative",
+        SPARK_MODEL: NONOPERATIVE_ROLE,
     }
     if not isinstance(roles, Mapping) or dict(roles) != expected_roles:
         raise ValueError("task selected routing operative roles must be an object")
@@ -318,6 +316,35 @@ def task_selected_policy_sha256(execution_environment: str = "connected-codex") 
             ),
             "executors": portfolio_executors,
         }
+    )
+
+
+def nonoperative_model_refusal(model: Any) -> str | None:
+    """The general v3 outcome for an exact model the task-selected policy marks historical-nonoperative.
+
+    This is the same rule the operative route applies to every model outside
+    the approved portfolio, stated for a consumer that resolves an exact model
+    by itself (an environment role binding or an explicit model argument)
+    instead of through ``resolve_operative_route``. While the v3 policy is
+    active (the condition under which ``validate_operative_route_for_model``
+    refuses historical v2 routes), a model whose operative role is
+    ``historical-nonoperative`` is nonoperative for v3 and has no new dispatch
+    authority. The refusal names no replacement: no other model is substituted.
+    Every other model, and every model while the policy is inactive, gets None.
+    The comparison ignores case and surrounding whitespace, so a respelling of
+    the identity is refused as well. Canonical shape errors raise ``PolicySchemaError(SystemExit)`` before typed ``ValueError``
+    from ``_task_selected_policy``.
+    """
+    if not isinstance(model, str) or not model.strip():
+        return None
+    routing, _ = _task_selected_policy(load_policy("native-worker-execution"))
+    roles = {str(key).lower(): role for key, role in routing["operative_roles"].items()}
+    if routing["status"] != "active" or roles.get(model.strip().lower()) != NONOPERATIVE_ROLE:
+        return None
+    return (
+        f"model {model!r} is {NONOPERATIVE_ROLE} under task_selected_routing v{routing['version']}: "
+        "historical records stay readable, but it is nonoperative for v3 and has no new dispatch "
+        "authority; no other model is substituted"
     )
 
 

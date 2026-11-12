@@ -138,7 +138,7 @@ def show_bead_exact_structured(
     if not issue_id:
         raise ValueError("bead-id-must-be-nonempty")
     result = run_bd_structured(
-        ("show", issue_id, "--json"),
+        ("show", "--json", "--", issue_id),
         directory=directory,
         database=database,
         actor=actor,
@@ -298,14 +298,40 @@ def create_bead(
     return {"id": parse_created_issue_id(output), "title": title, "raw_output": output.strip()}
 
 
-def show_bead_json(bead_id: str, *, include_comments: bool = False, include_dependents: bool = False) -> Any:
-    args = ["show", bead_id, "--json"]
+def show_bead_args(bead_id: str, *, include_comments: bool = False, include_dependents: bool = False) -> list[str]:
+    """Return the ``bd`` arguments for one JSON show.
+
+    Every option precedes ``--`` so that the Bead ID after it is always an
+    operand, even when it begins with ``-``.
+    """
+
+    args = ["show", "--json"]
     if include_comments:
         args.append("--include-comments")
     if include_dependents:
         args.append("--include-dependents")
-    output = run_bd(args)
+    return [*args, "--", bead_id]
+
+
+def show_bead_json(bead_id: str, *, include_comments: bool = False, include_dependents: bool = False) -> Any:
+    output = run_bd(
+        show_bead_args(bead_id, include_comments=include_comments, include_dependents=include_dependents)
+    )
     return json.loads(output)
+
+
+def bead_id_operand(value: str) -> str:
+    """Return a Bead ID for a ``bd`` operand slot, refusing option-like text.
+
+    Repository Bead IDs begin with a letter or digit, so a leading ``-`` is
+    never an ordinary ID. ``bd dep add`` (1.3.1) stores an unresolved
+    depends-on ID as given for nonblocking types, even after ``--``, so the
+    refusal happens here, before ``bd`` runs.
+    """
+
+    if value.startswith("-"):
+        raise ValueError(f"refusing option-like Bead ID: {value!r}")
+    return value
 
 
 def normalize_dependency_type(value: str) -> str:
@@ -332,4 +358,4 @@ def add_dependency(
     """
 
     normalized = normalize_dependency_type(dependency_type)
-    run_bd(["dep", "add", blocked, blocker, "--type", normalized])
+    run_bd(["dep", "add", "--type", normalized, "--", bead_id_operand(blocked), bead_id_operand(blocker)])

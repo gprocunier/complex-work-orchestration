@@ -17,6 +17,7 @@ from cwo_core.native_precommit import (
     make_deterministic_receipt,
     mark_fit_dispatched,
 )
+from tests.real_beads_fixture import configure_git_fixture
 
 
 MODEL = "gpt-5.3-codex-spark"
@@ -100,6 +101,30 @@ def _ensure_exact_git_worktree(workdir: str | Path) -> None:
         capture_output=True,
         text=True,
     )
+    configure_git_fixture(root)
+
+
+def create_precommit_workspace(workdir: Path, files: Mapping[str, str]) -> Path:
+    """Create a small caller-owned Git workspace; its caller owns cleanup."""
+    workdir.mkdir(mode=0o700, parents=True)
+    for relative, body in files.items():
+        target = workdir / relative
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+    for arguments in (
+        ["init", "-q"],
+        ["config", "--local", "maintenance.auto", "false"],
+        ["config", "--local", "gc.auto", "0"],
+        ["add", "--", "."],
+        ["-c", "user.name=EXAMPLE", "-c", "user.email=EXAMPLE@example.invalid",
+         "commit", "-qm", "EXAMPLE precommit workspace"],
+    ):
+        subprocess.run(
+            ["git", "-c", "core.hooksPath=/dev/null", "-c", "gc.auto=0",
+             "-C", str(workdir), *arguments],
+            check=True, capture_output=True, text=True,
+        )
+    return workdir
 
 
 def issue_accepting_precommit_receipt(

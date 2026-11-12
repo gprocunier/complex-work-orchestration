@@ -131,7 +131,15 @@ class MemoryBdRunner:
         actor = str(kwargs.get("actor", self.actor))
         self.calls.append(args)
         command = ("bd", *args)
-        bead_id = args[1]
+        # Every option precedes "--"; the Bead ID is the one operand after it.
+        bead_id = args[-1]
+        expected = {
+            "show": ("show", "--json", "--", bead_id),
+            "update": ("update", "--claim", "--json", "--", bead_id),
+            "close": ("close", "--reason", args[2] if len(args) > 2 else "", "--json", "--", bead_id),
+        }.get(args[0])
+        if args != expected:
+            raise AssertionError(args)
         if args[0] == "show":
             if bead_id in self.fail_next_show:
                 self.fail_next_show.remove(bead_id)
@@ -408,6 +416,20 @@ class NativePoolAdmissionTests(unittest.TestCase):
 
     def test_timeout_reconciliation_uses_exact_show_not_command_output(self) -> None:
         _, items, _ = _fixture_candidate(2)
+        # Direct claim is an admitted API too: a stale/preowned projection
+        # cannot issue an update even outside reserve_pool_cohort.
+        for status, assignee, expected_hash in (
+            ("closed", None, None),
+            ("in_progress", "other-actor", None),
+            ("open", "other-actor", None),
+            ("open", None, "0" * 64),
+        ):
+            with self.subTest(status=status, assignee=assignee, expected_hash=expected_hash):
+                refused = MemoryBdRunner(items)
+                refused.issues["bead-a"].update(status=status, assignee=assignee)
+                transition = _adapter(refused).claim("bead-a", expected_pre_show_sha256=expected_hash)
+                self.assertEqual(refused.claim_order, [])
+                self.assertFalse(transition.owned)
         runner = MemoryBdRunner(items)
         runner.queue("bead-a", "timeout-committed")
         committed = _adapter(runner).claim("bead-a")
@@ -638,31 +660,6 @@ class NativePoolAdmissionTests(unittest.TestCase):
             class ForgedCapability(FixedCohortAdmissionCapability):
                 pass
 
-    def test_receipt_tamper_and_reseal_cannot_grant_authority(self) -> None:
-        candidate, items, _ = _fixture_candidate(2)
-        reservation, _ = _reserve(candidate, items)
-        capability = reservation.capability
-        assert capability is not None
-        tampered = deepcopy(dict(reservation.receipt))
-        tampered["admission_nonce"] = "attacker-resealed"
-        unsigned = dict(tampered)
-        unsigned.pop("reservation_sha256")
-        tampered["reservation_sha256"] = canonical_admission_sha256(unsigned)
-        self.assertEqual(validate_reservation_receipt(tampered), [])
-        with self.assertRaisesRegex(
-            NativePoolAdmissionError,
-            "dispatch-capability-binding-mismatch",
-        ):
-            consume_pool_admission(
-                capability,
-                tampered,
-                _context(tampered),
-                claim_adapter=reservation.claim_adapter,
-                live_revalidate=_live,
-                commit=lambda _: None,
-                now="2026-07-21T20:00:03Z",
-            )
-        self.assertEqual(capability.state, "available")
 
     def test_concurrent_duplicate_consume_has_one_winner(self) -> None:
         candidate, items, _ = _fixture_candidate(2)
@@ -905,12 +902,12 @@ class NativePoolAdmissionTests(unittest.TestCase):
                     ],
                     reason="fixed close reason",
                 )
+                self.assertEqual(runner.close_order, [])
                 self.assertFalse(transition.closed)
                 self.assertEqual(
                     transition.receipt["outcome"],
                     expected_outcome,
                 )
-                self.assertEqual(runner.close_order, [])
 
     @unittest.skipUnless(BD_PATH, "bd CLI not available")
     def test_real_temporary_beads_claim_has_exact_started_at_transition(self) -> None:
@@ -1120,6 +1117,32 @@ class NativePoolAdmissionTests(unittest.TestCase):
                 commit=lambda receipt: commits.append(receipt["dispatch_sha256"]),
             )
             self.assertEqual(commits, [dispatch["dispatch_sha256"]])
+
+    def test_receipt_tamper_and_reseal_cannot_grant_authority(self) -> None:
+        candidate, items, _ = _fixture_candidate(2)
+        reservation, _ = _reserve(candidate, items)
+        capability = reservation.capability
+        assert capability is not None
+        tampered = deepcopy(dict(reservation.receipt))
+        tampered["admission_nonce"] = "attacker-resealed"
+        unsigned = dict(tampered)
+        unsigned.pop("reservation_sha256")
+        tampered["reservation_sha256"] = canonical_admission_sha256(unsigned)
+        self.assertEqual(validate_reservation_receipt(tampered), [])
+        with self.assertRaisesRegex(
+            NativePoolAdmissionError,
+            "dispatch-capability-binding-mismatch",
+        ):
+            consume_pool_admission(
+                capability,
+                tampered,
+                _context(tampered),
+                claim_adapter=reservation.claim_adapter,
+                live_revalidate=_live,
+                commit=lambda _: None,
+                now="2026-07-21T20:00:03Z",
+            )
+        self.assertEqual(capability.state, "available")
 
 
 if __name__ == "__main__":

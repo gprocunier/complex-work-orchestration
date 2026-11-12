@@ -1,0 +1,313 @@
+{
+  "schema": "w20-w13-current-source-pins-v1",
+  "consumer": "Offline transport compatibility",
+  "accepted_pre_move_commit": "3ac550f225028c2a5eda8ad4f4465e772e6ed085",
+  "scope": "Public compatibility source pins and neutral offline fixture inputs; digests do not authorize execution.",
+  "source_pins": {
+    "validator_contracts": {
+      "current": "c600ad33bd675ed9fb7b45ec85e6e6e01c1681c1319a629e9aaaf584d3231d64",
+      "fixture": "c600ad33bd675ed9fb7b45ec85e6e6e01c1681c1319a629e9aaaf584d3231d64"
+    },
+    "generation11_runner_source": {
+      "current": "a7d446f5ec8237348582dd29b9f07ab15212e87b3b281d5553fed3ad672295cd",
+      "fixture": "a7d446f5ec8237348582dd29b9f07ab15212e87b3b281d5553fed3ad672295cd"
+    }
+  },
+  "portable_contract_evidence": {
+    "schema": "cwo-portable-contract-inputs-v1",
+    "version": 1,
+    "effect_authority": false,
+    "scope": "Neutral offline inputs and public contract digests; no archived source or execution authority.",
+    "provider_v1_schema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "cwo:policy/provider-registry:v1",
+      "title": "CWO Provider Registry",
+      "description": "Current v1 metadata shape only; typing grants no access, source binding, family independence or output validation. Required fields reflect the complete shipped entry contract; provider names remain dynamic.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "schema",
+        "providers",
+        "usage_accounting",
+        "conflict_risk_terms"
+      ],
+      "properties": {
+        "version": {
+          "type": "integer",
+          "const": 1
+        },
+        "schema": {
+          "type": "string",
+          "const": "json-compatible-yaml"
+        },
+        "providers": {
+          "type": "object",
+          "description": "Provider IDs are dynamic; every entry has the same closed metadata shape. No particular provider ID is required.",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "display_name",
+              "trust_tier",
+              "family",
+              "external",
+              "retention_class",
+              "allowed_roles",
+              "conflict_risk_domains",
+              "may_primary",
+              "may_peer_review",
+              "may_counter_review"
+            ],
+            "properties": {
+              "display_name": {
+                "type": "string"
+              },
+              "trust_tier": {
+                "type": "string"
+              },
+              "family": {
+                "type": "string"
+              },
+              "external": {
+                "type": "boolean"
+              },
+              "retention_class": {
+                "type": "string"
+              },
+              "allowed_roles": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true
+              },
+              "conflict_risk_domains": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "uniqueItems": true
+              },
+              "may_primary": {
+                "type": "boolean"
+              },
+              "may_peer_review": {
+                "type": "boolean"
+              },
+              "may_counter_review": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "usage_accounting": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "total_tokens_formula",
+            "cached_tokens_scope",
+            "reasoning_tokens_scope",
+            "note"
+          ],
+          "properties": {
+            "total_tokens_formula": {
+              "type": "string"
+            },
+            "cached_tokens_scope": {
+              "type": "string"
+            },
+            "reasoning_tokens_scope": {
+              "type": "string"
+            },
+            "note": {
+              "type": "string"
+            }
+          }
+        },
+        "conflict_risk_terms": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "frontier-ai-development",
+            "model-provider-competition",
+            "provider-policy-intervention"
+          ],
+          "properties": {
+            "frontier-ai-development": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "model-provider-competition": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "provider-policy-intervention": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    },
+    "production_pre_move_identities": [
+      [
+        "17b3f67b0da6af739faae837aaf4aa0bd7a342fa84994f517ff36ce7d07f1ebc",
+        null
+      ],
+      [
+        "94368496846c1217dc00f4d64a871ca8583d49ee2eff430cc60d026c2e013f13",
+        null
+      ],
+      [
+        "d6e7654db1e616e5d5141c82e3a3c7317f240ba00cc45e11cfdb387385fd11c7",
+        null
+      ],
+      [
+        "113e7a78e943714aeb4adbb894d61bb1b2cf5ddee9b430be28233d831d47f096",
+        null
+      ],
+      [
+        "461df4e6a50ef578b4f41433224ba3a93b5c4724dbb96aad9fd3fee56a12767c",
+        null
+      ],
+      [
+        "4bdfa55a0d1d6a60c5097b20643a73da4a161717687d1f1b0b0aefc048475e4f",
+        null
+      ],
+      [
+        "4405c023738a9ed09ea4a0d79b32b861107fafc00db4be676f4023bb45c3c9d1",
+        null
+      ],
+      [
+        "457776f8d4a0221986bcaea0ebf0ee597759c1f75011d4179856ac50d3ba3975",
+        null
+      ],
+      [
+        "dc69edeb6bdf056589d4978242595d55772fbdc9b407a53be0454eab91019f36",
+        null
+      ],
+      [
+        "4a8b36aa7ca5608e01107fd383f638025b2887ef1a607c9a990816574a884991",
+        null
+      ],
+      [
+        "a00923506220a9ea2357250bcca5142d098251dbe480060ad8ff7c1c43b63d77",
+        null
+      ],
+      [
+        "8317c7daaaac6b2e21407cf9c9c9f47de4dabb89ae0253eb7263602d8087a429",
+        null
+      ],
+      [
+        "656a413e1029d7a03d51636c25ba44fa46307331efee27ec3c641ce34b397593",
+        null
+      ],
+      [
+        "cb8a19f3efbc178d4f4da04575b325fd324453365f819e9dd8498a2c0acc8605",
+        null
+      ],
+      [
+        "176fdd9cf376169ec5273f928cc426d77972170331ae2fdc49d529d88d76c01e",
+        null
+      ],
+      [
+        "648e97b93cb9b26479f5dd84ae93959581852572531c7c8ef890ee3558e59211",
+        null
+      ],
+      [
+        "dde4525c86abe362ec01db805107f6ebabd7bf265f139c39912c9dd46ae5b373",
+        null
+      ],
+      [
+        "2250b09b8d5c44d139e48c719e0ec1902245b9c4b7ac0c230501217f7c6f71de",
+        null
+      ],
+      [
+        "f2403f89ac86db738a0f2f1121a0bcb628b35f10244b806f7adaad0d4240e608",
+        null
+      ],
+      [
+        "a9f1e78a4133a3a457ee5446811c3588b2d974e3a018535ff44b4293ab650af4",
+        null
+      ],
+      [
+        "38db147e0f6d524a37f0bd21e3a0e8291a7372fac1fe21c3b4ad651003deaccb",
+        null
+      ],
+      [
+        "63ef2dfbb121af0a459ca1983e938c6ff812f9f5b33ad53ba066c3b8d63f4f89",
+        null
+      ],
+      [
+        "52ec8fbdd6e242f3590a89e9b5454969c68871827de21ca536b0bc5a1706e5c0",
+        null
+      ],
+      [
+        "a94e6c2c773ba02e36a7a7f7ba316ac16e1a757d7f75c95e4388c1c3a399d8b5",
+        null
+      ],
+      [
+        "41e12c6e4f372a90ded327cf32f0295260aa0c0f510af05695d0ccff16dff7ea",
+        null
+      ],
+      [
+        "84cef627cfba1c1144a257c96c6077eed4651fe96dfa5d11cf0c73fdafc3baf3",
+        null
+      ],
+      [
+        "412baa9059393daa2d2ee3b2d7e90e03f687afcde4069aca1daa7485753aa9e6",
+        null
+      ],
+      [
+        "43adf0374c9f1597b9e402e487230ec14cacec104525c950401522bef39edd45",
+        null
+      ],
+      [
+        "951ee785cfac693c97b69ca913643a2fa0ad5136ac42ca4f7cca9aa09e9bd5e9",
+        null
+      ],
+      [
+        "3e076c3349a2763fe838d116f50cc598a48ed9922752fa169428518c8a6db554",
+        null
+      ],
+      [
+        "a089fca5b58ee1e5e11a075a4592c5b43e665aabce80c969a07c225480daefca",
+        "dffcb33b96074d861f4e5b0866ed58a69888fa42e730433c81058e8e0d07569c"
+      ],
+      [
+        "c25b348b02285129208b69c8aedac1301bdff135e90f1028815d18fd49119c38",
+        "dffcb33b96074d861f4e5b0866ed58a69888fa42e730433c81058e8e0d07569c"
+      ]
+    ],
+    "production_generation11_sources": {
+      "runner": "6bc88446cd12722244378ee9eff616f0056ff2d14375dd5391f7ba575c249e5c",
+      "boundary": "ea0f587f7ec6b38898393b16201afe8b05decd29ad343d406a22e7a6daebfc37"
+    },
+    "sources": {
+      "runner_template": "\"\"\"Contract fixture runner: Run disposable inputs only.\"\"\"\nclass AppServer:\n    pass\n# variant {variant}\n",
+      "surface": "\"\"\"Contract fixture tool surface.\"\"\"\nTOOLS = ()\n",
+      "generation11_runner": "\"\"\"Terminal-facts contract fixture; never executed.\"\"\"\nreplacement = {\"replacement_attempt_count\": 0}\nread_recovery_pending = True\ncapture_recovery_boundary(\"at-fault\")\n",
+      "generation11_boundary": "\"\"\"Terminal boundary contract fixture; never executed.\"\"\"\nif not raw:\n    raise ValueError(\"session file has no complete records\")\n"
+    },
+    "production_pre_move_metadata_sha256": "c974c75c97e8efc66270d25536ba5a161a6a0b368823e49eb484a7796ee768a1",
+    "archived_source_projection_sha256": "23de6f98906875e22c7a5373f534fa36584389c94e66d9e3d31f95f0a85ef60b"
+  },
+  "archived_golden_sha256": "c89f37c0213e972f5ca59b398c915122b6698fe974e3118200618b0e1152259e",
+  "public_fixture_scope": "Case labels are retained compatibility identifiers. Git object inputs and golden hashes identify neutral public fixtures, separately from archived provenance; semantic outcomes are retained.",
+  "public_golden_sha256": "30e5c8c25946135c84d636b75cad81091395d006448f8b2e2e4f7b41858259af"
+}

@@ -7,7 +7,11 @@ review. This file remains only so existing links have an explanation.
 Documentation for using the ChatGPT plugin to access ChatGPT Pro web is deferred.
 There is no replacement browser setup, upload or submission procedure here.
 Legacy runtime identifiers, policy and tests remain compatibility records; they
-are not proof that a present browser route is available or qualified.
+are not proof that a present browser route is available or qualified. Live
+browser dispatch also refuses before any quota check, browser start or audit
+event until CWO can size the exact prompt and reserve its share of an aggregate
+budget before Send (issue #41). Model confirmation refuses in the same way,
+because it clicks configured page controls.
 
 A required reviewer gate still applies to any existing assignment. Do not skip a
 required review, substitute a model, relax confirmation or evidence checks, or

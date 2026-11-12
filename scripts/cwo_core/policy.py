@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from .errors import UnknownExecutorError
 from .paths import POLICY_DIR
+from .policy_schema import canonical_policy_filename, strict_json_loads, validate_policy_document
 from .util import rank_allows, rank_max, term_hits
 
 
@@ -158,6 +161,8 @@ def resolve_executor_key(executor_key: str, registry: dict[str, Any] | None = No
         seen.add(current)
         current = aliases[current]
     if current not in executors:
+        if current != str(executor_key):
+            raise SystemExit("executor alias does not resolve to a configured executor")
         return str(executor_key)
     return current
 
@@ -167,7 +172,7 @@ def executor_config(executor_key: str, registry: dict[str, Any] | None = None) -
     canonical = resolve_executor_key(executor_key, data)
     executor = data.get("executors", {}).get(canonical)
     if not isinstance(executor, dict):
-        raise SystemExit(f"unknown executor {executor_key!r}; see policy/executor-registry.yaml")
+        raise UnknownExecutorError(f"unknown executor {executor_key!r}; see policy/executor-registry.yaml")
     value = dict(executor)
     value.setdefault("key", canonical)
     if canonical != executor_key:
@@ -179,7 +184,7 @@ def executor_config(executor_key: str, registry: dict[str, Any] | None = None) -
 def _canonical_executor_or_self(executor_key: str, registry: dict[str, Any]) -> str:
     try:
         return str(executor_config(executor_key, registry).get("key", executor_key))
-    except SystemExit:
+    except UnknownExecutorError:
         return str(executor_key)
 
 
@@ -205,28 +210,27 @@ def executor_key_allowed(executor_key: str, allowed_values: Any, registry: dict[
     return any(executor_key_matches(value, executor_key, data) for value in values)
 
 
-def _reject_duplicate_json_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    value: dict[str, Any] = {}
-    for key, item in pairs:
-        if key in value:
-            raise ValueError(f"duplicate key {key!r}")
-        value[key] = item
-    return value
-
-
 def load_json_compatible_yaml(path: Path) -> dict[str, Any]:
+    """Parse one policy file in the strict JSON-compatible YAML subset.
+
+    Refusals name the file as ``policy/<name>``, never by its location. The directory is
+    not part of the problem, and an absolute path repeats caller environment (a home or
+    temporary directory) that a screened command would otherwise have to withhold.
+    """
+    label = f"policy/{path.name}"
     try:
-        value = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_reject_duplicate_json_keys)
+        value = strict_json_loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, ValueError) as exc:
         raise SystemExit(
-            f"{path} is not JSON-compatible YAML: {exc}. "
+            f"{label} is not JSON-compatible YAML: {exc}. "
             "Policy files use a strict JSON-compatible YAML subset: quoted keys, JSON strings, "
-            "arrays, objects, numbers, booleans, and null only; comments and unquoted keys are not supported. "
+            "arrays, objects, finite numbers, booleans, and null only; comments and unquoted keys are not "
+            "supported, and neither are duplicate keys or NaN and Infinity. "
             "The subset keeps helpers stdlib-only and json.load compatible."
         ) from exc
     if not isinstance(value, dict):
         raise SystemExit(
-            f"{path} must contain a top-level object in the strict JSON-compatible YAML subset; "
+            f"{label} must contain a top-level object in the strict JSON-compatible YAML subset; "
             "arrays and scalar documents are not valid policy files"
         )
     return value
@@ -234,10 +238,16 @@ def load_json_compatible_yaml(path: Path) -> dict[str, Any]:
 
 @lru_cache(maxsize=None)
 def _load_policy_cached(filename: str) -> dict[str, Any]:
+    # Keyed by the canonical filename only, so one file has one cache entry and one schema.
+    if canonical_policy_filename(filename) != filename:
+        raise SystemExit(f"policy cache key {filename!r} is not a canonical policy filename")
     path = POLICY_DIR / filename
     if not path.is_file():
-        raise SystemExit(f"missing policy file: {path}")
-    return load_json_compatible_yaml(path)
+        raise SystemExit(f"missing policy file: policy/{filename}")
+    value = load_json_compatible_yaml(path)
+    # A file with a registered schema reaches no consumer unless it matches the schema.
+    validate_policy_document(filename, value)
+    return value
 
 
 def clear_policy_cache() -> None:
@@ -245,8 +255,12 @@ def clear_policy_cache() -> None:
 
 
 def load_policy(name: str) -> dict[str, Any]:
-    filename = name if name.endswith(".yaml") else f"{name}.yaml"
-    return copy.deepcopy(_load_policy_cached(filename))
+    """A deep copy of a current policy, requested by its bare name (``routing-policy``).
+
+    The name is canonicalized before the schema lookup and the cache, and paths or other
+    spellings are refused, so no spelling of a covered file can skip its schema.
+    """
+    return copy.deepcopy(_load_policy_cached(canonical_policy_filename(name)))
 
 
 def provider_profile(provider_key: str | None) -> dict[str, Any]:
@@ -361,7 +375,9 @@ def boundary_config(share_boundary: str) -> dict[str, Any]:
     boundaries = load_policy("share-boundaries").get("boundaries", {})
     boundary = boundaries.get(share_boundary)
     if not isinstance(boundary, dict):
-        raise SystemExit(f"unknown share boundary: {share_boundary}")
+        # The name is caller input that no screen has seen yet.
+        digest = hashlib.sha256(str(share_boundary).encode("utf-8", errors="surrogatepass")).hexdigest()[:12]
+        raise SystemExit(f"unknown share boundary (sha256 {digest}); known: {', '.join(sorted(boundaries))}")
     return boundary
 
 

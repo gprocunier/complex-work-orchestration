@@ -286,7 +286,8 @@ The remaining actions must run in one uninterrupted tool-orchestration turn:
    receipts before returning control to the model.
 
 Do not place an assistant/model round-trip between `send_input` and the first
-poll. Record the submission and poll with:
+poll. This is a cooperative protocol: the lead runs each poll and acts on the
+result, and no shipped component enforces the cadence. Record the submission and poll with:
 
 ```bash
 python3 scripts/supervise_native_worker.py mark-dispatched \
@@ -368,7 +369,8 @@ validation and cannot start `supervise_native_worker.py`.
 Activation authority has no JSON or CLI form. The fixed activation runner
 accepts only `n1-read-only`, `n2-read-only`, and `n1-mutable`; use `--dry-run`
 for non-consuming validation. Live execution requires a signed exact-attempt
-approval and explicit `--enable-tech-preview`. Exact trace and Bead-closure
+approval and explicit `--enable-tech-preview`, and is currently refused before
+any claim or RPC. Exact trace and Bead-closure
 artifacts prove only that specific activation. See
 [Native Worker Supervision](native-supervision.md#separate-activation-preview)
 for the boundary and [Native Supervision Pools](native-supervision-pools.md#temporary-audited-tool-boundary)

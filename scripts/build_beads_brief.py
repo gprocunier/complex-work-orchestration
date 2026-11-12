@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cwo_core.beads import show_bead_json
+from cwo_core.beads import show_bead_args, show_bead_json
 from cwo_core.paths import assert_safe_output_path
 from cwo_core.packets import fenced_block, redact_value
 from cwo_core.routing import COMMENT_BEARING_BEADS_CONTEXT_DEPTHS, normalize_beads_context_depth
@@ -134,16 +134,16 @@ def build_brief(
     if normalized_depth == "none":
         warnings.append("Depth none performs no bd lookup; brief contains only supplied assignment metadata.")
     else:
-        command = ["bd", "show", bead_id, "--json"]
-        if include_comments:
-            command.append("--include-comments")
-        if normalized_depth == "audit":
-            command.append("--include-dependents")
+        include_dependents = normalized_depth == "audit"
+        command = [
+            "bd",
+            *show_bead_args(bead_id, include_comments=include_comments, include_dependents=include_dependents),
+        ]
         bead = one_bead(
             show_bead_json(
                 bead_id,
                 include_comments=include_comments,
-                include_dependents=normalized_depth == "audit",
+                include_dependents=include_dependents,
             )
         )
         entries.append(issue_summary(bead))

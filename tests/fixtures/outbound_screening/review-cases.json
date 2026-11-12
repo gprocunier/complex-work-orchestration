@@ -1,0 +1,786 @@
+{
+  "version": 1,
+  "description": "Outbound screening regression cases for nested credential values, encoded payloads, malformed structures and benign counterparts. These cases are used to develop screening rules and are not held-out evidence.",
+  "sources": {
+    "nested-structures": {
+      "origin": "Nested credential containers, JSON values and data URI encodings with benign counterparts."
+    },
+    "credential-suffixes": {
+      "origin": "Credential source suffixes and quoted encoding parameters with benign counterparts."
+    },
+    "malformed-and-encoded-values": {
+      "origin": "Credential member variants, incomplete values and split encoded payloads with benign counterparts."
+    },
+    "credential-context-and-budgets": {
+      "origin": "Credential quantities, embedded JSON and payload continuation budgets with benign counterparts."
+    },
+    "compound-names-and-payloads": {
+      "origin": "Acronym and compound credential names and malformed payload continuations with benign counterparts."
+    },
+    "case-variants-and-views": {
+      "origin": "Case variants, credential phrases, placeholders and alternate decoding views with benign counterparts."
+    },
+    "whole-values-and-joined-literals": {
+      "origin": "Plural credentials, continued structures, joined literals and payload delimiters with benign counterparts."
+    }
+  },
+  "cases": [
+    {
+      "id": "review4/nested-list-header",
+      "source": "nested-structures",
+      "category": "structure",
+      "text": "Config: {\"Authorization\": [[\"Basic YWRtaW46aHVudGVyMg==\"]]}",
+      "sensitive": [
+        "YWRtaW46aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review4/second-list-element",
+      "source": "nested-structures",
+      "category": "structure",
+      "text": "Config: {\"password\": [\"\", \"hunter2\"]}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review4/nested-parentheses",
+      "source": "nested-structures",
+      "category": "structure",
+      "text": "password = ( ( 'hunter2' ) )",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review4/json-object-value",
+      "source": "nested-structures",
+      "category": "json-structure",
+      "text": "{\"password\":{\"value\":\"hunter2\"}}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review4/json-number",
+      "source": "nested-structures",
+      "category": "json-structure",
+      "text": "{\"pin\":[4831]}",
+      "sensitive": [
+        "4831"
+      ]
+    },
+    {
+      "id": "review4/utf7-data-uri",
+      "source": "nested-structures",
+      "category": "encoded",
+      "text": "data:text/plain;charset=utf-7,+AHAAYQBzAHMAdwBvAHIAZAA9AGgAdQBuAHQAZQByADI-",
+      "sensitive": [
+        "+AHAAYQBzAHMAdwBvAHIAZAA9AGgAdQBuAHQAZQByADI-"
+      ]
+    },
+    {
+      "id": "review4/benign-placeholder-header-list",
+      "source": "nested-structures",
+      "category": "benign-structure",
+      "text": "Config: {\"Authorization\": [[\"Bearer <your token>\"]]}",
+      "sensitive": []
+    },
+    {
+      "id": "review4/benign-empty-list",
+      "source": "nested-structures",
+      "category": "benign-structure",
+      "text": "Config: {\"password\": [\"\", \"\"]}",
+      "sensitive": []
+    },
+    {
+      "id": "review4/benign-nested-call",
+      "source": "nested-structures",
+      "category": "benign-structure",
+      "text": "password = ( ( get_password(config) ) )",
+      "sensitive": []
+    },
+    {
+      "id": "review4/benign-json-description",
+      "source": "nested-structures",
+      "category": "benign-json-structure",
+      "text": "{\"password\":{\"required\":true}}",
+      "sensitive": []
+    },
+    {
+      "id": "review4/benign-json-null",
+      "source": "nested-structures",
+      "category": "benign-json-structure",
+      "text": "{\"pin\":null}",
+      "sensitive": []
+    },
+    {
+      "id": "review4/benign-utf8-data-uri",
+      "source": "nested-structures",
+      "category": "benign-encoded",
+      "text": "data:text/plain;charset=utf-8,hello%20world",
+      "sensitive": []
+    },
+    {
+      "id": "review4/benign-json-template",
+      "source": "nested-structures",
+      "category": "benign-json-template",
+      "text": "{\"prompt\": \"Secret or personal-data spill:\\nScope compliance:\\n\"}",
+      "sensitive": []
+    },
+    {
+      "id": "review5/password-source",
+      "source": "credential-suffixes",
+      "category": "assignment",
+      "text": "password_source=hunter2",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review5/json-password-source",
+      "source": "credential-suffixes",
+      "category": "json-structure",
+      "text": "{\"password_source\":\"hunter2\"}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review5/api-key-sources",
+      "source": "credential-suffixes",
+      "category": "structure",
+      "text": "api_key_sources = ['hunter2']",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review5/quoted-charset-base64",
+      "source": "credential-suffixes",
+      "category": "encoded",
+      "text": "data:text/plain;charset=\"UTF-8\";base64,cGFzc3dvcmQ9aHVudGVyMg==",
+      "sensitive": [
+        "cGFzc3dvcmQ9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review5/quoted-utf7",
+      "source": "credential-suffixes",
+      "category": "encoded",
+      "text": "data:text/plain;charset=\"utf-7\",+AHAAYQBzAHMAdwBvAHIAZAA9AGgAdQBuAHQAZQByADI-",
+      "sensitive": [
+        "+AHAAYQBzAHMAdwBvAHIAZAA9AGgAdQBuAHQAZQByADI-"
+      ]
+    },
+    {
+      "id": "review5/benign-credential-source-count",
+      "source": "credential-suffixes",
+      "category": "benign-json-structure",
+      "text": "{\"credential_source_count\": 3}",
+      "sensitive": []
+    },
+    {
+      "id": "review5/benign-quoted-charset",
+      "source": "credential-suffixes",
+      "category": "benign-encoded",
+      "text": "data:text/plain;charset=\"utf-8\",hello%20world",
+      "sensitive": []
+    },
+    {
+      "id": "review6/credential-sources-leading-space",
+      "source": "malformed-and-encoded-values",
+      "category": "json-structure",
+      "text": "Config: {\" credential_sources\":{\"required_env\":[\"CWO_HUNTER2\"],\"optional_env\":[]}}",
+      "sensitive": [
+        "CWO_HUNTER2"
+      ]
+    },
+    {
+      "id": "review6/credential-sources-single-quoted",
+      "source": "malformed-and-encoded-values",
+      "category": "structure",
+      "text": "{'credential_sources': {'required_env': ['CWO_HUNTER2'], 'optional_env': []}}",
+      "sensitive": [
+        "CWO_HUNTER2"
+      ]
+    },
+    {
+      "id": "review6/credential-sources-equals",
+      "source": "malformed-and-encoded-values",
+      "category": "structure",
+      "text": "credential_sources = {\"required_env\": [\"CWO_HUNTER2\"], \"optional_env\": []}",
+      "sensitive": [
+        "CWO_HUNTER2"
+      ]
+    },
+    {
+      "id": "review6/credential-sources-missing-member",
+      "source": "malformed-and-encoded-values",
+      "category": "json-structure",
+      "text": "{\"credential_sources\": {\"required_env\": [\"CWO_HUNTER2\"]}}",
+      "sensitive": [
+        "CWO_HUNTER2"
+      ]
+    },
+    {
+      "id": "review6/credential-sources-duplicate-member",
+      "source": "malformed-and-encoded-values",
+      "category": "json-structure",
+      "text": "{\"credential_sources\": {\"required_env\": [\"CWO_X1\"], \"required_env\": [\"CWO_HUNTER2\"], \"optional_env\": []}}",
+      "sensitive": [
+        "CWO_X1",
+        "CWO_HUNTER2"
+      ]
+    },
+    {
+      "id": "review6/base64-space-after-comma",
+      "source": "malformed-and-encoded-values",
+      "category": "encoded",
+      "text": "data:text/plain;base64, cGFzc3dvcmQ9aHVudGVyMg==",
+      "sensitive": [
+        "cGFzc3dvcmQ9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review6/base64-split",
+      "source": "malformed-and-encoded-values",
+      "category": "encoded",
+      "text": "data:text/plain;base64,cGFz c3dvcmQ9aHVudGVyMg==",
+      "sensitive": [
+        "c3dvcmQ9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review6/decoded-json",
+      "source": "malformed-and-encoded-values",
+      "category": "encoded",
+      "text": "data:application/json;base64,eyJwd2QhIjoiYWJjIn0=",
+      "sensitive": [
+        "eyJwd2QhIjoiYWJjIn0="
+      ]
+    },
+    {
+      "id": "review6/unterminated-quote",
+      "source": "malformed-and-encoded-values",
+      "category": "assignment",
+      "text": "password=\"hunter2\nNext line.",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review6/unterminated-header",
+      "source": "malformed-and-encoded-values",
+      "category": "header",
+      "text": "{\"Authorization\": \"Basic YWRtaW46aHVudGVyMg==\n}",
+      "sensitive": [
+        "YWRtaW46aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review6/benign-padded-base64",
+      "source": "malformed-and-encoded-values",
+      "category": "benign-encoded",
+      "text": "data:text/plain;base64,aGVsbG8gd29ybGQ=",
+      "sensitive": []
+    },
+    {
+      "id": "review6/benign-closed-placeholder",
+      "source": "malformed-and-encoded-values",
+      "category": "benign-structure",
+      "text": "password=\"<your password>\"\nNext line.",
+      "sensitive": []
+    },
+    {
+      "id": "review6/benign-json-quoted-uri",
+      "source": "malformed-and-encoded-values",
+      "category": "benign-encoded",
+      "text": "{\"prompt\": \"See data:text/plain;charset=\\\"utf-8\\\",hello%20world\"}",
+      "sensitive": []
+    },
+    {
+      "id": "review6/benign-decoded-json",
+      "source": "malformed-and-encoded-values",
+      "category": "benign-encoded",
+      "text": "data:application/json;base64,eyJhIjoxfQ==",
+      "sensitive": []
+    },
+    {
+      "id": "review7/password-count",
+      "source": "credential-context-and-budgets",
+      "category": "json-structure",
+      "text": "{\"password_count\":\"hunter2\"}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review7/credential-sources-env",
+      "source": "credential-context-and-budgets",
+      "category": "json-structure",
+      "text": "{\"credential_sources_env\":{\"value\":\"hunter2\"}}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review7/string-credential-source-count",
+      "source": "credential-context-and-budgets",
+      "category": "json-structure",
+      "text": "{\"credential_source_count\": \"hunter2\"}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review7/text-password-count",
+      "source": "credential-context-and-budgets",
+      "category": "assignment",
+      "text": "password_count = hunter2",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review7/continuation-over-budget",
+      "source": "credential-context-and-budgets",
+      "category": "encoded",
+      "text": "data:text/plain;base64,YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK cGFzc3dvcmQ9aHVudGVyMg==",
+      "sensitive": [
+        "cGFzc3dvcmQ9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review7/quoted-payload",
+      "source": "credential-context-and-budgets",
+      "category": "encoded",
+      "text": "data:text/plain;base64,\"cGFzc3dvcmQ9aHVudGVyMg==\"",
+      "sensitive": [
+        "cGFzc3dvcmQ9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review7/line-break-split",
+      "source": "credential-context-and-budgets",
+      "category": "encoded",
+      "text": "data:text/plain;base64,cGFz\nc3dvcmQ9aHVudGVyMg==",
+      "sensitive": [
+        "c3dvcmQ9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review7/embedded-json-apostrophe-key",
+      "source": "credential-context-and-budgets",
+      "category": "json-structure",
+      "text": "Config: {\"pwd'!\":\"abc\"}",
+      "sensitive": [
+        "abc"
+      ]
+    },
+    {
+      "id": "review7/embedded-json-long-key",
+      "source": "credential-context-and-budgets",
+      "category": "json-structure",
+      "text": "Config: {\"db password, rotated 'quarterly': xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\":\"abc\"}",
+      "sensitive": [
+        "abc"
+      ]
+    },
+    {
+      "id": "review7/benign-generated-counts",
+      "source": "credential-context-and-budgets",
+      "category": "benign-json-structure",
+      "text": "{\"credential_source_count\": 2, \"max_tokens\": 4096}",
+      "sensitive": []
+    },
+    {
+      "id": "review7/benign-continuation-within-budget",
+      "source": "credential-context-and-budgets",
+      "category": "benign-encoded",
+      "text": "data:text/plain;base64,aGVsbG8h YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK YSAK",
+      "sensitive": []
+    },
+    {
+      "id": "review7/benign-line-after-payload",
+      "source": "credential-context-and-budgets",
+      "category": "benign-encoded",
+      "text": "see data:text/plain;base64,aGVsbG8gd29ybGQ=\nNext line.",
+      "sensitive": []
+    },
+    {
+      "id": "review7/benign-quoted-attribute",
+      "source": "credential-context-and-budgets",
+      "category": "benign-encoded",
+      "text": "<img src=\"data:text/plain;base64,aGVsbG8=\">",
+      "sensitive": []
+    },
+    {
+      "id": "review7/benign-embedded-json",
+      "source": "credential-context-and-budgets",
+      "category": "benign-json-structure",
+      "text": "Config: {\"retries\": 3, \"label\": \"nightly\"}",
+      "sensitive": []
+    },
+    {
+      "id": "review7/benign-embedded-json-placeholder",
+      "source": "credential-context-and-budgets",
+      "category": "benign-json-structure",
+      "text": "Config: {\"pwd'!\": \"<your password>\"}",
+      "sensitive": []
+    },
+    {
+      "id": "review8/acronym-json-key",
+      "source": "compound-names-and-payloads",
+      "category": "json-structure",
+      "text": "{\"DBPassword\":\"hunter2\"}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review8/acronym-text-name",
+      "source": "compound-names-and-payloads",
+      "category": "assignment",
+      "text": "DBPassword = hunter2",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review8/acronym-token-key",
+      "source": "compound-names-and-payloads",
+      "category": "json-structure",
+      "text": "{\"HTTPToken\":\"abc\"}",
+      "sensitive": [
+        "abc"
+      ]
+    },
+    {
+      "id": "review8/multiword-assignment",
+      "source": "compound-names-and-payloads",
+      "category": "assignment",
+      "text": "password: correct horse battery staple",
+      "sensitive": [
+        "correct horse battery staple"
+      ]
+    },
+    {
+      "id": "review8/space-after-scheme",
+      "source": "compound-names-and-payloads",
+      "category": "encoded",
+      "text": "data: text/plain;base64,cGFzc3dvcmQ9aHVudGVyMg==",
+      "sensitive": [
+        "cGFzc3dvcmQ9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review8/space-before-base64",
+      "source": "compound-names-and-payloads",
+      "category": "encoded",
+      "text": "data:text/plain ;base64,cGFzc3dvcmQ9aHVudGVyMg==",
+      "sensitive": [
+        "cGFzc3dvcmQ9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review8/undecodable-continuation",
+      "source": "compound-names-and-payloads",
+      "category": "encoded",
+      "text": "data:;base64,YQ== A",
+      "sensitive": [
+        "YQ== A"
+      ]
+    },
+    {
+      "id": "review8/non-text-continuation",
+      "source": "compound-names-and-payloads",
+      "category": "encoded",
+      "text": "data:;base64,YQ== /w==",
+      "sensitive": [
+        "YQ== /w=="
+      ]
+    },
+    {
+      "id": "review8/benign-generated-heading",
+      "source": "compound-names-and-payloads",
+      "category": "benign-json-template",
+      "text": "Status:\nSecret or personal-data spill:\nScope compliance:\n",
+      "sensitive": []
+    },
+    {
+      "id": "review8/benign-acronym-names",
+      "source": "compound-names-and-payloads",
+      "category": "benign-json-structure",
+      "text": "Config: {\"HTTPTimeout\": 30, \"DBHost\": \"db.internal\", \"tokenizer\": \"cl100k\"}",
+      "sensitive": []
+    },
+    {
+      "id": "review8/benign-spaced-data-uri",
+      "source": "compound-names-and-payloads",
+      "category": "benign-encoded",
+      "text": "see data: text/plain;base64,aGVsbG8gd29ybGQ= here",
+      "sensitive": []
+    },
+    {
+      "id": "review8/benign-prose-after-payload",
+      "source": "compound-names-and-payloads",
+      "category": "benign-encoded",
+      "text": "data:text/plain;base64,aGVsbG8gd29ybGQ= is the greeting",
+      "sensitive": []
+    },
+    {
+      "id": "review8/benign-data-prose",
+      "source": "compound-names-and-payloads",
+      "category": "benign-encoded",
+      "text": "Input data: text/csv, one row per job.",
+      "sensitive": []
+    },
+    {
+      "id": "review8/benign-json-in-string",
+      "source": "compound-names-and-payloads",
+      "category": "benign-json-structure",
+      "text": "Config: {\"note\": \"{\\\"k0\\\": \\\"%41\\\", \\\"k1\\\": \\\"%41\\\", \\\"k2\\\": \\\"%41\\\", \\\"k3\\\": \\\"%41\\\", \\\"k4\\\": \\\"%41\\\", \\\"k5\\\": \\\"%41\\\", \\\"k6\\\": \\\"%41\\\", \\\"k7\\\": \\\"%41\\\", \\\"k8\\\": \\\"%41\\\", \\\"k9\\\": \\\"%41\\\", \\\"k10\\\": \\\"%41\\\", \\\"k11\\\": \\\"%41\\\", \\\"k12\\\": \\\"%41\\\", \\\"k13\\\": \\\"%41\\\", \\\"k14\\\": \\\"%41\\\", \\\"k15\\\": \\\"%41\\\", \\\"k16\\\": \\\"%41\\\", \\\"k17\\\": \\\"%41\\\", \\\"k18\\\": \\\"%41\\\", \\\"k19\\\": \\\"%41\\\", \\\"k20\\\": \\\"%41\\\", \\\"k21\\\": \\\"%41\\\", \\\"k22\\\": \\\"%41\\\", \\\"k23\\\": \\\"%41\\\", \\\"k24\\\": \\\"%41\\\", \\\"k25\\\": \\\"%41\\\", \\\"k26\\\": \\\"%41\\\", \\\"k27\\\": \\\"%41\\\", \\\"k28\\\": \\\"%41\\\", \\\"k29\\\": \\\"%41\\\"}\"}",
+      "sensitive": []
+    },
+    {
+      "id": "review9/case-variant-assignment",
+      "source": "case-variants-and-views",
+      "category": "assignment",
+      "text": "PaSsWoRd=hunter2",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review9/case-variant-json-key",
+      "source": "case-variants-and-views",
+      "category": "json-structure",
+      "text": "{\"PaSsWoRd\":\"hunter2\"}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review9/delimiter-then-whitespace",
+      "source": "case-variants-and-views",
+      "category": "encoded",
+      "text": "data:;base64,cGFz) c3dvcmQ9aHVudGVyMg==",
+      "sensitive": [
+        "cGFz) c3dvcmQ9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review9/placeholder-first-word-multiword",
+      "source": "case-variants-and-views",
+      "category": "assignment",
+      "text": "password: secret horse battery staple",
+      "sensitive": [
+        "secret horse battery staple"
+      ]
+    },
+    {
+      "id": "review9/placeholder-first-word-value",
+      "source": "case-variants-and-views",
+      "category": "assignment",
+      "text": "password: example hunter2",
+      "sensitive": [
+        "example hunter2"
+      ]
+    },
+    {
+      "id": "review9/phrase-name-mnemonic",
+      "source": "case-variants-and-views",
+      "category": "assignment",
+      "text": "mnemonic: abandon ability able",
+      "sensitive": [
+        "abandon ability able"
+      ]
+    },
+    {
+      "id": "review9/phrase-name-seed-json",
+      "source": "case-variants-and-views",
+      "category": "json-structure",
+      "text": "{\"seed phrase\": \"abandon ability able\"}",
+      "sensitive": [
+        "abandon ability able"
+      ]
+    },
+    {
+      "id": "review9/phrase-name-recovery",
+      "source": "case-variants-and-views",
+      "category": "assignment",
+      "text": "recovery phrase = abandon ability able",
+      "sensitive": [
+        "abandon ability able"
+      ]
+    },
+    {
+      "id": "review9/flat-reading-fails",
+      "source": "case-variants-and-views",
+      "category": "encoded",
+      "text": "data:;base64,YQ== YWI=",
+      "sensitive": [
+        "YQ== YWI="
+      ]
+    },
+    {
+      "id": "review9/benign-case-names",
+      "source": "case-variants-and-views",
+      "category": "benign-json-structure",
+      "text": "Config: {\"TOKENIZER\": \"cl100k\", \"SeCrEtArY\": \"Jordan\", \"BYPASS\": true}",
+      "sensitive": []
+    },
+    {
+      "id": "review9/benign-uri-in-brackets",
+      "source": "case-variants-and-views",
+      "category": "benign-encoded",
+      "text": "(see data:text/plain;base64,aGVsbG8=) for details",
+      "sensitive": []
+    },
+    {
+      "id": "review9/benign-whole-placeholder",
+      "source": "case-variants-and-views",
+      "category": "benign-structure",
+      "text": "password: changeme\nheaders = {\"Authorization\": [\"Bearer <your token>\"]}",
+      "sensitive": []
+    },
+    {
+      "id": "review9/benign-phrase-words",
+      "source": "case-variants-and-views",
+      "category": "benign-structure",
+      "text": "Phrasebook: page 4\nSeed: 42",
+      "sensitive": []
+    },
+    {
+      "id": "review9/benign-same-reading",
+      "source": "case-variants-and-views",
+      "category": "benign-encoded",
+      "text": "data:text/plain;base64,YWJj ZGVm",
+      "sensitive": []
+    },
+    {
+      "id": "review9/benign-views-within-allowance",
+      "source": "case-variants-and-views",
+      "category": "benign-encoded",
+      "text": "data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello data:,hello",
+      "sensitive": []
+    },
+    {
+      "id": "review10/plural-pair-api",
+      "source": "whole-values-and-joined-literals",
+      "category": "assignment",
+      "text": "api_keys=hunter2",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review10/plural-pair-access",
+      "source": "whole-values-and-joined-literals",
+      "category": "assignment",
+      "text": "access_keys=hunter2",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review10/plural-pair-json",
+      "source": "whole-values-and-joined-literals",
+      "category": "json-structure",
+      "text": "{\"private_keys\":[\"hunter2\"]}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review10/structure-continued",
+      "source": "whole-values-and-joined-literals",
+      "category": "structure",
+      "text": "password = [REDACTED] + \"hunter2\"",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review10/structure-continued-parenthesized",
+      "source": "whole-values-and-joined-literals",
+      "category": "structure",
+      "text": "password = (\"example\") + \"hunter2\"",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review10/adjacent-header-literals",
+      "source": "whole-values-and-joined-literals",
+      "category": "header",
+      "text": "headers = {'Authorization': 'Bearer example' 'hunter2'}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review10/adjacent-header-literals-grouped",
+      "source": "whole-values-and-joined-literals",
+      "category": "header",
+      "text": "headers = {'Authorization': ('Bearer example' 'hunter2')}",
+      "sensitive": [
+        "hunter2"
+      ]
+    },
+    {
+      "id": "review10/word-then-delimiter",
+      "source": "whole-values-and-joined-literals",
+      "category": "encoded",
+      "text": "data:;base64,cGFzc3dv cm) Q9aHVudGVyMg==",
+      "sensitive": [
+        "cGFzc3dv cm) Q9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review10/word-then-delimiter-over-budget",
+      "source": "whole-values-and-joined-literals",
+      "category": "encoded",
+      "text": "data:;base64,cGFzc3dv ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) ab) Q9aHVudGVyMg==",
+      "sensitive": [
+        "Q9aHVudGVyMg=="
+      ]
+    },
+    {
+      "id": "review10/benign-plural-words",
+      "source": "whole-values-and-joined-literals",
+      "category": "benign-json-structure",
+      "text": "Config: {\"keys\": [1, 2], \"apis\": [\"v1\"], \"access\": \"granted\"}\nBypasses: 2",
+      "sensitive": []
+    },
+    {
+      "id": "review10/benign-whole-structure",
+      "source": "whole-values-and-joined-literals",
+      "category": "benign-structure",
+      "text": "password = [REDACTED]\nSet `token = [REDACTED]` in the file.",
+      "sensitive": []
+    },
+    {
+      "id": "review10/benign-whole-header-literal",
+      "source": "whole-values-and-joined-literals",
+      "category": "benign-structure",
+      "text": "headers = {'Authorization': ('Bearer example'),\n           'Accept': 'application/json'}",
+      "sensitive": []
+    },
+    {
+      "id": "review10/benign-words-after-uri",
+      "source": "whole-values-and-joined-literals",
+      "category": "benign-encoded",
+      "text": "data:text/plain;base64,aGVsbG8h and more) text here",
+      "sensitive": []
+    },
+    {
+      "id": "review10/benign-normalized-json-read-once",
+      "source": "whole-values-and-joined-literals",
+      "category": "benign-json-structure",
+      "text": "{\"values\": [\"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\", \"%41\"], \"marker\": \"Ａ\"}",
+      "sensitive": []
+    }
+  ]
+}

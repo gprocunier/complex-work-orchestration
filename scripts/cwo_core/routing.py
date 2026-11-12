@@ -13,8 +13,11 @@ from .access_profiles import (
 )
 from .errors import CWOPolicyError, CWOValidationError
 from .native_containment import native_operative_containment
-from .operative_routing import resolve_operative_route
+from .operative_routing import NONOPERATIVE_ROLE, nonoperative_model_refusal, resolve_operative_route
+from .risk_features import (RiskAssessment, assess_risk_features, refuse_risk_narrowing,
+    registered_assessment, finish_registered_assessment)
 from .policy import (
+    UnknownExecutorError,
     EDITOR_GATE_EXPERT,
     EXTERNAL_GUARD_LABELS,
     LOCAL_WORKER_GUARD_LABELS,
@@ -203,8 +206,20 @@ def executor_registry_entry(executor_key: str | None) -> dict[str, Any]:
         return {}
     try:
         return executor_config(executor_key)
-    except SystemExit:
+    except UnknownExecutorError:
         return {}
+
+
+def _binding_summary(binding: dict[str, Any]) -> dict[str, Any]:
+    summary = {
+        key: value
+        for key, value in binding.items()
+        if key in {"harness", "executor", "agent", "model", "variant", "model_profile"}
+    }
+    if nonoperative_model_refusal(binding.get("model")):
+        # The recorded binding stays inspectable; the general v3 rule marks it nonoperative.
+        summary["model_status"] = NONOPERATIVE_ROLE
+    return summary
 
 
 def execution_environment_summary(environment_key: str, environment: dict[str, Any]) -> dict[str, Any]:
@@ -214,11 +229,7 @@ def execution_environment_summary(environment_key: str, environment: dict[str, A
     access_profile_configs = access_profiles()
     for role, binding in (environment.get("role_bindings") or {}).items():
         if isinstance(binding, dict):
-            summary = {
-                key: value
-                for key, value in binding.items()
-                if key in {"harness", "executor", "agent", "model", "variant", "model_profile"}
-            }
+            summary = _binding_summary(binding)
             executor_key = binding.get("executor")
             executor = executors.get(executor_key) if executor_key else None
             executor_config = dict(executor) if isinstance(executor, dict) else {}
@@ -637,6 +648,79 @@ def trivial_docs_only_change(
     return True
 
 
+def ensure_risk_feature_experts(
+    experts: list[dict[str, Any]],
+    expert_registry: dict[str, Any],
+    assessment: RiskAssessment,
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """Add every expert a risk feature requires and no earlier step kept (for example security for OIDC work).
+
+    Returns the experts and the required experts that cannot be added, each with the reason; an expert the
+    registry does not define is reported as unmet, never dropped silently.
+    """
+    present = {expert.get("name") for expert in experts}
+    feature_policy = load_policy("risk-features")["features"]
+    added = []
+    unmet = []
+    for name in assessment.required_experts:
+        if name in present:
+            continue
+        profile = expert_registry.get("experts", {}).get(name)
+        if not isinstance(profile, dict):
+            unmet.append({"expert": name, "reason": "not defined in the expert registry"})
+            continue
+        features = [feature for feature in assessment.features if name in feature_policy[feature].get("experts", [])]
+        added.append(expert_result_from_profile(name, profile, reasons=["risk features: " + ", ".join(features)]))
+    return [*experts, *added], unmet
+
+
+def risk_required_expert_names(route: dict[str, Any]) -> list[str]:
+    """The experts the route's risk features require (empty for routes recorded before risk features)."""
+    assessment = route.get("risk_assessment")
+    if not isinstance(assessment, dict):
+        return []
+    return [str(name) for name in assessment.get("required_experts") or [] if name]
+
+
+def expert_covers(expert: dict[str, Any]) -> set[str]:
+    """The expert names a selected expert satisfies: its own and any it stands in for (an architecture critic)."""
+    names = {str(expert.get("name"))}
+    if expert.get("covers_expert"):
+        names.add(str(expert["covers_expert"]))
+    return names
+
+
+def experts_with_required(route: dict[str, Any], limit: int) -> list[dict[str, Any]]:
+    """The first ``limit`` ranked experts, then every risk-required ranked expert past the limit, in ranked order.
+
+    A count limit applies only to optional experts; it never removes an expert a risk feature requires.
+    """
+    ranked = [expert for expert in route.get("ranked_experts") or [] if isinstance(expert, dict)]
+    head = set(range(len(ranked))[:limit])
+    required = set(risk_required_expert_names(route))
+    return [expert for index, expert in enumerate(ranked) if index in head or expert.get("name") in required]
+
+
+def unmet_required_experts(route: dict[str, Any], selected: list[dict[str, Any]]) -> list[dict[str, str]]:
+    """Each risk-required expert that no selected expert covers, with the reason."""
+    assessment = route.get("risk_assessment") if isinstance(route.get("risk_assessment"), dict) else {}
+    recorded = {str(item.get("expert")): str(item.get("reason"))
+                for item in assessment.get("unmet_required_experts") or [] if isinstance(item, dict)}
+    covered = set().union(*(expert_covers(expert) for expert in selected)) if selected else set()
+    ranked = {str(expert.get("name")) for expert in route.get("ranked_experts") or [] if isinstance(expert, dict)}
+    unmet = []
+    for name in risk_required_expert_names(route):
+        if name in covered:
+            continue
+        reason = recorded.get(name) or ("not among the routed experts" if name not in ranked else "not selected")
+        unmet.append({"expert": name, "reason": reason})
+    return unmet
+
+
+def unmet_required_experts_message(unmet: list[dict[str, str]]) -> str:
+    return "required experts unmet: " + "; ".join(f"{item['expert']} ({item['reason']})" for item in unmet)
+
+
 def ensure_public_docs_gate_experts(
     experts: list[dict[str, Any]],
     expert_registry: dict[str, Any],
@@ -970,7 +1054,22 @@ def classify_work(
     previous_operative_route: dict[str, Any] | None = None,
     operative_evaluated_at: str | None = None,
     current_authority: Any = _AUTHORITY_OMITTED,
+    text_segments: list[str] | None = None,
+    risk_scope: dict[str, Any] | None = None,
+    risk_evidence_dir: str | None = None,
+    risk_use: Any = None,
 ) -> RouteResult:
+    """Classify work for routing.
+
+    ``text_segments`` lists the original task text and each piece of free text appended to it, in order, when a
+    caller joined them into ``text``; risk features are assessed on ``text``, on each segment and on every cumulative
+    prefix of the segments, and the union is kept, so no append can remove a feature formed earlier in the history
+    or lower its floor. The finite host task-risk adapter uses an in-process registered use; public
+    narrowing inputs remain refused. A ``risk_scope`` or
+    ``risk_evidence_dir`` value is refused with ``CWOValidationError`` before anything is routed, and a
+    ``file_paths`` or ``stage`` value never resolves a feature.
+    """
+    refuse_risk_narrowing(risk_scope=risk_scope, risk_evidence_dir=risk_evidence_dir, source="classify_work")
     native_dispatch = native_operative_containment()
     routing = load_policy("routing-policy")
     expert_registry = load_policy("expert-registry")
@@ -998,7 +1097,10 @@ def classify_work(
         file_paths=file_paths,
         stage=stage,
     )
-    small_docs_change = trivial_docs_only_change(text, file_paths, experts)
+    # Risk features come from the text itself, not from which experts matched. The whole append history is assessed
+    # (each segment and each cumulative prefix); only registered host evidence can resolve a feature.
+    risk_assessment = registered_assessment(risk_use, text, text_segments, file_paths, stage, assess_risk_features)
+    small_docs_change = trivial_docs_only_change(text, file_paths, experts) and not risk_assessment.features
     if small_docs_change:
         experts = [
             expert
@@ -1043,12 +1145,17 @@ def classify_work(
             file_paths=file_paths,
         )
 
+    # Every expert a risk feature requires is kept after ranking, filtering and fallback; one the registry lacks is
+    # reported as unmet in risk_assessment.unmet_required_experts.
+    experts, unmet_risk_experts = ensure_risk_feature_experts(experts, expert_registry, risk_assessment)
+
     sensitivity_signal = resolve_data_sensitivity(text, routing, data_sensitivity=data_sensitivity)
     sensitivity = sensitivity_signal["data_sensitivity"]
     dispatch_sensitivity = dispatch_sensitivity_for_boundary(sensitivity, share_boundary)
-    risk = rank_max([expert.get("default_risk", "medium") for expert in experts], RISK_ORDER, "low")
+    expert_risk = rank_max([expert.get("default_risk", "medium") for expert in experts], RISK_ORDER, "low")
     if small_docs_change:
-        risk = "low"
+        expert_risk = "low"
+    risk = rank_max([expert_risk, risk_assessment.floor or "low"], RISK_ORDER, "low")
     provider_conflict_domains = detect_provider_conflicts(text)
     enriched_experts: list[dict[str, Any]] = []
     for expert in experts:
@@ -1308,6 +1415,12 @@ def classify_work(
         "route": route,
         "task_class": task_class,
         "risk_level": risk,
+        "risk_assessment": {
+            **risk_assessment.as_record(),
+            "unmet_required_experts": unmet_risk_experts,
+            "expert_risk": expert_risk,
+            "risk_level": risk,
+        },
         **sensitivity_signal,
         "dispatch_sensitivity": dispatch_sensitivity,
         "share_boundary": share_boundary,
@@ -1415,7 +1528,7 @@ def classify_work(
             actor_context=stage or "routing",
         )
         result.update(refreshed)
-    return result
+    return finish_registered_assessment(risk_use, result)
 
 
 def selected_executor_for_expert(expert: dict[str, Any], fallback_executor: str | None = None) -> dict[str, Any]:

@@ -46,6 +46,7 @@ from cwo_core.native_tool_isolation import default_tool_policy
 from cwo_core.paths import cwo_temp_dir
 from tests.test_native_pool_admission import MemoryBdRunner
 from tests.test_native_pool_proportionality import _fixture
+from tests.real_beads_fixture import configure_git_fixture
 
 
 class FakeServer:
@@ -116,6 +117,7 @@ class RuntimeFixture:
             path.mkdir(mode=0o700)
             (path / "seed.txt").write_text("original\n")
             subprocess.run(["git", "init", "-q", str(path)], check=True, capture_output=True)
+            configure_git_fixture(path)
             subprocess.run(["git", "-C", str(path), "add", "seed.txt"], check=True, capture_output=True)
             subprocess.run(["git", "-C", str(path), "-c", "user.name=Fixture", "-c", "user.email=fixture.invalid",
                             "commit", "-qm", "fixture"], check=True, capture_output=True)
@@ -221,6 +223,7 @@ class RuntimeFixture:
 
 class MaintenanceRuntimeTests(unittest.TestCase):
     def setUp(self):
+        self.enterContext(mock.patch.object(module.live_availability, 'N1_LIVE_AVAILABLE', True))
         self.temp = tempfile.TemporaryDirectory(prefix="cwo-maintenance-runtime-test-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
@@ -514,11 +517,6 @@ class MaintenanceRuntimeTests(unittest.TestCase):
         self.assertFalse(result["accepted"])
         self.assertIn("pool-terminal-state-drift", result["errors"])
 
-    def test_missing_terminal_observation_preserves_cleanup_and_denies_acceptance(self):
-        result = self.final_validation_fixture(self.fixture(), terminal_states=FileNotFoundError("owned state missing"))
-        self.assertFalse(result["accepted"])
-        self.assertTrue(result["containment"]["all_contained"])
-        self.assertTrue(any(e.startswith("pool-terminal-state-unobserved") for e in result["errors"]))
 
     def test_independent_product_validation_observes_real_artifact_without_closing_bead(self):
         fixture = self.fixture(role="product")
@@ -528,6 +526,43 @@ class MaintenanceRuntimeTests(unittest.TestCase):
         self.assertFalse(result["bead_closed"])
         self.assertEqual(fixture.runner.close_order, [])
         self.assertEqual(fixture.runner.issues[fixture.bead_id]["status"], "in_progress")
+        for revoke in (False, True):
+            with self.subTest(row="two-validators-revoked" if revoke else "two-validators-current"):
+                self._validator_recheck_row(revoke)
+
+    def _validator_recheck_row(self, revoke):
+        root = self.root / ("revoked-validators" if revoke else "current-validators")
+        root.mkdir()
+        first = (sys.executable, "-c", "print('EXAMPLE first validator')")
+        second = (sys.executable, "-c", "print('EXAMPLE second validator')")
+        with mock.patch.dict(os.environ, {"CWO_TEMP_ROOT": str(root / "temp")}):
+            fixture = RuntimeFixture(root, role="product",
+                                     commands=tuple(ValidationCommand(argv, 5) for argv in (first, second)))
+            calls = []
+            real_run = subprocess.run
+
+            def run(argv, *args, **kwargs):
+                if tuple(argv) not in (first, second):
+                    return real_run(argv, *args, **kwargs)
+                calls.append(tuple(argv))
+                self.assertEqual(kwargs["cwd"], fixture.worker)
+                self.assertEqual(kwargs["timeout"], 5)
+                if revoke and tuple(argv) == first:
+                    fixture.store.revoke()
+                return subprocess.CompletedProcess(argv, 0, b"checked\n", b"")
+
+            with mock.patch.object(module.subprocess, "run", side_effect=run):
+                if revoke:
+                    with self.assertRaises(ValueError):
+                        self.final_validation_fixture(fixture)
+                else:
+                    result = self.final_validation_fixture(fixture)
+                    self.assertTrue(result["accepted"], result)
+                    self.assertEqual(len(result["independent_checks"]), 2)
+            self.assertEqual(calls, [first] if revoke else [first, second],
+                             "revoked authority reached a later validator process")
+            self.assertEqual(fixture.runner.close_order, [])
+
 
     def test_realignment_never_becomes_product_acceptance(self):
         result = self.final_validation_fixture(self.fixture(), completed=False)
@@ -548,12 +583,6 @@ class MaintenanceRuntimeTests(unittest.TestCase):
         self.assertIn("validation-mutated-workspace", result["errors"])
         self.assertIn("workspace-final-observation-rejected", result["errors"])
 
-    def test_independent_command_wrong_output_is_not_a_success(self):
-        commands = (ValidationCommand((sys.executable, "-c", "print('wrong')"), 5, hashlib.sha256(b"expected\n").hexdigest()),)
-        fixture = RuntimeFixture(self.root, commands=commands)
-        result = self.final_validation_fixture(fixture)
-        self.assertFalse(result["accepted"])
-        self.assertIn("independent-validation-failed", result["errors"])
 
     def test_task_exact_budget_and_scope_types(self):
         fixture = self.fixture()
@@ -610,6 +639,19 @@ class MaintenanceRuntimeTests(unittest.TestCase):
                 operative_routing=None, current_authority=None, live=True, require_accepting=True), [])
         self.assertEqual(events, ["turn-after-armed", "live-terminal-inventory-observed", "archive-after-terminal", "containment-observed", "archived-path-observed"])
         self.assertEqual(result["session_id"], session_id)
+
+    def test_independent_command_wrong_output_is_not_a_success(self):
+        commands = (ValidationCommand((sys.executable, "-c", "print('wrong')"), 5, hashlib.sha256(b"expected\n").hexdigest()),)
+        fixture = RuntimeFixture(self.root, commands=commands)
+        result = self.final_validation_fixture(fixture)
+        self.assertFalse(result["accepted"])
+        self.assertIn("independent-validation-failed", result["errors"])
+
+    def test_missing_terminal_observation_preserves_cleanup_and_denies_acceptance(self):
+        result = self.final_validation_fixture(self.fixture(), terminal_states=FileNotFoundError("owned state missing"))
+        self.assertFalse(result["accepted"])
+        self.assertTrue(result["containment"]["all_contained"])
+        self.assertTrue(any(e.startswith("pool-terminal-state-unobserved") for e in result["errors"]))
 
 
 class MaintenanceLedgerTests(unittest.TestCase):
@@ -757,35 +799,6 @@ class TerminalPoolStateConsumerTests(unittest.TestCase):
         self.assertEqual(state["status"], "closed")
         self.assertEqual(module.validate_pool_receipt(self.receipt, contract=self.harness.contract, terminal_state=state), [])
 
-    def test_tampered_terminal_state_hash_cannot_be_replaced_by_success_boolean(self):
-        state = json.loads(self.path.read_text())
-        state["worker_seconds"] += 1
-        self.path.write_text(json.dumps(state))
-        with self.assertRaisesRegex(MaintenanceRuntimeError, "pool-state-invalid"):
-            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
-
-    def test_missing_malformed_and_symlink_state_are_controlled_failures(self):
-        data = self.path.read_bytes()
-        self.path.unlink()
-        with self.assertRaises(MaintenanceRuntimeError):
-            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
-        self.path.write_text('{"state_type":')
-        self.path.chmod(0o600)
-        with self.assertRaises(ValueError):
-            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
-        target = self.root / "state-source.json"
-        target.write_bytes(data)
-        self.path.unlink(); self.path.symlink_to(target)
-        with self.assertRaisesRegex(MaintenanceRuntimeError, "symlink"):
-            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
-
-    def test_wrong_contract_and_untrusted_file_mode_reject(self):
-        contract = deepcopy(self.harness.contract); contract["contract_sha256"] = "a"*64
-        with self.assertRaisesRegex(MaintenanceRuntimeError, "pool-state-invalid"):
-            module.read_pool_terminal_state(self.path, contract=contract)
-        self.path.chmod(0o644)
-        with self.assertRaisesRegex(MaintenanceRuntimeError, "pool-state-private-file"):
-            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
 
     def test_real_fifo_rejects_before_blocking_and_resource_cleanup(self):
         fifo = self.root / "not-state.fifo"
@@ -809,6 +822,36 @@ class TerminalPoolStateConsumerTests(unittest.TestCase):
                 self.path.write_text(json.dumps(state))
                 with self.subTest(target=target,bad=bad), self.assertRaisesRegex(MaintenanceRuntimeError,"status-type-invalid"):
                     module.read_pool_terminal_state(self.path,contract=self.harness.contract)
+
+    def test_tampered_terminal_state_hash_cannot_be_replaced_by_success_boolean(self):
+        state = json.loads(self.path.read_text())
+        state["worker_seconds"] += 1
+        self.path.write_text(json.dumps(state))
+        with self.assertRaisesRegex(MaintenanceRuntimeError, "pool-state-invalid"):
+            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
+
+    def test_wrong_contract_and_untrusted_file_mode_reject(self):
+        contract = deepcopy(self.harness.contract); contract["contract_sha256"] = "a"*64
+        with self.assertRaisesRegex(MaintenanceRuntimeError, "pool-state-invalid"):
+            module.read_pool_terminal_state(self.path, contract=contract)
+        self.path.chmod(0o644)
+        with self.assertRaisesRegex(MaintenanceRuntimeError, "pool-state-private-file"):
+            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
+
+    def test_missing_malformed_and_symlink_state_are_controlled_failures(self):
+        data = self.path.read_bytes()
+        self.path.unlink()
+        with self.assertRaises(MaintenanceRuntimeError):
+            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
+        self.path.write_text('{"state_type":')
+        self.path.chmod(0o600)
+        with self.assertRaises(ValueError):
+            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
+        target = self.root / "state-source.json"
+        target.write_bytes(data)
+        self.path.unlink(); self.path.symlink_to(target)
+        with self.assertRaisesRegex(MaintenanceRuntimeError, "symlink"):
+            module.read_pool_terminal_state(self.path, contract=self.harness.contract)
 
 
 if __name__ == "__main__":

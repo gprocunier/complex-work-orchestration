@@ -399,7 +399,7 @@ class BeadsClaimAdapter:
         if not issue_id:
             raise NativePoolAdmissionError("claim-bead-id-empty")
         return self._decode_show(
-            self._run(("show", issue_id, "--json")),
+            self._run(("show", "--json", "--", issue_id)),
             issue_id,
         )
 
@@ -441,7 +441,7 @@ class BeadsClaimAdapter:
             )
             return ClaimTransition(receipt=receipt, post_issue=pre)
 
-        result = self._run(("update", issue_id, "--claim", "--json"))
+        result = self._run(("update", "--claim", "--json", "--", issue_id))
         try:
             post = dict(self.show_exact(issue_id))
         except NativePoolAdmissionError:
@@ -525,7 +525,7 @@ class BeadsClaimAdapter:
             return CloseTransition(receipt=receipt, post_issue=pre)
 
         result = self._run(
-            ("close", issue_id, "--reason", close_reason, "--json")
+            ("close", "--reason", close_reason, "--json", "--", issue_id)
         )
         try:
             post = dict(self.show_exact(issue_id))

@@ -42,11 +42,24 @@ Before handoff, run:
 ```bash
 python -m compileall -j 8 -x '(^|/)(\.git|\.beads|\.orchestration-audit|__pycache__|\.ruff_cache)(/|$)' .
 python scripts/validate_repository.py
+python scripts/check_code_health.py
 python scripts/run_parallel_unittest.py --workers 8 --verbose
 ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run
 ```
 
+`check_code_health.py` needs the pinned test-only `ruff` from
+`requirements-test.txt`. It fails on a new F or E9 diagnostic, a new import of a
+CLI module from `scripts/cwo_core`, a function whose complexity grew, or a new
+function over the advisory threshold in `policy/code-health-baseline.json`.
+Record a reviewed move or rename in `policy/code-health-moves.json` under a
+new `batch` identifier for each review (a consumed identifier is never reused);
+lower the baseline with `refresh`, and admit new debt only with `refresh --admit REASON`.
+Same-named definitions that carry debt (conditional definitions, for example)
+have no stable identity, so any code change in their file asks for an admission.
+Broad type checking, duplicate-code rules, interpreter coverage and measured
+coverage are deferred. Trace unused values recorded in the F baseline for
+`native_capability.py` before any deletion.
+
 The fixed fanout of eight is temporary. Keep Beads, journals, reducers,
-promotion, model dispatch, and other stateful operations serial. Follow-up Bead
-`complex-work-orchestration-p4vg.95` owns topology-aware and duration-balanced
-batching.
+promotion, model dispatch, and other stateful operations serial. Topology-aware
+and duration-balanced batching remain future work.

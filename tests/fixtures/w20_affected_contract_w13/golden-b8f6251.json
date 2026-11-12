@@ -1,0 +1,1453 @@
+{
+ "baseline_commit": "9c5c6374dc009898cc0ffe1cece9557d8dc519de",
+ "checkpoint": "offline-transport-compatibility",
+ "consumer": "transport",
+ "interpreter": "3.14.8",
+ "note": "Neutral fixture identities with retained semantic outcomes; no execution authority.",
+ "sections": {
+  "adapter_digest_coverage": {
+   "digest_changes_when_file_changes": {
+    "AppServer": true,
+    "AppServerError": true,
+    "known-gap-codex_tool_surface": false,
+    "load_private_bytes": true,
+    "runner": true
+   },
+   "digest_stable_when_restored": true
+  },
+  "capability_receipts": {
+   "baseline_runner_sha256": "345ce4c9c1fbf70e9e203034fbe7315718eacfd8e4c5e36d34412294f845874f",
+   "validator_source_sha256": "44098d27d9c782ecd9c4538ab7518547d97f5e4e9d19707132f9353d3c637d65",
+   "verdicts": {
+    "adapter-digest-malformed": {
+     "errors": [
+      "certification-adapter-implementation-sha256-invalid"
+     ],
+     "input": {
+      "receipt_sha256": "30ea90fff0fcfcae575247b9a73ec4b7fa337bc41785525cbde5db3a5d897263",
+      "under_contract": false
+     }
+    },
+    "current-shape-baseline-adapter-digest": {
+     "errors": [],
+     "input": {
+      "receipt_sha256": "8589d37d7d3cb8278b8f5453c14f9ddb22ddfe0503d14a443c58813f10f4a031",
+      "under_contract": false
+     }
+    },
+    "current-shape-baseline-adapter-digest-under-contract": {
+     "errors": [],
+     "input": {
+      "receipt_sha256": "8589d37d7d3cb8278b8f5453c14f9ddb22ddfe0503d14a443c58813f10f4a031",
+      "under_contract": true
+     }
+    },
+    "current-shape-expired": {
+     "errors": [
+      "capability-receipt-stale"
+     ],
+     "input": {
+      "receipt_sha256": "8589d37d7d3cb8278b8f5453c14f9ddb22ddfe0503d14a443c58813f10f4a031",
+      "under_contract": true
+     }
+    },
+    "known-defect-adapter-digest-unbound-to-implementation": {
+     "errors": [],
+     "input": {
+      "receipt_sha256": "f0613d5a1af19ac176c1ae170896dac3afb67996db7a0baf559e9eaf7a0a35d7",
+      "under_contract": true
+     }
+    },
+    "legacy-certification-as-current-authority": {
+     "errors": [
+      "certification-missing-fields:slack_warning_fraction",
+      "certification-version-mismatch",
+      "certification-scheduler-model-mismatch",
+      "certification-response-time-equation-mismatch",
+      "certification-slack-warning-fraction-invalid"
+     ],
+     "input": {
+      "receipt_sha256": "12fe2aa95f197af4d761625b443d481028c54189891abc969993d7fd8602dc85",
+      "under_contract": true
+     }
+    },
+    "legacy-certification-historical-read": {
+     "errors": [],
+     "input": {
+      "receipt_sha256": "12fe2aa95f197af4d761625b443d481028c54189891abc969993d7fd8602dc85",
+      "under_contract": false
+     }
+    }
+   }
+  },
+  "code_pins": {
+   "covers": {
+    "AppServer": true,
+    "AppServerError": true,
+    "codex_tool_surface-implementation": true,
+    "codex_tool_surface-old-path": true,
+    "load_private_bytes": true,
+    "runner": true
+   },
+   "interpreter_pinned": true,
+   "pin_paths": [
+    "scripts/check_maintenance_qualification.py",
+    "scripts/codex_tool_surface.py",
+    "scripts/cwo_core/__init__.py",
+    "scripts/cwo_core/checked_command.py",
+    "scripts/cwo_core/maintenance_authority.py",
+    "scripts/cwo_core/maintenance_image.py",
+    "scripts/cwo_core/maintenance_qualification.py",
+    "scripts/cwo_core/native_authority.py",
+    "scripts/cwo_core/native_canary_contracts.py",
+    "scripts/cwo_core/native_pool_contracts.py",
+    "scripts/cwo_core/native_stop_scope.py",
+    "scripts/cwo_core/native_tool_isolation.py",
+    "scripts/cwo_core/native_turn_dispatch.py",
+    "scripts/cwo_core/util.py",
+    "scripts/run_native_pool_live_canaries.py"
+   ]
+  },
+  "generation11_runner_source": {
+   "history_runner_blob_sha256": "8f5fc6e90422f9525ce38f0332d2e909289086435c597a8cbf15726d4ef9c2f4",
+   "history_session_boundary_blob_sha256": "ee85577380ff9d8f10dfe7b756ffe461667059740c3f1ebd1a76063e38f9500f",
+   "production_source_sha256": {
+    "boundary": "ea0f587f7ec6b38898393b16201afe8b05decd29ad343d406a22e7a6daebfc37",
+    "runner": "6bc88446cd12722244378ee9eff616f0056ff2d14375dd5391f7ba575c249e5c"
+   },
+   "recorded_runner_source_sha256": "8f5fc6e90422f9525ce38f0332d2e909289086435c597a8cbf15726d4ef9c2f4",
+   "recorded_session_boundary_source_sha256": "ee85577380ff9d8f10dfe7b756ffe461667059740c3f1ebd1a76063e38f9500f",
+   "validator_source_sha256": "a7d446f5ec8237348582dd29b9f07ab15212e87b3b281d5553fed3ad672295cd",
+   "verdicts": {
+    "baseline-runner-bytes-rebound": {
+     "errors": [
+      "authorization-predecessor-v10-terminal-facts-binding-invalid",
+      "authorization-predecessor-v10-terminal-facts-source-blob-mismatch",
+      "authorization-predecessor-v10-terminal-facts-source-semantics-invalid"
+     ],
+     "input": {
+      "candidate_commit": "37a9317ae916d7e84f18d0e641c5722bc45bd16e",
+      "repo_bound": true,
+      "runner_source_sha256": "345ce4c9c1fbf70e9e203034fbe7315718eacfd8e4c5e36d34412294f845874f",
+      "session_boundary_source_sha256": "ee85577380ff9d8f10dfe7b756ffe461667059740c3f1ebd1a76063e38f9500f",
+      "terminal_facts_canonical_sha256": "3598646b1b6d4969db2db0358434fe6ccc91d5896cdb31982433de48d46da88d"
+     }
+    },
+    "historical-record-repo-bound": {
+     "errors": [],
+     "input": {
+      "candidate_commit": "37a9317ae916d7e84f18d0e641c5722bc45bd16e",
+      "repo_bound": true,
+      "runner_source_sha256": "8f5fc6e90422f9525ce38f0332d2e909289086435c597a8cbf15726d4ef9c2f4",
+      "session_boundary_source_sha256": "ee85577380ff9d8f10dfe7b756ffe461667059740c3f1ebd1a76063e38f9500f",
+      "terminal_facts_canonical_sha256": "e3af10916e4545d68ccd55ee821e2d5cadc4432768767cf5a933237663e142ec"
+     }
+    },
+    "historical-record-without-repo": {
+     "errors": [],
+     "input": {
+      "candidate_commit": "37a9317ae916d7e84f18d0e641c5722bc45bd16e",
+      "repo_bound": false,
+      "runner_source_sha256": "8f5fc6e90422f9525ce38f0332d2e909289086435c597a8cbf15726d4ef9c2f4",
+      "session_boundary_source_sha256": "ee85577380ff9d8f10dfe7b756ffe461667059740c3f1ebd1a76063e38f9500f",
+      "terminal_facts_canonical_sha256": "e3af10916e4545d68ccd55ee821e2d5cadc4432768767cf5a933237663e142ec"
+     }
+    },
+    "relabelled-to-baseline-commit": {
+     "errors": [
+      "authorization-predecessor-v10-terminal-facts-source-blob-mismatch"
+     ],
+     "input": {
+      "candidate_commit": "9c5c6374dc009898cc0ffe1cece9557d8dc519de",
+      "repo_bound": true,
+      "runner_source_sha256": "8f5fc6e90422f9525ce38f0332d2e909289086435c597a8cbf15726d4ef9c2f4",
+      "session_boundary_source_sha256": "ee85577380ff9d8f10dfe7b756ffe461667059740c3f1ebd1a76063e38f9500f",
+      "terminal_facts_canonical_sha256": "f6ec30b11a7ae2b28009e6eda258b98b396c1529d960c4b414a60fd48439a156"
+     }
+    },
+    "tampered-runner-byte-rebound": {
+     "errors": [
+      "authorization-predecessor-v10-terminal-facts-binding-invalid",
+      "authorization-predecessor-v10-terminal-facts-source-blob-mismatch"
+     ],
+     "input": {
+      "candidate_commit": "37a9317ae916d7e84f18d0e641c5722bc45bd16e",
+      "repo_bound": true,
+      "runner_source_sha256": "da44814b400abcf0d1b2c8d16ba1ca45dd766defb8a34d5f889e8826eb244d1d",
+      "session_boundary_source_sha256": "ee85577380ff9d8f10dfe7b756ffe461667059740c3f1ebd1a76063e38f9500f",
+      "terminal_facts_canonical_sha256": "868ac353fe32ff29a5c4ae297e0bd709fb2bd5453e0da4fcf2b77790e5d3b233"
+     }
+    },
+    "unknown-commit": {
+     "errors": [
+      "authorization-predecessor-v10-terminal-facts-source-blob-mismatch"
+     ],
+     "input": {
+      "candidate_commit": "ffffffffffffffffffffffffffffffffffffffff",
+      "repo_bound": true,
+      "runner_source_sha256": "8f5fc6e90422f9525ce38f0332d2e909289086435c597a8cbf15726d4ef9c2f4",
+      "session_boundary_source_sha256": "ee85577380ff9d8f10dfe7b756ffe461667059740c3f1ebd1a76063e38f9500f",
+      "terminal_facts_canonical_sha256": "970b93c3ec0292f08b235ccd92823a49610bec943cfa9fc320ff74b7b5637f76"
+     }
+    }
+   }
+  },
+  "historical_records": {
+   "inputs": {
+    "historical-full-auto-authorization-v4.json": "4fffed1345e3e2cc4bda647001dd366a2eebfa6a1fac035b1c3b9232abf26071",
+    "historical-live-campaign-manifest-v1.json": "14c1f96f565f7ec36f6b9c0e9505c925d40b879307563bc2cede7125d1cb98c3"
+   },
+   "validator_source_sha256": {
+    "CONTRACTS.validate_campaign_manifest": "af709b84cdd3370547376e1a1c3e3e08c29878c3717b56f3554e74045c026104",
+    "CONTRACTS.validate_full_auto_authorization": "6b176514749d5a495656ff6d85edfa78b77af93e67e5d48243e9d181e8594239",
+    "CONTRACTS.validate_operative_full_auto_authorization": "58d0133503030174af321ea2ac607f05277ce4e44c8d7a533408745b5a4d692b",
+    "LIVE.validate_full_auto_authorization": "082c85f48a58ea41967004153718c5a5b1e1c1fa412af3e9b8c4badec1cc4c07"
+   },
+   "verdicts": {
+    "authorization-v4-historical-read": [
+     "authorization-header-invalid"
+    ],
+    "authorization-v4-operative": [
+     "authorization-version-historical-only"
+    ],
+    "authorization-v4-tampered-historical-read": [
+     "authorization-header-invalid"
+    ],
+    "manifest-v1-historical-read": [
+     "campaign-manifest-header-invalid"
+    ],
+    "runner-entry-authorization-v4-operative": {
+     "error_type": "AppServerError",
+     "message": "full-auto-authorization-invalid:authorization-version-historical-only",
+     "outcome": "refused",
+     "popen_calls": 0
+    },
+    "runner-entry-authorization-v4-read": {
+     "error_type": "AppServerError",
+     "message": "full-auto-authorization-invalid:authorization-header-invalid",
+     "outcome": "refused",
+     "popen_calls": 0
+    }
+   }
+  },
+  "identities": {
+   "constants": {
+    "AMBIGUOUS_TURN_DISCOVERY_POLL_SECONDS": 0.05,
+    "AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS": 5.0,
+    "CONTROL_TURN_ID": "complex-work-orchestration-18w.6-live-canary-control-turn",
+    "EXACT_MODEL": "gpt-5.3-codex-spark",
+    "THREAD_PHASE_LIVE_CANARY": "live-canary",
+    "THREAD_PHASE_PRECOMMIT_FIT": "precommit-fit",
+    "THREAD_READ_TIMEOUT_SECONDS": 15.0
+   },
+   "model_identities": {
+    "AppServer.requested_model.default": "gpt-5.3-codex-spark",
+    "CONTRACTS.EXACT_OPERATIVE_MODEL": "gpt-5.3-codex-spark",
+    "EXACT_MODEL": "gpt-5.3-codex-spark"
+   },
+   "source_sha256": {
+    "AmbiguousTurnStartError": "53662a96b26e0716fa6e2734c032c47d9d1747fe2be91c23a917da31b95aed4a",
+    "AppServer": "8f8301508064d202b8175ac13dd33b3990906932024432ec4eaee42abfdad828",
+    "AppServerError": "a14e1b5f34b1cd18880905d0929a2d702b215085258bdc9d8c8e983ef7ef80f5",
+    "AppServerRpcError": "fd9b74ddb27736daea69b81a04c0b07f771003aeb396189ffc240f91f6d58353",
+    "_canonical_controller_workdir": "090b3b3c6f9898c7418103756d38fe9d69ae142c977775a475d5b14c44fbb9e7",
+    "_fsync_owned_control_directory": "f04e1c15d9baf423915a100d1ef9fa7b2b8a37e67e1fc9fb156c19f5e6dfcb4a",
+    "_fsync_private_control_directory": "227d54a1ba7e1ed615b0cac3811df489a4cfa5a69a05231e3db4bffd4460bd9b",
+    "_load_owned_regular_bytes": "b4c09db368b2725a36f233cbab66ca9e8340fa1f8ed20044f9a70c1436dd9ea7",
+    "_open_private_control_lock": "3a2ff995c7b50a5931b01a2c03e4eb690c289b7ec4c6abf6eea4f5968e8f37e3",
+    "_private_control_directory": "9a32ad28e6a42bc00cb51e5ca35e25ad0f8d15b12e591fa70a25292bbea6d737",
+    "_seal_same_process_proof": "a6e15983d4733a0c2e9f78e66d3eef310a6475b046b14d5e2d4757dcd2fe4127",
+    "_validated_same_process_proof": "37775a374f2dae596f8cd464750ec5d0044f70d3b552f3f6b118d845ca24a070",
+    "codex_tool_surface-module": "dffcb33b96074d861f4e5b0866ed58a69888fa42e730433c81058e8e0d07569c",
+    "load_private_bytes": "90c0d73da5e3c5102f91d6e84506a9843e40b988decd70e2c88c346ec3b9c91c",
+    "load_private_json": "24a0e7052d7806ee98c6601231390291ce7b6cdf930213424ede4284ad00ed18",
+    "load_private_json_snapshot": "6db24cb17157337a7d3575f87002a89f4b08c677ab457448107d7f4bf494deee",
+    "sha256_bytes": "df30d422c953f6f39fff78d149e14f48a589b3352933bceefd025667881dd60a",
+    "sha256_text": "afcefbab8560b1a12e3791beb2ba0001dfebcd4f6d7cbdb1236ae9ab5519eef3"
+   },
+   "surface": {
+    "ALLOWLIST_PARAMETER": "config",
+    "PROOF_TYPE": "cwo-codex-config-tool-surface-proof",
+    "PROOF_VERSION": 5,
+    "TOOL_PROFILES": {
+     "apply_patch,exec_command,list_mcp_resource_templates,list_mcp_resources,read_mcp_resource,write_stdin": "mutating-core-resources-v2",
+     "apply_patch,exec_command,write_stdin": "mutating-v1",
+     "exec_command,list_mcp_resource_templates,list_mcp_resources,read_mcp_resource,write_stdin": "read-only-core-resources-v2",
+     "exec_command,write_stdin": "read-only-v1"
+    }
+   },
+   "thread_start_phases": [
+    "live-canary",
+    "precommit-fit"
+   ]
+  },
+  "launcher_authorization": {
+   "caller_source_sha256": {
+    "LIVE.main": "8db64019607a20682e5e6aabd7bf39b4e6f124c5b6accfedff3a4edd05797c48",
+    "LIVE.require_operative_campaign_contract": "8f27301983854e87c476e21ecc7b63d060507284136403730b2171b0ba9bbba2",
+    "LIVE.validate_full_auto_authorization": "082c85f48a58ea41967004153718c5a5b1e1c1fa412af3e9b8c4badec1cc4c07"
+   },
+   "historical_input": {
+    "authorization_sha256_digests_masked": "0bf610289a651d00e4c8ce64b165d61734bb90c2e3e5d303990661106f62a39d",
+    "contract-historical-read": [],
+    "manifest_version": 2,
+    "runner-helper-historical-read": {
+     "outcome": "returned",
+     "value": {
+      "authorization_id_matches": true,
+      "head_is_checkpoint": true
+     }
+    },
+    "runner-helper-operative": {
+     "error_type": "AppServerError",
+     "message": "full-auto-authorization-invalid:authorization-version-historical-only",
+     "outcome": "refused"
+    },
+    "version": 5
+   },
+   "launcher": {
+    "control-operative-validator-accepts": {
+     "failure_code": "_EffectReached",
+     "failure_evidence_persisted": false,
+     "files_created_or_changed": [],
+     "git_calls": 50,
+     "operative_validator_calls": 1,
+     "operative_validator_refusals": [],
+     "process_launch_calls": 0,
+     "return_code": 1,
+     "thread_start_requests": 0,
+     "write_effect_calls": {
+      "CanaryAuthorizationStore.initialize": 0,
+      "consume_steering_receipt": 0,
+      "transition_global_campaign_state": 0,
+      "validate_and_acquire_global_campaign_claim": 1,
+      "write_private_artifact": 0
+     }
+    },
+    "historical-v5-relabelled-v12": {
+     "failure_code": "AppServerError",
+     "failure_evidence_persisted": false,
+     "files_created_or_changed": [],
+     "git_calls": 100,
+     "operative_validator_calls": 1,
+     "operative_validator_refusals": [
+      {
+       "error_type": "AppServerError",
+       "errors": [
+        "authorization-v12-authority-provenance-mismatch",
+        "authorization-v12-authority-provenance-must-be-object",
+        "authorization-v12-canonical-sha256-mismatch",
+        "authorization-v12-common:authorization-v12-common-scalar-invalid",
+        "authorization-v12-evidence-sha256-mismatch",
+        "authorization-v12-fields-invalid",
+        "authorization-v12-header-invalid",
+        "authorization-v12-mandatory-gate-disabled",
+        "authorization-v12-mandatory-gates-fields-invalid"
+       ],
+       "prefix": "full-auto-authorization-invalid"
+      }
+     ],
+     "process_launch_calls": 0,
+     "return_code": 1,
+     "thread_start_requests": 0,
+     "write_effect_calls": {
+      "CanaryAuthorizationStore.initialize": 0,
+      "consume_steering_receipt": 0,
+      "transition_global_campaign_state": 0,
+      "validate_and_acquire_global_campaign_claim": 0,
+      "write_private_artifact": 0
+     }
+    },
+    "historical-v5-valid": {
+     "failure_code": "campaign-authorization-version-historical-only",
+     "failure_evidence_persisted": false,
+     "files_created_or_changed": [],
+     "git_calls": 0,
+     "operative_validator_calls": 0,
+     "operative_validator_refusals": [],
+     "process_launch_calls": 0,
+     "return_code": 1,
+     "thread_start_requests": 0,
+     "write_effect_calls": {
+      "CanaryAuthorizationStore.initialize": 0,
+      "consume_steering_receipt": 0,
+      "transition_global_campaign_state": 0,
+      "validate_and_acquire_global_campaign_claim": 0,
+      "write_private_artifact": 0
+     }
+    }
+   }
+  },
+  "lazy_imports": {
+   "bindings": [
+    "cwo_core.maintenance_qualification:inspect_observation:PROOF_VERSION=codex_tool_surface.PROOF_VERSION",
+    "cwo_core.maintenance_qualification:inspect_observation:TOOL_PROFILES=codex_tool_surface.TOOL_PROFILES",
+    "cwo_core.maintenance_qualification:inspect_observation:domain_hash=other:cwo_core.native_canary_contracts.canonical_sha256",
+    "cwo_core.maintenance_qualification:inspect_observation:require_zero_endpoint_inventory=codex_tool_surface.require_zero_endpoint_inventory",
+    "cwo_core.maintenance_qualification:inspect_observation:surface_hash=codex_tool_surface.canonical_sha256",
+    "cwo_core.maintenance_qualification:inspect_observation:validate_turn_dispatch_record=other:cwo_core.native_turn_dispatch.validate_turn_dispatch_record",
+    "cwo_core.maintenance_qualification:observe_qualification:ALLOWLIST_PARAMETER=codex_tool_surface.ALLOWLIST_PARAMETER",
+    "cwo_core.maintenance_qualification:observe_qualification:AppServer=run_native_pool_live_canaries.AppServer",
+    "cwo_core.maintenance_qualification:observe_qualification:AppServerRpcError=run_native_pool_live_canaries.AppServerRpcError",
+    "cwo_core.maintenance_qualification:observe_qualification:MaintenanceSessionLedger=other:cwo_core.maintenance_runtime_support.MaintenanceSessionLedger",
+    "cwo_core.maintenance_qualification:observe_qualification:THREAD_PHASE_PRECOMMIT_FIT=run_native_pool_live_canaries.THREAD_PHASE_PRECOMMIT_FIT",
+    "cwo_core.maintenance_qualification:observe_qualification:contain_started_threads=run_native_pool_live_canaries.contain_started_threads",
+    "cwo_core.maintenance_qualification:observe_qualification:require_surface_proof=codex_tool_surface.require_surface_proof",
+    "cwo_core.maintenance_qualification:qualification_capability_evidence:ALLOWLIST_PARAMETER=codex_tool_surface.ALLOWLIST_PARAMETER",
+    "cwo_core.maintenance_qualification:qualification_capability_evidence:CORE_RESOURCE_TOOL_PROFILES=codex_tool_surface.CORE_RESOURCE_TOOL_PROFILES",
+    "cwo_core.maintenance_qualification:qualification_capability_evidence:build_tool_surface_snapshot=other:cwo_core.native_tool_isolation.build_tool_surface_snapshot",
+    "cwo_core.maintenance_qualification:qualification_capability_evidence:default_tool_policy=other:cwo_core.native_tool_isolation.default_tool_policy",
+    "cwo_core.maintenance_qualification:qualification_capability_evidence:tool_profile_is_mutable=codex_tool_surface.tool_profile_is_mutable"
+   ],
+   "consumers": [
+    "cwo_core.maintenance_qualification"
+   ]
+  },
+  "tool_surface": {
+   "entry_points": {
+    "v1-unknown-version": {
+     "app_server_construction": {
+      "cleanup": {
+       "all_contained": true,
+       "errors": [],
+       "resources_closed": true
+      },
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-proof-identity-invalid",
+      "outcome": "refused",
+      "popen_calls": 0
+     },
+     "capability_adapter_version": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-proof-identity-invalid",
+      "outcome": "refused"
+     },
+     "thread_start": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-proof-identity-invalid",
+      "outcome": "refused",
+      "popen_calls": 0,
+      "request_calls": 0
+     }
+    },
+    "v2-historical": {
+     "app_server_construction": {
+      "cleanup": {
+       "all_contained": true,
+       "errors": [],
+       "resources_closed": true
+      },
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused",
+      "popen_calls": 0
+     },
+     "capability_adapter_version": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused"
+     },
+     "thread_start": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused",
+      "popen_calls": 0,
+      "request_calls": 0
+     }
+    },
+    "v3-historical": {
+     "app_server_construction": {
+      "cleanup": {
+       "all_contained": true,
+       "errors": [],
+       "resources_closed": true
+      },
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused",
+      "popen_calls": 0
+     },
+     "capability_adapter_version": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused"
+     },
+     "thread_start": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused",
+      "popen_calls": 0,
+      "request_calls": 0
+     }
+    },
+    "v3-historical-model-relabel-resealed": {
+     "app_server_construction": {
+      "cleanup": {
+       "all_contained": true,
+       "errors": [],
+       "resources_closed": true
+      },
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-model-mismatch",
+      "outcome": "refused",
+      "popen_calls": 0
+     },
+     "capability_adapter_version": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-model-mismatch",
+      "outcome": "refused"
+     },
+     "thread_start": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-model-mismatch",
+      "outcome": "refused",
+      "popen_calls": 0,
+      "request_calls": 0
+     }
+    },
+    "v3-historical-model-relabel-unsealed": {
+     "app_server_construction": {
+      "cleanup": {
+       "all_contained": true,
+       "errors": [],
+       "resources_closed": true
+      },
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-model-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused",
+      "popen_calls": 0
+     },
+     "capability_adapter_version": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-model-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused"
+     },
+     "thread_start": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-model-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused",
+      "popen_calls": 0,
+      "request_calls": 0
+     }
+    },
+    "v3-relabelled-as-v5": {
+     "app_server_construction": {
+      "cleanup": {
+       "all_contained": true,
+       "errors": [],
+       "resources_closed": true
+      },
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-effect-policy-invalid;codex-tool-surface-proof-missing:capture_binding,effect_policy,process_binding",
+      "outcome": "refused",
+      "popen_calls": 0
+     },
+     "capability_adapter_version": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-effect-policy-invalid;codex-tool-surface-proof-missing:capture_binding,effect_policy,process_binding",
+      "outcome": "refused"
+     },
+     "thread_start": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-effect-policy-invalid;codex-tool-surface-proof-missing:capture_binding,effect_policy,process_binding",
+      "outcome": "refused",
+      "popen_calls": 0,
+      "request_calls": 0
+     }
+    },
+    "v4-converted-to-v5": {
+     "app_server_construction": {
+      "cleanup": {
+       "all_contained": true,
+       "errors": [],
+       "resources_closed": true
+      },
+      "error_type": "AppServerError",
+      "message": "codex-capture-binding-invalid",
+      "outcome": "refused",
+      "popen_calls": 0
+     },
+     "capability_adapter_version": {
+      "error_type": "AppServerError",
+      "message": "codex-capture-binding-invalid",
+      "outcome": "refused"
+     },
+     "thread_start": {
+      "error_type": "AppServerError",
+      "message": "codex-capture-binding-invalid",
+      "outcome": "refused",
+      "popen_calls": 0,
+      "request_calls": 0
+     }
+    },
+    "v4-historical": {
+     "app_server_construction": {
+      "cleanup": {
+       "all_contained": true,
+       "errors": [],
+       "resources_closed": true
+      },
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused",
+      "popen_calls": 0
+     },
+     "capability_adapter_version": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused"
+     },
+     "thread_start": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused",
+      "popen_calls": 0,
+      "request_calls": 0
+     }
+    },
+    "v5-current": {
+     "app_server_construction": {
+      "argv": [
+       "<HOME>/codex",
+       "app-server",
+       "--stdio"
+      ],
+      "codex_home_env": "<HOME>",
+      "outcome": "effect-reached",
+      "popen_calls": 1
+     },
+     "capability_adapter_version": {
+      "outcome": "returned",
+      "value": "codex-app-server-test-version"
+     },
+     "thread_start": {
+      "outcome": "effect-reached",
+      "popen_calls": 0,
+      "request": {
+       "approvalPolicy": "never",
+       "config_is_proof_lockdown": true,
+       "dynamicTools": [],
+       "method": "thread/start",
+       "model": "gpt-5.3-codex-spark",
+       "param_keys": [
+        "allowProviderModelFallback",
+        "approvalPolicy",
+        "config",
+        "cwd",
+        "developerInstructions",
+        "dynamicTools",
+        "ephemeral",
+        "historyMode",
+        "model",
+        "runtimeWorkspaceRoots",
+        "sandbox"
+       ],
+       "sandbox": "workspace-write"
+      },
+      "request_calls": 1
+     }
+    },
+    "v5-lockdown-tampered": {
+     "app_server_construction": {
+      "cleanup": {
+       "all_contained": true,
+       "errors": [],
+       "resources_closed": true
+      },
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-lockdown-payload-hash-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused",
+      "popen_calls": 0
+     },
+     "capability_adapter_version": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-lockdown-payload-hash-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused"
+     },
+     "thread_start": {
+      "error_type": "AppServerError",
+      "message": "codex-tool-surface-lockdown-payload-hash-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused",
+      "popen_calls": 0,
+      "request_calls": 0
+     }
+    }
+   },
+   "validator_source_sha256": {
+    "AppServer": "8f8301508064d202b8175ac13dd33b3990906932024432ec4eaee42abfdad828",
+    "require_capture_binding": "feb621f4dc0f5f12964f417535bc8b4aef24f094f53bf7f2e46b317160287d01",
+    "require_surface_proof": "40039583b0714643ba17319b3137c09fd1515a0f25e49b1a0148534e175521ef",
+    "validate_surface_proof": "cfff37d6b95e28de4ad89f133b134107769dd4ddab8c4f832e99b73fc199e855"
+   },
+   "verifier": {
+    "v1-unknown-version": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-proof-identity-invalid",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [
+      "codex-tool-surface-proof-identity-invalid"
+     ],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "24d322306b6d95ca7ae21a5d365356ef8fec6964099816c522b080c114f5dc7e",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v1-unknown-version"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-proof-identity-invalid",
+      "outcome": "refused"
+     }
+    },
+    "v2-historical": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "8cb203a1c325dfba7f33a592d2d771be6efc1937fc29e9fd743d41bbf1b9c460",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v2-historical"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused"
+     }
+    },
+    "v2-historical-read-only-tools": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-legacy-profile-mismatch;codex-tool-surface-tools-mismatch",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [
+      "codex-tool-surface-legacy-profile-mismatch",
+      "codex-tool-surface-tools-mismatch"
+     ],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "8cb203a1c325dfba7f33a592d2d771be6efc1937fc29e9fd743d41bbf1b9c460",
+      "permitted_tools": [
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v2-historical"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-legacy-profile-mismatch;codex-tool-surface-tools-mismatch",
+      "outcome": "refused"
+     }
+    },
+    "v3-historical": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "87941b400470efdb2d46cf93b0217665f35ae0fca7f718303774a9ea5b138200",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v3-historical"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused"
+     }
+    },
+    "v3-historical-model-relabel-resealed": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-model-mismatch",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [
+      "codex-tool-surface-model-mismatch"
+     ],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "e7620a439787b7f1b16695e2623ebcfa642d8695c7a511a87212c9a9709dc0e0",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v3-historical-model-relabel-resealed"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-model-mismatch",
+      "outcome": "refused"
+     }
+    },
+    "v3-historical-model-relabel-unsealed": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-model-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [
+      "codex-tool-surface-model-mismatch",
+      "codex-tool-surface-proof-hash-mismatch"
+     ],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "e7620a439787b7f1b16695e2623ebcfa642d8695c7a511a87212c9a9709dc0e0",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v3-historical-model-relabel-unsealed"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-model-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused"
+     }
+    },
+    "v3-relabelled-as-v5": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-effect-policy-invalid;codex-tool-surface-proof-missing:capture_binding,effect_policy,process_binding",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [
+      "codex-tool-surface-effect-policy-invalid",
+      "codex-tool-surface-proof-missing:capture_binding,effect_policy,process_binding"
+     ],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "b5a414181e9586afa4def27cf7462a893763876df14368208f7e16b1fcbb3043",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v3-relabelled-as-v5"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-effect-policy-invalid;codex-tool-surface-proof-missing:capture_binding,effect_policy,process_binding",
+      "outcome": "refused"
+     }
+    },
+    "v4-converted-to-v5": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-capture-binding-invalid",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [
+      "codex-capture-binding-invalid"
+     ],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "63ddb90bc633e8cbef72e6c806e8b919f044fa598840eacd47cb60e9419c41c6",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v4-converted-to-v5"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-capture-binding-invalid",
+      "outcome": "refused"
+     }
+    },
+    "v4-historical": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "6b12c6a3d56d732a866ed9ae22fbc3a2db8f881e0af7c0c47d8147a57d82f7a9",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v4-historical"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-historical-proof-not-dispatch-authority",
+      "outcome": "refused"
+     }
+    },
+    "v4-historical-core-resource-tools": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-legacy-core-profile-forbidden;codex-tool-surface-profile-mismatch;codex-tool-surface-tools-mismatch",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [
+      "codex-tool-surface-legacy-core-profile-forbidden",
+      "codex-tool-surface-profile-mismatch",
+      "codex-tool-surface-tools-mismatch"
+     ],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "6b12c6a3d56d732a866ed9ae22fbc3a2db8f881e0af7c0c47d8147a57d82f7a9",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "list_mcp_resource_templates",
+       "list_mcp_resources",
+       "read_mcp_resource",
+       "write_stdin"
+      ],
+      "proof": "v4-historical"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-legacy-core-profile-forbidden;codex-tool-surface-profile-mismatch;codex-tool-surface-tools-mismatch",
+      "outcome": "refused"
+     }
+    },
+    "v5-current": {
+     "current_dispatch_authority": {
+      "outcome": "returned",
+      "value": "proof-accepted"
+     },
+     "historical_verifier_errors": [],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "e76308931c40ef07ec86d28f457c903fb473277555600b140ccf66b5c1cc1258",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v5-current"
+     },
+     "thread_start_enforcement": {
+      "outcome": "returned",
+      "value": {
+       "config_is_proof_lockdown": true,
+       "dynamicTools": [],
+       "keys": [
+        "config",
+        "dynamicTools"
+       ]
+      }
+     }
+    },
+    "v5-current-binary-drift": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-capture-binding-drift:codex_binary;codex-tool-surface-binary-drift;codex-tool-surface-binary-path-drift",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [
+      "codex-capture-binding-drift:codex_binary",
+      "codex-tool-surface-binary-drift",
+      "codex-tool-surface-binary-path-drift"
+     ],
+     "input": {
+      "binary": "drifted",
+      "normalized_proof_sha256": "e76308931c40ef07ec86d28f457c903fb473277555600b140ccf66b5c1cc1258",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v5-current"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-capture-binding-drift:codex_binary;codex-tool-surface-binary-drift;codex-tool-surface-binary-path-drift",
+      "outcome": "refused"
+     }
+    },
+    "v5-lockdown-tampered": {
+     "current_dispatch_authority": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-lockdown-payload-hash-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused"
+     },
+     "historical_verifier_errors": [
+      "codex-tool-surface-lockdown-payload-hash-mismatch",
+      "codex-tool-surface-proof-hash-mismatch"
+     ],
+     "input": {
+      "binary": "fixture",
+      "normalized_proof_sha256": "30111a7e5096c158e7fb14f4bd442e7a4a45ddc886b7400bebaaa2ef9b3a6f53",
+      "permitted_tools": [
+       "apply_patch",
+       "exec_command",
+       "write_stdin"
+      ],
+      "proof": "v5-lockdown-tampered"
+     },
+     "thread_start_enforcement": {
+      "error_type": "CodexToolSurfaceError",
+      "message": "codex-tool-surface-lockdown-payload-hash-mismatch;codex-tool-surface-proof-hash-mismatch",
+      "outcome": "refused"
+     }
+    }
+   }
+  },
+  "validator_contracts": {
+   "legacy_alias_is_v1": true,
+   "path_lists": {
+    "v1": [
+     "scripts/cwo_core/audit.py",
+     "scripts/cwo_core/native_canary_contracts.py",
+     "scripts/cwo_core/native_live_allocation_ledger.py",
+     "scripts/cwo_core/native_live_campaign_contracts.py",
+     "scripts/run_native_pool_live_canaries.py",
+     "schemas/full-auto-run-authorization.schema.json",
+     "schemas/full-auto-run-authorization-v6.schema.json",
+     "schemas/native-live-campaign-manifest.schema.json",
+     "schemas/native-live-campaign-manifest-v3.schema.json",
+     "schemas/native-live-campaign-cause-evidence.schema.json",
+     "schemas/native-canary-authorization-state.schema.json",
+     "schemas/native-canary-authorization-state-v2.schema.json",
+     "schemas/native-live-allocation-ledger-v2.schema.json"
+    ],
+    "v2": [
+     "scripts/cwo_core/audit.py",
+     "scripts/cwo_core/native_canary_contracts.py",
+     "scripts/cwo_core/native_live_allocation_ledger.py",
+     "scripts/cwo_core/native_live_campaign_contracts.py",
+     "scripts/run_native_pool_live_canaries.py",
+     "schemas/full-auto-run-authorization.schema.json",
+     "schemas/full-auto-run-authorization-v6.schema.json",
+     "schemas/native-live-campaign-manifest.schema.json",
+     "schemas/native-live-campaign-manifest-v3.schema.json",
+     "schemas/native-live-campaign-cause-evidence.schema.json",
+     "schemas/native-canary-authorization-state.schema.json",
+     "schemas/native-canary-authorization-state-v2.schema.json",
+     "schemas/native-live-allocation-ledger-v2.schema.json",
+     "schemas/full-auto-run-authorization-v7.schema.json",
+     "schemas/native-live-campaign-manifest-v4.schema.json"
+    ],
+    "v3": [
+     "scripts/cwo_core/audit.py",
+     "scripts/cwo_core/native_canary_contracts.py",
+     "scripts/cwo_core/native_live_allocation_ledger.py",
+     "scripts/cwo_core/native_live_campaign_contracts.py",
+     "scripts/run_native_pool_live_canaries.py",
+     "schemas/full-auto-run-authorization.schema.json",
+     "schemas/full-auto-run-authorization-v6.schema.json",
+     "schemas/native-live-campaign-manifest.schema.json",
+     "schemas/native-live-campaign-manifest-v3.schema.json",
+     "schemas/native-live-campaign-cause-evidence.schema.json",
+     "schemas/native-canary-authorization-state.schema.json",
+     "schemas/native-canary-authorization-state-v2.schema.json",
+     "schemas/native-live-allocation-ledger-v2.schema.json",
+     "schemas/full-auto-run-authorization-v7.schema.json",
+     "schemas/native-live-campaign-manifest-v4.schema.json",
+     "schemas/full-auto-run-authorization-v8.schema.json",
+     "schemas/native-live-campaign-manifest-v5.schema.json"
+    ],
+    "v4": [
+     "scripts/cwo_core/audit.py",
+     "scripts/cwo_core/native_canary_contracts.py",
+     "scripts/cwo_core/native_live_allocation_ledger.py",
+     "scripts/cwo_core/native_live_campaign_contracts.py",
+     "scripts/run_native_pool_live_canaries.py",
+     "schemas/full-auto-run-authorization.schema.json",
+     "schemas/full-auto-run-authorization-v6.schema.json",
+     "schemas/native-live-campaign-manifest.schema.json",
+     "schemas/native-live-campaign-manifest-v3.schema.json",
+     "schemas/native-live-campaign-cause-evidence.schema.json",
+     "schemas/native-canary-authorization-state.schema.json",
+     "schemas/native-canary-authorization-state-v2.schema.json",
+     "schemas/native-live-allocation-ledger-v2.schema.json",
+     "schemas/full-auto-run-authorization-v7.schema.json",
+     "schemas/native-live-campaign-manifest-v4.schema.json",
+     "schemas/full-auto-run-authorization-v8.schema.json",
+     "schemas/native-live-campaign-manifest-v5.schema.json",
+     "schemas/full-auto-run-authorization-v9.schema.json",
+     "schemas/native-live-campaign-manifest-v6.schema.json"
+    ],
+    "v5": [
+     "scripts/cwo_core/audit.py",
+     "scripts/cwo_core/native_canary_contracts.py",
+     "scripts/cwo_core/native_live_allocation_ledger.py",
+     "scripts/cwo_core/native_live_campaign_contracts.py",
+     "scripts/run_native_pool_live_canaries.py",
+     "schemas/full-auto-run-authorization.schema.json",
+     "schemas/full-auto-run-authorization-v6.schema.json",
+     "schemas/native-live-campaign-manifest.schema.json",
+     "schemas/native-live-campaign-manifest-v3.schema.json",
+     "schemas/native-live-campaign-cause-evidence.schema.json",
+     "schemas/native-canary-authorization-state.schema.json",
+     "schemas/native-canary-authorization-state-v2.schema.json",
+     "schemas/native-live-allocation-ledger-v2.schema.json",
+     "schemas/full-auto-run-authorization-v7.schema.json",
+     "schemas/native-live-campaign-manifest-v4.schema.json",
+     "schemas/full-auto-run-authorization-v8.schema.json",
+     "schemas/native-live-campaign-manifest-v5.schema.json",
+     "schemas/full-auto-run-authorization-v9.schema.json",
+     "schemas/native-live-campaign-manifest-v6.schema.json",
+     "schemas/full-auto-run-authorization-v10.schema.json",
+     "schemas/native-live-campaign-manifest-v7.schema.json"
+    ],
+    "v6": [
+     "scripts/cwo_core/audit.py",
+     "scripts/cwo_core/native_canary_contracts.py",
+     "scripts/cwo_core/native_live_allocation_ledger.py",
+     "scripts/cwo_core/native_live_campaign_contracts.py",
+     "scripts/run_native_pool_live_canaries.py",
+     "schemas/full-auto-run-authorization.schema.json",
+     "schemas/full-auto-run-authorization-v6.schema.json",
+     "schemas/native-live-campaign-manifest.schema.json",
+     "schemas/native-live-campaign-manifest-v3.schema.json",
+     "schemas/native-live-campaign-cause-evidence.schema.json",
+     "schemas/native-canary-authorization-state.schema.json",
+     "schemas/native-canary-authorization-state-v2.schema.json",
+     "schemas/native-live-allocation-ledger-v2.schema.json",
+     "schemas/full-auto-run-authorization-v7.schema.json",
+     "schemas/native-live-campaign-manifest-v4.schema.json",
+     "schemas/full-auto-run-authorization-v8.schema.json",
+     "schemas/native-live-campaign-manifest-v5.schema.json",
+     "schemas/full-auto-run-authorization-v9.schema.json",
+     "schemas/native-live-campaign-manifest-v6.schema.json",
+     "schemas/full-auto-run-authorization-v10.schema.json",
+     "schemas/native-live-campaign-manifest-v7.schema.json",
+     "scripts/cwo_core/native_pool_config.py",
+     "schemas/full-auto-run-authorization-v11.schema.json",
+     "schemas/native-live-campaign-manifest-v8.schema.json",
+     "schemas/generation11-terminal-facts.schema.json"
+    ]
+   },
+   "validator_source_sha256": "c600ad33bd675ed9fb7b45ec85e6e6e01c1681c1319a629e9aaaf584d3231d64",
+   "verdicts": {
+    "v1@0aafd2f-v6-introduced": {
+     "input": {
+      "checkpoint_tree": "c833f58b90fff4c6432f5f2c7c4f881cfcbe0331",
+      "contract": "v1"
+     },
+     "outcome": "returned",
+     "value": "1f5322ca5d8de82fb4f072632a7cf73e3dae225cbb1bc5ce922e71d86ac3a3c3"
+    },
+    "v1@5564ba2-v2-introduced": {
+     "input": {
+      "checkpoint_tree": "5af38584d18fa9417e02bb452e00f9a335b1fd09",
+      "contract": "v1"
+     },
+     "outcome": "returned",
+     "value": "41e268d7afcc4178e19bd2b1419ee8c83601c8e8d005bf2c60d7072799c44c43"
+    },
+    "v1@b8f6251-baseline": {
+     "input": {
+      "checkpoint_tree": "91c2356077b06913634e6db1827224f0bcb95777",
+      "contract": "v1"
+     },
+     "outcome": "returned",
+     "value": "0df7fb915e4c7c08db32400002ad9960735f26696b4cc42baae71916a83e10e7"
+    },
+    "v1@e7f5406-v5-introduced-generation11": {
+     "input": {
+      "checkpoint_tree": "81eda38dd728434dad5091bcc44d5bfe77170fc2",
+      "contract": "v1"
+     },
+     "outcome": "returned",
+     "value": "a8d712fa82d84fa709c217e92e820b33ae2404a2c9fcc575880e88e771a42d03"
+    },
+    "v1@malformed-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "not-a-tree",
+      "contract": "v1"
+     },
+     "message": "validator-contract-tree-invalid",
+     "outcome": "refused"
+    },
+    "v1@unknown-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "0000000000000000000000000000000000000000",
+      "contract": "v1"
+     },
+     "message": "validator-contract-path-invalid:scripts/cwo_core/audit.py",
+     "outcome": "refused"
+    },
+    "v2@0aafd2f-v6-introduced": {
+     "input": {
+      "checkpoint_tree": "c833f58b90fff4c6432f5f2c7c4f881cfcbe0331",
+      "contract": "v2"
+     },
+     "outcome": "returned",
+     "value": "5337ba1c40345ca53ab73a2721e51765bd4d823f3513c6ca990224a372162bad"
+    },
+    "v2@5564ba2-v2-introduced": {
+     "input": {
+      "checkpoint_tree": "5af38584d18fa9417e02bb452e00f9a335b1fd09",
+      "contract": "v2"
+     },
+     "outcome": "returned",
+     "value": "96cd971a814c5076b9ab224f7f900cb28bf38d39fb0eb7930ef01171f6bab260"
+    },
+    "v2@b8f6251-baseline": {
+     "input": {
+      "checkpoint_tree": "91c2356077b06913634e6db1827224f0bcb95777",
+      "contract": "v2"
+     },
+     "outcome": "returned",
+     "value": "b92d01cf7511fd59b1e09ae507af008713b8a3efec6e84a6d6c163ec1e6c55fc"
+    },
+    "v2@e7f5406-v5-introduced-generation11": {
+     "input": {
+      "checkpoint_tree": "81eda38dd728434dad5091bcc44d5bfe77170fc2",
+      "contract": "v2"
+     },
+     "outcome": "returned",
+     "value": "9f26e1c195ca3ad6db938a9cd1366b85bf6d0d3d3db2843185dedba9dd0e0c07"
+    },
+    "v2@malformed-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "not-a-tree",
+      "contract": "v2"
+     },
+     "message": "validator-contract-tree-invalid",
+     "outcome": "refused"
+    },
+    "v2@unknown-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "0000000000000000000000000000000000000000",
+      "contract": "v2"
+     },
+     "message": "validator-contract-path-invalid:scripts/cwo_core/audit.py",
+     "outcome": "refused"
+    },
+    "v3@0aafd2f-v6-introduced": {
+     "input": {
+      "checkpoint_tree": "c833f58b90fff4c6432f5f2c7c4f881cfcbe0331",
+      "contract": "v3"
+     },
+     "outcome": "returned",
+     "value": "7dd354954f830afd011006cc68c0303d5d4194113f1e8c61f89bee397ff70d69"
+    },
+    "v3@5564ba2-v2-introduced": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "5af38584d18fa9417e02bb452e00f9a335b1fd09",
+      "contract": "v3"
+     },
+     "message": "validator-contract-path-invalid:schemas/full-auto-run-authorization-v8.schema.json",
+     "outcome": "refused"
+    },
+    "v3@b8f6251-baseline": {
+     "input": {
+      "checkpoint_tree": "91c2356077b06913634e6db1827224f0bcb95777",
+      "contract": "v3"
+     },
+     "outcome": "returned",
+     "value": "74e36794f5f750eff815d337c8774e1c6b6248b1542c259b3a000253bd9e0784"
+    },
+    "v3@e7f5406-v5-introduced-generation11": {
+     "input": {
+      "checkpoint_tree": "81eda38dd728434dad5091bcc44d5bfe77170fc2",
+      "contract": "v3"
+     },
+     "outcome": "returned",
+     "value": "ea0ebcf18cb3536947f0c79b027758eecf3021f4c8c0cad149d5b5a4a90cf334"
+    },
+    "v3@malformed-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "not-a-tree",
+      "contract": "v3"
+     },
+     "message": "validator-contract-tree-invalid",
+     "outcome": "refused"
+    },
+    "v3@unknown-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "0000000000000000000000000000000000000000",
+      "contract": "v3"
+     },
+     "message": "validator-contract-path-invalid:scripts/cwo_core/audit.py",
+     "outcome": "refused"
+    },
+    "v4@0aafd2f-v6-introduced": {
+     "input": {
+      "checkpoint_tree": "c833f58b90fff4c6432f5f2c7c4f881cfcbe0331",
+      "contract": "v4"
+     },
+     "outcome": "returned",
+     "value": "e094b2d71dd3ae1b6f57c4fcbaa4b43f6605d2bbd9d345ae65d469ac268de615"
+    },
+    "v4@5564ba2-v2-introduced": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "5af38584d18fa9417e02bb452e00f9a335b1fd09",
+      "contract": "v4"
+     },
+     "message": "validator-contract-path-invalid:schemas/full-auto-run-authorization-v8.schema.json",
+     "outcome": "refused"
+    },
+    "v4@b8f6251-baseline": {
+     "input": {
+      "checkpoint_tree": "91c2356077b06913634e6db1827224f0bcb95777",
+      "contract": "v4"
+     },
+     "outcome": "returned",
+     "value": "3a4cdfa95489b295ff05269d339b012c1e3a4581e979b9df6898d8b90d11b25f"
+    },
+    "v4@e7f5406-v5-introduced-generation11": {
+     "input": {
+      "checkpoint_tree": "81eda38dd728434dad5091bcc44d5bfe77170fc2",
+      "contract": "v4"
+     },
+     "outcome": "returned",
+     "value": "4f4943a1c5af03cf42bd5675898962f8204ea1e58fc2303b8ca5ae0d7f35b7a4"
+    },
+    "v4@malformed-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "not-a-tree",
+      "contract": "v4"
+     },
+     "message": "validator-contract-tree-invalid",
+     "outcome": "refused"
+    },
+    "v4@unknown-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "0000000000000000000000000000000000000000",
+      "contract": "v4"
+     },
+     "message": "validator-contract-path-invalid:scripts/cwo_core/audit.py",
+     "outcome": "refused"
+    },
+    "v5@0aafd2f-v6-introduced": {
+     "input": {
+      "checkpoint_tree": "c833f58b90fff4c6432f5f2c7c4f881cfcbe0331",
+      "contract": "v5"
+     },
+     "outcome": "returned",
+     "value": "80bbfeaa4020cbfd91764e6ca1d8484663aee3cd8dae400cd6a066173d305e5c"
+    },
+    "v5@5564ba2-v2-introduced": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "5af38584d18fa9417e02bb452e00f9a335b1fd09",
+      "contract": "v5"
+     },
+     "message": "validator-contract-path-invalid:schemas/full-auto-run-authorization-v8.schema.json",
+     "outcome": "refused"
+    },
+    "v5@b8f6251-baseline": {
+     "input": {
+      "checkpoint_tree": "91c2356077b06913634e6db1827224f0bcb95777",
+      "contract": "v5"
+     },
+     "outcome": "returned",
+     "value": "6d809636079f42dfc433e749cbb7c5f08572b1e9d5328ef97fab598e05038e06"
+    },
+    "v5@e7f5406-v5-introduced-generation11": {
+     "input": {
+      "checkpoint_tree": "81eda38dd728434dad5091bcc44d5bfe77170fc2",
+      "contract": "v5"
+     },
+     "outcome": "returned",
+     "value": "91c8151f1a7985c3c6d00297d2af4e100ea38233c2532ee7ee52f3106228a779"
+    },
+    "v5@malformed-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "not-a-tree",
+      "contract": "v5"
+     },
+     "message": "validator-contract-tree-invalid",
+     "outcome": "refused"
+    },
+    "v5@unknown-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "0000000000000000000000000000000000000000",
+      "contract": "v5"
+     },
+     "message": "validator-contract-path-invalid:scripts/cwo_core/audit.py",
+     "outcome": "refused"
+    },
+    "v6@0aafd2f-v6-introduced": {
+     "input": {
+      "checkpoint_tree": "c833f58b90fff4c6432f5f2c7c4f881cfcbe0331",
+      "contract": "v6"
+     },
+     "outcome": "returned",
+     "value": "b3e0d743ab582c99e089c3bfa0e0e11b5710236d6464f95be331d1be56fd9b95"
+    },
+    "v6@5564ba2-v2-introduced": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "5af38584d18fa9417e02bb452e00f9a335b1fd09",
+      "contract": "v6"
+     },
+     "message": "validator-contract-path-invalid:schemas/full-auto-run-authorization-v8.schema.json",
+     "outcome": "refused"
+    },
+    "v6@b8f6251-baseline": {
+     "input": {
+      "checkpoint_tree": "91c2356077b06913634e6db1827224f0bcb95777",
+      "contract": "v6"
+     },
+     "outcome": "returned",
+     "value": "03d6d06b7ca48db3894e77b023631dd17ad26176a5c6f14b4e744ec3cb515a17"
+    },
+    "v6@e7f5406-v5-introduced-generation11": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "81eda38dd728434dad5091bcc44d5bfe77170fc2",
+      "contract": "v6"
+     },
+     "message": "validator-contract-path-invalid:schemas/full-auto-run-authorization-v11.schema.json",
+     "outcome": "refused"
+    },
+    "v6@malformed-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "not-a-tree",
+      "contract": "v6"
+     },
+     "message": "validator-contract-tree-invalid",
+     "outcome": "refused"
+    },
+    "v6@unknown-tree": {
+     "error_type": "ValueError",
+     "input": {
+      "checkpoint_tree": "0000000000000000000000000000000000000000",
+      "contract": "v6"
+     },
+     "message": "validator-contract-path-invalid:scripts/cwo_core/audit.py",
+     "outcome": "refused"
+    }
+   }
+  }
+ }
+}

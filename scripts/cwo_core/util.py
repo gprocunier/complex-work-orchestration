@@ -6,6 +6,7 @@ import json
 import os
 import re
 import tempfile
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +32,8 @@ _NEGATIVE_TERM_SUFFIX = re.compile(
 )
 
 
-def read_text_arg(text: str | None, file_path: str | None) -> str:
+def read_text_segments(text: str | None, file_path: str | None) -> list[str]:
+    """The task text and the --file contents appended to it, as separate segments in order."""
     parts: list[str] = []
     if text:
         parts.append(text)
@@ -39,7 +41,11 @@ def read_text_arg(text: str | None, file_path: str | None) -> str:
         parts.append(Path(file_path).read_text(encoding="utf-8"))
     if not parts:
         raise SystemExit("provide task text or --file")
-    return "\n\n".join(parts)
+    return parts
+
+
+def read_text_arg(text: str | None, file_path: str | None) -> str:
+    return "\n\n".join(read_text_segments(text, file_path))
 
 
 def term_hits(text: str, terms: list[str]) -> list[str]:
@@ -152,9 +158,17 @@ def atomic_write_text(path: Path, text: str, *, encoding: str = "utf-8") -> None
 
 
 def make_dispatch_id(bead_id: str, generated_at: str | None = None) -> str:
+    """Create a fresh preparation ID with the complete readable old ID as suffix.
+
+    ``generated_at`` supplies the timestamp, not an exact dispatch ID. Even
+    with a fixed timestamp each call requests a new UUID4; entropy failures
+    propagate rather than producing a predictable fallback.
+    """
     timestamp = generated_at or dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     safe_bead = re.sub(r"[^A-Za-z0-9_.-]+", "-", bead_id).strip("-") or "unassigned"
-    return f"dispatch-{safe_bead}-{timestamp}"
+    # A leading UUID leaves credential-prefix tails in the readable ID unchanged.
+    # The dot keeps the UUID separate under the existing entropy token expression.
+    return f"{uuid.uuid4()}.dispatch-{safe_bead}-{timestamp}"
 
 
 def packet_payload_hash(packet: dict[str, Any]) -> str:

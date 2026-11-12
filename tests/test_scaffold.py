@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess
 import sys
 import unittest
 from pathlib import Path
+from typing import NamedTuple
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,6 +23,20 @@ from scaffold_workgraph import (  # noqa: E402
     recovery_summary,
     try_dep,
 )
+
+
+def ancestors(by_lane: dict[object, dict[str, object]], lane: str) -> set[str]:
+    """Every lane that must finish before ``lane`` can start."""
+    seen: set[str] = set()
+    pending = list(by_lane[lane].get("depends_on_lanes", []))
+    while pending:
+        dependency = pending.pop()
+        name = dependency if isinstance(dependency, str) else str(dependency.get("lane"))
+        if name in seen or name not in by_lane:
+            continue
+        seen.add(name)
+        pending.extend(by_lane[name].get("depends_on_lanes", []))
+    return seen
 
 
 def live_spark_capability_evidence() -> dict[str, object]:
@@ -39,6 +56,13 @@ def live_spark_capability_evidence() -> dict[str, object]:
             "mutation_enforced": True,
         },
     }
+
+
+class CoachStopCase(NamedTuple):
+    original: str
+    prompt: str
+    mismatch: bool
+    failed_check: str
 
 
 class ScaffoldTests(unittest.TestCase):
@@ -414,20 +438,15 @@ class ScaffoldTests(unittest.TestCase):
                 self.assert_hard_stop_workerbee_metadata(item, expected_dispatch)
 
     @historical_v2_policy()
-    def test_real_coach_native_tool_unavailable_preserves_non_mismatch_hard_stop(self) -> None:
-        self.assert_coach_hard_stop_graph(
-            "Plan docs work. Native Spark tooling is unavailable.",
-            expected_registry_tool_mismatch=False,
-            expected_failed_check="spark-native-tool-absence",
+    def test_real_coach_hard_stop_graph_rows(self) -> None:
+        rows = (
+            CoachStopCase('test_real_coach_native_tool_unavailable_preserves_non_mismatch_hard_stop', "Plan docs work. Native Spark tooling is unavailable.", False, "spark-native-tool-absence"),
+            CoachStopCase('test_real_coach_registry_tool_mismatch_preserves_mismatch_hard_stop', "There is a Spark registry/tool mismatch for this task.", True, "spark-registry-tool-mismatch"),
         )
-
-    @historical_v2_policy()
-    def test_real_coach_registry_tool_mismatch_preserves_mismatch_hard_stop(self) -> None:
-        self.assert_coach_hard_stop_graph(
-            "There is a Spark registry/tool mismatch for this task.",
-            expected_registry_tool_mismatch=True,
-            expected_failed_check="spark-registry-tool-mismatch",
-        )
+        for row in rows:
+            with self.subTest(original=row.original):
+                self.assert_coach_hard_stop_graph(row.prompt, expected_registry_tool_mismatch=row.mismatch,
+                                                 expected_failed_check=row.failed_check)
 
     @historical_v2_policy()
     def test_spark_operational_metadata_does_not_infect_architect_and_model_synthesis_lanes(self) -> None:
@@ -536,7 +555,13 @@ class ScaffoldTests(unittest.TestCase):
             self.assertTrue(item["metadata"]["acceptance_bead_required"])
             self.assertIn("local-worker-only", item["labels"])
             self.assertIn("no-codex-exec", item["labels"])
-            self.assertIn(lane, by_lane["evaluation"]["depends_on_lanes"])
+            # A final-stage review examines the finished content, so its return
+            # is evaluated after implementation and docs, not before them.
+            final_stage = item["metadata"].get("review_stage") in ("pre-validation", "pre-release")
+            self.assertIn(lane, ancestors(by_lane, "final-evaluation" if final_stage else "evaluation"))
+            if final_stage:
+                self.assertIn("local-worker-only", by_lane["final-dispatch"]["labels"])
+                self.assertEqual(by_lane["final-dispatch"]["metadata"]["codex_pickup"], "forbidden")
         self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
 
     def test_dual_architecture_critics_create_independent_contractor_lanes(self) -> None:
@@ -778,7 +803,8 @@ class ScaffoldTests(unittest.TestCase):
             by_lane["model-synthesis"]["metadata"]["model_synthesis"]["synthesis_owner"],
             "rhoai_glm_primary_architect",
         )
-        self.assertIn("docs", by_lane["wrap-up-report"]["depends_on_lanes"])
+        self.assertEqual(by_lane["wrap-up-report"]["depends_on_lanes"], ["validation"])
+        self.assertIn("docs", ancestors(by_lane, "wrap-up-report"))
         self.assertIn("validation", by_lane["dashboard-report"]["depends_on_lanes"])
 
     def test_high_risk_architect_review_route_adds_architect_adjudication(self) -> None:
@@ -812,7 +838,7 @@ class ScaffoldTests(unittest.TestCase):
         self.assertEqual(by_lane["architect-adjudication"]["depends_on_lanes"], ["evaluation"])
         self.assertIn("architect-adjudication", by_lane["implementation"]["depends_on_lanes"])
 
-    def test_public_docs_pages_graph_uses_editor_validation_gate(self) -> None:
+    def test_public_docs_pages_graph_finishes_docs_before_the_editor_gate(self) -> None:
         route = classify_work(
             "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",
             file_paths=["docs/index.html", "README.md"],
@@ -823,9 +849,15 @@ class ScaffoldTests(unittest.TestCase):
         self.assertTrue(route["editor_gate_required"])
         self.assertIn("expert-review-editor", by_lane)
         self.assertIn("publish-sanitization", by_lane)
-        self.assertIn("expert-review-editor", by_lane["validation"]["depends_on_lanes"])
+        # Docs are content: written after implementation, reviewed by the
+        # editor, validated and sanitized, and only then reported.
+        self.assertEqual(by_lane["docs"]["depends_on_lanes"], ["implementation"])
+        self.assertTrue({"implementation", "docs"} <= set(by_lane["expert-review-editor"]["depends_on_lanes"]))
+        self.assertTrue({"implementation", "docs", "expert-review-editor"} <= set(by_lane["validation"]["depends_on_lanes"]))
         self.assertIn("expert-review-editor", by_lane["publish-sanitization"]["depends_on_lanes"])
-        self.assertEqual(by_lane["docs"]["depends_on_lanes"], ["publish-sanitization"])
+        self.assertEqual(by_lane["wrap-up-report"]["depends_on_lanes"], ["publish-sanitization"])
+        self.assertNotIn("handoff", by_lane["docs"]["labels"])
+        self.assertIn("handoff", by_lane["wrap-up-report"]["labels"])
         self.assertTrue(by_lane["expert-review-editor"]["metadata"]["validation_gate_required"])
         self.assertEqual(by_lane["expert-review-editor"]["metadata"]["gate_scope"], "public-docs-pages")
 
@@ -844,6 +876,7 @@ class ScaffoldTests(unittest.TestCase):
         self.assertIn("publish-sanitization", by_lane)
         self.assertIn("expert-review-editor", by_lane["validation"]["depends_on_lanes"])
         self.assertIn("expert-review-editor", by_lane["publish-sanitization"]["depends_on_lanes"])
+        self.assertIn("docs", ancestors(by_lane, "expert-review-editor"))
         self.assertTrue(by_lane["expert-review-editor"]["metadata"]["validation_gate_required"])
 
     def test_recovery_summary_includes_created_ids_and_safe_rerun_guidance(self) -> None:
@@ -856,6 +889,177 @@ class ScaffoldTests(unittest.TestCase):
         self.assertIn("- epic: cwo-epic", summary)
         self.assertIn("bd create --graph", summary)
         self.assertIn("will not silently reuse existing Beads", summary)
+
+
+class ContentBeforeFinalChecksTests(unittest.TestCase):
+    """No final check can cover content that changes after it, on any route shape."""
+
+    ROUTES = {
+        "public-docs-pages": lambda: classify_work(
+            "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",
+            file_paths=["docs/index.html", "README.md"],
+        ),
+        "public-readme-prefer-local": lambda: classify_work(
+            "Review public docs and README install guidance with local model evidence.",
+            file_paths=["README.md"],
+            local_ok=True,
+            prefer_local=True,
+        ),
+        "external-security-review": lambda: classify_work(
+            "Security review redacted packet behavior.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["security"],
+        ),
+        "external-security-web-design": lambda: classify_work(
+            "Security and web design review for contractor packet behavior.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["security", "web-design"],
+        ),
+        "high-risk-architect-review": lambda: classify_work(
+            "Architect a high-risk cross-cutting policy migration for route behavior.",
+            requested_roles=["architecture"],
+        ),
+        "internal-peer-review": lambda: classify_work(
+            "Evaluate a contractor return for work_rerouting_or_subversion, objective dilution, and critical path deferral.",
+            share_boundary="redacted-packet",
+        ),
+        "small-change": lambda: classify_work("Fix a typo in a code comment."),
+        # Final-stage reviewers routed to acceptance beads (external, local).
+        "rhacs-external": lambda: classify_work(
+            "RHACS security policy review.", external_ok=True, share_boundary="redacted-packet",
+        ),
+        "rhel-local": lambda: classify_work("RHEL host hardening review.", local_ok=True, prefer_local=True),
+        "docs-pages-external": lambda: classify_work(
+            "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+        ),
+        "openshift-ai-mixed": lambda: classify_work(
+            "OpenShift AI model serving review.", external_ok=True, share_boundary="redacted-packet", local_ok=True,
+        ),
+    }
+
+    def graphs(self):
+        for name, build in self.ROUTES.items():
+            route = build()
+            for size in ("full", "tight"):
+                by_lane = {item.get("lane"): item for item in planned_graph("Example", route, scaffold_size=size)}
+                yield f"{name}/{size}", by_lane, self.final_reviews(route, size)
+
+    @staticmethod
+    def final_reviews(route: dict, size: str) -> set[str]:
+        """Final-stage reviewer lanes, from the route's expert contracts rather than the generated edges."""
+        from cwo_core.routing import expert_review_metadata
+        from scaffold_workgraph import expert_review_lane, selected_source_experts
+
+        lanes = set()
+        for expert in selected_source_experts(route, size):
+            metadata = expert_review_metadata(expert, route)
+            if metadata.get("validation_gate_required") or expert.get("review_stage") in ("pre-validation", "pre-release"):
+                lanes.add(expert_review_lane(expert))
+        return lanes
+
+    def test_graphs_are_acyclic_and_every_dependency_exists(self) -> None:
+        for name, by_lane, _ in self.graphs():
+            with self.subTest(graph=name):
+                for lane, item in by_lane.items():
+                    if lane is None:
+                        continue
+                    for dependency in item.get("depends_on_lanes", []):
+                        self.assertIn(dependency, by_lane, f"{lane} depends on a missing lane")
+                    self.assertNotIn(lane, ancestors(by_lane, lane), f"{lane} depends on itself")
+
+    def test_every_final_check_follows_all_content_and_precedes_reporting(self) -> None:
+        shapes = set()
+        for name, by_lane, final_reviews in self.graphs():
+            with self.subTest(graph=name):
+                content = {"implementation", "docs"}
+                final_checks = {"validation", *final_reviews}
+                final_checks |= {lane for lane in ("publish-sanitization", "final-dispatch", "final-peer-review",
+                                                   "final-evaluation", "final-adjudication") if lane in by_lane}
+                self.assertTrue(final_reviews <= set(by_lane), "every final-stage reviewer has a lane")
+                for check in final_checks:
+                    self.assertTrue(content <= ancestors(by_lane, check), f"{check} can run before content is final")
+                for lane in content:
+                    self.assertFalse(final_checks & ancestors(by_lane, lane), f"{lane} can change content after a final check")
+                self.assertTrue(final_checks - {"final-dispatch"} <= ancestors(by_lane, "wrap-up-report") | {"wrap-up-report"})
+                if "final-adjudication" in by_lane:
+                    shapes.add("final acceptance")
+                if any(lane in final_reviews for lane in by_lane["validation"]["depends_on_lanes"]):
+                    shapes.add("internal final review")
+        self.assertEqual(shapes, {"final acceptance", "internal final review"}, "both reviewer shapes are exercised")
+
+    def test_final_stage_acceptance_reviews_get_their_own_adjudication_after_content(self) -> None:
+        route = classify_work("RHACS security policy review.", external_ok=True, share_boundary="redacted-packet")
+        by_lane = {item.get("lane"): item for item in planned_graph("Example", route)}
+        reviewer = "expert-review-rhacs"
+        self.assertIn(reviewer, by_lane)
+        self.assertTrue({"implementation", "docs", "final-dispatch"} <= set(by_lane[reviewer]["depends_on_lanes"]))
+        self.assertEqual(by_lane["final-dispatch"]["depends_on_lanes"], ["implementation", "docs"])
+        self.assertIn(reviewer, ancestors(by_lane, "final-evaluation"))
+        self.assertEqual(by_lane["final-adjudication"]["depends_on_lanes"], ["final-evaluation"])
+        self.assertIn("final-adjudication", by_lane["validation"]["depends_on_lanes"])
+        self.assertNotIn("final-adjudication", ancestors(by_lane, "implementation"))
+        self.assertNotIn(reviewer, ancestors(by_lane, "implementation"), "the final review is not a plan review")
+
+    def test_final_returns_get_the_routes_peer_review_with_its_restrictions(self) -> None:
+        route = classify_work(
+            "RHACS security policy review.", external_ok=True, share_boundary="redacted-packet",
+        )
+        route = {**route, "peer_review_required": True, "peer_review_count": 2, "provider_diversity_required": True,
+                 "provider_conflict_domains": ["example-provider"]}
+        by_lane = {item.get("lane"): item for item in planned_graph("Example", route)}
+        reviewer = "expert-review-rhacs"
+        self.assertIn("final-peer-review", by_lane)
+        peer = by_lane["final-peer-review"]
+        self.assertEqual(peer["depends_on_lanes"], [reviewer])
+        self.assertEqual(by_lane["final-evaluation"]["depends_on_lanes"], ["final-peer-review"])
+        self.assertEqual(peer["metadata"]["codex_pickup"], "forbidden")
+        self.assertEqual(peer["metadata"]["peer_review_count"], 2)
+        self.assertIs(peer["metadata"]["provider_diversity_required"], True)
+        self.assertEqual(peer["metadata"]["provider_conflict_domains"], ["example-provider"])
+        self.assertIn("no-codex-exec", peer["labels"])
+
+    def test_direct_creation_and_the_graph_plan_use_the_same_priorities(self) -> None:
+        import scaffold_workgraph
+
+        title = "RHACS security policy review."
+        route = classify_work(title, external_ok=True, share_boundary="redacted-packet")
+        plan = planned_graph(title, route)
+        expected = {item["lane"]: scaffold_workgraph.item_priority(item, index) for index, item in enumerate(plan) if index}
+        created: dict[str, int] = {}
+
+        def fake_create(title: str, **fields: object) -> dict[str, str]:
+            if fields.get("parent"):
+                created[next(item["lane"] for item in plan[1:] if item["title"] == title)] = int(fields["priority"])
+            return {"id": f"bd-{len(created)}", "title": title}
+
+        argv = ["scaffold_workgraph.py", "--title", title, "--external-ok", "--share-boundary", "redacted-packet"]
+        with patch.object(scaffold_workgraph, "create_bead", side_effect=fake_create), \
+                patch.object(scaffold_workgraph, "try_dep"), patch.object(sys, "argv", argv), \
+                contextlib.redirect_stdout(io.StringIO()):
+            try:
+                scaffold_workgraph.main()
+            except SystemExit:
+                pass
+        self.assertTrue(created, "direct creation ran")
+        self.assertEqual({lane: created[lane] for lane in created}, {lane: expected[lane] for lane in created})
+        self.assertEqual(created.get("final-adjudication"), 1)
+
+    def test_final_inspection_and_reporting_change_no_content(self) -> None:
+        route = classify_work(
+            "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",
+            file_paths=["docs/index.html", "README.md"],
+        )
+        by_lane = {item.get("lane"): item for item in planned_graph("Public Docs Site", route)}
+        for lane in ("publish-sanitization", "wrap-up-report"):
+            with self.subTest(lane=lane):
+                self.assertIs(by_lane[lane]["metadata"]["inspect_only"], True)
+        self.assertIn("Inspect only", by_lane["publish-sanitization"]["design"])
+        self.assertIn("Change nothing in this lane", by_lane["publish-sanitization"]["design"])
+        self.assertIn("Report only", by_lane["wrap-up-report"]["design"])
 
 
 if __name__ == "__main__":

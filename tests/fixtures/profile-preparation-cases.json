@@ -1,0 +1,100 @@
+{
+  "authorship_record": "UNEXECUTED",
+  "all_child_records": "UNEXECUTED at authorship; expectations only",
+  "capture_version": "0.164.0",
+  "capture_source_revision": null,
+  "prepared": {
+    "fake": true,
+    "schema_version": "0.164.0",
+    "bundle": "experimental",
+    "experimental_api": true,
+    "inventory": {
+      "available_profiles": ["cwo_n1", "other"],
+      "managed_allowed_profiles": ["cwo_n1"],
+      "expected_policy_id": "fake-policy-a",
+      "observed_policy_id": "fake-policy-a"
+    },
+    "thread_start": {
+      "permissions": "cwo_n1",
+      "approvalPolicy": "untrusted",
+      "approvalsReviewer": "user",
+      "cwd": "/fake/workspace",
+      "ephemeral": true
+    }
+  },
+  "command_params": {
+    "itemId": "fake-item",
+    "threadId": "fake-thread",
+    "turnId": "fake-turn",
+    "startedAtMs": 0,
+    "approvalId": null,
+    "kind": "command",
+    "command": "display-only; never executed",
+    "reason": "Retry after denial; explicit escalation requested",
+    "additionalPermissions": {
+      "fileSystem": {
+        "entries": [
+          {"access": "deny", "path": {"type": "special", "value": {"kind": "root"}}},
+          {"access": "write", "path": {"type": "path", "path": "/fake/workspace"}}
+        ],
+        "globScanMaxDepth": 1
+      },
+      "network": {"enabled": false}
+    },
+    "availableDecisions": ["accept", "decline", "cancel"]
+  },
+  "strict_response": {
+    "permissions": {"network": {"enabled": true}},
+    "scope": "turn",
+    "strictAutoReview": true
+  },
+  "cases": [
+    {"case": "prepared", "code": null},
+    {"case": "command-root-deny", "attach": "command", "code": null},
+    {"case": "command-narrow-deny", "attach": "command", "path": ["command_approval", "additionalPermissions", "fileSystem", "entries", 0, "path"], "set": {"type": "path", "path": "/fake/secret"}, "code": null},
+    {"case": "stdin-kind-syntax", "attach": "command", "path": ["command_approval", "kind"], "set": "writeStdin", "code": null},
+    {"case": "missing-name", "path": ["thread_start", "permissions"], "remove": true, "code": "missing-profile-name"},
+    {"case": "unknown-name", "path": ["thread_start", "permissions"], "set": "missing", "code": "unknown-profile-name"},
+    {"case": "missing-optin", "path": ["experimental_api"], "remove": true, "code": "capability-opt-in-required"},
+    {"case": "false-optin", "path": ["experimental_api"], "set": false, "code": "capability-opt-in-required"},
+    {"case": "stable-bundle", "path": ["bundle"], "set": "stable", "code": "profile-requires-experimental-bundle"},
+    {"case": "mixed-sandbox", "path": ["thread_start", "sandbox"], "set": "read-only", "code": "mixed-profile-legacy-sandbox"},
+    {"case": "mixed-sandboxPolicy", "path": ["thread_start", "sandboxPolicy"], "set": null, "code": "mixed-profile-legacy-sandbox"},
+    {"case": "policy-drift", "path": ["inventory", "observed_policy_id"], "set": "fake-policy-b", "code": "effective-policy-inventory-drift"},
+    {"case": "disallowed-name", "path": ["thread_start", "permissions"], "set": "other", "code": "profile-disallowed"},
+    {"case": "inventory-drift", "path": ["inventory", "managed_allowed_profiles"], "set": ["missing"], "code": "effective-policy-inventory-drift"},
+    {"case": "unknown-thread-field", "path": ["thread_start", "qualified"], "set": true, "code": "unsupported-field"},
+    {"case": "raw-profile-object", "path": ["thread_start", "permissions"], "set": {"fileSystem": {}}, "code": "string-required"},
+    {"case": "boolean-timestamp", "attach": "command", "path": ["command_approval", "startedAtMs"], "set": true, "code": "integer-required"},
+    {"case": "missing-timestamp", "attach": "command", "path": ["command_approval", "startedAtMs"], "remove": true, "code": "missing-field"},
+    {"case": "string-timestamp", "attach": "command", "path": ["command_approval", "startedAtMs"], "set": "0", "code": "integer-required"},
+    {"case": "retry-field", "attach": "command", "path": ["command_approval", "retryReason"], "set": "ordinary", "code": "unsupported-field"},
+    {"case": "unknown-kind", "attach": "command", "path": ["command_approval", "kind"], "set": "retry", "code": "unsupported-enum"},
+    {"case": "boolean-scan-depth", "attach": "command", "path": ["command_approval", "additionalPermissions", "fileSystem", "globScanMaxDepth"], "set": true, "code": "bounded-scan-depth-required"},
+    {"case": "zero-scan-depth", "attach": "command", "path": ["command_approval", "additionalPermissions", "fileSystem", "globScanMaxDepth"], "set": 0, "code": "bounded-scan-depth-required"},
+    {"case": "numeric-network-flag", "attach": "command", "path": ["command_approval", "additionalPermissions", "network", "enabled"], "set": 1, "code": "boolean-required"},
+    {"case": "unknown-permission-field", "attach": "command", "path": ["command_approval", "additionalPermissions", "grantAll"], "set": true, "code": "unsupported-field"},
+    {"case": "amendment-outside-slice", "attach": "command", "path": ["command_approval", "availableDecisions", 0], "set": {"acceptWithExecpolicyAmendment": {"execpolicy_amendment": ["fake"]}}, "code": "unsupported-enum"},
+    {"case": "explicit-fake-required", "path": ["fake"], "set": false, "code": "explicit-fake-required"},
+    {"case": "unknown-version", "path": ["schema_version"], "set": "0.163.0", "code": "unsupported-schema-version"},
+    {"case": "strict-nonempty-turn", "attach": "strict", "code": null, "strict": "nonempty-turn-forces-Guardian-not-user-callback"},
+    {"case": "strict-empty-turn", "attach": "strict", "path": ["permissions_response", "permissions"], "set": {}, "code": null, "strict": "empty-turn-no-strict-latch"},
+    {"case": "strict-default-scope", "attach": "strict", "path": ["permissions_response", "scope"], "remove": true, "code": null, "strict": "nonempty-turn-forces-Guardian-not-user-callback"},
+    {"case": "strict-session", "attach": "strict", "path": ["permissions_response", "scope"], "set": "session", "code": "strict-session-scope", "strict": "invalid-session-scope-no-strict-latch"},
+    {"case": "strict-numeric-flag", "attach": "strict", "path": ["permissions_response", "strictAutoReview"], "set": 1, "code": "boolean-required"},
+    {"case": "strict-false", "attach": "strict", "path": ["permissions_response", "strictAutoReview"], "set": false, "code": null},
+    {"case": "strict-unknown-field", "attach": "strict", "path": ["permissions_response", "forceUserCallback"], "set": true, "code": "unsupported-field"},
+    {"case": "strict-filesystem-outside-slice", "attach": "strict", "path": ["permissions_response", "permissions"], "set": {"fileSystem": {"write": ["/fake/workspace"]}}, "code": "unsupported-field"},
+    {"case": "authority-field", "path": ["effect_authority"], "set": true, "code": "unsupported-field"},
+    {"case": "inventory-array-type", "path": ["inventory", "available_profiles"], "set": true, "code": "array-required"},
+    {"case": "granular-policy", "path": ["thread_start", "approvalPolicy"], "set": {"granular": {"mcp_elicitations": false, "rules": false, "sandbox_approval": true, "skill_approval": false}}, "code": null}
+  ],
+  "source_hypotheses": [
+    {"case": "root-deny-approved-transform", "expectation": "original-policy-retained", "evidence": "recorded-architecture-expectation", "runtime_OS": "untested"},
+    {"case": "narrow-deny-approved-transform", "expectation": "writes-may-widen", "evidence": "recorded-architecture-expectation", "runtime_OS": "untested"},
+    {"case": "ordinary-denied-read-retry", "expectation": "ordinary-non-network-retry-refused", "evidence": "recorded-architecture-expectation", "runtime_OS": "untested"},
+    {"case": "explicit-approved-escalation", "expectation": "separate-escalation-branch", "evidence": "recorded-architecture-expectation", "runtime_OS": "untested"}
+  ],
+  "strict_basis": "Recorded source semantics only; exact 0.163.0 source excerpt not supplied; no 0.164.0 runtime inference.",
+  "remaining": "Current qualified offline execution, a separate independent review, and all consuming gates remain required; protocol qualification and milestone acceptance remain incomplete."
+}

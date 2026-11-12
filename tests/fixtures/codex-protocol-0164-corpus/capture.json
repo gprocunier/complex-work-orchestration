@@ -1,0 +1,85 @@
+{
+  "purpose": "Bounded CANONICAL JSON fact corpus, NOTfullrawgeneratedbundle/globalregisteredpin/sourceauthority",
+  "captured_executable": {
+    "version_text": "codex-cli 0.164.0",
+    "target": "x86_64-unknown-linux-musl",
+    "sha256": "b93f6811d3f653f0fb83be4050d857fb9abbb111dfa2ce160563327daff7f306",
+    "package_json_sha256": "328cc6b7d776fed066a3b475766ec01bd8b8f31d91e4955a5588f37ff9ddb51b"
+  },
+  "source_correspondence": "RootSigstorepositive0+threepolicy/contentnegatives1 bindreleaseworkflow/sourceSHA6aaac694803004a63c6f393d153c96d22521a6b9. Exactworkflowbuildtrace independentCQaudit pending; NOTOS/runtime/profile/input/lifecyclequalification.",
+  "fact_source": {
+    "captured_pin_version": "0.163.0",
+    "policy_sha256_at_capture": "719078625a0ba4d7b10135b072b473332c4771f7816b84810918bbfbe51dc9f8",
+    "fact_count": 32,
+    "meaning": "Frozen historical32referencefactdefinitions evaluatedagainstACTUAL0.164schemas, notfreezeofFUTURElivepolicy."
+  },
+  "original_full_bundles": {
+    "stable": {
+      "files": 320,
+      "digest": "bb9b9746d0ecb050ea3e5b0d5e8acb89141a148a35fe7c6c987d48b9338c8c7a"
+    },
+    "experimental": {
+      "files": 458,
+      "digest": "3fdb06b2010e8885f842792f9da899db41ac56d21238b6d45f2a50f834161b80"
+    }
+  },
+  "canonical_corpus": {
+    "stable": {
+      "files": 19,
+      "digest": "70d08b76e8eb335017c35c9ec5a0bc1eaada140ba914e7641c6b2559ef8e5f60"
+    },
+    "experimental": {
+      "files": 22,
+      "digest": "6f73c310cd7f85bf7e558374c4d0b176b39b9634c85bdc3594d48e1cd518a36b"
+    }
+  },
+  "original_raw_sha256": {
+    "experimental/ApplyPatchApprovalParams.json": "179d91081c3c84d0f79fc544a3d6d423f280c0f9d93512cdd0344c80e09b99a3",
+    "experimental/ApplyPatchApprovalResponse.json": "a5e145b4794ea91da6eb478626fac96bbbd4485c3399fabd1c9972d53d2d9010",
+    "experimental/AttestationGenerateResponse.json": "2eb86b2a37bca01a8cb5d0822f28cf13d46dd106c8b1d38e7ba097e436b5ab30",
+    "experimental/ChatgptAuthTokensRefreshResponse.json": "06d6b30436fc962d80b5d7920f8f323de12a052214d9148c5f0dfbaedd5eec6c",
+    "experimental/CommandExecutionRequestApprovalParams.json": "c9728280b8f3204fd729d0fb3d1ca7bb05b1150de26b3653f7163e6a9bd941e7",
+    "experimental/CommandExecutionRequestApprovalResponse.json": "6d0767113e22f311381809b6b236b0dde2b99b01992879c26bf7b1ea0e003cb7",
+    "experimental/CurrentTimeReadResponse.json": "9a858fdc278ba457ff86f1408a7a99b008f3d8364b33bd95b45ea79906f57896",
+    "experimental/DynamicToolCallResponse.json": "abb082cad67f11fcc98ba75f2eff75d7d1723af0c657655329b83ff160451a02",
+    "experimental/ExecCommandApprovalParams.json": "653116614df1aa5011c3cc399cf79bae6b9eb28c1d527df27275abf61ceb1365",
+    "experimental/ExecCommandApprovalResponse.json": "80dba6d9f28d19c57960db72340554c193624f014cd496714a0c7aabe1120046",
+    "experimental/FileChangeRequestApprovalParams.json": "13848b26814c286ad6425a20d01c1691c86790e1f9e2529399677a8a22fe0d18",
+    "experimental/FileChangeRequestApprovalResponse.json": "b95b03ee6be674e25cee2e863cc135a28620e1070addd2f34685aadee27cde08",
+    "experimental/FuzzyFileSearchResponse.json": "4984c3dba591e240407c39531d41c6b499c4816017de70a3371c7d6fa2d0951f",
+    "experimental/FuzzyFileSearchSessionStartResponse.json": "396bc50ae21f418bdded994321b54ca184c718521c2de0698b939adf75961670",
+    "experimental/FuzzyFileSearchSessionStopResponse.json": "808dd79e9bb5e0463abc18d34c4a3c4ee2341199ba5ee924dd96e602988b7130",
+    "experimental/FuzzyFileSearchSessionUpdateResponse.json": "c3032906065fd9d513926088a685da71a645d104c0157887297f1db2ff166d46",
+    "experimental/JSONRPCResponse.json": "4796738c04c74288213a08fb8d820c7b4df19e0977cdcd35b65ffcb43cfc93ab",
+    "experimental/McpServerElicitationRequestResponse.json": "792a012fdfe53ac211575a6c37ffbd492be848d15cb313d1bb4b534ade1f54ac",
+    "experimental/PermissionsRequestApprovalResponse.json": "23f3f24e9dbf35db3e0b85703f0d934da5a1cff3cbb611fba8bcd41f3b4a04b0",
+    "experimental/ServerRequest.json": "3d7bc481f84dc042984a74420e65c5a8d3c423f37a91b7d5df2365c903a12ac6",
+    "experimental/ToolRequestUserInputResponse.json": "5073b245f741fa8ce62ec52e4dd1809b7831f9c4284c279a78abc9b171f8e3f2",
+    "experimental/v2/ThreadStartParams.json": "80a40a7fac15b4bf70efb7f893fb353acc0a0d30c68f54aee4f01923deca85de",
+    "stable/ApplyPatchApprovalParams.json": "179d91081c3c84d0f79fc544a3d6d423f280c0f9d93512cdd0344c80e09b99a3",
+    "stable/ApplyPatchApprovalResponse.json": "a5e145b4794ea91da6eb478626fac96bbbd4485c3399fabd1c9972d53d2d9010",
+    "stable/AttestationGenerateResponse.json": "2eb86b2a37bca01a8cb5d0822f28cf13d46dd106c8b1d38e7ba097e436b5ab30",
+    "stable/ChatgptAuthTokensRefreshResponse.json": "06d6b30436fc962d80b5d7920f8f323de12a052214d9148c5f0dfbaedd5eec6c",
+    "stable/ClientRequest.json": "9b89e2459362d20cec67a429ef9430fe6b0e9fb8bd87d445d4c9a6acccd87450",
+    "stable/CommandExecutionRequestApprovalParams.json": "16a71816c2d66e319c2c4aa83dd636dfdc43c61e72b6d5475e421ce08d8e6558",
+    "stable/CommandExecutionRequestApprovalResponse.json": "6d0767113e22f311381809b6b236b0dde2b99b01992879c26bf7b1ea0e003cb7",
+    "stable/DynamicToolCallResponse.json": "abb082cad67f11fcc98ba75f2eff75d7d1723af0c657655329b83ff160451a02",
+    "stable/ExecCommandApprovalParams.json": "653116614df1aa5011c3cc399cf79bae6b9eb28c1d527df27275abf61ceb1365",
+    "stable/ExecCommandApprovalResponse.json": "80dba6d9f28d19c57960db72340554c193624f014cd496714a0c7aabe1120046",
+    "stable/FileChangeRequestApprovalParams.json": "13848b26814c286ad6425a20d01c1691c86790e1f9e2529399677a8a22fe0d18",
+    "stable/FileChangeRequestApprovalResponse.json": "b95b03ee6be674e25cee2e863cc135a28620e1070addd2f34685aadee27cde08",
+    "stable/FuzzyFileSearchResponse.json": "4984c3dba591e240407c39531d41c6b499c4816017de70a3371c7d6fa2d0951f",
+    "stable/JSONRPCResponse.json": "4796738c04c74288213a08fb8d820c7b4df19e0977cdcd35b65ffcb43cfc93ab",
+    "stable/McpServerElicitationRequestResponse.json": "792a012fdfe53ac211575a6c37ffbd492be848d15cb313d1bb4b534ade1f54ac",
+    "stable/PermissionsRequestApprovalResponse.json": "23f3f24e9dbf35db3e0b85703f0d934da5a1cff3cbb611fba8bcd41f3b4a04b0",
+    "stable/ServerRequest.json": "f339be472737a0003efa25fba2e6e6c9237e621cd065b6d6995c51256e9dc1fb",
+    "stable/ToolRequestUserInputResponse.json": "5073b245f741fa8ce62ec52e4dd1809b7831f9c4284c279a78abc9b171f8e3f2",
+    "stable/v2/ThreadStartParams.json": "e9c6d3cc18d049bfbc0249add3808fb8e5a27e1a0b5a423767aafbc3859a9428"
+  },
+  "canonicalization": "json.loads then sortedkeys/compactUTF8 json.dumps allow_nanFalse andoneLF; originalimmutablecapture bytehashes above, semanticobjects preserved. DERIVEDFIXTURE notraw bytebundle; originalcaptureunchanged.",
+  "schema_generation": "REUSED alreadycapturedtwice stable320/experimental458 underexistingofflineC, SAMEbinary; no generatorreplay.",
+  "operative": false,
+  "qualified": false,
+  "effect_authority": false,
+  "full_pin_registered": false
+}

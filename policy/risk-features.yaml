@@ -1,0 +1,245 @@
+{
+  "version": 1,
+  "description": "Routing risk features, read by cwo_core.risk_features. Normalization: Unicode NFKC, then case folding. A token is a maximal run of ASCII letters a-z and digits 0-9; every other character (whitespace, punctuation, hyphen, underscore, and any non-ASCII letter or combining mark left after NFKC) is a boundary. Each feature is a curated set of terms that match only as whole tokens; a multi-word term matches only as the same consecutive whole tokens. There is no prefix matching and no stemming beyond the inflections listed. A feature found anywhere sets a risk floor and may require experts; negated or quoted mentions count too. Combinations raise the floor when features occur together. Appended free text is passed as separate segments: the text as passed, each segment alone and every cumulative prefix of the segments concatenated directly are assessed and the union is kept, so a feature formed at any point in the append history, across a segment boundary or mid-token included, stays with its floor and experts when later segments are appended. That holds for appended segments; it is tested on bounded generated suffixes, multi-segment histories and the labelled corpus, not claimed for every string joined before routing. Risk narrowing is not supported in this version: no structured scope, evidence file, caller path, stage or flag resolves a feature or lowers its floor, and every narrowing input is refused before routing. Routing risk is a planning signal, not dispatch authority.",
+  "features": {
+    "action:migration": {
+      "label": "migration",
+      "floor": "medium",
+      "experts": [
+        "architecture"
+      ],
+      "terms": [
+        "migrate",
+        "migrates",
+        "migrated",
+        "migrating",
+        "migration",
+        "migrations"
+      ]
+    },
+    "action:destructive": {
+      "label": "destructive action",
+      "floor": "medium",
+      "experts": [],
+      "terms": [
+        "delete",
+        "deletes",
+        "deleted",
+        "deleting",
+        "deletion",
+        "drop",
+        "drops",
+        "dropped",
+        "dropping",
+        "truncate",
+        "truncates",
+        "truncated",
+        "truncating",
+        "purge",
+        "purges",
+        "purged",
+        "purging",
+        "wipe",
+        "wipes",
+        "wiped",
+        "wiping",
+        "destroy",
+        "destroys",
+        "destroyed",
+        "destroying",
+        "erase",
+        "erases",
+        "erased",
+        "erasing",
+        "decommission",
+        "decommissions",
+        "decommissioned",
+        "rm rf",
+        "force push",
+        "force pushed",
+        "reset hard"
+      ]
+    },
+    "action:rotation": {
+      "label": "credential rotation or revocation",
+      "floor": "low",
+      "experts": [],
+      "terms": [
+        "rotate",
+        "rotates",
+        "rotated",
+        "rotating",
+        "rotation",
+        "rotations",
+        "rekey",
+        "re key",
+        "revoke",
+        "revokes",
+        "revoked",
+        "revoking",
+        "revocation"
+      ]
+    },
+    "asset:credentials": {
+      "label": "credentials",
+      "floor": "high",
+      "experts": [
+        "security"
+      ],
+      "terms": [
+        "credential",
+        "credentials",
+        "secret",
+        "secrets",
+        "token",
+        "tokens",
+        "password",
+        "passwords",
+        "passphrase",
+        "passphrases",
+        "api key",
+        "api keys",
+        "apikey",
+        "private key",
+        "private keys",
+        "ssh key",
+        "ssh keys",
+        "signing key",
+        "signing keys",
+        "certificate",
+        "certificates",
+        "keytab",
+        "keytabs",
+        "kubeconfig",
+        "keystore"
+      ]
+    },
+    "asset:authentication": {
+      "label": "authentication or authorization",
+      "floor": "high",
+      "experts": [
+        "security"
+      ],
+      "terms": [
+        "auth",
+        "authn",
+        "authz",
+        "authentication",
+        "authenticate",
+        "authenticates",
+        "authenticated",
+        "authorization",
+        "authorisation",
+        "authorize",
+        "authorise",
+        "oidc",
+        "oauth",
+        "oauth2",
+        "saml",
+        "sso",
+        "jwt",
+        "jwts",
+        "session cookie",
+        "session cookies",
+        "login",
+        "logins",
+        "sign in",
+        "mfa",
+        "2fa",
+        "totp",
+        "rbac",
+        "iam",
+        "identity provider",
+        "idp",
+        "kerberos",
+        "ldap"
+      ]
+    },
+    "asset:database": {
+      "label": "database",
+      "floor": "medium",
+      "experts": [
+        "storage"
+      ],
+      "terms": [
+        "database",
+        "databases",
+        "db",
+        "dbs",
+        "postgres",
+        "postgresql",
+        "mysql",
+        "mariadb",
+        "sqlite",
+        "mongodb",
+        "mongo",
+        "mssql",
+        "sql server",
+        "cockroachdb",
+        "replication",
+        "replica",
+        "replicas",
+        "schema migration",
+        "schema migrations"
+      ]
+    },
+    "environment:production": {
+      "label": "production environment",
+      "floor": "medium",
+      "experts": [],
+      "terms": [
+        "production",
+        "prod",
+        "live environment",
+        "live system",
+        "live systems",
+        "customer data",
+        "customer facing"
+      ]
+    }
+  },
+  "combinations": [
+    {
+      "all": [
+        "environment:production",
+        "action:migration"
+      ],
+      "floor": "high"
+    },
+    {
+      "all": [
+        "environment:production",
+        "action:destructive"
+      ],
+      "floor": "high"
+    },
+    {
+      "all": [
+        "environment:production",
+        "action:rotation"
+      ],
+      "floor": "high"
+    },
+    {
+      "all": [
+        "environment:production",
+        "asset:database"
+      ],
+      "floor": "high"
+    },
+    {
+      "all": [
+        "action:migration",
+        "asset:database"
+      ],
+      "floor": "high"
+    },
+    {
+      "all": [
+        "action:destructive",
+        "asset:database"
+      ],
+      "floor": "high"
+    }
+  ]
+}

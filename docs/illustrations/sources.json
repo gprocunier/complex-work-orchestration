@@ -2,7 +2,7 @@
   "description": "Unmodified model/provider marks for identification,not endorsement or model-route qualification. Diagrams are illustrative,not observed execution traces.",
   "illustrations": {
     "connected-ecosystem.svg": "55a6ecbfe280df76dc26fd8a36b3d50b559824958e2f6fd5292c499911a90f78",
-    "supervised-delegation.svg": "17c6ef99eade3378c320dcde2546c2b4a22228314cd214a15154afdd4b6cabdb"
+    "supervised-delegation.svg": "ac12a2224fe45f2f3ad6be9db85afaa031732ac92d40b5cdd2376d679c64532b"
   },
   "review_hotspot": {
     "viewbox": [
@@ -68,7 +68,7 @@
   },
   "original_illustrations": {
     "connected-ecosystem.svg": "d48e879cc86cb8a1e6ee58006fb6dd19d729c681327c2395c0b25e7bcd190216",
-    "supervised-delegation.svg": "8e5c283b75ce60bb0d1599e57f3f77e3466f655e0bc3582d1a1e45c668125876"
+    "supervised-delegation.svg": "d3c007156d91a8d5bcdc8da19e4556afca6b62aa4e9b0634cd20f6ac332bc538"
   },
   "theme": "Palette-only embedded CSS follows the embedding element color-scheme. Original illustration hashes exclude only the generated diagram-theme style; logo bytes and all geometry/text remain unchanged."
 }

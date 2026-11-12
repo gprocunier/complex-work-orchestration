@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="360" height="1400" viewBox="0 0 360 1400" role="img" aria-labelledby="title desc" font-family="DejaVu Sans, sans-serif" fill="#151515">
   <title id="title">Count source groups, not model names</title>
-  <desc id="desc">Illustrative source accounting, not measured statistical independence or a provider ranking. Two eligible models from provider A count as one group; eligible local/OpenShift aliases share a default group. Only known, bound, eligible primary inputs count. When required, enough groups allow the explicitly invoked claim comparison—not a truth verdict or permission to act. Exact exclusions and metadata precedence remain below.</desc>
+  <desc id="desc">Illustrative source accounting, not measured statistical independence or a provider ranking. Two eligible models from provider A count as one group; eligible local/OpenShift aliases share a default group. Only known, bound, eligible primary inputs count. When required, enough groups allow the explicitly invoked claim comparison—not a truth verdict or permission to act. Exact exclusions remain below.</desc>
   <style id="diagram-theme">
   /* Inherited color-scheme also follows an explicit page selection. */
   @media (prefers-color-scheme: dark) {

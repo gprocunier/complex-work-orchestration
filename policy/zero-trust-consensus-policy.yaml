@@ -10,7 +10,8 @@
   "resolution_authority": "architect",
   "trust_domain_independence_disclaimer": "Agreement across model returns is not verification. CWO treats agreement and disagreement as evidence for architect adjudication, not as proof of correctness.",
   "trust_domain_resolution": {
-    "field_precedence": ["trust_domain", "provider_family", "provider_camp"],
+    "domain_source": "bound dispatch record: executor to provider registry family",
+    "claimed_domain_fields": ["trust_domain", "provider_family", "provider_camp"],
     "unknown_domain": "unknown",
     "domain_aliases": {
       "codex": "openai",

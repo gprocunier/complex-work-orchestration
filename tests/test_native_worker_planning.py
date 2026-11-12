@@ -7,6 +7,7 @@ import unittest
 import uuid
 from pathlib import Path
 from unittest import mock
+from typing import Callable, NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -27,6 +28,7 @@ from cwo_core.native_worker_contracts import (  # noqa: E402
     ALLOWED_PACKET_FIELDS,
 )
 from tests.native_precommit_fixtures import (  # noqa: E402
+    create_precommit_workspace,
     issue_accepting_precommit_receipt,
     issue_deterministic_precommit_receipt,
 )
@@ -49,6 +51,12 @@ BUDGET = {
 }
 
 _FIXTURE_ROOT: Path | None = None
+_FIXTURE_WORKDIR: Path | None = None
+
+
+def fixture_workdir() -> Path:
+    """Keep imported helper defaults while positive cases select a private workspace."""
+    return ROOT if _FIXTURE_WORKDIR is None else _FIXTURE_WORKDIR
 
 
 def receipt_for(
@@ -84,7 +92,7 @@ def receipt_for(
         work_plan=work_plan,
         packet_id=selected_packet_id,
         artifact_root=artifact_root,
-        workdir=ROOT,
+        workdir=fixture_workdir(),
         estimates=estimates,
     )
     return selected_packet_id, receipt
@@ -94,7 +102,7 @@ def draft() -> dict:
     return build_native_worker_packet(
         bead_id="bead-plan",
         lane="implementation",
-        workdir=str(ROOT),
+        workdir=str(fixture_workdir()),
         allowed_paths=PATHS,
         acceptance_checks=CHECKS,
         budget_overrides=BUDGET,
@@ -180,7 +188,7 @@ def planned(budget: dict = None) -> dict:
     return build_native_worker_packet(
         bead_id="bead-plan",
         lane="implementation",
-        workdir=str(ROOT),
+        workdir=str(fixture_workdir()),
         allowed_paths=PATHS,
         acceptance_checks=CHECKS,
         work_plan=p,
@@ -206,7 +214,7 @@ def checked_plan() -> dict:
                 "command_id": f"checked-{index}",
                 "mode": "argv",
                 "argv": argv,
-                "cwd": str(ROOT),
+                "cwd": str(fixture_workdir()),
                 "env": {},
                 "inherit_environment": True,
                 "stdin": None,
@@ -239,7 +247,7 @@ def checked_packet() -> dict:
     return build_native_worker_packet(
         bead_id="bead-plan",
         lane="implementation",
-        workdir=str(ROOT),
+        workdir=str(fixture_workdir()),
         allowed_paths=PATHS,
         acceptance_checks=CHECKS,
         work_plan=value,
@@ -255,27 +263,113 @@ def _contains(errors, text):
     return any(lowered in err.lower() for err in errors)
 
 
+class CommitmentDecisionRow(NamedTuple):
+    original_id: str
+    variant: str
+    response: object
+    options: dict
+    outcome: str
+
+
+class CheckedOracleRow(NamedTuple):
+    original_id: str
+    oracle: Callable[[dict], None]
+
+
+class CheckedValidationRow(NamedTuple):
+    original_id: str
+    packet: dict
+    expected: str
+
+
+class PlanningCandidateRow(NamedTuple):
+    original_id: str
+    variant: str
+    packet: dict
+
+
 class TestNativeWorkerPlanning(unittest.TestCase):
-    def test_zero_shell_primitive_profile_does_not_render_unplanned_wrapper_work(self):
-        packet = planned()
-        packet["work_plan"]["task_profile"] = {"task_class":"narrow-mechanical","command_count":0,
+    def test_planned_packet_decision_family(self):
+        base = planned()
+        prefix = "tests.test_native_worker_planning.TestNativeWorkerPlanning."
+        rows = [PlanningCandidateRow(prefix + "test_planned_candidate_is_structurally_valid_and_dispatch_forbidden", "valid", base)]
+        primitive = copy.deepcopy(base)
+        primitive["work_plan"]["task_profile"] = {"task_class":"narrow-mechanical","command_count":0,
             "commands":[],"focused_test_count":0,"full_suite_count":0}
-        text = _render_prompt(packet)
-        self.assertIn("Primitive edit execution contract:",text)
-        self.assertIn("Do not invent helper specifications",text)
-        self.assertNotIn("Checked command execution:",text)
-        # A declared shell command or malformed false counter must not obtain
-        # this profile-specific treatment. This rendering fixture is not a grant.
-        for count in (1,False):
-            packet["work_plan"]["task_profile"]["command_count"]=count
-            self.assertIn("Checked command execution:",_render_prompt(packet))
+        rows.append(PlanningCandidateRow(prefix + "test_zero_shell_primitive_profile_does_not_render_unplanned_wrapper_work", "primitive", primitive))
+        nonaccepting = copy.deepcopy(base)
+        nonaccepting["worker_commitment"]["decision"] = "pm-realignment"
+        rows.append(PlanningCandidateRow(prefix + "test_candidate_rejects_nonaccepting_commitment", "decision", nonaccepting))
+        tampered = copy.deepcopy(base)
+        tampered["worker_commitment"]["work_estimate_sha256"] = "0" * 64
+        rows.append(PlanningCandidateRow(prefix + "test_tampered_commitment_hash_and_binding_errors", "hash", tampered))
+        binding = copy.deepcopy(base)
+        binding["bead_id"] = "different-bead"
+        binding["worker_commitment"]["bead_id"] = "different-bead"
+        binding["requested_model"] = "different-model"
+        binding["worker_commitment"]["attested_model"] = "different-model"
+        binding["scope"]["allowed_paths"] = ["other/path"]
+        binding["acceptance_checks"] = ["python -m unittest tests.test_native_worker_planning -q"]
+        rows.append(PlanningCandidateRow(prefix + "test_tampered_commitment_hash_and_binding_errors", "binding", binding))
+        route_packet = copy.deepcopy(base)
+        route_work_plan = copy.deepcopy(route_packet["work_plan"])
+        route_work_plan["scores"]["reasoning_uncertainty"] = 3
+        for key in ("score_total", "route", "hard_gate_reasons", "aggregate_allowance"):
+            route_work_plan.pop(key, None)
+        route_packet["work_plan"] = evaluate_work_estimate(route_work_plan)
+        route_packet["worker_commitment"]["work_estimate_sha256"] = canonical_work_estimate_sha256(route_packet["work_plan"])
+        rows.append(PlanningCandidateRow(prefix + "test_planned_route_is_spark_only", "route", route_packet))
+        for row in rows:
+            with self.subTest(original_id=row.original_id, variant=row.variant):
+                packet = row.packet
+                if row.variant == "primitive":
+                    text = _render_prompt(packet)
+                    self.assertIn("Primitive edit execution contract:", text)
+                    self.assertIn("Do not invent helper specifications", text)
+                    self.assertNotIn("Checked command execution:", text)
+                    for count in (1, False):
+                        packet["work_plan"]["task_profile"]["command_count"] = count
+                        self.assertIn("Checked command execution:", _render_prompt(packet))
+                    continue
+                if row.variant == "valid":
+                    self.assertNotEqual(self.workspace, ROOT)
+                    self.assertEqual(packet["scope"]["workdir"], str(self.workspace))
+                    self.assertTrue((self.workspace / PATHS[0]).is_file())
+                    self.assertEqual(validate_native_worker_packet(packet), [])
+                errors = validate_native_worker_packet(packet, dispatchable=row.variant != "decision")
+                if row.variant == "valid":
+                    self.assertTrue(_contains(errors, "operative-dispatch-forbidden"))
+                    self.assertEqual(packet["work_plan"]["estimate_contract_version"], 2)
+                    self.assertEqual(packet["work_plan"]["authority_route"], "spark")
+                    self.assertEqual(packet["work_plan"]["operative_route"], "spark")
+                    self.assertEqual(packet["command_contract"]["wrapper"], "scripts/run_checked_command.py")
+                elif row.variant == "decision":
+                    self.assertTrue(_contains(errors, "decision accept"))
+                elif row.variant == "hash":
+                    self.assertTrue(any("work_estimate_sha256" in err.lower() or "hash" in err.lower() for err in errors))
+                elif row.variant == "binding":
+                    self.assertTrue(errors)
+                    for token in ("bead", "model", "path", "acceptance"):
+                        self.assertTrue(any(token in err.lower() for err in errors))
+                else:
+                    self.assertTrue(_contains(errors, "work_plan.route"))
+
 
     def setUp(self):
+        self.enterContext(historical_v2_policy())
         global _FIXTURE_ROOT
         self.precommit_temp = tempfile.TemporaryDirectory(prefix="cwo-planning-precommit-")
         self.addCleanup(self.precommit_temp.cleanup)
         _FIXTURE_ROOT = Path(self.precommit_temp.name)
         self.addCleanup(lambda: globals().__setitem__("_FIXTURE_ROOT", None))
+        self.workspace = create_precommit_workspace(
+            _FIXTURE_ROOT / "workspace",
+            {
+                PATHS[0]: "# Harmless planning workspace fixture.\n",
+                "scripts/prepare_native_worker.py": "# Harmless command target.\n",
+            },
+        )
+        self.enterContext(mock.patch(__name__ + "._FIXTURE_WORKDIR", self.workspace))
         environment = mock.patch.dict(
             os.environ,
             {
@@ -286,98 +380,106 @@ class TestNativeWorkerPlanning(unittest.TestCase):
         environment.start()
         self.addCleanup(environment.stop)
 
-    def test_checked_sequence_packet_builds_strict_bound_receipt(self):
-        with tempfile.TemporaryDirectory(), mock.patch.dict(
-            os.environ, {"CWO_TEMP_ROOT": str(_FIXTURE_ROOT)}
-        ):
+    def test_checked_packet_read_only_oracle_family(self):
+        prefix = "tests.test_native_worker_planning.TestNativeWorkerPlanning."
+        with tempfile.TemporaryDirectory(), mock.patch.dict(os.environ, {"CWO_TEMP_ROOT": str(_FIXTURE_ROOT)}):
             packet = checked_packet()
-            receipt = packet["checked_command_sequence"]
-            self.assertEqual(set(receipt), ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS)
-            self.assertEqual(receipt["spec"]["packet_id"], packet["packet_id"])
-            self.assertEqual(receipt["spec"]["commands"], packet["work_plan"]["task_profile"]["execution_contract"]["checked_command_specs"])
-            self.assertEqual(Path(receipt["spec_path"]).parent, Path(receipt["state_path"]).parent)
-            self.assertEqual(Path(receipt["spec_path"]).parent, Path(receipt["output_path"]).parent)
-            self.assertEqual(json.loads(Path(receipt["spec_path"]).read_text(encoding="utf-8")), receipt["spec"])
-            self.assertEqual(validate_native_worker_packet(packet), [])
-            self.assertTrue(
-                _contains(
-                    validate_native_worker_packet(packet, dispatchable=True),
-                    "operative-dispatch-forbidden",
-                )
+            rows = (
+                CheckedOracleRow(prefix + "test_checked_sequence_packet_builds_strict_bound_receipt", self.assert_checked_receipt),
+                CheckedOracleRow(prefix + "test_checked_sequence_render_is_outer_only_and_direct_stays_direct", self.assert_checked_render),
             )
+            for row in rows:
+                with self.subTest(original_id=row.original_id):
+                    row.oracle(packet)
+        with self.subTest(original_id=prefix + "test_checked_sequence_render_is_outer_only_and_direct_stays_direct"):
+            direct_packet = planned()
+            direct = _render_prompt(direct_packet)
+            self.assertNotIn("Checked sequence execution contract", direct)
+            self.assertNotIn("checked_command_sequence", direct_packet)
 
-            schema = json.loads((ROOT / "schemas" / "native-worker-packet.schema.json").read_text(encoding="utf-8"))
-            self.assertEqual(set(schema["properties"]), ALLOWED_PACKET_FIELDS)
-            self.assertEqual(
-                set(schema["properties"]["checked_command_sequence"]["properties"]),
-                ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS,
+    def assert_checked_receipt(self, packet):
+        receipt = packet["checked_command_sequence"]
+        self.assertEqual(set(receipt), ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS)
+        self.assertEqual(receipt["spec"]["packet_id"], packet["packet_id"])
+        self.assertEqual(packet["scope"]["workdir"], str(self.workspace))
+        self.assertTrue(all(command["cwd"] == str(self.workspace)
+                            for command in receipt["spec"]["commands"]))
+        self.assertEqual(receipt["spec"]["commands"], packet["work_plan"]["task_profile"]["execution_contract"]["checked_command_specs"])
+        self.assertEqual(Path(receipt["spec_path"]).parent, Path(receipt["state_path"]).parent)
+        self.assertEqual(Path(receipt["spec_path"]).parent, Path(receipt["output_path"]).parent)
+        self.assertEqual(json.loads(Path(receipt["spec_path"]).read_text(encoding="utf-8")), receipt["spec"])
+        self.assertEqual(validate_native_worker_packet(packet), [])
+        self.assertTrue(
+            _contains(
+                validate_native_worker_packet(packet, dispatchable=True),
+                "operative-dispatch-forbidden",
             )
+        )
 
-    def test_checked_sequence_render_is_outer_only_and_direct_stays_direct(self):
-        with tempfile.TemporaryDirectory(), mock.patch.dict(
-            os.environ, {"CWO_TEMP_ROOT": str(_FIXTURE_ROOT)}
-        ):
-            packet = checked_packet()
-            rendered = _render_prompt(packet)
-            runner = " ".join(packet["checked_command_sequence"]["runner_argv"])
-            self.assertIn("Run exactly one outer sequence runner command", rendered)
-            self.assertIn(runner, rendered)
-            self.assertNotIn("1. python3 -m unittest tests.test_native_worker_planning -v", rendered)
-            self.assertEqual(rendered.count(runner), 2)
+        schema = json.loads((ROOT / "schemas" / "native-worker-packet.schema.json").read_text(encoding="utf-8"))
+        self.assertEqual(set(schema["properties"]), ALLOWED_PACKET_FIELDS)
+        self.assertEqual(
+            set(schema["properties"]["checked_command_sequence"]["properties"]),
+            ALLOWED_CHECKED_COMMAND_SEQUENCE_FIELDS,
+        )
 
-        direct = _render_prompt(planned())
-        self.assertNotIn("Checked sequence execution contract", direct)
-        self.assertNotIn("checked_command_sequence", planned())
+    def assert_checked_render(self, packet):
+        rendered = _render_prompt(packet)
+        runner = " ".join(packet["checked_command_sequence"]["runner_argv"])
+        self.assertIn("Run exactly one outer sequence runner command", rendered)
+        self.assertIn(runner, rendered)
+        self.assertNotIn("1. python3 -m unittest tests.test_native_worker_planning -v", rendered)
+        self.assertEqual(rendered.count(runner), 2)
 
-    def test_checked_sequence_validation_rejects_missing_and_direct_receipts(self):
-        with tempfile.TemporaryDirectory(), mock.patch.dict(
-            os.environ, {"CWO_TEMP_ROOT": str(_FIXTURE_ROOT)}
-        ):
+
+
+    def test_checked_packet_validation_family(self):
+        prefix = "tests.test_native_worker_planning.TestNativeWorkerPlanning."
+        missing_id = prefix + "test_checked_sequence_validation_rejects_missing_and_direct_receipts"
+        tamper_id = prefix + "test_checked_sequence_validation_rejects_tampering"
+        with tempfile.TemporaryDirectory(), mock.patch.dict(os.environ, {"CWO_TEMP_ROOT": str(_FIXTURE_ROOT)}):
             packet = checked_packet()
             missing = copy.deepcopy(packet)
             missing.pop("checked_command_sequence")
-            self.assertTrue(_contains(validate_native_worker_packet(missing), "requires checked_command_sequence"))
-
             direct = planned()
             direct["checked_command_sequence"] = copy.deepcopy(packet["checked_command_sequence"])
-            self.assertTrue(_contains(validate_native_worker_packet(direct), "is forbidden"))
-
-    def test_checked_sequence_validation_rejects_tampering(self):
-        with tempfile.TemporaryDirectory(), mock.patch.dict(
-            os.environ, {"CWO_TEMP_ROOT": str(_FIXTURE_ROOT)}
-        ):
-            packet = checked_packet()
-            cases = []
+            cases = [
+                CheckedValidationRow(missing_id, missing, "requires checked_command_sequence"),
+                CheckedValidationRow(missing_id, direct, "is forbidden"),
+            ]
             embedded = copy.deepcopy(packet)
             embedded["checked_command_sequence"]["spec"]["packet_id"] = "other"
-            cases.append((embedded, "packet_id"))
+            cases.append(CheckedValidationRow(tamper_id, embedded, "packet_id"))
             digest = copy.deepcopy(packet)
             digest["checked_command_sequence"]["spec_sha256"] = "0" * 64
-            cases.append((digest, "spec_sha256"))
+            cases.append(CheckedValidationRow(tamper_id, digest, "spec_sha256"))
             runner = copy.deepcopy(packet)
             runner["checked_command_sequence"]["runner_argv"][0] = "python"
-            cases.append((runner, "runner_argv"))
+            cases.append(CheckedValidationRow(tamper_id, runner, "runner_argv"))
             sibling = copy.deepcopy(packet)
             sibling["checked_command_sequence"]["state_path"] = str(
                 Path(packet["checked_command_sequence"]["state_path"]).parent.parent
                 / "other-sequence"
                 / "state.json"
             )
-            cases.append((sibling, "siblings"))
+            cases.append(CheckedValidationRow(tamper_id, sibling, "siblings"))
             work_plan = copy.deepcopy(packet)
             work_plan["work_plan"]["primary_outcome"] = "tampered"
-            cases.append((work_plan, "work_plan_sha256"))
-            for candidate, expected in cases:
-                with self.subTest(expected=expected):
-                    self.assertTrue(_contains(validate_native_worker_packet(candidate), expected))
+            cases.append(CheckedValidationRow(tamper_id, work_plan, "work_plan_sha256"))
+            for row in cases:
+                with self.subTest(original_id=row.original_id, expected=row.expected):
+                    self.assertTrue(_contains(validate_native_worker_packet(row.packet), row.expected))
+            with self.subTest(original_id=tamper_id, expected="persisted spec"):
 
-            spec_path = Path(packet["checked_command_sequence"]["spec_path"])
-            original = spec_path.read_text(encoding="utf-8")
-            spec_path.write_text("{}\n", encoding="utf-8")
-            try:
-                self.assertTrue(_contains(validate_native_worker_packet(packet), "persisted spec"))
-            finally:
-                spec_path.write_text(original, encoding="utf-8")
+                spec_path = Path(packet["checked_command_sequence"]["spec_path"])
+                original = spec_path.read_text(encoding="utf-8")
+                spec_path.write_text("{}\n", encoding="utf-8")
+                try:
+                    self.assertTrue(_contains(validate_native_worker_packet(packet), "persisted spec"))
+                finally:
+                    spec_path.write_text(original, encoding="utf-8")
+
+
 
     def test_draft_validation_modes(self):
         non_dispatch_errors = validate_native_worker_packet(draft(), dispatchable=False)
@@ -394,7 +496,7 @@ class TestNativeWorkerPlanning(unittest.TestCase):
             build_native_worker_packet(
                 bead_id="bead-plan",
                 lane="implementation",
-                workdir=str(ROOT),
+                workdir=str(fixture_workdir()),
                 allowed_paths=PATHS,
                 acceptance_checks=CHECKS,
                 budget_overrides=BUDGET,
@@ -406,7 +508,7 @@ class TestNativeWorkerPlanning(unittest.TestCase):
             build_native_worker_packet(
                 bead_id="bead-plan",
                 lane="implementation",
-                workdir=str(ROOT),
+                workdir=str(fixture_workdir()),
                 allowed_paths=PATHS,
                 acceptance_checks=CHECKS,
                 budget_overrides=BUDGET,
@@ -414,15 +516,6 @@ class TestNativeWorkerPlanning(unittest.TestCase):
                 worker_commitment=commitment(plan()),
             )
 
-    def test_planned_candidate_is_structurally_valid_and_dispatch_forbidden(self):
-        packet = planned()
-        self.assertEqual(validate_native_worker_packet(packet), [])
-        errors = validate_native_worker_packet(packet, dispatchable=True)
-        self.assertTrue(_contains(errors, "operative-dispatch-forbidden"))
-        self.assertEqual(packet["work_plan"]["estimate_contract_version"], 2)
-        self.assertEqual(packet["work_plan"]["authority_route"], "spark")
-        self.assertEqual(packet["work_plan"]["operative_route"], "spark")
-        self.assertEqual(packet["command_contract"]["wrapper"], "scripts/run_checked_command.py")
 
     def test_deterministic_plan_builds_policy_fit_commitment_from_trusted_attestation(self):
         deterministic = plan()
@@ -452,7 +545,7 @@ class TestNativeWorkerPlanning(unittest.TestCase):
         packet = build_native_worker_packet(
             bead_id="bead-plan",
             lane="implementation",
-            workdir=str(ROOT),
+            workdir=str(fixture_workdir()),
             allowed_paths=PATHS,
             acceptance_checks=CHECKS,
             work_plan=deterministic,
@@ -478,7 +571,7 @@ class TestNativeWorkerPlanning(unittest.TestCase):
             build_native_worker_packet(
                 bead_id="bead-plan",
                 lane="implementation",
-                workdir=str(ROOT),
+                workdir=str(fixture_workdir()),
                 allowed_paths=PATHS,
                 acceptance_checks=CHECKS,
                 work_plan=plan(),
@@ -533,7 +626,7 @@ class TestNativeWorkerPlanning(unittest.TestCase):
         packet = build_native_worker_packet(
             bead_id="bead-plan",
             lane="validation",
-            workdir=str(ROOT),
+            workdir=str(fixture_workdir()),
             allowed_paths=PATHS,
             acceptance_checks=CHECKS,
             work_plan=read_only,
@@ -578,37 +671,7 @@ class TestNativeWorkerPlanning(unittest.TestCase):
         self.assertIn('"files_touched": []', rendered)
         self.assertIn('"mutation_state": "clean"', rendered)
 
-    def test_candidate_rejects_nonaccepting_commitment(self):
-        packet = planned()
-        packet["worker_commitment"]["decision"] = "pm-realignment"
-        errors = validate_native_worker_packet(packet)
-        self.assertTrue(_contains(errors, "decision accept"))
 
-    def test_tampered_commitment_hash_and_binding_errors(self):
-        packet = planned()
-
-        tampered = copy.deepcopy(packet)
-        tampered["worker_commitment"]["work_estimate_sha256"] = "0" * 64
-        self.assertTrue(
-            any(
-                "work_estimate_sha256" in err.lower() or "hash" in err.lower()
-                for err in validate_native_worker_packet(tampered, dispatchable=True)
-            )
-        )
-
-        binding = copy.deepcopy(packet)
-        binding["bead_id"] = "different-bead"
-        binding["worker_commitment"]["bead_id"] = "different-bead"
-        binding["requested_model"] = "different-model"
-        binding["worker_commitment"]["attested_model"] = "different-model"
-        binding["scope"]["allowed_paths"] = ["other/path"]
-        binding["acceptance_checks"] = [
-            "python -m unittest tests.test_native_worker_planning -q"
-        ]
-        binding_errors = validate_native_worker_packet(binding, dispatchable=True)
-        self.assertTrue(binding_errors)
-        for token in ("bead", "model", "path", "acceptance"):
-            self.assertTrue(any(token in err.lower() for err in binding_errors))
 
     def test_plan_allowance_violation_tool_calls_hard(self):
         budget = dict(BUDGET)
@@ -618,53 +681,33 @@ class TestNativeWorkerPlanning(unittest.TestCase):
         )
         self.assertTrue(_contains(errors, "aggregate allowance"))
 
-    def test_planned_route_is_spark_only(self):
-        route_packet = copy.deepcopy(planned())
-        route_work_plan = copy.deepcopy(route_packet["work_plan"])
-        route_work_plan["scores"]["reasoning_uncertainty"] = 3
-        for key in ("score_total", "route", "hard_gate_reasons", "aggregate_allowance"):
-            route_work_plan.pop(key, None)
-        route_packet["work_plan"] = evaluate_work_estimate(route_work_plan)
-        route_packet["worker_commitment"]["work_estimate_sha256"] = canonical_work_estimate_sha256(
-            route_packet["work_plan"]
-        )
-        route_errors = validate_native_worker_packet(route_packet, dispatchable=True)
-        self.assertTrue(_contains(route_errors, "work_plan.route"))
 
-    def test_commitment_normalizer_derives_v2_exclusively_from_receipt(self):
+    def test_commitment_normalization_decision_family(self):
         p = plan()
         _, receipt = receipt_for(p)
-        result = normalize_worker_commitment_response(
-            {"decision": "contradictory-untrusted-self-report"},
-            p,
-            precommit_receipt=receipt,
+        prefix = "tests.test_native_worker_planning.TestNativeWorkerPlanning."
+        rows = (
+            CommitmentDecisionRow(prefix + "test_commitment_normalizer_derives_v2_exclusively_from_receipt",
+                                  "trusted", {"decision": "contradictory-untrusted-self-report"},
+                                  {"precommit_receipt": receipt}, "normalized"),
+            CommitmentDecisionRow(prefix + "test_commitment_normalizer_requires_receipt_without_model_retry",
+                                  "missing", "proceed tool_calls_p50=3", {}, "pm-realignment"),
+            CommitmentDecisionRow(prefix + "test_commitment_normalizer_rejects_parallel_identity_authority",
+                                  "parallel", {}, {"precommit_receipt": receipt, "session_id": "parallel-session",
+                                                   "attested_model": "gpt-5.3-codex-spark"}, "pm-realignment"),
         )
-        self.assertEqual(result["outcome"], "normalized")
-        self.assertEqual(result["decision"], "accept")
-        self.assertEqual(result["normalized_commitment"]["version"], 2)
-        self.assertEqual(result["normalized_commitment"]["session_id"], receipt["session_id"])
-        self.assertFalse(result["model_retry_allowed"])
-
-    def test_commitment_normalizer_requires_receipt_without_model_retry(self):
-        p = plan()
-        result = normalize_worker_commitment_response(
-            "proceed tool_calls_p50=3",
-            p,
-        )
-        self.assertEqual(result["outcome"], "pm-realignment")
-        self.assertIsNone(result["normalized_commitment"])
-        self.assertTrue(_contains(result["errors"], "trusted precommit receipt"))
-        self.assertFalse(result["model_retry_allowed"])
-
-    def test_commitment_normalizer_rejects_parallel_identity_authority(self):
-        p = plan()
-        _, receipt = receipt_for(p)
-        result = normalize_worker_commitment_response(
-            {},
-            p,
-            precommit_receipt=receipt,
-            session_id="parallel-session",
-            attested_model="gpt-5.3-codex-spark",
-        )
-        self.assertEqual(result["outcome"], "pm-realignment")
-        self.assertTrue(_contains(result["errors"], "derived exclusively"))
+        for row in rows:
+            with self.subTest(original_id=row.original_id):
+                result = normalize_worker_commitment_response(row.response, p, **row.options)
+                self.assertEqual(result["outcome"], row.outcome)
+                if row.variant == "trusted":
+                    self.assertEqual(result["decision"], "accept")
+                    self.assertEqual(result["normalized_commitment"]["version"], 2)
+                    self.assertEqual(result["normalized_commitment"]["session_id"], receipt["session_id"])
+                    self.assertFalse(result["model_retry_allowed"])
+                elif row.variant == "missing":
+                    self.assertIsNone(result["normalized_commitment"])
+                    self.assertTrue(_contains(result["errors"], "trusted precommit receipt"))
+                    self.assertFalse(result["model_retry_allowed"])
+                else:
+                    self.assertTrue(_contains(result["errors"], "derived exclusively"))

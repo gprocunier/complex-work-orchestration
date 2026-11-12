@@ -18,9 +18,23 @@ change, save state before triggering observable actions, and account for failed
 attempts and remaining allowance. For evaluations, it preserves the agreed cases,
 scoring and decision rule.
 
-Policy, validators, hooks and supervisors provide trusted CWO enforcement for
-specific checks on supported execution paths. The prompt guides the lead's behavior; it cannot establish a
-sandbox, grant publication permission or qualify a worker runtime.
+The prompt itself cannot provide trusted CWO enforcement.
+Policy, validators, hooks and supervision helpers refuse specific invalid
+inputs when their supported paths are invoked. These checks are cooperative
+where a lead can bypass the helper or rewrite its inputs; supervision helpers
+do not independently poll or interrupt workers. Configured host audit verification
+checks retained history against its private head checkpoint and segment seals;
+legacy diagnostic logs lack that checkpoint and cannot provide host authority.
+A same-account writer can erase that state or rewrite and rehash the host chain
+and checkpoint.
+These records do not authenticate the operator or supply an external anchor.
+The [claims register](claims-register.md) and
+[threat model](security-threat-model.md) describe those boundaries.
+
+The prompt guides the lead's behavior; it cannot establish a sandbox, grant
+publication permission or qualify a worker runtime. Source inspection, fake-effect
+tests, operating-system observations and live runtime qualification are separate
+evidence classes; none implies the others.
 
 When a brief or immutable manifest supplies an experiment protocol, build and
 validate the lock described in [frozen-protocol-lock.md](frozen-protocol-lock.md)

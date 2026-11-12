@@ -10,6 +10,8 @@ import sys
 import tempfile
 import unittest
 import uuid
+from copy import deepcopy
+from functools import cached_property
 from pathlib import Path
 from unittest import mock
 
@@ -23,6 +25,7 @@ from cwo_core.work_sizing import evaluate_work_estimate
 from cwo_core.paths import cwo_temp_dir
 import supervise_native_worker as supervisor  # noqa: E402
 from tests.native_precommit_fixtures import issue_accepting_precommit_receipt  # noqa: E402
+from tests.private_workspace_fixtures import copy_context_files  # noqa: E402
 
 
 MODEL = "gpt-5.3-codex-spark"
@@ -30,6 +33,38 @@ LUNA_MODEL = "gpt-5.6-luna"
 CONTROL_TURN = "control-turn-test"
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 _FIXTURE_ROOT: Path | None = None
+_FIXTURE_WORKDIR: Path | None = None
+_DEFAULT_WORKDIR = object()
+
+
+def fixture_workdir() -> Path:
+    """Preserve source defaults for imported helpers unless a case selects isolation."""
+    return ROOT if _FIXTURE_WORKDIR is None else _FIXTURE_WORKDIR
+
+
+def private_fixture_workdir() -> Path:
+    """Use a clean private Git worktree, independent of source index refreshes."""
+    if _FIXTURE_ROOT is None:
+        raise AssertionError("precommit fixture root is not initialized")
+    workspace = _FIXTURE_ROOT / "workspace"
+    if not workspace.exists():
+        copy_context_files(
+            ROOT, workspace, ("scripts/supervise_native_worker.py", "README.md", "SKILL.md"),
+        )
+        for arguments in (
+            ["init", "-q"],
+            ["config", "--local", "maintenance.auto", "false"],
+            ["config", "--local", "gc.auto", "0"],
+            ["add", "--", "."],
+            ["-c", "user.name=EXAMPLE", "-c", "user.email=EXAMPLE@example.invalid",
+             "commit", "-qm", "EXAMPLE supervisor fixture"],
+        ):
+            subprocess.run(
+                ["git", "-c", "core.hooksPath=/dev/null", "-c", "gc.auto=0",
+                 "-C", str(workspace), *arguments],
+                check=True, capture_output=True, text=True,
+            )
+    return workspace
 
 
 def run_cli(*args: str) -> subprocess.CompletedProcess[str]:
@@ -83,7 +118,7 @@ def event(
     model: str = MODEL,
     tool: bool = False,
     command: str | None = None,
-    workdir: str | None = str(ROOT),
+    workdir: str | None | object = _DEFAULT_WORKDIR,
 ) -> dict:
     record: dict = {
         "timestamp": timestamp,
@@ -100,6 +135,8 @@ def event(
             "cmd": command
             or "python -m unittest tests.test_supervise_native_worker -v"
         }
+        if workdir is _DEFAULT_WORKDIR:
+            workdir = str(fixture_workdir())
         if workdir is not None:
             arguments["workdir"] = workdir
         record["response_item"] = {
@@ -117,7 +154,7 @@ def planned_packet(*, packet_id: str, requested_model: str = MODEL, budget_overr
         raise ValueError("trusted precommit receipt requires the exact Spark model")
     allowed_paths = ["scripts/supervise_native_worker.py"]
     acceptance_checks = ["focused tests pass"]
-    context_path = ROOT / allowed_paths[0]
+    context_path = fixture_workdir() / allowed_paths[0]
     context_bytes = context_path.read_bytes()
     effective_budget = budget_overrides or {
         "tool_calls_soft": 5,
@@ -213,7 +250,7 @@ def planned_packet(*, packet_id: str, requested_model: str = MODEL, budget_overr
         work_plan=work_plan,
         packet_id=receipt_packet_id,
         artifact_root=_FIXTURE_ROOT,
-        workdir=ROOT,
+        workdir=fixture_workdir(),
         estimates={
             "tool_calls_p50": 2,
             "tool_calls_p90": 5,
@@ -224,7 +261,7 @@ def planned_packet(*, packet_id: str, requested_model: str = MODEL, budget_overr
     return build_native_worker_packet(
         bead_id="bead-supervision",
         lane="implementation",
-        workdir=str(ROOT),
+        workdir=str(fixture_workdir()),
         allowed_paths=allowed_paths,
         acceptance_checks=acceptance_checks,
         packet_id=receipt_packet_id,
@@ -240,10 +277,12 @@ def tool_record(
     *,
     item_type: str = "function_call",
     name: str = "exec_command",
-    workdir: str | None = str(ROOT),
+    workdir: str | None | object = _DEFAULT_WORKDIR,
     call_id: str | None = None,
 ) -> dict:
     arguments = {"cmd": command}
+    if workdir is _DEFAULT_WORKDIR:
+        workdir = str(fixture_workdir())
     if workdir is not None:
         arguments["workdir"] = workdir
     item = {
@@ -287,12 +326,16 @@ def tool_output(call_id: str, output: object, *, custom: bool = False) -> dict:
     }
 
 
+from tests.historical_policy_fixtures import historical_v2_policy
+from tests.real_beads_fixture import configure_git_fixture
+
 class NativeSupervisorSemanticTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.policy = supervisor.load_policy("native-worker-execution")
 
     def setUp(self) -> None:
+        self.enterContext(historical_v2_policy())
         global _FIXTURE_ROOT
         self.precommit_temp = tempfile.TemporaryDirectory(prefix="cwo-semantic-precommit-")
         self.addCleanup(self.precommit_temp.cleanup)
@@ -308,9 +351,15 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         self.addCleanup(environment.stop)
         _FIXTURE_ROOT = cwo_temp_dir()
         self.addCleanup(lambda: globals().__setitem__("_FIXTURE_ROOT", None))
+        self.enterContext(mock.patch(__name__ + "._FIXTURE_WORKDIR", private_fixture_workdir()))
+
+    @cached_property
+    def _packet(self) -> dict:
+        # One real receipt/packet per test; no authority or observations cross tests.
+        return planned_packet(packet_id="packet-semantic-helper")
 
     def packet(self) -> dict:
-        return planned_packet(packet_id="packet-semantic-helper")
+        return deepcopy(self._packet)
 
     def validation_packet(self, commands: list[list[str]]) -> dict:
         packet = self.packet()
@@ -343,7 +392,13 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         return packet
 
     def test_readiness_accepts_complete_frozen_packet(self) -> None:
-        readiness, units = supervisor._evaluate_operative_readiness(self.packet(), self.policy)
+        packet = self.packet()
+        independent = self.packet()
+        self.assertEqual(independent, packet)
+        independent["work_plan"]["write_paths"].clear()
+        self.assertEqual(packet["work_plan"]["write_paths"], ["scripts/supervise_native_worker.py"])
+        self.assertEqual(self.packet(), packet)
+        readiness, units = supervisor._evaluate_operative_readiness(packet, self.policy)
         self.assertEqual(readiness["decision"], "operative-ready")
         self.assertEqual(readiness["reasons"], [])
         self.assertEqual(readiness["open_decisions"], [])
@@ -806,7 +861,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             [
                 namespaced_tool_record(
                     "exec_command",
-                    {"cmd": command, "workdir": str(ROOT)},
+                    {"cmd": command, "workdir": str(fixture_workdir())},
                     call_id="nested-read",
                 )
             ],
@@ -827,7 +882,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
 
         malformed = namespaced_tool_record(
             "exec_command",
-            {"cmd": command, "workdir": str(ROOT)},
+            {"cmd": command, "workdir": str(fixture_workdir())},
             call_id="nested-malformed",
         )
         malformed["response_item"]["input"] += ' notify("extra");'
@@ -848,7 +903,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             [
                 namespaced_tool_record(
                     "exec_command",
-                    {"cmd": command, "workdir": str(ROOT.parent)},
+                    {"cmd": command, "workdir": str(fixture_workdir().parent)},
                     call_id="nested-wrong-workdir",
                 )
             ],
@@ -900,7 +955,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         records = [
             namespaced_tool_record(
                 "exec_command",
-                {"cmd": " ".join(command), "workdir": str(ROOT)},
+                {"cmd": " ".join(command), "workdir": str(fixture_workdir())},
                 call_id="nested-exec",
             ),
             tool_output(
@@ -993,7 +1048,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             call(
                 "exec_command",
                 "exec-1",
-                {"cmd": " ".join(command), "workdir": str(ROOT)},
+                {"cmd": " ".join(command), "workdir": str(fixture_workdir())},
             ),
             output("exec-1", "Process running with session ID 51986"),
             call("write_stdin", "poll-1", {"session_id": 51986, "chars": ""}),
@@ -1026,7 +1081,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
                     "name": "exec_command",
                     "call_id": "exec-bad-output",
                     "arguments": json.dumps(
-                        {"cmd": " ".join(command), "workdir": str(ROOT)}
+                        {"cmd": " ".join(command), "workdir": str(fixture_workdir())}
                     ),
                 }
             },
@@ -1051,7 +1106,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
                     "name": "exec_command",
                     "call_id": "exec-spoofed-output",
                     "arguments": json.dumps(
-                        {"cmd": " ".join(command), "workdir": str(ROOT)}
+                        {"cmd": " ".join(command), "workdir": str(fixture_workdir())}
                     ),
                 }
             },
@@ -1104,7 +1159,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
             {
                 "identity": "SKILL.md::whole-file::" + "0" * 64,
                 "path": "SKILL.md",
-                "absolute_path": str(ROOT / "SKILL.md"),
+                "absolute_path": str(fixture_workdir() / "SKILL.md"),
                 "selector": "whole-file",
                 "sha256": "0" * 64,
             }
@@ -1151,11 +1206,11 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
     def test_exec_command_requires_exact_packet_workdir(self) -> None:
         command = ["python", "scripts/validate_repository.py"]
         packet = self.validation_packet([command])
-        equivalent = str(ROOT / ".." / ROOT.name)
+        equivalent = str(fixture_workdir() / ".." / fixture_workdir().name)
         activity = supervisor._classify_native_activity(
             [
                 tool_record("python scripts/validate_repository.py", workdir=None),
-                tool_record("python scripts/validate_repository.py", workdir=str(ROOT.parent)),
+                tool_record("python scripts/validate_repository.py", workdir=str(fixture_workdir().parent)),
                 tool_record("python scripts/validate_repository.py", workdir=equivalent),
             ],
             [],
@@ -1267,7 +1322,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
                 "sequence_id": "sequence-evidence",
                 "packet_id": packet["packet_id"],
                 "work_plan_sha256": "a" * 64,
-                "workdir": str(ROOT),
+                "workdir": str(fixture_workdir()),
                 "commands": [{"command_id": "one"}],
             }
             packet["work_plan"]["task_profile"]["execution_contract"]["mode"] = "checked-sequence-v1"
@@ -1284,7 +1339,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
                 "packet_id": packet["packet_id"],
                 "work_plan_sha256": spec["work_plan_sha256"],
                 "spec_sha256": "b" * 64,
-                "workdir": str(ROOT),
+                "workdir": str(fixture_workdir()),
                 "status": "passed",
                 "completed_count": 1,
                 "failed_command_id": None,
@@ -1337,7 +1392,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
 
     def test_workspace_new_owned_file_is_scoped_but_unplanned_file_is_hard(self) -> None:
         before = {
-            "cwd": str(ROOT),
+            "cwd": str(fixture_workdir()),
             "allowed_paths": ["new-owned.py"],
             "include_untracked": True,
             "tracked_status": [],
@@ -1377,7 +1432,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
     def test_workspace_baseline_authorizes_writes_not_read_only_context(self) -> None:
         packet = self.packet()
         read_only_path = "README.md"
-        read_only_bytes = (ROOT / read_only_path).read_bytes()
+        read_only_bytes = (fixture_workdir() / read_only_path).read_bytes()
         packet["scope"]["allowed_paths"].append(read_only_path)
         packet["work_plan"]["context_manifest"].append(
             {
@@ -1394,7 +1449,7 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         self.assertEqual(len(units), 2)
 
         baseline = {
-            "cwd": str(ROOT),
+            "cwd": str(fixture_workdir()),
             "allowed_paths": packet["work_plan"]["write_paths"],
             "include_untracked": True,
             "tracked_status": [],
@@ -1421,8 +1476,10 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
 
 class NativeWorkerSupervisorTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.enterContext(historical_v2_policy())
         global _FIXTURE_ROOT
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-supervision-test-")
+        self.addCleanup(self.tmp.cleanup)
         environment = mock.patch.dict(
             os.environ,
             {
@@ -1435,6 +1492,7 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         self.root = cwo_temp_dir()
         _FIXTURE_ROOT = self.root
         self.addCleanup(lambda: globals().__setitem__("_FIXTURE_ROOT", None))
+        self.enterContext(mock.patch(__name__ + "._FIXTURE_WORKDIR", private_fixture_workdir()))
         registry = mock.patch.dict(
             os.environ,
             {"CWO_PRECOMMIT_REGISTRY_ROOT": str(self.root / "precommit-registry")},
@@ -1913,7 +1971,7 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
                 self.session_id,
                 "assistant",
                 tool=True,
-                workdir=str(ROOT.parent),
+                workdir=str(fixture_workdir().parent),
             ),
             event("2026-07-11T00:00:03Z", self.session_id, "task_complete"),
         ]
@@ -2105,6 +2163,111 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         self.assertFalse(json.loads(failed.stdout)["control_action_required"])
         final_check = self.check("2026-07-11T00:00:02Z")
         self.assertEqual(final_check.returncode, 2, final_check.stderr)
+
+class NativePrecommitFixtureReliabilityTests(unittest.TestCase):
+    def test_real_index_refresh_is_isolated_but_owned_refresh_still_refuses(self) -> None:
+        from cwo_core import native_precommit
+
+        real_open = os.open
+        real_capture = native_precommit.capture_workspace_baseline
+        for refresh_owned in (False, True):
+            with self.subTest(refresh_owned=refresh_owned), tempfile.TemporaryDirectory(
+                prefix="EXAMPLE-supervisor-source-",
+            ) as temporary:
+                source = copy_context_files(
+                    ROOT, Path(temporary) / "source",
+                    ("scripts/supervise_native_worker.py", "README.md", "SKILL.md"),
+                )
+
+                def git(root, *arguments):
+                    return subprocess.run(
+                        ["git", "-c", "core.hooksPath=/dev/null", "-c", "gc.auto=0",
+                         "-C", str(root), *arguments],
+                        check=True, capture_output=True, text=True,
+                    )
+
+                git(source, "init", "-q")
+                configure_git_fixture(source)
+                git(source, "add", "--", ".")
+                git(source, "-c", "user.name=EXAMPLE", "-c", "user.email=EXAMPLE@example.invalid",
+                    "commit", "-qm", "EXAMPLE source")
+                refreshed = []
+                refused = []
+
+                def open_with_refresh(path, flags, *args, **kwargs):
+                    parent = kwargs.get("dir_fd")
+                    if not refreshed and path == "index" and flags & os.O_PATH and parent is not None:
+                        observed_gitdir = Path(os.readlink(f"/proc/self/fd/{parent}"))
+                        root = observed_gitdir.parent if refresh_owned else source
+                        index = root / ".git/index"
+                        before = index.stat()
+                        target = root / "scripts/supervise_native_worker.py"
+                        stamp = target.stat()
+                        os.utime(target, ns=(stamp.st_atime_ns, stamp.st_mtime_ns - 2_000_000_000))
+                        self.assertEqual(git(root, "status", "--porcelain").stdout, "")
+                        self.assertNotEqual(index.stat().st_ino, before.st_ino)
+                        refreshed.append(root)
+                    return real_open(path, flags, *args, **kwargs)
+
+                def capture(*args, **kwargs):
+                    result = real_capture(*args, **kwargs)
+                    if result.get("incomplete"):
+                        refused.append(result)
+                    return result
+
+                case = NativeWorkerSupervisorTests("test_missing_session_after_start_is_control_lost")
+                try:
+                    with (
+                        mock.patch(__name__ + ".ROOT", source),
+                        mock.patch.object(os, "open", side_effect=open_with_refresh),
+                        mock.patch.object(native_precommit, "capture_workspace_baseline", side_effect=capture),
+                    ):
+                        if refresh_owned:
+                            with self.assertRaisesRegex(ValueError, "workspace baseline comparison is incomplete"):
+                                case.setUp()
+                        else:
+                            case.setUp()
+                            workspace = Path(json.loads(case.packet_file.read_text())["scope"]["workdir"])
+                            self.assertTrue(workspace.is_relative_to(case.root))
+                            self.assertNotEqual(workspace, source)
+                            self.assertFalse((workspace / ".git/objects/info/alternates").exists())
+                            self.assertFalse((workspace / ".git/commondir").exists())
+                            self.assertEqual(git(workspace, "status", "--porcelain").stdout, "")
+                            case.test_missing_session_after_start_is_control_lost()
+                            case.tearDown()
+                finally:
+                    self.assertTrue(case.doCleanups())
+                self.assertFalse(Path(case.tmp.name).exists())
+                self.assertEqual(len(refreshed), 1)
+                self.assertEqual(len(refused), int(refresh_owned))
+                if refresh_owned:
+                    self.assertEqual(refused[0]["error_kind"], "repository-unqualified")
+                    self.assertIn("path replaced during read: 'index'", refused[0]["error"])
+
+        with self.subTest(source_readme_changed=True), tempfile.TemporaryDirectory(
+            prefix="EXAMPLE-supervisor-readme-",
+        ) as temporary:
+            source = copy_context_files(
+                ROOT, Path(temporary) / "source",
+                ("scripts/supervise_native_worker.py", "README.md", "SKILL.md"),
+            )
+            case = NativeSupervisorSemanticTests(
+                "test_workspace_baseline_authorizes_writes_not_read_only_context",
+            )
+            try:
+                with mock.patch(__name__ + ".ROOT", source):
+                    case.setUpClass()
+                    case.setUp()
+                    private_readme = fixture_workdir() / "README.md"
+                    copied_bytes = private_readme.read_bytes()
+                    (source / "README.md").write_bytes(copied_bytes + b"\nEXAMPLE later source change\n")
+                    self.assertEqual(private_readme.read_bytes(), copied_bytes)
+                    self.assertNotEqual((source / "README.md").read_bytes(), copied_bytes)
+                    case.test_workspace_baseline_authorizes_writes_not_read_only_context()
+                    case.tearDown()
+            finally:
+                self.assertTrue(case.doCleanups())
+            self.assertFalse(Path(case.precommit_temp.name).exists())
 
 
 if __name__ == "__main__":

@@ -21,6 +21,23 @@ test('GitHub Dark is real Shiki markup, idempotent and text-exact', async () => 
     assert.equal((await highlightHtml(result.html)).html, result.html);
   }
 });
+test('code less-than uses named entities while literal references and surrounding HTML stay intact', async () => {
+  const outside = '<p>Outside &#x3C; stays verbatim.</p>';
+  for (const lang of ['bash', 'json', 'text']) {
+    for (const lessThan of ['&lt;', '&#x3C;']) {
+      const code = `${lessThan}tag&gt; &amp; &quot;quoted&quot; 'single' café\n&amp;#x3C; &amp;lt;`;
+      const source = `${outside}<pre data-language="${lang}"><code>${code}</code></pre>`;
+      const result = await highlightHtml(source);
+      const inner = result.html.match(/<code>([\s\S]*)<\/code>/)[1];
+      assert.match(inner, /&lt;/);
+      assert.doesNotMatch(inner, /&#x3C;/);
+      assert.match(inner, /&#x26;/);
+      assert.ok(result.html.startsWith(outside));
+      assert.equal(textContent(parse(result.html)), textContent(parse(source)));
+      assert.equal((await highlightHtml(result.html)).html, result.html);
+    }
+  }
+});
 test('only code content and build-owned pre attributes change', async () => {
   const source = '<h1>Keep this</h1><pre data-language="bash"><code class="language-bash">echo &quot;hi&quot;</code></pre><p>Next</p>';
   const { html, styles } = await highlightHtml(source);

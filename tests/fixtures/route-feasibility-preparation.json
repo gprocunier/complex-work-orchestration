@@ -1,0 +1,86 @@
+{
+  "estimate_source": {
+    "estimate_type": "cwo-native-work-estimate",
+    "version": 1,
+    "work_unit_id": "template",
+    "bead_id": "bead-preparation",
+    "requested_model": "gpt-5.3-codex-spark",
+    "primary_outcome": "Prepare an offline note.",
+    "expected_artifacts": ["offline-note.txt"],
+    "expert_profiles": ["planner"],
+    "frozen_decisions": ["offline-preparation-only"],
+    "unresolved_decisions": [],
+    "subsystems": ["preparation"],
+    "write_paths": [],
+    "context_manifest": [
+      {
+        "path": "source-1",
+        "selector": "all",
+        "purpose": "Declared inline source",
+        "bytes": 3,
+        "sha256": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+      }
+    ],
+    "acceptance_checks": ["Return the declared offline note."],
+    "estimates": {
+      "tool_calls_p50": 4,
+      "tool_calls_p90": 10,
+      "runtime_seconds_p50": 40,
+      "runtime_seconds_p90": 120,
+      "context_tokens_p90": 2000
+    },
+    "scores": {
+      "reasoning_uncertainty": 0,
+      "subsystem_coupling": 0,
+      "contract_risk": 0,
+      "diagnostic_uncertainty": 0,
+      "context_breadth": 0,
+      "validation_breadth": 0
+    }
+  },
+  "execution": {
+    "executor": "declared-offline-example",
+    "provider": "declared-provider-example",
+    "model": "gpt-5.3-codex-spark",
+    "effort": "declared-example",
+    "options": {},
+    "tool_surface": [],
+    "output_tokens_upper": 32
+  },
+  "projection_policy": {
+    "mode": "declared-conservative",
+    "tokens_per_utf8_byte_upper": 1,
+    "input_overhead_tokens": 0,
+    "billing": {
+      "currency": "fictional-test-unit",
+      "input_microunits_per_token_upper": 3,
+      "output_microunits_per_token_upper": 7,
+      "fixed_microunits_per_attempt_upper": 11,
+      "rationale": "Synthetic arithmetic fixture; no provider prices or purchased capacity."
+    },
+    "rationale": "Toy upper projection: one token per rendered UTF-8 byte plus declared future input.",
+    "uncertainty": "Assumed conservative for this example; no tokenizer or provider measurement."
+  },
+  "whole_contract": {
+    "contract_id": "declared-note-route",
+    "root_id": "plan",
+    "required_roles": [
+      {"id": "plan", "role": "author", "depends_on": []},
+      {"id": "review", "role": "review", "depends_on": ["plan"]},
+      {"id": "synthesis", "role": "synthesis", "depends_on": ["review"]},
+      {"id": "validation", "role": "validation", "depends_on": ["synthesis"]}
+    ]
+  },
+  "tiny_contract": {
+    "contract_id": "declared-tiny-planning",
+    "root_id": "plan",
+    "required_roles": [
+      {"id": "plan", "role": "planning", "depends_on": []}
+    ]
+  },
+  "alternative_roles": [
+    {"id": "retry", "role": "retry", "depends_on": ["plan"]},
+    {"id": "fallback", "role": "fallback", "depends_on": ["plan"]},
+    {"id": "sibling", "role": "sibling", "depends_on": ["plan"]}
+  ]
+}

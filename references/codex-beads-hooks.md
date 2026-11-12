@@ -63,8 +63,14 @@ whether to upgrade Codex or keep the visible full-context hook output.
 | `compact-degraded` | Uses `bd prime --memories-only --hook-json` for SessionStart. | Requires `--allow-degraded-context`; not equivalent to full Beads context. |
 
 The helper is dry-run by default. It writes `.codex/hooks.json` only with
-`--apply`, and it preserves unrelated hook entries while replacing managed
-Beads lifecycle hooks.
+`--apply`, and it replaces only managed Beads lifecycle hooks. Hooks are
+advisory only: before rendering or applying, the helper checks the existing file
+and the result against an exact allowlist of the events, hook type, matchers and
+commands it writes itself. Any other hook entry, a group that mixes a managed
+Beads command with other entries, or a malformed file is refused with a
+configuration error, and nothing is written. The helper never drops or rewrites
+such entries; remove or split them first. See
+[codex-hook-enforcement-disposition.md](codex-hook-enforcement-disposition.md).
 
 ## Flow
 

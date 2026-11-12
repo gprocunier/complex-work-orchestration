@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "candidate-identity.schema.json",
+  "title": "CWO Candidate Identity",
+  "description": "The exact candidate a Bead's delivery claims: the requirement baseline version and digest it is meant to satisfy, the repository root commits, base commit, candidate commit and tree, and a manifest of every path whose working content differs from the candidate tree, except ignored and explicitly excluded untracked paths, compared by raw bytes, mode and type independently of the index and Git conversions, and a digest of the full permission and special bits of every delivered path. It holds no results or approvals. Its digest is SHA-256 over the record serialized as JSON with sorted keys, no whitespace and UTF-8 text (cwo_core.candidate_identity.candidate_digest). Lists are sorted and distinct; the runtime check (cwo_core.candidate_identity.candidate_errors) also enforces consistent object ID lengths, exclusions that cover no delivery scope path, and manifest ordering.",
+  "type": "object",
+  "required": [
+    "record_type",
+    "version",
+    "bead_id",
+    "baseline",
+    "repository",
+    "base_commit",
+    "commit",
+    "tree",
+    "delivery_scope",
+    "excluded_paths",
+    "worktree_manifest",
+    "delivered_modes"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "oid": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}([0-9a-f]{24})?$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096,
+      "pattern": "^(?!/)(?!.*//)(?!.*/$)(?!(.*/)?\\.\\.?(/|$))[^\\u0000-\\u001f\\u007f-\\u009f\\u061c\\u200e\\u200f\\u2028\\u2029\\u202a-\\u202e\\u2066-\\u2069]+$"
+    }
+  },
+  "properties": {
+    "record_type": {
+      "const": "cwo-candidate-identity"
+    },
+    "version": {
+      "const": 1
+    },
+    "bead_id": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$"
+    },
+    "baseline": {
+      "type": "object",
+      "description": "The requirement baseline version and digest the candidate is meant to satisfy; it must be the current version of the chain when the candidate is checked.",
+      "required": [
+        "version",
+        "digest"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      }
+    },
+    "repository": {
+      "type": "object",
+      "required": [
+        "root_commits"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "root_commits": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/oid"
+          },
+          "description": "Every parentless commit reachable from the candidate commit, sorted. They identify the history, not where it is hosted."
+        }
+      }
+    },
+    "base_commit": {
+      "$ref": "#/$defs/oid",
+      "description": "The commit the work started from; an ancestor of commit."
+    },
+    "commit": {
+      "$ref": "#/$defs/oid"
+    },
+    "tree": {
+      "$ref": "#/$defs/oid"
+    },
+    "delivery_scope": {
+      "type": "object",
+      "required": [
+        "paths",
+        "live_resources"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "paths": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1000,
+          "uniqueItems": true,
+          "items": {
+            "anyOf": [
+              {
+                "const": "."
+              },
+              {
+                "$ref": "#/$defs/path"
+              }
+            ]
+          },
+          "description": "Repository paths the delivery claims, each present in the candidate; '.' is the whole repository."
+        },
+        "live_resources": {
+          "type": "array",
+          "maxItems": 0,
+          "description": "Live resources whose independently observed state the delivery depends on. Binding that observation needs a producer-bound observation record that does not exist yet, so the list must be empty and a candidate that names live resources is refused."
+        }
+      }
+    },
+    "excluded_paths": {
+      "type": "array",
+      "maxItems": 1000,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/path"
+      },
+      "description": "Untracked paths left out of the manifest, such as evidence directories. They cannot contain tracked files or delivery scope paths; changed tracked files are always in the manifest."
+    },
+    "worktree_manifest": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "required": [
+          "path",
+          "change",
+          "type",
+          "mode",
+          "size",
+          "sha256"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "$ref": "#/$defs/path"
+          },
+          "change": {
+            "enum": [
+              "added",
+              "modified",
+              "deleted"
+            ]
+          },
+          "type": {
+            "enum": [
+              "file",
+              "symlink",
+              "absent"
+            ]
+          },
+          "mode": {
+            "enum": [
+              "100644",
+              "100755",
+              "120000",
+              null
+            ]
+          },
+          "size": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "sha256": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$",
+            "description": "SHA-256 of the file's bytes, or of a symlink's target text."
+          }
+        },
+        "oneOf": [
+          {
+            "properties": {
+              "change": {
+                "const": "deleted"
+              },
+              "type": {
+                "const": "absent"
+              },
+              "mode": {
+                "const": null
+              },
+              "size": {
+                "const": null
+              },
+              "sha256": {
+                "const": null
+              }
+            }
+          },
+          {
+            "properties": {
+              "change": {
+                "enum": [
+                  "added",
+                  "modified"
+                ]
+              },
+              "type": {
+                "const": "file"
+              },
+              "mode": {
+                "enum": [
+                  "100644",
+                  "100755"
+                ]
+              },
+              "size": {
+                "type": "integer"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "properties": {
+              "change": {
+                "enum": [
+                  "added",
+                  "modified"
+                ]
+              },
+              "type": {
+                "const": "symlink"
+              },
+              "mode": {
+                "const": "120000"
+              },
+              "size": {
+                "type": "integer"
+              },
+              "sha256": {
+                "type": "string"
+              }
+            }
+          }
+        ]
+      }
+    },
+    "delivered_modes": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "SHA-256 of the full permission and special bits (stat.S_IMODE: read, write and execute for user, group and other, setuid, setgid and sticky) of the repository root and of every delivered file, symlink and directory, as observed without following symlinks. The payload is a JSON list of [path, type, octal mode], the root first as \".\", then by path, serialized with no whitespace and ASCII escapes. Ignored and excluded paths are not delivered and not bound. The manifest's mode is Git's; this digest binds every other bit, so any change is a mismatch."
+    }
+  }
+}

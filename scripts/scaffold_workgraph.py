@@ -22,15 +22,22 @@ from cwo_core.coach import (
 )
 from cwo_core.epic_convergence import CLOSURE_DISPOSITIONS, evaluate_closure_pressure
 from cwo_core.errors import CWOError
+from cwo_core.model_identities import LUNA_MODEL, SPARK_MODEL
+from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import (
     classify_work,
+    expert_covers,
     expert_review_labels,
     expert_review_lane,
     expert_review_metadata,
     expert_uses_external_contract,
+    experts_with_required,
+    risk_required_expert_names,
+    unmet_required_experts,
+    unmet_required_experts_message,
 )
 from cwo_core.synthesis import synthesis_lane_enabled
-from cwo_core.util import read_text_arg
+from cwo_core.util import read_text_arg, read_text_segments
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 from cwo_core.workgraph_markdown import (
     FIELD_DEPENDS_ON_LANES,
@@ -42,7 +49,7 @@ from cwo_core.workgraph_markdown import (
     WORKGRAPH_FALLBACK_MARKER,
 )
 
-SPARK_WORKER_MODEL = "gpt-5.3-codex-spark"
+SPARK_WORKER_MODEL = SPARK_MODEL
 SPARK_WORKER_MODE = "implementation-capable"
 OPERATIONAL_WORKER_BEAD_LANES = {
     "implementation",
@@ -52,6 +59,12 @@ OPERATIONAL_WORKER_BEAD_LANES = {
     "wrap-up-report",
     "dashboard-report",
 }
+# Lanes that produce deliverable content. Every final review (validation,
+# editorial and pre-release gates, publish sanitization) follows all of them,
+# and reporting follows the final reviews, so no check covers stale content.
+CONTENT_LANES = ("implementation", "docs")
+# Review stages that examine the finished content.
+FINAL_REVIEW_STAGES = ("pre-validation", "pre-release")
 OPERATIONAL_SPARK_LABELS = ["no-sol-exec", "spark-operative-owner"]
 OPERATIONAL_FALLBACK_LABELS = ["no-sol-exec", "fallback-operative-owner"]
 SPARK_DISPATCH_METADATA_FIELDS = (
@@ -274,7 +287,7 @@ def bullet_list(items: list[object], fallback: str) -> str:
 
 
 def route_notes(route: dict[str, Any]) -> str:
-    experts = [str(item.get("name")) for item in route.get("ranked_experts", [])[:5] if item.get("name")]
+    experts = [str(item.get("name")) for item in experts_with_required(route, 5) if item.get("name")]
     lines = [
         f"Route: {route.get('route')}",
         f"Task class: {route.get('task_class')}",
@@ -295,6 +308,9 @@ def route_notes(route: dict[str, Any]) -> str:
         f"Provider conflict detected: {bool(route.get('provider_conflict_detected'))}",
         "Selected experts: " + (", ".join(experts) if experts else "none"),
     ]
+    required = risk_required_expert_names(route)
+    if required:
+        lines.append("Risk-required experts: " + ", ".join(required))
     synthesis = route.get("model_synthesis") if isinstance(route.get("model_synthesis"), dict) else None
     if synthesis and synthesis.get("recommended_mode") != "none":
         conflict_flags = synthesis.get("provider_conflict_flags") or []
@@ -375,7 +391,7 @@ def _lane_metadata(
         merged.update({
             "operative_routing_version": 3,
             "operative_dispatch_authorized": operative.get("dispatch_authorized") is True,
-            "operative_primary_model": "gpt-5.6-luna",
+            "operative_primary_model": LUNA_MODEL,
             "operative_selected_model": operative.get("selected_model"),
             "operative_selection_source": "task-sized-qualified-luna-first",
             "operative_recommended_model": operative.get("selected_model"),
@@ -492,23 +508,43 @@ LANE_FIELDS: dict[str, dict[str, object]] = {
     },
     "publish-sanitization": {
         "skills": ["publish-sanitization", "public-artifact-review", "validation"],
-        "acceptance": "Published artifacts are free of local-only, transient, duplicate, circular, or non-fresh-deploy content.",
-        "design": "Run after validation and any editorial gate before push, release, tag, or public handoff.",
+        "acceptance": "Published artifacts were inspected and are free of local-only, transient, duplicate, circular, or non-fresh-deploy content; anything found went back to the content lanes and was checked again.",
+        "design": "Inspect only, after all content work, validation and any editorial gate, before push, release, tag, or public handoff. Change nothing in this lane: a removal or fix goes back to implementation or docs, and the checks that covered that content run again. The result covers only the checked content.",
     },
     "docs": {
-        "skills": ["documentation", "operator-guides", "handoff"],
-        "acceptance": "Docs, examples, and handoff instructions match the implemented behavior.",
-        "design": "Keep the skill entrypoint concise and place durable operator detail in README and references.",
+        "skills": ["documentation", "operator-guides"],
+        "acceptance": "Docs and examples match the implemented behavior, and every documentation change is finished before validation and the final editorial and publication checks.",
+        "design": "Keep the skill entrypoint concise and place durable operator detail in README and references. This lane produces content; handoff reporting belongs to the wrap-up report.",
     },
     "wrap-up-report": {
         "skills": ["run-readiness", "wrap-up-status", "handoff", "operator-calibrated-execution"],
-        "acceptance": "Wrap-up/status projection is rendered from accepted evidence and records validation, residual risk, and next-version deferrals.",
-        "design": "Use Beads/readiness evidence as source of truth; do not invent missing telemetry or closeout claims.",
+        "acceptance": "Wrap-up/status projection and handoff are rendered from accepted evidence after the final checks, and record validation, residual risk, and next-version deferrals.",
+        "design": "Use Beads/readiness evidence as source of truth; do not invent missing telemetry or closeout claims. Report only: a relevant change to code, docs or examples found here reopens that work and the checks and approvals that covered it.",
     },
     "dashboard-report": {
         "skills": ["execution-status-report", "telemetry", "dashboard", "operator-calibrated-execution"],
         "acceptance": "Execution status dashboard and expanded layout are rendered with lane/model telemetry gaps shown as ? or n/a.",
         "design": "Render compact terminal status first, then expanded output for long expert, role, and agent/model identifiers.",
+    },
+    "final-dispatch": {
+        "skills": ["contractor-control", "beads", "packet-dispatch"],
+        "acceptance": "Final review packets are built from the finished content, within the route's disclosure boundary, opt-in basis, and no-codex-exec handling.",
+        "design": "Dispatch final-stage reviews only after implementation and docs are complete; a later relevant change needs a new final review.",
+    },
+    "final-peer-review": {
+        "skills": ["peer-review", "contractor-control", "acceptance"],
+        "acceptance": "Independent peer-review disposition of the final-stage review returns is recorded before they are evaluated.",
+        "design": "Apply the route's peer-review requirement to final-stage returns as to earlier ones, isolated from normal Codex pickup.",
+    },
+    "final-evaluation": {
+        "skills": ["evaluation", "acceptance", "contractor-control"],
+        "acceptance": "Final-stage review returns about the finished content are scored and dispositioned before validation.",
+        "design": "Use evaluator outputs as evidence for architect adjudication, not as direct authority.",
+    },
+    "final-adjudication": {
+        "skills": ["architecture", "adjudication", "acceptance"],
+        "acceptance": "The architect accepts, rejects, or quarantines final-stage review findings; a required fix reopens implementation or docs and the checks that covered them.",
+        "design": "Final decision on final-stage reviews stays with the architect, after their evaluation and before validation.",
     },
     "external-dispatch": {
         "skills": ["contractor-control", "beads", "packet-dispatch"],
@@ -644,6 +680,8 @@ def architecture_critic_experts(route: dict[str, Any]) -> list[dict[str, Any]]:
                 "selected_executor": contract.get("selected_executor"),
                 "executor_policy_violations": [],
                 "contractor_contract": contract,
+                # A named critic stands in for the architecture review it replaces.
+                "covers_expert": "architecture",
             }
         )
         experts.append(expert)
@@ -651,6 +689,7 @@ def architecture_critic_experts(route: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def selected_source_experts(route: dict[str, Any], scaffold_size: str) -> list[dict[str, Any]]:
+    """The experts that get review lanes. Tight scaffolding limits optional fan-out, never a risk-required expert."""
     critic_contracts = route.get("architecture_critic_contracts", [])
     source_experts = [
         expert
@@ -658,25 +697,36 @@ def selected_source_experts(route: dict[str, Any], scaffold_size: str) -> list[d
         if not (critic_contracts and expert.get("name") == "architecture" and expert_uses_external_contract(expert))
     ]
     source_experts.extend(architecture_critic_experts(route))
+    required = set(risk_required_expert_names(route))
     if scaffold_size != "tight":
-        return source_experts
-
-    primary_name = source_experts[0].get("name") if source_experts else None
-    selected: list[dict[str, Any]] = []
-    seen_lanes: set[str] = set()
-    for expert in source_experts:
-        lane = expert_review_lane(expert)
-        if lane in seen_lanes:
-            continue
-        metadata = expert_review_metadata(expert, route)
-        is_primary = bool(primary_name and expert.get("name") == primary_name)
-        is_required_gate = bool(metadata.get("validation_gate_required"))
-        is_named_critic = bool(expert.get("contractor_contract"))
-        if is_primary or is_required_gate or is_named_critic:
-            selected.append(expert)
-            seen_lanes.add(lane)
-    if not selected and source_experts:
-        selected.append(source_experts[0])
+        selected = source_experts
+    else:
+        primary_name = source_experts[0].get("name") if source_experts else None
+        selected = []
+        seen_lanes: set[str] = set()
+        for expert in source_experts:
+            lane = expert_review_lane(expert)
+            if lane in seen_lanes:
+                continue
+            metadata = expert_review_metadata(expert, route)
+            is_primary = bool(primary_name and expert.get("name") == primary_name)
+            is_required_gate = bool(metadata.get("validation_gate_required"))
+            is_named_critic = bool(expert.get("contractor_contract"))
+            is_risk_required = expert.get("name") in required
+            if is_primary or is_required_gate or is_named_critic or is_risk_required:
+                selected.append(expert)
+                seen_lanes.add(lane)
+        if not selected and source_experts:
+            selected.append(source_experts[0])
+    # A risk-required expert that an earlier filter removed and nothing stands in for comes back.
+    covered = set().union(*(expert_covers(expert) for expert in selected)) if selected else set()
+    selected_lanes = {expert_review_lane(expert) for expert in selected}
+    for expert in route.get("ranked_experts", []):
+        name = expert.get("name")
+        if name in required and name not in covered and expert_review_lane(expert) not in selected_lanes:
+            selected = [*selected, expert]
+            covered.add(str(name))
+            selected_lanes.add(expert_review_lane(expert))
     return selected
 
 
@@ -690,25 +740,45 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
     route = {**route, "closure_pressure": closure_pressure}
     expert_items: list[dict[str, Any]] = []
     acceptance_review_lanes: list[str] = []
+    final_acceptance_lanes: list[str] = []
+    final_dispatch_required = False
     implementation_blocker_lanes: list[str] = []
     validation_blocker_lanes: list[str] = []
     editor_gate_lanes: list[str] = []
 
-    for expert in selected_source_experts(route, scaffold_size):
+    source_experts = selected_source_experts(route, scaffold_size)
+    unmet = unmet_required_experts(route, source_experts)
+    if unmet:
+        raise ValueError(unmet_required_experts_message(unmet) + "; no work graph planned")
+    for expert in source_experts:
         lane = expert_review_lane(expert)
         metadata = expert_review_metadata(expert, route)
         depends_on = ["architect"]
-        if metadata.get("codex_pickup") == "forbidden":
-            depends_on.append("external-dispatch")
-        if metadata.get("acceptance_bead_required"):
-            acceptance_review_lanes.append(lane)
-        elif metadata.get("validation_gate_required"):
-            editor_gate_lanes.append(lane)
-            validation_blocker_lanes.append(lane)
-        elif expert.get("review_stage") in ["pre-implementation", "implementation-review"]:
-            implementation_blocker_lanes.append(lane)
-        elif expert.get("review_stage") in ["pre-validation", "pre-release"]:
-            validation_blocker_lanes.append(lane)
+        pickup_forbidden = metadata.get("codex_pickup") == "forbidden"
+        final_stage = bool(metadata.get("validation_gate_required")) or expert.get("review_stage") in FINAL_REVIEW_STAGES
+        if metadata.get("acceptance_bead_required") and final_stage:
+            # A final-stage review routed through an acceptance bead examines
+            # the finished content, so it is dispatched, evaluated and
+            # adjudicated after implementation and docs, before validation.
+            final_acceptance_lanes.append(lane)
+            depends_on.extend(CONTENT_LANES)
+            if pickup_forbidden:
+                depends_on.append("final-dispatch")
+                final_dispatch_required = True
+        else:
+            if pickup_forbidden:
+                depends_on.append("external-dispatch")
+            if metadata.get("acceptance_bead_required"):
+                acceptance_review_lanes.append(lane)
+            elif metadata.get("validation_gate_required"):
+                editor_gate_lanes.append(lane)
+                validation_blocker_lanes.append(lane)
+                depends_on.extend(CONTENT_LANES)
+            elif expert.get("review_stage") in ["pre-implementation", "implementation-review"]:
+                implementation_blocker_lanes.append(lane)
+            elif expert.get("review_stage") in FINAL_REVIEW_STAGES:
+                validation_blocker_lanes.append(lane)
+                depends_on.extend(CONTENT_LANES)
 
         expert_items.append(
             {
@@ -723,6 +793,8 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
         )
 
     peer_review_required = bool(route.get("peer_review_required"))
+    if final_acceptance_lanes:
+        validation_blocker_lanes.append("final-adjudication")
     publish_sanitization_required = bool(route.get("editor_gate_required"))
     model_synthesis_required = synthesis_lane_enabled(route.get("model_synthesis"))
     needs_external_acceptance = bool(acceptance_review_lanes) or route.get("route") in ["external-contract", "local-worker"]
@@ -773,6 +845,18 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             **lane_fields("implementation", route),
         },
         {
+            "title": f"Docs: {title}",
+            "type": "task",
+            "lane": "docs",
+            "labels": _lane_labels(
+                route,
+                "docs",
+                ["docs"],
+            ),
+            "depends_on_lanes": ["implementation"],
+            **lane_fields("docs", route),
+        },
+        {
             "title": f"Validate: {title}",
             "type": "task",
             "lane": "validation",
@@ -781,11 +865,11 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                 "validation",
                 ["workerbee", "validation"],
             ),
-            "depends_on_lanes": ["implementation", *validation_blocker_lanes],
+            "depends_on_lanes": [*CONTENT_LANES, *validation_blocker_lanes],
             **lane_fields("validation", route),
         },
     ]
-    docs_dependency = "validation"
+    final_check_lane = "validation"
     if publish_sanitization_required:
         graph.append(
             {
@@ -798,38 +882,24 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                     ["publish-sanitization", "public-artifact-review"],
                 ),
                 "depends_on_lanes": ["validation", *editor_gate_lanes],
-                **lane_fields("publish-sanitization", route),
+                **lane_fields("publish-sanitization", route, metadata={"inspect_only": True}),
             }
         )
-        docs_dependency = "publish-sanitization"
+        final_check_lane = "publish-sanitization"
 
-    graph.append(
-        {
-            "title": f"Docs and handoff: {title}",
-            "type": "task",
-            "lane": "docs",
-            "labels": _lane_labels(
-                route,
-                "docs",
-                ["docs", "handoff"],
-            ),
-            "depends_on_lanes": [docs_dependency],
-            **lane_fields("docs", route),
-        }
-    )
     graph.extend(
         [
             {
-                "title": f"Wrap-up report: {title}",
+                "title": f"Wrap-up report and handoff: {title}",
                 "type": "task",
                 "lane": "wrap-up-report",
                 "labels": _lane_labels(
                     route,
                     "wrap-up-report",
-                    ["reporting", "wrap-up-status"],
+                    ["reporting", "wrap-up-status", "handoff"],
                 ),
-                "depends_on_lanes": ["docs"],
-                **lane_fields("wrap-up-report", route),
+                "depends_on_lanes": [final_check_lane],
+                **lane_fields("wrap-up-report", route, metadata={"inspect_only": True}),
             },
             {
                 "title": f"Dashboard report: {title}",
@@ -845,6 +915,80 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             },
         ]
     )
+    if final_acceptance_lanes:
+        final_lanes: list[dict[str, Any]] = []
+        if final_dispatch_required:
+            final_lanes.append(
+                {
+                    "title": f"Dispatch final reviews: {title}",
+                    "type": "task",
+                    "lane": "final-dispatch",
+                    "labels": unique_strings(["dispatch", "final-review", route["route"], *(route.get("guard_labels") or [])]),
+                    "depends_on_lanes": list(CONTENT_LANES),
+                    **lane_fields(
+                        "final-dispatch",
+                        route,
+                        metadata={
+                            "codex_pickup": "forbidden",
+                            "guard_labels": list(route.get("guard_labels") or []),
+                            "route": route.get("route"),
+                            "share_boundary": route.get("share_boundary"),
+                            "architect_review_required": True,
+                        },
+                    ),
+                }
+            )
+        final_evaluation_dependencies = list(final_acceptance_lanes)
+        if peer_review_required:
+            final_lanes.append(
+                {
+                    "title": f"Peer review final returns: {title}",
+                    "type": "task",
+                    "lane": "final-peer-review",
+                    "labels": [
+                        *(route.get("peer_review_labels")
+                          or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
+                        "contract-jd-peer-review",
+                        "final-review",
+                    ],
+                    "depends_on_lanes": list(final_acceptance_lanes),
+                    **lane_fields(
+                        "final-peer-review",
+                        route,
+                        metadata={
+                            "job_description_label": "contract-jd-peer-review",
+                            "peer_review_count": route.get("peer_review_count", 1),
+                            "provider_diversity_required": route.get("provider_diversity_required", True),
+                            "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                            "local_secure_review_executor": route.get("local_secure_review_executor"),
+                            "codex_pickup": "forbidden",
+                            "architect_review_required": True,
+                        },
+                    ),
+                }
+            )
+            final_evaluation_dependencies = ["final-peer-review"]
+        final_lanes.extend(
+            [
+                {
+                    "title": f"Evaluate final reviews: {title}",
+                    "type": "task",
+                    "lane": "final-evaluation",
+                    "labels": ["evaluation", "contractor-evaluator", "final-review"],
+                    "depends_on_lanes": final_evaluation_dependencies,
+                    **lane_fields("final-evaluation", route),
+                },
+                {
+                    "title": f"Architect adjudication of final reviews: {title}",
+                    "type": "task",
+                    "lane": "final-adjudication",
+                    "labels": ["architect", "adjudication", "final-review"],
+                    "depends_on_lanes": ["final-evaluation"],
+                    **lane_fields("final-adjudication", route),
+                },
+            ]
+        )
+        graph.extend(final_lanes)
     if needs_external_acceptance:
         peer_review_lanes = ["peer-review"] if peer_review_required else []
         dispatch_guard_labels = list(route.get("guard_labels") or [])
@@ -1048,7 +1192,8 @@ def item_priority(item: dict[str, Any], index: int) -> int:
     if index == 0:
         return 1
     lane = str(item.get("lane") or "")
-    if lane in ["architect", "pm", "external-dispatch", "evaluation", "model-synthesis", "architect-adjudication"]:
+    if lane in ["architect", "pm", "external-dispatch", "evaluation", "model-synthesis", "architect-adjudication",
+                "final-dispatch", "final-evaluation", "final-adjudication"]:
         return 1
     return 2
 
@@ -1071,11 +1216,20 @@ def dependency_spec(value: object) -> tuple[str, str]:
     return lane, dependency_type
 
 
+def _workgraph_metadata_json(value: object) -> str:
+    try:
+        return json.dumps(value, sort_keys=True)
+    except RecursionError as exc:
+        raise ValueError(
+            f"work graph metadata exceeds native JSON serialization depth: {exc}"
+        ) from exc
+
+
 def string_metadata(item: dict[str, Any]) -> dict[str, str]:
     result = {
         "cwo_lane": str(item.get("lane") or "epic"),
-        "cwo_depends_on_lanes": json.dumps(item.get("depends_on_lanes", []), sort_keys=True),
-        "cwo_skills": json.dumps(item.get("skills", []), sort_keys=True),
+        "cwo_depends_on_lanes": _workgraph_metadata_json(item.get("depends_on_lanes", [])),
+        "cwo_skills": _workgraph_metadata_json(item.get("skills", [])),
         "cwo_acceptance": str(item.get("acceptance", "")),
         "cwo_design": str(item.get("design", "")),
         "cwo_notes": str(item.get("notes", "")),
@@ -1083,7 +1237,7 @@ def string_metadata(item: dict[str, Any]) -> dict[str, str]:
     for key, value in dict(item.get("metadata") or {}).items():
         metadata_key = f"cwo_metadata_{key}"
         if key == "orchestration_route" and isinstance(value, dict):
-            result[metadata_key] = json.dumps(
+            result[metadata_key] = _workgraph_metadata_json(
                 {
                     "route": value.get("route"),
                     "task_class": value.get("task_class"),
@@ -1104,21 +1258,126 @@ def string_metadata(item: dict[str, Any]) -> dict[str, str]:
                         else None
                     ),
                 },
-                sort_keys=True,
             )
         elif isinstance(value, (str, int, float, bool)) or value is None:
             result[metadata_key] = "" if value is None else str(value)
         else:
-            result[metadata_key] = json.dumps(value, sort_keys=True)
+            result[metadata_key] = _workgraph_metadata_json(value)
     return result
 
 
+def _validate_workgraph_labels(labels: object, index: int) -> None:
+    if not isinstance(labels, (list, tuple)) or any(not isinstance(label, str) for label in labels):
+        raise ValueError(f"work graph item {index} labels must be a list of text values")
+
+
+def _validate_workgraph_item(item: object, index: int) -> None:
+    if not isinstance(item, dict):
+        raise ValueError(f"work graph item {index} must be a mapping")
+    lane = item.get("lane")
+    if lane is not None and not isinstance(lane, (str, int, float, bool)):
+        raise ValueError(f"work graph item {index} has an invalid lane shape")
+    _validate_workgraph_labels(item.get("labels", []), index)
+    if not isinstance(item.get("skills", []), (str, list, tuple)):
+        raise ValueError(f"work graph item {index} has an invalid skills shape")
+
+
+def _validate_creation_fields(plan: list[dict[str, Any]]) -> None:
+    for index, item in enumerate(plan):
+        if not isinstance(item.get("title"), str):
+            raise ValueError(f"work graph item {index} must have a text title")
+        required = ("labels", "skills", "acceptance", "design", "notes")
+        if index == 0:
+            required += ("metadata",)
+        for field in required:
+            if field not in item:
+                raise ValueError(f"work graph item {index} is missing creation field {field}")
+        metadata = item.get("metadata")
+        if metadata is not None and not isinstance(metadata, dict):
+            raise ValueError(f"work graph item {index} metadata must be a mapping")
+        try:
+            json.dumps(metadata, sort_keys=True)
+        except (TypeError, ValueError, RecursionError) as exc:
+            raise ValueError(f"work graph item {index} has invalid creation metadata: {exc}") from exc
+
+
+def _workgraph_relationships(
+    plan: list[dict[str, Any]], keys: list[str]
+) -> list[tuple[str, str, str]]:
+    known_keys = set(keys)
+    relationships: list[tuple[str, str, str]] = []
+    for key, item in zip(keys, plan):
+        dependencies = item.get("depends_on_lanes", [])
+        if not isinstance(dependencies, (list, tuple)):
+            raise ValueError(f"work graph key {key!r} dependencies must be a list")
+        for dependency in dependencies:
+            target, dependency_type = dependency_spec(dependency)
+            if target not in known_keys:
+                raise ValueError(f"work graph key {key!r} has missing dependency reference {target!r}")
+            relationships.append((key, target, dependency_type))
+    return relationships
+
+
+def _validate_readiness_cycles(
+    keys: list[str], relationships: list[tuple[str, str, str]]
+) -> None:
+    remaining = dict.fromkeys(keys, 0)
+    followers: dict[str, list[str]] = {key: [] for key in keys}
+    for key, target, dependency_type in relationships:
+        if dependency_type in {"blocks", "until"}:
+            remaining[key] += 1
+            followers[target].append(key)
+    pending = [key for key in keys if remaining[key] == 0]
+    visited = 0
+    while pending:
+        key = pending.pop()
+        visited += 1
+        for follower in followers[key]:
+            remaining[follower] -= 1
+            if remaining[follower] == 0:
+                pending.append(follower)
+    if visited != len(keys):
+        raise ValueError("work graph has a readiness dependency cycle")
+
+
+def validate_workgraph_plan(
+    plan: list[dict[str, Any]], *, for_creation: bool = False
+) -> list[tuple[str, str, str]]:
+    """Validate graph references and readiness before output or writes."""
+    if not isinstance(plan, (list, tuple)):
+        raise ValueError("work graph plan must be a list")
+    if for_creation and not plan:
+        raise ValueError("work graph plan is empty; an epic is required")
+    keys: list[str] = []
+    known_keys: set[str] = set()
+    for index, item in enumerate(plan):
+        _validate_workgraph_item(item, index)
+        key = item_key(item, index)
+        if key in known_keys:
+            raise ValueError(f"work graph has duplicate node key {key!r}")
+        keys.append(key)
+        known_keys.add(key)
+    if for_creation:
+        _validate_creation_fields(plan)
+    relationships = _workgraph_relationships(plan, keys)
+    _validate_readiness_cycles(keys, relationships)
+    return relationships
+
+
 def beads_graph_plan(plan: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    keys = {item_key(item, index): item for index, item in enumerate(plan)}
+    relationships = validate_workgraph_plan(plan)
     nodes: list[dict[str, Any]] = []
-    edges: list[dict[str, Any]] = []
 
     for index, item in enumerate(plan):
+        if "title" not in item:
+            raise ValueError(f"work graph item {index} must have a title")
+        metadata = item.get("metadata")
+        if metadata is not None and not isinstance(metadata, dict):
+            raise ValueError(f"work graph item {index} metadata must be a mapping")
+        try:
+            node_metadata = string_metadata(item)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"work graph item {index} has invalid export metadata: {exc}") from exc
         key = item_key(item, index)
         node = {
             "key": key,
@@ -1126,23 +1385,16 @@ def beads_graph_plan(plan: list[dict[str, Any]]) -> dict[str, list[dict[str, Any
             "type": str(item.get("type") or "task"),
             "priority": item_priority(item, index),
             "labels": list(item.get("labels", [])),
-            "metadata": string_metadata(item),
+            "metadata": node_metadata,
         }
         if index > 0:
             node["parent_key"] = "epic"
         nodes.append(node)
 
-        for dependency in item.get("depends_on_lanes", []):
-            blocker_key, dependency_type = dependency_spec(dependency)
-            if blocker_key in keys:
-                edges.append(
-                    {
-                        "from_key": key,
-                        "to_key": blocker_key,
-                        "type": dependency_type,
-                    }
-                )
-
+    edges = [
+        {"from_key": key, "to_key": target, "type": dependency_type}
+        for key, target, dependency_type in relationships
+    ]
     return {"nodes": nodes, "edges": edges}
 
 
@@ -1159,6 +1411,7 @@ def markdown_block(value: object) -> str:
 
 
 def markdown_workgraph_plan(title: str, plan: list[dict[str, Any]]) -> str:
+    validate_workgraph_plan(plan)
     lines = [
         f"# {title}",
         "",
@@ -1208,6 +1461,21 @@ def markdown_workgraph_plan(title: str, plan: list[dict[str, Any]]) -> str:
             ]
         )
     return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_dry_run_workgraph(
+    title: str, plan: list[dict[str, Any]], output_format: str
+) -> str:
+    try:
+        if output_format == "markdown-workgraph":
+            return markdown_workgraph_plan(title, plan)
+        output = beads_graph_plan(plan) if output_format == "beads-graph" else plan
+    except (TypeError, ValueError) as exc:
+        raise SystemExit(f"could not render work graph: {exc}") from exc
+    try:
+        return json.dumps(output, indent=2, sort_keys=True) + "\n"
+    except (TypeError, ValueError, RecursionError) as exc:
+        raise SystemExit(f"could not render work graph JSON: {exc}") from exc
 
 
 def try_dep(
@@ -1327,13 +1595,19 @@ def main() -> None:
     )
     add_waiver_reason_argument(parser)
     parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
+    refuse_risk_narrowing_arguments(args, source="scaffold_workgraph.py")
     require_waiver_reason(args, ["allow_disclosure_escalation"])
 
     context = read_text_arg(f"{args.title}\n\n{args.description}".strip(), args.file)
+    # The title, the description and any --file contents are separate segments for routing risk features.
+    context_segments = [part for part in (args.title, args.description) if part and part.strip()]
+    context_segments += read_text_segments(None, args.file) if args.file else []
     try:
         route = classify_work(
             context,
+            text_segments=context_segments,
             external_ok=args.external_ok,
             allow_disclosure_escalation=args.allow_disclosure_escalation,
             local_ok=args.local_ok,
@@ -1374,13 +1648,14 @@ def main() -> None:
         "workerbee_planned_delegation": _normalize_workerbee_planned_delegation(workerbee_parallelism),
         "closure_pressure": closure_pressure,
     }
-    plan = planned_graph(args.title, route, scaffold_size=args.scaffold_size)
+    try:
+        plan = planned_graph(args.title, route, scaffold_size=args.scaffold_size)
+        relationships = validate_workgraph_plan(plan, for_creation=True)
+    except ValueError as exc:
+        raise SystemExit(str(exc))
     if args.dry_run:
-        if args.format == "markdown-workgraph":
-            print(markdown_workgraph_plan(args.title, plan), end="")
-            return
-        output: Any = beads_graph_plan(plan) if args.format == "beads-graph" else plan
-        print(json.dumps(output, indent=2, sort_keys=True))
+        rendered = _render_dry_run_workgraph(args.title, plan, args.format)
+        print(rendered, end="")
         return
     if args.format != "cwo":
         parser.error(
@@ -1407,36 +1682,34 @@ def main() -> None:
         created["epic"] = epic["id"]
         print(f"Created epic: {epic['id']}")
 
-        for item in plan[1:]:
-            failed_step = f"create {item['lane']}"
+        for index, item in enumerate(plan[1:], start=1):
+            key = item_key(item, index)
+            failed_step = f"create {key}"
             bead = create_bead(
                 item["title"],
                 parent=epic["id"],
-                priority=1 if item["lane"] in ["architect", "pm", "external-dispatch", "evaluation", "model-synthesis", "architect-adjudication"] else 2,
+                # One priority rule for direct creation and the Beads graph plan.
+                priority=item_priority(item, index),
                 labels=item["labels"],
                 skills=item["skills"],
-                description=body(f"Complete the {item['lane']} lane.", f"Evidence and result for {item['lane']}."),
+                description=body(f"Complete the {key} lane.", f"Evidence and result for {key}."),
                 acceptance=str(item["acceptance"]),
                 design=str(item["design"]),
                 notes=str(item["notes"]),
                 metadata=item.get("metadata"),
             )
-            created[item["lane"]] = bead["id"]
+            created[key] = bead["id"]
             print(f"Created task: {bead['id']} {bead['title']}")
 
-        for item in plan[1:]:
-            blocked = created.get(item["lane"])
-            if not blocked:
-                continue
-            for dependency in item.get("depends_on_lanes", []):
-                blocker_lane, dependency_type = dependency_spec(dependency)
-                blocker = created.get(blocker_lane)
-                if blocker:
-                    failed_step = (
-                        f"add dependency {item['lane']} -> {blocker_lane} "
-                        f"({dependency_type})"
-                    )
-                    try_dep(blocked, blocker, dependency_type)
+        for key, blocker_key, dependency_type in relationships:
+            blocked = created.get(key)
+            blocker = created.get(blocker_key)
+            if blocked and blocker:
+                failed_step = (
+                    f"add dependency {key} -> {blocker_key} "
+                    f"({dependency_type})"
+                )
+                try_dep(blocked, blocker, dependency_type)
     except SystemExit as exc:
         if created:
             print(recovery_summary(created, failed_step, exc), file=sys.stderr)

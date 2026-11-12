@@ -7,6 +7,7 @@ import unittest
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
+from typing import Callable, Literal, NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -16,6 +17,18 @@ from route_work import print_human  # noqa: E402
 
 RETIRED_FIELD = "beads_" + "briefing_depth"
 RETIRED_FLAG = "--beads-" + "briefing-depth"
+
+
+class RouteCheck(NamedTuple):
+    value: Callable[[dict], object]
+    expected: object
+    operation: Literal["equal", "not-equal", "contains", "not-contains", "in", "not-in", "true", "false"] = "equal"
+
+
+class RouteCase(NamedTuple):
+    task: str
+    options: dict
+    oracles: tuple[tuple[str, tuple[RouteCheck, ...] | Callable[[dict], None]], ...]
 
 
 class RouteWorkTests(unittest.TestCase):
@@ -38,26 +51,490 @@ class RouteWorkTests(unittest.TestCase):
         self.assertIn("unknown execution environment: missing-env", result.stderr)
         self.assertNotIn("Traceback", result.stderr + result.stdout)
 
-    def test_route_outputs_beads_context_depth_and_provenance(self) -> None:
-        result = classify_work("Use subagents for a deep docs second pass with prior Beads comments.")
-
-        self.assertEqual(result["beads_context_depth"], "heavy")
-        self.assertNotIn(RETIRED_FIELD, result)
-        self.assertEqual(result["beads_context_depth_source"], "autosized")
-        self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
-        self.assertEqual(result["beads_context_depth_provenance"]["effective_depth"], "heavy")
-
-    def test_route_context_depth_override_records_requested_and_computed_depth(self) -> None:
-        result = classify_work(
-            "Use subagents for a deep docs second pass with prior Beads comments.",
-            beads_context_depth="summary",
+    def test_routing_projection_rows(self) -> None:
+        rows = (
+            RouteCase(
+                "Use subagents for a deep docs second pass with prior Beads comments.",
+                {},
+                (
+                    ('test_route_outputs_beads_context_depth_and_provenance', (
+                        RouteCheck(lambda result: result['beads_context_depth'], 'heavy'),
+                        RouteCheck(lambda result: result, RETIRED_FIELD, 'not-contains'),
+                        RouteCheck(lambda result: result['beads_context_depth_source'], 'autosized'),
+                        RouteCheck(lambda result: result['beads_context_depth_provenance']['computed_depth'], 'heavy'),
+                        RouteCheck(lambda result: result['beads_context_depth_provenance']['effective_depth'], 'heavy'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Use subagents for a deep docs second pass with prior Beads comments.",
+                {'beads_context_depth': 'summary'},
+                (
+                    ('test_route_context_depth_override_records_requested_and_computed_depth', (
+                        RouteCheck(lambda result: result['beads_context_depth'], 'summary'),
+                        RouteCheck(lambda result: result, RETIRED_FIELD, 'not-contains'),
+                        RouteCheck(lambda result: result['beads_context_depth_source'], 'explicit'),
+                        RouteCheck(lambda result: result['beads_context_depth_provenance']['requested_depth'], 'summary'),
+                        RouteCheck(lambda result: result['beads_context_depth_provenance']['computed_depth'], 'heavy'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Publish public docs for the install flow.",
+                {'data_sensitivity': 'restricted'},
+                (
+                    ('test_data_sensitivity_operator_declaration_overrides_heuristic', (
+                        RouteCheck(lambda result: result['data_sensitivity'], 'restricted'),
+                        RouteCheck(lambda result: result['data_sensitivity_source'], 'operator-declared'),
+                        RouteCheck(lambda result: result['data_sensitivity_heuristic'], 'public'),
+                        RouteCheck(lambda result: result['data_sensitivity_provenance']['declared_sensitivity'], 'restricted'),
+                        RouteCheck(lambda result: result['data_sensitivity_provenance']['heuristic_sensitivity'], 'public'),
+                        RouteCheck(lambda result: result['data_sensitivity_provenance']['effective_sensitivity'], 'restricted'),
+                        RouteCheck(lambda result: result['data_sensitivity_provenance']['advisory_heuristic'], None, 'true'),
+                        RouteCheck(lambda result: result['data_sensitivity_disclaimer'], 'can miss paraphrases', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Review tenant dossier retention for the workflow.",
+                {'data_sensitivity': 'restricted'},
+                (
+                    ('test_data_sensitivity_override_covers_heuristic_false_negative', (
+                        RouteCheck(lambda result: result['data_sensitivity'], 'restricted'),
+                        RouteCheck(lambda result: result['data_sensitivity_heuristic'], 'internal'),
+                        RouteCheck(lambda result: result['data_sensitivity_source'], 'operator-declared'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Review customer records export and employee data cleanup.",
+                {'data_sensitivity': 'public'},
+                (
+                    ('test_data_sensitivity_declaration_is_floor_not_ceiling', (
+                        RouteCheck(lambda result: result['data_sensitivity'], 'restricted'),
+                        RouteCheck(lambda result: result['data_sensitivity_heuristic'], 'restricted'),
+                        RouteCheck(lambda result: result['data_sensitivity_source'], 'operator-declared'),
+                        RouteCheck(lambda result: result['data_sensitivity_provenance']['declared_sensitivity'], 'public'),
+                        RouteCheck(lambda result: result['data_sensitivity_provenance']['reason'], 'raised the effective sensitivity', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Security and web design review for contractor packet behavior.",
+                {'external_ok': True,
+                 'requested_roles': ['security', 'web-design'],
+                 'share_boundary': 'redacted-packet'},
+                (
+                    ('test_security_and_web_design_triggers', (
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']][:3], 'security', 'contains'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']][:3], 'web_design', 'contains'),
+                    )),
+                    ('test_ranked_experts_have_per_expert_executor_metadata', self._assert_ranked_experts_have_per_expert_executor_metadata),
+                ),
+            ),
+            RouteCase(
+                "Evaluate a contractor return for work_rerouting_or_subversion, objective dilution, and critical path deferral.",
+                {'share_boundary': 'redacted-packet'},
+                (
+                    ('test_work_rerouting_terms_require_sabotage_review_without_provider_conflict', (
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']][:3], 'sabotage_review', 'contains'),
+                        RouteCheck(lambda result: result['sabotage_review_required'], None, 'true'),
+                        RouteCheck(lambda result: result['peer_review_required'], None, 'true'),
+                        RouteCheck(lambda result: result['provider_conflict_detected'], None, 'false'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Refactor architecture policy and routing tests.",
+                {'model_synthesis': True, 'requested_roles': ['architecture']},
+                (
+                    ('test_model_synthesis_flag_marks_route_opt_in_accepted', (
+                        RouteCheck(lambda result: result['model_synthesis']['recommended_mode'], 'accepted'),
+                        RouteCheck(lambda result: result['model_synthesis']['activation_state'], 'accepted'),
+                        RouteCheck(lambda result: result['model_synthesis']['active'], None, 'true'),
+                        RouteCheck(lambda result: result['model_synthesis']['requires_user_acceptance'], None, 'false'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.",
+                {'execution_environment': 'connected-codex-glm-primary',
+                 'model_synthesis': True,
+                 'requested_roles': ['architecture']},
+                (
+                    ('test_glm_primary_environment_routes_architecture_to_glm_with_codex_counter_review', (
+                        RouteCheck(lambda result: result['execution_environment'], 'connected-codex-glm-primary'),
+                        RouteCheck(lambda result: result['architecture_authority'], 'glm-5.2-primary-architect'),
+                        RouteCheck(lambda result: result['project_manager_executor'], 'codex_project_manager'),
+                        RouteCheck(lambda result: result['recommended_executor'], 'rhoai_glm_primary_architect'),
+                        RouteCheck(lambda result: result['selected_executor']['model_profile'], 'rhoai-architect-glm-5-2-bf16-thinking'),
+                        RouteCheck(lambda result: result['local_worker_opt_in_source'], 'execution-environment'),
+                        RouteCheck(lambda result: result['requested_architecture_critic_executors'], 'codex_architecture_critic', 'contains'),
+                        RouteCheck(lambda result: result['model_synthesis']['synthesis_owner'], 'rhoai_glm_primary_architect'),
+                        RouteCheck(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['codex_architecture_critic']['role'], 'architecture-counter-review'),
+                        RouteCheck(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['codex_architecture_critic']['effort'], 'codex-5.6-sol'),
+                        RouteCheck(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['rhoai_glm_primary_architect']['role'], 'primary-architect'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.",
+                {'model_synthesis': True, 'requested_roles': ['architecture']},
+                (
+                    ('test_default_environment_keeps_codex_as_architect', (
+                        RouteCheck(lambda result: result['execution_environment'], 'connected-codex'),
+                        RouteCheck(lambda result: result['architecture_authority'], 'codex-frontier-architect'),
+                        RouteCheck(lambda result: result['primary_architect_executor'], 'frontier_architect'),
+                        RouteCheck(lambda result: result['selected_executor']['model_label'], 'codex-5.6-sol'),
+                        RouteCheck(lambda result: result['execution_environment_profile']['role_bindings']['architect']['model'], 'gpt-6.1-sol'),
+                        RouteCheck(lambda result: result['recommended_executor'], 'rhoai_glm_primary_architect', 'not-equal'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",
+                {'file_paths': ['docs/index.html', 'README.md']},
+                (
+                    ('test_public_docs_pages_require_editor_gate', (
+                        RouteCheck(lambda result: result['editor_gate_required'], None, 'true'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'documentation', 'contains'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'web_design', 'contains'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'editor', 'contains'),
+                        RouteCheck(lambda result: next((expert for expert in result['ranked_experts'] if expert['name'] == 'editor'))['validation_gate_required'], None, 'true'),
+                        RouteCheck(lambda result: next((expert for expert in result['ranked_experts'] if expert['name'] == 'editor'))['job_description_label'], 'contract-jd-editorial-reasoning'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Fix a typo in the README.",
+                {'file_paths': ['README.md']},
+                (
+                    ('test_typo_class_readme_change_stays_low_risk_without_editor_gate', (
+                        RouteCheck(lambda result: result['risk_level'], 'low'),
+                        RouteCheck(lambda result: result['editor_gate_required'], None, 'false'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'editor', 'not-contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "fix wording in error messages and harden auth token validation",
+                {},
+                (
+                    ('test_mixed_security_wording_change_is_not_demoted_to_low_risk', (
+                        RouteCheck(lambda result: result['risk_level'], 'high'),
+                        RouteCheck(lambda result: result['task_class'], 'security-review'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'security', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "fix wording in error messages and harden auth token validation",
+                {'file_paths': ['scripts/auth.py']},
+                (
+                    ('test_mixed_security_wording_change_with_code_path_is_not_demoted', (
+                        RouteCheck(lambda result: result['risk_level'], 'high'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'security', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Fix wording in docs/usage.md.",
+                {'file_paths': ['docs/usage.md']},
+                (
+                    ('test_docs_only_wording_change_stays_low_risk_when_docs_scoped', (
+                        RouteCheck(lambda result: result['risk_level'], 'low'),
+                        RouteCheck(lambda result: result['task_class'], {'docs-review', 'general-review'}, 'in'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Publish README install docs for external operators.",
+                {'file_paths': ['README.md']},
+                (
+                    ('test_publish_readme_change_still_requires_editor_gate', (
+                        RouteCheck(lambda result: result['editor_gate_required'], None, 'true'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'editor', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Rewrite the README architecture overview and operator flow.",
+                {'file_paths': ['README.md']},
+                (
+                    ('test_substantive_readme_change_requires_editor_gate_by_path', (
+                        RouteCheck(lambda result: result['editor_gate_required'], None, 'true'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'documentation', 'contains'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'editor', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics "
+                "of the Codex architect design for a cross-cutting public contract architecture migration.",
+                {'external_ok': True, 'requested_roles': ['architecture'], 'share_boundary': 'redacted-packet'},
+                (
+                    ('test_dual_architecture_critics_are_preserved_as_independent_contracts', (
+                        RouteCheck(lambda result: result['recommended_executor'], 'claude_architecture_critic'),
+                        RouteCheck(lambda result: result['requested_architecture_critic_executors'], ['claude_architecture_critic', 'gemini_architecture_critic']),
+                        RouteCheck(lambda result: [contract['executor'] for contract in result['architecture_critic_contracts']], ['claude_architecture_critic', 'gemini_architecture_critic']),
+                        RouteCheck(lambda result: result['architecture_review_complexity'], 'high'),
+                        RouteCheck(lambda result: result['claude_architecture_effort'], 'xhigh'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Use exact GLM-5.3 as a second-opinion architecture critic.",
+                {'local_ok': True,
+                 'local_profile': 'openshift-ai-glm-5-3-direct',
+                 'requested_roles': ['architecture']},
+                (
+                    ('test_glm53_does_not_silently_fall_back_to_glm52_executor', (
+                        RouteCheck(lambda result: result['requested_architecture_critic_executors'], ['rhoai_glm_compact_architecture_critic']),
+                        RouteCheck(lambda result: result['recommended_executor'], 'rhoai_glm_compact_architecture_critic'),
+                        RouteCheck(lambda result: result['selected_executor']['model_profile'], 'rhoai-architect-glm-5-3-bf16-compact-critic'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Use Claude Opus and GLM as architecture critics. "
+                "The critic panel is closed to those two providers. "
+                "Do not add Gemini or ChatGPT Pro.",
+                {'external_ok': True,
+                 'local_ok': True,
+                 'model_synthesis': True,
+                 'requested_roles': ['architecture'],
+                 'share_boundary': 'redacted-packet'},
+                (
+                    ('test_prohibited_provider_is_not_treated_as_architecture_critic_opt_in', (
+                        RouteCheck(lambda result: result['requested_architecture_critic_executors'], ['claude_architecture_critic', 'rhoai_glm_hardened_architecture_critic']),
+                        RouteCheck(lambda result: result['blocking_review_required'], None, 'false'),
+                        RouteCheck(lambda result: any(('conflicting architecture critic intent' in item for item in result['hard_stops'])), None, 'false'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Reconcile and publish the public README and docs pages. "
+                "Use Claude Opus and GLM as architecture critics with model synthesis. "
+                "The critic panel is closed to those two providers. "
+                "Do not add Gemini or ChatGPT Pro.",
+                {'external_ok': True,
+                 'file_paths': ['README.md', 'docs/workflows.html'],
+                 'local_ok': True,
+                 'local_profile': 'openshift-ai-glm-256k',
+                 'model_synthesis': True,
+                 'prefer_local': True,
+                 'requested_roles': ['architecture'],
+                 'share_boundary': 'redacted-packet'},
+                (
+                    ('test_public_docs_gate_does_not_change_architecture_critic_task_class', (
+                        RouteCheck(lambda result: result['editor_gate_required'], None, 'true'),
+                        RouteCheck(lambda result: [contract['executor'] for contract in result['architecture_critic_contracts']], ['claude_architecture_critic', 'rhoai_glm_hardened_architecture_critic']),
+                        RouteCheck(lambda result: all((not contract['selected_executor']['policy_violations'] for contract in result['architecture_critic_contracts'])), None, 'true'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Use Gemini as an architecture critic. Do not add Gemini.",
+                {'external_ok': True, 'requested_roles': ['architecture'], 'share_boundary': 'redacted-packet'},
+                (
+                    ('test_conflicting_architecture_critic_intent_fails_closed', (
+                        RouteCheck(lambda result: result['requested_architecture_critic_executors'], 'gemini_architecture_critic', 'not-contains'),
+                        RouteCheck(lambda result: any((contract.get('executor') == 'gemini_architecture_critic' for contract in result['architecture_critic_contracts'])), None, 'false'),
+                        RouteCheck(lambda result: result['hard_stops'], 'conflicting architecture critic intent: gemini_architecture_critic is both requested and prohibited', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Use Claude Opus as only external architecture critic. "
+                "No Gemini/Agy. No GLM. "
+                "Do not use model synthesis; direct adjudication.",
+                {'external_ok': True, 'requested_roles': ['architecture'], 'share_boundary': 'redacted-packet'},
+                (
+                    ('test_single_claude_critic_with_direct_adjudication_disables_synthesis', (
+                        RouteCheck(lambda result: result['requested_architecture_critic_executors'], ['claude_architecture_critic']),
+                        RouteCheck(lambda result: [contract['executor'] for contract in result['architecture_critic_contracts']], ['claude_architecture_critic']),
+                        RouteCheck(lambda result: result['model_synthesis']['recommended_mode'], 'disabled'),
+                        RouteCheck(lambda result: result['model_synthesis']['active'], None, 'false'),
+                        RouteCheck(lambda result: result['hard_stops'], []),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Use model synthesis. Do not use model synthesis.",
+                {'requested_roles': ['architecture']},
+                (
+                    ('test_conflicting_model_synthesis_language_fails_closed', (
+                        RouteCheck(lambda result: result['model_synthesis']['recommended_mode'], 'disabled'),
+                        RouteCheck(lambda result: result['hard_stops'], 'conflicting model synthesis intent: synthesis is both requested and prohibited', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Do not use model synthesis; use direct architect adjudication.",
+                {'model_synthesis': True, 'requested_roles': ['architecture']},
+                (
+                    ('test_model_synthesis_flag_conflicting_with_prohibition_fails_closed', (
+                        RouteCheck(lambda result: result['model_synthesis']['recommended_mode'], 'disabled'),
+                        RouteCheck(lambda result: result['model_synthesis']['active'], None, 'false'),
+                        RouteCheck(lambda result: result['hard_stops'], 'conflicting model synthesis intent: synthesis is both requested and prohibited', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Get a second opinion on the architect design.",
+                {'external_ok': True, 'requested_roles': ['architecture'], 'share_boundary': 'redacted-packet'},
+                (
+                    ('test_generic_second_opinion_does_not_authorize_external_critic', (
+                        RouteCheck(lambda result: result['requested_architecture_critic_executors'], 'claude_architecture_critic', 'not-contains'),
+                        RouteCheck(lambda result: result['requested_architecture_critic_executors'], 'gemini_architecture_critic', 'not-contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Tap in ChatGPT Pro 5.5 to weigh in as a master review of the final architect plan.",
+                {'external_ok': True, 'share_boundary': 'redacted-packet'},
+                (
+                    ('test_chatgpt_pro_master_review_weigh_in_wording_routes_to_master_review', (
+                        RouteCheck(lambda result: result['task_class'], 'master-plan-review'),
+                        RouteCheck(lambda result: result['recommended_executor'], 'chatgpt_pro_browser_master_reviewer'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Have someone weigh in on this plan.",
+                {'external_ok': True, 'share_boundary': 'redacted-packet'},
+                (
+                    ('test_generic_weigh_in_does_not_route_to_chatgpt_master_review', (
+                        RouteCheck(lambda result: result['recommended_executor'], 'chatgpt_pro_browser_master_reviewer', 'not-equal'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Update landing page copy.",
+                {'file_paths': ['docs/index.html']},
+                (
+                    ('test_public_docs_page_path_alone_requires_editor_gate', (
+                        RouteCheck(lambda result: result['editor_gate_required'], None, 'true'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'documentation', 'contains'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'web_design', 'contains'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'editor', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Review public docs and README install guidance with local model evidence.",
+                {'file_paths': ['README.md'], 'local_ok': True, 'prefer_local': True},
+                (
+                    ('test_prefer_local_does_not_skip_public_docs_editor_gate', (
+                        RouteCheck(lambda result: result['editor_gate_required'], None, 'true'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'documentation', 'contains'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'editor', 'contains'),
+                        RouteCheck(lambda result: result['editor_gate_experts'], 'editor', 'contains'),
+                        RouteCheck(lambda result: next((expert for expert in result['ranked_experts'] if expert['name'] == 'editor'))['selected_executor']['dispatch_mode'], {'local_openai_compatible', 'local_secure_review'}, 'not-in'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Update helper script copy.",
+                {'file_paths': ['scripts/coach_prompt.py']},
+                (
+                    ('test_non_public_doc_path_does_not_require_editor_gate', (
+                        RouteCheck(lambda result: result['editor_gate_required'], None, 'false'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'editor', 'not-contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Documentation review for internal Beads workgraph behavior.",
+                {'requested_roles': ['documentation']},
+                (
+                    ('test_internal_docs_do_not_auto_require_editor_gate', (
+                        RouteCheck(lambda result: result['editor_gate_required'], None, 'false'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'editor', 'not-contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Use CWO and Beads for next sprint planning: define the sprint goal, "
+                "map stories into Beads issues, set Definition of Ready and Definition of Done, "
+                "and avoid backlog sprawl.",
+                {},
+                (
+                    ('test_project_manager_sprint_steward_routes_by_planning_terms', (
+                        RouteCheck(lambda result: result['ranked_experts'][0]['name'], 'project_manager_sprint_steward'),
+                        RouteCheck(lambda result: result['ranked_experts'][0]['job_description_label'], 'contract-jd-project-manager-sprint-steward'),
+                        RouteCheck(lambda result: result['ranked_experts'][0]['output_contract'], 'Definition of Ready', 'contains'),
+                        RouteCheck(lambda result: result['ranked_experts'][0]['acceptance_checks'], 'stories and sprints are treated as planning language', 'contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Resume epic cwo-123 and tell me what next issue is ready or blocked for sprint continuation.",
+                {},
+                (
+                    ('test_project_manager_sprint_steward_routes_continuation_terms', (
+                        RouteCheck(lambda result: result['ranked_experts'][0]['name'], 'project_manager_sprint_steward'),
+                        RouteCheck(lambda result: result['ranked_experts'][0]['task_class'], 'project-management'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Distinguished Engineer documentation, security, architecture, and coding quality review.",
+                {'requested_roles': ['documentation', 'security', 'architecture', 'coding-quality']},
+                (
+                    ('test_short_trigger_terms_do_not_match_inside_unrelated_words', (
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'web_design', 'not-contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Review ACME deployment docs, central routing, and sensor data formatting.",
+                {},
+                (
+                    ('test_generic_red_hat_adjacent_words_do_not_overroute_product_experts', (
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'rhacm', 'not-contains'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'rhacs', 'not-contains'),
+                        RouteCheck(lambda result: [expert['name'] for expert in result['ranked_experts']], 'openshift_app_dev', 'not-contains'),
+                    )),
+                ),
+            ),
+            RouteCase(
+                "Review Advanced Cluster Services policy enforcement and admission behavior.",
+                {},
+                (
+                    ('test_advanced_cluster_services_routes_to_rhacs_compatibility_alias', (
+                        RouteCheck(lambda result: result['ranked_experts'][0]['name'], 'rhacs'),
+                        RouteCheck(lambda result: result['ranked_experts'][0]['job_description_label'], 'contract-jd-redhat-rhacs'),
+                    )),
+                ),
+            ),
         )
+        assertions = {
+            "equal": self.assertEqual, "not-equal": self.assertNotEqual,
+            "contains": lambda value, expected: self.assertIn(expected, value),
+            "not-contains": lambda value, expected: self.assertNotIn(expected, value),
+            "in": self.assertIn, "not-in": self.assertNotIn,
+            "true": lambda value, _: self.assertTrue(value),
+            "false": lambda value, _: self.assertFalse(value),
+        }
+        for row in rows:
+            with self.subTest(request=tuple(original for original, _ in row.oracles)):
+                result = classify_work(row.task, **row.options)
+                for original, oracle in row.oracles:
+                    with self.subTest(original=original):
+                        if callable(oracle):
+                            oracle(result)
+                        else:
+                            for check in oracle:
+                                assertions[check.operation](check.value(result), check.expected)
 
-        self.assertEqual(result["beads_context_depth"], "summary")
-        self.assertNotIn(RETIRED_FIELD, result)
-        self.assertEqual(result["beads_context_depth_source"], "explicit")
-        self.assertEqual(result["beads_context_depth_provenance"]["requested_depth"], "summary")
-        self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
+    def _assert_ranked_experts_have_per_expert_executor_metadata(self, result: dict) -> None:
+        self.assertEqual(result["recommended_executor"], result["ranked_experts"][0]["recommended_executor"])
+        for expert in result["ranked_experts"][:2]:
+            self.assertIn("recommended_executor", expert)
+            self.assertIn("selected_executor", expert)
+            self.assertIn("executor_policy_violations", expert)
+
 
     def test_route_context_depth_alias_flag_is_removed(self) -> None:
         result = subprocess.run(
@@ -77,42 +554,6 @@ class RouteWorkTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"unrecognized arguments: {RETIRED_FLAG}", result.stderr)
 
-    def test_data_sensitivity_operator_declaration_overrides_heuristic(self) -> None:
-        result = classify_work(
-            "Publish public docs for the install flow.",
-            data_sensitivity="restricted",
-        )
-
-        self.assertEqual(result["data_sensitivity"], "restricted")
-        self.assertEqual(result["data_sensitivity_source"], "operator-declared")
-        self.assertEqual(result["data_sensitivity_heuristic"], "public")
-        self.assertEqual(result["data_sensitivity_provenance"]["declared_sensitivity"], "restricted")
-        self.assertEqual(result["data_sensitivity_provenance"]["heuristic_sensitivity"], "public")
-        self.assertEqual(result["data_sensitivity_provenance"]["effective_sensitivity"], "restricted")
-        self.assertTrue(result["data_sensitivity_provenance"]["advisory_heuristic"])
-        self.assertIn("can miss paraphrases", result["data_sensitivity_disclaimer"])
-
-    def test_data_sensitivity_override_covers_heuristic_false_negative(self) -> None:
-        result = classify_work(
-            "Review tenant dossier retention for the workflow.",
-            data_sensitivity="restricted",
-        )
-
-        self.assertEqual(result["data_sensitivity"], "restricted")
-        self.assertEqual(result["data_sensitivity_heuristic"], "internal")
-        self.assertEqual(result["data_sensitivity_source"], "operator-declared")
-
-    def test_data_sensitivity_declaration_is_floor_not_ceiling(self) -> None:
-        result = classify_work(
-            "Review customer records export and employee data cleanup.",
-            data_sensitivity="public",
-        )
-
-        self.assertEqual(result["data_sensitivity"], "restricted")
-        self.assertEqual(result["data_sensitivity_heuristic"], "restricted")
-        self.assertEqual(result["data_sensitivity_source"], "operator-declared")
-        self.assertEqual(result["data_sensitivity_provenance"]["declared_sensitivity"], "public")
-        self.assertIn("raised the effective sensitivity", result["data_sensitivity_provenance"]["reason"])
 
     def test_sensitivity_heuristic_catches_common_paraphrases(self) -> None:
         restricted = classify_work("Review customer records export and employee data cleanup.")
@@ -145,41 +586,6 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(payload["data_sensitivity_source"], "operator-declared")
         self.assertEqual(payload["data_sensitivity_heuristic"], "public")
 
-    def test_security_and_web_design_triggers(self) -> None:
-        result = classify_work(
-            "Security and web design review for contractor packet behavior.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-            requested_roles=["security", "web-design"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-        self.assertIn("security", names[:3])
-        self.assertIn("web_design", names[:3])
-
-    def test_work_rerouting_terms_require_sabotage_review_without_provider_conflict(self) -> None:
-        result = classify_work(
-            "Evaluate a contractor return for work_rerouting_or_subversion, objective dilution, and critical path deferral.",
-            share_boundary="redacted-packet",
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-
-        self.assertIn("sabotage_review", names[:3])
-        self.assertTrue(result["sabotage_review_required"])
-        self.assertTrue(result["peer_review_required"])
-        self.assertFalse(result["provider_conflict_detected"])
-
-    def test_ranked_experts_have_per_expert_executor_metadata(self) -> None:
-        result = classify_work(
-            "Security and web design review for contractor packet behavior.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-            requested_roles=["security", "web-design"],
-        )
-        self.assertEqual(result["recommended_executor"], result["ranked_experts"][0]["recommended_executor"])
-        for expert in result["ranked_experts"][:2]:
-            self.assertIn("recommended_executor", expert)
-            self.assertIn("selected_executor", expert)
-            self.assertIn("executor_policy_violations", expert)
 
     def test_human_output_shows_per_expert_executor_and_controls(self) -> None:
         result = classify_work(
@@ -201,58 +607,6 @@ class RouteWorkTests(unittest.TestCase):
         self.assertIn("executor=", rendered)
         self.assertIn("violations=", rendered)
 
-    def test_model_synthesis_flag_marks_route_opt_in_accepted(self) -> None:
-        result = classify_work(
-            "Refactor architecture policy and routing tests.",
-            requested_roles=["architecture"],
-            model_synthesis=True,
-        )
-
-        self.assertEqual(result["model_synthesis"]["recommended_mode"], "accepted")
-        self.assertEqual(result["model_synthesis"]["activation_state"], "accepted")
-        self.assertTrue(result["model_synthesis"]["active"])
-        self.assertFalse(result["model_synthesis"]["requires_user_acceptance"])
-
-    def test_glm_primary_environment_routes_architecture_to_glm_with_codex_counter_review(self) -> None:
-        result = classify_work(
-            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.",
-            requested_roles=["architecture"],
-            execution_environment="connected-codex-glm-primary",
-            model_synthesis=True,
-        )
-
-        self.assertEqual(result["execution_environment"], "connected-codex-glm-primary")
-        self.assertEqual(result["architecture_authority"], "glm-5.2-primary-architect")
-        self.assertEqual(result["project_manager_executor"], "codex_project_manager")
-        self.assertEqual(result["recommended_executor"], "rhoai_glm_primary_architect")
-        self.assertEqual(result["selected_executor"]["model_profile"], "rhoai-architect-glm-5-2-bf16-thinking")
-        self.assertEqual(result["local_worker_opt_in_source"], "execution-environment")
-        self.assertIn("codex_architecture_critic", result["requested_architecture_critic_executors"])
-        self.assertEqual(
-            result["model_synthesis"]["synthesis_owner"],
-            "rhoai_glm_primary_architect",
-        )
-        panel = {item["executor"]: item for item in result["model_synthesis"]["recommended_panel"]}
-        self.assertEqual(panel["codex_architecture_critic"]["role"], "architecture-counter-review")
-        self.assertEqual(panel["codex_architecture_critic"]["effort"], "codex-5.6-sol")
-        self.assertEqual(panel["rhoai_glm_primary_architect"]["role"], "primary-architect")
-
-    def test_default_environment_keeps_codex_as_architect(self) -> None:
-        result = classify_work(
-            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.",
-            requested_roles=["architecture"],
-            model_synthesis=True,
-        )
-
-        self.assertEqual(result["execution_environment"], "connected-codex")
-        self.assertEqual(result["architecture_authority"], "codex-frontier-architect")
-        self.assertEqual(result["primary_architect_executor"], "frontier_architect")
-        self.assertEqual(result["selected_executor"]["model_label"], "codex-5.6-sol")
-        self.assertEqual(
-            result["execution_environment_profile"]["role_bindings"]["architect"]["model"],
-            "gpt-6.1-sol",
-        )
-        self.assertNotEqual(result["recommended_executor"], "rhoai_glm_primary_architect")
 
     def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:
         output = subprocess.check_output(
@@ -273,78 +627,6 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(result["model_synthesis"]["recommended_mode"], "accepted")
         self.assertTrue(result["model_synthesis"]["active"])
 
-    def test_public_docs_pages_require_editor_gate(self) -> None:
-        result = classify_work(
-            "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",
-            file_paths=["docs/index.html", "README.md"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-        self.assertTrue(result["editor_gate_required"])
-        self.assertIn("documentation", names)
-        self.assertIn("web_design", names)
-        self.assertIn("editor", names)
-        editor = next(expert for expert in result["ranked_experts"] if expert["name"] == "editor")
-        self.assertTrue(editor["validation_gate_required"])
-        self.assertEqual(editor["job_description_label"], "contract-jd-editorial-reasoning")
-
-    def test_typo_class_readme_change_stays_low_risk_without_editor_gate(self) -> None:
-        result = classify_work(
-            "Fix a typo in the README.",
-            file_paths=["README.md"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-
-        self.assertEqual(result["risk_level"], "low")
-        self.assertFalse(result["editor_gate_required"])
-        self.assertNotIn("editor", names)
-
-    def test_mixed_security_wording_change_is_not_demoted_to_low_risk(self) -> None:
-        result = classify_work("fix wording in error messages and harden auth token validation")
-        names = [expert["name"] for expert in result["ranked_experts"]]
-
-        self.assertEqual(result["risk_level"], "high")
-        self.assertEqual(result["task_class"], "security-review")
-        self.assertIn("security", names)
-
-    def test_mixed_security_wording_change_with_code_path_is_not_demoted(self) -> None:
-        result = classify_work(
-            "fix wording in error messages and harden auth token validation",
-            file_paths=["scripts/auth.py"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-
-        self.assertEqual(result["risk_level"], "high")
-        self.assertIn("security", names)
-
-    def test_docs_only_wording_change_stays_low_risk_when_docs_scoped(self) -> None:
-        result = classify_work(
-            "Fix wording in docs/usage.md.",
-            file_paths=["docs/usage.md"],
-        )
-
-        self.assertEqual(result["risk_level"], "low")
-        self.assertIn(result["task_class"], {"docs-review", "general-review"})
-
-    def test_publish_readme_change_still_requires_editor_gate(self) -> None:
-        result = classify_work(
-            "Publish README install docs for external operators.",
-            file_paths=["README.md"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-
-        self.assertTrue(result["editor_gate_required"])
-        self.assertIn("editor", names)
-
-    def test_substantive_readme_change_requires_editor_gate_by_path(self) -> None:
-        result = classify_work(
-            "Rewrite the README architecture overview and operator flow.",
-            file_paths=["README.md"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-
-        self.assertTrue(result["editor_gate_required"])
-        self.assertIn("documentation", names)
-        self.assertIn("editor", names)
 
     def test_patch_branch_gemini_contract_requires_disclosure_escalation(self) -> None:
         text = (
@@ -447,190 +729,27 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(allowed["peer_review_required"])
         self.assertTrue(allowed["architect_adjudication_required"])
 
-    def test_dual_architecture_critics_are_preserved_as_independent_contracts(self) -> None:
-        result = classify_work(
-            "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics "
-            "of the Codex architect design for a cross-cutting public contract architecture migration.",
-            requested_roles=["architecture"],
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-        self.assertEqual(result["recommended_executor"], "claude_architecture_critic")
-        self.assertEqual(
-            result["requested_architecture_critic_executors"],
-            ["claude_architecture_critic", "gemini_architecture_critic"],
-        )
-        self.assertEqual(
-            [contract["executor"] for contract in result["architecture_critic_contracts"]],
-            ["claude_architecture_critic", "gemini_architecture_critic"],
-        )
-        self.assertEqual(result["architecture_review_complexity"], "high")
-        self.assertEqual(result["claude_architecture_effort"], "xhigh")
 
-    def test_dual_architecture_critics_accept_2nd_opinions_wording(self) -> None:
-        result = classify_work(
-            "Have Claude Opus and Gemini provide 2nd opinions of the architect design.",
-            requested_roles=["architecture"],
-            external_ok=True,
-            share_boundary="redacted-packet",
+    def test_dual_architecture_critic_wording_variants(self) -> None:
+        variants = (
+            ('test_dual_architecture_critics_accept_2nd_opinions_wording',
+             'Have Claude Opus and Gemini provide 2nd opinions of the architect design.'),
+            ('test_dual_architecture_critics_accept_hyphenated_plural_wording',
+             'Have Claude Opus and Gemini provide second-opinion critics for the architect design.'),
         )
-        self.assertEqual(
-            result["requested_architecture_critic_executors"],
-            ["claude_architecture_critic", "gemini_architecture_critic"],
-        )
+        for original, prompt in variants:
+            with self.subTest(original=original):
+                result = classify_work(
+                    prompt,
+                    requested_roles=["architecture"],
+                    external_ok=True,
+                    share_boundary="redacted-packet",
+                )
+                self.assertEqual(
+                    result["requested_architecture_critic_executors"],
+                    ["claude_architecture_critic", "gemini_architecture_critic"],
+                )
 
-    def test_dual_architecture_critics_accept_hyphenated_plural_wording(self) -> None:
-        result = classify_work(
-            "Have Claude Opus and Gemini provide second-opinion critics for the architect design.",
-            requested_roles=["architecture"],
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-        self.assertEqual(
-            result["requested_architecture_critic_executors"],
-            ["claude_architecture_critic", "gemini_architecture_critic"],
-        )
-
-    def test_glm53_does_not_silently_fall_back_to_glm52_executor(self) -> None:
-        result = classify_work(
-            "Use exact GLM-5.3 as a second-opinion architecture critic.",
-            requested_roles=["architecture"],
-            local_ok=True,
-            local_profile="openshift-ai-glm-5-3-direct",
-        )
-        self.assertEqual(
-            result["requested_architecture_critic_executors"],
-            ["rhoai_glm_compact_architecture_critic"],
-        )
-        self.assertEqual(result["recommended_executor"], "rhoai_glm_compact_architecture_critic")
-        self.assertEqual(result["selected_executor"]["model_profile"], "rhoai-architect-glm-5-3-bf16-compact-critic")
-
-    def test_prohibited_provider_is_not_treated_as_architecture_critic_opt_in(self) -> None:
-        result = classify_work(
-            "Use Claude Opus and GLM as architecture critics. "
-            "The critic panel is closed to those two providers. "
-            "Do not add Gemini or ChatGPT Pro.",
-            requested_roles=["architecture"],
-            external_ok=True,
-            local_ok=True,
-            share_boundary="redacted-packet",
-            model_synthesis=True,
-        )
-
-        self.assertEqual(
-            result["requested_architecture_critic_executors"],
-            [
-                "claude_architecture_critic",
-                "rhoai_glm_hardened_architecture_critic",
-            ],
-        )
-        self.assertFalse(result["blocking_review_required"])
-        self.assertFalse(
-            any("conflicting architecture critic intent" in item for item in result["hard_stops"])
-        )
-
-    def test_public_docs_gate_does_not_change_architecture_critic_task_class(self) -> None:
-        result = classify_work(
-            "Reconcile and publish the public README and docs pages. "
-            "Use Claude Opus and GLM as architecture critics with model synthesis. "
-            "The critic panel is closed to those two providers. "
-            "Do not add Gemini or ChatGPT Pro.",
-            file_paths=["README.md", "docs/workflows.html"],
-            requested_roles=["architecture"],
-            external_ok=True,
-            local_ok=True,
-            prefer_local=True,
-            local_profile="openshift-ai-glm-256k",
-            share_boundary="redacted-packet",
-            model_synthesis=True,
-        )
-
-        self.assertTrue(result["editor_gate_required"])
-        self.assertEqual(
-            [contract["executor"] for contract in result["architecture_critic_contracts"]],
-            [
-                "claude_architecture_critic",
-                "rhoai_glm_hardened_architecture_critic",
-            ],
-        )
-        self.assertTrue(
-            all(
-                not contract["selected_executor"]["policy_violations"]
-                for contract in result["architecture_critic_contracts"]
-            )
-        )
-
-    def test_conflicting_architecture_critic_intent_fails_closed(self) -> None:
-        result = classify_work(
-            "Use Gemini as an architecture critic. Do not add Gemini.",
-            requested_roles=["architecture"],
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-
-        self.assertNotIn(
-            "gemini_architecture_critic",
-            result["requested_architecture_critic_executors"],
-        )
-        self.assertFalse(
-            any(
-                contract.get("executor") == "gemini_architecture_critic"
-                for contract in result["architecture_critic_contracts"]
-            )
-        )
-        self.assertIn(
-            "conflicting architecture critic intent: gemini_architecture_critic "
-            "is both requested and prohibited",
-            result["hard_stops"],
-        )
-
-    def test_single_claude_critic_with_direct_adjudication_disables_synthesis(self) -> None:
-        result = classify_work(
-            "Use Claude Opus as only external architecture critic. "
-            "No Gemini/Agy. No GLM. "
-            "Do not use model synthesis; direct adjudication.",
-            requested_roles=["architecture"],
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-
-        self.assertEqual(
-            result["requested_architecture_critic_executors"],
-            ["claude_architecture_critic"],
-        )
-        self.assertEqual(
-            [contract["executor"] for contract in result["architecture_critic_contracts"]],
-            ["claude_architecture_critic"],
-        )
-        self.assertEqual(result["model_synthesis"]["recommended_mode"], "disabled")
-        self.assertFalse(result["model_synthesis"]["active"])
-        self.assertEqual(result["hard_stops"], [])
-
-    def test_conflicting_model_synthesis_language_fails_closed(self) -> None:
-        result = classify_work(
-            "Use model synthesis. Do not use model synthesis.",
-            requested_roles=["architecture"],
-        )
-
-        self.assertEqual(result["model_synthesis"]["recommended_mode"], "disabled")
-        self.assertIn(
-            "conflicting model synthesis intent: synthesis is both requested and prohibited",
-            result["hard_stops"],
-        )
-
-    def test_model_synthesis_flag_conflicting_with_prohibition_fails_closed(self) -> None:
-        result = classify_work(
-            "Do not use model synthesis; use direct architect adjudication.",
-            requested_roles=["architecture"],
-            model_synthesis=True,
-        )
-
-        self.assertEqual(result["model_synthesis"]["recommended_mode"], "disabled")
-        self.assertFalse(result["model_synthesis"]["active"])
-        self.assertIn(
-            "conflicting model synthesis intent: synthesis is both requested and prohibited",
-            result["hard_stops"],
-        )
 
     def test_routing_public_imports_remain_available(self) -> None:
         from cwo_core.routing import classify_work as imported_classify_work
@@ -639,15 +758,6 @@ class RouteWorkTests(unittest.TestCase):
         self.assertIs(imported_classify_work, classify_work)
         self.assertTrue(explicit_gemini_architect_critique_requested("Gemini second-opinion critic for architecture"))
 
-    def test_generic_second_opinion_does_not_authorize_external_critic(self) -> None:
-        result = classify_work(
-            "Get a second opinion on the architect design.",
-            requested_roles=["architecture"],
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-        self.assertNotIn("claude_architecture_critic", result["requested_architecture_critic_executors"])
-        self.assertNotIn("gemini_architecture_critic", result["requested_architecture_critic_executors"])
 
     def test_chatgpt_pro_master_plan_review_requires_external_opt_in(self) -> None:
         text = "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
@@ -681,22 +791,6 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(allowed["peer_review_required"])
         self.assertTrue(allowed["architect_adjudication_required"])
 
-    def test_chatgpt_pro_master_review_weigh_in_wording_routes_to_master_review(self) -> None:
-        result = classify_work(
-            "Tap in ChatGPT Pro 5.5 to weigh in as a master review of the final architect plan.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-        self.assertEqual(result["task_class"], "master-plan-review")
-        self.assertEqual(result["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
-
-    def test_generic_weigh_in_does_not_route_to_chatgpt_master_review(self) -> None:
-        result = classify_work(
-            "Have someone weigh in on this plan.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-        self.assertNotEqual(result["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
 
     def test_chatgpt_pro_master_plan_review_keeps_deep_research_separate(self) -> None:
         master_review = classify_work(
@@ -740,52 +834,6 @@ class RouteWorkTests(unittest.TestCase):
         self.assertNotEqual(escalated["recommended_executor"], "gemini_architecture_critic")
         self.assertNotEqual(escalated["route"], "external-contract")
 
-    def test_public_docs_page_path_alone_requires_editor_gate(self) -> None:
-        result = classify_work(
-            "Update landing page copy.",
-            file_paths=["docs/index.html"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-        self.assertTrue(result["editor_gate_required"])
-        self.assertIn("documentation", names)
-        self.assertIn("web_design", names)
-        self.assertIn("editor", names)
-
-    def test_prefer_local_does_not_skip_public_docs_editor_gate(self) -> None:
-        result = classify_work(
-            "Review public docs and README install guidance with local model evidence.",
-            file_paths=["README.md"],
-            local_ok=True,
-            prefer_local=True,
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-        self.assertTrue(result["editor_gate_required"])
-        self.assertIn("documentation", names)
-        self.assertIn("editor", names)
-        self.assertIn("editor", result["editor_gate_experts"])
-        editor = next(expert for expert in result["ranked_experts"] if expert["name"] == "editor")
-        self.assertNotIn(
-            editor["selected_executor"]["dispatch_mode"],
-            {"local_openai_compatible", "local_secure_review"},
-        )
-
-    def test_non_public_doc_path_does_not_require_editor_gate(self) -> None:
-        result = classify_work(
-            "Update helper script copy.",
-            file_paths=["scripts/coach_prompt.py"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-        self.assertFalse(result["editor_gate_required"])
-        self.assertNotIn("editor", names)
-
-    def test_internal_docs_do_not_auto_require_editor_gate(self) -> None:
-        result = classify_work(
-            "Documentation review for internal Beads workgraph behavior.",
-            requested_roles=["documentation"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-        self.assertFalse(result["editor_gate_required"])
-        self.assertNotIn("editor", names)
 
     def test_red_hat_product_experts_route_by_requested_role(self) -> None:
         cases = [
@@ -837,27 +885,6 @@ class RouteWorkTests(unittest.TestCase):
                 self.assertEqual(primary["name"], expert_name)
                 self.assertEqual(primary["job_description_label"], job_label)
 
-    def test_project_manager_sprint_steward_routes_by_planning_terms(self) -> None:
-        result = classify_work(
-            "Use CWO and Beads for next sprint planning: define the sprint goal, "
-            "map stories into Beads issues, set Definition of Ready and Definition of Done, "
-            "and avoid backlog sprawl."
-        )
-
-        primary = result["ranked_experts"][0]
-        self.assertEqual(primary["name"], "project_manager_sprint_steward")
-        self.assertEqual(primary["job_description_label"], "contract-jd-project-manager-sprint-steward")
-        self.assertIn("Definition of Ready", primary["output_contract"])
-        self.assertIn("stories and sprints are treated as planning language", primary["acceptance_checks"])
-
-    def test_project_manager_sprint_steward_routes_continuation_terms(self) -> None:
-        result = classify_work(
-            "Resume epic cwo-123 and tell me what next issue is ready or blocked for sprint continuation."
-        )
-
-        primary = result["ranked_experts"][0]
-        self.assertEqual(primary["name"], "project_manager_sprint_steward")
-        self.assertEqual(primary["task_class"], "project-management")
 
     def test_red_hat_product_experts_route_by_trigger_terms(self) -> None:
         cases = [
@@ -875,13 +902,6 @@ class RouteWorkTests(unittest.TestCase):
                 names = [expert["name"] for expert in result["ranked_experts"][:2]]
                 self.assertIn(expert_name, names)
 
-    def test_short_trigger_terms_do_not_match_inside_unrelated_words(self) -> None:
-        result = classify_work(
-            "Distinguished Engineer documentation, security, architecture, and coding quality review.",
-            requested_roles=["documentation", "security", "architecture", "coding-quality"],
-        )
-        names = [expert["name"] for expert in result["ranked_experts"]]
-        self.assertNotIn("web_design", names)
 
     def test_short_trigger_terms_still_match_as_tokens(self) -> None:
         cases = [
@@ -900,18 +920,6 @@ class RouteWorkTests(unittest.TestCase):
                 names = [expert["name"] for expert in result["ranked_experts"][:3]]
                 self.assertIn(expert_name, names)
 
-    def test_generic_red_hat_adjacent_words_do_not_overroute_product_experts(self) -> None:
-        result = classify_work("Review ACME deployment docs, central routing, and sensor data formatting.")
-        names = [expert["name"] for expert in result["ranked_experts"]]
-        self.assertNotIn("rhacm", names)
-        self.assertNotIn("rhacs", names)
-        self.assertNotIn("openshift_app_dev", names)
-
-    def test_advanced_cluster_services_routes_to_rhacs_compatibility_alias(self) -> None:
-        result = classify_work("Review Advanced Cluster Services policy enforcement and admission behavior.")
-        primary = result["ranked_experts"][0]
-        self.assertEqual(primary["name"], "rhacs")
-        self.assertEqual(primary["job_description_label"], "contract-jd-redhat-rhacs")
 
     def test_rhel_idm_and_satellite_subspecialties_use_single_rhel_expert(self) -> None:
         for text in [

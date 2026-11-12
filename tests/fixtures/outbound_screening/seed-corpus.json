@@ -1,0 +1,485 @@
+{
+ "version": 1,
+ "description": "Literal seed cases for outbound screening, frozen from two independent case sets with separate provenance. Duplicated texts are marked, not removed.",
+ "sources": {
+  "redaction-cases": {
+   "origin": "Credential assignments, connection strings, authorization headers, key blocks, obfuscated field names and personal data in prose.",
+   "note": "The original set recorded only whether redaction changed each string; the expected spans here were added for this fixture."
+  },
+  "synthetic-probe-cases": {
+   "origin": "Synthetic credentials, key blocks and contact details on reserved example hosts, with control cases."
+  }
+ },
+ "cases": [
+  {
+   "id": "seed-a/aws_env",
+   "source": "redaction-cases",
+   "category": "assignment",
+   "text": "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+   "sensitive": [
+    "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+   ]
+  },
+  {
+   "id": "seed-a/aws_bare_in_prose",
+   "source": "redaction-cases",
+   "category": "prose-uncertain",
+   "text": "the key is wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY ok",
+   "sensitive": [
+    "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+   ]
+  },
+  {
+   "id": "seed-a/akia_prose",
+   "source": "redaction-cases",
+   "category": "token-prefix",
+   "text": "use AKIAIOSFODNN7EXAMPLE for access",
+   "sensitive": [
+    "AKIAIOSFODNN7EXAMPLE"
+   ]
+  },
+  {
+   "id": "seed-a/ghp_prose",
+   "source": "redaction-cases",
+   "category": "token-prefix",
+   "text": "token ghp_abcdefghijklmnopqrstuvwxyz0123456789 here",
+   "sensitive": [
+    "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+   ]
+  },
+  {
+   "id": "seed-a/github_pat_in_url",
+   "source": "redaction-cases",
+   "category": "url-userinfo",
+   "text": "git clone https://user:ghp_abcdefghijklmnopqrstuvwxyz0123456789@github.com/x/y",
+   "sensitive": [
+    "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+   ]
+  },
+  {
+   "id": "seed-a/pg_url",
+   "source": "redaction-cases",
+   "category": "url-userinfo",
+   "text": "DATABASE_URL=postgres://admin:hunter2@db.internal:5432/prod",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/pg_url_prose",
+   "source": "redaction-cases",
+   "category": "url-userinfo",
+   "text": "connect with postgres://admin:hunter2@db.internal:5432/prod",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/pwd_field",
+   "source": "redaction-cases",
+   "category": "assignment",
+   "text": "password: hunter2",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/pwd_field_upper",
+   "source": "redaction-cases",
+   "category": "assignment",
+   "text": "PASSWORD=hunter2",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/pwd_camel",
+   "source": "redaction-cases",
+   "category": "assignment",
+   "text": "dbPassword = 'hunter2'",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/pass_short",
+   "source": "redaction-cases",
+   "category": "assignment",
+   "text": "pass: hunter2",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/pwd_kebab",
+   "source": "redaction-cases",
+   "category": "assignment",
+   "text": "db-password: hunter2",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/pwd_json",
+   "source": "redaction-cases",
+   "category": "assignment",
+   "text": "{\"DB_PASS\": \"hunter2\"}",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/passphrase",
+   "source": "redaction-cases",
+   "category": "assignment",
+   "text": "passphrase: correct horse battery staple",
+   "sensitive": [
+    "correct horse battery staple"
+   ]
+  },
+  {
+   "id": "seed-a/pin",
+   "source": "redaction-cases",
+   "category": "assignment",
+   "text": "pin=4831",
+   "sensitive": [
+    "4831"
+   ]
+  },
+  {
+   "id": "seed-a/apikey_json",
+   "source": "redaction-cases",
+   "category": "token-prefix",
+   "text": "{\"apiKey\": \"AIzaSyD-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"}",
+   "sensitive": [
+    "AIzaSyD-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+   ]
+  },
+  {
+   "id": "seed-a/x_api_key_header",
+   "source": "redaction-cases",
+   "category": "header",
+   "text": "X-Api-Key: 9f8e7d6c5b4a39281706f5e4d3c2b1a0",
+   "sensitive": [
+    "9f8e7d6c5b4a39281706f5e4d3c2b1a0"
+   ]
+  },
+  {
+   "id": "seed-a/cookie_header",
+   "source": "redaction-cases",
+   "category": "header",
+   "text": "Cookie: sessionid=abc123def456ghi789",
+   "sensitive": [
+    "abc123def456ghi789"
+   ]
+  },
+  {
+   "id": "seed-a/basic_auth",
+   "source": "redaction-cases",
+   "category": "header",
+   "text": "Authorization: Basic YWRtaW46aHVudGVyMg==",
+   "sensitive": [
+    "YWRtaW46aHVudGVyMg=="
+   ]
+  },
+  {
+   "id": "seed-a/token_header",
+   "source": "redaction-cases",
+   "category": "header",
+   "text": "Authorization: token ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+   "sensitive": [
+    "ghp_abcdefghijklmnopqrstuvwxyz0123456789"
+   ]
+  },
+  {
+   "id": "seed-a/slack_webhook",
+   "source": "redaction-cases",
+   "category": "token-prefix",
+   "text": "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+   "sensitive": [
+    "XXXXXXXXXXXXXXXXXXXXXXXX"
+   ]
+  },
+  {
+   "id": "seed-a/openssh_key",
+   "source": "redaction-cases",
+   "category": "key-block",
+   "text": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAA\n-----END OPENSSH PRIVATE KEY-----",
+   "sensitive": [
+    "b3BlbnNzaC1rZXktdjEAAAAA"
+   ]
+  },
+  {
+   "id": "seed-a/pgp_key",
+   "source": "redaction-cases",
+   "category": "key-block",
+   "text": "-----BEGIN PGP PRIVATE KEY BLOCK-----\nlQOYBF...\n-----END PGP PRIVATE KEY BLOCK-----",
+   "sensitive": [
+    "lQOYBF..."
+   ]
+  },
+  {
+   "id": "seed-a/pem_truncated",
+   "source": "redaction-cases",
+   "category": "key-block",
+   "text": "-----BEGIN RSA PRIVATE KEY-----\nMIIEowIBAAKCAQEA7\n(truncated)",
+   "sensitive": [
+    "MIIEowIBAAKCAQEA7"
+   ]
+  },
+  {
+   "id": "seed-a/fullwidth_password",
+   "source": "redaction-cases",
+   "category": "unicode",
+   "text": "ｐａｓｓｗｏｒｄ: hunter2",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/zwsp_password",
+   "source": "redaction-cases",
+   "category": "unicode",
+   "text": "pass​word: hunter2",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-a/anthropic_key_prose",
+   "source": "redaction-cases",
+   "category": "token-prefix",
+   "text": "key sk-ant-api03-AbCdEf0123456789xyzXYZ is live",
+   "sensitive": [
+    "sk-ant-api03-AbCdEf0123456789xyzXYZ"
+   ]
+  },
+  {
+   "id": "seed-a/kubectl_token",
+   "source": "redaction-cases",
+   "category": "cli-flag",
+   "text": "kubectl --token=eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrIn0.sig123456 get pods",
+   "sensitive": [
+    "eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrIn0.sig123456"
+   ]
+  },
+  {
+   "id": "seed-a/curl_u",
+   "source": "redaction-cases",
+   "category": "cli-flag",
+   "text": "curl -u admin:S3cretPass! https://api",
+   "sensitive": [
+    "S3cretPass!"
+   ]
+  },
+  {
+   "id": "seed-a/mysql_p",
+   "source": "redaction-cases",
+   "category": "cli-flag",
+   "text": "mysql -uroot -pS3cretPass prod",
+   "sensitive": [
+    "S3cretPass"
+   ]
+  },
+  {
+   "id": "seed-a/personal_email",
+   "source": "redaction-cases",
+   "category": "pii",
+   "text": "contact jane.doe@example.com phone 555-123-4567 SSN 123-45-6789",
+   "sensitive": [
+    "jane.doe@example.com",
+    "555-123-4567",
+    "123-45-6789"
+   ]
+  },
+  {
+   "id": "seed-a/secret_word_in_prose",
+   "source": "redaction-cases",
+   "category": "prose-uncertain",
+   "text": "The secret is hunter2 and nobody knows",
+   "sensitive": [
+    "hunter2"
+   ]
+  },
+  {
+   "id": "seed-b/postgres_url_assignment",
+   "source": "synthetic-probe-cases",
+   "category": "url-userinfo",
+   "text": "DATABASE_URL=postgres://sample:examplePwd123@db.invalid/project",
+   "sensitive": [
+    "examplePwd123"
+   ]
+  },
+  {
+   "id": "seed-b/postgres_url_prose",
+   "source": "synthetic-probe-cases",
+   "category": "url-userinfo",
+   "text": "Database connection postgres://sample:examplePwd123@db.invalid/project",
+   "sensitive": [
+    "examplePwd123"
+   ]
+  },
+  {
+   "id": "seed-b/github_token_prose",
+   "source": "synthetic-probe-cases",
+   "category": "token-prefix",
+   "text": "Review key ghp_Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12",
+   "sensitive": [
+    "ghp_Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12"
+   ]
+  },
+  {
+   "id": "seed-b/aws_access_id_prose",
+   "source": "synthetic-probe-cases",
+   "category": "token-prefix",
+   "text": "Access identifier AKIAABCDEFGHIJKLMNOP",
+   "sensitive": [
+    "AKIAABCDEFGHIJKLMNOP"
+   ]
+  },
+  {
+   "id": "seed-b/anthropic_token_prose",
+   "source": "synthetic-probe-cases",
+   "category": "token-prefix",
+   "text": "Review key sk-ant-Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12",
+   "sensitive": [
+    "sk-ant-Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12Ab12"
+   ]
+  },
+  {
+   "id": "seed-b/curl_basic",
+   "source": "synthetic-probe-cases",
+   "category": "cli-flag",
+   "text": "curl -u sample:examplePwd123 https://example.invalid/",
+   "sensitive": [
+    "examplePwd123"
+   ]
+  },
+  {
+   "id": "seed-b/kubectl_token",
+   "source": "synthetic-probe-cases",
+   "category": "cli-flag",
+   "text": "kubectl --token=exampleToken123 get pods",
+   "sensitive": [
+    "exampleToken123"
+   ]
+  },
+  {
+   "id": "seed-b/mysql_password",
+   "source": "synthetic-probe-cases",
+   "category": "cli-flag",
+   "text": "mysql -pexamplePwd123 database",
+   "sensitive": [
+    "examplePwd123"
+   ]
+  },
+  {
+   "id": "seed-b/slack_webhook",
+   "source": "synthetic-probe-cases",
+   "category": "token-prefix",
+   "text": "Webhook https://hooks.slack.com/services/EXAMPLE/EXAMPLE/Ab12Cd34Ef56",
+   "sensitive": [
+    "Ab12Cd34Ef56"
+   ]
+  },
+  {
+   "id": "seed-b/pgp_key_block",
+   "source": "synthetic-probe-cases",
+   "category": "key-block",
+   "text": "-----BEGIN PGP PRIVATE KEY BLOCK-----\nSYNTHETIC-KEY-MATERIAL-123\n-----END PGP PRIVATE KEY BLOCK-----",
+   "sensitive": [
+    "SYNTHETIC-KEY-MATERIAL-123"
+   ]
+  },
+  {
+   "id": "seed-b/truncated_pem",
+   "source": "synthetic-probe-cases",
+   "category": "key-block",
+   "text": "-----BEGIN RSA PRIVATE KEY-----\nSYNTHETIC-KEY-MATERIAL-123",
+   "sensitive": [
+    "SYNTHETIC-KEY-MATERIAL-123"
+   ]
+  },
+  {
+   "id": "seed-b/fullwidth_password",
+   "source": "synthetic-probe-cases",
+   "category": "unicode",
+   "text": "ｐａｓｓｗｏｒｄ: examplePwd123",
+   "sensitive": [
+    "examplePwd123"
+   ]
+  },
+  {
+   "id": "seed-b/zero_width_password",
+   "source": "synthetic-probe-cases",
+   "category": "unicode",
+   "text": "pass​word: examplePwd123",
+   "sensitive": [
+    "examplePwd123"
+   ]
+  },
+  {
+   "id": "seed-b/db_pass_json",
+   "source": "synthetic-probe-cases",
+   "category": "assignment",
+   "text": "{\"DB_PASS\":\"examplePwd123\"}",
+   "sensitive": [
+    "examplePwd123"
+   ]
+  },
+  {
+   "id": "seed-b/contact_email",
+   "source": "synthetic-probe-cases",
+   "category": "pii",
+   "text": "Contact sample@example.invalid",
+   "sensitive": [
+    "sample@example.invalid"
+   ]
+  },
+  {
+   "id": "seed-b/contact_phone",
+   "source": "synthetic-probe-cases",
+   "category": "pii",
+   "text": "Contact +1-202-555-0142",
+   "sensitive": [
+    "+1-202-555-0142"
+   ]
+  },
+  {
+   "id": "seed-b/ssn",
+   "source": "synthetic-probe-cases",
+   "category": "pii",
+   "text": "Synthetic ID 123-45-6789",
+   "sensitive": [
+    "123-45-6789"
+   ]
+  },
+  {
+   "id": "seed-b/password_control",
+   "source": "synthetic-probe-cases",
+   "category": "assignment",
+   "text": "password: examplePwd123",
+   "sensitive": [
+    "examplePwd123"
+   ]
+  },
+  {
+   "id": "seed-b/aws_secret_control",
+   "source": "synthetic-probe-cases",
+   "category": "assignment",
+   "text": "AWS_SECRET_ACCESS_KEY=ExampleCredentialMaterial0123456789",
+   "sensitive": [
+    "ExampleCredentialMaterial0123456789"
+   ]
+  },
+  {
+   "id": "seed-b/authorization_control",
+   "source": "synthetic-probe-cases",
+   "category": "header",
+   "text": "Authorization: Bearer ExampleCredentialMaterial0123456789",
+   "sensitive": [
+    "ExampleCredentialMaterial0123456789"
+   ]
+  }
+ ]
+}

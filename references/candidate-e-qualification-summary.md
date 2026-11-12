@@ -21,11 +21,26 @@ ranking, and it does not claim that Candidate E was safer than C or F.
 | Artifact | SHA-256 | Status |
 | --- | --- | --- |
 | `prompts/archive/cwo-sol-operator-e-v5-qualified.md` | `75b3bdf7624d7e3913f2879f4a20306c74805ad8409ce785597da67e1011c3f8` | Exact prompt evaluated in the final v5 matrix |
-| `prompts/cwo-sol-operator-e.md` | `ce85010acb60ea9fafd81f84790524a86f685067b65f86c352e07a5d3367ef67` | Active prompt with the post-v5 repair |
+| `prompts/cwo-sol-operator-e.md` | `78a322fe1b5e72ba7f1d1a4253230f90fef37a372ed1334ec00c1e20647874b8` | Active prompt: post-v5 repair, scoped continuation and issue #44 wording |
 
-Automated profile tests bind both hashes. Installation and verification bind
-the active prompt bytes to the named `cwo-sol-operator-e` profile without
-changing ordinary Codex sessions.
+Earlier bytes of the active prompt, kept for reference only:
+
+| Revision | SHA-256 |
+| --- | --- |
+| Post-v5 repair | `ce85010acb60ea9fafd81f84790524a86f685067b65f86c352e07a5d3367ef67` |
+| Scoped-continuation update | `82fdd0a53aa188cfa5779950cd32d6f7d7b9fa2c4dac3af1c72480a75548f22d` |
+
+The issue #44 revision rewords two passages so they name the permitted action
+directly: an alternative workflow is used only when the applicable CWO contract
+already authorizes it, and provider safeguards, security and access gates,
+required validation and frozen protocol bindings are not optional. Authority,
+security and frozen-protocol boundaries are unchanged. Whether the wording
+affects provider safety stops is unknown; no controlled comparison was run.
+
+Automated profile tests bind the archived v5 hash and the active hash.
+Installation and verification bind the active prompt bytes to the named
+`cwo-sol-operator-e` profile without changing ordinary Codex sessions. An
+installed profile from earlier bytes fails verification until it is reinstalled.
 
 ## Repair boundary
 

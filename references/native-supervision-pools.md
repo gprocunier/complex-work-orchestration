@@ -1,8 +1,12 @@
 # Native Supervision Pools
 
 A pool lets one trusted host supervise a fixed group of workers. Concurrent
-execution is an opt-in, host-qualified preview for groups of N=1..3; it does not
-make assignment preparation, integration or publication concurrent. Start with
+execution is unavailable in this release: registered single-worker, pool and
+campaign routes ship with default-off source holds. The contract bounds groups
+to N=1..3; it does not make assignment preparation, integration or publication
+concurrent. Ordinary productive pool plans additionally require trusted-controller
+launcher authority, and no such controller ships. Supplying a controller or
+receipt cannot override the source holds. Start with
 [the delegation guide](../docs/native-supervision.html), then use this reference
 for admission, monitoring, interruption and cleanup.
 
@@ -39,30 +43,31 @@ preserved and architect/operator adjudication recorded before remediation.
 
 This reference is for operators deciding whether to use CWO's concurrent native
 worker supervision. Start with [Native Worker Supervision](native-supervision.md)
-for the normal single-worker path. A concurrent pool lets one trusted host control a fixed
-cohort of already-created native worker supervisors within the policy ceiling;
-it does not make
-packet construction, precommit, critics, integration, retry, replay, or
+for the held single-worker contract. A concurrent pool contract lets one trusted
+host control a fixed cohort of already-created native worker supervisors within
+the policy ceiling; it does not make packet construction, precommit, critics,
+integration, retry, replay, or
 publication concurrent.
 
 Every delegated native worker is supervised; there is no unsupervised mode or
-opt-out. One supervised worker remains the standard path. Running two or three
-supervised native workers concurrently is an opt-in Tech Preview that is
-experimental and disabled by default. It requires one fresh same-host capability
-receipt, a fixed cohort, and either isolated mutable worktrees or a shared
-read-only topology. The canonical policy releases the certified hard ceiling of
+opt-out. The single-worker contract remains the default topology, but its live route is
+held. The two- and three-worker preview contracts are also held in this release.
+The concurrency contract requires one fresh same-host capability receipt, a
+fixed cohort, and either isolated mutable worktrees or a shared
+read-only topology. The canonical policy records a contract hard ceiling of
 three; N>=4 remains blocked pending Phase 2 architecture and recertification.
 Start with the reader-facing
 [Native Supervision guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html#concurrency-preview),
-then review the [deferred hardening](#experimental-status-and-deferred-hardening)
-before opting in.
+then review the [deferred hardening](#experimental-status-and-deferred-hardening).
+No opt-in switch restores live execution in this release.
 
 The public contract is deliberately small:
 
 - One worker is the default and preserves single-worker behavior.
 - Every concurrent pool requires `--enable-concurrency` and a fresh trusted adapter
   capability receipt from the same live host process.
-- The currently released and hard ceilings are both three. N>=4 is not
+- The policy field `released_max_active_workers` and the hard ceiling are both
+  three. These are contract limits, not live availability. N>=4 is not
   represented by the current operative contract and is rejected.
 - Capacity above the policy hard ceiling, capacity above the released ceiling,
   threads, hot admission, replacement children, and a second coordinator are
@@ -77,8 +82,17 @@ The public contract is deliberately small:
 
 ## Readiness-first transaction launcher
 
-Use `scripts/run_admitted_native_pool_transaction.py` for productive N=1, N=2,
-or N=3 launch composition. The launcher accepts one hash-sealed transaction
+**Current status:** the launcher's command line refuses every ordinary plan,
+including `--validate-only`, with `transaction-controller-adapter-authority-missing`.
+Any future ordinary-plan execution requires source restoration and a trusted
+controller embedding the launcher with its adapter registry; no such controller
+ships. Maintenance (version 8) capabilities cannot override the live source
+holds either. The fixed-profile activation preview described below has its own
+default-off hold. The rest of this section describes the transaction contract
+for a future restored route with the required controller authority.
+
+`scripts/run_admitted_native_pool_transaction.py` composes productive N=1, N=2,
+or N=3 launches. The launcher accepts one hash-sealed transaction
 plan and one hash-bound runtime adapter. It reserves the whole transaction's
 session budget before any native start, records allocation intent before every
 session creation, validates each live release dependency against the bounded
@@ -177,11 +191,20 @@ python3 scripts/run_native_pool_activation_preview.py run \
   --dry-run
 ```
 
-`--dry-run` verifies the clean commit/tree, signed approval, fixed cohort,
+`--dry-run` verifies the clean commit/tree, signed approval (HMAC with a key the
+same Unix user can read, so it does not authenticate the operator against the
+lead), fixed cohort,
 tool-boundary bindings, and offline admission without consuming the approval,
-creating a permanent claim, or making an app-server RPC. Live execution remains
-a separate operator decision: replace `--dry-run` with
-`--enable-tech-preview` only for the exact prepared attempt.
+creating a permanent claim, or making an app-server RPC.
+
+Live execution is unavailable for now: `run --enable-tech-preview` refuses
+before any claim, RPC or Beads write. The live run closes accepted children in
+the private Beads database it prepared, but finds that database only by path,
+so a replaced path could redirect the write. It returns once the run binds the
+prepared database by filesystem identity through every use. `keygen`,
+`prepare`, `approve` and `--dry-run` remain available. The rest of this section
+describes the live run as it will behave once restored; none of it can run
+today.
 
 The live path permanently claims the activation ID and campaign nonce before
 approval verification, Beads claims, leases, or RPC. A bad, expired, mismatched,
@@ -450,10 +473,12 @@ admission.
 ## Rendering A Contract
 
 Start each ordinary worker supervisor first so its private state is in
-`status=created`. Productive concurrent execution then uses the admission-bound
-version-2 path. It revalidates the exact readiness snapshot, estimates,
-proportionality assessment, fixed cohort, worktrees, capability evidence, and
-leases before consuming a one-use `FixedCohortAdmissionCapability` in
+`status=created`. Once a trusted controller supplies launcher authority (none
+ships yet; see [the launcher status](#readiness-first-transaction-launcher)),
+productive concurrent execution uses the admission-bound version-2 path. It
+revalidates the exact readiness snapshot, estimates, proportionality
+assessment, fixed cohort, worktrees, capability evidence, and leases before
+consuming a one-use `FixedCohortAdmissionCapability` in
 `cwo_core.native_pool_admitted.run_admitted_native_pool()`.
 
 The version-1 render request and direct coordinator surface remain available

@@ -24,6 +24,7 @@ from typing import Any, Mapping
 import uuid
 
 from . import checked_command
+from . import native_live_availability as live_availability
 from .maintenance_authority import require_maintenance_operation
 from .maintenance_image import capture_control_image, require_control_image
 from .native_pool_contracts import canonical_sha256
@@ -262,12 +263,12 @@ def inspect_observation(*, root: Path, observation_sha256: str, now: dt.datetime
              and intent["issued_at"] == report["origin_issued_at"], "intent-operation-mismatch")
         prompt = raw["prompt.txt"].decode()
         need(bool(prompt.strip()) and digest(raw["prompt.txt"]) == intent["prompt_sha256"], "prompt-pin-mismatch")
-        from codex_tool_surface import PROOF_VERSION, require_zero_endpoint_inventory
+        from .codex_tool_surface import PROOF_VERSION, require_zero_endpoint_inventory
         proof = get("tool-surface.json")
         need(type(proof) is dict and type(proof.get("version")) is int and proof["version"] == PROOF_VERSION
              and proof.get("verified") is True and proof.get("requested_model") == model
              and proof.get("observed_model") == model, "tool-proof-invalid")
-        from codex_tool_surface import canonical_sha256 as surface_hash, TOOL_PROFILES
+        from .codex_tool_surface import canonical_sha256 as surface_hash, TOOL_PROFILES
         need(type(proof.get("requested_tools")) is list and all(type(t) is str for t in proof["requested_tools"])
              and proof.get("observed_tools") == proof["requested_tools"]
              and proof.get("tool_profile") == TOOL_PROFILES.get(tuple(proof["requested_tools"])), "tool-profile-mismatch")
@@ -511,10 +512,13 @@ def observe_qualification(*, operation, verifier, plan, workspace: Path, output:
                           session_ledger, tool_surface_proof: Mapping[str, Any], control_image_sha256: str,
                           fit_prompt: str, timeout_seconds: int = 180, ttl_seconds: int = 900):
     """Observe a genuine bounded no-tools provider turn; failures retain evidence."""
-    from run_native_pool_live_canaries import AppServer, AppServerRpcError, THREAD_PHASE_PRECOMMIT_FIT, contain_started_threads
-    from codex_tool_surface import require_surface_proof, ALLOWLIST_PARAMETER
+    from run_native_pool_live_canaries import contain_started_threads
+    from .codex_tool_surface import require_surface_proof, ALLOWLIST_PARAMETER
+    from .supervision.transport.app_server import AppServer, THREAD_PHASE_PRECOMMIT_FIT
+    from .supervision.transport.errors import AppServerRpcError
     from .maintenance_runtime_support import MaintenanceSessionLedger
     cap = require_maintenance_operation(operation, verifier=verifier, plan=plan)
+    live_availability.require_n1_live()
     scope = cap.evidence()["operation"]
     need(scope["workspace"] == str(workspace), "workspace-mismatch")
     need(type(session_ledger) is MaintenanceSessionLedger and session_ledger.mission_id == scope["mission_id"], "owner-session-ledger-required")
@@ -684,8 +688,12 @@ def _code_pins() -> dict[str, str]:
              root / "scripts/run_native_pool_live_canaries.py",
              *(root / "scripts/cwo_core" / name for name in (
                  "__init__.py", "maintenance_qualification.py", "maintenance_image.py", "checked_command.py", "maintenance_authority.py",
-                 "native_authority.py", "native_pool_contracts.py", "native_turn_dispatch.py",
-                 "native_canary_contracts.py", "native_stop_scope.py", "native_tool_isolation.py", "util.py"))]
+                 "native_authority.py", "native_pool_contracts.py", "native_turn_dispatch.py", "native_live_availability.py",
+                 "native_canary_contracts.py", "native_stop_scope.py", "native_tool_isolation.py", "util.py",
+                 # Moved from the two scripts above; pinned so the moved code stays covered.
+                 "codex_tool_surface.py", "supervision/__init__.py", "supervision/transport/__init__.py",
+                 "supervision/transport/app_server.py", "supervision/transport/errors.py",
+                 "supervision/transport/private_io.py"))]
     pins = {str(path): digest(_owned_read(path)[0]) for path in paths}
     executable = Path(sys.executable).resolve(strict=True)
     need(executable.is_file(), "checker-interpreter-invalid")
@@ -786,7 +794,7 @@ def qualification_capability_evidence(value, *, operation, verifier, tool_surfac
                             {"observation.json": row["observation_sha256"]}))
         get = lambda name: parse_json(pinned_bytes(row["root"], name, report["pins"]))
         proof, process = get("tool-surface.json"), get("process-start.json")
-        from codex_tool_surface import tool_profile_is_mutable, ALLOWLIST_PARAMETER
+        from .codex_tool_surface import tool_profile_is_mutable, ALLOWLIST_PARAMETER
         from .native_tool_isolation import default_tool_policy, build_tool_surface_snapshot, CORE_RESOURCE_TOOL_PROFILES
         profile = proof["tool_profile"]
         policy = default_tool_policy(mutable=tool_profile_is_mutable(profile), workload_class="operative",

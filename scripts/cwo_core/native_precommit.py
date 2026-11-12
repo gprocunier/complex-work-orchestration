@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping
 
 from .audit import record_audit_event
+from .model_identities import SPARK_MODEL
 from .native_session import (
     COMPACTION_EVENT,
     SEGMENT_END_EVENT,
@@ -40,7 +41,7 @@ STATE_SCHEMA = "schemas/native-precommit-state.schema.json"
 RECEIPT_SCHEMA = "schemas/native-precommit-receipt.schema.json"
 VALIDATION_RULE_VERSION = "native-precommit-receipt:v2"
 TRUSTED_ATTESTATION_SOURCE = "trusted-control-plane-session-metadata"
-REQUIRED_MODEL = "gpt-5.3-codex-spark"
+REQUIRED_MODEL = SPARK_MODEL
 FINAL_STATE = "closed"
 ACTIVE_STATES = {
     "created",

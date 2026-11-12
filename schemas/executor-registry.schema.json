@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/executor-registry:v2",
+  "title": "CWO Executor Registry",
+  "description": "Registered configuration shape only. Preparation for current v2 metadata. Declarations, commands and model identities are data, not permissions, installed capabilities or approval authority. Existing typed and cross-reference checks remain additional contracts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "aliases", "executors"],
+  "properties": {
+    "version": {"type": "integer", "const": 2},
+    "schema": {"type": "string", "const": "json-compatible-yaml"},
+    "aliases": {
+      "type": "object",
+      "description": "Dynamic alias names and string targets; target existence and cycles remain separate semantic checks.",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "executors": {
+      "type": "object",
+      "description": "Dynamic executor IDs without a mandatory roster. Optional access profiles retain existing reader fallbacks.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "display_name", "role", "provider_key", "venue", "dispatch_mode",
+          "external", "capabilities", "supports_web", "supports_shell",
+          "supports_repo_read", "supports_repo_write", "privacy_class", "max_risk",
+          "max_data_sensitivity", "cost_tier", "latency_tier", "manual_dispatch_required",
+          "explicit_opt_in_required", "acceptance_required", "architect_review_required", "codex_pickup"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "role": {"type": "string"},
+          "provider_key": {"type": "string"},
+          "venue": {"type": "string"},
+          "dispatch_mode": {"type": "string"},
+          "access_profile": {"type": "string"},
+          "alias_for": {"type": "string"},
+          "local_profile": {"type": "string"},
+          "model_profile": {"type": "string"},
+          "model_label": {"type": "string"},
+          "model_role": {"type": "string"},
+          "external": {"type": "boolean"},
+          "capabilities": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "allowed_task_classes": {"type": "array", "items": {"type": "string", "minLength": 1}},
+          "allowed_risks": {"type": "array", "items": {"type": "string", "enum": ["low", "medium", "high", "critical"]}},
+          "supports_web": {"type": "boolean"},
+          "supports_shell": {"type": "boolean"},
+          "supports_repo_read": {"type": "boolean"},
+          "supports_repo_write": {"type": "boolean"},
+          "privacy_class": {"type": "string"},
+          "max_risk": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+          "max_data_sensitivity": {"type": "string", "enum": ["public", "redacted", "internal", "restricted"]},
+          "cost_tier": {"type": "string"},
+          "latency_tier": {"type": "string"},
+          "reasoning_tier": {"type": "string"},
+          "manual_dispatch_required": {"type": "boolean"},
+          "explicit_opt_in_required": {"type": "boolean"},
+          "acceptance_required": {"type": "boolean"},
+          "architect_review_required": {"type": "boolean"},
+          "fallback_only": {"type": "boolean"},
+          "codex_pickup": {"type": "string"},
+          "critique_mode": {"type": "string"},
+          "default_synthesis_use": {"type": "string"},
+          "synthesis_use_rationale": {"type": "string"},
+          "transport": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind"],
+            "properties": {
+              "kind": {"type": "string"},
+              "base_url_env": {"type": "string"},
+              "api_key_env": {"type": "string"},
+              "model_env": {"type": "string"},
+              "default_model": {"type": "string"},
+              "required_model": {"type": "string"},
+              "endpoint_path": {"type": "string"},
+              "auth_mode": {"type": "string"},
+              "model_preflight_required": {"type": "boolean"},
+              "model_preflight_endpoint_path": {"type": "string"},
+              "max_preflight_to_post_ms": {"type": "integer", "minimum": 0},
+              "response_model_required": {"type": "boolean"},
+              "required_finish_reason": {"type": "string"},
+              "required_reasoning_effort": {"type": "string"},
+              "timeout_seconds": {"type": "integer", "minimum": 1},
+              "max_timeout_seconds": {"type": "integer", "minimum": 1},
+              "max_input_chars": {"type": "integer", "minimum": 0},
+              "target_input_chars": {"type": "integer", "minimum": 0},
+              "max_output_tokens": {"type": "integer", "minimum": 0},
+              "max_final_chars": {"type": "integer", "minimum": 0},
+              "allow_private_dns": {"type": "boolean"},
+              "tls_ca_bundle_env": {"type": "string"},
+              "tls_verify_env": {"type": "string"},
+              "allow_insecure_tls": {"type": "boolean"},
+              "request_options": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "reasoning_effort": {"type": "string"},
+                  "include_reasoning": {"type": "boolean"},
+                  "max_tokens": {"type": "integer", "minimum": 0},
+                  "chat_template_kwargs": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "enable_thinking": {"type": "boolean"}
+                    }
+                  }
+                }
+              },
+              "allowed_request_options": {"type": "array", "items": {"type": "string", "minLength": 1}},
+              "forbidden_request_options": {"type": "array", "items": {"type": "string", "minLength": 1}},
+              "thinking_required": {"type": "boolean"},
+              "thinking_parser": {"type": "string"},
+              "response_contract": {"type": "string"},
+              "server_structured_outputs_status": {"type": "string"},
+              "quarantine_contract_invalid_content": {"type": "boolean"},
+              "quarantine_unusable_content": {"type": "boolean"},
+              "response_sanitization": {"type": "string"},
+              "config_env": {"type": "string"},
+              "default_config": {"type": "string"},
+              "default_model_label": {"type": "string"},
+              "default_reasoning_label": {"type": "string"},
+              "share_link_required": {"type": "boolean"},
+              "response_timeout_seconds": {"type": "integer", "minimum": 1},
+              "default_command": {"type": "string"},
+              "alternate_command": {"type": "string"},
+              "model": {"type": "string"},
+              "minimum_effort": {"type": "string"},
+              "effort_policy": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "default": {"type": "string"},
+                  "high_complexity": {"type": "string"},
+                  "critical_complexity": {"type": "string"}
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

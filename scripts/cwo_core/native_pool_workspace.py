@@ -7,7 +7,6 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 import hashlib
 from pathlib import Path
-import subprocess
 from typing import Any, Mapping, Sequence
 
 from .native_pool_contracts import (
@@ -15,7 +14,8 @@ from .native_pool_contracts import (
     pool_capacity_limits,
     validate_pool_contract,
 )
-from .workspace import capture_workspace_baseline, compare_workspace_baseline, path_allowed
+from .workspace import capture_workspace_baseline, cleanliness_established, compare_workspace_baseline, path_allowed
+from .workspace_capture import WorkspaceDiscoveryError, repository_dirs
 
 
 class PoolWorkspaceError(ValueError):
@@ -29,16 +29,13 @@ _SEALED_BASELINES: ContextVar[dict[str, dict[str, Any]] | None] = ContextVar(
 
 
 def _git_common_dir(root: Path) -> Path:
-    result = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "--git-common-dir"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
-    if result.returncode != 0 or not result.stdout.strip():
-        raise PoolWorkspaceError("workspace-git-common-dir-unavailable")
-    value = Path(result.stdout.strip())
-    return (root / value).resolve() if not value.is_absolute() else value.resolve()
+    # Read from the repository's own indirection files, without running Git in
+    # the workspace; a directory name may end in whitespace.
+    try:
+        return Path(repository_dirs(root)[2]).resolve()
+    except (WorkspaceDiscoveryError, OSError, RuntimeError, ValueError) as exc:
+        # RecursionError (a RuntimeError) from resolving a long symlink chain on Python 3.12.
+        raise PoolWorkspaceError("workspace-git-common-dir-unavailable") from exc
 
 
 def _require_clean_complete_baseline(baseline: Mapping[str, Any]) -> None:
@@ -46,6 +43,9 @@ def _require_clean_complete_baseline(baseline: Mapping[str, Any]) -> None:
         raise PoolWorkspaceError("workspace-baseline-incomplete")
     if baseline.get("tracked_status") != []:
         raise PoolWorkspaceError("workspace-baseline-not-clean")
+    if not cleanliness_established(dict(baseline)):
+        # Raw equality is Git cleanliness only when no conversion could apply.
+        raise PoolWorkspaceError("workspace-baseline-cleanliness-unknown")
 
 
 def _require_complete_baseline(baseline: Mapping[str, Any]) -> None:

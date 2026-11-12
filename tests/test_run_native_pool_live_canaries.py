@@ -6,6 +6,7 @@ import importlib.util
 import io
 import inspect
 import json
+import os
 from pathlib import Path
 import queue
 import shutil
@@ -13,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from types import SimpleNamespace
 from typing import Any, Callable, Mapping
 import unittest
 from unittest import mock
@@ -22,6 +24,11 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core import native_live_campaign_contracts as CAMPAIGN_CONTRACTS  # noqa: E402
+from cwo_core import workspace_capture  # noqa: E402
+# AppServer and its helpers live here; patch module globals they read at their
+# defining module, not on the runner that re-exports them.
+from cwo_core.supervision.transport import app_server as TRANSPORT  # noqa: E402
+from cwo_core.supervision.transport import private_io as PRIVATE_IO  # noqa: E402
 from cwo_core.native_tool_isolation import (  # noqa: E402
     seal_tool_enforcement_override,
 )
@@ -32,6 +39,7 @@ from cwo_core.native_activation_preview import (  # noqa: E402
 from cwo_core.native_worker_contracts import (  # noqa: E402
     canonical_argument_hash,
 )
+from tests.real_beads_fixture import configure_git_fixture
 
 SPEC = importlib.util.spec_from_file_location(
     "run_native_pool_live_canaries", ROOT / "scripts" / "run_native_pool_live_canaries.py"
@@ -39,6 +47,18 @@ SPEC = importlib.util.spec_from_file_location(
 assert SPEC and SPEC.loader
 LIVE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(LIVE)
+
+
+def setUpModule() -> None:
+    # held-route mechanics use fake processes/RPC and fake durable writers.
+    global _F5_HELD_ROUTE_PATCH
+    _F5_HELD_ROUTE_PATCH = mock.patch.multiple(LIVE.live_availability,
+        N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True)
+    _F5_HELD_ROUTE_PATCH.start()
+
+
+def tearDownModule() -> None:
+    _F5_HELD_ROUTE_PATCH.stop()
 
 
 CANONICAL_UUID_TEXT = "123e4567-e89b-12d3-a456-426614174000"
@@ -1074,9 +1094,9 @@ class AppServerRpcErrorTests(unittest.TestCase):
         }
         locked = {"features": {"multi_agent": False}}
         with (
-            mock.patch.object(LIVE, "require_surface_proof", return_value=verified),
+            mock.patch.object(TRANSPORT, "require_surface_proof", return_value=verified),
             mock.patch.object(
-                LIVE,
+                TRANSPORT,
                 "thread_start_enforcement_params",
                 return_value={"config": locked, "dynamicTools": []},
             ),
@@ -2146,15 +2166,30 @@ class AmbiguousTurnDispatchTests(unittest.TestCase):
                 server, ledger, state, writer, thread_id, _turn_ids = self.server(
                     Path(temporary), mode
                 )
-                started = LIVE.time.monotonic()
-                with self.assertRaises(LIVE.AmbiguousTurnStartError) as raised:
-                    server.start_turn(
-                        thread_id,
-                        "bounded",
-                        timeout=0,
-                        ambiguity_timeout=0.03,
-                    )
-                elapsed = LIVE.time.monotonic() - started
+                clock = FakeElapsedClock()
+                clock_sleep = mock.Mock(side_effect=clock.sleep)
+                clock_time = mock.Mock(
+                    spec_set=["monotonic", "monotonic_ns", "sleep"],
+                    monotonic=clock.monotonic,
+                    monotonic_ns=clock.monotonic_ns,
+                    sleep=clock_sleep,
+                )
+                started = clock.monotonic()
+                with mock.patch.object(TRANSPORT, "time", clock_time):
+                    with self.assertRaises(LIVE.AmbiguousTurnStartError) as raised:
+                        server.start_turn(
+                            thread_id,
+                            "bounded",
+                            timeout=0,
+                            ambiguity_timeout=0.03,
+                        )
+                elapsed = clock.monotonic() - started
+                waits = [call.args[0] for call in clock_sleep.call_args_list]
+                self.assertTrue(waits)
+                self.assertTrue(all(0 < seconds <= 0.03 for seconds in waits))
+                self.assertAlmostEqual(elapsed, sum(waits))
+                self.assertGreater(elapsed, 0)
+                self.assertLessEqual(elapsed, 0.03)
                 record = raised.exception.record
                 self.assertLess(elapsed, 0.30)
                 self.assertEqual(record["status"], "failed-ambiguous")
@@ -3300,16 +3335,33 @@ class CalibrationTimingTests(unittest.TestCase):
 
 class LiveCanaryMaterializationTests(unittest.TestCase):
     def setUp(self) -> None:
-        patcher = mock.patch.object(
-            LIVE,
-            "_measure_action_ms",
-            side_effect=deterministic_calibration_measurement,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        self._host_sleep = LIVE.time.sleep
+        self.coherent_calibration_clock()
 
     def owner(self) -> dict:
         return {"pid": 1, "start_ticks": 1, "boot_id_sha256": "a" * 64}
+
+    def coherent_calibration_clock(self) -> FakeElapsedClock:
+        """One fixture clock includes callback costs and requested sleeps."""
+        clock = FakeElapsedClock()
+        # Calibration's injected clock must not replace stdlib time.sleep used
+        # by real Git/subprocess waits in workspace snapshots.
+        clock_time = SimpleNamespace(**vars(LIVE.time))
+        self.enterContext(mock.patch.object(LIVE, "time", clock_time))
+
+        def measure(action, *, guard_seconds=0.0):
+            result, elapsed_ms = deterministic_calibration_measurement(
+                action, guard_seconds=guard_seconds)
+            clock.sleep(elapsed_ms / 1000)
+            return result, elapsed_ms
+
+        for name, callback in (("monotonic", clock.monotonic),
+                               ("monotonic_ns", clock.monotonic_ns),
+                               ("sleep", clock.sleep)):
+            self.enterContext(mock.patch.object(clock_time, name, side_effect=callback))
+        self.enterContext(mock.patch.object(LIVE, "utc_now", side_effect=clock.utc_now))
+        self.enterContext(mock.patch.object(LIVE, "_measure_action_ms", side_effect=measure))
+        return clock
 
     @staticmethod
     def measure_elapsed(
@@ -3377,6 +3429,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             record_dir.mkdir()
             server = FakeCalibrationServer(root)
 
+            self.coherent_calibration_clock()
             receipt, _evidence = LIVE.calibration(
                 server,
                 root,
@@ -3414,6 +3467,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 requested_model="gpt-5.6-luna",
             )
 
+            self.coherent_calibration_clock()
             receipt, evidence = LIVE.calibration(
                 server,
                 root,
@@ -3455,6 +3509,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 forbid_preinterrupt_read=True,
             )
 
+            clock = self.coherent_calibration_clock()
             receipt, evidence = LIVE.calibration(
                 server,
                 root,
@@ -3464,6 +3519,12 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                 phase_nonce=str(uuid.uuid4()),
                 requested_cap=3,
             )
+
+            self.assertGreaterEqual(clock.seconds, 1.0)
+            self.assertEqual(clock.monotonic_ns(), round(clock.monotonic() * 1_000_000_000))
+            self.assertAlmostEqual((clock.utc_now() - clock.started_at).total_seconds(), clock.seconds)
+            self.assertGreater(evidence['poll_interval_max_ms'], 0.0)
+            self.assertLessEqual(evidence['poll_interval_max_ms'], 250.0)
 
             self.assertEqual(receipt["validation_outcome"], "accepted")
             materialization = evidence["materialization_evidence"]
@@ -3673,7 +3734,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "calibration-mark.json",
                     "calibration-finalize.json",
                 }:
-                    LIVE.time.sleep(0.11)
+                    self._host_sleep(0.11)
 
             with mock.patch.object(
                 LIVE,
@@ -4282,6 +4343,10 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     )
 
     def test_read_recovery_rejects_epoch_drift_and_workspace_mutation(self) -> None:
+        self.assertIsNot(LIVE.time, sys.modules["time"],
+                         "calibration fixture clock must be local to the tested module")
+        self.assertIs(sys.modules["time"].sleep, self._host_sleep,
+                      "calibration fixture must preserve real subprocess sleeps")
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             record_dir = root / "records"
@@ -4325,6 +4390,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             workspace = root / "workspace"
             workspace.mkdir()
             subprocess.run(["git", "init", "-q"], cwd=workspace, check=True)
+            configure_git_fixture(workspace)
             subprocess.run(
                 ["git", "config", "user.name", "CWO Test"],
                 cwd=workspace,
@@ -5950,6 +6016,46 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
         ]
         server.status = "completed"
 
+    def test_campaign_claim_refuses_at_the_guarded_diff_before_any_claim(self) -> None:
+        inputs = mock.MagicMock()
+        paths = {
+            "output": Path("/private/evidence.json"),
+            "authorization_state": Path("/private/state.json"),
+            "steering_registry": Path("/private/steering.json"),
+            "allocation_ledger": Path("/private/ledger"),
+        }
+        # This unit exercises the downstream guarded-diff refusal, not the
+        # independent upstream V6 tree gate (covered by test_post_move_campaign_gate).
+        with mock.patch.object(LIVE, "require_validator_contract_binds_campaign_trees") as contract_gate, \
+                mock.patch.object(LIVE, "validate_independent_validation_session_snapshot", return_value="c" * 64), \
+                mock.patch.object(LIVE, "plan_steering_receipt_consumptions") as plan, \
+                mock.patch.object(LIVE, "campaign_launch_claim_sha256") as claim, \
+                mock.patch.object(LIVE, "acquire_global_campaign_claim") as acquire, \
+                mock.patch.object(LIVE.subprocess, "run", side_effect=AssertionError("git must not run")), \
+                mock.patch.object(LIVE.subprocess, "Popen", side_effect=AssertionError("git must not run")):
+            with self.assertRaisesRegex(LIVE.AppServerError, "guarded-primary-diff-inspection-unavailable"):
+                LIVE.validate_and_acquire_global_campaign_claim(
+                    inputs,
+                    campaign_nonce=str(uuid.uuid4()),
+                    authorization_id=str(uuid.uuid4()),
+                    authorization_sha256="a" * 64,
+                    repo_head="b" * 40,
+                    guarded_primary=Path("/guarded"),
+                    **paths,
+                )
+        contract_gate.assert_called_once()
+        plan.assert_not_called()
+        claim.assert_not_called()
+        acquire.assert_not_called()
+
+    def test_guarded_primary_diff_binding_refuses_without_running_git(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with mock.patch.object(LIVE.subprocess, "run", side_effect=AssertionError("git must not run")), \
+                    mock.patch.object(LIVE.subprocess, "Popen", side_effect=AssertionError("git must not run")):
+                with self.assertRaisesRegex(LIVE.AppServerError, "guarded-primary-diff-inspection-unavailable"):
+                    LIVE.guarded_diff_sha256(root)
+
     def test_porcelain_mutation_paths_preserve_status_columns(self) -> None:
         self.assertEqual(
             LIVE.porcelain_mutation_paths(
@@ -5976,23 +6082,89 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
         ):
             LIVE.porcelain_mutation_paths("M targets/child_1.txt\n")
 
-    def test_workspace_mutations_use_unstripped_porcelain_output(self) -> None:
+    def test_unbound_workspace_mutations_use_inert_capture(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            configure_git_fixture(root)
+            subprocess.run(["git", "config", "user.email", "cwo@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "CWO Test"], cwd=root, check=True)
+            (root / "targets").mkdir()
+            child = root / "targets" / "child_1.txt"
+            child.write_text("committed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "baseline"], cwd=root, check=True)
+            marker = root.parent / f"{root.name}-fsmonitor-ran"
+            hook = root.parent / f"{root.name}-fsmonitor-hook"
+            hook.write_text(f"#!/bin/sh\ntouch '{marker}'\nexit 1\n", encoding="utf-8")
+            hook.chmod(0o755)
+            child.write_text("changed\n", encoding="utf-8")
+            (root / "quoted name.txt").write_text("new\n", encoding="utf-8")
             clock = FakeMonotonicClock()
             server = FakeLiveThreadServer(root)
             adapter = self.adapter(root, server, clock)
-            completed = subprocess.CompletedProcess(
-                args=["git", "status"],
-                returncode=0,
-                stdout=" M targets/child_1.txt\n",
-                stderr="",
-            )
-            with mock.patch.object(LIVE.subprocess, "run", return_value=completed) as run:
-                self.assertEqual(
-                    adapter._workspace_mutations(), ["targets/child_1.txt"]
-                )
-            self.assertEqual(run.call_args.kwargs["cwd"], root)
+            try:
+                # A hook command whose dependencies cannot be established (a shell
+                # script string run by a program found on PATH) leaves the status
+                # incomplete, and still never runs.
+                subprocess.run(["git", "config", "core.fsmonitor", f"sh -c 'touch {marker}; exit 1' --"], cwd=root, check=True)
+                with self.assertRaisesRegex(LIVE.AppServerError, "workspace-status-incomplete"):
+                    adapter._workspace_mutations()
+                self.assertFalse(marker.exists(), "the worktree's fsmonitor must not run")
+                # A hook named by its path is a program too: its dependencies cannot be established,
+                # so the status is incomplete, and it never runs either.
+                subprocess.run(["git", "config", "core.fsmonitor", str(hook)], cwd=root, check=True)
+                with self.assertRaisesRegex(LIVE.AppServerError, "workspace-status-incomplete"):
+                    adapter._workspace_mutations()
+                self.assertFalse(marker.exists(), "the worktree's fsmonitor must not run")
+                # A boolean value is supported: the mutations are listed. A trusted Git 2.35 resolves
+                # any non-empty value as a program, so there the status is incomplete; the empty value
+                # disables the monitor on every release.
+                trusted = workspace_capture.trusted_git()
+                self.assertIsNotNone(trusted)
+                for value in ("false", "true", ""):
+                    subprocess.run(["git", "config", "core.fsmonitor", value], cwd=root, check=True)
+                    if value and trusted.version[:2] < (2, 36):
+                        with self.assertRaisesRegex(LIVE.AppServerError, "workspace-status-incomplete"):
+                            adapter._workspace_mutations()
+                    else:
+                        self.assertEqual(adapter._workspace_mutations(), ["quoted name.txt", "targets/child_1.txt"])
+                self.assertFalse(marker.exists(), "the worktree's fsmonitor must not run")
+            finally:
+                marker.unlink(missing_ok=True)
+                hook.unlink(missing_ok=True)
+
+    def test_unbound_workspace_mutations_refuse_unknown_cleanliness(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            configure_git_fixture(root)
+            subprocess.run(["git", "config", "user.email", "cwo@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "CWO Test"], cwd=root, check=True)
+            (root / ".gitattributes").write_text("*.txt filter=lfs\n", encoding="utf-8")
+            (root / "notes.txt").write_text("committed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "baseline"], cwd=root, check=True)
+            adapter = self.adapter(root, FakeLiveThreadServer(root), FakeMonotonicClock())
+            # Raw status is empty, but a filter could make Git see the files differently.
+            with self.assertRaisesRegex(LIVE.AppServerError, "workspace-cleanliness-unknown"):
+                adapter._workspace_mutations()
+
+    def test_unbound_workspace_mutations_refuse_a_special_attributes_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            configure_git_fixture(root)
+            subprocess.run(["git", "config", "user.email", "cwo@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "CWO Test"], cwd=root, check=True)
+            (root / "notes.txt").write_text("committed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "baseline"], cwd=root, check=True)
+            # An untracked FIFO is not status, but what Git would read from it is unknown.
+            os.mkfifo(root / ".gitattributes")
+            adapter = self.adapter(root, FakeLiveThreadServer(root), FakeMonotonicClock())
+            with self.assertRaisesRegex(LIVE.AppServerError, "workspace-cleanliness-unknown"):
+                adapter._workspace_mutations()
 
     def test_workspace_mutations_are_relative_to_bound_complete_dirty_baseline(
         self,
@@ -6000,6 +6172,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            configure_git_fixture(root)
             subprocess.run(
                 ["git", "config", "user.email", "cwo@example.invalid"],
                 cwd=root,
@@ -6021,13 +6194,15 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             untracked.write_text("existing\n", encoding="utf-8")
             link = root / "existing-link"
             link.symlink_to("tracked.txt")
+            # The fake server keeps its home inside this worktree; create it
+            # before the baseline so its directories are not new mutations.
+            server = FakeLiveThreadServer(root)
             baseline = LIVE.capture_workspace_baseline(
                 root,
                 allowed_paths=["."],
                 include_untracked=True,
             )
             clock = FakeMonotonicClock()
-            server = FakeLiveThreadServer(root)
             adapter = LIVE.LiveThreadAdapter(
                 server,
                 server.thread_response(),
@@ -6080,6 +6255,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            configure_git_fixture(root)
             baseline = LIVE.capture_workspace_baseline(
                 root,
                 allowed_paths=["."],
@@ -6153,6 +6329,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             expected_mutation=None,
             record_dir=root,
             monotonic_ns=clock,
+            campaign_live_route=False,
         )
         self.controller_bind_and_arm(adapter)
         return adapter
@@ -10141,6 +10318,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
 
     def make_repo(self, root: Path) -> tuple[str, str]:
         subprocess.run(["git", "init", "-q"], cwd=root, check=True, stdout=subprocess.DEVNULL)
+        configure_git_fixture(root)
         subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
         subprocess.run(["git", "config", "user.name", "CWO Test"], cwd=root, check=True)
         (root / "baseline.txt").write_text("initial", encoding="utf-8")
@@ -13438,7 +13616,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     registry_root=authority_registry,
                 )
             with mock.patch.object(
-                LIVE,
+                PRIVATE_IO,
                 "_fsync_owned_control_directory",
                 wraps=LIVE._fsync_owned_control_directory,
             ) as durable_directory:
@@ -13867,7 +14045,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             control_root = parent / "existing-control-root"
             control_root.mkdir(mode=0o700)
             with mock.patch.object(
-                LIVE,
+                PRIVATE_IO,
                 "_fsync_owned_control_directory",
                 wraps=LIVE._fsync_owned_control_directory,
             ) as durable_directory:
@@ -13904,7 +14082,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 )
 
             with mock.patch.object(
-                LIVE,
+                PRIVATE_IO,
                 "_fsync_owned_control_directory",
                 side_effect=fail_parent_fsync,
             ):
@@ -15071,6 +15249,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "allocation_ledger": Path("/private/ledger"),
         }
         with mock.patch.object(
+            LIVE, "require_validator_contract_binds_campaign_trees"
+        ) as tree_gate, mock.patch.object(
             LIVE,
             "validate_campaign_launch_bindings",
             side_effect=LIVE.AppServerError("pre-mutation-steering-binding-invalid"),
@@ -15089,6 +15269,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     guarded_primary=Path("/guarded"),
                     **paths,
                 )
+        tree_gate.assert_called_once_with(mock.sentinel.inputs)
         claim.assert_not_called()
         seal.assert_not_called()
         acquire.assert_not_called()
@@ -15106,6 +15287,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "allocation_ledger": Path("/private/ledger"),
         }
         with mock.patch.object(
+            LIVE, "require_validator_contract_binds_campaign_trees"
+        ) as tree_gate, mock.patch.object(
             LIVE, "validate_campaign_launch_bindings", return_value={}
         ), mock.patch.object(
             LIVE,
@@ -15128,6 +15311,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     guarded_primary=Path("/guarded"),
                     **paths,
                 )
+        tree_gate.assert_called_once_with(inputs)
         claim.assert_not_called()
         acquire.assert_not_called()
 
@@ -15148,6 +15332,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
             "pre-live": ("b" * 64, {}),
         }
         with mock.patch.object(
+            LIVE, "require_validator_contract_binds_campaign_trees"
+        ) as tree_gate, mock.patch.object(
             LIVE, "validate_campaign_launch_bindings", return_value={}
         ), mock.patch.object(
             LIVE, "plan_steering_receipt_consumptions", return_value=prepared
@@ -15174,6 +15360,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                 ),
                 pre_live_verified_operator_authorities=pre_live_authorities,
             )
+        tree_gate.assert_called_once_with(inputs)
         self.assertIs(result[3], prepared)
         self.assertIs(result[4], mock.sentinel.reservation)
         self.assertIs(
@@ -15238,6 +15425,8 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                     "allocation_ledger": root / "ledger",
                 }
                 with mock.patch.object(
+                    LIVE, "require_validator_contract_binds_campaign_trees"
+                ) as tree_gate, mock.patch.object(
                     LIVE, "validate_campaign_launch_bindings", return_value={}
                 ), mock.patch.object(
                     LIVE, "campaign_launch_claim_sha256"
@@ -15256,6 +15445,7 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                             guarded_primary=root / "guarded",
                             **paths,
                         )
+                tree_gate.assert_called_once_with(inputs)
                 claim.assert_not_called()
                 acquire.assert_not_called()
                 self.assertFalse(paths["output"].exists())
@@ -15427,7 +15617,7 @@ class ProfileThreadBoundaryTests(unittest.TestCase):
         tools=['exec_command','write_stdin'];server=self.request_server({'id':1,'result':{}})
         server._tool_surface_proof={'requested_tools':tools}
         proof={'codex_version':'test-version','tool_transport':LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT}
-        with mock.patch.object(LIVE,'require_surface_proof',return_value=proof) as require:
+        with mock.patch.object(TRANSPORT,'require_surface_proof',return_value=proof) as require:
             self.assertEqual(server.capability_adapter_version(),'codex-app-server-test-version')
             self.assertEqual(server.operative_tool_transport(),LIVE.NAMESPACED_EXEC_TOOL_TRANSPORT)
             for call in require.call_args_list:self.assertEqual(call.kwargs['permitted_tools'],tools)
@@ -15451,7 +15641,7 @@ class ProfileThreadBoundaryTests(unittest.TestCase):
     def test_proof_startup_is_forwarded_and_home_drift_closes(self):
         proof={'requested_tools':['exec_command','write_stdin']}
         verified={'startup_config':{'model_catalog_json':'/fixture/catalog.json'},'codex_home':'/fixture/home','codex_binary':'/fixture/codex','capture_binding':{'fixture':True}}
-        with mock.patch.object(LIVE,'require_surface_proof',return_value=verified),mock.patch.object(LIVE,'require_capture_binding',return_value=verified),mock.patch.object(LIVE.subprocess,'Popen') as process,mock.patch.object(LIVE.threading,'Thread'),mock.patch.object(LIVE.AppServer,'request',return_value=({'codexHome':'/different/home'},0)),mock.patch.object(LIVE.AppServer,'close',return_value={'all_contained':True,'resources_closed':True,'errors':[]}) as close:
+        with mock.patch.object(TRANSPORT,'require_surface_proof',return_value=verified),mock.patch.object(TRANSPORT,'require_capture_binding',return_value=verified),mock.patch.object(LIVE.subprocess,'Popen') as process,mock.patch.object(LIVE.threading,'Thread'),mock.patch.object(LIVE.AppServer,'request',return_value=({'codexHome':'/different/home'},0)),mock.patch.object(LIVE.AppServer,'close',return_value={'all_contained':True,'resources_closed':True,'errors':[]}) as close:
             with self.assertRaisesRegex(LIVE.AppServerError,'codex-tool-surface-home-drift'):
                 LIVE.AppServer(requested_model='gpt-5.6-luna',tool_surface_proof=proof)
             self.assertEqual(process.call_args.args[0],['/fixture/codex','-c','model_catalog_json="/fixture/catalog.json"','app-server','--stdio'])
@@ -15461,6 +15651,7 @@ class ProfileThreadBoundaryTests(unittest.TestCase):
 class StartupLifecycleTests(unittest.TestCase):
     """No provider: fake RPCs plus a bounded, real owned Python child."""
     def construct(self, *, failure=None, process=None, callback=None):
+        """Startup failure checks use an explicit disposable home/executable."""
         import io,os
         home=Path(tempfile.gettempdir()).resolve()
         process=process or mock.Mock()
@@ -15483,9 +15674,9 @@ class StartupLifecycleTests(unittest.TestCase):
             return {'codexHome':str(home if failure!='home' else home/'wrong')},0
         def notify(server,*args):
             if failure=='notify':raise RuntimeError('notification-original')
-        with mock.patch.dict(os.environ,{'CODEX_HOME':str(home)}),mock.patch.object(LIVE,'_codex_binary',return_value=Path('/verified/codex')),mock.patch.object(LIVE.subprocess,'Popen',return_value=process) as popen,mock.patch.object(LIVE.threading,'Thread',return_value=reader),mock.patch.object(LIVE.AppServer,'request',request),mock.patch.object(LIVE.AppServer,'notify',notify):
+        with mock.patch.dict(os.environ,{'CODEX_HOME':str(home)}),mock.patch.object(TRANSPORT,'_codex_binary',return_value=Path('/verified/codex')),mock.patch.object(LIVE.subprocess,'Popen',return_value=process) as popen,mock.patch.object(LIVE.threading,'Thread',return_value=reader),mock.patch.object(LIVE.AppServer,'request',request),mock.patch.object(LIVE.AppServer,'notify',notify):
             try:
-                server=LIVE.AppServer(requested_model='gpt-5.6-luna')
+                server=LIVE.AppServer(requested_model='gpt-5.6-luna', executable='/verified/codex', codex_home=home)
                 self.assertEqual(popen.call_args.args[0][0],'/verified/codex')
                 return server,process
             except BaseException as exc:
@@ -15535,13 +15726,14 @@ class StartupLifecycleTests(unittest.TestCase):
             with self.assertRaises(LIVE.AppServerError) as again:server.close()
             self.assertEqual(again.exception.app_server_cleanup,result)
 
-    def test_original_error_and_cleanup_failure_are_separate(self):
+    def test_r5_original_error_and_cleanup_failure_are_separate(self):
         original=LIVE.AppServerError('primary-initialize')
-        with mock.patch.object(LIVE,'_codex_binary',return_value=Path('/fixture/codex')),mock.patch.object(LIVE.subprocess,'Popen') as popen,mock.patch.object(LIVE.threading,'Thread'),mock.patch.object(LIVE.AppServer,'request',side_effect=original),mock.patch.object(LIVE.AppServer,'close',side_effect=OSError('cleanup-failure')):
-            with self.assertRaises(LIVE.AppServerError) as caught:LIVE.AppServer(requested_model='gpt-5.6-luna')
+        with mock.patch.object(TRANSPORT,'_codex_binary',return_value=Path('/fixture/codex')),mock.patch.object(LIVE.subprocess,'Popen') as popen,mock.patch.object(LIVE.threading,'Thread'),mock.patch.object(LIVE.AppServer,'request',side_effect=original),mock.patch.object(LIVE.AppServer,'close',side_effect=OSError('cleanup-failure')):
+            with self.assertRaises(LIVE.AppServerError) as caught:LIVE.AppServer(requested_model='gpt-5.6-luna', executable='/fixture/codex', codex_home=Path(tempfile.gettempdir()).resolve())
+            popen.assert_called_once()
         self.assertIs(caught.exception,original);self.assertFalse(original.app_server_cleanup['all_contained']);self.assertIn('cleanup-failure',str(original.app_server_cleanup))
 
-    def test_real_disposable_child_is_reaped_when_constructor_fails(self):
+    def test_r5_real_disposable_child_is_reaped_when_constructor_fails(self):
         import os,subprocess,sys
         spawn=subprocess.Popen;children=[]
         def factory(*args,**kw):
@@ -15549,8 +15741,8 @@ class StartupLifecycleTests(unittest.TestCase):
             children.append(child);return child
         original=LIVE.AppServerError('real-child-initialize-failure')
         try:
-            with mock.patch.object(LIVE,'_codex_binary',return_value=Path(sys.executable)),mock.patch.object(LIVE.subprocess,'Popen',side_effect=factory),mock.patch.object(LIVE.AppServer,'request',side_effect=original):
-                with self.assertRaises(LIVE.AppServerError) as caught:LIVE.AppServer(requested_model='gpt-5.6-luna')
+            with mock.patch.object(TRANSPORT,'_codex_binary',return_value=Path(sys.executable)),mock.patch.object(LIVE.subprocess,'Popen',side_effect=factory),mock.patch.object(LIVE.AppServer,'request',side_effect=original):
+                with self.assertRaises(LIVE.AppServerError) as caught:LIVE.AppServer(requested_model='gpt-5.6-luna', executable=sys.executable, codex_home=Path(tempfile.gettempdir()).resolve())
             self.assertIs(caught.exception,original);self.assertEqual(len(children),1)
             child=children[0];self.assertIsNotNone(child.poll());self.assertTrue(original.app_server_cleanup['all_contained'])
             self.assertTrue(all(stream.closed for stream in [child.stdin,child.stdout,child.stderr]))

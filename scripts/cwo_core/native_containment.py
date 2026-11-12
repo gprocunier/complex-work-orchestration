@@ -30,6 +30,15 @@ _REQUIRED_FIELDS = {
 }
 
 
+def _literal_matches(value: Any, expected: Any) -> bool:
+    """Compare constants without treating booleans or floats as integers."""
+    if isinstance(expected, bool):
+        return isinstance(value, bool) and value == expected
+    if isinstance(expected, int):
+        return isinstance(value, int) and not isinstance(value, bool) and value == expected
+    return value == expected
+
+
 def _string_list(value: Any, *, field: str) -> list[str]:
     if not isinstance(value, list) or not value:
         raise ValueError(f"malformed policy: precommit_containment.{field} must be a non-empty list")
@@ -75,7 +84,7 @@ def native_operative_containment(
         "operative_dispatch_authorized": True,
     }
     for field, expected_value in expected.items():
-        if value.get(field) != expected_value:
+        if not _literal_matches(value.get(field), expected_value):
             raise ValueError(
                 f"malformed policy: precommit_containment.{field} must equal {expected_value!r}"
             )

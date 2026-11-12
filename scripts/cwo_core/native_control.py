@@ -576,6 +576,15 @@ class NativeControlTurn:
         self._phase = "interrupt"
         return self._progress()
 
+    def fail_control(self, reason: str) -> dict[str, Any]:
+        """Seal observed progress when an outer bound ends cleanup, without claiming closure."""
+        if self._terminal:
+            return self._progress()
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("control failure reason must be a nonempty string")
+        self._errors.append(reason.strip())
+        return self._finish("control-failed")
+
     def run(self, task_input: str) -> dict[str, Any]:
         """Drive the cooperative machine with exact legacy blocking behavior."""
         if self._started or self._terminal:

@@ -42,6 +42,31 @@ class PathSafetyTests(unittest.TestCase):
             self.assertEqual(snippet["path"], "packet-test.txt")
             self.assertEqual(snippet["content"], "ordinary packet text")
 
+    def test_ssh_private_key_names_are_excluded_but_ordinary_id_files_are_not(self) -> None:
+        excluded = ("id_rsa", "id_ed25519", "id_ecdsa", "id_ecdsa_sk", "id_ed25519_sk", "id_dsa", "ID_RSA")
+        included = ("id_utils.py", "id_map.json", "id_rsa.pub", "id_ed25519.pub", "id_rsa_notes.md", "my_id_rsa.txt",
+                    "id.py", "ids.json")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repository = Path(tmpdir)
+            for directory in ("policy", "scripts", "schemas", "out"):
+                (repository / directory).mkdir()
+            for name in (*excluded, *included):
+                (repository / "scripts" / name).write_text(f"content of {name}\n", encoding="utf-8")
+            with patch("cwo_core.paths.REPO_ROOT", repository):
+                for name in excluded:
+                    with self.subTest(excluded=name):
+                        with self.assertRaisesRegex(SystemExit, "refusing likely secret file in packet"):
+                            file_snippet(repository / "scripts" / name, max_lines=5)
+                        with self.assertRaisesRegex(SystemExit, "refusing likely secret output path"):
+                            assert_safe_output_path(Path(tmpdir) / "out" / name)
+                for name in included:
+                    with self.subTest(included=name):
+                        snippet = file_snippet(repository / "scripts" / name, max_lines=5)
+                        self.assertEqual(snippet["path"], f"scripts/{name}")
+                        self.assertEqual(snippet["content"], f"content of {name}")
+                        output = Path(tmpdir) / "out" / name
+                        self.assertEqual(assert_safe_output_path(output), output)
+
     def test_snippet_is_line_limited_and_redacted(self) -> None:
         snippet = file_snippet(ROOT / "policy" / "share-boundaries.yaml", max_lines=3)
         self.assertLessEqual(snippet["line_count"], 3)

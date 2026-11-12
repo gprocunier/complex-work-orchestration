@@ -49,6 +49,7 @@ from tests.real_beads_fixture import (  # noqa: E402
     initialize_real_beads,
     run_fixture_subprocess,
 )
+from tests.real_beads_fixture import configure_git_fixture
 
 
 BD_PATH = shutil.which("bd")
@@ -58,6 +59,7 @@ class TemporaryBeadsPoolGraph:
     def __init__(self, root: Path, *, leaf_count: int, policy: dict) -> None:
         self.root = root
         run_fixture_subprocess(["git", "init", "-q"], cwd=root, check=True)
+        configure_git_fixture(root)
         initialize_real_beads(
             [
                 BD_PATH or "bd",
@@ -185,8 +187,8 @@ class RecordingBdRunner:
 
     def __call__(self, args: tuple[str, ...], **kwargs: object) -> BdCommandResult:
         self.calls.append(args)
-        if args[:1] == ("show",) and len(args) >= 2:
-            issue_id = args[1]
+        if args[:3] == ("show", "--json", "--") and len(args) == 4:
+            issue_id = args[3]
             self._show_counts[issue_id] = self._show_counts.get(issue_id, 0) + 1
             if (
                 issue_id == self.drift_issue_id
@@ -205,8 +207,7 @@ class RecordingBdRunner:
         if (
             self.preempt_issue_id is not None
             and not self.preempted
-            and args[:2] == ("update", self.preempt_issue_id)
-            and "--claim" in args
+            and args == ("update", "--claim", "--json", "--", self.preempt_issue_id)
         ):
             competitor = run_bd_structured(
                 args,
@@ -667,8 +668,7 @@ class NativePoolPhase1TemporaryBeadsTests(unittest.TestCase):
                 [
                     call
                     for call in runner.calls
-                    if call[:2] == ("update", drift_issue_id)
-                    and "--claim" in call
+                    if call[0] == "update" and drift_issue_id in call
                 ],
                 [],
             )

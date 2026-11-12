@@ -11,7 +11,7 @@ from typing import Any
 from cwo_core.audit import iter_audit_events, record_audit_event
 from cwo_core.epic_convergence import CALL_CATEGORIES, GRAPH_COUNTER_FIELDS
 from cwo_core.native_disposition import ARTIFACT_DISPOSITIONS, SESSION_DISPOSITIONS
-from cwo_core.paths import AUDIT_LOG
+from cwo_core.host_records import configured_store
 from cwo_core.telemetry import SENSITIVE_AUDIT_FIELDS, TELEMETRY_USAGE_FIELDS, telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
@@ -107,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         description="Import explicit model usage telemetry sidecars into the CWO audit log."
     )
     parser.add_argument("--file", required=True, help="Telemetry sidecar JSON file.")
-    parser.add_argument("--audit-file", help="Audit JSONL path. Defaults to .orchestration-audit/audit.jsonl.")
+    parser.add_argument("--audit-file", help="Audit JSONL path. Defaults to ../.cwo-host-state/<package-name>/audit.jsonl (verified segments included).")
     parser.add_argument("--allow-unmatched", action="store_true", help="Record imports without a matching dispatch audit event.")
     parser.add_argument("--dry-run", action="store_true", help="Validate and render events without appending to the audit log.")
     parser.add_argument("--json", action="store_true", help="Print JSON summary.")
@@ -115,10 +115,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     require_waiver_reason(args, ["allow_unmatched"])
 
-    audit_file = Path(args.audit_file) if args.audit_file else AUDIT_LOG
+    audit_file = Path(args.audit_file) if args.audit_file else configured_store().audit_file
     try:
         records, source_label = load_sidecar(Path(args.file))
-        existing_events = iter_audit_events(audit_file) if audit_file.exists() else []
+        existing_events = iter_audit_events(audit_file)
         imports = [
             build_import_event(
                 record,

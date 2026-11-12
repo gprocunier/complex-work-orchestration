@@ -230,6 +230,18 @@
           }
         }
       }
+    },
+    "requirement_baseline": {
+      "description": "Optional. The requirement baseline (schemas/requirement-baseline.schema.json) this plan follows. When present, validate_run_readiness_plan.py needs the baseline and any amendments, and checks that the rubric lists exactly its required criteria with the evidence kinds it records.",
+      "type": "object",
+      "required": ["record_type", "bead_id", "version", "digest"],
+      "additionalProperties": false,
+      "properties": {
+        "record_type": {"const": "cwo-requirement-baseline"},
+        "bead_id": {"type": "string", "minLength": 1},
+        "version": {"type": "integer", "minimum": 1},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+      }
     }
   }
 }

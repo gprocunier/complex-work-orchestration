@@ -1,0 +1,17 @@
+{
+  "candidate_base_is_approved_SOURCE_not_accepted_2f": "8ec57edf51785295b7f54a174f33d79cf1fee944 e142e41c3e5ab28814b08c9d3379655e02bf37d1",
+  "captured_live_policy_sha256": "719078625a0ba4d7b10135b072b473332c4771f7816b84810918bbfbe51dc9f8",
+  "effect_authority": false,
+  "fact_source": "32captured0.163referencefactdefinitions demonstratedagainstactual0.164generatedschema, notnewruntimequalification",
+  "future_consuming_base_rule": "ActualCV2f mustPASS andhaveTREEe142beforepromotion ofthissource-dependentproposal; no sourceAPPaloneacceptance",
+  "historical_snapshot_not_live_gate": "base-policy.json isfrozenhistoricalinput forfixturemockregistration. Futurelivepolicyhash/versionroster isNOTpermanentlypinnedbytests.",
+  "operative": false,
+  "package_json_trust": "DigestisLOCALdescriptorobservation ONLY. StandalonebinarySigstore doesNOTauthenticatethisdescriptor/code-mode-host/bwrap/rg/voice assets orinstalledpackage asawhole. No stronger package signature assumed.",
+  "purpose": "UNREGISTERED prospective schema-pin fixture, NOT production policy/current pin/admission authority",
+  "qualified": false,
+  "raw_bundle_basis": "manifest listsFULLraw320/458 hashes, NOTselectedcanonical19/22. check_facts canreadsemanticallyequivalentJSON butverify_bundle requirescorrectRAWbytebasis. Existingcanonicalcorpusremainsdistinct.",
+  "registered": false,
+  "registration_obligations": "Separateactualcandidate/source/schema/consumer/defaultpin review andrequiredqualifiedevidence; neverruntheproposalascontroller orletcandidateCWOauthorizeitsownexecution/activation. Heldroutes/installs/W19W25 unchanged.",
+  "source_origin": "RootverifiedstandalonebinarySigstore/workflowSHA6aaac694803004a63c6f393d153c96d22521a6b9 +CQsourcebuildcorrespondenceINFERENCE andsource-onlyCOREmatrix. NOTSLSA/fullreproduciblebuild/sourceclosure/OS/effectiveprofile/input/lifecycleproof.",
+  "status_field_scope": "proposal.json status current isHYPOTHETICALfixtureinput. Activepolicy/codex-protocol-pins.yaml NOTmodified; existingcurrent0.163/unknown0.164 stayoperativeuntilseparatereviewedregistration."
+}
