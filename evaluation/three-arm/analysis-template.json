@@ -1,0 +1,480 @@
+{
+  "build_freeze": null,
+  "estimands": {
+    "extra-review-package": {
+      "governance-traps": {
+        "build_mismatch_pairs": null,
+        "complete_pairs": null,
+        "median_wall_seconds_difference": null,
+        "sign_test_p": null,
+        "success_pairs": {
+          "both": null,
+          "control_only": null,
+          "neither": null,
+          "treatment_only": null
+        },
+        "unknown_outcome_pairs": null,
+        "wall_pairs_observed": null,
+        "wall_pairs_unknown": null
+      },
+      "small-task-overhead": {
+        "build_mismatch_pairs": null,
+        "complete_pairs": null,
+        "median_wall_seconds_difference": null,
+        "sign_test_p": null,
+        "success_pairs": {
+          "both": null,
+          "control_only": null,
+          "neither": null,
+          "treatment_only": null
+        },
+        "unknown_outcome_pairs": null,
+        "wall_pairs_observed": null,
+        "wall_pairs_unknown": null
+      }
+    },
+    "package-change": {
+      "governance-traps": {
+        "build_mismatch_pairs": null,
+        "complete_pairs": null,
+        "median_wall_seconds_difference": null,
+        "sign_test_p": null,
+        "success_pairs": {
+          "both": null,
+          "control_only": null,
+          "neither": null,
+          "treatment_only": null
+        },
+        "unknown_outcome_pairs": null,
+        "wall_pairs_observed": null,
+        "wall_pairs_unknown": null
+      },
+      "small-task-overhead": {
+        "build_mismatch_pairs": null,
+        "complete_pairs": null,
+        "median_wall_seconds_difference": null,
+        "sign_test_p": null,
+        "success_pairs": {
+          "both": null,
+          "control_only": null,
+          "neither": null,
+          "treatment_only": null
+        },
+        "unknown_outcome_pairs": null,
+        "wall_pairs_observed": null,
+        "wall_pairs_unknown": null
+      }
+    }
+  },
+  "missing_records": null,
+  "protocol_digest": "043035355b54bbc12f7d769f1d662b6c60cd37132334b762a506cf8e29baadfa",
+  "protocol_id": "cwo-three-arm-comparative-evaluation",
+  "protocol_version": null,
+  "reporting_revision": null,
+  "runs": null,
+  "status": "blank: no study has run",
+  "study_lock_sha256": null,
+  "summary": {
+    "governance-traps": {
+      "baseline-codex": {
+        "comparison": {
+          "excluded-budget-drift": null,
+          "excluded-build-mismatch": null,
+          "excluded-build-unbound": null,
+          "excluded-identity-drift": null,
+          "excluded-identity-unobserved": null,
+          "excluded-operator-rule": null,
+          "excluded-protocol-mismatch": null,
+          "excluded-schedule-drift": null,
+          "included": null
+        },
+        "dispositions": {
+          "completed": null,
+          "failed-infrastructure": null,
+          "invalid-candidate": null,
+          "missing-record": null,
+          "not-run": null,
+          "stopped-budget": null,
+          "stopped-by-arm": null
+        },
+        "false_completion_claims": null,
+        "hidden_checks": {
+          "fail": null,
+          "not-evaluated": null,
+          "pass": null,
+          "unknown": null
+        },
+        "scheduled": null,
+        "success": null,
+        "success_in_excluded_runs": null,
+        "success_unknown": null,
+        "success_without_failed_infrastructure": null,
+        "telemetry": {
+          "input_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "interventions": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "output_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "provider_cost": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "reviewer_invocations": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "wall_seconds": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          }
+        }
+      },
+      "cwo-full": {
+        "comparison": {
+          "excluded-budget-drift": null,
+          "excluded-build-mismatch": null,
+          "excluded-build-unbound": null,
+          "excluded-identity-drift": null,
+          "excluded-identity-unobserved": null,
+          "excluded-operator-rule": null,
+          "excluded-protocol-mismatch": null,
+          "excluded-schedule-drift": null,
+          "included": null
+        },
+        "dispositions": {
+          "completed": null,
+          "failed-infrastructure": null,
+          "invalid-candidate": null,
+          "missing-record": null,
+          "not-run": null,
+          "stopped-budget": null,
+          "stopped-by-arm": null
+        },
+        "false_completion_claims": null,
+        "hidden_checks": {
+          "fail": null,
+          "not-evaluated": null,
+          "pass": null,
+          "unknown": null
+        },
+        "scheduled": null,
+        "success": null,
+        "success_in_excluded_runs": null,
+        "success_unknown": null,
+        "success_without_failed_infrastructure": null,
+        "telemetry": {
+          "input_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "interventions": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "output_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "provider_cost": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "reviewer_invocations": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "wall_seconds": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          }
+        }
+      },
+      "cwo-no-outside-review": {
+        "comparison": {
+          "excluded-budget-drift": null,
+          "excluded-build-mismatch": null,
+          "excluded-build-unbound": null,
+          "excluded-identity-drift": null,
+          "excluded-identity-unobserved": null,
+          "excluded-operator-rule": null,
+          "excluded-protocol-mismatch": null,
+          "excluded-schedule-drift": null,
+          "included": null
+        },
+        "dispositions": {
+          "completed": null,
+          "failed-infrastructure": null,
+          "invalid-candidate": null,
+          "missing-record": null,
+          "not-run": null,
+          "stopped-budget": null,
+          "stopped-by-arm": null
+        },
+        "false_completion_claims": null,
+        "hidden_checks": {
+          "fail": null,
+          "not-evaluated": null,
+          "pass": null,
+          "unknown": null
+        },
+        "scheduled": null,
+        "success": null,
+        "success_in_excluded_runs": null,
+        "success_unknown": null,
+        "success_without_failed_infrastructure": null,
+        "telemetry": {
+          "input_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "interventions": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "output_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "provider_cost": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "reviewer_invocations": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "wall_seconds": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          }
+        }
+      }
+    },
+    "small-task-overhead": {
+      "baseline-codex": {
+        "comparison": {
+          "excluded-budget-drift": null,
+          "excluded-build-mismatch": null,
+          "excluded-build-unbound": null,
+          "excluded-identity-drift": null,
+          "excluded-identity-unobserved": null,
+          "excluded-operator-rule": null,
+          "excluded-protocol-mismatch": null,
+          "excluded-schedule-drift": null,
+          "included": null
+        },
+        "dispositions": {
+          "completed": null,
+          "failed-infrastructure": null,
+          "invalid-candidate": null,
+          "missing-record": null,
+          "not-run": null,
+          "stopped-budget": null,
+          "stopped-by-arm": null
+        },
+        "false_completion_claims": null,
+        "hidden_checks": {
+          "fail": null,
+          "not-evaluated": null,
+          "pass": null,
+          "unknown": null
+        },
+        "scheduled": null,
+        "success": null,
+        "success_in_excluded_runs": null,
+        "success_unknown": null,
+        "success_without_failed_infrastructure": null,
+        "telemetry": {
+          "input_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "interventions": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "output_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "provider_cost": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "reviewer_invocations": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "wall_seconds": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          }
+        }
+      },
+      "cwo-full": {
+        "comparison": {
+          "excluded-budget-drift": null,
+          "excluded-build-mismatch": null,
+          "excluded-build-unbound": null,
+          "excluded-identity-drift": null,
+          "excluded-identity-unobserved": null,
+          "excluded-operator-rule": null,
+          "excluded-protocol-mismatch": null,
+          "excluded-schedule-drift": null,
+          "included": null
+        },
+        "dispositions": {
+          "completed": null,
+          "failed-infrastructure": null,
+          "invalid-candidate": null,
+          "missing-record": null,
+          "not-run": null,
+          "stopped-budget": null,
+          "stopped-by-arm": null
+        },
+        "false_completion_claims": null,
+        "hidden_checks": {
+          "fail": null,
+          "not-evaluated": null,
+          "pass": null,
+          "unknown": null
+        },
+        "scheduled": null,
+        "success": null,
+        "success_in_excluded_runs": null,
+        "success_unknown": null,
+        "success_without_failed_infrastructure": null,
+        "telemetry": {
+          "input_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "interventions": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "output_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "provider_cost": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "reviewer_invocations": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "wall_seconds": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          }
+        }
+      },
+      "cwo-no-outside-review": {
+        "comparison": {
+          "excluded-budget-drift": null,
+          "excluded-build-mismatch": null,
+          "excluded-build-unbound": null,
+          "excluded-identity-drift": null,
+          "excluded-identity-unobserved": null,
+          "excluded-operator-rule": null,
+          "excluded-protocol-mismatch": null,
+          "excluded-schedule-drift": null,
+          "included": null
+        },
+        "dispositions": {
+          "completed": null,
+          "failed-infrastructure": null,
+          "invalid-candidate": null,
+          "missing-record": null,
+          "not-run": null,
+          "stopped-budget": null,
+          "stopped-by-arm": null
+        },
+        "false_completion_claims": null,
+        "hidden_checks": {
+          "fail": null,
+          "not-evaluated": null,
+          "pass": null,
+          "unknown": null
+        },
+        "scheduled": null,
+        "success": null,
+        "success_in_excluded_runs": null,
+        "success_unknown": null,
+        "success_without_failed_infrastructure": null,
+        "telemetry": {
+          "input_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "interventions": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "output_tokens": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "provider_cost": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "reviewer_invocations": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          },
+          "wall_seconds": {
+            "observed": null,
+            "observed_total": null,
+            "unknown": null
+          }
+        }
+      }
+    }
+  },
+  "unscheduled_records": null
+}

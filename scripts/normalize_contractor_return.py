@@ -5,8 +5,12 @@ import argparse
 import json
 from pathlib import Path
 
+from cwo_core.errors import CWOPolicyError
 from cwo_core.paths import assert_safe_output_path
-from cwo_core.packets import contractor_packet_evaluation_metadata, require_valid_contractor_packet
+from cwo_core.host_records import configured_store
+from cwo_core.host_return_intake import record_manual_return
+from cwo_core.packet_provenance import require_production_contractor_packet
+from cwo_core.packets import contractor_packet_evaluation_metadata
 from cwo_core.policy import resolve_executor_key
 from cwo_core.returns import normalize_contractor_return
 from cwo_core.util import atomic_write_text
@@ -37,7 +41,7 @@ def main() -> None:
     packet_metadata: dict[str, object] = {}
     if args.contractor_packet:
         packet = json.loads(Path(args.contractor_packet).read_text(encoding="utf-8"))
-        require_valid_contractor_packet(packet)
+        require_production_contractor_packet(packet)
         packet_metadata = contractor_packet_evaluation_metadata(packet)
 
     def merge_metadata(explicit: str | None, key: str, flag: str) -> str | None:
@@ -78,8 +82,14 @@ def main() -> None:
         else None
     )
 
+    return_bytes = Path(args.file).read_bytes()
+    return_text = return_bytes.decode("utf-8")
+    if args.dispatch_id:
+        # A caller's metadata is evidence only. Intake requires an existing
+        # host dispatch and binds the exact input bytes, including newlines.
+        record_manual_return(configured_store(), args.dispatch_id, return_bytes)
     bundle = normalize_contractor_return(
-        Path(args.file).read_text(encoding="utf-8"),
+        return_text,
         bead_id=args.bead,
         dispatch_id=args.dispatch_id,
         share_boundary=args.share_boundary,
@@ -103,4 +113,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except CWOPolicyError as failure:
+        raise SystemExit(str(failure)) from None

@@ -15,17 +15,19 @@ evidence, validation, and handoff.
 Use CWO when:
 
 - work spans sessions, repos, environments, or agents
-- the user asks for a coach, PM, architect, workerbee, contractor, model
-  synthesis, prompt review, or handoff setup
+- the user asks for a coach, PM, architect, workerbee, contractor, model synthesis, prompt review, or handoff setup
 - work needs durable state beyond chat history
 - independent investigations can run in parallel
-- release, lab, production, publication, or security risk needs architect
-  judgment
+- release, lab, production, publication, or security risk needs architect judgment
 
-For narrow fixes, work in-thread with one Bead; Beads tracking is mandatory for
-non-trivial work.
+For narrow fixes, work in-thread with one Bead; Beads tracking is mandatory for non-trivial work.
 
 ## Operating Defaults
+
+Registered native single-worker, pool and campaign live routes have default-off source holds in this
+release. Activation preview and new worker-surface qualification are held too. A qualified worker has
+matching observed capability evidence for its exact model, executable, configuration, enforced tool
+profile and selected assignment. Plans and receipts cannot override a source hold.
 
 - CWO uses a system prompt optimized for complex project work rather than the default OpenAI system prompt (`prompts/cwo-sol-operator-e.md`; see `references/cwo-system-prompt.md`). Named-profile activation requires a fresh session. Reading it in an unprofiled thread is a fallback without profile-selection evidence. The main thread owns final decisions; instructions never override runtime authority.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
@@ -36,8 +38,7 @@ non-trivial work.
 
 ## First Moves
 
-1. Decide the execution shape: in-thread, PM-only, tight-chain scaffold, or full
-   harness.
+1. Decide the execution shape: in-thread, PM-only, tight-chain scaffold, or full harness.
 2. If sizing is unclear, use the prompt coach:
 
 ```bash
@@ -50,14 +51,16 @@ python3 scripts/coach_prompt.py "<task text>"
 python3 scripts/route_work.py "<task text>"
 ```
 
-4. Clean stale harness-owned local agent state before launching agents:
+4. Check for stale local agent sessions before launching agents (signals nothing):
 
 ```bash
 python3 scripts/cleanup_stale_agents.py --json
 ```
 
-Use `--workspace-root <path>` when the shell is above the target repo. Use
-`--terminate-unowned-codex` only when explicitly authorized.
+It prunes registry records with no live PID unless run with `--dry-run`. Use
+`--workspace-root <path>` when the shell is above the target repo. The registry
+is unauthenticated and argv matching is not ownership, so `--terminate-owned`
+and `--terminate-unowned-codex` report `termination-unavailable`.
 
 5. Check Beads and sync only when a Dolt remote exists:
 
@@ -72,8 +75,8 @@ reduced. Do not claim local Beads state is synced without a Dolt remote.
 
 ## Scaffold Choices
 
-Use one manual Bead for narrow work. Use a tight-chain scaffold for
-architecture, implementation, validation, and wrap-up without optional fan-out:
+Use one manual Bead for narrow work; no smaller scaffold tier exists. Use a tight
+chain (architecture, implementation and docs, validation, wrap-up) without optional fan-out:
 
 ```bash
 python3 scripts/scaffold_workgraph.py \
@@ -82,8 +85,7 @@ python3 scripts/scaffold_workgraph.py \
   --scaffold-size tight
 ```
 
-Use the full graph for broad, risky, multi-lane, reviewed, synthesized, or
-release-sensitive work:
+Use the full graph for broad, risky, multi-lane, reviewed, synthesized, or release-sensitive work:
 
 ```bash
 python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
@@ -123,9 +125,12 @@ three units or six reads warn; four or eleven require replanning.
   to waive a gate. Disclose genuine access/outage/security boundaries plainly.
 - No stopped worker resumes. Use fresh identities after terminal failure;
   realignment remains nonaccepted. Containment precedes owned-state restoration.
-- Native productive work uses the admitted version-2 pool launcher and the
-  supervised transaction. Maximum supported fixed cohorts remain N=1..3;
-  concurrency requires actual compatible capability evidence, not a flag.
+- Registered single-worker, pool and campaign live routes ship held by default-off
+  source decisions; new worker-surface qualification is held too. These holds cannot
+  be overridden by plan, environment or CLI enable switches.
+- Native pool work additionally needs trusted-controller factory authority (not shipped), so
+  the version-2 launcher refuses ordinary plans, even `--validate-only`. Cohorts
+  stay N=1..3; concurrency needs actual compatible capability evidence.
 - Maintenance transactions use the explicit version-8 plan and opaque owner
   capabilities. Missing authority rejects before runtime adapter execution,
   including validate-only. The trusted parent selects/pins the installed factory.
@@ -177,19 +182,17 @@ explicitly changes that requirement. Browser-plugin documentation is deferred;
 legacy browser configuration is not current setup guidance. Local inference requires `--local-ok`;
 use `--prefer-local` only for an intended low-risk local review lane.
 
-Current native workers use the qualified exact task-selected model from the
-version-3 Luna-first route. The attested actual model must exactly match that
-immutable request; missing or mismatched identity stops the affected dispatch.
-Do not substitute another model. Spark records are historical compatibility
-material, not a new dispatch route.
+Current native workers use the qualified exact task-selected model from the version-3
+Luna-first route. The attested actual model must exactly match that immutable request;
+missing or mismatched identity stops the affected dispatch. Do not substitute another model.
+Spark records are historical compatibility material, not a new dispatch route.
 
 Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a checkout. Quarantine high-sabotage, high-malpractice, provider-conflict, and boundary-tainted returns until peer review and architect adjudication complete.
 
 ## Run Readiness And Closeout
 
-Every closeout or handoff response must include an operator continuation packet;
-artifacts and Beads comments do not replace it. Use
-`templates/operator-handoff-packet.md` and validate file drafts:
+Every closeout or handoff response must include an operator continuation packet; artifacts
+and Beads comments do not replace it. Use `templates/operator-handoff-packet.md` and validate file drafts:
 
 ```bash
 python3 scripts/validate_run_readiness_plan.py <plan.json>
@@ -197,17 +200,17 @@ python3 scripts/render_run_projection.py <plan.json> --projection run-sheet
 python3 scripts/render_execution_status_report.py <inputs>
 ```
 
-Before closing meaningful Beads, add a compact closure-memory comment. Prefer:
+Before closing meaningful Beads, add a compact closure-memory comment. Success dispositions are refused until verified
+acceptance exists (issue #37): record delivered work as `pending-acceptance`, which leaves the Bead open for the operator:
 
 ```bash
-python3 scripts/close_bead_with_summary.py --bead <id> --disposition completed --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful --close
+python3 scripts/close_bead_with_summary.py --bead <id> --disposition pending-acceptance --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful
 ```
 
-Before the final user-visible response for any CWO closeout, pushed commit,
-parked sprint, blocked sprint, or carry-forward handoff, produce an operator
-continuation packet. Artifacts and Beads comments do not satisfy this by
-themselves; the final TUI response must include the packet. Use
-`templates/operator-handoff-packet.md` and, when drafting to a file, validate it:
+Before the final user-visible response for any CWO closeout, pushed commit, parked sprint,
+blocked sprint, or carry-forward handoff, produce an operator continuation packet. Artifacts
+and Beads comments do not satisfy this by themselves; the final TUI response must include
+the packet. Use `templates/operator-handoff-packet.md` and, when drafting to a file, validate it:
 
 ```bash
 python3 scripts/validate_operator_handoff.py <handoff.md>

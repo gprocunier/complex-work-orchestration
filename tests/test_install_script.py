@@ -79,14 +79,6 @@ class InstallScriptTests(unittest.TestCase):
             self.assertFalse((skills_dir / "complex-work-orchestration.prev").exists())
             self.assertIn("Uninstalled skill; backup kept", uninstall.stdout)
 
-    def test_install_dry_run_does_not_create_target(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            skills_dir = Path(tmpdir) / "skills"
-            dry_run = self.run_installer("--skills-dir", str(skills_dir), "--yes", "--dry-run")
-            self.assertEqual(dry_run.returncode, 0, dry_run.stderr or dry_run.stdout)
-
-            self.assertFalse((skills_dir / "complex-work-orchestration").exists())
-            self.assertIn("Would create staging install", dry_run.stdout)
 
     def test_install_dry_run_uses_lexical_backup_for_missing_parent(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -143,6 +135,16 @@ class InstallScriptTests(unittest.TestCase):
             self.assertTrue((skills_dir / "complex-work-orchestration").is_dir())
             self.assertFalse((skills_dir / "complex-work-orchestration.prev").exists())
             self.assertIn("Would move:", dry_run.stdout)
+
+
+    def test_install_dry_run_does_not_create_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            skills_dir = Path(tmpdir) / "skills"
+            dry_run = self.run_installer("--skills-dir", str(skills_dir), "--yes", "--dry-run")
+            self.assertEqual(dry_run.returncode, 0, dry_run.stderr or dry_run.stdout)
+
+            self.assertFalse((skills_dir / "complex-work-orchestration").exists())
+            self.assertIn("Would create staging install", dry_run.stdout)
 
 
 if __name__ == "__main__":

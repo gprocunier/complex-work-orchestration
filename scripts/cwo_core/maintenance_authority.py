@@ -15,7 +15,7 @@ state. Admission here is not model attestation, containment, or product acceptan
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 import fcntl
 import hashlib
@@ -55,6 +55,15 @@ _OPERATION_STATE_FIELDS = frozenset({"operation_sha256", "plan_sha256", "state",
 def _need(condition: bool, reason: str) -> None:
     if condition is not True:
         raise MaintenanceAuthorityError("maintenance-" + reason)
+
+
+def _no_current_check() -> None:
+    return None
+
+
+def _veto_callback(value: Any) -> Callable[[], Any]:
+    _need(value is None or callable(value), "current-check-callable-required")
+    return _no_current_check if value is None else value
 
 
 def _object(value: Any, fields: frozenset[str] | set[str] | None, label: str) -> dict[str, Any]:
@@ -181,6 +190,21 @@ def _state(value: Any, mission_id: str, mission_hash: str) -> dict[str, Any]:
     return state
 
 
+@contextmanager
+def _state_descriptor(descriptor: int):
+    """Keep an active state-operation failure primary during descriptor cleanup."""
+    try:
+        yield descriptor
+    except BaseException as primary:
+        try:
+            os.close(descriptor)
+        except BaseException as cleanup:
+            primary.add_note("Maintenance state cleanup failed: " + type(cleanup).__name__ + ": " + str(cleanup))
+        raise
+    else:
+        os.close(descriptor)
+
+
 class MaintenanceStateStore:
     """Small serial controller ledger, in a precreated private trusted directory.
 
@@ -198,28 +222,41 @@ class MaintenanceStateStore:
         self._directory_identity = (info.st_dev, info.st_ino)
         self._mutex = threading.RLock()
         self._active = False
+        self._guard_directory = None
 
     @contextmanager
     def _locked(self):
         with self._mutex:
             _need(not self._active, "state-operation-reentrant")
             self._active = True
-            directory_fd = lock_fd = None
             try:
-                _absolute(str(self.directory), "state-directory")
-                directory_fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-                info = os.fstat(directory_fd)
-                _need((info.st_dev, info.st_ino) == self._directory_identity and info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o700, "state-directory-replaced")
-                lock_fd = os.open("maintenance-state.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600, dir_fd=directory_fd)
-                self._private_file(lock_fd)
-                fcntl.flock(lock_fd, fcntl.LOCK_EX)
-                yield directory_fd
+                with ExitStack() as descriptors:
+                    _absolute(str(self.directory), "state-directory")
+                    directory_fd = descriptors.enter_context(_state_descriptor(
+                        os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)))
+                    info = os.fstat(directory_fd)
+                    _need((info.st_dev, info.st_ino) == self._directory_identity and info.st_uid == os.getuid() and stat.S_IMODE(info.st_mode) == 0o700, "state-directory-replaced")
+                    lock_fd = descriptors.enter_context(_state_descriptor(
+                        os.open("maintenance-state.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW, 0o600, dir_fd=directory_fd)))
+                    self._private_file(lock_fd)
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX)
+                    yield directory_fd
             finally:
-                if lock_fd is not None:
-                    os.close(lock_fd)
-                if directory_fd is not None:
-                    os.close(directory_fd)
                 self._active = False
+
+    @contextmanager
+    def guard_current_state(self):
+        """Retain the original state lock while a consumer revalidates and acts.
+
+        Reads by this controller thread use the held descriptor. Mutations stay
+        nonreentrant, and other instances/processes use the same lock file.
+        """
+        with self._locked() as directory_fd:
+            self._guard_directory = directory_fd
+            try:
+                yield
+            finally:
+                self._guard_directory = None
 
     @staticmethod
     def _private_file(fd: int) -> None:
@@ -264,8 +301,11 @@ class MaintenanceStateStore:
             self._write(directory_fd, value, initialize=True)
 
     def read_state(self) -> dict[str, Any]:
-        with self._locked() as directory_fd:
-            return self._read(directory_fd)
+        with self._mutex:
+            if self._guard_directory is not None:
+                return self._read(self._guard_directory)
+            with self._locked() as directory_fd:
+                return self._read(directory_fd)
 
     def claim_operation(self, operation_id: str, operation_sha256: str, plan_sha256: str, expected_generation: int) -> None:
         _text(operation_id, "operation-id")
@@ -301,7 +341,7 @@ class MaintenanceStateStore:
 class MaintenanceAuthorityVerifier:
     """Trusted controller configuration; never reconstruct this from a plan."""
 
-    def __init__(self, *, mission: Mapping[str, Any], operator_directive: Mapping[str, Any], verification_key: bytes, expected_actor_id: str, expected_identity_source: str, factory_registry: Mapping[str, Any], state_reader: Callable[[], Mapping[str, Any]], claim_operation: Callable[[str, str, str, int], None]) -> None:
+    def __init__(self, *, mission: Mapping[str, Any], operator_directive: Mapping[str, Any], verification_key: bytes, expected_actor_id: str, expected_identity_source: str, factory_registry: Mapping[str, Any], state_reader: Callable[[], Mapping[str, Any]], claim_operation: Callable[[str, str, str, int], None], current_check: Callable[[], Any] | None = None) -> None:
         _need(type(verification_key) is bytes and bool(verification_key), "verification-key-required")
         self._mission = normalize_maintenance_mission(mission)
         self._mission_hash = canonical_authority_sha256(self._mission)
@@ -321,6 +361,7 @@ class MaintenanceAuthorityVerifier:
         _need(callable(state_reader) and callable(claim_operation), "trusted-state-callbacks-required")
         self._state_reader = state_reader
         self._claim = claim_operation
+        self._current_check = _veto_callback(current_check)
         self._pid = os.getpid()
         self._capabilities: dict[str, VerifiedMaintenanceOperation] = {}
         self._mutex = threading.RLock()
@@ -339,6 +380,9 @@ class MaintenanceAuthorityVerifier:
 
     def _current(self) -> dict[str, Any]:
         _need(os.getpid() == self._pid, "controller-process-mismatch")
+        # A protected bootstrap veto may raise; its return never supplies state
+        # or authority. Always read and validate current state after the callout.
+        self._current_check()
         value = _state(self._state_reader(), self._mission["mission_id"], self._mission_hash)
         _need(value["status"] == "active", "authority-not-current")
         return value

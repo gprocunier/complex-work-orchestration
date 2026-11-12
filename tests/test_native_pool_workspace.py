@@ -21,6 +21,7 @@ from cwo_core.native_pool_workspace import (  # noqa: E402
 )
 from cwo_core import workspace as workspace_module  # noqa: E402
 from tests.test_native_pool_contracts import pool_contract  # noqa: E402
+from tests.real_beads_fixture import configure_git_fixture
 
 
 def git(*args: str, cwd: Path) -> None:
@@ -32,6 +33,7 @@ class WorkspaceFixture:
         self.integration = root / "integration"
         self.integration.mkdir()
         git("init", "-q", cwd=self.integration)
+        configure_git_fixture(self.integration)
         (self.integration / "scripts").mkdir()
         (self.integration / "scripts" / "child_0.py").write_text("ZERO = 0\n", encoding="utf-8")
         (self.integration / "scripts" / "child_1.py").write_text("ONE = 1\n", encoding="utf-8")
@@ -160,6 +162,7 @@ class NativePoolWorkspaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             git("init", "-q", cwd=root)
+            configure_git_fixture(root)
             (root / "first.txt").write_text("first\n", encoding="utf-8")
             (root / "second.txt").write_text("second\n", encoding="utf-8")
             (root / "current").symlink_to("first.txt")
@@ -196,6 +199,7 @@ class NativePoolWorkspaceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             git("init", "-q", cwd=root)
+            configure_git_fixture(root)
             (root / "product.txt").write_text("product\n", encoding="utf-8")
             git("add", "product.txt", cwd=root)
             for directory in (

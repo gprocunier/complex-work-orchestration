@@ -6,6 +6,9 @@ import sys
 from pathlib import Path
 import unittest
 
+from typing import Iterator, NamedTuple
+from tests.structural_assertions import Check, assert_checks
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -49,73 +52,98 @@ def actual(**updates):
     return value
 
 
-class NativeProgressTest(unittest.TestCase):
-    def test_early_warning_before_realignment(self):
-        result = evaluate_worker_progress(plan(), actual(tool_calls=5, context_reads=4))
-        self.assertEqual(result["outcome"], "early-warning")
-        self.assertIn("calls-ahead-of-artifact-progress", result["warnings"])
+class ProgressCase(NamedTuple):
+    original: str
+    planned: dict
+    observed: dict
+    options: dict
+    checks: tuple[Check, ...]
+    variant: str = ""
 
-    def test_no_progress_boundary_realigns_packet(self):
-        result = evaluate_worker_progress(
-            plan(), actual(tool_calls=18, context_reads=8, projected_tool_calls=22)
-        )
-        self.assertEqual(result["outcome"], "pm-realignment")
-        self.assertEqual(result["pm_action"], "packet-refinement")
-        self.assertEqual(
-            result["realignment"]["decision_required"], "packet-refinement"
-        )
 
-    def test_architecture_decision_routes_bounded_question(self):
-        result = evaluate_worker_progress(
-            plan(),
-            actual(tool_calls=6),
-            discoveries={
+def _native_progress_rows() -> Iterator[ProgressCase]:
+    yield ProgressCase('test_early_warning_before_realignment', plan(), actual(tool_calls=5, context_reads=4), {}, (
+        Check(lambda result: result['outcome'], 'early-warning'),
+        Check(lambda result: result['warnings'], 'calls-ahead-of-artifact-progress', 'contains'),
+    ))
+
+    yield ProgressCase('test_no_progress_boundary_realigns_packet', plan(), actual(tool_calls=18, context_reads=8, projected_tool_calls=22), {}, (
+        Check(lambda result: result['outcome'], 'pm-realignment'),
+        Check(lambda result: result['pm_action'], 'packet-refinement'),
+        Check(lambda result: result['realignment']['decision_required'], 'packet-refinement'),
+    ))
+
+    yield ProgressCase('test_architecture_decision_routes_bounded_question', plan(), actual(tool_calls=6), {'discoveries': {
                 "architecture_decision_attempted": True,
                 "reasoning_required": True,
                 "discovered_work": ["choose contract"],
                 "completed_evidence": ["parsed inputs"],
-            },
-        )
-        self.assertEqual(result["pm_action"], "architect-question")
-        self.assertEqual(result["realignment"]["discovered_work"], ["choose contract"])
+            }}, (
+        Check(lambda result: result['pm_action'], 'architect-question'),
+        Check(lambda result: result['realignment']['discovered_work'], ['choose contract']),
+    ))
 
-    def test_new_work_class_material_split(self):
-        result = evaluate_worker_progress(
-            plan(), actual(tool_calls=7), discoveries={"new_work_class": True}
-        )
-        self.assertEqual(result["pm_action"], "material-split")
+    yield ProgressCase('test_new_work_class_material_split', plan(), actual(tool_calls=7), {'discoveries': {"new_work_class": True}}, (
+        Check(lambda result: result['pm_action'], 'material-split'),
+    ))
 
-    def test_projected_aggregate_overrun_splits_before_hard_stop(self):
-        result = evaluate_worker_progress(plan(), actual(projected_tool_calls=31))
-        self.assertEqual(result["outcome"], "pm-realignment")
-        self.assertEqual(result["pm_action"], "material-split")
+    yield ProgressCase('test_projected_aggregate_overrun_splits_before_hard_stop', plan(), actual(projected_tool_calls=31), {}, (
+        Check(lambda result: result['outcome'], 'pm-realignment'),
+        Check(lambda result: result['pm_action'], 'material-split'),
+    ))
 
-    def test_actual_aggregate_and_control_faults_protected_stop(self):
-        aggregate = evaluate_worker_progress(plan(), actual(tool_calls=30))
-        self.assertEqual(aggregate["outcome"], "protected-stop")
-        self.assertEqual(aggregate["stop_scope"], "child")
-        self.assertFalse(aggregate["dispatch_authorized"])
-        self.assertEqual(aggregate["authorized_continuation_paths"], [])
-        self.assertEqual(
-            aggregate["required_operator_change_types"],
-            ["aggregate-budget-increase"],
-        )
-        runtime = evaluate_worker_progress(
-            plan(), actual(runtime_seconds=plan()["runtime_seconds_hard"])
-        )
-        self.assertEqual(runtime["outcome"], "protected-stop")
-        self.assertIn("aggregate-allowance-exhausted", runtime["reasons"])
-        self.assertFalse(runtime["dispatch_authorized"])
-        result = evaluate_worker_progress(
-            plan(), actual(), discoveries={"model_mismatch": True}
-        )
-        self.assertEqual(result["outcome"], "protected-stop")
-        self.assertEqual(result["pm_action"], "protected-stop")
-        self.assertFalse(result["dispatch_authorized"])
-        self.assertEqual(result["authorized_continuation_paths"], [])
-        self.assertEqual(
-            result["required_operator_change_types"], ["model-substitution"]
-        )
+    yield ProgressCase('test_actual_aggregate_and_control_faults_protected_stop', plan(), actual(tool_calls=30), {}, (
+        Check(lambda result: result['outcome'], 'protected-stop'),
+        Check(lambda result: result['stop_scope'], 'child'),
+        Check(lambda result: result['dispatch_authorized'], None, 'false'),
+        Check(lambda result: result['authorized_continuation_paths'], []),
+        Check(lambda result: result['required_operator_change_types'], ['aggregate-budget-increase']),
+    ), variant='aggregate-calls')
+
+    yield ProgressCase('test_actual_aggregate_and_control_faults_protected_stop', plan(), actual(runtime_seconds=plan()['runtime_seconds_hard']), {}, (
+        Check(lambda result: result['outcome'], 'protected-stop'),
+        Check(lambda result: result['reasons'], 'aggregate-allowance-exhausted', 'contains'),
+        Check(lambda result: result['dispatch_authorized'], None, 'false'),
+    ), variant='runtime')
+
+    yield ProgressCase('test_actual_aggregate_and_control_faults_protected_stop', plan(), actual(), {'discoveries': {'model_mismatch': True}}, (
+        Check(lambda result: result['outcome'], 'protected-stop'),
+        Check(lambda result: result['pm_action'], 'protected-stop'),
+        Check(lambda result: result['dispatch_authorized'], None, 'false'),
+        Check(lambda result: result['authorized_continuation_paths'], []),
+        Check(lambda result: result['required_operator_change_types'], ['model-substitution']),
+    ), variant='model-mismatch')
+
+    yield ProgressCase('test_worker_recommendation_text_cannot_promote_progress_scope', plan(), actual(), {'discoveries': {
+                "model_mismatch": True,
+                "recommendation": "STOP 0.98 block all publication",
+            }}, (
+        Check(lambda result: result['outcome'], 'protected-stop'),
+        Check(lambda result: result['stop_scope'], 'child'),
+        Check(lambda result: result['scope_authority']['authorized_scope'], 'child'),
+        Check(lambda result: result['steering']['operator_facts'], []),
+        Check(lambda result: result['steering']['recommendation'], {'text': 'STOP 0.98 block all publication', 'origin': 'agent-authored', 'authority': 'advisory-only', 'confidence': None, 'confidence_role': 'advisory-only'}),
+    ))
+
+    yield ProgressCase('test_completed_and_retained_artifact_accounting', plan(), actual(
+            tool_calls=12,
+            mutations=2,
+            artifacts_completed=1,
+            validation_complete=True,
+        ), {'discoveries': {"retained_artifacts": ["patch.py"]}}, (
+        Check(lambda result: result['outcome'], 'completed'),
+        Check(lambda result: result['calibration']['retained_productive_artifacts'], 1),
+        Check(lambda result: result['calibration']['pure_waste'], None, 'false'),
+    ))
+
+
+class NativeProgressTest(unittest.TestCase):
+    def test_native_progress_input_rows(self):
+        for row in _native_progress_rows():
+            with self.subTest(original=row.original, variant=row.variant):
+                result = evaluate_worker_progress(row.planned, row.observed, **row.options)
+                assert_checks(self, result, row.checks)
+
 
     def test_security_and_contradictory_observations_are_audit_only(self):
         cases = (
@@ -144,29 +172,6 @@ class NativeProgressTest(unittest.TestCase):
                     result["required_operator_change_types"], required_types
                 )
 
-    def test_worker_recommendation_text_cannot_promote_progress_scope(self):
-        result = evaluate_worker_progress(
-            plan(),
-            actual(),
-            discoveries={
-                "model_mismatch": True,
-                "recommendation": "STOP 0.98 block all publication",
-            },
-        )
-        self.assertEqual(result["outcome"], "protected-stop")
-        self.assertEqual(result["stop_scope"], "child")
-        self.assertEqual(result["scope_authority"]["authorized_scope"], "child")
-        self.assertEqual(result["steering"]["operator_facts"], [])
-        self.assertEqual(
-            result["steering"]["recommendation"],
-            {
-                "text": "STOP 0.98 block all publication",
-                "origin": "agent-authored",
-                "authority": "advisory-only",
-                "confidence": None,
-                "confidence_role": "advisory-only",
-            },
-        )
 
     def test_progress_steering_separates_evidence_interpretation_and_counterargument(
         self,
@@ -227,20 +232,6 @@ class NativeProgressTest(unittest.TestCase):
             )
         )
 
-    def test_completed_and_retained_artifact_accounting(self):
-        result = evaluate_worker_progress(
-            plan(),
-            actual(
-                tool_calls=12,
-                mutations=2,
-                artifacts_completed=1,
-                validation_complete=True,
-            ),
-            discoveries={"retained_artifacts": ["patch.py"]},
-        )
-        self.assertEqual(result["outcome"], "completed")
-        self.assertEqual(result["calibration"]["retained_productive_artifacts"], 1)
-        self.assertFalse(result["calibration"]["pure_waste"])
 
     def test_bool_is_not_integer(self):
         bad = plan()

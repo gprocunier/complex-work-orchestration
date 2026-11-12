@@ -1,0 +1,511 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/synthesis-policy:v1",
+  "title": "CWO Synthesis Policy",
+  "description": "Whole-document schema for policy/synthesis-policy.yaml version 1, checked by cwo_core.policy_schema whenever the policy is loaded. Consumer: cwo_core.synthesis, which read minimum_usable_inputs with int() and allow_partial with bool(). default_share_boundary is the boundary a synthesis lane would require, not a disclosure default; no packet is built from it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "mode",
+    "default_pattern",
+    "synthesis_owner",
+    "default_share_boundary",
+    "active_modes",
+    "activation_states",
+    "input_disposition_policy",
+    "salvage_only_provider_camps",
+    "partial_synthesis_policy",
+    "provider_conflict_policy",
+    "explicit_terms",
+    "creativity_terms",
+    "architecture_terms",
+    "provider_camps",
+    "default_panel",
+    "artifact_contract"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "schema": {
+      "const": "json-compatible-yaml"
+    },
+    "mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "default_pattern": {
+      "type": "string",
+      "minLength": 1
+    },
+    "synthesis_owner": {
+      "type": "string",
+      "minLength": 1
+    },
+    "default_share_boundary": {
+      "enum": [
+        "no-outside-sharing",
+        "redacted-packet",
+        "repo-readonly",
+        "patch-branch"
+      ]
+    },
+    "active_modes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "enum": [
+          "none",
+          "recommended",
+          "requested",
+          "accepted",
+          "disabled"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "activation_states": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "none",
+        "recommended",
+        "requested",
+        "accepted",
+        "disabled"
+      ],
+      "properties": {
+        "none": {
+          "type": "string",
+          "minLength": 1
+        },
+        "recommended": {
+          "type": "string",
+          "minLength": 1
+        },
+        "requested": {
+          "type": "string",
+          "minLength": 1
+        },
+        "accepted": {
+          "type": "string",
+          "minLength": 1
+        },
+        "disabled": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "input_disposition_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "use_as_synthesis_input",
+        "salvage_only",
+        "summarize_as_open_risk",
+        "exclude_as_rejected",
+        "quarantine",
+        "partial_only"
+      ],
+      "properties": {
+        "use_as_synthesis_input": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "salvage_only": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "summarize_as_open_risk": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "exclude_as_rejected": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "quarantine": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "partial_only": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "salvage_only_provider_camps": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "enum": [
+          "codex",
+          "openai",
+          "anthropic",
+          "google",
+          "local"
+        ]
+      },
+      "uniqueItems": true
+    },
+    "partial_synthesis_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "allow_partial",
+        "minimum_usable_inputs",
+        "partial_status",
+        "required_missing_input_fields",
+        "blocked_when"
+      ],
+      "properties": {
+        "allow_partial": {
+          "type": "boolean"
+        },
+        "minimum_usable_inputs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "partial_status": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_missing_input_fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "blocked_when": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "provider_conflict_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "carry_forward_route_domains",
+        "require_provider_provenance",
+        "require_conflict_summary"
+      ],
+      "properties": {
+        "carry_forward_route_domains": {
+          "type": "boolean"
+        },
+        "require_provider_provenance": {
+          "type": "boolean"
+        },
+        "require_conflict_summary": {
+          "type": "boolean"
+        }
+      }
+    },
+    "explicit_terms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "creativity_terms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "architecture_terms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "provider_camps": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "codex",
+        "openai",
+        "anthropic",
+        "google",
+        "local"
+      ],
+      "properties": {
+        "codex": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "terms",
+            "executor"
+          ],
+          "properties": {
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "executor": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "openai": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "terms",
+            "executor"
+          ],
+          "properties": {
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "executor": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "anthropic": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "terms",
+            "executor"
+          ],
+          "properties": {
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "executor": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "google": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "terms",
+            "executor"
+          ],
+          "properties": {
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "executor": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "local": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "terms",
+            "executor"
+          ],
+          "properties": {
+            "terms": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            },
+            "executor": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "default_panel": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "executor",
+          "role",
+          "provider_camp",
+          "effort",
+          "external"
+        ],
+        "properties": {
+          "executor": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "provider_camp": {
+            "enum": [
+              "codex",
+              "openai",
+              "anthropic",
+              "google",
+              "local"
+            ]
+          },
+          "effort": {
+            "type": "string",
+            "minLength": 1
+          },
+          "external": {
+            "type": "boolean"
+          },
+          "synthesis_use": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "artifact_contract": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "adjudication_authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule_id",
+        "description",
+        "decisions",
+        "clearable_hold_reasons",
+        "clearable_hold_reason_prefixes",
+        "not_clearable"
+      ],
+      "properties": {
+        "rule_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1
+        },
+        "decisions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": [
+              "accepted",
+              "accepted-with-changes",
+              "rejected",
+              "quarantined"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "clearable_hold_reasons": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "clearable_hold_reason_prefixes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "not_clearable": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

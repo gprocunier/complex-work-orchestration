@@ -145,6 +145,13 @@ def _iso(value: dt.datetime) -> str:
     return value.astimezone(dt.timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
+def _matches_expected_literal(value: Any, expected: Any) -> bool:
+    """Match numeric constants by their exact primitive type before equality."""
+    if type(expected) in (bool, int) and type(value) is not type(expected):
+        return False
+    return value == expected
+
+
 def _policy(source: Mapping[str, Any] | None = None) -> dict[str, Any]:
     policy = dict(source) if source is not None else load_policy("native-worker-execution")
     value = _require_exact_fields(policy.get("native_release_evidence"), POLICY_FIELDS, "native_release_evidence policy")
@@ -165,7 +172,7 @@ def _policy(source: Mapping[str, Any] | None = None) -> dict[str, Any]:
         "fallback_canary_rule": "verified-spark-quota-exhaustion-explicit-selection-exact-model",
     }
     for field, expected_value in expected.items():
-        if value.get(field) != expected_value:
+        if not _matches_expected_literal(value.get(field), expected_value):
             raise ValueError(f"native_release_evidence.{field} must equal {expected_value!r}")
     maximum = value.get("max_ttl_seconds")
     if isinstance(maximum, bool) or not isinstance(maximum, int) or maximum < 60:
@@ -694,7 +701,7 @@ def validate_native_release_evidence(
             "release_requires": ADJUDICATION_BEAD,
         }
         for field, expected in expected_constants.items():
-            if evidence.get(field) != expected:
+            if not _matches_expected_literal(evidence.get(field), expected):
                 raise ValueError(f"native release evidence {field} must equal {expected!r}")
         if evidence.get("requested_model") not in release_policy["authorized_models"]:
             raise ValueError("native release evidence requested_model is not authorized")

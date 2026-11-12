@@ -21,7 +21,7 @@ EXIT_BY_STATUS = {
 def _load_spec(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeError, json.JSONDecodeError):
+    except (OSError, UnicodeError, ValueError, RecursionError):
         return None
 
 

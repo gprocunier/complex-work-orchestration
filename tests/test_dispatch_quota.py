@@ -4,21 +4,26 @@ import json
 import tempfile
 import sys
 import unittest
-from contextlib import redirect_stdout
-from io import StringIO
 from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-import dispatch_work  # noqa: E402
 import build_contractor_packet  # noqa: E402
 import cwo_core.audit as lib  # noqa: E402
+from cwo_core.host_records import HostRecordStore, using_test_store  # noqa: E402
 
+
+from contextlib import redirect_stdout
+from io import StringIO
+import dispatch_work
 
 class DispatchQuotaTests(unittest.TestCase):
     def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.enterContext(using_test_store(HostRecordStore.for_tests(Path(temporary.name) / 'host')))
         # Unit-test exhaustion against a fixed fixture, not mutable campaign caps.
         controls = json.loads(json.dumps(lib.load_contracting_controls()))
         controls["quota_policy"]["external_manual_dispatches_per_epic"] = 7
@@ -134,41 +139,6 @@ class DispatchQuotaTests(unittest.TestCase):
             finally:
                 lib.AUDIT_LOG = original_audit
 
-    def test_direct_dispatch_uses_stable_dispatch_id_for_quota_and_audit(self) -> None:
-        original_audit = lib.AUDIT_LOG
-        original_argv = sys.argv[:]
-        with tempfile.TemporaryDirectory() as tmp:
-            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
-            try:
-                sys.argv = [
-                    "dispatch_work.py",
-                    "Documentation review for public README examples.",
-                    "--local-ok",
-                    "--prefer-local",
-                    "--share-boundary",
-                    "no-outside-sharing",
-                    "--requested-role",
-                    "documentation",
-                    "--bead",
-                    "bead-1",
-                    "--epic",
-                    "epic-1",
-                    "--dispatch-id",
-                    "dispatch-fixed",
-                    "--json",
-                ]
-                output = StringIO()
-                with redirect_stdout(output):
-                    dispatch_work.main()
-                artifact = json.loads(output.getvalue())
-                self.assertEqual(artifact["dispatch_id"], "dispatch-fixed")
-                self.assertEqual(artifact["quota_event_type"], "local_worker_dispatch")
-                events = lib.iter_audit_events(lib.AUDIT_LOG)
-                self.assertEqual(events[-1]["dispatch_id"], "dispatch-fixed")
-                self.assertEqual(events[-1]["quota_event_type"], "local_worker_dispatch")
-            finally:
-                sys.argv = original_argv
-                lib.AUDIT_LOG = original_audit
 
     def test_packet_build_infers_epic_scope_from_bead_parent(self) -> None:
         original_audit = lib.AUDIT_LOG
@@ -506,6 +476,43 @@ class DispatchQuotaTests(unittest.TestCase):
                 ]
             )
         )
+
+
+    def test_direct_dispatch_uses_stable_dispatch_id_for_quota_and_audit(self) -> None:
+        original_audit = lib.AUDIT_LOG
+        original_argv = sys.argv[:]
+        with tempfile.TemporaryDirectory() as tmp:
+            lib.AUDIT_LOG = Path(tmp) / "audit.jsonl"
+            try:
+                sys.argv = [
+                    "dispatch_work.py",
+                    "Documentation review for public README examples.",
+                    "--local-ok",
+                    "--prefer-local",
+                    "--share-boundary",
+                    "no-outside-sharing",
+                    "--requested-role",
+                    "documentation",
+                    "--bead",
+                    "bead-1",
+                    "--epic",
+                    "epic-1",
+                    "--dispatch-id",
+                    "dispatch-fixed",
+                    "--json",
+                ]
+                output = StringIO()
+                with redirect_stdout(output):
+                    dispatch_work.main()
+                artifact = json.loads(output.getvalue())
+                self.assertEqual(artifact["dispatch_id"], "dispatch-fixed")
+                self.assertEqual(artifact["quota_event_type"], "local_worker_dispatch")
+                events = lib.iter_audit_events(lib.AUDIT_LOG)
+                self.assertEqual(events[-1]["dispatch_id"], "dispatch-fixed")
+                self.assertEqual(events[-1]["quota_event_type"], "local_worker_dispatch")
+            finally:
+                sys.argv = original_argv
+                lib.AUDIT_LOG = original_audit
 
 
 if __name__ == "__main__":

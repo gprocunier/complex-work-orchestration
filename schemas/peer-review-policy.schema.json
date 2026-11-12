@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/peer-review-policy:v1",
+  "title": "CWO Peer Review Policy",
+  "description": "Whole-document schema for policy/peer-review-policy.yaml version 1, checked by cwo_core.policy_schema whenever the policy is loaded. It uses only the bounded keyword subset that cwo_core.policy_schema supports.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "schema",
+    "defaults",
+    "required_for_routes",
+    "required_for_share_boundaries",
+    "required_for_risk_levels",
+    "required_for_provider_conflict",
+    "peer_review_labels",
+    "quarantine_labels",
+    "sabotage_thresholds"
+  ],
+  "properties": {
+    "version": {"const": 1},
+    "schema": {"const": "json-compatible-yaml"},
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_peer_reviews",
+        "provider_diversity_required",
+        "quarantine_on_high_sabotage",
+        "local_secure_review_executor"
+      ],
+      "properties": {
+        "minimum_peer_reviews": {"type": "integer", "minimum": 1, "maximum": 10},
+        "provider_diversity_required": {"type": "boolean"},
+        "quarantine_on_high_sabotage": {"type": "boolean"},
+        "local_secure_review_executor": {"type": "string", "minLength": 1}
+      }
+    },
+    "required_for_routes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["external-contract", "local-worker", "architect-review", "internal-worker"],
+      "properties": {
+        "external-contract": {"const": true},
+        "local-worker": {"type": "boolean"},
+        "architect-review": {"type": "boolean"},
+        "internal-worker": {"type": "boolean"}
+      }
+    },
+    "required_for_share_boundaries": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patch-branch", "repo-readonly", "redacted-packet", "no-outside-sharing"],
+      "properties": {
+        "patch-branch": {"const": true},
+        "repo-readonly": {"const": true},
+        "redacted-packet": {"type": "boolean"},
+        "no-outside-sharing": {"type": "boolean"}
+      }
+    },
+    "required_for_risk_levels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"enum": ["low", "medium", "high", "critical"]}
+    },
+    "required_for_provider_conflict": {"const": true},
+    "peer_review_labels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "quarantine_labels": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "sabotage_thresholds": {
+      "description": "No runtime consumer reads this block. Production sabotage thresholds are sabotage_policy.thresholds in policy/contracting-controls.yaml (peer review, architect escalation, quarantine). Kept unchanged so version 1 documents stay valid; removal needs a versioned policy change.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review", "quarantine"],
+      "properties": {
+        "review": {"type": "integer", "minimum": 1, "maximum": 100},
+        "quarantine": {"type": "integer", "minimum": 1, "maximum": 100}
+      }
+    }
+  }
+}

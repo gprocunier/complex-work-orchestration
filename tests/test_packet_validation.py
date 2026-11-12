@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import copy
 import json
 import importlib
 import sys
 import tempfile
 import unittest
+from contextlib import nullcontext
 from pathlib import Path
+from typing import Literal, NamedTuple
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -90,6 +93,41 @@ def policy_with_secret_aliases(aliases: list[str]) -> dict:
         },
         "redaction_patterns": [],
     }
+
+
+class AliasPacketCase(NamedTuple):
+    original: str
+    aliases: list[str]
+    secret: str
+    suffix_alias: bool
+
+
+class SnippetFileCase(NamedTuple):
+    original: str
+    filename: str
+    payload: bytes
+    inside: bool
+    path_mode: Literal["absolute", "relative", "resolved"]
+    diagnostic: str | None
+    present: tuple[str, ...] = ()
+    check_artifact: bool = False
+
+
+class PacketMutation(NamedTuple):
+    original: str
+    path: tuple[str | int, ...]
+    variants: tuple[tuple[str, object, str], ...]
+
+
+class RedactionCase(NamedTuple):
+    original: str
+    raw: str
+    absent: tuple[str, ...] = ()
+    present: tuple[str, ...] = ()
+    unchanged: bool = False
+    repeat: bool = False
+    scan_redacted: bool = True
+    raw_residual: bool | None = None
 
 
 class PacketValidationTests(unittest.TestCase):
@@ -280,11 +318,62 @@ class PacketValidationTests(unittest.TestCase):
         self.assertNotIn("stillsecret", redacted)
         self.assertIn("[REDACTED]", redacted)
 
-    def test_rejects_forbidden_fields_in_bead_summary(self) -> None:
-        packet = base_packet()
-        packet["bead_summary"]["comments"] = "raw comment thread"
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("forbidden boundary fields" in error for error in errors))
+    def test_packet_contract_mutation_rows(self) -> None:
+        baseline = base_packet()
+        rows = (
+            PacketMutation("test_packet_summary_validation_refusal_variants", ("bead_summary", "comments"), (
+                ("test_rejects_forbidden_fields_in_bead_summary", "raw comment thread", "forbidden boundary fields"),
+            )),
+            PacketMutation("test_packet_summary_validation_refusal_variants", ("bead_summary", "title"), (
+                ("test_rejects_assignment_summary_hash_mismatch", "Changed title", "assignment_summary sha256"),
+            )),
+            PacketMutation("test_rejects_forbidden_fields_nested_outside_bead_summary", ("selected_snippets", 0, "metadata"), (
+                ("nested credentials", {"credentials": "must not be shared"}, "selected_snippets[0].metadata.credentials"),
+            )),
+            PacketMutation("test_rejects_missing_mandatory_exclusions", ("excluded_artifacts",), (
+                ("production access omitted", [item for item in baseline["excluded_artifacts"]
+                                               if item["type"] != "production_access"], "mandatory exclusions"),
+            )),
+            PacketMutation("test_rejects_malformed_dependency_shape", ("bead_summary", "dependencies"), (
+                ("non-list", "not-a-list", "dependencies must be a list"),
+                ("non-object item", [123], "must be a shallow projection object"),
+                ("non-string id", [{"id": 123, "title": "task", "status": "open", "dependency_type": "blocks"}],
+                 "must be a string or null"),
+            )),
+            PacketMutation("test_rejects_dependency_with_extra_fields", ("bead_summary", "dependencies"), (
+                ("extra field", [{"id": "task-001", "title": "Parent task", "status": "open",
+                                  "dependency_type": "blocks", "extra": "not-allowed"}],
+                 "must contain exactly id, title, status, and dependency_type"),
+            )),
+            PacketMutation("test_rejects_snippet_over_boundary_limit", ("selected_snippets", 0, "line_count"), (
+                ("81 lines", 81, "exceeds boundary line limit"),
+            )),
+            PacketMutation("test_rejects_snippet_hash_mismatch", ("selected_snippets", 0, "content"), (
+                ("changed content", "token=plain", "sha256 does not match content"),
+            )),
+            PacketMutation("test_rejects_multiple_job_description_labels", ("bead_summary", "labels"), (
+                ("two primary labels", ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning",
+                                        "contract-jd-architecture-reasoning"], "exactly one primary job-description label"),
+            )),
+            PacketMutation("test_rejects_missing_contractor_guard_labels_at_dispatch_validation", ("bead_summary", "labels"), (
+                ("guard labels missing", ["contract-jd-security-reasoning"], "contractor guard labels"),
+            )),
+            PacketMutation("test_rejects_missing_primary_job_description_label_at_dispatch_validation", ("bead_summary", "labels"), (
+                ("primary label missing", ["contractor-only", "no-codex-exec"], "exactly one primary job-description label"),
+            )),
+        )
+        for row in rows:
+            # Preserve sequential dependency mutations within their original case,
+            # while every original case owns a fresh, complete packet tree.
+            packet = copy.deepcopy(baseline)
+            for case, value, diagnostic in row.variants:
+                with self.subTest(original=row.original, case=case):
+                    parent = packet
+                    for key in row.path[:-1]:
+                        parent = parent[key]
+                    parent[row.path[-1]] = copy.deepcopy(value)
+                    errors = validate_contractor_packet(rehash(packet))
+                    self.assertTrue(any(diagnostic in error for error in errors))
 
     def test_sanitize_bead_does_not_share_metadata_for_external_boundaries(self) -> None:
         summary = sanitize_bead(
@@ -435,45 +524,6 @@ class PacketValidationTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertNotIn("metadata", first)
 
-    def test_rejects_forbidden_fields_nested_outside_bead_summary(self) -> None:
-        packet = base_packet()
-        packet["selected_snippets"][0]["metadata"] = {"credentials": "must not be shared"}
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("selected_snippets[0].metadata.credentials" in error for error in errors))
-
-    def test_rejects_missing_mandatory_exclusions(self) -> None:
-        packet = base_packet()
-        packet["excluded_artifacts"] = [
-            item for item in packet["excluded_artifacts"] if item["type"] != "production_access"
-        ]
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("mandatory exclusions" in error for error in errors))
-
-    def test_rejects_malformed_dependency_shape(self) -> None:
-        packet = base_packet()
-        packet["bead_summary"]["dependencies"] = "not-a-list"
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("dependencies must be a list" in error for error in errors))
-        packet["bead_summary"]["dependencies"] = [123]
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("must be a shallow projection object" in error for error in errors))
-        packet["bead_summary"]["dependencies"] = [{"id": 123, "title": "task", "status": "open", "dependency_type": "blocks"}]
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("must be a string or null" in error for error in errors))
-
-    def test_rejects_dependency_with_extra_fields(self) -> None:
-        packet = base_packet()
-        packet["bead_summary"]["dependencies"] = [
-            {
-                "id": "task-001",
-                "title": "Parent task",
-                "status": "open",
-                "dependency_type": "blocks",
-                "extra": "not-allowed",
-            },
-        ]
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("must contain exactly id, title, status, and dependency_type" in error for error in errors))
 
     def test_rejects_bead_summary_cap_overflow(self) -> None:
         packet = base_packet()
@@ -498,332 +548,266 @@ class PacketValidationTests(unittest.TestCase):
         errors = validate_contractor_packet(rehash(packet))
         self.assertFalse(any("bead_summary size" in error for error in errors))
 
-    def test_rejects_snippet_over_boundary_limit(self) -> None:
-        packet = base_packet()
-        packet["selected_snippets"][0]["line_count"] = 81
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("exceeds boundary line limit" in error for error in errors))
 
-    def test_rejects_snippet_hash_mismatch(self) -> None:
-        packet = base_packet()
-        packet["selected_snippets"][0]["content"] = "token=plain"
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("sha256 does not match content" in error for error in errors))
-
-    def test_rejects_multiple_job_description_labels(self) -> None:
-        packet = base_packet()
-        packet["bead_summary"]["labels"] = [
-            "contractor-only",
-            "no-codex-exec",
-            "contract-jd-security-reasoning",
-            "contract-jd-architecture-reasoning",
-        ]
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("exactly one primary job-description label" in error for error in errors))
-
-    def test_rejects_missing_contractor_guard_labels_at_dispatch_validation(self) -> None:
-        packet = base_packet()
-        packet["bead_summary"]["labels"] = ["contract-jd-security-reasoning"]
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("contractor guard labels" in error for error in errors))
-
-    def test_rejects_missing_primary_job_description_label_at_dispatch_validation(self) -> None:
-        packet = base_packet()
-        packet["bead_summary"]["labels"] = ["contractor-only", "no-codex-exec"]
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("exactly one primary job-description label" in error for error in errors))
-
-    def test_redaction_covers_common_secret_assignment_forms(self) -> None:
-        raw = "\n".join(
-            [
-                "private_key=abc123",
-                "AWS_SECRET_ACCESS_KEY=abc123",
-                "authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI",
-                "client_secret: plain",
-            ]
+    def test_redaction_and_residual_rows(self) -> None:
+        rows = (
+            RedactionCase(
+                'test_redaction_covers_common_secret_assignment_forms',
+                raw="\n".join(
+                    [
+                        "private_key=abc123",
+                        "AWS_SECRET_ACCESS_KEY=abc123",
+                        "authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI",
+                        "client_secret: plain",
+                    ]
+                ),
+                absent=('abc123', 'eyJhbGci', 'plain'),
+            ),
+            RedactionCase(
+                'test_prose_secret_labels_preserve_ordinary_values',
+                raw="mixed-script token: 45; score, token: ordinary, and time remain visible",
+                unchanged=True, scan_redacted=False, raw_residual=False,
+            ),
+            RedactionCase(
+                'test_prose_secret_labels_redact_high_confidence_credentials',
+                raw="Use token: abc123 and password: 123456 only in this synthetic example.",
+                absent=('abc123', '123456'),
+            ),
+            RedactionCase(
+                'test_structural_secret_fields_redact_short_and_multiword_values',
+                raw="\r\n".join(
+                    [
+                        "token: 45",
+                        "- password: ordinary words",
+                        '1. client_secret: "two words"',
+                        '{"token": 45, "safe": 1}',
+                        "export TOKEN=abc123",
+                        "password plaintextsecret",
+                    ]
+                ),
+                absent=('45', 'ordinary words', 'two words', 'abc123', 'plaintextsecret'), present=('"safe": 1',),
+            ),
+            RedactionCase(
+                'test_prefixed_sensitive_keys_are_redacted_with_structural_values',
+                raw="\n".join(
+                    [
+                        "x-api-key: abc123",
+                        "x-access-token=short",
+                        "my_access_key: safe",
+                        "x_access_token: safe",
+                    ]
+                ),
+                absent=('abc123', 'short', 'safe'),
+            ),
+            RedactionCase(
+                'test_multiline_sensitive_key_skips_comment_and_blank_lines',
+                raw="\r\n".join(
+                    [
+                        "token:",
+                        "  # explanatory comment",
+                        "",
+                        "  plaintextsecret",
+                        "x-access-token:",
+                        "  # ignore this line",
+                        "  safe",
+                        "my_access_key:",
+                        "  ",
+                        "  # another comment",
+                        "  secondsecret",
+                    ]
+                ),
+                absent=('plaintextsecret', 'safe', 'secondsecret'), present=('# explanatory comment', '# ignore this line', '# another comment'),
+            ),
+            RedactionCase(
+                'test_multiline_list_with_comment_lines_is_fully_redacted',
+                raw="\n".join(
+                    [
+                        "password:",
+                        "  # list header",
+                        "  - one",
+                        "  ",
+                        "  # inline separator",
+                        "  - safe",
+                        "  - # comment-only item",
+                        "  - secondsecret",
+                    ]
+                ),
+                absent=('one', 'safe', 'secondsecret'), present=('# list header', '# inline separator'),
+            ),
+            RedactionCase(
+                'test_multiline_json_secret_scalars_are_redacted',
+                raw="\n".join(
+                    [
+                        "{",
+                        '  "token":',
+                        '    "plaintextsecret",',
+                        '  "password":',
+                        '    "secondsecret",',
+                        '  "safe": "keep-this"',
+                        "}"
+                    ]
+                ),
+                absent=('plaintextsecret', 'secondsecret'), present=('"safe": "keep-this"',),
+            ),
+            RedactionCase(
+                'test_yaml_multiline_list_scalar_values_are_redacted',
+                raw="\n".join(
+                    [
+                        "token:",
+                        "  - plaintextsecret  # top item",
+                        '  - "quotedsecret"',
+                        "  - safe",
+                        "notes: safe",
+                    ]
+                ),
+                absent=('plaintextsecret', 'quotedsecret'), present=('notes: safe',),
+            ),
+            RedactionCase(
+                'test_nested_multiline_mapping_is_not_consumed_as_scalar',
+                raw="\n".join(
+                    [
+                        "token:",
+                        "  {",
+                        '    "password": "nestedsecret",',
+                        '    "safe": "safe"',
+                        "  }",
+                    ]
+                ),
+                absent=('nestedsecret',), present=('"safe": "safe"',),
+            ),
+            RedactionCase(
+                'test_multiline_nested_mapping_is_not_consumed_as_scalar',
+                raw="\n".join(
+                    [
+                        '{',
+                        '  "token":',
+                        "  {",
+                        '    "password": "nestedsecret",',
+                        '    "safe": "ok"',
+                        "  }",
+                        "}"
+                    ]
+                ),
+                absent=('nestedsecret',), present=('"safe": "ok"',),
+            ),
+            RedactionCase(
+                'test_markdown_headings_explanatory_text_and_inline_assignments',
+                raw="### Password: plaintextsecret\nIn docs, Password: plaintextsecret;\n",
+                present=('### Password: plaintextsecret', 'In docs, Password: [REDACTED];'),
+            ),
+            RedactionCase(
+                'test_plain_words_following_sensitive_terms_are_not_redacted',
+                raw="password management",
+                unchanged=True, scan_redacted=False,
+            ),
+            RedactionCase(
+                'test_empty_or_null_multiline_values',
+                raw="\n".join(["token:", "  ", "password:", "  null", "safe:", "  value"]),
+                absent=('null',), present=('token:', 'safe:'),
+            ),
+            RedactionCase(
+                'test_repeated_redaction_is_fixed_point',
+                raw="\n".join(["In notes, Password: plaintextsecret", 'token:', '  "plaintextsecret"', ""]),
+                repeat=True,
+            ),
+            RedactionCase(
+                'test_comment_and_blank_continuation_is_idempotent',
+                raw="\r\n".join(
+                    [
+                        "token:",
+                        "  # explanatory comment",
+                        "  ",
+                        "  # ignored note",
+                        "  plaintextsecret",
+                    ]
+                ),
+                repeat=True,
+            ),
+            RedactionCase(
+                'test_residual_scan_aligns_with_multiline_redaction',
+                raw="\r\n".join(
+                    [
+                        "token:",
+                        "  # explanatory comment",
+                        "  plaintextsecret",
+                    ]
+                ),
+                raw_residual=True,
+            ),
+            RedactionCase(
+                'test_structural_values_keep_comment_markers_inside_quotes_and_redact_semicolons',
+                raw='token: "part one # part two" # note\nconnection_string: Server=host;User=name;Password=value',
+                absent=('part one', 'part two', 'Server=host', 'User=name'), present=('# note',),
+            ),
+            RedactionCase(
+                'test_yaml_block_and_multiline_quoted_values_are_fully_redacted',
+                raw='token: |\n  plaintextsecret\n  second line\nsafe: ok\n'
+                '- token: |\n    list secret\n  safe: preserved\n'
+                'password: "first line\n  second secret"\n',
+                absent=('plaintextsecret', 'second line', 'list secret', 'first line', 'second secret'), present=('safe: ok', 'safe: preserved'),
+            ),
+            RedactionCase(
+                'test_malformed_inline_structure_fails_closed',
+                raw='{"token": "plaintextsecret"',
+                absent=('plaintextsecret',),
+            ),
         )
-        redacted = redact_text(raw)
-        self.assertNotIn("abc123", redacted)
-        self.assertNotIn("eyJhbGci", redacted)
-        self.assertNotIn("plain", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
+        for row in rows:
+            with self.subTest(original=row.original):
+                if row.raw_residual is not None:
+                    self.assertEqual(bool(find_residual_private_context(row.raw)), row.raw_residual)
+                redacted = redact_text(row.raw)
+                for secret in row.absent:
+                    self.assertNotIn(secret, redacted)
+                for fragment in row.present:
+                    self.assertIn(fragment, redacted)
+                if row.unchanged:
+                    self.assertEqual(redacted, row.raw)
+                if row.repeat:
+                    self.assertEqual(redacted, redact_text(redacted))
+                if row.scan_redacted:
+                    self.assertFalse(find_residual_private_context(redacted))
 
-    def test_prose_secret_labels_preserve_ordinary_values(self) -> None:
-        raw = "mixed-script token: 45; score, token: ordinary, and time remain visible"
-        self.assertEqual(redact_text(raw), raw)
-        self.assertFalse(find_residual_private_context(raw))
 
-    def test_prose_secret_labels_redact_high_confidence_credentials(self) -> None:
-        raw = "Use token: abc123 and password: 123456 only in this synthetic example."
-        redacted = redact_text(raw)
-        self.assertNotIn("abc123", redacted)
-        self.assertNotIn("123456", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_structural_secret_fields_redact_short_and_multiword_values(self) -> None:
-        raw = "\r\n".join(
-            [
-                "token: 45",
-                "- password: ordinary words",
-                '1. client_secret: "two words"',
-                '{"token": 45, "safe": 1}',
-                "export TOKEN=abc123",
-                "password plaintextsecret",
-            ]
+    def test_packet_redaction_and_residual_alias_rows(self) -> None:
+        rows = (
+            AliasPacketCase("test_policy_defined_sensitive_aliases_do_not_residual_in_validation_snippets",
+                            policy_sensitive_field_aliases(), "policySecret01", True),
+            AliasPacketCase("test_compact_aliases_have_residual_validation", ["accesskey"], "compactSecret01", False),
         )
-        redacted = redact_text(raw)
-        for secret in ["45", "ordinary words", "two words", "abc123", "plaintextsecret"]:
-            self.assertNotIn(secret, redacted)
-        self.assertIn('"safe": 1', redacted)
-        self.assertFalse(find_residual_private_context(redacted))
+        baseline = base_packet()
+        for row in rows:
+            packet = copy.deepcopy(baseline)
+            snippet = packet["selected_snippets"][0]
+            artifact = next(item for item in packet["included_artifacts"] if item["type"] == "inline_snippet")
+            for alias in row.aliases:
+                with self.subTest(original=row.original, alias=alias):
+                    alias_hyphen = alias.replace("_", "-")
+                    secret = f"{row.secret}-{alias}" if row.suffix_alias else row.secret
+                    forms = [
+                        f"{alias}: {secret}",
+                        f"{alias_hyphen}= {secret}",
+                        f"x-{alias_hyphen}: {secret}",
+                        f'{{"{alias_hyphen}": "{secret}"}}',
+                        f"{alias}:\n  {secret}",
+                    ]
+                    raw = "\n".join(forms)
+                    redacted = redact_text(raw)
+                    self.assertNotIn(secret, redacted, alias)
+                    self.assertFalse(find_residual_private_context(redacted), alias)
+                    for control, content in (("redacted", redacted), ("raw", raw)):
+                        with self.subTest(control=control):
+                            snippet["content"] = content
+                            snippet["sha256"] = artifact_hash(content)
+                            snippet["line_count"] = len(content.splitlines())
+                            artifact["sha256"] = snippet["sha256"]
+                            artifact["line_count"] = snippet["line_count"]
+                            errors = validate_contractor_packet(rehash(packet))
+                            if control == "raw":
+                                self.assertTrue(any("residual private or secret-like context" in error for error in errors), alias)
+                            else:
+                                self.assertEqual([], errors, alias)
 
-    def test_prefixed_sensitive_keys_are_redacted_with_structural_values(self) -> None:
-        raw = "\n".join(
-            [
-                "x-api-key: abc123",
-                "x-access-token=short",
-                "my_access_key: safe",
-                "x_access_token: safe",
-            ]
-        )
-        redacted = redact_text(raw)
-        for secret in ["abc123", "short", "safe"]:
-            self.assertNotIn(secret, redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_policy_defined_sensitive_aliases_do_not_residual_in_validation_snippets(self) -> None:
-        secret_value = "policySecret01"
-        packet = base_packet()
-        snippet = packet["selected_snippets"][0]
-        artifact = next(
-            item for item in packet["included_artifacts"] if item["type"] == "inline_snippet"
-        )
-
-        for alias in policy_sensitive_field_aliases():
-            alias_hyphen = alias.replace("_", "-")
-            forms = [
-                f"{alias}: {secret_value}-{alias}",
-                f"{alias_hyphen}= {secret_value}-{alias}",
-                f"x-{alias_hyphen}: {secret_value}-{alias}",
-                f'{{"{alias_hyphen}": "{secret_value}-{alias}"}}',
-                f"{alias}:\n  {secret_value}-{alias}",
-            ]
-            redacted = redact_text("\n".join(forms))
-            self.assertNotIn(f"{secret_value}-{alias}", redacted, alias)
-            self.assertFalse(find_residual_private_context(redacted), alias)
-
-            snippet["content"] = redacted
-            snippet["sha256"] = artifact_hash(redacted)
-            snippet["line_count"] = len(redacted.splitlines())
-            artifact["sha256"] = snippet["sha256"]
-            artifact["line_count"] = snippet["line_count"]
-            self.assertEqual([], validate_contractor_packet(rehash(packet)), alias)
-
-            raw = "\n".join(forms)
-            snippet["content"] = raw
-            snippet["sha256"] = artifact_hash(raw)
-            snippet["line_count"] = len(raw.splitlines())
-            artifact["sha256"] = snippet["sha256"]
-            artifact["line_count"] = snippet["line_count"]
-            errors = validate_contractor_packet(rehash(packet))
-            self.assertTrue(any("residual private or secret-like context" in error for error in errors), alias)
-
-    def test_compact_aliases_have_residual_validation(self) -> None:
-        secret_value = "compactSecret01"
-        alias = "accesskey"
-        packet = base_packet()
-        snippet = packet["selected_snippets"][0]
-        artifact = next(
-            item for item in packet["included_artifacts"] if item["type"] == "inline_snippet"
-        )
-        forms = [
-            f"{alias}: {secret_value}",
-            f"{alias}= {secret_value}",
-            f"x-{alias}: {secret_value}",
-            f'{{"{alias}": "{secret_value}"}}',
-            f"{alias}:\n  {secret_value}",
-        ]
-        redacted = redact_text("\n".join(forms))
-        self.assertNotIn(secret_value, redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-        snippet["content"] = redacted
-        snippet["sha256"] = artifact_hash(redacted)
-        snippet["line_count"] = len(redacted.splitlines())
-        artifact["sha256"] = snippet["sha256"]
-        artifact["line_count"] = snippet["line_count"]
-        self.assertEqual([], validate_contractor_packet(rehash(packet)))
-
-        raw = "\n".join(forms)
-        snippet["content"] = raw
-        snippet["sha256"] = artifact_hash(raw)
-        snippet["line_count"] = len(raw.splitlines())
-        artifact["sha256"] = snippet["sha256"]
-        artifact["line_count"] = snippet["line_count"]
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("residual private or secret-like context" in error for error in errors))
-
-    def test_multiline_sensitive_key_skips_comment_and_blank_lines(self) -> None:
-        raw = "\r\n".join(
-            [
-                "token:",
-                "  # explanatory comment",
-                "",
-                "  plaintextsecret",
-                "x-access-token:",
-                "  # ignore this line",
-                "  safe",
-                "my_access_key:",
-                "  ",
-                "  # another comment",
-                "  secondsecret",
-            ]
-        )
-        redacted = redact_text(raw)
-        for secret in ["plaintextsecret", "safe", "secondsecret"]:
-            self.assertNotIn(secret, redacted)
-        self.assertIn("# explanatory comment", redacted)
-        self.assertIn("# ignore this line", redacted)
-        self.assertIn("# another comment", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_multiline_list_with_comment_lines_is_fully_redacted(self) -> None:
-        raw = "\n".join(
-            [
-                "password:",
-                "  # list header",
-                "  - one",
-                "  ",
-                "  # inline separator",
-                "  - safe",
-                "  - # comment-only item",
-                "  - secondsecret",
-            ]
-        )
-        redacted = redact_text(raw)
-        for secret in ["one", "safe", "secondsecret"]:
-            self.assertNotIn(secret, redacted)
-        self.assertIn("# list header", redacted)
-        self.assertIn("# inline separator", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_multiline_json_secret_scalars_are_redacted(self) -> None:
-        raw = "\n".join(
-            [
-                "{",
-                '  "token":',
-                '    "plaintextsecret",',
-                '  "password":',
-                '    "secondsecret",',
-                '  "safe": "keep-this"',
-                "}"
-            ]
-        )
-        redacted = redact_text(raw)
-        for secret in ["plaintextsecret", "secondsecret"]:
-            self.assertNotIn(secret, redacted)
-        self.assertIn('"safe": "keep-this"', redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_yaml_multiline_list_scalar_values_are_redacted(self) -> None:
-        raw = "\n".join(
-            [
-                "token:",
-                "  - plaintextsecret  # top item",
-                '  - "quotedsecret"',
-                "  - safe",
-                "notes: safe",
-            ]
-        )
-        redacted = redact_text(raw)
-        for secret in ["plaintextsecret", "quotedsecret"]:
-            self.assertNotIn(secret, redacted)
-        self.assertIn("notes: safe", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_nested_multiline_mapping_is_not_consumed_as_scalar(self) -> None:
-        raw = "\n".join(
-            [
-                "token:",
-                "  {",
-                '    "password": "nestedsecret",',
-                '    "safe": "safe"',
-                "  }",
-            ]
-        )
-        redacted = redact_text(raw)
-        self.assertNotIn("nestedsecret", redacted)
-        self.assertIn('"safe": "safe"', redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_multiline_nested_mapping_is_not_consumed_as_scalar(self) -> None:
-        raw = "\n".join(
-            [
-                '{',
-                '  "token":',
-                "  {",
-                '    "password": "nestedsecret",',
-                '    "safe": "ok"',
-                "  }",
-                "}"
-            ]
-        )
-        redacted = redact_text(raw)
-        self.assertNotIn("nestedsecret", redacted)
-        self.assertIn('"safe": "ok"', redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_markdown_headings_explanatory_text_and_inline_assignments(self) -> None:
-        raw = "### Password: plaintextsecret\nIn docs, Password: plaintextsecret;\n"
-        redacted = redact_text(raw)
-        self.assertIn("### Password: plaintextsecret", redacted)
-        self.assertIn("In docs, Password: [REDACTED];", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_plain_words_following_sensitive_terms_are_not_redacted(self) -> None:
-        raw = "password management"
-        self.assertEqual(redact_text(raw), raw)
-
-    def test_empty_or_null_multiline_values(self) -> None:
-        raw = "\n".join(["token:", "  ", "password:", "  null", "safe:", "  value"])
-        redacted = redact_text(raw)
-        self.assertIn("token:", redacted)
-        self.assertIn("safe:", redacted)
-        self.assertNotIn("null", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_repeated_redaction_is_fixed_point(self) -> None:
-        raw = "\n".join(["In notes, Password: plaintextsecret", 'token:', '  "plaintextsecret"', ""])
-        redacted_once = redact_text(raw)
-        redacted_twice = redact_text(redacted_once)
-        self.assertEqual(redacted_once, redacted_twice)
-        self.assertFalse(find_residual_private_context(redacted_once))
-
-    def test_comment_and_blank_continuation_is_idempotent(self) -> None:
-        raw = "\r\n".join(
-            [
-                "token:",
-                "  # explanatory comment",
-                "  ",
-                "  # ignored note",
-                "  plaintextsecret",
-            ]
-        )
-        redacted_once = redact_text(raw)
-        redacted_twice = redact_text(redacted_once)
-        self.assertEqual(redacted_once, redacted_twice)
-        self.assertFalse(find_residual_private_context(redacted_once))
-
-    def test_residual_scan_aligns_with_multiline_redaction(self) -> None:
-        raw = "\r\n".join(
-            [
-                "token:",
-                "  # explanatory comment",
-                "  plaintextsecret",
-            ]
-        )
-        self.assertTrue(find_residual_private_context(raw))
-        self.assertFalse(find_residual_private_context(redact_text(raw)))
 
     def test_rejects_packet_with_residual_unbalanced_inline_container(self) -> None:
         packet = base_packet()
@@ -849,41 +833,23 @@ class PacketValidationTests(unittest.TestCase):
             self.assertEqual(redact_text(raw), raw)
             self.assertFalse(find_residual_private_context(raw))
 
-    def test_structural_values_keep_comment_markers_inside_quotes_and_redact_semicolons(self) -> None:
-        raw = 'token: "part one # part two" # note\nconnection_string: Server=host;User=name;Password=value'
-        redacted = redact_text(raw)
-        self.assertNotIn("part one", redacted)
-        self.assertNotIn("part two", redacted)
-        self.assertIn("# note", redacted)
-        self.assertNotIn("Server=host", redacted)
-        self.assertNotIn("User=name", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
 
-    def test_yaml_block_and_multiline_quoted_values_are_fully_redacted(self) -> None:
-        raw = (
-            'token: |\n  plaintextsecret\n  second line\nsafe: ok\n'
-            '- token: |\n    list secret\n  safe: preserved\n'
-            'password: "first line\n  second secret"\n'
+    def test_redaction_preserves_benign_prose_across_markup_variants(self) -> None:
+        variants = (
+            ('test_markdown_blockquote_field_is_structural',
+             '> password: plaintextsecret\n> In prose, token: 45 remains ordinary.',
+             'plaintextsecret'),
+            ('test_markdown_and_fenced_code_use_logical_line_field_position',
+             '```env\nTOKEN=abc123\n```\n> In prose, token: 45 remains ordinary.\n',
+             'abc123'),
         )
-        redacted = redact_text(raw)
-        for secret in ["plaintextsecret", "second line", "list secret", "first line", "second secret"]:
-            self.assertNotIn(secret, redacted)
-        self.assertIn("safe: ok", redacted)
-        self.assertIn("safe: preserved", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_malformed_inline_structure_fails_closed(self) -> None:
-        raw = '{"token": "plaintextsecret"'
-        redacted = redact_text(raw)
-        self.assertNotIn("plaintextsecret", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
-
-    def test_markdown_blockquote_field_is_structural(self) -> None:
-        raw = "> password: plaintextsecret\n> In prose, token: 45 remains ordinary."
-        redacted = redact_text(raw)
-        self.assertNotIn("plaintextsecret", redacted)
-        self.assertIn("token: 45", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
+        for original, raw_text, secret in variants:
+            with self.subTest(original=original):
+                raw = raw_text
+                redacted = redact_text(raw)
+                self.assertNotIn(secret, redacted)
+                self.assertIn("token: 45", redacted)
+                self.assertFalse(find_residual_private_context(redacted))
 
     def test_redaction_sentinel_is_stable_only_as_complete_value(self) -> None:
         stable = "token=[REDACTED]"
@@ -893,12 +859,6 @@ class PacketValidationTests(unittest.TestCase):
         self.assertFalse(find_residual_private_context(stable))
         self.assertTrue(find_residual_private_context(tainted))
 
-    def test_markdown_and_fenced_code_use_logical_line_field_position(self) -> None:
-        raw = "```env\nTOKEN=abc123\n```\n> In prose, token: 45 remains ordinary.\n"
-        redacted = redact_text(raw)
-        self.assertNotIn("abc123", redacted)
-        self.assertIn("token: 45", redacted)
-        self.assertFalse(find_residual_private_context(redacted))
 
     def test_recursive_secret_key_with_non_string_value_is_residual(self) -> None:
         self.assertEqual(find_residual_private_context({"metadata": {"token": 42}}), ["metadata.token"])
@@ -925,11 +885,6 @@ class PacketValidationTests(unittest.TestCase):
         errors = validate_contractor_packet(rehash(packet))
         self.assertTrue(any("has no matching selected snippet" in error for error in errors))
 
-    def test_rejects_assignment_summary_hash_mismatch(self) -> None:
-        packet = base_packet()
-        packet["bead_summary"]["title"] = "Changed title"
-        errors = validate_contractor_packet(rehash(packet))
-        self.assertTrue(any("assignment_summary sha256" in error for error in errors))
 
     def test_inline_snippet_build_rejects_boundary_overflow(self) -> None:
         too_long = "\n".join(str(index) for index in range(81))
@@ -951,136 +906,56 @@ class PacketValidationTests(unittest.TestCase):
                 opt_in_basis="cli-flag",
             )
 
-    def test_snippet_file_is_included_as_redacted_repo_snippet(self) -> None:
-        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
-            snippet_path = Path(tmpdir) / "master-plan.md"
-            snippet_path.write_text("Final plan\napi_key=plain-secret\nValidation: run tests\n", encoding="utf-8")
-            packet = build_packet(
-                bead_id="cwo-1",
-                bead_json={
-                    "id": "cwo-1",
-                    "title": "Master plan review",
-                    "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
-                },
-                executor="chatgpt_pro_browser_master_reviewer",
-                share_boundary="redacted-packet",
-                job_description_label="contract-jd-master-plan-review",
-                allowed_files=[],
-                inline_snippets=[],
-                snippet_files=[str(snippet_path)],
-                dispatch_id="dispatch-validation",
-                external_opt_in=True,
-                opt_in_basis="cli-flag",
-            )
-        snippet = packet["selected_snippets"][0]
-        self.assertTrue(snippet["path"].endswith("/master-plan.md"))
-        self.assertIn("Final plan", snippet["content"])
-        self.assertIn("[REDACTED]", snippet["content"])
-        artifact_paths = [artifact["path"] for artifact in packet["included_artifacts"] if artifact["type"] == "inline_snippet"]
-        self.assertIn(snippet["path"], artifact_paths)
+    def test_snippet_file_construction_rows(self) -> None:
+        rows = (
+            SnippetFileCase("test_snippet_file_is_included_as_redacted_repo_snippet", "master-plan.md",
+                            b"Final plan\napi_key=plain-secret\nValidation: run tests\n",
+                            True, "absolute", None, ("Final plan", "[REDACTED]"), True),
+            SnippetFileCase("test_absolute_snippet_file_inside_repo_is_allowed", "inside.md", b"Repo-contained plan\n",
+                            True, "resolved", None, ("Repo-contained plan",)),
+            SnippetFileCase("test_snippet_file_outside_repo_is_rejected", "outside.md", b"Outside repo\n",
+                            False, "absolute", "outside repository"),
+            SnippetFileCase("test_snippet_file_secret_name_is_rejected", ".env", b"TOKEN=secret\n",
+                            True, "relative", "likely secret"),
+            SnippetFileCase("test_snippet_file_binary_probe_is_rejected", "binary.md", b"ok\0not text",
+                            True, "relative", "binary packet artifact"),
+            SnippetFileCase("test_snippet_file_invalid_utf8_is_rejected", "invalid.md", b"\xff\xfe",
+                            True, "relative", "non-UTF-8 snippet file"),
+        )
+        for row in rows:
+            with self.subTest(original=row.original):
+                with tempfile.TemporaryDirectory(dir=ROOT if row.inside else None) as tmpdir:
+                    snippet_path = Path(tmpdir) / row.filename
+                    snippet_path.write_bytes(row.payload)
+                    selected = str(snippet_path)
+                    if row.path_mode == "relative":
+                        selected = str(snippet_path.relative_to(ROOT))
+                    elif row.path_mode == "resolved":
+                        selected = str(snippet_path.resolve())
+                    bead = {"id": "cwo-1", "title": "Master plan review"}
+                    if row.diagnostic is None:
+                        bead["labels"] = ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"]
+                    expected = self.assertRaises(SystemExit) if row.diagnostic else nullcontext()
+                    with expected as raised:
+                        packet = build_packet(
+                            bead_id="cwo-1", bead_json=bead,
+                            executor="chatgpt_pro_browser_master_reviewer", share_boundary="redacted-packet",
+                            job_description_label="contract-jd-master-plan-review", allowed_files=[], inline_snippets=[],
+                            snippet_files=[selected], dispatch_id="dispatch-validation",
+                            external_opt_in=True, opt_in_basis="cli-flag",
+                        )
+                if row.diagnostic:
+                    self.assertIn(row.diagnostic, str(raised.exception))
+                else:
+                    snippet = packet["selected_snippets"][0]
+                    for fragment in row.present:
+                        self.assertIn(fragment, snippet["content"])
+                    if row.check_artifact:
+                        self.assertTrue(snippet["path"].endswith("/master-plan.md"))
+                        artifact_paths = [artifact["path"] for artifact in packet["included_artifacts"]
+                                          if artifact["type"] == "inline_snippet"]
+                        self.assertIn(snippet["path"], artifact_paths)
 
-    def test_absolute_snippet_file_inside_repo_is_allowed(self) -> None:
-        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
-            snippet_path = Path(tmpdir) / "inside.md"
-            snippet_path.write_text("Repo-contained plan\n", encoding="utf-8")
-            packet = build_packet(
-                bead_id="cwo-1",
-                bead_json={
-                    "id": "cwo-1",
-                    "title": "Master plan review",
-                    "labels": ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"],
-                },
-                executor="chatgpt_pro_browser_master_reviewer",
-                share_boundary="redacted-packet",
-                job_description_label="contract-jd-master-plan-review",
-                allowed_files=[],
-                inline_snippets=[],
-                snippet_files=[str(snippet_path.resolve())],
-                dispatch_id="dispatch-validation",
-                external_opt_in=True,
-                opt_in_basis="cli-flag",
-            )
-        self.assertIn("Repo-contained plan", packet["selected_snippets"][0]["content"])
-
-    def test_snippet_file_outside_repo_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            snippet_path = Path(tmpdir) / "outside.md"
-            snippet_path.write_text("Outside repo\n", encoding="utf-8")
-            with self.assertRaises(SystemExit) as exc:
-                build_packet(
-                    bead_id="cwo-1",
-                    bead_json={"id": "cwo-1", "title": "Master plan review"},
-                    executor="chatgpt_pro_browser_master_reviewer",
-                    share_boundary="redacted-packet",
-                    job_description_label="contract-jd-master-plan-review",
-                    allowed_files=[],
-                    inline_snippets=[],
-                    snippet_files=[str(snippet_path)],
-                    dispatch_id="dispatch-validation",
-                    external_opt_in=True,
-                    opt_in_basis="cli-flag",
-                )
-        self.assertIn("outside repository", str(exc.exception))
-
-    def test_snippet_file_secret_name_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
-            snippet_path = Path(tmpdir) / ".env"
-            snippet_path.write_text("TOKEN=secret\n", encoding="utf-8")
-            with self.assertRaises(SystemExit) as exc:
-                build_packet(
-                    bead_id="cwo-1",
-                    bead_json={"id": "cwo-1", "title": "Master plan review"},
-                    executor="chatgpt_pro_browser_master_reviewer",
-                    share_boundary="redacted-packet",
-                    job_description_label="contract-jd-master-plan-review",
-                    allowed_files=[],
-                    inline_snippets=[],
-                    snippet_files=[str(snippet_path.relative_to(ROOT))],
-                    dispatch_id="dispatch-validation",
-                    external_opt_in=True,
-                    opt_in_basis="cli-flag",
-                )
-        self.assertIn("likely secret", str(exc.exception))
-
-    def test_snippet_file_binary_probe_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
-            snippet_path = Path(tmpdir) / "binary.md"
-            snippet_path.write_bytes(b"ok\0not text")
-            with self.assertRaises(SystemExit) as exc:
-                build_packet(
-                    bead_id="cwo-1",
-                    bead_json={"id": "cwo-1", "title": "Master plan review"},
-                    executor="chatgpt_pro_browser_master_reviewer",
-                    share_boundary="redacted-packet",
-                    job_description_label="contract-jd-master-plan-review",
-                    allowed_files=[],
-                    inline_snippets=[],
-                    snippet_files=[str(snippet_path.relative_to(ROOT))],
-                    dispatch_id="dispatch-validation",
-                    external_opt_in=True,
-                    opt_in_basis="cli-flag",
-                )
-        self.assertIn("binary packet artifact", str(exc.exception))
-
-    def test_snippet_file_invalid_utf8_is_rejected(self) -> None:
-        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
-            snippet_path = Path(tmpdir) / "invalid.md"
-            snippet_path.write_bytes(b"\xff\xfe")
-            with self.assertRaises(SystemExit) as exc:
-                build_packet(
-                    bead_id="cwo-1",
-                    bead_json={"id": "cwo-1", "title": "Master plan review"},
-                    executor="chatgpt_pro_browser_master_reviewer",
-                    share_boundary="redacted-packet",
-                    job_description_label="contract-jd-master-plan-review",
-                    allowed_files=[],
-                    inline_snippets=[],
-                    snippet_files=[str(snippet_path.relative_to(ROOT))],
-                    dispatch_id="dispatch-validation",
-                    external_opt_in=True,
-                    opt_in_basis="cli-flag",
-                )
-        self.assertIn("non-UTF-8 snippet file", str(exc.exception))
 
     def test_snippet_file_symlink_escape_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as outside_tmp:

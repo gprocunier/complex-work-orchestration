@@ -10,8 +10,8 @@ from typing import Any
 
 from .audit import iter_audit_events
 from .epic_convergence import CALL_CATEGORIES, GRAPH_COUNTER_FIELDS
+from .model_identities import SPARK_MODEL
 from .execution_enhancement_metrics import checked_command_details, checked_command_summary, native_progress_details, native_progress_summary
-from .paths import AUDIT_LOG
 
 UNAVAILABLE = "?"
 NOT_APPLICABLE = "n/a"
@@ -129,7 +129,9 @@ def load_json_documents(paths: list[Path]) -> list[dict[str, Any]]:
 
 
 def load_audit_events(paths: list[Path] | None = None) -> list[dict[str, Any]]:
-    audit_paths = paths if paths is not None else ([AUDIT_LOG] if AUDIT_LOG.exists() else [])
+    if paths is None:
+        return iter_audit_events()
+    audit_paths = paths
     events: list[dict[str, Any]] = []
     for path in audit_paths:
         events.extend(iter_audit_events(path))
@@ -1690,7 +1692,7 @@ def _is_native_disposition_record(record: dict[str, Any]) -> bool:
     if isinstance(record.get("artifact_validation"), dict):
         return True
     model = _clean(record.get("model")) or _clean(record.get("workerbee_actual_model"))
-    return model == "gpt-5.3-codex-spark"
+    return model == SPARK_MODEL
 
 
 def _sol_breakfix_summary(records: list[dict[str, Any]]) -> dict[str, Any]:

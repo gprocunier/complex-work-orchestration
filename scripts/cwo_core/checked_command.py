@@ -13,6 +13,8 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from .path_contract import path_components, path_within
+
 SPEC_TYPE = "cwo-checked-command-spec"
 RESULT_TYPE = "cwo-checked-command-result"
 VERSION = 1
@@ -53,6 +55,10 @@ def _string_list(value: Any, path: str) -> list[str]:
     return [_strict_string(item, f"{path}[{index}]", allow_empty=True) for index, item in enumerate(value)]
 
 
+def _supported_version(value: Any) -> bool:
+    return not isinstance(value, bool) and value == VERSION
+
+
 def normalize_command_spec(value: Any) -> dict[str, Any]:
     if not isinstance(value, Mapping):
         raise ValueError("spec must be a mapping")
@@ -62,7 +68,7 @@ def normalize_command_spec(value: Any) -> dict[str, Any]:
     }
     if set(value) != required:
         raise ValueError(f"spec must contain exact fields {sorted(required)}")
-    if value["spec_type"] != SPEC_TYPE or value["version"] != VERSION:
+    if value["spec_type"] != SPEC_TYPE or not _supported_version(value["version"]):
         raise ValueError("unsupported checked-command spec type or version")
     command_id = _strict_string(value["command_id"], "command_id")
     mode = _strict_string(value["mode"], "mode")
@@ -105,12 +111,17 @@ def normalize_command_spec(value: Any) -> dict[str, Any]:
         raise ValueError("workspace-scoped mutation requires allowed_paths")
     normalized_paths: list[str] = []
     for raw_path in allowed_paths:
-        candidate = (cwd / raw_path).resolve() if not Path(raw_path).is_absolute() else Path(raw_path).resolve()
+        # The raw root must satisfy the path contract before anything resolves
+        # it: no absolute paths and no traversal, even when they land inside.
+        components = path_components(raw_path)
+        if components is None:
+            raise ValueError(f"allowed path is not a relative contract path: {raw_path}")
+        canonical = "/".join(components)
         try:
-            relative = candidate.relative_to(cwd)
+            (cwd / canonical).resolve().relative_to(cwd.resolve())
         except ValueError as exc:
             raise ValueError(f"allowed path escapes cwd: {raw_path}") from exc
-        normalized_paths.append(relative.as_posix())
+        normalized_paths.append(canonical)
     timeout_seconds = _strict_int(value["timeout_seconds"], "timeout_seconds", 1)
     return {
         "spec_type": SPEC_TYPE, "version": VERSION, "command_id": command_id, "mode": mode,
@@ -120,13 +131,61 @@ def normalize_command_spec(value: Any) -> dict[str, Any]:
     }
 
 
+def _consume_source_operand(remaining: Any, *, attached: bool, trailing: bool) -> bool:
+    """Whether consuming an option operand terminates the current cluster."""
+    if not attached or not trailing:
+        next(remaining, None)
+    return attached
+
+
+def _scan_inline_source(options: list[str], *, terminators: str, operands: str,
+                        long_operands: frozenset[str], allow_plus: bool, attached_operands: bool) -> bool:
+    """Scan interpreter options only, stopping at a script/module boundary."""
+    remaining = iter(options)
+    for option in remaining:
+        if option in {"--", "-", "--help", "--version", "--help-env", "--help-xoptions", "--help-all"}:
+            return False
+        if not option.startswith("-") and not (allow_plus and option.startswith("+")):
+            return False
+        if option.startswith("--"):
+            name, separator, _ = option.partition("=")
+            if name in long_operands and not separator:
+                next(remaining, None)
+            continue
+        for index, flag in enumerate(option[1:], start=1):
+            if flag == "c":
+                return True
+            if flag in terminators:
+                return False
+            if flag in operands and _consume_source_operand(
+                    remaining, attached=attached_operands, trailing=index < len(option) - 1):
+                break
+    return False
+
+
+def _inline_interpreter_source(argv: list[str]) -> bool:
+    """One classification/enforcement predicate with interpreter-specific grammars."""
+    if not argv:
+        return False
+    name = Path(argv[0]).name.lower()
+    if name in {"bash", "sh"}:
+        # -m is job control in shells, not Python's module boundary. Shells
+        # also accept +/- option clusters and rc-file options with operands.
+        return _scan_inline_source(argv[1:], terminators="", operands="oO",
+                                   long_operands=frozenset({"--rcfile", "--init-file"}), allow_plus=True, attached_operands=False)
+    if re.fullmatch(r"python(?:[23](?:\.[0-9]+)?)?(?:d|t)?", name):
+        return _scan_inline_source(argv[1:], terminators="mh?V", operands="WX",
+                                   long_operands=frozenset({"--check-hash-based-pycs"}), allow_plus=False, attached_operands=True)
+    return False
+
+
 def classify_command_complexity(spec: Any) -> dict[str, Any]:
     normalized = normalize_command_spec(spec)
     reasons: list[str] = []
     argv = normalized["argv"]
     if normalized["mode"] != "argv":
         reasons.append("typed-source")
-    if len(argv) >= 2 and Path(argv[0]).name.lower() in {"python", "python3", "bash", "sh"} and argv[1] == "-c":
+    if _inline_interpreter_source(argv):
         reasons.append("interpreter-inline-source")
     joined = " ".join(argv)
     if any(marker in joined for marker in ("|", ">", "<", "$(", "&&", "||", ";", "<<")):
@@ -163,8 +222,7 @@ def _changed(before: Mapping[str, tuple[int, int]], after: Mapping[str, tuple[in
 
 
 def _path_allowed(path: str, allowed: list[str]) -> bool:
-    candidate = Path(path)
-    return any(candidate == Path(root) or Path(root) in candidate.parents for root in allowed)
+    return path_within(path, allowed)
 
 
 def _redact(text: str, secrets: list[str]) -> str:
@@ -173,6 +231,13 @@ def _redact(text: str, secrets: list[str]) -> str:
         if secret:
             result = result.replace(secret, "[REDACTED]")
     return result[:4096]
+
+
+def _timeout_diagnostic(value: bytes | str | None, secrets: list[str]) -> str:
+    """Decode UTF-8 timeout bytes with byte escapes before redaction and truncation."""
+    if isinstance(value, bytes):
+        value = value.decode("utf-8", errors="backslashreplace")
+    return _redact(value or "", secrets)
 
 
 def _base_result(spec: dict[str, Any], complexity: dict[str, Any]) -> dict[str, Any]:
@@ -207,7 +272,7 @@ def execute_checked_command(value: Any) -> dict[str, Any]:
     complexity = classify_command_complexity(spec)
     result = _base_result(spec, complexity)
     argv = spec["argv"]
-    if spec["mode"] == "argv" and len(argv) >= 2 and Path(argv[0]).name.lower() in {"python", "python3", "bash", "sh"} and argv[1] == "-c":
+    if spec["mode"] == "argv" and _inline_interpreter_source(argv):
         result.update({"preflight_status": "failed", "linter": "typed-source-policy", "failure_class": "typed-source-required", "quoting_error_prevented": True, "avoided_retry_cycles": 1})
         return result
     try:
@@ -218,7 +283,7 @@ def execute_checked_command(value: Any) -> dict[str, Any]:
                     raise ValueError("json-policy preflight requires an object")
             else:
                 re.compile(preflight["value"])
-    except (ValueError, json.JSONDecodeError, re.error) as exc:
+    except (ValueError, json.JSONDecodeError, re.error, RecursionError) as exc:
         result.update({"preflight_status": "failed", "linter": "nested-language", "failure_class": "command-construction-failed", "diagnostics": {"stdout": "", "stderr": str(exc)[:4096]}, "quoting_error_prevented": True, "avoided_retry_cycles": 1})
         return result
 
@@ -273,7 +338,7 @@ def execute_checked_command(value: Any) -> dict[str, Any]:
             if completed.returncode != 0:
                 result["failure_class"] = "execution-failed"
         except subprocess.TimeoutExpired as exc:
-            result.update({"execution_status": "failed", "failure_class": "execution-timeout", "diagnostics": {"stdout": _redact(exc.stdout or "", list(spec["env"].values())), "stderr": _redact(exc.stderr or "", list(spec["env"].values()))}})
+            result.update({"execution_status": "failed", "failure_class": "execution-timeout", "diagnostics": {"stdout": _timeout_diagnostic(exc.stdout, list(spec["env"].values())), "stderr": _timeout_diagnostic(exc.stderr, list(spec["env"].values()))}})
     after = _snapshot(cwd)
     mutated = _changed(before, after)
     result["mutated_paths"] = mutated

@@ -145,5 +145,31 @@
       "redacted reasoning",
       "non-transparent refusal"
     ]
+  },
+  "review_models": {
+    "openai": {
+      "gpt-6.1-sol": {
+        "model_family": "gpt",
+        "stronger_than": []
+      },
+      "gpt-6-astra": {
+        "model_family": "gpt",
+        "stronger_than": [
+          "gpt-6.1-sol"
+        ]
+      }
+    },
+    "anthropic": {
+      "claude-opus-4-6": {
+        "model_family": "claude",
+        "stronger_than": []
+      }
+    },
+    "google": {
+      "gemini-3.1-pro-preview": {
+        "model_family": "gemini",
+        "stronger_than": []
+      }
+    }
   }
 }

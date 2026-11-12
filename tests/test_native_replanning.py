@@ -11,6 +11,7 @@ from threading import Event
 import unittest
 from unittest.mock import patch
 import sys
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -331,6 +332,23 @@ def _needs_replan_evidence(*, decision: str = "pm-refine", uncertainty_class: st
     }
 
 
+class CleanDecisionRow(NamedTuple):
+    original_id: str
+    variant: str
+    event: str
+    evidence: dict
+
+
+class NeedsReplanRow(NamedTuple):
+    original_id: str
+    variant: str
+    evidence: dict
+    state: str
+    counter: int | None = None
+    next_action: str | None = None
+    reason: str | None = None
+
+
 class NativeReplanningTest(unittest.TestCase):
     def setUp(self) -> None:
         self._temporary = TemporaryDirectory()
@@ -467,21 +485,41 @@ class NativeReplanningTest(unittest.TestCase):
                 {"trusted_evidence": True},
             )
 
-    def test_typed_needs_replan_routes_to_pm_without_operator_approval(self) -> None:
-        result = transition_replanning_state(
-            _state_with_overrides(),
-            "needs-replan",
-            _needs_replan_evidence(),
+    def test_typed_needs_replan_decision_family(self) -> None:
+        malformed = _needs_replan_evidence()
+        malformed["replan"]["mutation_stopped"] = False
+        changed = _needs_replan_evidence()
+        changed["replan"]["scope_delta"]["within_original_objective"] = False
+        oversized = _needs_replan_evidence()
+        oversized["replan"]["bounded_options"][0]["tool_calls_p90"] = 98
+        invalid_id = "tests.test_native_replanning.NativeReplanningTest.test_typed_needs_replan_fails_closed_on_invalid_evidence_or_scope"
+        pm_id = "tests.test_native_replanning.NativeReplanningTest.test_typed_needs_replan_routes_to_pm_without_operator_approval"
+        rows = (
+            NeedsReplanRow(pm_id, "bounded-pm", _needs_replan_evidence(), "pm-realignment", 1, "request-pm-refinement"),
+            NeedsReplanRow("tests.test_native_replanning.NativeReplanningTest.test_typed_needs_replan_routes_material_reasoning_to_architect",
+                           "architect", _needs_replan_evidence(decision="architect-reasoning", uncertainty_class="architect"),
+                           "architect-realignment", 0, "request-architect-refinement"),
+            NeedsReplanRow(invalid_id, "mutation-not-stopped", malformed, "protected-stop", reason="invalid-needs-replan-evidence"),
+            NeedsReplanRow(invalid_id, "outside-objective", changed, "protected-stop", reason="objective-change"),
+            NeedsReplanRow(invalid_id, "oversized-option", oversized, "protected-stop", reason="invalid-needs-replan-evidence"),
         )
-        self.assertEqual(result["state"], "pm-realignment")
-        self.assertEqual(result["counters"]["pm_replans_used"], 1)
-        self.assertEqual(result["next_action"], "request-pm-refinement")
-        reassignment = transition_replanning_state(
-            result,
-            "pm-refined",
-            {"requires_architect_cycle": False},
-        )
-        self.assertEqual(reassignment["state"], "reassignment-ready")
+        for row in rows:
+            # A live state is private to this transition. Only the bounded PM
+            # receipt is inspected by both original read-only oracle contracts.
+            result = transition_replanning_state(_state_with_overrides(), "needs-replan", row.evidence)
+            with self.subTest(original_id=row.original_id, variant=row.variant):
+                self.assertEqual(result["state"], row.state)
+                if row.counter is not None:
+                    self.assertEqual(result["counters"]["pm_replans_used"], row.counter)
+                    self.assertEqual(result["next_action"], row.next_action)
+                else:
+                    self.assertIn(row.reason, result["reason_codes"])
+            if row.variant == "bounded-pm":
+                with self.subTest(original_id="tests.test_native_replanning.NativeReplanningTest.test_receipt_carries_verified_provenance_and_structured_reasons"):
+                    self.assert_replanning_provenance(result)
+                with self.subTest(original_id=pm_id):
+                    reassignment = transition_replanning_state(result, "pm-refined", {"requires_architect_cycle": False})
+                    self.assertEqual(reassignment["state"], "reassignment-ready")
 
     def test_pm_refinement_rejects_protected_change_without_verified_approval(self) -> None:
         pm_state = transition_replanning_state(
@@ -630,64 +668,51 @@ class NativeReplanningTest(unittest.TestCase):
                 },
             )
 
-    def test_typed_needs_replan_routes_material_reasoning_to_architect(self) -> None:
-        result = transition_replanning_state(
-            _state_with_overrides(),
-            "needs-replan",
-            _needs_replan_evidence(decision="architect-reasoning", uncertainty_class="architect"),
+    def test_clean_no_artifact_and_protected_decision_family(self) -> None:
+        prefix = "tests.test_native_replanning.NativeReplanningTest."
+        protected_id = prefix + "test_all_protected_boundaries_stop"
+        rows = (
+            CleanDecisionRow(prefix + "test_oversized_read_only_exploration_realigns_to_pm_before_compaction", "exploration", "clean-no-artifact",
+                             {"trusted_evidence": True, "exact_model": True, "control_healthy": True,
+                              "tool_calls_delta": 2, "runtime_seconds_delta": 10, "context_compactions_delta": 0,
+                              "mutation": {"out_of_scope": False, "tainted": False},
+                              "objective_changed": False, "security_changed": False, "authority_changed": False}),
+            CleanDecisionRow(prefix + "test_clean_no_artifact_pm_refined_to_fresh_worker", "fresh-worker", "clean-no-artifact",
+                             {"trusted_evidence": True, "exact_model": True, "control_healthy": True,
+                              "mutation": {"out_of_scope": False, "tainted": False}}),
+            CleanDecisionRow(protected_id, "model-mismatch", "model-mismatch", {}),
+            CleanDecisionRow(protected_id, "compaction", "clean-no-artifact",
+                             {"trusted_evidence": True, "exact_model": True, "control_healthy": True,
+                              "mutation": {"out_of_scope": False, "tainted": False}, "context_compactions_delta": 1}),
+            CleanDecisionRow(protected_id, "control-loss", "control-loss", {}),
+            CleanDecisionRow(protected_id, "security", "clean-no-artifact",
+                             {"trusted_evidence": True, "exact_model": True, "control_healthy": True,
+                              "mutation": {"out_of_scope": False, "tainted": False}, "security_changed": True}),
+            CleanDecisionRow(protected_id, "untrusted", "clean-no-artifact",
+                             {"trusted_evidence": False, "exact_model": True, "control_healthy": True,
+                              "mutation": {"out_of_scope": False, "tainted": False}}),
         )
-        self.assertEqual(result["state"], "architect-realignment")
-        self.assertEqual(result["counters"]["pm_replans_used"], 0)
-        self.assertEqual(result["next_action"], "request-architect-refinement")
+        for row in rows:
+            with self.subTest(original_id=row.original_id, variant=row.variant):
+                result = transition_replanning_state(_state_with_overrides(), row.event, row.evidence)
+                if row.variant == "fresh-worker":
+                    reassigned = transition_replanning_state(result, "pm-refined", {"requires_architect_cycle": False})
+                    ready = transition_replanning_state(reassigned, "fresh-worker-assigned", {})
+                    self.assertEqual(ready["state"], "dispatchable")
+                    self.assertEqual(ready["reason_codes"], [WORK_SIZING["fresh-worker-reassignment"]["event"]])
+                else:
+                    self.assertEqual(result["state"], "pm-realignment" if row.variant == "exploration" else "protected-stop")
+                    if row.variant == "exploration":
+                        self.assertEqual(result["counters"]["pm_replans_used"], 1)
+                        self.assertEqual(result["cwo_native_replanning_receipt"]["state_after"], "pm-realignment")
+                    elif row.variant in ("model-mismatch", "control-loss"):
+                        self.assertEqual(result["reason_codes"], [row.variant])
+                    elif row.variant == "security":
+                        self.assertIn("security-or-authority-change", result["reason_codes"])
+                    elif row.variant == "untrusted":
+                        self.assertIn("invalid-trusted-evidence", result["reason_codes"])
 
-    def test_typed_needs_replan_fails_closed_on_invalid_evidence_or_scope(self) -> None:
-        malformed = _needs_replan_evidence()
-        malformed["replan"]["mutation_stopped"] = False
-        stopped = transition_replanning_state(_state_with_overrides(), "needs-replan", malformed)
-        self.assertEqual(stopped["state"], "protected-stop")
-        self.assertIn("invalid-needs-replan-evidence", stopped["reason_codes"])
 
-        changed = _needs_replan_evidence()
-        changed["replan"]["scope_delta"]["within_original_objective"] = False
-        stopped = transition_replanning_state(_state_with_overrides(), "needs-replan", changed)
-        self.assertEqual(stopped["state"], "protected-stop")
-        self.assertIn("objective-change", stopped["reason_codes"])
-
-        oversized = _needs_replan_evidence()
-        oversized["replan"]["bounded_options"][0]["tool_calls_p90"] = 98
-        stopped = transition_replanning_state(_state_with_overrides(), "needs-replan", oversized)
-        self.assertEqual(stopped["state"], "protected-stop")
-        self.assertIn("invalid-needs-replan-evidence", stopped["reason_codes"])
-    def test_oversized_read_only_exploration_realigns_to_pm_before_compaction(self) -> None:
-        evidence = {
-            "trusted_evidence": True,
-            "exact_model": True,
-            "control_healthy": True,
-            "tool_calls_delta": 2,
-            "runtime_seconds_delta": 10,
-            "context_compactions_delta": 0,
-            "mutation": {"out_of_scope": False, "tainted": False},
-            "objective_changed": False,
-            "security_changed": False,
-            "authority_changed": False,
-        }
-        result = transition_replanning_state(_state_with_overrides(), "clean-no-artifact", evidence)
-        self.assertEqual(result["state"], "pm-realignment")
-        self.assertEqual(result["counters"]["pm_replans_used"], 1)
-        self.assertEqual(result["cwo_native_replanning_receipt"]["state_after"], "pm-realignment")
-
-    def test_clean_no_artifact_pm_refined_to_fresh_worker(self) -> None:
-        evidence = {
-            "trusted_evidence": True,
-            "exact_model": True,
-            "control_healthy": True,
-            "mutation": {"out_of_scope": False, "tainted": False},
-        }
-        pm = transition_replanning_state(_state_with_overrides(), "clean-no-artifact", evidence)
-        reassigned = transition_replanning_state(pm, "pm-refined", {"requires_architect_cycle": False})
-        ready = transition_replanning_state(reassigned, "fresh-worker-assigned", {})
-        self.assertEqual(ready["state"], "dispatchable")
-        self.assertEqual(ready["reason_codes"], [WORK_SIZING["fresh-worker-reassignment"]["event"]])
 
     def test_one_pm_plus_one_architect_cycle_then_second_cycle_stops(self) -> None:
         evidence = {
@@ -748,59 +773,6 @@ class NativeReplanningTest(unittest.TestCase):
         self.assertEqual(exhausted_architect["state"], "protected-stop")
         self.assertIn("architect-cycle-exhausted", exhausted_architect["reason_codes"])
 
-    def test_all_protected_boundaries_stop(self) -> None:
-        base_execution = _state_with_overrides()
-        stopped = transition_replanning_state(base_execution, "model-mismatch", {})
-        self.assertEqual(stopped["state"], "protected-stop")
-        self.assertEqual(stopped["reason_codes"], ["model-mismatch"])
-
-        compaction = transition_replanning_state(
-            _state_with_overrides(),
-            "clean-no-artifact",
-            {
-                "trusted_evidence": True,
-                "exact_model": True,
-                "control_healthy": True,
-                "mutation": {"out_of_scope": False, "tainted": False},
-                "context_compactions_delta": 1,
-            },
-        )
-        self.assertEqual(compaction["state"], "protected-stop")
-
-        control = transition_replanning_state(
-            _state_with_overrides(),
-            "control-loss",
-            {},
-        )
-        self.assertEqual(control["state"], "protected-stop")
-        self.assertEqual(control["reason_codes"], ["control-loss"])
-
-        security = transition_replanning_state(
-            _state_with_overrides(),
-            "clean-no-artifact",
-            {
-                "trusted_evidence": True,
-                "exact_model": True,
-                "control_healthy": True,
-                "mutation": {"out_of_scope": False, "tainted": False},
-                "security_changed": True,
-            },
-        )
-        self.assertEqual(security["state"], "protected-stop")
-        self.assertIn("security-or-authority-change", security["reason_codes"])
-
-        invalid = transition_replanning_state(
-            _state_with_overrides(),
-            "clean-no-artifact",
-            {
-                "trusted_evidence": False,
-                "exact_model": True,
-                "control_healthy": True,
-                "mutation": {"out_of_scope": False, "tainted": False},
-            },
-        )
-        self.assertEqual(invalid["state"], "protected-stop")
-        self.assertIn("invalid-trusted-evidence", invalid["reason_codes"])
 
     def test_aggregate_allowance_shared_across_reassignment(self) -> None:
         evidence = {
@@ -864,12 +836,7 @@ class NativeReplanningTest(unittest.TestCase):
                 caller_authority="pm",
             )
 
-    def test_receipt_carries_verified_provenance_and_structured_reasons(self) -> None:
-        result = transition_replanning_state(
-            _state_with_overrides(),
-            "needs-replan",
-            _needs_replan_evidence(),
-        )
+    def assert_replanning_provenance(self, result) -> None:
         receipt = result["cwo_native_replanning_receipt"]
         self.assertNotIn("authority", receipt)
         self.assertEqual(

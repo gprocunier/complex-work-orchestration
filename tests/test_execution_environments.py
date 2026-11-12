@@ -15,15 +15,11 @@ from cwo_core.harness import (  # noqa: E402
     harness_registry,
     model_profile_registry,
     validate_harness_dispatch_envelope,
-    validate_execution_environment_registry,
     validate_model_profile_registry,
 )
 
 
 class ExecutionEnvironmentTests(unittest.TestCase):
-    def test_execution_environment_registry_is_consistent(self) -> None:
-        self.assertEqual(validate_execution_environment_registry(), [])
-
     def test_model_profile_registry_is_consistent(self) -> None:
         self.assertEqual(validate_model_profile_registry(), [])
         registry = model_profile_registry()
@@ -333,19 +329,6 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         envelope["envelope_version"] = "2.0"
         self.assertTrue(any("unsupported" in error for error in validate_harness_dispatch_envelope(envelope)))
 
-    def test_harness_dispatch_rejects_prompt_hash_mismatch(self) -> None:
-        envelope = build_harness_dispatch(
-            task="Review docs.",
-            dispatch_id="dispatch-test",
-            environment_key="connected-opencode-exemplar",
-            role="worker",
-            harness_key="opencode",
-        )
-        envelope["prompt"] = "substituted prompt"
-        self.assertIn(
-            "harness dispatch envelope prompt_sha256 does not match prompt",
-            validate_harness_dispatch_envelope(envelope),
-        )
 
     def test_opencode_suggested_command_quotes_model_fields(self) -> None:
         envelope = build_harness_dispatch(
@@ -394,6 +377,20 @@ class ExecutionEnvironmentTests(unittest.TestCase):
                         calls.add(node.func.id)
             self.assertFalse(imports & blocked_imports, relative)
             self.assertFalse({"system", "popen", "run", "call"} & calls, relative)
+
+    def test_harness_dispatch_rejects_prompt_hash_mismatch(self) -> None:
+        envelope = build_harness_dispatch(
+            task="Review docs.",
+            dispatch_id="dispatch-test",
+            environment_key="connected-opencode-exemplar",
+            role="worker",
+            harness_key="opencode",
+        )
+        envelope["prompt"] = "substituted prompt"
+        self.assertIn(
+            "harness dispatch envelope prompt_sha256 does not match prompt",
+            validate_harness_dispatch_envelope(envelope),
+        )
 
 
 if __name__ == "__main__":

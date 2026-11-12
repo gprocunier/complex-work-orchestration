@@ -100,55 +100,40 @@ class PacketGateTests(unittest.TestCase):
                             epic_id="epic-1",
                         )
 
-    def test_legacy_allowed_executors_field_still_works(self) -> None:
-        labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "allowed": True,
-                    "share_boundary": "redacted-packet",
-                    "allowed_executors": ["claude_code_manual"],
-                    "decision_source": "test",
-                    "recorded_at": "2026-06-09T00:00:00Z",
-                    "scope": "legacy packet",
-                },
-                handle,
-            )
-            handle.flush()
-            basis = validate_gate(
-                "claude_code_manual",
-                "redacted-packet",
-                labels,
-                "contract-jd-security-reasoning",
-                external_ok=False,
-                opt_in_record=handle.name,
-            )
-        self.assertEqual(basis, "audit-record")
+    def test_opt_in_record_legacy_field_variants(self) -> None:
+        variants = (
+            ('test_legacy_allowed_executors_field_still_works', 'allowed', 'allowed_executors', 'legacy packet'),
+            ('test_external_contracting_allowed_field_is_accepted',
+             'external_contracting_allowed',
+             'allowed_external_executors',
+             'alternate opt-in field'),
+        )
+        for original, allowed_field, executors_field, scope in variants:
+            with self.subTest(original=original):
+                labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
+                with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+                    json.dump(
+                        {
+                            allowed_field: True,
+                            "share_boundary": "redacted-packet",
+                            executors_field: ["claude_code_manual"],
+                            "decision_source": "test",
+                            "recorded_at": "2026-06-09T00:00:00Z",
+                            "scope": scope,
+                        },
+                        handle,
+                    )
+                    handle.flush()
+                    basis = validate_gate(
+                        "claude_code_manual",
+                        "redacted-packet",
+                        labels,
+                        "contract-jd-security-reasoning",
+                        external_ok=False,
+                        opt_in_record=handle.name,
+                    )
+                self.assertEqual(basis, "audit-record")
 
-    def test_external_contracting_allowed_field_is_accepted(self) -> None:
-        labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "external_contracting_allowed": True,
-                    "share_boundary": "redacted-packet",
-                    "allowed_external_executors": ["claude_code_manual"],
-                    "decision_source": "test",
-                    "recorded_at": "2026-06-09T00:00:00Z",
-                    "scope": "alternate opt-in field",
-                },
-                handle,
-            )
-            handle.flush()
-            basis = validate_gate(
-                "claude_code_manual",
-                "redacted-packet",
-                labels,
-                "contract-jd-security-reasoning",
-                external_ok=False,
-                opt_in_record=handle.name,
-            )
-        self.assertEqual(basis, "audit-record")
 
     def test_opt_in_record_rejects_conflicting_authorization_fields(self) -> None:
         labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
@@ -181,109 +166,58 @@ class PacketGateTests(unittest.TestCase):
                             opt_in_record=handle.name,
                         )
 
-    def test_opt_in_record_can_scope_to_provider(self) -> None:
-        labels = ["contractor-only", "no-codex-exec", "contract-jd-security-reasoning"]
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "allowed": True,
-                    "share_boundary": "redacted-packet",
-                    "allowed_external_executors": ["claude_code_manual"],
-                    "allowed_providers": ["anthropic_manual"],
-                    "decision_source": "test",
-                    "recorded_at": "2026-06-09T00:00:00Z",
-                    "scope": "provider scoped packet",
-                },
-                handle,
-            )
-            handle.flush()
-            basis = validate_gate(
-                "claude_code_manual",
-                "redacted-packet",
-                labels,
-                "contract-jd-security-reasoning",
-                external_ok=False,
-                opt_in_record=handle.name,
-            )
-        self.assertEqual(basis, "audit-record")
+    def test_provider_scoped_opt_in_record_variants(self) -> None:
+        variants = (
+            ('test_opt_in_record_can_scope_to_provider',
+             'contract-jd-security-reasoning',
+             'claude_code_manual',
+             'anthropic_manual',
+             'provider scoped packet'),
+            ('test_gemini_agy_architecture_critic_accepts_scoped_opt_in_record',
+             'contract-jd-architecture-reasoning',
+             'gemini_architecture_critic',
+             'google_gemini_manual',
+             'architecture second-opinion critique'),
+            ('test_claude_opus_architecture_critic_accepts_scoped_opt_in_record',
+             'contract-jd-architecture-reasoning',
+             'claude_architecture_critic',
+             'anthropic_manual',
+             'architecture second-opinion critique'),
+            ('test_chatgpt_pro_browser_reviewer_accepts_scoped_opt_in_record',
+             'contract-jd-master-plan-review',
+             'chatgpt_pro_browser_master_reviewer',
+             'openai_manual',
+             'ChatGPT Pro master plan review'),
+        )
+        for original, job_label, executor_key, provider_key, scope in variants:
+            with self.subTest(original=original):
+                labels = ["contractor-only", "no-codex-exec", job_label]
+                with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
+                    json.dump(
+                        {
+                            "allowed": True,
+                            "share_boundary": "redacted-packet",
+                            "allowed_external_executors": [executor_key],
+                            "allowed_providers": [provider_key],
+                            "decision_source": "test",
+                            "recorded_at": "2026-06-09T00:00:00Z",
+                            "scope": scope,
+                        },
+                        handle,
+                    )
+                    handle.flush()
+                    basis = validate_gate(
+                        executor_key,
+                        "redacted-packet",
+                        labels,
+                        job_label,
+                        external_ok=False,
+                        opt_in_record=handle.name,
+                    )
+                self.assertEqual(basis, "audit-record")
 
-    def test_gemini_agy_architecture_critic_accepts_scoped_opt_in_record(self) -> None:
-        labels = ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"]
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "allowed": True,
-                    "share_boundary": "redacted-packet",
-                    "allowed_external_executors": ["gemini_architecture_critic"],
-                    "allowed_providers": ["google_gemini_manual"],
-                    "decision_source": "test",
-                    "recorded_at": "2026-06-09T00:00:00Z",
-                    "scope": "architecture second-opinion critique",
-                },
-                handle,
-            )
-            handle.flush()
-            basis = validate_gate(
-                "gemini_architecture_critic",
-                "redacted-packet",
-                labels,
-                "contract-jd-architecture-reasoning",
-                external_ok=False,
-                opt_in_record=handle.name,
-            )
-        self.assertEqual(basis, "audit-record")
 
-    def test_claude_opus_architecture_critic_accepts_scoped_opt_in_record(self) -> None:
-        labels = ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"]
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "allowed": True,
-                    "share_boundary": "redacted-packet",
-                    "allowed_external_executors": ["claude_architecture_critic"],
-                    "allowed_providers": ["anthropic_manual"],
-                    "decision_source": "test",
-                    "recorded_at": "2026-06-09T00:00:00Z",
-                    "scope": "architecture second-opinion critique",
-                },
-                handle,
-            )
-            handle.flush()
-            basis = validate_gate(
-                "claude_architecture_critic",
-                "redacted-packet",
-                labels,
-                "contract-jd-architecture-reasoning",
-                external_ok=False,
-                opt_in_record=handle.name,
-            )
-        self.assertEqual(basis, "audit-record")
 
-    def test_chatgpt_pro_browser_reviewer_accepts_scoped_opt_in_record(self) -> None:
-        labels = ["contractor-only", "no-codex-exec", "contract-jd-master-plan-review"]
-        with tempfile.NamedTemporaryFile("w", encoding="utf-8") as handle:
-            json.dump(
-                {
-                    "allowed": True,
-                    "share_boundary": "redacted-packet",
-                    "allowed_external_executors": ["chatgpt_pro_browser_master_reviewer"],
-                    "allowed_providers": ["openai_manual"],
-                    "decision_source": "test",
-                    "recorded_at": "2026-06-09T00:00:00Z",
-                    "scope": "ChatGPT Pro master plan review",
-                },
-                handle,
-            )
-            handle.flush()
-            basis = validate_gate(
-                "chatgpt_pro_browser_master_reviewer",
-                "redacted-packet",
-                labels,
-                "contract-jd-master-plan-review",
-                external_ok=False,
-                opt_in_record=handle.name,
-            )
-        self.assertEqual(basis, "audit-record")
 
     def run_packet_builder(
         self,
@@ -350,7 +284,14 @@ class PacketGateTests(unittest.TestCase):
         self.assertEqual(packet["executor"], "chatgpt_pro_browser_master_reviewer")
         self.assertEqual(packet["requested_executor"], "chatgpt_pro_5_5_extended_reasoning_browser")
         self.assertEqual(packet["canonical_executor"], "chatgpt_pro_browser_master_reviewer")
-        self.assertEqual(validate_contractor_packet(packet, allow_degraded_packet=True), [])
+        # A --rehearsal build is labelled nonproduction; only the rehearsal itself may validate it.
+        self.assertEqual(packet["result_class"], "nonproduction-rehearsal")
+        self.assertEqual(validate_contractor_packet(packet, allow_degraded_packet=True, allow_nonproduction=True), [])
+        self.assertEqual(
+            validate_contractor_packet(packet, allow_degraded_packet=True),
+            ["packet is a nonproduction rehearsal result and cannot be used by a production consumer; "
+             "build the packet without --rehearsal"],
+        )
 
     def test_packet_validation_rejects_alias_executor_artifact(self) -> None:
         result = self.run_packet_builder(executor="chatgpt_pro_browser_master_reviewer")

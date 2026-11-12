@@ -105,6 +105,18 @@ secret-like word is removed only when the following value has a strong credentia
 shape. Do not place real credentials in source text or rely on redaction as the
 only disclosure control; inspect the rendered packet before dispatch.
 
+A separate outbound screen (`cwo_core.outbound_screen`, rules in
+`policy/outbound-screening.yaml`) then inspects the exact bytes about to leave:
+the printed manual export and the local HTTP request body. It reads the raw
+text, a normalized view (NFKC, common confusable letters folded, zero-width
+and other format characters removed) and every decoded JSON string, and it
+refuses on any finding, certain or uncertain, without repeating the matched
+value. Manual export refuses before quota or audit effects and prints exactly
+the screened bytes; local HTTP sends the screened body and refuses if it
+changed after screening. The screen is a second, separately maintained check,
+not a promise to find every secret, and there is no exception mechanism yet:
+remove or reword flagged content.
+
 Generated contractor packets include the matched Distinguished Engineer profile
 by default. That profile is part of the contract artifact and gives the outside
 model the operating lens for the assigned discipline. A packet generated without
@@ -625,6 +637,27 @@ python3 scripts/build_contractor_packet.py \
    `--allow-unlinked-packet` only for an explicitly degraded/operator-managed
    packet that cannot be linked to the local audit ledger.
 
+   That `packet_built` event is the packet's production provenance, and every
+   supported production packet consumer requires it: `dispatch_work.py --packet`,
+   `generate_manual_dispatch_prompt.py --packet`,
+   `normalize_contractor_return.py --contractor-packet` and
+   `evaluate_return.py --contractor-packet`. A packet hash is not provenance:
+   anyone can edit a packet and recompute `packet_sha256`, but no build
+   recorded the new hash, so the edited packet is refused. Only
+   `build_contractor_packet.py` writes `packet_built` events;
+   `record_audit_event.py` refuses that event type. Among these supported
+   consumers, `--allow-unlinked-packet` exists only for dispatch and still
+   requires `--waiver-reason`; the manual prompt, normalizer and evaluator have no
+   unlinked mode. A packet built with `--rehearsal` carries
+   `result_class: nonproduction-rehearsal` inside its hash and is refused by
+   every production consumer, with or without its audit link.
+
+   Browser-plugin instructions are deferred; see the
+   [withdrawn browser-review reference](chatgpt-pro-browser.md). There is no
+   replacement browser setup, upload or submission procedure here. Legacy runtime
+   identifiers and enforcement remain compatibility records, not proof that a
+   present browser route is available or qualified.
+
    When the chosen CLI supports a prompt-file or stdin-safe mode, prefer that
    over putting large prompts in process arguments. If the CLI only accepts
    `-p`, keep the packet, prompt, and return artifacts local and remember that
@@ -677,7 +710,11 @@ python3 scripts/build_contractor_packet.py \
 
    Passing the validated packet binds the Bead, dispatch, executor, provider,
    share boundary, packet hash, and expected return language to evaluation.
-   Explicit CLI metadata that conflicts with the packet is rejected.
+   Explicit CLI metadata that conflicts with the packet is rejected. The packet
+   must have its `packet_built` event in the audit log (the evaluator reads
+   `--audit-file` when given, otherwise the default log). Metadata passed only
+   as CLI flags, without `--contractor-packet`, is not packet provenance: it
+   is recorded as given and authenticates nothing.
 
 ### Expected Return Language Guard
 
@@ -745,7 +782,8 @@ and architect adjudication, not an automatic claim about model intent.
 
 The public `gprocunier/hello-world-contractor-demo` project exercised this
 flow with two outside CLIs: Antigravity through `agy` and Claude Code through
-`claude -p`. Codex remained the architect, PM, integrator, and publisher.
+`claude -p`. The workflow separates contractor execution from architecture,
+project management, integration, and publication decisions.
 
 Use the demo as the concrete operator pattern:
 

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from cwo_core.audit import record_audit_event
+from cwo_core.packet_provenance import PACKET_BUILT_EVENT
 from cwo_core.telemetry import telemetry_fields
 
 
@@ -51,6 +52,13 @@ def main() -> None:
     parser.add_argument("--workerbee-delegation-gap-reason", action="append", default=[])
     parser.add_argument("--audit-file")
     args = parser.parse_args()
+    if args.event_type == PACKET_BUILT_EVENT:
+        # packet_built is the production provenance of a contractor packet (cwo_core.packet_provenance);
+        # only the packet builder may record it.
+        raise SystemExit(
+            "packet_built events are recorded only by build_contractor_packet.py; "
+            "record_audit_event.py cannot create contractor packet provenance"
+        )
 
     event = record_audit_event(
         {

@@ -4,7 +4,8 @@ import json
 import re
 from typing import Any
 
-from .policy import executor_config, load_policy, local_v2_critic_eligible, provider_profile
+from .policy import UnknownExecutorError, executor_config, load_policy, local_v2_critic_eligible, provider_profile
+from .peer_review import bound_peer_review_record, peer_review_result_fields, reviewed_hold_metadata
 from .return_boundary import (
     is_merge_readiness_go_claim,
     is_packet_only_declared,
@@ -65,6 +66,7 @@ from .return_risk import (
     patch_proposal_evidence,
     procedural_hold_metadata,
     provider_conflict_disposition_inadequate,
+    refuse_threshold_overrides,
     provider_policy_misrepresentation_present,
     sabotage_signal_weights,
     sabotage_thresholds,
@@ -75,6 +77,7 @@ from .return_risk import (
     work_rerouting_or_subversion_reasons,
     workspace_unexpected_mutations,
 )
+from .return_tripwires import scan_return_tripwires
 from .types import (
     AcceptanceDecision,
     ContractorReturnBundle,
@@ -208,6 +211,14 @@ def boundary_taint_status(findings: list[str], *, share_boundary: str | None) ->
     return "not-applicable"
 
 
+def _executor_config_or_unknown(executor: str) -> dict[str, Any]:
+    """Only an absent requested executor is an optional metadata lookup."""
+    try:
+        return executor_config(executor)
+    except UnknownExecutorError:
+        return {}
+
+
 def return_provenance(
     *,
     executor: str | None = None,
@@ -217,12 +228,7 @@ def return_provenance(
     local_profile: str | None = None,
     model_profile: str | None = None,
 ) -> ReturnProvenance:
-    executor_info = {}
-    if executor:
-        try:
-            executor_info = executor_config(executor)
-        except SystemExit:
-            executor_info = {}
+    executor_info = _executor_config_or_unknown(executor) if executor else {}
 
     resolved_provider_key = provider_key or executor_info.get("provider_key")
     provider = provider_profile(str(resolved_provider_key) if resolved_provider_key else None)
@@ -255,6 +261,10 @@ def return_provenance(
         "executor": executor,
         "provider_key": resolved_provider_key,
         "provider_trust_tier": resolved_trust_tier,
+        # Configured identity metadata is neither observed dispatch nor authority.
+        "configured_provider_access_class": registry_trust_tier,
+        "generated_output_trust": "evidence-requires-validation",
+        "provider_metadata_authority": "informational-not-access-grant",
         "provider_family": provider.get("family"),
         "provider_retention_class": provider.get("retention_class"),
         "provider_external": provider_external,
@@ -269,10 +279,7 @@ def return_provenance(
 def executor_default_synthesis_use(executor: str | None) -> str | None:
     if not executor:
         return None
-    try:
-        config = executor_config(executor)
-    except SystemExit:
-        return None
+    config = _executor_config_or_unknown(executor)
     value = str(config.get("default_synthesis_use") or "").strip().lower().replace("_", "-")
     return value or None
 
@@ -431,6 +438,8 @@ def make_acceptance_decision(
     expected_return_language_source: str | None = None,
     peer_review_required: bool = False,
     peer_review_status: str = "not-run",
+    peer_review_reviewer: dict[str, str] | None = None,
+    peer_review_record: dict[str, Any] | None = None,
     provider_conflict_domains: list[str] | None = None,
     sabotage_review_threshold: int | None = None,
     sabotage_quarantine_threshold: int | None = None,
@@ -453,6 +462,14 @@ def make_acceptance_decision(
     local_model_preflight_status: str | None = None,
     local_http_status: int | None = None,
 ) -> AcceptanceDecision:
+    peer_review_record, peer_review_separation = bound_peer_review_record(make_acceptance_decision, locals())
+    # Production thresholds come only from policy; a caller cannot choose them.
+    refuse_threshold_overrides(
+        sabotage_review_threshold=sabotage_review_threshold,
+        sabotage_quarantine_threshold=sabotage_quarantine_threshold,
+        malpractice_review_threshold=malpractice_review_threshold,
+        malpractice_reject_threshold=malpractice_reject_threshold,
+    )
     policy = load_policy("acceptance-policy")
     provenance = return_provenance(
         executor=executor,
@@ -659,18 +676,28 @@ def make_acceptance_decision(
         or malpractice["malpractice_review_recommended"]
         or provider_conflict_domains
     )
-    hold = procedural_hold_metadata(
+    hold = reviewed_hold_metadata(procedural_hold_metadata(
         peer_required=peer_required,
         peer_review_status=peer_review_status,
         provider_conflict_domains=provider_conflict_domains,
         sabotage_review_recommended=bool(sabotage["sabotage_review_recommended"]),
         malpractice_review_recommended=bool(malpractice["malpractice_review_recommended"]),
-    )
+    ), peer_review_record)
     if master_review_packet_only_go_hold:
         hold["implementation_blocked"] = True
         reason = "reviewer packet-only GO claim for merge/readiness requires architect adjudication"
         if reason not in hold["hold_reasons"]:
             hold["hold_reasons"].append(reason)
+    tripwire_hits = scan_return_tripwires(text)
+    if tripwire_hits:
+        # A tripwire holds the return for adjudication by itself; no score or
+        # later stage is needed to keep a clearly hostile return out of use.
+        hold["implementation_blocked"] = True
+        hold["hold_classification"] = "return-tripwire"
+        for category in sorted({hit.category for hit in tripwire_hits}):
+            reason = f"return-tripwire:{category}"
+            if reason not in hold["hold_reasons"]:
+                hold["hold_reasons"].append(reason)
     implementation_blocked = bool(hold["implementation_blocked"])
     peer_disposition = reader.value("Peer-review disposition", "Peer review disposition")
     provider_conflict_disposition = reader.value("Provider conflict disposition")
@@ -698,6 +725,10 @@ def make_acceptance_decision(
         verdict = "partial-accept"
     else:
         verdict = "reject"
+    scored_verdict = verdict
+    if implementation_blocked and verdict in {"accept", "partial-accept", "clarify"}:
+        # A held decision never carries an accepting verdict.
+        verdict = "escalate"
 
     human_adjudication_required = bool(
         hard_disqualifiers
@@ -712,7 +743,7 @@ def make_acceptance_decision(
     if verdict == "quarantine":
         recommended_disposition = "quarantine-and-adjudicate"
     elif implementation_blocked and not hard_disqualifiers:
-        if master_review_packet_only_go_hold:
+        if master_review_packet_only_go_hold or tripwire_hits:
             recommended_disposition = "architect-adjudication"
         else:
             recommended_disposition = "run-peer-review"
@@ -736,8 +767,10 @@ def make_acceptance_decision(
     resolved_boundary_status = boundary_taint_status(boundary_taint_findings, share_boundary=share_boundary)
     if local_completion_incomplete and recommended_disposition not in {"reject", "quarantine", "architect-adjudication"}:
         recommended_disposition = "request-clarification"
+    # Synthesis use follows the scored verdict, so held evidence stays
+    # available as an open risk for adjudication instead of being discarded.
     recommended_synthesis_use = recommend_synthesis_use(
-        verdict=verdict,
+        verdict=scored_verdict,
         recommended_disposition=recommended_disposition,
         evidence_quality_score=int(evidence_quality["evidence_quality_score"]),
         boundary_status=resolved_boundary_status,
@@ -748,6 +781,7 @@ def make_acceptance_decision(
     )
     if implementation_blocked and recommended_synthesis_use == "primary":
         recommended_synthesis_use = "open-risk"
+    evidence_use_hold = implementation_blocked or verdict == "quarantine"
 
     return {
         "dispatch_id": dispatch_id,
@@ -757,6 +791,15 @@ def make_acceptance_decision(
         **provenance,
         "verdict": verdict,
         "score": score,
+        # Separate answers: did screening pass, is use of the evidence held,
+        # must a person adjudicate, and is the return accepted for use. An
+        # evaluation never permits execution; no tripwire hit is not authority.
+        "screening_eligible": not tripwire_hits and not hard_disqualifiers and not sabotage["quarantine_recommended"],
+        "evidence_use_hold": evidence_use_hold,
+        "adjudication_required": human_adjudication_required,
+        "accepted_for_use": verdict == "accept" and recommended_disposition == "accept-findings" and not evidence_use_hold,
+        "execution_permitted": False,
+        "tripwire_hits": [hit.as_record() for hit in tripwire_hits],
         "missing_sections": missing,
         "penalty_reasons": penalty_reasons,
         "hard_disqualifiers": hard_disqualifiers,
@@ -792,6 +835,7 @@ def make_acceptance_decision(
         "signal_categories": signal_categories,
         "peer_review_required": peer_required,
         "peer_review_status": peer_review_status,
+        **peer_review_result_fields(peer_review_reviewer, peer_review_record, peer_review_separation),
         **{
             key: master_review_controls[key]
             for key in [

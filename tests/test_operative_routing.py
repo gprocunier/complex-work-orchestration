@@ -451,14 +451,74 @@ class OperativeRoutingTests(unittest.TestCase):
         )
         self.assertTrue(exhausted["fallback"]["decision_required"])
 
-    def test_gpt55_is_recommended_only_for_proven_strategic_fit(self) -> None:
-        _, _, _, fit, route = fallback_bundle()
-        self.assertTrue(fit["classifications"]["substantial"])
-        self.assertTrue(fit["classifications"]["cache_heavy"])
-        gpt55 = next(item for item in fit["candidates"] if item["model"] == GPT55_MODEL)
-        self.assertTrue(gpt55["domain_independent"])
-        self.assertTrue(gpt55["eligible"])
-        self.assertEqual(route["recommended_model"], GPT55_MODEL)
+    def test_shared_fallback_decision_and_selection_transitions(self) -> None:
+        bundle = fallback_bundle()
+        plan, evidence, _, fit, decision = bundle
+        with self.subTest(original_id='test_gpt55_is_recommended_only_for_proven_strategic_fit'):
+            self.assertTrue(fit['classifications']['substantial'])
+            self.assertTrue(fit['classifications']['cache_heavy'])
+            gpt55 = next(item for item in fit['candidates'] if item['model'] == GPT55_MODEL)
+            self.assertTrue(gpt55['domain_independent'])
+            self.assertTrue(gpt55['eligible'])
+            self.assertEqual(decision['recommended_model'], GPT55_MODEL)
+        with self.subTest(original_id='test_choice_is_required_but_any_eligible_displayed_model_may_be_selected'):
+            self.assertEqual(decision['recommended_model'], GPT55_MODEL)
+            self.assertFalse(decision['dispatch_authorized'])
+            self.assertIsNone(decision['selected_model'])
+        rows: tuple[tuple[str, str, dict, tuple[tuple[str, object], ...]], ...] = (
+            ('test_choice_is_required_but_any_eligible_displayed_model_may_be_selected',
+             TERRA_MODEL, {}, (('dispatch_authorized', True), ('selected_model', TERRA_MODEL), ('user_selection_scope', 'current-bead'))),
+            ('test_budget_preserved_scope_expiry_and_wait', GPT55_MODEL, {'scope': 'current-wave'},
+             (('aggregate_budget', BUDGET), ('budget_reset', False))),
+            ('test_running_unit_cannot_switch_mid_segment', GPT55_MODEL, {}, ()),
+            ('test_restored_spark_supersedes_until_restored_selection', GPT55_MODEL, {'scope': 'until-spark-restored'}, ()),
+        )
+        selected_routes = {}
+        for original_id, model, options, expected in rows:
+            with self.subTest(original_id=original_id):
+                selected = select_route(bundle, model, **options)
+                selected_routes[original_id] = selected
+                for field, value in expected:
+                    if value is True:
+                        self.assertTrue(selected[field])
+                    elif value is False:
+                        self.assertFalse(selected[field])
+                    else:
+                        self.assertEqual(selected[field], value)
+        with self.subTest(original_id='test_budget_preserved_scope_expiry_and_wait'):
+            wrong_context = {**CONTEXT, 'wave_id': 'wrong'}
+            selection = select_model(decision, GPT55_MODEL, scope='current-wave')
+            route = resolve_operative_route(
+                capability_evidence=evidence, work_estimate=plan, fallback_fit=fit,
+                fallback_selection=selection, context=wrong_context, aggregate_budget=BUDGET, evaluated_at=NOW,
+            )
+            self.assertEqual(route['stop_reason'], 'invalid-or-missing-fallback-fitness-evidence')
+            waiting = resolve_operative_route(
+                capability_evidence=evidence, work_estimate=plan, fallback_fit=fit,
+                fallback_selection={'choice': 'wait-for-spark'}, context=CONTEXT,
+                aggregate_budget=BUDGET, evaluated_at=NOW,
+            )
+            self.assertEqual(waiting['stop_reason'], 'waiting-for-spark')
+            self.assertFalse(waiting['dispatch_authorized'])
+        transitions = (
+            ('test_running_unit_cannot_switch_mid_segment',
+             {**CONTEXT, 'fresh_segment': False, 'current_model': TERRA_MODEL, 'current_executor': EXECUTORS[TERRA_MODEL]}),
+            ('test_restored_spark_supersedes_until_restored_selection', CONTEXT),
+        )
+        for original_id, context in transitions:
+            with self.subTest(original_id=original_id):
+                transitioned = resolve_operative_route(
+                    capability_evidence=capability_evidence(), context=context,
+                    previous_route=selected_routes[original_id], evaluated_at=NOW,
+                )
+                if not context['fresh_segment']:
+                    self.assertTrue(transitioned['protected_stop'])
+                    self.assertEqual(transitioned['stop_reason'], 'in-progress-segment-model-switch-forbidden')
+                else:
+                    self.assertEqual(transitioned['selected_model'], SPARK_MODEL)
+                    self.assertEqual(transitioned['selection_source'], 'policy-primary')
+                    self.assertTrue(transitioned['fallback']['expired_selection']['expired'])
+                    self.assertEqual(transitioned['history'][-1]['expired_selection']['expiry_reason'], 'spark-restored-at-fresh-segment')
 
     def test_non_substantial_and_non_cache_heavy_exclude_gpt55_exactly(self) -> None:
         cases = (
@@ -553,16 +613,6 @@ class OperativeRoutingTests(unittest.TestCase):
             "description": "Start no fallback session and re-evaluate trusted Spark availability at the next fresh segment.",
         }])
 
-    def test_choice_is_required_but_any_eligible_displayed_model_may_be_selected(self) -> None:
-        bundle = fallback_bundle()
-        decision = bundle[4]
-        self.assertEqual(decision["recommended_model"], GPT55_MODEL)
-        self.assertFalse(decision["dispatch_authorized"])
-        self.assertIsNone(decision["selected_model"])
-        selected = select_route(bundle, TERRA_MODEL)
-        self.assertTrue(selected["dispatch_authorized"])
-        self.assertEqual(selected["selected_model"], TERRA_MODEL)
-        self.assertEqual(selected["user_selection_scope"], "current-bead")
 
     def test_changed_bound_evidence_invalidates_prior_selection(self) -> None:
         bundle = fallback_bundle()
@@ -611,48 +661,8 @@ class OperativeRoutingTests(unittest.TestCase):
         self.assertNotIn("claude-opus", candidate_text)
         self.assertNotIn("local-secure", candidate_text)
 
-    def test_budget_preserved_scope_expiry_and_wait(self) -> None:
-        bundle = fallback_bundle()
-        selected = select_route(bundle, GPT55_MODEL, scope="current-wave")
-        self.assertEqual(selected["aggregate_budget"], BUDGET)
-        self.assertFalse(selected["budget_reset"])
-        wrong_context = {**CONTEXT, "wave_id": "wrong"}
-        selection = select_model(bundle[4], GPT55_MODEL, scope="current-wave")
-        route = resolve_operative_route(
-            capability_evidence=bundle[1], work_estimate=bundle[0], fallback_fit=bundle[3],
-            fallback_selection=selection, context=wrong_context, aggregate_budget=BUDGET, evaluated_at=NOW,
-        )
-        self.assertEqual(route["stop_reason"], "invalid-or-missing-fallback-fitness-evidence")
-        waiting = resolve_operative_route(
-            capability_evidence=bundle[1], work_estimate=bundle[0], fallback_fit=bundle[3],
-            fallback_selection={"choice": "wait-for-spark"}, context=CONTEXT,
-            aggregate_budget=BUDGET, evaluated_at=NOW,
-        )
-        self.assertEqual(waiting["stop_reason"], "waiting-for-spark")
-        self.assertFalse(waiting["dispatch_authorized"])
 
-    def test_running_unit_cannot_switch_mid_segment(self) -> None:
-        bundle = fallback_bundle()
-        selected = select_route(bundle, GPT55_MODEL)
-        running_context = {**CONTEXT, "fresh_segment": False, "current_model": TERRA_MODEL, "current_executor": EXECUTORS[TERRA_MODEL]}
-        running = resolve_operative_route(
-            capability_evidence=capability_evidence(), context=running_context,
-            previous_route=selected, evaluated_at=NOW,
-        )
-        self.assertTrue(running["protected_stop"])
-        self.assertEqual(running["stop_reason"], "in-progress-segment-model-switch-forbidden")
 
-    def test_restored_spark_supersedes_until_restored_selection(self) -> None:
-        bundle = fallback_bundle()
-        selected = select_route(bundle, GPT55_MODEL, scope="until-spark-restored")
-        restored = resolve_operative_route(
-            capability_evidence=capability_evidence(), context=CONTEXT,
-            previous_route=selected, evaluated_at=NOW,
-        )
-        self.assertEqual(restored["selected_model"], SPARK_MODEL)
-        self.assertEqual(restored["selection_source"], "policy-primary")
-        self.assertTrue(restored["fallback"]["expired_selection"]["expired"])
-        self.assertEqual(restored["history"][-1]["expired_selection"]["expiry_reason"], "spark-restored-at-fresh-segment")
 
     def test_legacy_records_are_readable_but_cannot_authorize_v2(self) -> None:
         legacy = {"version": 1, "selected_model": LUNA_MODEL, "selected_by": "operator"}

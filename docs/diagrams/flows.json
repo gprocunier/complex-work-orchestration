@@ -52,12 +52,12 @@
     "page": "contractor-demo.html",
     "section": "flow",
     "title": "Historical contractor ownership",
-    "description": "Historical ownership map—not evidence of concurrent execution or a current launch recipe. Codex coordinated the work. Antigravity handled documentation and Claude Code handled Pages on separate branches. Codex reviewed and corrected the work, validated the combined candidate, then merged and retained the historical publication decision. Preparing a brief was not an actual CLI call. This record authorizes no new dispatch or publication.",
+    "description": "Historical ownership map—not evidence of concurrent execution or a current launch recipe. The lead coordinated documentation and Pages assignments on separate branches, reviewed and corrected the returns, validated the combined candidate, then retained the historical publication decision. Preparing a brief was not an actual CLI call. This record authorizes no new dispatch or publication.",
     "text_equivalent": [
-      "In this historical demo, Codex retained architecture and task coordination and prepared separate limited briefs and patch branches. Preparation alone was not a contractor invocation.",
-      "Antigravity performed the documentation assignment through the historical agy CLI route. Claude Code performed the Pages assignment through its historical CLI route. Separate ownership branches do not establish concurrent execution.",
-      "Codex reviewed the returned work, corrected attribution and path issues, assembled a combined candidate and validated it before merging.",
-      "After acceptance, Codex merged the changes and retained the historical publication decision. These historical actions are not current permission for another dispatch, merge or publication."
+      "In this historical demo, the lead retained architecture and task coordination and prepared separate limited briefs and patch branches. Preparation alone was not a contractor invocation.",
+      "The documentation assignment used the historical agy CLI route; the Pages assignment used the historical claude CLI route. Separate ownership branches do not establish concurrent execution.",
+      "The lead reviewed the returned work, corrected attribution and path issues, assembled a combined candidate and validated it before merging.",
+      "After acceptance, the lead merged the changes and retained the historical publication decision. These historical actions are not current permission for another dispatch, merge or publication."
     ],
     "figure_class": "memory-flow guide-flow",
     "narrow_media": "(max-width: 75rem)"
@@ -274,11 +274,11 @@
     "page": "zero-trust-consensus.html",
     "section": "domains",
     "title": "Count source groups, not model names",
-    "description": "Illustrative source accounting, not measured statistical independence or a provider ranking. Two eligible models from provider A count as one group; eligible local/OpenShift aliases share a default group. Only known, bound, eligible primary inputs count. When required, enough groups allow the explicitly invoked claim comparison—not a truth verdict or permission to act. Exact exclusions and metadata precedence remain below.",
+    "description": "Illustrative source accounting, not measured statistical independence or a provider ranking. Two eligible models from provider A count as one group; eligible local/OpenShift aliases share a default group. Only known, bound, eligible primary inputs count. When required, enough groups allow the explicitly invoked claim comparison—not a truth verdict or permission to act. Exact exclusions remain below.",
     "text_equivalent": [
       "Evaluate each record before counting sources. The examples here are hypothetical eligible records, not a claim about any completed review campaign.",
       "Two accepted primary models from the same provider count as one provider group under the default rules. Eligible local/OpenShift endpoint aliases also share one default group, even when the model names differ.",
-      "Unknown or conflicting domain metadata, unbound self-declared domains and non-primary or held inputs do not count. The table below retains the exact exclusions and the metadata-field precedence.",
+      "Returns without a matching dispatch record, with unknown provenance or with provider labels that disagree with the record, and non-primary or held inputs, do not count. The text below retains the exact exclusions.",
       "Count the remaining eligible groups. The default minimum is two. When structured comparison is required, explicitly invoke the helper with sufficient eligible inputs and comparable claims. Passing the source-count requirement proves neither truth, statistical independence nor authority to act."
     ],
     "figure_class": "memory-flow guide-flow",

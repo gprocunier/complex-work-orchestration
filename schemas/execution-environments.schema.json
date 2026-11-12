@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/execution-environments:v1",
+  "title": "CWO Execution Environment Metadata",
+  "description": "Registered configuration shape only. Whole-document schema preparation. Metadata validation grants no permissions, installed capabilities, model admission or execution authority. Existing repository semantics and cross-references remain additional contracts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "profiles"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "schema": {"type": "string", "const": "json-compatible-yaml"},
+    "profiles": {
+      "type": "object",
+      "description": "Environment IDs are dynamic; presence and cross-reference requirements remain repository checks.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "display_name", "mode", "default_harness",
+          "allowed_harnesses", "allowed_providers", "role_bindings", "constraints"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "mode": {"type": "string", "enum": ["connected", "restricted", "airgapped", "manual"]},
+          "default_harness": {"type": "string"},
+          "allowed_harnesses": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "allowed_providers": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "role_bindings": {
+            "type": "object",
+            "description": "Role IDs are dynamic. Optional nullable selectors retain the existing reader fallback behavior.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["harness"],
+              "properties": {
+                "harness": {"type": "string"},
+                "executor": {"type": ["string", "null"]},
+                "agent": {"type": ["string", "null"]},
+                "model": {"type": ["string", "null"]},
+                "variant": {"type": ["string", "null"]},
+                "model_profile": {"type": ["string", "null"]},
+                "access_profile": {"type": ["string", "null"]}
+              }
+            }
+          },
+          "operative_routing": {
+            "type": "object",
+            "description": "Optional historical metadata; individually optional fields do not admit current dispatch.",
+            "additionalProperties": false,
+            "properties": {
+              "primary_executor": {"type": "string"},
+              "primary_model": {"type": "string"},
+              "approved_fallback_executors": {
+                "type": "array",
+                "items": {"type": "string"}
+              },
+              "live_evidence_required": {"type": "boolean"}
+            }
+          },
+          "constraints": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "network", "external_contracting", "beads_required",
+              "repo_write_requires", "secret_handling"
+            ],
+            "properties": {
+              "network": {"type": "string"},
+              "external_contracting": {"type": "string"},
+              "beads_required": {"type": "boolean"},
+              "repo_write_requires": {"type": "string"},
+              "secret_handling": {"type": "string"},
+              "execution_lifecycle_owner": {"type": "string"},
+              "concurrent_bead_execution": {"type": "string"}
+            }
+          },
+          "notes": {"type": "string"}
+        }
+      }
+    }
+  }
+}

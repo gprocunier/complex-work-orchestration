@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+from typing import NamedTuple
 import subprocess
 import tempfile
 import unittest
@@ -32,6 +33,7 @@ from cwo_core.native_precommit import (  # noqa: E402
 )
 import cwo_core.native_precommit as native_precommit  # noqa: E402
 from cwo_core.paths import cwo_temp_dir  # noqa: E402
+from tests.real_beads_fixture import configure_git_fixture
 
 
 MODEL = "gpt-5.3-codex-spark"
@@ -153,6 +155,13 @@ def write_records(path: Path, records: list[dict], *, trailing: str = "") -> Non
     )
 
 
+class ForbiddenActivityCase(NamedTuple):
+    original: str
+    reason: str
+    item_type: str | None
+    event_name: str | None
+
+
 class NativePrecommitTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory(prefix="cwo-precommit-test-")
@@ -173,6 +182,7 @@ class NativePrecommitTests(unittest.TestCase):
         self.workdir.mkdir()
         (self.workdir / "tracked.txt").write_text("baseline\n", encoding="utf-8")
         subprocess.run(["git", "init", "-q"], cwd=self.workdir, check=True)
+        configure_git_fixture(self.workdir)
         subprocess.run(["git", "add", "tracked.txt"], cwd=self.workdir, check=True)
         self.session_id = "spark-precommit-session"
         self.session_file = self.root / "session.jsonl"
@@ -341,14 +351,29 @@ class NativePrecommitTests(unittest.TestCase):
         self.assertEqual(state["status"], "interrupt-pending")
         self.assertIn(reason, state["reasons"])
 
-    def test_function_call_interrupts(self) -> None:
-        self.assert_forbidden_activity_interrupts(reason="function-call", item_type="function_call")
+    def test_forbidden_fit_activity_rows(self) -> None:
+        rows = (
+            ForbiddenActivityCase("test_function_call_interrupts", "function-call", "function_call", None),
+            ForbiddenActivityCase("test_custom_tool_call_interrupts", "custom-tool-call", "custom_tool_call", None),
+            ForbiddenActivityCase("test_compaction_interrupts", "context-compaction", None, "context_compacted"),
+        )
+        original = self.state_file, self.audit_file, self.session_file
+        try:
+            for row in rows:
+                with self.subTest(original=row.original):
+                    scratch = self.root / row.reason
+                    scratch.mkdir()
+                    self.state_file = scratch / "state.json"
+                    self.audit_file = scratch / "audit.jsonl"
+                    self.session_file = scratch / "session.jsonl"
+                    write_records(self.session_file, [session_record(self.session_id)])
+                    with mock.patch.dict(os.environ, {"CWO_PRECOMMIT_REGISTRY_ROOT": str(scratch / "precommit-registry")}):
+                        self.assert_forbidden_activity_interrupts(reason=row.reason, item_type=row.item_type,
+                                                                 event_name=row.event_name)
+        finally:
+            self.state_file, self.audit_file, self.session_file = original
 
-    def test_custom_tool_call_interrupts(self) -> None:
-        self.assert_forbidden_activity_interrupts(reason="custom-tool-call", item_type="custom_tool_call")
 
-    def test_compaction_interrupts(self) -> None:
-        self.assert_forbidden_activity_interrupts(reason="context-compaction", event_name="context_compacted")
 
     def test_missing_or_mismatched_attestation_fails_before_state_creation(self) -> None:
         for source, model in ((None, MODEL), ("trusted-control-plane-session-metadata", "gpt-5.6-sol")):
@@ -379,6 +404,7 @@ class NativePrecommitTests(unittest.TestCase):
                 fallback_workdir.mkdir()
                 (fallback_workdir / "tracked.txt").write_text("baseline\n", encoding="utf-8")
                 subprocess.run(["git", "init", "-q"], cwd=fallback_workdir, check=True)
+                configure_git_fixture(fallback_workdir)
                 subprocess.run(["git", "add", "tracked.txt"], cwd=fallback_workdir, check=True)
                 common = {
                     "work_plan": plan, "requested_model": model,
@@ -517,6 +543,7 @@ class NativePrecommitTests(unittest.TestCase):
         dead_owner_worktree = self.root / "dead-owner-worktree"
         dead_owner_worktree.mkdir()
         subprocess.run(["git", "init", "-q"], cwd=dead_owner_worktree, check=True)
+        configure_git_fixture(dead_owner_worktree)
         write_records(second_session, [session_record("dead-owner-session")])
         self.create(
             packet_id="dead-owner-packet",

@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/access-profiles",
+  "title": "CWO Access Profile Configuration",
+  "description": "Registered configuration shape only. Declared metadata only. Validation does not establish credentials, effective tools, qualified hooks, host readiness or execution authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "scope", "profiles"],
+  "properties": {
+    "version": {"type": "integer"},
+    "schema": {"type": "string", "const": "json-compatible-yaml"},
+    "scope": {"type": "string"},
+    "profiles": {
+      "type": "object",
+      "description": "Profile IDs are dynamic. Repository presence and cross-reference checks remain additional contracts.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "display_name", "status", "provider_keys", "harnesses",
+          "dispatch_modes", "external", "repo_access", "tool_access",
+          "disclosure", "credential_sources", "runtime_readiness", "authority"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "status": {"type": "string", "enum": ["available", "offline", "experimental", "deprecated"]},
+          "provider_keys": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "harnesses": {"type": "array", "items": {"type": "string"}},
+          "dispatch_modes": {"type": "array", "items": {"type": "string"}},
+          "external": {"type": "boolean"},
+          "repo_access": {"type": "string", "enum": ["none", "read-only", "read-write", "bounded"]},
+          "tool_access": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["shell", "web", "repo_read", "repo_write", "local_openai_compatible"],
+            "properties": {
+              "shell": {"type": "boolean"},
+              "web": {"type": "boolean"},
+              "repo_read": {"type": "boolean"},
+              "repo_write": {"type": "boolean"},
+              "local_openai_compatible": {"type": "boolean"}
+            }
+          },
+          "disclosure": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["outside_sharing", "default_share_boundary", "max_share_boundary"],
+            "properties": {
+              "outside_sharing": {"type": "boolean"},
+              "default_share_boundary": {"type": "string"},
+              "max_share_boundary": {"type": "string"}
+            }
+          },
+          "credential_sources": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["required_env", "optional_env"],
+            "properties": {
+              "required_env": {"type": "array", "items": {"type": "string"}},
+              "optional_env": {"type": "array", "items": {"type": "string"}}
+            }
+          },
+          "runtime_readiness": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode", "missing_required_env_is_error"],
+            "properties": {
+              "mode": {"type": "string"},
+              "missing_required_env_is_error": {"type": "boolean"}
+            }
+          },
+          "authority": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["evidence_only", "may_execute", "may_write_repo"],
+            "properties": {
+              "evidence_only": {"type": "boolean"},
+              "may_execute": {"type": "boolean"},
+              "may_write_repo": {"type": "boolean"}
+            }
+          },
+          "hooks": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "SessionStart": {
+                "type": "array",
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["matcher", "hooks"],
+                  "properties": {
+                    "matcher": {"type": "string", "const": "startup|resume|clear"},
+                    "hooks": {
+                      "type": "array", "minItems": 1,
+                      "items": {
+                        "type": "object", "additionalProperties": false,
+                        "required": ["type", "command"],
+                        "properties": {
+                          "type": {"type": "string", "const": "command"},
+                          "command": {"type": "string", "enum": ["bd codex-hook SessionStart", "bd prime --memories-only --hook-json"]},
+                          "statusMessage": {"type": "string"},
+                          "visibilityHint": {"type": "string", "enum": ["quiet", "verbose"]}
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "UserPromptSubmit": {
+                "type": "array",
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["hooks"],
+                  "properties": {
+                    "hooks": {
+                      "type": "array", "minItems": 1,
+                      "items": {
+                        "type": "object", "additionalProperties": false,
+                        "required": ["type", "command"],
+                        "properties": {
+                          "type": {"type": "string", "const": "command"},
+                          "command": {"type": "string", "const": "bd codex-hook UserPromptSubmit"},
+                          "statusMessage": {"type": "string"},
+                          "visibilityHint": {"type": "string", "enum": ["quiet", "verbose"]}
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "PreCompact": {
+                "type": "array",
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["matcher", "hooks"],
+                  "properties": {
+                    "matcher": {"type": "string", "const": "manual|auto"},
+                    "hooks": {
+                      "type": "array", "minItems": 1,
+                      "items": {
+                        "type": "object", "additionalProperties": false,
+                        "required": ["type", "command"],
+                        "properties": {
+                          "type": {"type": "string", "const": "command"},
+                          "command": {"type": "string", "const": "bd codex-hook PreCompact"},
+                          "statusMessage": {"type": "string"},
+                          "visibilityHint": {"type": "string", "enum": ["quiet", "verbose"]}
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "PostCompact": {
+                "type": "array",
+                "items": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["matcher", "hooks"],
+                  "properties": {
+                    "matcher": {"type": "string", "const": "manual|auto"},
+                    "hooks": {
+                      "type": "array", "minItems": 1,
+                      "items": {
+                        "type": "object", "additionalProperties": false,
+                        "required": ["type", "command"],
+                        "properties": {
+                          "type": {"type": "string", "const": "command"},
+                          "command": {"type": "string", "const": "bd codex-hook PostCompact"},
+                          "statusMessage": {"type": "string"},
+                          "visibilityHint": {"type": "string", "enum": ["quiet", "verbose"]}
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

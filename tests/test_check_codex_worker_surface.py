@@ -1,3 +1,5 @@
+
+from typing import NamedTuple
 """Synthetic local-probe lifecycle tests; no provider or model qualification."""
 import json
 import contextlib
@@ -14,6 +16,15 @@ ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'scripts'))
 import check_codex_worker_surface as probe
 from tests.test_codex_tool_surface import synthetic_empty_endpoint_inventory
+
+def setUpModule():
+    # this fixture replaces Codex and deliberately exercises local listeners.
+    global _F5_HELD_ROUTE_PATCH
+    _F5_HELD_ROUTE_PATCH = mock.patch.object(probe.live_availability, 'N1_LIVE_AVAILABLE', True)
+    _F5_HELD_ROUTE_PATCH.start()
+
+def tearDownModule():
+    _F5_HELD_ROUTE_PATCH.stop()
 
 class ProbeLifecycleTests(unittest.TestCase):
     def run_probe(self, *, wrong=None, close_failure=False, startup_failure=False, drift=False, turn_failure=False, workspace_cleanup_failure=False):
@@ -100,6 +111,11 @@ class ProbeLifecycleTests(unittest.TestCase):
             self.assertIn('workspace-remove-failed',str(caught.exception.probe_cleanup_errors))
 
 
+class ListenerStartupCase(NamedTuple):
+    original: str
+    mode: str
+
+
 class ListenerOwnershipTests(unittest.TestCase):
     """Real local sockets/threads; no Codex process or provider request."""
 
@@ -132,9 +148,15 @@ class ListenerOwnershipTests(unittest.TestCase):
         finally:
             for server in servers:server.server_close()
 
-    def test_real_listener_closed_when_thread_constructor_fails(self):self.check_startup_failure('constructor')
-    def test_real_listener_closed_when_thread_start_fails(self):self.check_startup_failure('start')
-    def test_real_started_thread_is_joined_when_start_raises_after_starting(self):self.check_startup_failure('partial-start')
+    def test_listener_startup_failure_rows(self):
+        rows = (
+            ListenerStartupCase('test_real_listener_closed_when_thread_constructor_fails', 'constructor'),
+            ListenerStartupCase('test_real_listener_closed_when_thread_start_fails', 'start'),
+            ListenerStartupCase('test_real_started_thread_is_joined_when_start_raises_after_starting', 'partial-start'),
+        )
+        for row in rows:
+            with self.subTest(original=row.original):
+                self.check_startup_failure(row.mode)
 
     def test_primary_and_listener_cleanup_failures_both_preserved(self):
         listener=mock.Mock();listener.server_address=('127.0.0.1',12345)

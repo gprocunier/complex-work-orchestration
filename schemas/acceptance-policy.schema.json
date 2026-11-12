@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/acceptance-policy:v2",
+  "title": "CWO Acceptance Policy",
+  "description": "Registered configuration shape only. Configuration-shape component. Descriptive strings and signals are data, not findings, evidence authentication or execution authority. Existing consumer checks and fallback ordering remain necessary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "return_section_alias_source"],
+  "properties": {
+    "version": {"type": "integer", "const": 2},
+    "schema": {"type": "string"},
+    "contractor_return_required_sections": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "return_section_alias_source": {"type": "string"},
+    "return_section_aliases": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    },
+    "hard_disqualifiers": {"type": "array", "items": {"type": "string"}},
+    "score": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "start": {"type": "number"},
+        "penalties": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "missing_required_section": {"type": "number"},
+            "no_concrete_evidence": {"type": "number"},
+            "non_reproducible_validation": {"type": "number"},
+            "vague_recommendation": {"type": "number"},
+            "weak_evidence_quality": {"type": "number"},
+            "missing_confidence": {"type": "number"},
+            "missing_residual_risk": {"type": "number"},
+            "scope_creep": {"type": "number"},
+            "sabotage_review": {"type": "number"},
+            "malpractice_review": {"type": "number"}
+          }
+        },
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "accept": {"type": "number"},
+            "clarify": {"type": "number"},
+            "partial_accept": {"type": "number"},
+            "reject_below": {"type": "number"}
+          }
+        }
+      }
+    },
+    "evidence_quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "primary": {"type": "number"},
+            "salvage": {"type": "number"},
+            "reject_below": {"type": "number"}
+          }
+        },
+        "signals": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "verdicts": {"type": "array", "items": {"type": "string"}},
+    "sabotage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "thresholds": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "review": {"type": "number"},
+            "architect_escalation": {"type": "number"},
+            "quarantine": {"type": "number"}
+          }
+        },
+        "signal_notes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "authority": {"type": "string"},
+              "intent_finding": {"type": "string"},
+              "meaning": {"type": "string"}
+            }
+          }
+        },
+        "signals": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "architect_review": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "required_for_external_contracts": {"type": "boolean"},
+        "required_for_local_workers": {"type": "boolean"},
+        "accepted_findings_become": {"type": "string"},
+        "rejected_findings_require": {"type": "string"}
+      }
+    },
+    "rubric": {"type": "array", "items": {"type": "string"}}
+  }
+}

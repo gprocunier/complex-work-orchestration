@@ -8,6 +8,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cwo_core.requirement_baseline import (
+    BASELINE_RECORD_TYPE,
+    RequirementBaselineError,
+    criteria_by_id,
+    load_record,
+    required_criterion_ids,
+    resolve_chain,
+)
+
 REQUIRED_TOP_LEVEL = [
     "plan_type",
     "version",
@@ -298,7 +307,102 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
         if not re.fullmatch(r"[0-9a-f]{64}", str(ref.get("sha256", ""))):
             errors.append(f"{prefix}.sha256 must be a lowercase SHA-256 hex digest")
 
+    if "requirement_baseline" in plan:
+        errors.extend(requirement_baseline_reference_errors(plan["requirement_baseline"]))
+
     return errors
+
+
+REQUIREMENT_BASELINE_REFERENCE_FIELDS = ("record_type", "bead_id", "version", "digest")
+
+
+def requirement_baseline_reference_errors(reference: Any) -> list[str]:
+    """Shape errors in the optional ``requirement_baseline`` reference; continuity is checked separately."""
+    if not isinstance(reference, dict):
+        return ["requirement_baseline must be an object naming the baseline the plan follows"]
+    errors: list[str] = []
+    extra = sorted(set(reference) - set(REQUIREMENT_BASELINE_REFERENCE_FIELDS))
+    if extra:
+        errors.append("requirement_baseline has unsupported field(s): " + ", ".join(extra))
+    if reference.get("record_type") != BASELINE_RECORD_TYPE:
+        errors.append(f"requirement_baseline.record_type must be {BASELINE_RECORD_TYPE}")
+    if not _nonempty_string(reference.get("bead_id")):
+        errors.append("requirement_baseline.bead_id is required")
+    version = reference.get("version")
+    if type(version) is not int or version < 1:
+        errors.append("requirement_baseline.version must be an integer greater than or equal to 1")
+    if not re.fullmatch(r"sha256:[0-9a-f]{64}", str(reference.get("digest", ""))):
+        errors.append("requirement_baseline.digest must be 'sha256:' and a lowercase SHA-256 hex digest")
+    return errors
+
+
+def baseline_continuity_errors(plan: dict[str, Any], chain: dict[str, Any] | None) -> list[str]:
+    """Errors in the plan's continuity with the requirement baseline it names.
+
+    ``chain`` is the resolved baseline chain supplied with the plan, or None when none was supplied. A plan that
+    names a baseline must be checked against it, and a supplied baseline must be the one the plan names. The
+    rubric must list exactly the baseline's required criteria (an omitted, replaced or invented criterion is an
+    error), and each criterion's evidence type must be the evidence kind the baseline records.
+    """
+    reference = plan.get("requirement_baseline")
+    if reference is None:
+        return ["a requirement baseline was supplied, but the plan does not name one in requirement_baseline"] if chain else []
+    if requirement_baseline_reference_errors(reference):
+        return []  # already reported by validate_plan
+    if chain is None:
+        return [
+            f"the plan follows requirement baseline {reference['digest']} (version {reference['version']}); "
+            "supply it with --baseline, and any amendments with --amendment, to check continuity"
+        ]
+    errors: list[str] = []
+    if reference["bead_id"] != chain["bead_id"]:
+        errors.append(f"requirement_baseline.bead_id is {reference['bead_id']!r}, but the baseline is for {chain['bead_id']!r}")
+    if reference["digest"] != chain["digest"] or reference["version"] != chain["version"]:
+        errors.append(
+            f"the plan follows baseline {reference['digest']} (version {reference['version']}), but the supplied "
+            f"baseline resolves to {chain['digest']} (version {chain['version']})"
+        )
+    if errors:
+        return errors
+    baseline = chain["baseline"]
+    criteria = criteria_by_id(baseline)
+    required = required_criterion_ids(baseline)
+    rubric_ids = [str(item).strip() for item in _list(_dict(plan.get("rubric")).get("criterion_ids"))]
+    for criterion_id in required:
+        if criterion_id not in rubric_ids:
+            errors.append(f"rubric.criterion_ids omits required baseline criterion {criterion_id}")
+    for criterion_id in rubric_ids:
+        if criterion_id not in criteria:
+            errors.append(
+                f"rubric.criterion_ids has {criterion_id}, which is not in the requirement baseline "
+                "(a replaced or invented criterion needs an amendment)"
+            )
+        elif criterion_id not in required:
+            errors.append(f"rubric.criterion_ids has {criterion_id}, which the baseline marks not-applicable")
+    for index, item in enumerate(_list(plan.get("criterion_evidence_matrix"))):
+        row = _dict(item)
+        criterion = criteria.get(str(row.get("criterion", "")).strip())
+        if criterion and row.get("evidence_type") != criterion["evidence_kind"]:
+            errors.append(
+                f"criterion_evidence_matrix[{index}].evidence_type is {row.get('evidence_type')!r}, but the baseline "
+                f"requires {criterion['evidence_kind']!r} evidence for {criterion['id']}"
+            )
+    return errors
+
+
+def _read_baseline_record(path: Path) -> dict[str, Any]:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise RequirementBaselineError([f"cannot read input {path}: {exc}"]) from exc
+    return load_record(text)
+
+
+def load_baseline_chain(baseline_path: Path, amendment_paths: list[Path]) -> dict[str, Any]:
+    """Read a baseline and its amendments (in order) and resolve them, or RequirementBaselineError."""
+    initial = _read_baseline_record(baseline_path)
+    amendments = [_read_baseline_record(path) for path in amendment_paths]
+    return resolve_chain(initial, amendments)
 
 
 def load_plan(path: Path) -> dict[str, Any]:
@@ -312,11 +416,36 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate a CWO run readiness plan.")
     parser.add_argument("path", help="Path to a run-readiness JSON plan.")
     parser.add_argument("--json", action="store_true", help="Emit JSON result.")
+    parser.add_argument(
+        "--baseline",
+        help="Requirement baseline record (version 1) the plan names in requirement_baseline. Required when it names one.",
+    )
+    parser.add_argument(
+        "--amendment",
+        action="append",
+        default=[],
+        help="Requirement amendment record applied to the baseline, in order. Repeatable. Only amendments that add "
+        "criteria are supported.",
+    )
     args = parser.parse_args(argv)
 
     path = Path(args.path)
+    chain: dict[str, Any] | None = None
     try:
-        errors = validate_plan(load_plan(path))
+        plan = load_plan(path)
+        errors = validate_plan(plan)
+        if args.amendment and not args.baseline:
+            errors.append("--amendment needs --baseline")
+        elif args.baseline:
+            try:
+                chain = load_baseline_chain(Path(args.baseline), [Path(item) for item in args.amendment])
+            except RequirementBaselineError as exc:
+                errors.extend(f"requirement baseline: {error}" for error in exc.errors)
+                chain = None
+            else:
+                errors.extend(baseline_continuity_errors(plan, chain))
+        if not args.baseline:
+            errors.extend(baseline_continuity_errors(plan, None))
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         errors = [str(exc)]
 
@@ -326,6 +455,13 @@ def main(argv: list[str] | None = None) -> int:
         "valid": not errors,
         "errors": errors,
     }
+    if chain is not None:
+        result["requirement_baseline"] = {
+            "bead_id": chain["bead_id"],
+            "digest": chain["digest"],
+            "version": chain["version"],
+            "amendment_ids": chain["amendment_ids"],
+        }
     if args.json:
         print(json.dumps(result, indent=2, sort_keys=True))
     elif errors:

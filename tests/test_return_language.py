@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from build_contractor_packet import build_packet  # noqa: E402
+from cwo_core.audit import record_audit_event  # noqa: E402
 from cwo_core.errors import CWOPolicyError  # noqa: E402
 from cwo_core.packets import (  # noqa: E402
     contractor_packet_evaluation_metadata,
@@ -198,6 +199,10 @@ class ReturnLanguageTests(unittest.TestCase):
             return_path = root / "return.md"
             packet_path.write_text(json.dumps(packet), encoding="utf-8")
             return_path.write_text("Status: complete\nSummary: short\n", encoding="utf-8")
+            # The evaluator requires the packet's production provenance: its packet_built event.
+            audit_path = root / "audit.jsonl"
+            record_audit_event({"event_type": "packet_built", "dispatch_id": packet["dispatch_id"],
+                                "bead_id": packet["bead_id"], "packet_sha256": packet["packet_sha256"]}, audit_path)
             result = subprocess.run(
                 [
                     sys.executable,
@@ -206,6 +211,8 @@ class ReturnLanguageTests(unittest.TestCase):
                     str(return_path),
                     "--contractor-packet",
                     str(packet_path),
+                    "--audit-file",
+                    str(audit_path),
                     "--no-audit",
                     "--waiver-reason",
                     "unit test avoids audit mutation",
@@ -237,7 +244,7 @@ class ReturnLanguageTests(unittest.TestCase):
                     str(return_path),
                     "--local-dispatch-result",
                     str(artifact_path),
-                    "--no-audit",
+                    "--advisory", "--no-audit",
                     "--waiver-reason",
                     "unit test avoids audit mutation",
                     "--json",

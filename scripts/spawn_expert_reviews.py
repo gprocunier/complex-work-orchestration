@@ -3,18 +3,24 @@ from __future__ import annotations
 
 import argparse
 import json
+from typing import Any
 
 from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.errors import CWOError
+from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import (
     classify_work,
     expert_review_labels,
     expert_review_metadata,
     expert_uses_external_contract,
+    experts_with_required,
+    risk_required_expert_names,
+    unmet_required_experts,
+    unmet_required_experts_message,
 )
 from cwo_core.beads import create_bead
-from cwo_core.util import read_text_arg
+from cwo_core.util import read_text_segments
 from scaffold_workgraph import bullet_list, route_notes, unique_strings
 
 SABOTAGE_CONTROL_TRIGGER_PROVIDER_CONFLICT = "provider-conflict"
@@ -185,6 +191,30 @@ def control_review_tasks(title_prefix: str, route: dict[str, object]) -> list[di
     return tasks
 
 
+def planned_expert_reviews(
+    title_prefix: str, route: dict[str, Any], top_n: int
+) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    """The review tasks for the top ``top_n`` ranked experts plus every risk-required expert, and any unmet one.
+
+    ``top_n`` limits optional experts only: an expert a risk feature requires is planned wherever it ranks, and
+    one the route could not supply is returned as unmet with the reason instead of being dropped.
+    """
+    experts = experts_with_required(route, top_n)
+    reviews = []
+    for expert in experts:
+        reviews.append(
+            {
+                "title": f"{title_prefix}: {expert['display_name']}",
+                "labels": expert_review_labels(expert, route),
+                "metadata": expert_review_metadata(expert, route),
+                "description": review_body(expert, route),
+                **review_fields(expert, route),
+            }
+        )
+    reviews.extend(control_review_tasks(title_prefix, route))
+    return reviews, unmet_required_experts(route, experts)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create expert review Beads from ranked routing.")
     parser.add_argument("text", nargs="*")
@@ -205,12 +235,16 @@ def main() -> None:
     parser.add_argument("--top-n", type=int, default=3)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
+    refuse_risk_narrowing_arguments(args, source="spawn_expert_reviews.py")
 
-    text = read_text_arg(" ".join(args.text).strip() or None, args.file)
+    text_segments = read_text_segments(" ".join(args.text).strip() or None, args.file)
+    text = "\n\n".join(text_segments)
     try:
         route = classify_work(
             text,
+            text_segments=text_segments,
             external_ok=args.external_ok,
             local_ok=args.local_ok,
             prefer_local=args.prefer_local,
@@ -222,22 +256,21 @@ def main() -> None:
         )
     except CWOError as exc:
         raise SystemExit(str(exc))
-    reviews = []
-    for expert in route.get("ranked_experts", [])[: args.top_n]:
-        reviews.append(
-            {
-                "title": f"{args.title_prefix}: {expert['display_name']}",
-                "labels": expert_review_labels(expert, route),
-                "metadata": expert_review_metadata(expert, route),
-                "description": review_body(expert, route),
-                **review_fields(expert, route),
-            }
-        )
-    reviews.extend(control_review_tasks(args.title_prefix, route))
+    reviews, unmet = planned_expert_reviews(args.title_prefix, route, args.top_n)
 
     if args.dry_run:
-        print(json.dumps({"route": route, "planned_reviews": reviews}, indent=2, sort_keys=True))
+        print(json.dumps({
+            "route": route,
+            "planned_reviews": reviews,
+            "required_experts": risk_required_expert_names(route),
+            "unmet_required_experts": unmet,
+            "review_plan_complete": not unmet,
+        }, indent=2, sort_keys=True))
+        if unmet:
+            raise SystemExit(unmet_required_experts_message(unmet) + "; the review plan is incomplete")
         return
+    if unmet:
+        raise SystemExit(unmet_required_experts_message(unmet) + "; no review Beads created")
     if not reviews:
         print("No expert triggers matched; no review Beads created.")
         return

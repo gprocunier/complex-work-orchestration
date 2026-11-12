@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from typing import Any, Mapping
 
+from .codex_hook_enforcement import validate_profile_hooks
 from .policy import load_policy
 
 
@@ -240,6 +241,12 @@ def validate_access_profile_registry() -> list[str]:
             for field in ["evidence_only", "may_execute", "may_write_repo"]:
                 if not isinstance(authority.get(field), bool):
                     errors.append(f"access profile {key!r} authority.{field} must be boolean")
+
+        # Profile hooks go through the single advisory hook validation path.
+        try:
+            validate_profile_hooks(profile, profile_name=key)
+        except Exception as exc:
+            errors.append(f"access profile {key!r} hook validation failed: {exc}")
 
     for executor_key, executor in executors.items():
         if not isinstance(executor, dict):

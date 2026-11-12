@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from copy import deepcopy
+from fractions import Fraction
 from math import ceil, isfinite
 from typing import Any
 
@@ -42,15 +43,49 @@ def _integer(value: Any, path: str, minimum: int = 0) -> int:
     return value
 
 
+def _finite_float(value: int | float | Fraction, message: str) -> float:
+    try:
+        result = float(value)
+    except OverflowError as exc:
+        raise ValueError(message) from exc
+    if not isfinite(result):
+        raise ValueError(message)
+    return result
+
+
 def _number(value: Any, path: str, minimum: float = 0.0) -> float:
+    message = f"{path} must be a finite number >= {minimum}"
     if (
         isinstance(value, bool)
         or not isinstance(value, (int, float))
-        or not isfinite(value)
         or value < minimum
     ):
-        raise ValueError(f"{path} must be a finite number >= {minimum}")
-    return float(value)
+        raise ValueError(message)
+    return _finite_float(value, message)
+
+
+def _ceil_scaled_count(count: int, fraction: float) -> int:
+    """Keep float rounding when supported and exact integer ceilings otherwise."""
+    try:
+        return ceil(count * fraction)
+    except OverflowError:
+        return ceil(count * Fraction(fraction))
+
+
+def _read_ratio(reads: int, mutations: int) -> float:
+    return _finite_float(
+        Fraction(reads, max(1, mutations)),
+        "calibration.actual_read_to_mutation_ratio must be a finite number >= 0.0",
+    )
+
+
+def _runtime_delta(runtime: float, planned: int) -> float:
+    message = "calibration.runtime_seconds_vs_p90 must be a finite number"
+    try:
+        difference = runtime - planned
+    except OverflowError:
+        return _finite_float(Fraction(runtime) - planned, message)
+    return _finite_float(difference, message)
 
 
 def _boolean(value: Any, path: str) -> bool:
@@ -320,9 +355,9 @@ def _normalize_discoveries(value: Any) -> dict[str, Any]:
     if confidence is not None and (
         isinstance(confidence, bool)
         or not isinstance(confidence, (int, float))
-        or not isfinite(confidence)
         or confidence < 0
         or confidence > 1
+        or not isfinite(confidence)
     ):
         raise ValueError(
             "discoveries.confidence must be null or a finite number in [0, 1]"
@@ -413,6 +448,9 @@ def evaluate_worker_progress(
     observed = _normalize_actual(actual)
     found = _normalize_discoveries(discoveries)
     thresholds = _policy_thresholds(policy)
+    runtime_delta = _runtime_delta(
+        observed["runtime_seconds"], planned["runtime_seconds_p90"]
+    )
     warnings: list[str] = []
     reasons: list[str] = []
 
@@ -436,7 +474,10 @@ def evaluate_worker_progress(
         reasons.append("aggregate-allowance-exhausted")
 
     half_p50 = max(
-        1, ceil(planned["tool_calls_p50"] * thresholds["early_warning_fraction_of_p50"])
+        1,
+        _ceil_scaled_count(
+            planned["tool_calls_p50"], thresholds["early_warning_fraction_of_p50"]
+        ),
     )
     no_artifact = observed["artifacts_completed"] == 0 and observed["mutations"] == 0
     if (
@@ -451,18 +492,19 @@ def evaluate_worker_progress(
     ):
         warnings.append("consecutive-reads-without-progress")
 
-    actual_ratio = (
-        float(observed["context_reads"])
-        if observed["mutations"] == 0
-        else observed["context_reads"] / observed["mutations"]
-    )
-    ratio_limit = max(
-        planned["read_to_mutation_ratio"] * thresholds["read_ratio_multiplier"],
-        thresholds["read_ratio_floor"],
+    actual_ratio = _read_ratio(observed["context_reads"], observed["mutations"])
+    ratio_limit = _number(
+        max(
+            planned["read_to_mutation_ratio"] * thresholds["read_ratio_multiplier"],
+            thresholds["read_ratio_floor"],
+        ),
+        "progress.read_ratio_limit",
     )
     realign_boundary = min(
         planned["tool_calls_p90"],
-        ceil(planned["tool_calls_hard"] * thresholds["realignment_fraction_of_hard"]),
+        _ceil_scaled_count(
+            planned["tool_calls_hard"], thresholds["realignment_fraction_of_hard"]
+        ),
     )
     if observed["tool_calls"] >= realign_boundary and no_artifact:
         reasons.append("no-progress-at-realignment-boundary")
@@ -535,8 +577,7 @@ def evaluate_worker_progress(
     retained = found["retained_artifacts"]
     calibration = {
         "tool_calls_vs_p90": observed["tool_calls"] - planned["tool_calls_p90"],
-        "runtime_seconds_vs_p90": observed["runtime_seconds"]
-        - planned["runtime_seconds_p90"],
+        "runtime_seconds_vs_p90": runtime_delta,
         "planned_read_to_mutation_ratio": planned["read_to_mutation_ratio"],
         "actual_read_to_mutation_ratio": actual_ratio,
         "retained_productive_artifacts": len(retained),

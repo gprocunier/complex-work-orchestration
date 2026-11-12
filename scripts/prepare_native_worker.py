@@ -21,7 +21,7 @@ from cwo_core.native_precommit import (
     reserve_precommit_receipt,
     validate_precommit_receipt,
 )
-from cwo_core.operative_routing import SPARK_MODEL, validate_operative_route_for_model
+from cwo_core.operative_routing import SPARK_MODEL, nonoperative_model_refusal, validate_operative_route_for_model
 from cwo_core.native_release import validate_native_release_evidence
 from cwo_core.native_tool_isolation import (
     NativeToolIsolationError,
@@ -68,7 +68,7 @@ from cwo_core.work_sizing import (
     validate_worker_commitment,
 )
 
-REQUESTED_MODEL = "gpt-5.3-codex-spark"
+REQUESTED_MODEL = SPARK_MODEL
 NATIVE_WORKER_POLICY_PATH = "policy/native-worker-execution.yaml"
 NATIVE_WORKER_PACKET_SCHEMA = "schemas/native-worker-packet.schema.json"
 NATIVE_WORKER_RETURN_SCHEMA = "schemas/native-worker-return.schema.json"
@@ -153,6 +153,9 @@ def _policy_model(requested_model: str | None = None) -> str:
     if selected not in config["authorized_models"]:
         allowed = ", ".join(config["authorized_models"])
         raise SystemExit(f"requested native operative model {selected!r} is not authorized; allowed: {allowed}")
+    refusal = nonoperative_model_refusal(selected)
+    if refusal is not None:
+        raise SystemExit(refusal)
     return selected
 
 
@@ -757,6 +760,9 @@ def _build_native_worker_packet_unreserved(
 
 
 def build_native_worker_packet(**kwargs: Any) -> dict[str, Any]:
+    # Resolve the current model before reserving any one-use receipt. Historical
+    # artifact validation remains separate and does not call this builder.
+    _policy_model(kwargs.get("requested_model"))
     precommit_receipt = kwargs.get("precommit_receipt")
     if precommit_receipt is None:
         return _build_native_worker_packet_unreserved(**kwargs)
@@ -919,6 +925,28 @@ def _validate_checked_command_sequence_receipt(
     return errors
 
 
+def _packet_route_errors(payload: dict[str, Any], requested_model: str, dispatchable: bool,
+                         current_authority: Any) -> list[str]:
+    errors: list[str] = []
+    operative_routing = payload.get("operative_routing")
+    if operative_routing is not None:
+        errors.extend(
+            "operative_routing: " + error
+            for error in validate_operative_route_for_model(
+                operative_routing,
+                requested_model,
+                work_estimate=payload.get("work_plan"),
+                current_authority=current_authority,
+            )
+        )
+    elif requested_model and requested_model != SPARK_MODEL:
+        errors.append("fallback packet requires explicit operative_routing provenance")
+    if dispatchable and (refusal := nonoperative_model_refusal(requested_model)) is not None:
+        errors.append(refusal)
+
+    return errors
+
+
 def validate_native_worker_packet(
     payload: Any,
     *,
@@ -992,19 +1020,7 @@ def validate_native_worker_packet(
     elif payload["requested_model"] not in _policy_models():
         errors.append("requested_model must be an authorized native operative model")
     requested_model = str(payload.get("requested_model") or "")
-    operative_routing = payload.get("operative_routing")
-    if operative_routing is not None:
-        errors.extend(
-            "operative_routing: " + error
-            for error in validate_operative_route_for_model(
-                operative_routing,
-                requested_model,
-                work_estimate=payload.get("work_plan"),
-                current_authority=current_authority,
-            )
-        )
-    elif requested_model and requested_model != SPARK_MODEL:
-        errors.append("fallback packet requires explicit operative_routing provenance")
+    errors.extend(_packet_route_errors(payload, requested_model, dispatchable, current_authority))
 
     session_policy = payload.get("session_policy")
     if not isinstance(session_policy, dict):

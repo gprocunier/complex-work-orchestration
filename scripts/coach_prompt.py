@@ -9,7 +9,8 @@ from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.coach import coach_orchestration_prompt
 from cwo_core.errors import CWOError
-from cwo_core.util import read_text_arg
+from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
+from cwo_core.util import read_text_segments
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
@@ -20,6 +21,19 @@ def _load_optional_json(path: str | None) -> dict[str, object] | None:
     if not isinstance(value, dict):
         raise SystemExit(f"{path} must contain a JSON object")
     return value
+
+
+def print_execution_availability(result: dict[str, object], *, prefix: str) -> None:
+    """Dispatch availability after every gate, native containment included, with the reasons it is denied."""
+    availability = result.get("execution_availability")
+    if not isinstance(availability, dict):
+        print(f"{prefix}Model dispatch available: unknown (no execution availability recorded)")
+        return
+    available = availability.get("dispatch_authorized") is True
+    print(f"{prefix}Model dispatch available: {'yes' if available else 'no'}")
+    if not available:
+        stops = [str(stop) for stop in availability.get("stops") or []]
+        print(f"{prefix}Dispatch denied by: {', '.join(stops) or 'no authorized operative route'}")
 
 
 def print_human(result: dict[str, object]) -> None:
@@ -33,7 +47,7 @@ def print_human(result: dict[str, object]) -> None:
         print(f"- Spark availability: {operative.get('availability_status')}")
         print(f"- Selected model: {operative.get('selected_model') or 'none'}")
         print(f"- Selection source: {operative.get('selection_source') or 'none'}")
-        print(f"- Dispatch authorized: {operative.get('dispatch_authorized')}")
+        print_execution_availability(result, prefix="- ")
         if operative.get("stop_reason"):
             print(f"- Stop reason: {operative.get('stop_reason')}")
         fallback = operative.get("fallback") if isinstance(operative.get("fallback"), dict) else {}
@@ -54,6 +68,11 @@ def print_human(result: dict[str, object]) -> None:
         print("\nWarnings:")
         for item in warnings:  # type: ignore[assignment]
             print(f"- {item}")
+
+    availability = result.get("execution_availability")
+    if isinstance(availability, dict) and availability.get("summary"):
+        print("\nExecution availability (separate from the planning recommendation):")
+        print(f"- {availability['summary']}")
 
     questions = result.get("missing_questions") or []
     print("\nMissing questions:")
@@ -98,7 +117,7 @@ def print_brief(result: dict[str, object]) -> None:
     print(f"Operative primary: {operative.get('primary_model')}")
     print(f"Spark availability: {operative.get('availability_status')}")
     print(f"Operative selected model: {operative.get('selected_model') or 'none'}")
-    print(f"Operative dispatch authorized: {operative.get('dispatch_authorized')}")
+    print_execution_availability(result, prefix="")
     fallback = operative.get("fallback") if isinstance(operative.get("fallback"), dict) else {}
     if fallback.get("decision_required"):
         print(f"Recommended fallback: {fallback.get('recommended_model') or 'Wait for Spark'}")
@@ -182,13 +201,17 @@ def main() -> None:
     parser.add_argument("--brief", action="store_true", help="Print a compact human summary instead of the launch prompt.")
     add_waiver_reason_argument(parser)
     parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
+    refuse_risk_narrowing_arguments(args, source="coach_prompt.py")
     require_waiver_reason(args, ["allow_disclosure_escalation"])
 
-    text = read_text_arg(" ".join(args.text).strip() or None, args.file)
+    text_segments = read_text_segments(" ".join(args.text).strip() or None, args.file)
+    text = "\n\n".join(text_segments)
     try:
         result = coach_orchestration_prompt(
             text,
+            text_segments=text_segments,
             external_ok=args.external_ok,
             allow_disclosure_escalation=args.allow_disclosure_escalation,
             local_ok=args.local_ok,

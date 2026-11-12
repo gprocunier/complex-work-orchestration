@@ -19,6 +19,7 @@ from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
 from cwo_core.native_live_allocation_ledger import (  # noqa: E402
     NativeLiveAllocationLedgerStore,
 )
+from tests.real_beads_fixture import configure_git_fixture
 
 
 def sha(label: str) -> str:
@@ -348,6 +349,7 @@ class Generation10ProtectedFaultContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            configure_git_fixture(root)
             for relative in CONTRACTS.VALIDATOR_CONTRACT_PATHS_V4:
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)

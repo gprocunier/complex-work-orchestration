@@ -13,14 +13,15 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 import codex_tool_surface as surface
 from cwo_core import native_tool_isolation as isolation
 import run_native_pool_live_canaries as live
-from tests.test_codex_tool_surface import ToolProfileProofTests, synthetic_empty_endpoint_inventory
+from tests import test_codex_tool_surface as surface_fixtures
+from tests.test_codex_tool_surface import synthetic_empty_endpoint_inventory
 
 
 class CoreProfileTests(unittest.TestCase):
-    setUp = ToolProfileProofTests.setUp
-    tearDown = ToolProfileProofTests.tearDown
-    proof = ToolProfileProofTests.proof
-    validate = ToolProfileProofTests.validate
+    setUp = surface_fixtures.ToolProfileProofTests.setUp
+    tearDown = surface_fixtures.ToolProfileProofTests.tearDown
+    proof = surface_fixtures.ToolProfileProofTests.proof
+    validate = surface_fixtures.ToolProfileProofTests.validate
 
     def test_exact_core_profiles_both_transports_no_legacy_expansion(self):
         for name, tools in isolation.CORE_RESOURCE_TOOL_PROFILES.items():
@@ -107,6 +108,14 @@ class CoreProfileTests(unittest.TestCase):
 
 
 class EndpointInventoryTests(unittest.TestCase):
+    def setUp(self):
+        # This family exercises endpoint guards on in-memory transports only.
+        # Admit N1 mechanics within this fixture so the earlier live hold does
+        # not mask endpoint/reentrancy failures; cleanup restores the hold.
+        enabled = mock.patch.object(live.live_availability, 'N1_LIVE_AVAILABLE', True)
+        self.addCleanup(enabled.stop)
+        enabled.start()
+
     def server(self):
         server = object.__new__(live.AppServer)
         server._condition = threading.Condition()
@@ -155,6 +164,7 @@ class EndpointInventoryTests(unittest.TestCase):
         with self.assertRaises(live.AppServerError):server.require_zero_mcp_endpoints('synthetic-thread')
         self.assertEqual(server._zero_mcp_observations,{})
         server=self.server();server.require_zero_mcp_endpoints('synthetic-thread')
+        server._responses[1]={'id':1,'result':{}}
         def guard():
             server._observe_mcp_notification({'method':'mcpServer/startupStatus/updated','params':{}})
             return {'synthetic':True}
@@ -191,30 +201,54 @@ class EndpointInventoryTests(unittest.TestCase):
 
     def test_unobserved_turn_and_reload_block_before_any_write(self):
         server=self.server()
+        server._responses={number:{'id':number,'result':{}} for number in (1,2)}
         del server.request
         for method, params in [('turn/start',{'threadId':'synthetic-thread'}),('config/mcpServer/reload',{})]:
             with self.assertRaises(live.AppServerError):server.request(method,params,timeout=.01)
         self.assertEqual(server.process.stdin.getvalue(),'')
 
     def test_single_wire_turn_rechecks_after_reentrant_persistence(self):
-        server=self.server()
-        server._notifications=[]
-        server.allocation_ledger=None
-        server._known_thread_turn_ids={}
-        records=[]
-        def persist(record):
-            records.append(record)
-            if len(records)==2:
-                server._observe_mcp_notification({'method':'mcpServer/startupStatus/updated','params':{}})
-            return deepcopy(record)
-        server._persist_turn_dispatch_record=persist
-        with self.assertRaisesRegex(live.AppServerError,'endpoint-appearance'):
-            server.start_turn('synthetic-thread','No provider request must occur.')
-        self.assertEqual(server.process.stdin.getvalue(),'')
-        self.assertEqual(len(records),2)
+        for invalidated in (True,False):
+            with self.subTest(invalidated=invalidated):
+                server=self.server()
+                server._responses[1]={'id':1,'result':{'turn':{'id':'synthetic-turn'}}}
+                server._notifications=[]
+                server.allocation_ledger=None
+                server._known_thread_turn_ids={}
+                records=[]
+                def persist(record):
+                    records.append(record)
+                    if invalidated and len(records)==2:
+                        server._observe_mcp_notification({'method':'mcpServer/startupStatus/updated','params':{}})
+                    return deepcopy(record)
+                server._persist_turn_dispatch_record=persist
+                if invalidated:
+                    with self.assertRaisesRegex(live.AppServerError,'endpoint-appearance'):
+                        server.start_turn('synthetic-thread','No provider request must occur.')
+                    self.assertEqual(server.process.stdin.getvalue(),'')
+                    self.assertEqual(len(records),2)
+                else:
+                    turn,_latency=server.start_turn('synthetic-thread','EXAMPLE fake turn')
+                    self.assertEqual(turn,{'id':'synthetic-turn'})
+                    self.assertEqual(server.process.stdin.getvalue().count('\n'),1)
+                    self.assertEqual(json.loads(server.process.stdin.getvalue())['method'],'turn/start')
+                    self.assertEqual(len(records),3)
+                    self.assertEqual(records[-1]['status'],'acknowledged')
 
     def test_guarded_request_cannot_bypass_endpoint_reload_block(self):
         server=self.server()
+        server._responses[1]={'id':1,'result':{}}
         with self.assertRaisesRegex(live.AppServerError,'reload-forbidden'):
             server.request_once_with_guard('config/mcpServer/reload',{},timeout=.01,pre_dispatch_guard=lambda:{})
         self.assertEqual(server.process.stdin.getvalue(),'')
+        # The same fixture can write one permitted turn after an actual empty
+        # inventory observation; zero writes above is a guard, not a dead fake.
+        server=self.server();server.require_zero_mcp_endpoints('synthetic-thread')
+        server._responses[1]={'id':1,'result':{'synthetic':True}}
+        observed=server.request_once_with_guard('turn/start',{'threadId':'synthetic-thread'},
+            timeout=.01,pre_dispatch_guard=lambda:{'synthetic':True})
+        self.assertEqual(observed[0],{'synthetic':True})
+        self.assertEqual(observed[2],{'synthetic':True})
+        self.assertEqual(server.process.stdin.getvalue().count('\n'),1)
+        self.assertEqual(json.loads(server.process.stdin.getvalue()),
+            {'id':1,'method':'turn/start','params':{'threadId':'synthetic-thread'}})

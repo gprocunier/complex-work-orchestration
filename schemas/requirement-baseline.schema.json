@@ -1,0 +1,126 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "requirement-baseline.schema.json",
+  "title": "CWO Requirement Baseline",
+  "description": "Obligations recorded for one Bead before implementation. It holds no results. Its digest is SHA-256 over the record serialized as JSON with sorted keys, no whitespace and UTF-8 text (cwo_core.requirement_baseline.record_digest). At least one criterion must be required; IDs must be unique regardless of case.",
+  "type": "object",
+  "required": [
+    "record_type",
+    "version",
+    "bead_id",
+    "baseline_version",
+    "criteria"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "record_type": {
+      "const": "cwo-requirement-baseline"
+    },
+    "version": {
+      "const": 1
+    },
+    "bead_id": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9._-]{0,126}[A-Za-z0-9])?$"
+    },
+    "baseline_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "1 for the baseline first recorded; each amendment adds one."
+    },
+    "criteria": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 500,
+      "contains": {
+        "type": "object",
+        "required": [
+          "applicability"
+        ],
+        "properties": {
+          "applicability": {
+            "const": "required"
+          }
+        }
+      },
+      "$comment": "At least one criterion must be required (contains); the runtime check refuses a baseline with none.",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "requirement",
+          "reference",
+          "expected_outcome",
+          "applicability",
+          "evidence_kind"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[A-Za-z][A-Za-z0-9]*(?:[._-][A-Za-z0-9]+)*$",
+            "description": "Stable criterion ID, unique within the baseline regardless of case."
+          },
+          "requirement": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "The authoritative requirement, as stated by its source."
+          },
+          "reference": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "Where the requirement comes from: issue, work order, specification or decision."
+          },
+          "expected_outcome": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "The observable outcome that satisfies the requirement, specified independently of any result."
+          },
+          "applicability": {
+            "enum": [
+              "required",
+              "not-applicable"
+            ]
+          },
+          "not_applicable_reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000,
+            "description": "Required when, and only when, applicability is not-applicable."
+          },
+          "evidence_kind": {
+            "enum": [
+              "artifact",
+              "validator",
+              "review-gate"
+            ]
+          }
+        },
+        "if": {
+          "properties": {
+            "applicability": {
+              "const": "not-applicable"
+            }
+          }
+        },
+        "then": {
+          "required": [
+            "not_applicable_reason"
+          ]
+        },
+        "else": {
+          "not": {
+            "required": [
+              "not_applicable_reason"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

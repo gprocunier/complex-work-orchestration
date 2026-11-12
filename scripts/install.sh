@@ -7,6 +7,8 @@ BEADS_COPR="${BEADS_COPR:-}"
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 SOURCE_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+CHECKER="$SOURCE_DIR/scripts/check_installed_skill.py"
+PROJECTION="policy/install-projection.yaml"
 OS_RELEASE_FILE="${OS_RELEASE_FILE:-/etc/os-release}"
 
 ASSUME_YES=0
@@ -15,6 +17,8 @@ UNINSTALL=0
 CODEX_HOME_OVERRIDE="${CODEX_HOME:-}"
 SKILLS_DIR_OVERRIDE="${CODEX_SKILLS_DIR:-}"
 INSTALL_STAGE_DIR=""
+ACTIVATION_TARGET=""
+ACTIVATION_BACKUP=""
 
 say() {
   printf '%s\n' "$*"
@@ -68,6 +72,19 @@ Environment:
   CODEX_SKILLS_DIR    Preferred skills directory override.
   CODEX_HOME          Codex home directory; defaults to $HOME/.codex.
   BEADS_COPR          Optional COPR owner/project to show when bd is missing on RPM hosts.
+
+Interrupted installs:
+  The files are copied into a staging directory in the skills directory and
+  verified before anything active changes. The existing install is then moved
+  to the backup directory and the staged copy is moved into place. If the
+  installer fails or receives INT, TERM or HUP between those two moves, it
+  moves the previous install back before exiting. If it is killed without a
+  chance to run (SIGKILL, power loss) in that window, no install is active:
+  the previous install is intact in the backup directory, and the verified
+  staged copy is left as .complex-work-orchestration.stage.* in the skills
+  directory. To recover, rerun the installer (it reports the leftover staging
+  directory) or move the backup back to the target, then delete the leftover
+  staging directory once no other install is running.
 USAGE
 }
 
@@ -184,26 +201,78 @@ confirm() {
   esac
 }
 
-copy_item() {
-  local target_dir="$1"
-  local item="$2"
+require_python() {
+  command -v python3 >/dev/null 2>&1 || die "python3 is required to read the installed projection ($PROJECTION)"
+}
 
-  if [ ! -e "$SOURCE_DIR/$item" ]; then
-    return 0
-  fi
+# The installed projection is policy/install-projection.yaml; the checker validates the source
+# against it and lists what to install, so the installer and the drift check copy and hash the
+# same files. A missing required entry, a symbolic link or a special file is an error.
+projection_list() {
+  python3 -B "$CHECKER" --source-dir "$SOURCE_DIR" "$1"
+}
 
-  if [ "$DRY_RUN" -eq 1 ]; then
-    say "Would copy: $item -> $target_dir/$item"
-    return 0
-  fi
+copy_projection() {
+  local stage_dir="$1"
+  local directories="$2"
+  local files="$3"
+  local relative
 
-  cp -R -- "$SOURCE_DIR/$item" "$target_dir/$item"
+  # Declared directories are created on their own, so a required directory with no files is
+  # still installed (and the checker verifies its presence).
+  while IFS= read -r relative; do
+    [ -n "$relative" ] || continue
+    mkdir -p -- "$stage_dir/$relative"
+  done <<EOF_DIRECTORIES
+$directories
+EOF_DIRECTORIES
+
+  while IFS= read -r relative; do
+    [ -n "$relative" ] || continue
+    case "$relative" in
+      (*/*) mkdir -p -- "$stage_dir/${relative%/*}" ;;
+    esac
+    cp -- "$SOURCE_DIR/$relative" "$stage_dir/$relative"
+  done <<EOF_FILES
+$files
+EOF_FILES
 }
 
 cleanup_install_stage() {
   if [ -n "$INSTALL_STAGE_DIR" ] && [ -e "$INSTALL_STAGE_DIR" ]; then
     rm -rf -- "$INSTALL_STAGE_DIR"
   fi
+}
+
+# Between moving the previous install to its backup and activating the stage, no install is
+# active. Any exit in that window (an error, or INT, TERM or HUP through the traps below) moves
+# the previous install back. SIGKILL cannot be trapped; see "Interrupted installs" in usage.
+restore_previous_install() {
+  if [ -n "$ACTIVATION_BACKUP" ] && [ -e "$ACTIVATION_BACKUP" ] && [ ! -e "$ACTIVATION_TARGET" ]; then
+    if ! mv -- "$ACTIVATION_BACKUP" "$ACTIVATION_TARGET"; then
+      printf 'error: could not restore the previous install; it is kept at %s\n' "$ACTIVATION_BACKUP" >&2
+      ACTIVATION_BACKUP=""
+      return 1
+    fi
+    printf 'Restored the previous install at %s\n' "$ACTIVATION_TARGET" >&2
+  fi
+  ACTIVATION_BACKUP=""
+  return 0
+}
+
+on_install_exit() {
+  restore_previous_install || true
+  cleanup_install_stage
+}
+
+warn_leftover_stages() {
+  local skills_dir="$1"
+  local stale
+
+  for stale in "$skills_dir/.$SKILL_NAME.stage."*; do
+    [ -d "$stale" ] || continue
+    say "  Warning: staging directory left by an interrupted install (not active; delete it once no other install is running): $stale"
+  done
 }
 
 backup_root_for_skills_dir() {
@@ -230,7 +299,10 @@ install_skill() {
   local backup_root
   local prev_dir
   local backed_up=0
-  local items="README.md LICENSE SECURITY.md SKILL.md AGENTS.md VERSION CHANGELOG.md agents policy templates experts references schemas examples docs scripts calibration prompts"
+  local entries
+  local directories
+  local files
+  local entry
 
   backup_root="$(backup_root_for_skills_dir "$skills_dir")"
   prev_dir="$(backup_path_for_skill "$skills_dir")"
@@ -247,6 +319,12 @@ install_skill() {
     return 0
   fi
 
+  entries="$(projection_list --list-entries)" || die "source does not satisfy the installed projection ($PROJECTION); nothing was installed"
+  directories="$(projection_list --list-directories)" || die "source does not satisfy the installed projection ($PROJECTION); nothing was installed"
+  files="$(projection_list --list-files)" || die "source does not satisfy the installed projection ($PROJECTION); nothing was installed"
+  say "  Projection: $SOURCE_DIR/$PROJECTION ($(printf '%s\n' "$files" | grep -c .) files)"
+  warn_leftover_stages "$skills_dir"
+
   if [ -e "$target_dir" ]; then
     confirm "Target already exists and will be replaced. Continue?" || die "installation cancelled"
   else
@@ -256,13 +334,16 @@ install_skill() {
   if [ "$DRY_RUN" -eq 1 ]; then
     say "Dry run: no files will be copied."
     say "Would create staging install under: $skills_dir"
+    say "Would verify the staged install against the projection before activating it"
     if [ -e "$target_dir" ]; then
       say "Would move existing install to backup: $prev_dir"
     fi
     say "Would activate staged install at: $target_dir"
-    for item in $items; do
-      copy_item "$skills_dir/.${SKILL_NAME}.stage.XXXXXX" "$item"
-    done
+    while IFS= read -r entry; do
+      say "Would copy: $entry -> $skills_dir/.${SKILL_NAME}.stage.XXXXXX/$entry"
+    done <<EOF_ENTRIES
+$entries
+EOF_ENTRIES
     say "Dry run complete. Skill would be installed at: $target_dir"
     return 0
   fi
@@ -270,23 +351,32 @@ install_skill() {
   mkdir -p -- "$skills_dir"
   mkdir -p -- "$backup_root"
   INSTALL_STAGE_DIR="$(mktemp -d "${skills_dir}/.${SKILL_NAME}.stage.XXXXXX")"
-  trap cleanup_install_stage EXIT
+  trap on_install_exit EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
 
-  for item in $items; do
-    copy_item "$INSTALL_STAGE_DIR" "$item"
-  done
+  copy_projection "$INSTALL_STAGE_DIR" "$directories" "$files"
+
+  # Verify and record the staged copy before activation, so the active install is only ever
+  # replaced by a tree that matches the projection, and its install record lands with it.
+  say "Verifying staged install against the installed projection:"
+  if ! python3 -B "$CHECKER" --source-dir "$SOURCE_DIR" --installed-dir "$INSTALL_STAGE_DIR" --write-manifest --check; then
+    die "staged install does not match the installed projection; nothing was activated"
+  fi
 
   if [ -e "$target_dir" ]; then
+    ACTIVATION_TARGET="$target_dir"
+    ACTIVATION_BACKUP="$prev_dir"
     mv -- "$target_dir" "$prev_dir"
     backed_up=1
   fi
 
   if ! mv -- "$INSTALL_STAGE_DIR" "$target_dir"; then
-    if [ "$backed_up" -eq 1 ] && [ ! -e "$target_dir" ]; then
-      mv -- "$prev_dir" "$target_dir" || die "activation failed and rollback from $prev_dir failed"
-    fi
+    restore_previous_install || die "activation failed and rollback from $prev_dir failed"
     die "could not activate staged install at $target_dir"
   fi
+  ACTIVATION_BACKUP=""
   INSTALL_STAGE_DIR=""
 
   if [ "$backed_up" -eq 1 ]; then
@@ -360,22 +450,11 @@ validate_skill() {
 
 check_installed_skill_drift() {
   local skills_dir="$1"
-  local checker="$SOURCE_DIR/scripts/check_installed_skill.py"
-
-  if [ ! -r "$checker" ]; then
-    say "Installed-skill drift check skipped; checker was not found at: $checker"
-    return 0
-  fi
-
-  if ! command -v python3 >/dev/null 2>&1; then
-    say "Installed-skill drift check skipped; python3 is not available."
-    return 0
-  fi
 
   if [ "$DRY_RUN" -eq 1 ]; then
-    python3 "$checker" --skills-dir "$skills_dir"
+    python3 -B "$CHECKER" --source-dir "$SOURCE_DIR" --skills-dir "$skills_dir"
   else
-    python3 "$checker" --skills-dir "$skills_dir" --write-manifest --check
+    python3 -B "$CHECKER" --source-dir "$SOURCE_DIR" --skills-dir "$skills_dir" --check
   fi
 }
 
@@ -446,6 +525,7 @@ main() {
     return 0
   fi
 
+  require_python
   install_skill "$skills_dir"
   validate_skill "$skills_dir"
   check_installed_skill_drift "$skills_dir"

@@ -12,6 +12,7 @@ import sys
 import tempfile
 import unittest
 import uuid
+from typing import NamedTuple
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -500,6 +501,27 @@ def resolved_stop_adjudication(receipt: dict) -> dict:
     }
 
 
+class CanarySchemaRow(NamedTuple):
+    original_id: str
+    contract: str
+
+
+class SteeringAcceptanceRow(NamedTuple):
+    original_id: str
+    variant: str
+    receipt: dict
+    filename: str
+    options: dict
+
+
+class MaterializationRow(NamedTuple):
+    original_id: str
+    value: dict
+    reseal: bool
+    contract: str
+    expected: str | None = None
+
+
 class NativeCanaryContractTests(unittest.TestCase):
     def test_runtime_uuid_identities_reject_textual_aliases(self) -> None:
         for alias in UUID_TEXT_ALIASES:
@@ -632,13 +654,153 @@ class NativeCanaryContractTests(unittest.TestCase):
         )
         self.assertTrue(all(value != base for value in variants))
 
-    def test_materialization_accepting_happy_path(self) -> None:
-        self.assertEqual(
-            validate_materialization_evidence(
-                materialization(), require_accepting=True
-            ),
-            [],
+    def test_materialization_decision_family(self) -> None:
+        cases = [MaterializationRow(
+            "tests.test_native_canary_contracts.NativeCanaryContractTests.test_materialization_accepting_happy_path",
+            materialization(), False, "accepting")]
+        original_id = "tests.test_native_canary_contracts.NativeCanaryContractTests.test_materialization_privacy_unknown_field_and_hash_tamper"
+        value = materialization()
+        value["raw_prompt"] = "forbidden"
+        cases.append(MaterializationRow(original_id, value, False, "privacy"))
+        value = materialization()
+        value["session_id"] = "changed"
+        cases.append(MaterializationRow(original_id, value, False, "hash"))
+        original_id = 'tests.test_native_canary_contracts.NativeCanaryContractTests.test_materialization_separation_identity_terminal_and_interrupt_races'
+        value = materialization()
+        value["liveness_observations"][1]["observed_at"] = "2026-07-16T00:00:01.500Z"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "separation"))
+        value = materialization()
+        value["pre_interrupt_observation"]["function_call_record_index"] = 4
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "identity"))
+        value = materialization()
+        value["liveness_observations"][0]["terminal_event_count"] = 1
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "terminal"))
+        value = materialization()
+        value["liveness_observations"][0]["command_status"] = "failed"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "command"))
+        value = materialization()
+        value["interrupt"]["turn_id"] = "other"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "interrupt-identity"))
+        value = materialization()
+        value["interrupt"]["confirmed_at"] = "2026-07-16T00:00:09Z"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "deadline"))
+        value = materialization()
+        value["liveness_observations"][1]["function_call_id_sha256"] = hash_value(
+            "other-call"
         )
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "identity"))
+        value = materialization()
+        value["pre_interrupt_observation"]["completed_event_count"] = 1
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "completed_event_count"))
+        value = materialization()
+        value["liveness_observations"][0]["command_source"] = "agent"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "command-source"))
+        value = materialization()
+        value["liveness_observations"][0]["function_call_count"] = 2
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "function-call-count"))
+        value = materialization()
+        value["pre_interrupt_observation"]["execution_correlation_sha256"] = hash_value(
+            "other-correlation"
+        )
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "correlation"))
+        value = materialization()
+        value["liveness_observations"][1]["rendered_command_sha256"] = hash_value(
+            "changed-rendering"
+        )
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "identity"))
+        value = materialization()
+        value["thread_id"] = "other-thread"
+        value["interrupt"]["thread_id"] = "other-thread"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "session-thread"))
+        value = materialization()
+        value["liveness_observations"][0]["connection_epoch_sha256"] = hash_value(
+            "other-connection"
+        )
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "connection-epoch"))
+        value = materialization()
+        value["interrupt"]["request_accepted_at"] = "2026-07-16T00:00:02Z"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "deadline"))
+        original_id = 'tests.test_native_canary_contracts.NativeCanaryContractTests.test_materialization_control_sequence_is_strict_and_nontruncating'
+        value = materialization()
+        value["control_observations"][1]["ordinal"] = 9
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "ordinal-not-contiguous"))
+        value = materialization()
+        value["control_observations"][1]["elapsed_monotonic_ms"] = -1
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "elapsed"))
+        value = materialization()
+        value["control_observations"][1]["previous_boundary_sha256"] = hash_value(
+            "wrong-prefix"
+        )
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "prefix-link"))
+        value = materialization()
+        value["control_observations"][0]["source_identity_sha256"] = hash_value(
+            "replacement-source"
+        )
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "source-identity"))
+        value = materialization()
+        value["control_observations"][0]["projected_status"] = "interrupted"
+        value["control_observations"][0]["decision"] = "continue-active"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "provisional-decision"))
+        value = materialization()
+        value["control_observations"][-1]["decision"] = "interrupt-confirmed"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "terminal-observation"))
+        value = materialization()
+        value["control_observations"][0]["phase"] = "pre-interrupt"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "phase-first-invalid"))
+        value = materialization()
+        value["control_observations"][2]["phase"] = "interrupt-confirmation"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "phase-skipped"))
+        value = materialization()
+        value["control_observations"][3]["phase"] = "materialization"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "phase-regressed"))
+        value = materialization()
+        value["control_observations"][3]["phase"] = "terminal"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "terminal-phase-not-singular"))
+        value = materialization()
+        value["control_observations"][3]["decision"] = "interrupt-pending"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "interrupt-confirmation-not-singular"))
+        value = materialization()
+        extra = dict(value["control_observations"][3])
+        extra["ordinal"] = 4
+        extra["elapsed_monotonic_ms"] = 875.0
+        extra["decision"] = "interrupt-pending"
+        extra["previous_boundary_sha256"] = extra["boundary"]["boundary_sha256"]
+        value["control_observations"].insert(4, extra)
+        value["control_observations"][5]["ordinal"] = 5
+        value["control_observations"][5]["previous_boundary_sha256"] = extra[
+            "boundary"
+        ]["boundary_sha256"]
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "interrupt-confirmation-not-adjacent-terminal"))
+        value = materialization()
+        value["control_observations"][2]["decision"] = "terminal-accepted"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "terminal-decision-phase-invalid"))
+        value = materialization()
+        value["liveness_observations"][0]["boundary"] = boundary("unbound-liveness", 5)
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "liveness-control-binding"))
+        value = materialization()
+        value["terminal_event"]["event_type"] = "task_complete"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "terminal-event-type"))
+        value = materialization()
+        value["control_observations"] = value["control_observations"] * 40
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "control-observations-invalid"))
+        value = materialization()
+        value["control_observations"][0]["raw_status"] = "forbidden"
+        cases.append(MaterializationRow(original_id, value, True, "fragment", "fields-invalid"))
+        for row in cases:
+            value = seal_materialization_evidence(row.value) if row.reseal else row.value
+            options = {"require_accepting": True} if row.contract == "accepting" else {}
+            with self.subTest(original_id=row.original_id, expected=row.expected):
+                errors = validate_materialization_evidence(value, **options)
+                if row.contract == "accepting":
+                    self.assertEqual(errors, [])
+                elif row.contract == "privacy":
+                    self.assertIn("materialization-fields-invalid", errors)
+                    self.assertTrue(any("privacy-key" in error for error in errors))
+                elif row.contract == "hash":
+                    self.assertIn("materialization-evidence-sha256-mismatch", errors)
+                else:
+                    self.assertTrue(any(row.expected in error for error in errors))
+
 
     def test_notification_first_requires_later_durable_session_correlation(self) -> None:
         value = materialization()
@@ -666,205 +828,54 @@ class NativeCanaryContractTests(unittest.TestCase):
             validate_materialization_evidence(value, require_accepting=True),
         )
 
-    def test_materialization_separation_identity_terminal_and_interrupt_races(
-        self,
-    ) -> None:
-        cases = []
-        value = materialization()
-        value["liveness_observations"][1]["observed_at"] = "2026-07-16T00:00:01.500Z"
-        cases.append((value, "separation"))
-        value = materialization()
-        value["pre_interrupt_observation"]["function_call_record_index"] = 4
-        cases.append((value, "identity"))
-        value = materialization()
-        value["liveness_observations"][0]["terminal_event_count"] = 1
-        cases.append((value, "terminal"))
-        value = materialization()
-        value["liveness_observations"][0]["command_status"] = "failed"
-        cases.append((value, "command"))
-        value = materialization()
-        value["interrupt"]["turn_id"] = "other"
-        cases.append((value, "interrupt-identity"))
-        value = materialization()
-        value["interrupt"]["confirmed_at"] = "2026-07-16T00:00:09Z"
-        cases.append((value, "deadline"))
-        value = materialization()
-        value["liveness_observations"][1]["function_call_id_sha256"] = hash_value(
-            "other-call"
-        )
-        cases.append((value, "identity"))
-        value = materialization()
-        value["pre_interrupt_observation"]["completed_event_count"] = 1
-        cases.append((value, "completed_event_count"))
-        value = materialization()
-        value["liveness_observations"][0]["command_source"] = "agent"
-        cases.append((value, "command-source"))
-        value = materialization()
-        value["liveness_observations"][0]["function_call_count"] = 2
-        cases.append((value, "function-call-count"))
-        value = materialization()
-        value["pre_interrupt_observation"]["execution_correlation_sha256"] = hash_value(
-            "other-correlation"
-        )
-        cases.append((value, "correlation"))
-        value = materialization()
-        value["liveness_observations"][1]["rendered_command_sha256"] = hash_value(
-            "changed-rendering"
-        )
-        cases.append((value, "identity"))
-        value = materialization()
-        value["thread_id"] = "other-thread"
-        value["interrupt"]["thread_id"] = "other-thread"
-        cases.append((value, "session-thread"))
-        value = materialization()
-        value["liveness_observations"][0]["connection_epoch_sha256"] = hash_value(
-            "other-connection"
-        )
-        cases.append((value, "connection-epoch"))
-        value = materialization()
-        value["interrupt"]["request_accepted_at"] = "2026-07-16T00:00:02Z"
-        cases.append((value, "deadline"))
-        for value, expected in cases:
-            value = seal_materialization_evidence(value)
-            with self.subTest(expected=expected):
-                self.assertTrue(
-                    any(
-                        expected in error
-                        for error in validate_materialization_evidence(value)
-                    )
-                )
 
-    def test_materialization_privacy_unknown_field_and_hash_tamper(self) -> None:
-        value = materialization()
-        value["raw_prompt"] = "forbidden"
-        errors = validate_materialization_evidence(value)
-        self.assertIn("materialization-fields-invalid", errors)
-        self.assertTrue(any("privacy-key" in error for error in errors))
-        value = materialization()
-        value["session_id"] = "changed"
-        self.assertIn(
-            "materialization-evidence-sha256-mismatch",
-            validate_materialization_evidence(value),
-        )
 
-    def test_materialization_control_sequence_is_strict_and_nontruncating(self) -> None:
-        cases = []
-        value = materialization()
-        value["control_observations"][1]["ordinal"] = 9
-        cases.append((value, "ordinal-not-contiguous"))
-        value = materialization()
-        value["control_observations"][1]["elapsed_monotonic_ms"] = -1
-        cases.append((value, "elapsed"))
-        value = materialization()
-        value["control_observations"][1]["previous_boundary_sha256"] = hash_value(
-            "wrong-prefix"
-        )
-        cases.append((value, "prefix-link"))
-        value = materialization()
-        value["control_observations"][0]["source_identity_sha256"] = hash_value(
-            "replacement-source"
-        )
-        cases.append((value, "source-identity"))
-        value = materialization()
-        value["control_observations"][0]["projected_status"] = "interrupted"
-        value["control_observations"][0]["decision"] = "continue-active"
-        cases.append((value, "provisional-decision"))
-        value = materialization()
-        value["control_observations"][-1]["decision"] = "interrupt-confirmed"
-        cases.append((value, "terminal-observation"))
-        value = materialization()
-        value["control_observations"][0]["phase"] = "pre-interrupt"
-        cases.append((value, "phase-first-invalid"))
-        value = materialization()
-        value["control_observations"][2]["phase"] = "interrupt-confirmation"
-        cases.append((value, "phase-skipped"))
-        value = materialization()
-        value["control_observations"][3]["phase"] = "materialization"
-        cases.append((value, "phase-regressed"))
-        value = materialization()
-        value["control_observations"][3]["phase"] = "terminal"
-        cases.append((value, "terminal-phase-not-singular"))
-        value = materialization()
-        value["control_observations"][3]["decision"] = "interrupt-pending"
-        cases.append((value, "interrupt-confirmation-not-singular"))
-        value = materialization()
-        extra = dict(value["control_observations"][3])
-        extra["ordinal"] = 4
-        extra["elapsed_monotonic_ms"] = 875.0
-        extra["decision"] = "interrupt-pending"
-        extra["previous_boundary_sha256"] = extra["boundary"]["boundary_sha256"]
-        value["control_observations"].insert(4, extra)
-        value["control_observations"][5]["ordinal"] = 5
-        value["control_observations"][5]["previous_boundary_sha256"] = extra[
-            "boundary"
-        ]["boundary_sha256"]
-        cases.append((value, "interrupt-confirmation-not-adjacent-terminal"))
-        value = materialization()
-        value["control_observations"][2]["decision"] = "terminal-accepted"
-        cases.append((value, "terminal-decision-phase-invalid"))
-        value = materialization()
-        value["liveness_observations"][0]["boundary"] = boundary("unbound-liveness", 5)
-        cases.append((value, "liveness-control-binding"))
-        value = materialization()
-        value["terminal_event"]["event_type"] = "task_complete"
-        cases.append((value, "terminal-event-type"))
-        value = materialization()
-        value["control_observations"] = value["control_observations"] * 40
-        cases.append((value, "control-observations-invalid"))
-        value = materialization()
-        value["control_observations"][0]["raw_status"] = "forbidden"
-        cases.append((value, "fields-invalid"))
-        for value, expected in cases:
-            value = seal_materialization_evidence(value)
-            with self.subTest(expected=expected):
-                self.assertTrue(
-                    any(
-                        expected in error
-                        for error in validate_materialization_evidence(value)
-                    )
-                )
 
-    def test_steering_conditional_requires_bound_go_and_replay_is_rejected(
-        self,
-    ) -> None:
-        receipt = steering()
-        self.assertIn(
-            "steering-receipt-not-accepting",
-            validate_steering_receipt(receipt, require_accepting=True),
+    def test_bound_steering_consumption_family(self) -> None:
+        prefix = "tests.test_native_canary_contracts.NativeCanaryContractTests."
+        conditional = steering()
+        go = steering()
+        go["steering"]["recommendation"]["outcome"] = "go"
+        go["disposition"] = "accepting"
+        go = seal_neutral_steering_receipt(go)
+        stop = stop_steering_receipt()
+        adjudication = resolved_stop_adjudication(stop)
+        rows = (
+            SteeringAcceptanceRow(prefix + "test_steering_conditional_requires_bound_go_and_replay_is_rejected",
+                                  "conditional", conditional, "consumed.json",
+                                  {"architect_adjudication_sha256": hash_value("adjudication"), "architect_decision": "go"}),
+            SteeringAcceptanceRow(prefix + "test_v2_go_remains_advisory_until_bound_architect_go",
+                                  "go", go, "registry.json",
+                                  {"architect_adjudication_sha256": hash_value("architect-go"), "architect_decision": "go"}),
+            SteeringAcceptanceRow(prefix + "test_steering_stop_pre_mutation_requires_resolved_main_architect_adjudication",
+                                  "resolved-stop", stop, "consumed.json",
+                                  {"architect_adjudication_sha256": "a" * 64, "architect_decision": "go",
+                                   "allow_resolved_stop": True, "resolved_stop_adjudication": adjudication,
+                                   "resolved_stop_post_resolution_commit": "d" * 40}),
         )
-        adjudication = hash_value("adjudication")
-        self.assertEqual(
-            validate_steering_receipt(
-                receipt,
-                architect_adjudication_sha256=adjudication,
-                architect_decision="go",
-                require_accepting=True,
-            ),
-            [],
-        )
-        with tempfile.TemporaryDirectory() as temporary:
-            registry = Path(temporary) / "consumed.json"
-            phase_nonce = str(uuid.uuid4())
-            consumption = consume_steering_receipt(
-                receipt,
-                registry,
-                phase_nonce=phase_nonce,
-                architect_adjudication_sha256=adjudication,
-                architect_decision="go",
-            )
-            self.assertEqual(len(consumption), 64)
-            self.assertEqual(stat.S_IMODE(registry.stat().st_mode), 0o600)
-            consumed = json.loads(registry.read_text(encoding="utf-8"))["consumed"][0]
-            self.assertEqual(consumed["stop_scope"], "child")
-            self.assertEqual(consumed["authorized_continuation_paths"], [])
-            with self.assertRaisesRegex(NativeCanaryContractError, "replay"):
-                consume_steering_receipt(
-                    receipt,
-                    registry,
-                    phase_nonce=str(uuid.uuid4()),
-                    architect_adjudication_sha256=adjudication,
-                    architect_decision="go",
-                )
+        for row in rows:
+            with self.subTest(original_id=row.original_id):
+                self.assertIn("steering-receipt-not-accepting",
+                              validate_steering_receipt(row.receipt, require_accepting=True))
+                self.assertEqual(validate_steering_receipt(row.receipt, require_accepting=True, **row.options), [])
+                with tempfile.TemporaryDirectory() as temporary:
+                    registry = Path(temporary) / row.filename
+                    if row.variant == "go":
+                        with self.assertRaisesRegex(NativeCanaryContractError, "steering-receipt-not-accepting"):
+                            consume_steering_receipt(row.receipt, registry, phase_nonce=str(uuid.uuid4()),
+                                                     architect_adjudication_sha256="garbage", architect_decision="go")
+                        self.assertFalse(registry.exists())
+                    consumption = consume_steering_receipt(row.receipt, registry, phase_nonce=str(uuid.uuid4()), **row.options)
+                    if row.variant == "conditional":
+                        self.assertEqual(len(consumption), 64)
+                        self.assertEqual(stat.S_IMODE(registry.stat().st_mode), 0o600)
+                        consumed = json.loads(registry.read_text(encoding="utf-8"))["consumed"][0]
+                        self.assertEqual(consumed["stop_scope"], "child")
+                        self.assertEqual(consumed["authorized_continuation_paths"], [])
+                    if row.variant != "go":
+                        with self.assertRaisesRegex(NativeCanaryContractError, "replay"):
+                            consume_steering_receipt(row.receipt, registry, phase_nonce=str(uuid.uuid4()), **row.options)
+
 
     def test_neutral_steering_is_strict_write_with_compatible_v1_read(self) -> None:
         receipt = steering()
@@ -1139,83 +1150,7 @@ class NativeCanaryContractTests(unittest.TestCase):
             retargeted["bead_id"],
         )
 
-    def test_v2_go_remains_advisory_until_bound_architect_go(self) -> None:
-        receipt = steering()
-        receipt["steering"]["recommendation"]["outcome"] = "go"
-        receipt["disposition"] = "accepting"
-        receipt = seal_neutral_steering_receipt(receipt)
-        self.assertIn(
-            "steering-receipt-not-accepting",
-            validate_steering_receipt(receipt, require_accepting=True),
-        )
-        adjudication_sha256 = hash_value("architect-go")
-        self.assertEqual(
-            validate_steering_receipt(
-                receipt,
-                architect_adjudication_sha256=adjudication_sha256,
-                architect_decision="go",
-                require_accepting=True,
-            ),
-            [],
-        )
-        with tempfile.TemporaryDirectory() as temporary:
-            registry = Path(temporary) / "registry.json"
-            with self.assertRaisesRegex(
-                NativeCanaryContractError, "steering-receipt-not-accepting"
-            ):
-                consume_steering_receipt(
-                    receipt,
-                    registry,
-                    phase_nonce=str(uuid.uuid4()),
-                    architect_adjudication_sha256="garbage",
-                    architect_decision="go",
-                )
-            self.assertFalse(registry.exists())
-            consume_steering_receipt(
-                receipt,
-                registry,
-                phase_nonce=str(uuid.uuid4()),
-                architect_adjudication_sha256=adjudication_sha256,
-                architect_decision="go",
-            )
 
-    def test_steering_stop_pre_mutation_requires_resolved_main_architect_adjudication(
-        self,
-    ) -> None:
-        receipt = stop_steering_receipt()
-        adjudication = resolved_stop_adjudication(receipt)
-        adjudication_hash = "a" * 64
-        head = "d" * 40
-        self.assertIn(
-            "steering-receipt-not-accepting",
-            validate_steering_receipt(receipt, require_accepting=True),
-        )
-        self.assertEqual(
-            validate_steering_receipt(
-                receipt,
-                architect_adjudication_sha256=adjudication_hash,
-                architect_decision="go",
-                allow_resolved_stop=True,
-                resolved_stop_adjudication=adjudication,
-                resolved_stop_post_resolution_commit=head,
-                require_accepting=True,
-            ),
-            [],
-        )
-        with tempfile.TemporaryDirectory() as temporary:
-            registry = Path(temporary) / "consumed.json"
-            kwargs = {
-                "phase_nonce": str(uuid.uuid4()),
-                "architect_adjudication_sha256": adjudication_hash,
-                "architect_decision": "go",
-                "allow_resolved_stop": True,
-                "resolved_stop_adjudication": adjudication,
-                "resolved_stop_post_resolution_commit": head,
-            }
-            consume_steering_receipt(receipt, registry, **kwargs)
-            kwargs["phase_nonce"] = str(uuid.uuid4())
-            with self.assertRaisesRegex(NativeCanaryContractError, "replay"):
-                consume_steering_receipt(receipt, registry, **kwargs)
 
     def test_steering_stop_pre_mutation_malformed_resolution_cases(self) -> None:
         base_receipt = stop_steering_receipt()
@@ -1512,7 +1447,11 @@ class NativeCanaryContractTests(unittest.TestCase):
                 validate_authorization_state(tampered),
             )
 
-    def test_schemas_are_json_and_strict(self) -> None:
+    def test_canary_schema_oracle_family(self) -> None:
+        rows = (
+            CanarySchemaRow("tests.test_native_canary_contracts.NativeCanaryContractTests.test_schemas_are_json_and_strict", "strict"),
+            CanarySchemaRow("tests.test_native_canary_contracts.NativeCanaryContractTests.test_materialization_schema_matches_both_trusted_command_sources", "command-sources"),
+        )
         for relative in (
             "schemas/native-steering-receipt.schema.json",
             "schemas/native-steering-receipt-v2.schema.json",
@@ -1520,17 +1459,17 @@ class NativeCanaryContractTests(unittest.TestCase):
             CANARY_AUTHORIZATION_SCHEMA,
             "schemas/native-canary-authorization-state-v2.schema.json",
         ):
-            value = json.loads((ROOT / relative).read_text(encoding="utf-8"))
-            self.assertFalse(value["additionalProperties"])
+            schema = json.loads((ROOT / relative).read_text(encoding="utf-8"))
+            for row in rows:
+                if row.contract == "strict" or relative == MATERIALIZATION_EVIDENCE_SCHEMA:
+                    with self.subTest(original_id=row.original_id, schema=relative):
+                        if row.contract == "strict":
+                            self.assertFalse(schema["additionalProperties"])
+                        else:
+                            self.assertEqual(schema["$defs"]["observation"]["properties"]["command_source"],
+                                             {"enum": ["unifiedExecStartup", "namespacedExecStartup"]})
 
-    def test_materialization_schema_matches_both_trusted_command_sources(self) -> None:
-        schema = json.loads(
-            (ROOT / MATERIALIZATION_EVIDENCE_SCHEMA).read_text(encoding="utf-8")
-        )
-        self.assertEqual(
-            schema["$defs"]["observation"]["properties"]["command_source"],
-            {"enum": ["unifiedExecStartup", "namespacedExecStartup"]},
-        )
+
 
 
 if __name__ == "__main__":

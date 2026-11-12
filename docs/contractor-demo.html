@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Case study showing a Codex PM using Beads, contractor packets, agy, and Claude Code to build and publish a small hello-world project."
+      content="Case study showing a project lead using Beads, contractor packets, agy, and Claude Code to build and publish a small hello-world project."
     >
     <title>Historical example: two outside contractors | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -57,7 +57,7 @@
         <p class="eyebrow">Case study</p>
         <h1 id="page-title">Historical example: two outside contractors</h1>
         <p class="callout">This case records an earlier project that built a small static website using two outside agent tools. Its model names, commands, runs and screenshots do not prove that those tools are available or approved now. For current first use, see the <a href="./use-cases.html">worked examples</a>.</p>
-        <p class="lede">In the hello-world demo, Codex coordinated two limited assignments: Antigravity handled documentation through <code>agy</code>, and Claude Code handled GitHub Pages. Beads held the task graph. Codex reviewed and integrated the returned work before publication.</p>
+        <p class="lede">The hello-world demo used two limited assignments: documentation through <code>agy</code>, and GitHub Pages through <code>claude -p</code>. Beads held the task graph. The lead reviewed and integrated the returned work before publication.</p>
       </header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page">
           <a href="#project">What the demo built</a>
           <a href="#invocation">The request that started the demo</a>
@@ -73,7 +73,7 @@
             <h2>What the demo built</h2>
             <p>
               The demo repository is a small static site, intentionally simple
-              enough that the contractor workflow is the subject. Codex created
+              enough that the contractor workflow is the subject. The lead created
               the baseline project, posted Beads-backed assignments, dispatched
               two outside tools through manual prompts, reviewed both returns,
               repaired public-doc issues, integrated accepted work, and
@@ -134,33 +134,33 @@
 
           <section id="flow">
             <h2>Who did which work</h2>
-            <p>Each outside tool received one limited assignment and its own branch. Codex kept responsibility for architecture, task coordination, integration, validation and publication. Using two tools was not, by itself, evidence of quality.</p>
+            <p>Each outside tool received one limited assignment and its own branch. The lead kept responsibility for architecture, task coordination, integration, validation and publication. Using two tools was not, by itself, evidence of quality.</p>
             <!-- diagram:contractor-demo -->
             <figure id="contractor-demo" class="memory-flow guide-flow">
               <picture>
                 <source media="(max-width: 75rem)" srcset="./diagrams/contractor-demo-narrow.svg" width="360" height="1640">
                 <img src="./diagrams/contractor-demo.svg" width="1020" height="1400" alt="Historical contractor ownership flowchart. Text equivalent follows." loading="lazy" decoding="async">
               </picture>
-              <figcaption>Historical ownership map—not evidence of concurrent execution or a current launch recipe. Codex coordinated the work. Antigravity handled documentation and Claude Code handled Pages on separate branches. Codex reviewed and corrected the work, validated the combined candidate, then merged and retained the historical publication decision. Preparing a brief was not an actual CLI call. This record authorizes no new dispatch or publication.</figcaption>
+              <figcaption>Historical ownership map—not evidence of concurrent execution or a current launch recipe. The lead coordinated documentation and Pages assignments on separate branches, reviewed and corrected the returns, validated the combined candidate, then retained the historical publication decision. Preparing a brief was not an actual CLI call. This record authorizes no new dispatch or publication.</figcaption>
             </figure>
-            <details class="diagram-text"><summary>Read the diagram as text</summary><ul><li>In this historical demo, Codex retained architecture and task coordination and prepared separate limited briefs and patch branches. Preparation alone was not a contractor invocation.</li><li>Antigravity performed the documentation assignment through the historical agy CLI route. Claude Code performed the Pages assignment through its historical CLI route. Separate ownership branches do not establish concurrent execution.</li><li>Codex reviewed the returned work, corrected attribution and path issues, assembled a combined candidate and validated it before merging.</li><li>After acceptance, Codex merged the changes and retained the historical publication decision. These historical actions are not current permission for another dispatch, merge or publication.</li></ul></details>
+            <details class="diagram-text"><summary>Read the diagram as text</summary><ul><li>In this historical demo, the lead retained architecture and task coordination and prepared separate limited briefs and patch branches. Preparation alone was not a contractor invocation.</li><li>The documentation assignment used the historical agy CLI route; the Pages assignment used the historical claude CLI route. Separate ownership branches do not establish concurrent execution.</li><li>The lead reviewed the returned work, corrected attribution and path issues, assembled a combined candidate and validated it before merging.</li><li>After acceptance, the lead merged the changes and retained the historical publication decision. These historical actions are not current permission for another dispatch, merge or publication.</li></ul></details>
             <!-- /diagram:contractor-demo -->
             <div class="tile-grid">
               <article>
-                <h3>Coordinating Codex agent</h3>
+                <h3>Project lead</h3>
                 <p>Created the work graph, packet artifacts, dispatch prompts, review comments, merge decisions, and final evidence.</p>
               </article>
               <article>
-                <h3>Antigravity</h3>
-                <p>Used the <code>agy</code> CLI as an outside contractor on a documentation patch branch and returned a bounded docs update.</p>
+                <h3>Documentation assignment</h3>
+                <p>Used the Antigravity CLI (<code>agy</code>) as an outside contractor on a documentation patch branch and returned a bounded docs update.</p>
               </article>
               <article>
-                <h3>Claude Code</h3>
+                <h3>Pages assignment</h3>
                 <p>Worked on a Pages patch branch through a <code>claude -p</code> prompt and returned a bounded site update.</p>
               </article>
               <article>
                 <h3>Review before integration</h3>
-                <p>Codex reviewed contractor output, fixed attribution and path issues, ran validation, and only then merged.</p>
+                <p>The lead reviewed contractor output, fixed attribution and path issues, ran validation, and only then merged.</p>
               </article>
             </div>
           </section>

@@ -245,23 +245,31 @@ class ProviderPolicyTests(unittest.TestCase):
             "salvage-only",
         )
 
-    def test_frontier_architect_is_codex_sol_primary_architect(self) -> None:
-        executor = load_policy("executor-registry")["executors"]["frontier_architect"]
+    def test_internal_executor_metadata_contract_variants(self) -> None:
+        variants = (
+            ('test_frontier_architect_is_codex_sol_primary_architect',
+             'frontier_architect',
+             'Codex 5.6 Sol main architect',
+             'codex-5.6-sol',
+             'primary-architect',
+             'main_thread'),
+            ('test_internal_worker_is_codex_spark_operative_worker',
+             'internal_worker',
+             'Codex 5.3 Spark workerbee',
+             'gpt-5.3-codex-spark',
+             'operative-worker',
+             'codex_worker'),
+        )
+        for original, executor_key, display_name, model_label, model_role, dispatch_mode in variants:
+            with self.subTest(original=original):
+                executor = load_policy("executor-registry")["executors"][executor_key]
 
-        self.assertEqual(executor["display_name"], "Codex 5.6 Sol main architect")
-        self.assertEqual(executor["model_label"], "codex-5.6-sol")
-        self.assertEqual(executor["model_role"], "primary-architect")
-        self.assertEqual(executor["provider_key"], "internal_codex")
-        self.assertEqual(executor["dispatch_mode"], "main_thread")
+                self.assertEqual(executor["display_name"], display_name)
+                self.assertEqual(executor["model_label"], model_label)
+                self.assertEqual(executor["model_role"], model_role)
+                self.assertEqual(executor["provider_key"], "internal_codex")
+                self.assertEqual(executor["dispatch_mode"], dispatch_mode)
 
-    def test_internal_worker_is_codex_spark_operative_worker(self) -> None:
-        executor = load_policy("executor-registry")["executors"]["internal_worker"]
-
-        self.assertEqual(executor["display_name"], "Codex 5.3 Spark workerbee")
-        self.assertEqual(executor["model_label"], "gpt-5.3-codex-spark")
-        self.assertEqual(executor["model_role"], "operative-worker")
-        self.assertEqual(executor["provider_key"], "internal_codex")
-        self.assertEqual(executor["dispatch_mode"], "codex_worker")
 
     def test_glm_bf16_architecture_critic_is_registered_as_local_reviewer(self) -> None:
         executors = load_policy("executor-registry")["executors"]

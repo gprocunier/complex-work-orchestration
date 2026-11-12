@@ -10,6 +10,7 @@ from typing import Any
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.audit import record_audit_event
 from cwo_core.errors import CWOPolicyError
+from cwo_core.peer_review import peer_review_result_fields, validate_peer_review_request
 from cwo_core.policy import (
     GLM_COMPACT_CRITIC_EXECUTOR,
     executor_config,
@@ -20,8 +21,8 @@ from cwo_core.policy import (
 from cwo_core.packets import (
     contractor_packet_evaluation_metadata,
     local_dispatch_language_metadata,
-    require_valid_contractor_packet,
 )
+from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.telemetry import telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 
@@ -43,6 +44,7 @@ def print_human(result: dict[str, object]) -> None:
     print(f"Malpractice score: {result.get('malpractice_score', 0)}")
     print(f"Peer review required: {result.get('peer_review_required', False)}")
     print(f"Peer review status: {result.get('peer_review_status', 'not-run')}")
+    print(f"Peer review separation: {result.get('peer_review_separation', {}).get('level', 'not-recorded')}")
     print(f"Implementation blocked: {result.get('implementation_blocked', False)}")
     print(f"Hold classification: {result.get('hold_classification', 'none')}")
     hold_reasons = result.get("hold_reasons") or []
@@ -50,6 +52,11 @@ def print_human(result: dict[str, object]) -> None:
     print(f"Human adjudication required: {result.get('human_adjudication_required', False)}")
     print(f"Recommended disposition: {result.get('recommended_disposition', 'unknown')}")
     print(f"Recommended synthesis use: {result.get('recommended_synthesis_use', 'unknown')}")
+    print(f"Accepted for use: {result.get('accepted_for_use', False)}")
+    print(f"Evidence-use hold: {result.get('evidence_use_hold', False)}")
+    print(f"Execution permitted: {result.get('execution_permitted', False)}")
+    tripwires = result.get("tripwire_hits") or []
+    print("Return tripwires: " + (", ".join(f"{hit.get('category')}/{hit.get('rule')}" for hit in tripwires) if tripwires else "none"))
     print(f"Quarantine recommended: {result.get('quarantine_recommended', False)}")
     print(f"Provider: {result.get('provider_key') or 'unknown'} ({result.get('provider_trust_tier') or 'unknown'})")
     print(f"Provenance class: {result.get('provenance_class') or 'unknown'}")
@@ -152,6 +159,13 @@ def _local_v2_identity_consistent(
         and all(isinstance(left, str) and bool(left) and left == right for left, right in pairs)
         and _as_dict(response.get("model_preflight")).get("status_code") == 200
     )
+
+
+def _production_packet_metadata(packet_file: str, audit_file: str | None) -> dict[str, Any]:
+    """Evaluation metadata of a contractor packet that has production provenance (its packet_built event)."""
+    packet = json.loads(Path(packet_file).read_text(encoding="utf-8"))
+    require_production_contractor_packet(packet, audit_file=Path(audit_file) if audit_file else None)
+    return contractor_packet_evaluation_metadata(packet)
 
 
 def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
@@ -285,9 +299,70 @@ def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
     }
 
 
+def _require_evaluation_source(args: argparse.Namespace) -> None:
+    if args.contractor_packet and args.local_dispatch_result:
+        raise SystemExit("--contractor-packet and --local-dispatch-result are mutually exclusive")
+    if args.advisory:
+        if args.contractor_packet or args.audit:
+            raise SystemExit("--advisory requires --no-audit and cannot use --contractor-packet")
+    elif not args.contractor_packet:
+        raise SystemExit("production evaluation requires --contractor-packet with production provenance; "
+                         "local results and raw metadata have no qualified production producer; "
+                         "use --advisory --no-audit for nonproduction inspection")
+
+
+def _peer_review_record(args: argparse.Namespace) -> dict[str, Any] | None:
+    try:
+        record = (json.loads(Path(args.peer_review_record).read_text(encoding="utf-8"))
+                  if args.peer_review_record else None)
+        args.peer_review_reviewer = (json.loads(args.peer_review_reviewer) if args.peer_review_reviewer else None)
+        return validate_peer_review_request(args.peer_review_status, args.peer_review_reviewer, record)
+    except (OSError, UnicodeError, ValueError, CWOPolicyError) as exc:
+        raise SystemExit("Invalid peer-review record: " + str(exc)) from exc
+
+
+def _evaluate_current_return(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    try:
+        return make_acceptance_decision(*args, **kwargs)
+    except CWOPolicyError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
+def _mark_advisory(result: dict[str, Any]) -> None:
+    # Explicit nonproduction outputs retain diagnostics but never become
+    # clean acceptance evidence, including through cooperative consumers.
+    result["result_class"] = "advisory-nonproduction"
+    result["implementation_blocked"] = True
+    result["accepted_for_use"] = False
+    result["evidence_use_hold"] = True
+    result["adjudication_required"] = True
+    result["human_adjudication_required"] = True
+    result["execution_permitted"] = False
+    if result.get("verdict") in {"accept", "partial-accept", "clarify"}:
+        result["verdict"] = "escalate"
+    if result.get("recommended_disposition") in {
+            "accept-findings", "accept-bounded-findings", "request-clarification"}:
+        result["recommended_disposition"] = "architect-adjudication"
+    result["hold_reasons"] = list(result.get("hold_reasons") or []) + ["nonproduction-advisory: unqualified source"]
+    if result.get("hold_classification") in {None, "", "none"}:
+        result["hold_classification"] = "nonproduction-advisory"
+    if result.get("recommended_synthesis_use") not in {"reject", "quarantine", "partial-only", "open-risk"}:
+        result["recommended_synthesis_use"] = "open-risk"
+
+
+def _record_host_evaluation(text: str, result: dict[str, Any]) -> None:
+    from cwo_core.host_acceptance import record_received_evaluation
+    try:
+        record_received_evaluation(text, result)
+    except CWOPolicyError as failure:
+        raise SystemExit(str(failure)) from failure
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score a contractor/local-worker return against acceptance policy.")
     parser.add_argument("--file", required=True, help="Contractor return text file.")
+    parser.add_argument("--advisory", action="store_true",
+                        help="Nonproduction inspection only; requires --no-audit and cannot clear holds.")
     parser.add_argument("--bead", help="Assigned Beads ID.")
     parser.add_argument("--dispatch-id", help="Dispatch ID to link audit records.")
     parser.add_argument("--packet-sha256", help="Packet hash linked to the contractor return.")
@@ -311,6 +386,8 @@ def main() -> None:
         default="not-run",
         choices=["not-run", "pending", "passed", "failed", "disagreement", "blocked"],
     )
+    parser.add_argument("--peer-review-reviewer", help="Expected structured reviewer identity as a JSON object.")
+    parser.add_argument("--peer-review-record", help="JSON peer-review record bound to this return and its pending evaluation.")
     parser.add_argument(
         "--provider-conflict-domain",
         action="append",
@@ -321,10 +398,11 @@ def main() -> None:
         "--local-dispatch-result",
         help="Path to dispatch_work artifact containing local_response and route metadata.",
     )
-    parser.add_argument("--sabotage-review-threshold", type=int, help="Override sabotage peer-review threshold.")
-    parser.add_argument("--sabotage-quarantine-threshold", type=int, help="Override sabotage quarantine threshold.")
-    parser.add_argument("--malpractice-review-threshold", type=int, help="Override malpractice peer-review threshold.")
-    parser.add_argument("--malpractice-reject-threshold", type=int, help="Override malpractice reject threshold.")
+    # Kept only so that an attempted override is refused by name instead of
+    # being reported as an unknown argument.
+    for flag in ("--sabotage-review-threshold", "--sabotage-quarantine-threshold",
+                 "--malpractice-review-threshold", "--malpractice-reject-threshold"):
+        parser.add_argument(flag, type=int, help="Not accepted: production thresholds come from policy/contracting-controls.yaml.")
     parser.add_argument(
         "--workspace-mutation-report",
         help="JSON report from scripts/workspace_mutation_guard.py comparing pre/post contractor workspace state.",
@@ -338,13 +416,28 @@ def main() -> None:
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
-    parser.add_argument("--audit-file", help="Audit JSONL path; defaults to .orchestration-audit/audit.jsonl.")
+    parser.add_argument("--audit-file", help="Audit JSONL path; defaults to ../.cwo-host-state/<package-name>/audit.jsonl (verified segments included).")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     add_waiver_reason_argument(parser)
     args = parser.parse_args()
+    attempted = [
+        flag
+        for flag, value in (
+            ("--sabotage-review-threshold", args.sabotage_review_threshold),
+            ("--sabotage-quarantine-threshold", args.sabotage_quarantine_threshold),
+            ("--malpractice-review-threshold", args.malpractice_review_threshold),
+            ("--malpractice-reject-threshold", args.malpractice_reject_threshold),
+        )
+        if value is not None
+    ]
+    if attempted:
+        raise SystemExit(
+            "threshold overrides are not accepted (" + ", ".join(attempted) + "); production thresholds come from "
+            "policy/contracting-controls.yaml and no evaluation was produced"
+        )
+    peer_review_record = _peer_review_record(args)
     require_waiver_reason(args, ["audit"])
-    if args.contractor_packet and args.local_dispatch_result:
-        raise SystemExit("--contractor-packet and --local-dispatch-result are mutually exclusive")
+    _require_evaluation_source(args)
     local_dispatch_metadata = (
         _load_local_dispatch_metadata(Path(args.local_dispatch_result))
         if args.local_dispatch_result
@@ -372,11 +465,9 @@ def main() -> None:
             value = local_dispatch_metadata.get(field)
             if not isinstance(value, str) or value not in allowed:
                 local_dispatch_metadata[field] = None
-    contractor_packet_metadata: dict[str, Any] = {}
-    if args.contractor_packet:
-        packet = json.loads(Path(args.contractor_packet).read_text(encoding="utf-8"))
-        require_valid_contractor_packet(packet)
-        contractor_packet_metadata = contractor_packet_evaluation_metadata(packet)
+    contractor_packet_metadata: dict[str, Any] = (
+        _production_packet_metadata(args.contractor_packet, args.audit_file) if args.contractor_packet else {}
+    )
     dispatch_metadata = contractor_packet_metadata or local_dispatch_metadata
 
     def _cli_or_metadata(name: str) -> str | None:
@@ -386,8 +477,6 @@ def main() -> None:
             (contractor_packet_metadata or local_v2_subject)
             and explicit is not None
             and explicit != ""
-            and isinstance(metadata_value, str)
-            and metadata_value
             and explicit != metadata_value
         ):
             raise SystemExit(f"--{name.replace('_', '-')} conflicts with authenticated contractor packet metadata")
@@ -465,7 +554,7 @@ def main() -> None:
         if eligible is not True:
             return_text = ""
 
-    result = make_acceptance_decision(
+    result = _evaluate_current_return(
         return_text,
         bead_id=bead_id,
         dispatch_id=dispatch_id,
@@ -482,6 +571,8 @@ def main() -> None:
         expected_return_language_source=expected_return_language_source,
         peer_review_required=args.peer_review_required,
         peer_review_status=args.peer_review_status,
+        peer_review_reviewer=args.peer_review_reviewer,
+        peer_review_record=peer_review_record,
         provider_conflict_domains=args.provider_conflict_domain,
         sabotage_review_threshold=args.sabotage_review_threshold,
         sabotage_quarantine_threshold=args.sabotage_quarantine_threshold,
@@ -508,7 +599,10 @@ def main() -> None:
         local_model_preflight_status=local_dispatch_metadata.get("local_model_preflight_status"),
         local_http_status=local_dispatch_metadata.get("local_http_status"),
     )
+    if args.advisory:
+        _mark_advisory(result)
     if args.audit:
+        _record_host_evaluation(return_text, result)
         audit_path = Path(args.audit_file) if args.audit_file else None
         record_audit_event(
             {
@@ -532,6 +626,8 @@ def main() -> None:
                 "malpractice_score": result.get("malpractice_score"),
                 "peer_review_required": result.get("peer_review_required"),
                 "peer_review_status": result.get("peer_review_status"),
+                **peer_review_result_fields(result.get("peer_review_reviewer"), result.get("peer_review_record"),
+                                          result.get("peer_review_separation")),
                 "implementation_blocked": result.get("implementation_blocked"),
                 "hold_reasons": result.get("hold_reasons"),
                 "hold_classification": result.get("hold_classification"),

@@ -1,0 +1,133 @@
+{
+  "fixture_type": "w12-monotone-ratchet-reductions",
+  "version": 1,
+  "source_parent_commit": "fa7799be3e69e19dc315a9d395037f692cab82f3",
+  "source_parent_tree": "7c13da41c7a9c791e2154140528af57dbfb4070d",
+  "old_baseline_raw_sha256": "78085f594b7d3abe6fcb71ee0297f53e9d3a66de2acd957f42fd73832bca61ba",
+  "old_baseline_canonical_sha256": "1857f6522d0f44a29a2c90550df590fdddeae125a7edfe439b8d58f369186dc0",
+  "new_baseline_canonical_sha256": "123e4afbcac5aad37ab5d212e1e4ced421707d945ae597e59d27727e188cde03",
+  "moves_sha256": "4d79a8c79b24821932ba10881f3bde683dabc80073b18adf1dbabb82c95fe54c",
+  "checker_sha256": "8fec5ab975e095ea00a5fbc1d3bd97d8d379c0b01273c0e6345f12e07d1d7971",
+  "ruff": "0.17.1",
+  "changes": {
+    "f_e9": {
+      "scripts/cwo_core/maintenance_native_runtime.py::<module>::F401::run_native_pool_live_canaries.AppServerError": {
+        "before": 1,
+        "after": null
+      }
+    },
+    "imports_removed": [
+      "cwo_core.maintenance_qualification -> codex_tool_surface"
+    ],
+    "complexity": {
+      "scripts/chatgpt_browser_review.py::load_prompt_from_args": {
+        "before": 16,
+        "after": 13
+      },
+      "scripts/cwo_core/codex_protocol_pin.py::_validate_pin": {
+        "before": 22,
+        "after": 6
+      },
+      "scripts/cwo_core/codex_protocol_pin.py::evaluate_fact": {
+        "before": 48,
+        "after": 47
+      },
+      "scripts/cwo_core/invocation_ledger.py::InvocationLedger.reserve": {
+        "before": 27,
+        "after": 10
+      },
+      "scripts/cwo_core/invocation_ledger.py::_history_errors": {
+        "before": 22,
+        "after": 18
+      },
+      "scripts/cwo_core/native_pool_proportionality.py::load_pool_proportionality_policy": {
+        "before": 22,
+        "after": 21
+      },
+      "scripts/cwo_core/native_progress.py::evaluate_worker_progress": {
+        "before": 42,
+        "after": 41
+      },
+      "scripts/cwo_core/returns.py::return_provenance": {
+        "before": 21,
+        "after": 20
+      },
+      "scripts/dispatch_work.py::_main": {
+        "before": 65,
+        "after": 62
+      },
+      "scripts/evaluate_return.py::main": {
+        "before": 35,
+        "after": 34
+      },
+      "scripts/prepare_native_worker.py::validate_native_worker_packet": {
+        "before": 242,
+        "after": 238
+      },
+      "scripts/supervise_native_worker.py::start": {
+        "before": 29,
+        "after": 27
+      },
+      "scripts/validate_repository.py::validate_cwo_core_contract": {
+        "before": 23,
+        "after": 15
+      }
+    }
+  },
+  "controls": [
+    {
+      "kind": "F401",
+      "identity": "scripts/cwo_core/maintenance_native_runtime.py::<module>::F401::run_native_pool_live_canaries.AppServerError",
+      "old_allowed": true,
+      "new_refusal": [
+        "new F/E9 diagnostic: scripts/cwo_core/maintenance_native_runtime.py::<module>::F401::run_native_pool_live_canaries.AppServerError (1 now, 0 in baseline)"
+      ]
+    },
+    {
+      "kind": "import",
+      "identity": "cwo_core.maintenance_qualification -> codex_tool_surface",
+      "old_allowed": true,
+      "new_refusal": [
+        "new core-to-CLI import: cwo_core.maintenance_qualification -> codex_tool_surface"
+      ]
+    },
+    {
+      "kind": "complexity",
+      "identity": "scripts/cwo_core/native_progress.py::evaluate_worker_progress",
+      "old_allowed": true,
+      "new_refusal": [
+        "complexity grew: scripts/cwo_core/native_progress.py::evaluate_worker_progress (42, baseline 41)"
+      ]
+    }
+  ],
+  "unchanged_fields": [
+    "version",
+    "tool",
+    "complexity_threshold",
+    "admitted",
+    "created",
+    "repeated",
+    "moved",
+    "consumed_batches"
+  ],
+  "actual_before_after": {
+    "f_e9": [
+      45,
+      44
+    ],
+    "imports": [
+      5,
+      4
+    ],
+    "complexity_entries": [
+      505,
+      505
+    ]
+  },
+  "move_batch": "transport-extraction-2026-10-23-local",
+  "move_records_preserved": 8,
+  "effect_authority": false,
+  "scope": "PartialmonotoneallowanceupdateONLY, NOTCLIrefresh/moveconsumption/admission orproductionexecutionauthority",
+  "sanitized_old_baseline_canonical_sha256": "084e498660694c3c13461724ae8155f13543a913029702ca0fd0ab924af59e33",
+  "sanitized_new_baseline_canonical_sha256": "76d5753278b3649b0111ef21c6908f21fb4b71113339250090d847906d625a0f"
+}

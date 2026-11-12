@@ -6,6 +6,7 @@ import json
 import sys
 from pathlib import Path
 
+from cwo_core.host_records import configured_store
 from cwo_core.execution_status_report import (
     build_execution_status_report,
     load_audit_events,
@@ -13,7 +14,6 @@ from cwo_core.execution_status_report import (
     load_json_documents,
     render_terminal,
 )
-from cwo_core.paths import AUDIT_LOG
 
 
 def _path_list(values: list[str] | None) -> list[Path]:
@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
             "audit, readiness, evaluator, and return-bundle artifacts."
         )
     )
-    parser.add_argument("--audit-log", action="append", help="Audit JSONL path. Defaults to .orchestration-audit/audit.jsonl when present.")
+    parser.add_argument("--audit-log", action="append", help="Audit JSONL path. Defaults to ../.cwo-host-state/<package-name>/audit.jsonl (verified segments included) when present.")
     parser.add_argument("--readiness-plan", help="Optional run-readiness JSON plan.")
     parser.add_argument("--acceptance-decision", action="append", help="Acceptance-decision JSON artifact. May be repeated.")
     parser.add_argument("--return-bundle", action="append", help="Contractor/local return-bundle JSON artifact. May be repeated.")
@@ -46,9 +46,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--width", type=int, help="Terminal render width. Defaults to the current terminal width.")
     args = parser.parse_args(argv)
 
-    audit_paths = _path_list(args.audit_log)
-    if not audit_paths and AUDIT_LOG.exists():
-        audit_paths = [AUDIT_LOG]
+    audit_paths = _path_list(args.audit_log) if args.audit_log else None
 
     try:
         audit_events = load_audit_events(audit_paths)
@@ -61,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     source_files = {
-        "audit_logs": [str(path) for path in audit_paths],
+        "audit_logs": [str(path) for path in (audit_paths if audit_paths is not None else [configured_store().audit_file])],
         "readiness_plan": args.readiness_plan,
         "acceptance_decisions": args.acceptance_decision or [],
         "return_bundles": args.return_bundle or [],

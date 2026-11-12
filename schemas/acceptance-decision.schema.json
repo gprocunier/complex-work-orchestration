@@ -28,6 +28,26 @@
     "provenance_warnings": {"type": "array", "items": {"type": "string"}},
     "verdict": {"enum": ["accept", "clarify", "partial-accept", "reject", "escalate", "quarantine"]},
     "score": {"type": "integer"},
+    "screening_eligible": {"type": "boolean"},
+    "evidence_use_hold": {"type": "boolean"},
+    "adjudication_required": {"type": "boolean"},
+    "accepted_for_use": {"type": "boolean"},
+    "execution_permitted": {"const": false},
+    "tripwire_hits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule", "category", "start", "end", "clause_sha256"],
+        "properties": {
+          "rule": {"type": "string"},
+          "category": {"type": "string"},
+          "description": {"type": "string"},
+          "start": {"type": "integer"},
+          "end": {"type": "integer"},
+          "clause_sha256": {"type": "string"}
+        }
+      }
+    },
     "evaluator_scoring_final": {"type": "boolean"},
     "architect_review_required": {"type": "boolean"},
     "architect_adjudication_required": {"type": "boolean"},
@@ -63,6 +83,8 @@
     "signal_categories": {"type": "array", "items": {"type": "string"}},
     "peer_review_required": {"type": "boolean"},
     "peer_review_status": {"enum": ["not-run", "pending", "passed", "failed", "disagreement", "blocked"]},
+    "peer_review_reviewer": {"type": "string", "minLength": 1},
+    "peer_review_record": {"$ref": "peer-review-record.schema.json"},
     "review_surface": {"type": ["string", "null"]},
     "source_inspection": {"type": ["string", "null"]},
     "sources_inspected": {"type": "string"},
@@ -79,7 +101,7 @@
     "implementation_blocked": {"type": "boolean"},
     "hold_reasons": {"type": "array", "items": {"type": "string"}},
     "hold_classification": {
-      "enum": ["none", "peer-review-pending", "provider-conflict-pending"]
+      "enum": ["none", "peer-review-pending", "provider-conflict-pending", "return-tripwire"]
     },
     "patch_authorization_state": {"enum": ["explicit-allow", "explicit-deny", "proposal-only", "ambiguous", "absent"]},
     "provider_conflict_domains": {"type": "array", "items": {"type": "string"}},

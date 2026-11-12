@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CWO Invocation Ledger v1",
+  "description": "Aggregate invocation ledger (cwo_core.invocation_ledger). Structural shape only: transitions, charges, lineage, one-use admissions and unique sequences are checked by validate_ledger. Not yet used by any enabled invocation route.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "ledger_type",
+    "version",
+    "budgets",
+    "attempts"
+  ],
+  "properties": {
+    "ledger_type": {
+      "const": "cwo-invocation-ledger"
+    },
+    "version": {
+      "const": 1
+    },
+    "budgets": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/budget"
+      }
+    },
+    "attempts": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/attempt"
+      }
+    }
+  },
+  "$defs": {
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "budget_id",
+        "scope_sha256",
+        "limits",
+        "created_at"
+      ],
+      "properties": {
+        "budget_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "scope_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "limits": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "created_at": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "attempt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt_id",
+        "reservation_id",
+        "budget_id",
+        "request_id",
+        "request_sha256",
+        "admission_sha256",
+        "lineage",
+        "amount",
+        "owner",
+        "sequence",
+        "created_at",
+        "expires_at",
+        "state",
+        "outcome",
+        "observers",
+        "observed_usage",
+        "charge",
+        "history"
+      ],
+      "properties": {
+        "attempt_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "reservation_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "budget_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "request_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "request_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "admission_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "lineage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "parent_attempt_id"
+          ],
+          "properties": {
+            "kind": {
+              "enum": [
+                "initial",
+                "retry",
+                "fallback",
+                "successor",
+                "sibling"
+              ]
+            },
+            "parent_attempt_id": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "amount": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^[a-z][a-z0-9_]{0,63}$"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        },
+        "owner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pid",
+            "start_ticks",
+            "boot_id_sha256"
+          ],
+          "properties": {
+            "pid": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "start_ticks": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "boot_id_sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          }
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "created_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "expires_at": {
+          "type": "number",
+          "minimum": 0
+        },
+        "state": {
+          "enum": [
+            "reserved",
+            "invocation-intent",
+            "terminal",
+            "reconciliation-required"
+          ]
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "enum": [
+                "released",
+                "expired",
+                "drift-refused",
+                "completed",
+                "failed",
+                "timeout",
+                "cancelled",
+                "unknown",
+                "aborted-before-effect",
+                "reconciled"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "observers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "observed_usage": {
+          "anyOf": [
+            {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9_]{0,63}$"
+              },
+              "additionalProperties": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "charge": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "history": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "state",
+              "outcome",
+              "at",
+              "reason"
+            ],
+            "properties": {
+              "state": {
+                "enum": [
+                  "reserved",
+                  "invocation-intent",
+                  "terminal",
+                  "reconciliation-required"
+                ]
+              },
+              "outcome": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "released",
+                      "expired",
+                      "drift-refused",
+                      "completed",
+                      "failed",
+                      "timeout",
+                      "cancelled",
+                      "unknown",
+                      "aborted-before-effect",
+                      "reconciled"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "at": {
+                "type": "number",
+                "minimum": 0
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

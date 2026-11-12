@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/model-profiles",
+  "title": "CWO Whole Model Profile Registry",
+  "description": "Registered configuration shape only. Whole-document shape component. Registration uses the separate canonical-loader mapping; declarations grant no execution, promotion or review authority. Existing typed semantic and cross-reference checks remain additional contracts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "scope", "source_policy", "role_substitution_matrix", "profiles"],
+  "properties": {
+    "version": {"type": "integer"},
+    "schema": {"type": "string", "const": "json-compatible-yaml"},
+    "scope": {"type": "string"},
+    "last_reviewed": {"type": "string"},
+    "source_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primary_catalog", "fallback_policy", "confidence_policy", "deployment_policy"],
+      "properties": {
+        "primary_catalog": {"type": "string"},
+        "fallback_policy": {"type": "string"},
+        "confidence_policy": {"type": "string"},
+        "deployment_policy": {"type": "string"},
+        "executor_alias_policy": {"type": "string"}
+      }
+    },
+    "browser_attestation_defaults": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Optional display labels; their presence and values grant no review authority.",
+        "properties": {
+          "model_label": {"type": "string"},
+          "reasoning_label": {"type": "string"}
+        }
+      }
+    },
+    "role_substitution_matrix": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cwo_role", "connected_default", "airgapped_profile", "substitute_confidence", "boundary"],
+        "properties": {
+          "cwo_role": {"type": "string", "minLength": 1},
+          "connected_default": {"type": "string", "minLength": 1},
+          "airgapped_profile": {"type": "string", "minLength": 1},
+          "enterprise_profiles": {"type": "array", "items": {"type": "string"}},
+          "substitute_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+          "boundary": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "description": "Profile IDs are dynamic. Presence, role coverage and references remain typed repository checks.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "display_name", "provider_key", "local_profile", "huggingface_model_id",
+          "model_alias", "publisher", "source_url", "license", "artifact",
+          "quantization", "vllm_compatible", "endpoint_path", "recommended_roles",
+          "substitute_confidence", "deployment_class", "deployment_tier",
+          "hardware_profile", "recommended_enterprise_scale", "benchmark_gate",
+          "promotion_status", "context_window", "strengths", "limits"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "provider_key": {"type": "string"},
+          "local_profile": {"type": "string"},
+          "huggingface_model_id": {"type": "string"},
+          "model_alias": {"type": "string"},
+          "publisher": {"type": "string"},
+          "source_url": {"type": "string"},
+          "license": {"type": "string"},
+          "artifact": {"type": "string"},
+          "precision": {"type": "string"},
+          "quantization": {"type": "string"},
+          "thinking_enabled": {"type": "boolean"},
+          "reasoning_mode": {"type": "string"},
+          "request_options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "reasoning_effort": {"type": "string"},
+              "include_reasoning": {"type": "boolean"},
+              "chat_template_kwargs": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "enable_thinking": {"type": "boolean"}
+                }
+              }
+            }
+          },
+          "required_vllm_flags": {"type": "array", "items": {"type": "string"}},
+          "vllm_compatible": {"type": "boolean"},
+          "endpoint_path": {"type": "string", "const": "/v1/chat/completions"},
+          "recommended_roles": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "substitute_confidence": {"type": "string", "enum": ["high", "medium", "low"]},
+          "deployment_class": {"type": "string"},
+          "deployment_tier": {"type": "string", "minLength": 1},
+          "hardware_profile": {"type": "string", "minLength": 1},
+          "recommended_enterprise_scale": {"type": "string", "minLength": 1},
+          "benchmark_gate": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+          "promotion_status": {"type": "string", "enum": ["practical-default", "candidate", "validated", "fallback"]},
+          "context_window": {"type": "string"},
+          "default_variant": {"type": "string"},
+          "serving_notes": {"type": "array", "items": {"type": "string"}},
+          "strengths": {"type": "array", "items": {"type": "string"}},
+          "limits": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

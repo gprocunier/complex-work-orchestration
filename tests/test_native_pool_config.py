@@ -37,6 +37,7 @@ from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
 from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authority  # noqa: E402
 from tests.test_native_pool_contracts import capability_payload, sha  # noqa: E402
 from tests import test_run_native_pool_live_canaries as live_test_helpers  # noqa: E402
+from tests.real_beads_fixture import configure_git_fixture
 
 
 def git(*args: str, cwd: Path) -> None:
@@ -49,6 +50,7 @@ class RenderFixture:
         self.integration = root / "integration"
         self.integration.mkdir()
         git("init", "-q", cwd=self.integration)
+        configure_git_fixture(self.integration)
         (self.integration / "scripts").mkdir()
         for index in range(cap):
             (self.integration / "scripts" / f"child_{index}.py").write_text(

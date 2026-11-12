@@ -791,72 +791,48 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertIn("util 0.0%", rendered)
         self.assertIn("control-loss 0.0%", rendered)
 
-    def test_telemetry_gaps_report_missing_fields_by_source_kind(self) -> None:
-        report = build_execution_status_report(
-            audit_events=[
-                {
-                    "dispatch_id": "missing-token-time",
-                    "event_type": "dispatch",
-                    "bead_id": "cwo-8",
-                    "executor_key": "frontier_architect",
-                    "status": "completed",
-                    "calls": 1,
-                }
-            ],
+    def test_telemetry_gap_source_matrix(self) -> None:
+        missing_event = {
+            'dispatch_id': 'missing-token-time', 'event_type': 'dispatch',
+            'bead_id': 'cwo-8', 'executor_key': 'frontier_architect',
+            'status': 'completed', 'calls': 1,
+        }
+        workstream = {'name': 'validation', 'owner': 'reliability', 'status': 'completed'}
+        rows: tuple[tuple[str, dict, int, tuple, bool, bool, bool], ...] = (
+            ('test_telemetry_gaps_report_missing_fields_by_source_kind',
+             {'audit_events': [dict(missing_event)]}, 1,
+             (('total_tokens', 1, 0),), True, False, False),
+            ('test_readiness_telemetry_is_not_applicable_not_missing',
+             {'readiness_plan': {'workstreams': [dict(workstream)]}}, 1,
+             tuple((field, 0, 1) for field in ['agent_model_calls', 'total_tokens', 'elapsed_seconds']),
+             False, True, False),
+            ('test_mixed_missing_and_not_applicable_telemetry_are_counted_separately',
+             {'audit_events': [dict(missing_event)],
+              'readiness_plan': {'workstreams': [dict(workstream)]}}, 2,
+             (('total_tokens', 1, 1),), False, False, True),
         )
+        for original_id, inputs, count, fields, source_details, readiness_summary, render_gaps in rows:
+            with self.subTest(original_id=original_id):
+                report = build_execution_status_report(**inputs)
+                gaps = report['telemetry_gaps']
+                self.assertEqual(gaps['records_considered'], count)
+                for field, missing, not_applicable in fields:
+                    self.assertEqual(gaps['fields'][field]['missing_records'], missing)
+                    self.assertEqual(gaps['fields'][field]['not_applicable_records'], not_applicable)
+                if source_details:
+                    self.assertTrue(gaps['source_artifacts_supplied'])
+                    self.assertEqual(gaps['fields']['agent_model_calls']['available_records'], 1)
+                    self.assertEqual(gaps['fields']['total_tokens']['missing_source_kinds'], ['audit_event'])
+                    self.assertEqual(gaps['fields']['total_tokens']['missing_reasons'], {'not-recorded': 1})
+                if readiness_summary:
+                    self.assertEqual(report['executive_summary']['missing_telemetry_cells'], 0)
+                    self.assertEqual(report['executive_summary']['total_tokens'], 'n/a')
+                if render_gaps:
+                    rendered = render_terminal(report, width=100, layout='expanded')
+                    self.assertIn('?', rendered)
+                    self.assertIn('n/a', rendered)
 
-        gaps = report["telemetry_gaps"]
-        self.assertEqual(gaps["records_considered"], 1)
-        self.assertTrue(gaps["source_artifacts_supplied"])
-        self.assertEqual(gaps["fields"]["agent_model_calls"]["available_records"], 1)
-        self.assertEqual(gaps["fields"]["total_tokens"]["missing_records"], 1)
-        self.assertEqual(gaps["fields"]["total_tokens"]["not_applicable_records"], 0)
-        self.assertEqual(gaps["fields"]["total_tokens"]["missing_source_kinds"], ["audit_event"])
-        self.assertEqual(gaps["fields"]["total_tokens"]["missing_reasons"], {"not-recorded": 1})
 
-    def test_readiness_telemetry_is_not_applicable_not_missing(self) -> None:
-        report = build_execution_status_report(
-            readiness_plan={
-                "workstreams": [
-                    {"name": "validation", "owner": "reliability", "status": "completed"},
-                ]
-            },
-        )
-
-        gaps = report["telemetry_gaps"]
-        self.assertEqual(gaps["records_considered"], 1)
-        for field in ["agent_model_calls", "total_tokens", "elapsed_seconds"]:
-            self.assertEqual(gaps["fields"][field]["missing_records"], 0)
-            self.assertEqual(gaps["fields"][field]["not_applicable_records"], 1)
-        self.assertEqual(report["executive_summary"]["missing_telemetry_cells"], 0)
-        self.assertEqual(report["executive_summary"]["total_tokens"], "n/a")
-
-    def test_mixed_missing_and_not_applicable_telemetry_are_counted_separately(self) -> None:
-        report = build_execution_status_report(
-            audit_events=[
-                {
-                    "dispatch_id": "missing-token-time",
-                    "event_type": "dispatch",
-                    "bead_id": "cwo-8",
-                    "executor_key": "frontier_architect",
-                    "status": "completed",
-                    "calls": 1,
-                }
-            ],
-            readiness_plan={
-                "workstreams": [
-                    {"name": "validation", "owner": "reliability", "status": "completed"},
-                ]
-            },
-        )
-
-        gaps = report["telemetry_gaps"]
-        self.assertEqual(gaps["records_considered"], 2)
-        self.assertEqual(gaps["fields"]["total_tokens"]["missing_records"], 1)
-        self.assertEqual(gaps["fields"]["total_tokens"]["not_applicable_records"], 1)
-        rendered = render_terminal(report, width=100, layout="expanded")
-        self.assertIn("?", rendered)
-        self.assertIn("n/a", rendered)
 
     def test_convergence_replay_is_authoritative_for_absolute_call_categories(self) -> None:
         audit_events = sample_audit_events() + [
@@ -922,27 +898,25 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertFalse(report["epic_convergence_summary"]["available"])
         self.assertIsNone(report["epic_convergence_summary"]["record_count"])
 
-    def test_terminal_dashboard_degrades_for_narrow_width(self) -> None:
+    def test_terminal_layout_contracts_from_shared_report(self) -> None:
         report = build_execution_status_report(
             audit_events=sample_audit_events(),
             acceptance_decisions=sample_acceptance_decisions(),
         )
-
-        rendered = render_terminal(report, width=60)
-        self.assertIn("CWO Execution Status Report", rendered)
-        self.assertIn("Dashboard", rendered)
-        self.assertIn("Top gaps:", rendered)
-        self.assertTrue(all(len(line) <= 60 for line in rendered.splitlines()))
-
-    def test_expanded_terminal_keeps_full_detail_sections(self) -> None:
-        report = build_execution_status_report(
-            audit_events=sample_audit_events(),
-            acceptance_decisions=sample_acceptance_decisions(),
+        rows: tuple[tuple[str, dict, tuple[str, ...], bool], ...] = (
+            ('test_terminal_dashboard_degrades_for_narrow_width', {'width': 60},
+             ('CWO Execution Status Report', 'Dashboard', 'Top gaps:'), True),
+            ('test_expanded_terminal_keeps_full_detail_sections', {'width': 80, 'layout': 'expanded'},
+             ('Executive Summary', 'Second-Opinion Review Lane Productivity'), False),
         )
+        for original_id, options, expected_sections, bounded in rows:
+            with self.subTest(original_id=original_id):
+                rendered = render_terminal(report, **options)
+                for section in expected_sections:
+                    self.assertIn(section, rendered)
+                if bounded:
+                    self.assertTrue(all(len(line) <= 60 for line in rendered.splitlines()))
 
-        rendered = render_terminal(report, width=80, layout="expanded")
-        self.assertIn("Executive Summary", rendered)
-        self.assertIn("Second-Opinion Review Lane Productivity", rendered)
 
     def test_outputs_do_not_expose_raw_prompts_transcripts_or_chain_of_thought(self) -> None:
         report = build_execution_status_report(

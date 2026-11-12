@@ -1,0 +1,939 @@
+{
+  "version": 1,
+  "description": "Labelled routing risk corpus. Each case records the task, any appended segments, the risk features expected from policy/risk-features.yaml version 1, the risk floor, bounds on the route risk, required experts and forbidden outcomes. Expectations derive from the task's meaning and the declared conservative policy: terms match as whole tokens after NFKC and case folding, features count wherever they appear, negated or quoted, and a feature formed anywhere in the append history (each segment, each cumulative prefix) stays. Risk narrowing is unavailable: nothing resolves a feature, so every case expects resolved to be empty. A case with narrowing_input records a structured scope for the unavailable narrowing route; routing the case with it must be refused with the risk-narrowing refusal message before any routing output, and the labels describe the same task routed without it. The scope objects are refused without being read, so the evidence paths they name need not exist. Required experts must appear in the route wherever they rank. Suffixes are appended as separate segments. Cases marked false-positive-probe are targeted probes for over-matching, not a sample from which to estimate a rate.",
+  "policy": {
+    "file": "policy/risk-features.yaml",
+    "version": 1
+  },
+  "suffixes": {
+    "benign": [
+      " and publish the runbook",
+      " Also fix a typo in README.",
+      ". This is a docs-only change.",
+      " Update the documentation afterwards.",
+      " (low risk, trivial)",
+      "; just a small wording tweak",
+      " No security review is needed.",
+      " It is not production."
+    ],
+    "risky": [
+      " and rotate the API keys",
+      " in production",
+      " then drop the old tables"
+    ],
+    "token_extension": [
+      "s and publish the runbook",
+      "\u0301 and document the change"
+    ],
+    "generated": {
+      "description": "Every sequence of one or two fragments, each appended as one segment to every retained case.",
+      "fragments": [
+        "s",
+        "\u0301",
+        "\u0327",
+        "ing",
+        "-",
+        "_",
+        " ",
+        ".",
+        "\uff53",
+        "\ufb01",
+        "\u00e9",
+        "0",
+        "\u200b",
+        "'",
+        " and publish the runbook",
+        " not"
+      ],
+      "max_fragments": 2
+    }
+  },
+  "cases": [
+    {
+      "id": "prod-postgres-migration-credentials",
+      "task": "Migrate our production PostgreSQL 14 cluster to 17 with zero downtime and rotate the replication credentials",
+      "retained": true,
+      "features": [
+        "action:migration",
+        "action:rotation",
+        "asset:credentials",
+        "asset:database",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "architecture",
+        "security",
+        "storage"
+      ],
+      "forbidden": [
+        "a risk below high",
+        "a route without security"
+      ],
+      "meaning": "A production database migration that also rotates credentials."
+    },
+    {
+      "id": "prod-postgres-migration-runbook-suffix",
+      "task": "Migrate our production PostgreSQL 14 cluster to 17 with zero downtime and rotate the replication credentials and publish the runbook",
+      "retained": true,
+      "features": [
+        "action:migration",
+        "action:rotation",
+        "asset:credentials",
+        "asset:database",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "architecture",
+        "security",
+        "storage"
+      ],
+      "forbidden": [
+        "a risk below high"
+      ],
+      "meaning": "The same action with a documentation suffix; the suffix adds work and removes nothing."
+    },
+    {
+      "id": "oidc-authentication-refactor",
+      "task": "Refactor the authentication middleware to support OIDC and remove the legacy session cookie path",
+      "retained": true,
+      "features": [
+        "asset:authentication"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "forbidden": [
+        "a route without security"
+      ],
+      "meaning": "Authentication change; security expertise is required."
+    },
+    {
+      "id": "drop-production-table",
+      "task": "Drop the customers table in production",
+      "retained": true,
+      "features": [
+        "action:destructive",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [],
+      "forbidden": [
+        "a risk below high"
+      ],
+      "meaning": "Destructive production action."
+    },
+    {
+      "id": "readme-typo",
+      "task": "Fix the typo in README",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "maximum_risk": "low",
+      "required_experts": [
+        "documentation"
+      ],
+      "forbidden_experts": [
+        "security"
+      ],
+      "meaning": "Benign README-only work keeps its proportionate path."
+    },
+    {
+      "id": "negated-security-review",
+      "task": "Do not use any security review; just fix the typo in README",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "meaning": "Conservative policy: a negated request for less review is not honored; the existing security trigger stays."
+    },
+    {
+      "id": "quoted-credential-example",
+      "task": "Document that the example password=hunter2 in the README is fake",
+      "retained": true,
+      "features": [
+        "asset:credentials"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "meaning": "Conservative policy: a quoted or example credential counts as a credential feature."
+    },
+    {
+      "id": "negated-production",
+      "task": "Do not touch production; update the staging config",
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "Conservative policy: negation does not remove a feature."
+    },
+    {
+      "id": "unknown-terms",
+      "task": "Refactor the frobnicator quux module",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "required_experts": [],
+      "meaning": "Unknown terms add no feature; expert matching alone decides."
+    },
+    {
+      "id": "hyphenated-prod-db-credentials",
+      "task": "Update the prod-db credentials",
+      "retained": true,
+      "features": [
+        "asset:credentials",
+        "asset:database",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security",
+        "storage"
+      ],
+      "meaning": "Hyphens split tokens: prod, db, credentials."
+    },
+    {
+      "id": "fullwidth-production-migration",
+      "task": "\uff30\uff52\uff4f\uff44\uff55\uff43\uff54\uff49\uff4f\uff4e migration of the billing service",
+      "retained": true,
+      "features": [
+        "action:migration",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "architecture"
+      ],
+      "meaning": "Compatibility forms are folded before matching."
+    },
+    {
+      "id": "products-is-not-prod",
+      "task": "Rewrite the products page copy",
+      "retained": false,
+      "features": [],
+      "required_experts": [],
+      "meaning": "Whole tokens: products is not prod.",
+      "floor": null
+    },
+    {
+      "id": "authorship-is-not-auth",
+      "task": "Add authorship notes to the guide",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "required_experts": [],
+      "meaning": "Whole tokens: authorship is not auth.",
+      "forbidden": [
+        "an authentication feature"
+      ]
+    },
+    {
+      "id": "rekey-signing-keys",
+      "task": "Re-key the release signing keys",
+      "retained": true,
+      "features": [
+        "action:rotation",
+        "asset:credentials"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "meaning": "Multi-token terms: re key, signing keys."
+    },
+    {
+      "id": "docs-scope-refused-production-mention-kept",
+      "task": "Fix the typo in the production runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "medium",
+      "required_experts": [],
+      "meaning": "A runbook typo fix with a complete documentation scope and recorded evidence: the scope is refused (narrowing is unavailable), and without it the production mention keeps its medium floor. The work stays plannable; it is not narrowed.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-typo-production.json",
+            "sha256": "1b497f7be2a6e3bc75cc41e081f76c7521615ce2f7091ce0ade5e143ea6e4189"
+          }
+        }
+      },
+      "minimum_risk": "medium"
+    },
+    {
+      "id": "production-mention-without-scope",
+      "task": "Fix the typo in the production runbook README",
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "The production mention in a runbook typo fix keeps its medium floor; nothing narrows it under the current policy."
+    },
+    {
+      "id": "fake-docs-flag-cannot-erase-migration",
+      "task": "Migrate the production database; fix the README typo",
+      "file_paths": [
+        "README.md"
+      ],
+      "stage": "docs",
+      "retained": true,
+      "features": [
+        "action:migration",
+        "asset:database",
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "architecture",
+        "storage"
+      ],
+      "meaning": "Conflicting text plus a docs path, stage flag and a complete documentation scope: the scope is refused, and the docs path and stage resolve nothing, so the migration, database and production features keep the high floor.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-typo-production-database.json",
+            "sha256": "a03762cccd4183e698a949d146404650672ca9c236ea626fcc3ab2201fa43368"
+          }
+        }
+      }
+    },
+    {
+      "id": "docs-suffix-keeps-production-action",
+      "task": "Drop the customers table in production. Then update the README docs.",
+      "retained": true,
+      "features": [
+        "action:destructive",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [],
+      "meaning": "A docs suffix cannot replace the production action floor."
+    },
+    {
+      "id": "benign-product-page",
+      "task": "Update the product page copy",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "required_experts": [],
+      "meaning": "Targeted false-positive probe: product is not the whole token prod.",
+      "probe": "false-positive"
+    },
+    {
+      "id": "benign-author-list",
+      "task": "List the authors in the changelog",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "required_experts": [],
+      "meaning": "Targeted false-positive probe: authors is not the whole token auth.",
+      "probe": "false-positive"
+    },
+    {
+      "id": "benign-tokenize-input",
+      "task": "Tokenize the input string",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "required_experts": [],
+      "meaning": "Targeted false-positive probe: tokenize is not the whole token token.",
+      "probe": "false-positive"
+    },
+    {
+      "id": "benign-dbx-export",
+      "task": "Export the report with dbx",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "required_experts": [],
+      "meaning": "Targeted false-positive probe: dbx is not the whole token db.",
+      "probe": "false-positive"
+    },
+    {
+      "id": "benign-deleter-class",
+      "task": "Refactor the deleter class",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "required_experts": [],
+      "meaning": "Targeted false-positive probe: deleter is not a listed inflection of delete.",
+      "probe": "false-positive"
+    },
+    {
+      "id": "hostile-delete-customers-table",
+      "task": "Delete the customers table in production",
+      "retained": true,
+      "features": [
+        "action:destructive",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [],
+      "meaning": "Hostile case: short terms must still detect real destructive production work."
+    },
+    {
+      "id": "hostile-fix-auth-prod-db",
+      "task": "Fix auth for prod db",
+      "retained": true,
+      "features": [
+        "asset:authentication",
+        "asset:database",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security",
+        "storage"
+      ],
+      "meaning": "Hostile case: short terms must still detect real authentication and database work in production."
+    },
+    {
+      "id": "hostile-rotate-api-token",
+      "task": "Rotate the API token in the production environment",
+      "retained": true,
+      "features": [
+        "action:rotation",
+        "asset:credentials",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "meaning": "Hostile case: short terms must still detect real credential rotation work."
+    },
+    {
+      "id": "benign-sign-indicator",
+      "task": "Design the sign indicator",
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "required_experts": [],
+      "probe": "false-positive",
+      "meaning": "Targeted false-positive probe: the multi-word term sign in matches only the consecutive whole tokens sign and in."
+    },
+    {
+      "id": "hostile-sign-in-page",
+      "task": "Fix the sign in page",
+      "retained": true,
+      "features": [
+        "asset:authentication"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "meaning": "Multi-word term as consecutive whole tokens: sign in."
+    },
+    {
+      "id": "hostile-delete-token",
+      "task": "Delete the token from the prod db",
+      "retained": true,
+      "features": [
+        "action:destructive",
+        "asset:credentials",
+        "asset:database",
+        "environment:production"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security",
+        "storage"
+      ],
+      "meaning": "Short whole-token terms delete, token, prod and db still detect real risky work."
+    },
+    {
+      "id": "appended-segment-keeps-oidc",
+      "task": "Inspect OIDC",
+      "segments": [
+        "s and publish the runbook"
+      ],
+      "retained": true,
+      "features": [
+        "asset:authentication"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "meaning": "An appended segment that would extend the last token if joined first is assessed separately, so OIDC stays."
+    },
+    {
+      "id": "docs-path-alone-keeps-production-mention",
+      "task": "Fix the typo in the production runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "stage": "docs",
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "A caller path and stage resolve nothing; the mention keeps its floor."
+    },
+    {
+      "id": "scope-without-evidence-keeps-mention",
+      "task": "Fix the typo in the production runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "A scope with an empty evidence reference is still a narrowing input and is refused; the mention keeps its floor.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": ""
+        }
+      }
+    },
+    {
+      "id": "scope-in-production-keeps-mention",
+      "task": "Fix the typo in the production runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "A scope declaring production is refused; the mention keeps its floor.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "production",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-typo-production.json",
+            "sha256": "1b497f7be2a6e3bc75cc41e081f76c7521615ce2f7091ce0ade5e143ea6e4189"
+          }
+        }
+      }
+    },
+    {
+      "id": "scope-with-mixed-paths-keeps-mention",
+      "task": "Fix the typo in the production runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "A scope with a non-documentation path is refused; the mention keeps its floor.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md",
+            "scripts/deploy.sh"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-typo-production.json",
+            "sha256": "1b497f7be2a6e3bc75cc41e081f76c7521615ce2f7091ce0ade5e143ea6e4189"
+          }
+        }
+      }
+    },
+    {
+      "id": "appended-readme-scope-refused-database-kept",
+      "task": "Stop the production PostgreSQL service",
+      "segments": [
+        "Also fix the README typo"
+      ],
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "asset:database",
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "storage"
+      ],
+      "forbidden": [
+        "a resolved feature",
+        "a route without storage",
+        "routing output while the scope is supplied"
+      ],
+      "meaning": "An operational task with an appended documentation segment and a documentation scope: the scope is refused, and the appended segment adds nothing that lowers risk, so production, database, the high floor and storage stay.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-typo-production-database.json",
+            "sha256": "a03762cccd4183e698a949d146404650672ca9c236ea626fcc3ab2201fa43368"
+          }
+        }
+      }
+    },
+    {
+      "id": "bare-evidence-string-resolves-nothing",
+      "task": "Fix the typo in the production runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "A scope with a bare evidence string is refused; the mention keeps its floor.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": "bead-docs-typo-1"
+        }
+      }
+    },
+    {
+      "id": "missing-evidence-file-resolves-nothing",
+      "task": "Fix the typo in the production runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "A scope naming an evidence file that does not exist is refused without being read; the mention keeps its floor.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/absent.json",
+            "sha256": "1b497f7be2a6e3bc75cc41e081f76c7521615ce2f7091ce0ade5e143ea6e4189"
+          }
+        }
+      }
+    },
+    {
+      "id": "evidence-digest-mismatch-resolves-nothing",
+      "task": "Fix the typo in the production runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "A scope whose evidence digest does not match is refused without being read; the mention keeps its floor.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-typo-production.json",
+            "sha256": "2d048966ae8eff45d9279291a51dda8d2ce6e01b7f5fd3f8dc85634e22709b73"
+          }
+        }
+      }
+    },
+    {
+      "id": "evidence-for-other-paths-and-environment",
+      "task": "Fix the typo in the production runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "medium",
+      "minimum_risk": "medium",
+      "required_experts": [],
+      "meaning": "A scope whose evidence was recorded for another path and environment is refused; the mention keeps its floor.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-guide-staging.json",
+            "sha256": "2d048966ae8eff45d9279291a51dda8d2ce6e01b7f5fd3f8dc85634e22709b73"
+          }
+        }
+      }
+    },
+    {
+      "id": "evidence-for-one-mention-refused-both-kept",
+      "task": "Fix the typo in the production database runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "asset:database",
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "storage"
+      ],
+      "meaning": "A documentation scope whose evidence lists only the production mention is refused; production and database together keep the high floor and the storage expert.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-typo-production.json",
+            "sha256": "1b497f7be2a6e3bc75cc41e081f76c7521615ce2f7091ce0ade5e143ea6e4189"
+          }
+        }
+      }
+    },
+    {
+      "id": "evidence-for-both-mentions-refused-both-kept",
+      "task": "Fix the typo in the production database runbook README",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "asset:database",
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "high",
+      "required_experts": [
+        "storage"
+      ],
+      "meaning": "A documentation scope whose evidence lists both mentions is refused; production and database together keep the high floor and the storage expert.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-typo-production-database.json",
+            "sha256": "a03762cccd4183e698a949d146404650672ca9c236ea626fcc3ab2201fa43368"
+          }
+        }
+      },
+      "minimum_risk": "high"
+    },
+    {
+      "id": "operational-original-text-with-evidence",
+      "task": "Stop the production PostgreSQL service and fix the README typo",
+      "file_paths": [
+        "README.md"
+      ],
+      "retained": true,
+      "features": [
+        "asset:database",
+        "environment:production"
+      ],
+      "resolved": [],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "storage"
+      ],
+      "meaning": "Operational wording plus a documentation scope: the scope is refused, and production, database, the high floor and storage stay.",
+      "narrowing_input": {
+        "risk_scope": {
+          "action": "documentation-edit",
+          "paths": [
+            "README.md"
+          ],
+          "environment": "none",
+          "evidence": {
+            "path": "tests/fixtures/routing/risk-evidence/docs-typo-production-database.json",
+            "sha256": "a03762cccd4183e698a949d146404650672ca9c236ea626fcc3ab2201fa43368"
+          }
+        }
+      }
+    },
+    {
+      "id": "history-sign-in-then-extension",
+      "task": "Inspect sign ",
+      "segments": [
+        "in",
+        "g"
+      ],
+      "retained": true,
+      "features": [
+        "asset:authentication"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "meaning": "An append forms sign in at a segment boundary; a later append that would extend it to sign ing cannot erase it."
+    },
+    {
+      "id": "history-oidc-mid-token",
+      "task": "Inspect OI",
+      "segments": [
+        "DC",
+        "s and publish the runbook"
+      ],
+      "retained": true,
+      "features": [
+        "asset:authentication"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "meaning": "An append completes OIDC mid-token; a later append that would extend it to OIDCs cannot erase it."
+    },
+    {
+      "id": "oidc-security-ranked-fourth",
+      "task": "Add OIDC login to the OpenShift platform cluster networking and storage layer",
+      "retained": true,
+      "features": [
+        "asset:authentication"
+      ],
+      "floor": "high",
+      "minimum_risk": "high",
+      "required_experts": [
+        "security"
+      ],
+      "forbidden": [
+        "a route, default review plan or tight scaffold without security"
+      ],
+      "meaning": "OIDC work requires security even though three matched experts rank ahead of it; security must survive ranking, --top-n and tight scaffolding."
+    },
+    {
+      "id": "benign-docs-guide-typo",
+      "task": "Fix the typo in docs/guide.md",
+      "file_paths": [
+        "docs/guide.md"
+      ],
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "maximum_risk": "low",
+      "required_experts": [
+        "documentation"
+      ],
+      "meaning": "Independently benign documentation work with no risk feature keeps its proportionate low route."
+    },
+    {
+      "id": "benign-changelog-spelling",
+      "task": "Correct the spelling of 'orchestration' in the CHANGELOG",
+      "file_paths": [
+        "CHANGELOG.md"
+      ],
+      "retained": false,
+      "features": [],
+      "floor": null,
+      "maximum_risk": "low",
+      "required_experts": [],
+      "meaning": "A spelling fix in the changelog has no risk feature and stays low."
+    }
+  ]
+}

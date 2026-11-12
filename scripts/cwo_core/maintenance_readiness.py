@@ -10,6 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any,Callable,Mapping
 from .maintenance_authority import require_maintenance_operation
+from .model_identities import SPARK_MODEL
 from .native_pool_contracts import canonical_sha256,write_private_artifact
 from .native_pool_transaction import execution_authoritative_bead_sha256
 from .native_precommit import validate_precommit_receipt
@@ -41,7 +42,7 @@ def persist_precommit_readiness(*,operation,verifier,claim_adapter,work_plan,
  _need(errors==[],'precommit-invalid:'+ ';'.join(errors))
  policy_receipt=(work_plan.get('fit_mode')=='deterministic'
   and precommit_receipt.get('submission_id')=='deterministic-policy'
-  and precommit_receipt.get('requested_model')=='gpt-5.3-codex-spark')
+  and precommit_receipt.get('requested_model')==SPARK_MODEL)
  commitment=(build_policy_fit_commitment(work_plan,precommit_receipt=precommit_receipt,current_authority=current_authority)
   if policy_receipt else build_worker_commitment_from_receipt(work_plan,precommit_receipt,current_authority=current_authority))
  errors=validate_worker_commitment(commitment,work_plan,precommit_receipt=precommit_receipt,current_authority=current_authority)

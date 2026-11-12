@@ -319,98 +319,103 @@ class NativeWorkSizingTest(unittest.TestCase):
     def tearDown(self) -> None:
         self._temporary.cleanup()
 
-    def test_route_spark_for_low_score(self):
-        payload = _valid_raw_payload()
-        result = evaluate_work_estimate(payload)
-        self.assertEqual(result["score_total"], 6)
-        self.assertEqual(result["route"], "split")
+    def test_v1_route_and_allowance_rows(self):
+        def all_caps(payload):
+            payload["subsystems"] = ["a", "b", "c"]
+            payload["write_paths"] = [
+                "a",
+                "b",
+                "c",
+                "d",
+                "e",
+                "f",
+                "g",
+                "h",
+                "i",
+                "j",
+            ]
+            payload["context_manifest"] = [
+                {"path": "a", "selector": "a", "purpose": "check", "bytes": 0, "sha256": "0" * 64}
+            ] * 13
+            payload["acceptance_checks"] = ["x", "y", "z", "w"]
+            payload["estimates"]["context_tokens_p90"] = 96001
+            payload["estimates"]["tool_calls_p90"] = 31
+            payload["estimates"]["runtime_seconds_p90"] = 481
 
-    def test_route_split_threshold(self):
-        payload = _valid_raw_payload()
-        payload["scores"]["reasoning_uncertainty"] = 0
-        payload["scores"]["subsystem_coupling"] = 0
-        payload["scores"]["contract_risk"] = 0
-        payload["scores"]["diagnostic_uncertainty"] = 3
-        payload["scores"]["context_breadth"] = 3
-        payload["scores"]["validation_breadth"] = 0  # total 6
-        result = evaluate_work_estimate(payload)
-        self.assertEqual(result["score_total"], 6)
-        self.assertEqual(result["route"], "split")
-
-    def test_route_architect_total_gate(self):
-        payload = _valid_raw_payload()
-        payload["scores"]["reasoning_uncertainty"] = 2
-        payload["scores"]["subsystem_coupling"] = 2
-        payload["scores"]["contract_risk"] = 2
-        payload["scores"]["diagnostic_uncertainty"] = 2
-        payload["scores"]["context_breadth"] = 1
-        payload["scores"]["validation_breadth"] = 1  # total 10
-        result = evaluate_work_estimate(payload)
-        self.assertEqual(result["route"], "architect")
-
-    def test_route_architect_unresolved_gate(self):
-        payload = _valid_raw_payload()
-        payload["unresolved_decisions"] = ["decision1"]
-        result = evaluate_work_estimate(payload)
-        self.assertEqual(result["route"], "architect")
-        self.assertIn("unresolved-decisions", result["hard_gate_reasons"])
-
-    def test_route_architect_reasoning_uncertainty_gate(self):
-        payload = _valid_raw_payload()
-        payload["scores"]["reasoning_uncertainty"] = 3
-        result = evaluate_work_estimate(payload)
-        self.assertEqual(result["route"], "architect")
-        self.assertIn("reasoning-uncertainty-architect", result["hard_gate_reasons"])
-
-    def test_route_architect_contract_risk_gate(self):
-        payload = _valid_raw_payload()
-        payload["scores"]["contract_risk"] = 3
-        result = evaluate_work_estimate(payload)
-        self.assertEqual(result["route"], "architect")
-        self.assertIn("contract-risk-architect", result["hard_gate_reasons"])
-
-    def test_all_caps_force_split_or_architect(self):
-        payload = _valid_raw_payload()
-        payload["scores"] = {
-            "reasoning_uncertainty": 0,
-            "subsystem_coupling": 0,
-            "contract_risk": 0,
-            "diagnostic_uncertainty": 0,
-            "context_breadth": 0,
-            "validation_breadth": 0,
-        }
-        payload["subsystems"] = ["a", "b", "c"]
-        payload["write_paths"] = [
-            "a",
-            "b",
-            "c",
-            "d",
-            "e",
-            "f",
-            "g",
-            "h",
-            "i",
-            "j",
-        ]
-        payload["context_manifest"] = [
-            {"path": "a", "selector": "a", "purpose": "check", "bytes": 0, "sha256": "0" * 64}
-        ] * 13
-        payload["acceptance_checks"] = ["x", "y", "z", "w"]
-        payload["estimates"]["context_tokens_p90"] = 96001
-        payload["estimates"]["tool_calls_p90"] = 31
-        payload["estimates"]["runtime_seconds_p90"] = 481
-        result = evaluate_work_estimate(payload)
-        self.assertEqual(result["route"], "split")
-        for reason in (
-            "too-many-subsystems",
-            "too-many-write-paths",
-            "too-many-context-entries",
-            "too-many-acceptance-checks",
-            "context-tokens-p90-exceeded",
-            "tool-calls-p90-exceeded",
-            "runtime-seconds-p90-exceeded",
-        ):
-            self.assertIn(reason, result["hard_gate_reasons"])
+        score_fields = (
+            "reasoning_uncertainty",
+            "subsystem_coupling",
+            "contract_risk",
+            "diagnostic_uncertainty",
+            "context_breadth",
+            "validation_breadth",
+        )
+        # Each row keeps its original oracle, including the two score-field gates
+        # and all three score-example round trips that were nested cases.
+        rows = (
+            ("test_route_spark_for_low_score", None, None, None, "split", 6, (), False, False),
+            ("test_route_split_threshold", None, (0, 0, 0, 3, 3, 0), None, "split", 6, (), False, False),
+            ("test_route_architect_total_gate", None, (2, 2, 2, 2, 1, 1), None,
+             "architect", None, (), False, False),
+            ("test_route_architect_unresolved_gate", None, None,
+             lambda payload: payload.update(unresolved_decisions=["decision1"]),
+             "architect", None, ("unresolved-decisions",), False, False),
+            ("test_route_architect_score_field_gates", "test_route_architect_reasoning_uncertainty_gate",
+             None, lambda payload: payload["scores"].update(reasoning_uncertainty=3),
+             "architect", None, ("reasoning-uncertainty-architect",), False, False),
+            ("test_route_architect_score_field_gates", "test_route_architect_contract_risk_gate",
+             None, lambda payload: payload["scores"].update(contract_risk=3),
+             "architect", None, ("contract-risk-architect",), False, False),
+            ("test_all_caps_force_split_or_architect", None, (0, 0, 0, 0, 0, 0), all_caps, "split", None, (
+                "too-many-subsystems",
+                "too-many-write-paths",
+                "too-many-context-entries",
+                "too-many-acceptance-checks",
+                "context-tokens-p90-exceeded",
+                "tool-calls-p90-exceeded",
+                "runtime-seconds-p90-exceeded",
+            ), False, False),
+            ("test_dispatch_soft_cap_advisory_and_hard_limits", None, None, None,
+             None, None, (), True, False),
+            ("test_validate_work_estimate_for_score_examples", "total-6", (0, 1, 1, 1, 1, 2), None,
+             None, None, (), False, True),
+            ("test_validate_work_estimate_for_score_examples", "total-10", (0, 2, 2, 2, 2, 2), None,
+             None, None, (), False, True),
+            ("test_validate_work_estimate_for_score_examples", "total-3", (3, 0, 0, 0, 0, 0), None,
+             None, None, (), False, True),
+        )
+        template = _valid_raw_payload()
+        for original, variant, scores, mutate, route, total, gates, allowance, roundtrip in rows:
+            with self.subTest(original=original, variant=variant):
+                payload = copy.deepcopy(template)
+                if scores is not None:
+                    payload["scores"] = dict(zip(score_fields, scores))
+                if mutate is not None:
+                    mutate(payload)
+                result = evaluate_work_estimate(payload)
+                if total is not None:
+                    self.assertEqual(result["score_total"], total)
+                if route is not None:
+                    self.assertEqual(result["route"], route)
+                for reason in gates:
+                    self.assertIn(reason, result["hard_gate_reasons"])
+                if allowance:
+                    actual = result["aggregate_allowance"]
+                    self.assertEqual(actual["dispatch_soft_cap"], 3)
+                    self.assertEqual(actual["dispatch_soft_cap_action"], "pm-architect-review")
+                    self.assertEqual(
+                        actual["tool_calls_hard"],
+                        result["estimates"]["tool_calls_p90"] + 12,
+                    )
+                    self.assertEqual(
+                        actual["runtime_seconds_hard"],
+                        result["estimates"]["runtime_seconds_p90"] + 240,
+                    )
+                    self.assertNotIn("dispatch_hard_cap", actual)
+                    self.assertEqual(actual["continuation_authority"], "pm-architect-within-aggregate-budget")
+                if roundtrip:
+                    payload.update(result)
+                    self.assertEqual(validate_work_estimate(payload), [])
 
     def test_malformed_source_and_bound_checks(self):
         payload = _valid_raw_payload()
@@ -476,162 +481,96 @@ class NativeWorkSizingTest(unittest.TestCase):
         result = evaluate_work_estimate(payload)
         self.assertNotEqual(result["route"], "spark")
 
-    def test_dispatch_soft_cap_advisory_and_hard_limits(self):
-        payload = _valid_raw_payload()
-        result = evaluate_work_estimate(payload)
-        allowance = result["aggregate_allowance"]
-        self.assertEqual(allowance["dispatch_soft_cap"], 3)
-        self.assertEqual(allowance["dispatch_soft_cap_action"], "pm-architect-review")
-        self.assertEqual(
-            allowance["tool_calls_hard"],
-            result["estimates"]["tool_calls_p90"] + 12,
-        )
-        self.assertEqual(
-            allowance["runtime_seconds_hard"],
-            result["estimates"]["runtime_seconds_p90"] + 240,
-        )
-        self.assertNotIn("dispatch_hard_cap", allowance)
-        self.assertEqual(allowance["continuation_authority"], "pm-architect-within-aggregate-budget")
-
-    def test_native_commitment_validation_accept_dispatch_modes(self):
-        work_estimate = evaluate_work_estimate(_valid_raw_payload())
-        commitment = _valid_commitment_payload(work_estimate)
-        self.assertEqual(validate_worker_commitment(commitment, work_estimate), [])
-        self.assertIn(
-            "historical-inspection-only",
-            " ".join(validate_worker_commitment(commitment, work_estimate, dispatchable=True)),
-        )
+    def test_native_commitment_validation_rows(self):
+        # One genuine evaluated estimate supplies private commitment inputs.
+        # Both dispatch modes and every original refusal still call the validator.
+        seed = evaluate_work_estimate(_valid_raw_payload())
+        rows = [
+            ("test_native_commitment_validation_accept_dispatch_modes", "accept", None,
+             [], "historical", None),
+            ("test_native_commitment_validation_realignment_modes", "pm-realignment",
+             lambda commitment, estimate: commitment.update(decision="pm-realignment"),
+             [], "refused", None),
+            ("test_native_commitment_validation_realignment_modes", "architect-realignment",
+             lambda commitment, estimate: commitment.update(decision="architect-realignment"),
+             [], "refused", None),
+            ("test_native_commitment_validation_hash_and_identity_mismatches", "hash",
+             lambda commitment, estimate: commitment.update(work_estimate_sha256="0" * 64),
+             ["commitment.work_estimate_sha256 does not match evaluated work estimate payload"], None, None),
+            ("test_native_commitment_validation_hash_and_identity_mismatches", "work-unit",
+             lambda commitment, estimate: commitment.update(work_unit_id="different-work-unit"),
+             ["commitment.work_unit_id must match work_estimate.work_unit_id"], None, None),
+            ("test_native_commitment_validation_hash_and_identity_mismatches", "bead",
+             lambda commitment, estimate: commitment.update(bead_id="different-bead"),
+             ["commitment.bead_id must match work_estimate.bead_id"], None, None),
+            ("test_native_commitment_validation_hash_and_identity_mismatches", "requested-model",
+             lambda commitment, estimate: commitment.update(requested_model="different-model", attested_model="different-model"),
+             ["commitment.requested_model must match work_estimate.requested_model"], None, None),
+            ("test_native_commitment_validation_hash_and_identity_mismatches", "attested-model",
+             lambda commitment, estimate: commitment.update(attested_model="different-attested-model"),
+             ["commitment.attested_model must match commitment.requested_model"], None, None),
+            ("test_native_commitment_validation_low_confidence_fails", "confidence",
+             lambda commitment, estimate: commitment.update(confidence=0.74),
+             ["commitment.confidence must be at least 0.75"], None, None),
+            ("test_native_commitment_validation_over_aggregate_allowance_fails", "tool-calls",
+             lambda commitment, estimate: commitment["estimates"].update(
+                 tool_calls_p90=estimate["aggregate_allowance"]["tool_calls_hard"] + 1,
+             ), ["commitment.estimates.tool_calls_p90 exceeds work_estimate.aggregate_allowance.tool_calls_hard"],
+             None, None),
+            ("test_native_commitment_validation_over_aggregate_allowance_fails", "runtime",
+             lambda commitment, estimate: commitment["estimates"].update(
+                 runtime_seconds_p90=estimate["aggregate_allowance"]["runtime_seconds_hard"] + 1,
+             ), ["commitment.estimates.runtime_seconds_p90 exceeds work_estimate.aggregate_allowance.runtime_seconds_hard"],
+             None, None),
+            ("test_native_commitment_validation_rejects_unknown_fields", "commitment",
+             lambda commitment, estimate: commitment.update(extra_field="extra"),
+             ["malformed source payload: commitment has unknown field(s) extra_field"], None, None),
+            ("test_native_commitment_validation_rejects_unknown_fields", "estimates",
+             lambda commitment, estimate: commitment["estimates"].update(tool_calls_p95=1),
+             ["commitment.estimates has unknown field(s) tool_calls_p95"], None, None),
+            ("test_native_commitment_validation_precommitment_usage_must_be_zero", "tool-calls",
+             lambda commitment, estimate: commitment.update(tool_calls_before_commitment=1),
+             ["malformed source payload: commitment.tool_calls_before_commitment must be at most 0"], None, None),
+            ("test_native_commitment_validation_precommitment_usage_must_be_zero", "context-compactions",
+             lambda commitment, estimate: commitment.update(context_compactions_before_commitment=1),
+             ["malformed source payload: commitment.context_compactions_before_commitment must be at most 0"], None, None),
+        ]
+        for field in ("tool_calls_p50", "tool_calls_p90", "runtime_seconds_p50", "runtime_seconds_p90"):
+            rows.append((
+                "test_native_commitment_validation_zero_estimate_fails", field,
+                lambda commitment, estimate, name=field: commitment["estimates"].update({name: 0}),
+                [f"malformed source payload: commitment.estimates.{field} must be a non-negative integer"],
+                None, field,
+            ))
+        for original, variant, mutate, expected, dispatch_mode, zero_field in rows:
+            with self.subTest(original=original, variant=variant):
+                work_estimate = copy.deepcopy(seed)
+                commitment = _valid_commitment_payload(work_estimate)
+                if mutate is not None:
+                    mutate(commitment, work_estimate)
+                errors = validate_worker_commitment(commitment, work_estimate)
+                if zero_field is not None:
+                    self.assertEqual(len(errors), 1, msg=zero_field)
+                    self.assertEqual(errors[0], expected[0])
+                else:
+                    self.assertEqual(errors, expected)
+                if dispatch_mode == "historical":
+                    self.assertIn(
+                        "historical-inspection-only",
+                        " ".join(validate_worker_commitment(commitment, work_estimate, dispatchable=True)),
+                    )
+                elif dispatch_mode == "refused":
+                    self.assertNotEqual(validate_worker_commitment(commitment, work_estimate, dispatchable=True), [])
 
     def test_commitment_required_alias_is_removed(self) -> None:
         self.assertFalse(hasattr(work_sizing, "COMMITMENT_REQUIRED_FIELDS"))
         self.assertTrue(hasattr(work_sizing, "COMMITMENT_V1_REQUIRED_FIELDS"))
         self.assertTrue(hasattr(work_sizing, "COMMITMENT_V2_REQUIRED_FIELDS"))
 
-    def test_native_commitment_validation_realignment_modes(self):
-        work_estimate = evaluate_work_estimate(_valid_raw_payload())
-        for decision in ("pm-realignment", "architect-realignment"):
-            commitment = _valid_commitment_payload(work_estimate)
-            commitment["decision"] = decision
-            self.assertEqual(validate_worker_commitment(commitment, work_estimate), [])
-            self.assertNotEqual(validate_worker_commitment(commitment, work_estimate, dispatchable=True), [])
-
-    def test_native_commitment_validation_zero_estimate_fails(self):
-        work_estimate = evaluate_work_estimate(_valid_raw_payload())
-        for field in ("tool_calls_p50", "tool_calls_p90", "runtime_seconds_p50", "runtime_seconds_p90"):
-            commitment = _valid_commitment_payload(work_estimate)
-            commitment["estimates"][field] = 0
-            errors = validate_worker_commitment(commitment, work_estimate)
-            self.assertEqual(len(errors), 1, msg=field)
-            self.assertEqual(errors[0], f"malformed source payload: commitment.estimates.{field} must be a non-negative integer")
-
-    def test_native_commitment_validation_hash_and_identity_mismatches(self):
-        work_estimate = evaluate_work_estimate(_valid_raw_payload())
-        commitment = _valid_commitment_payload(work_estimate)
-        commitment["work_estimate_sha256"] = "0" * 64
-        self.assertEqual(validate_worker_commitment(commitment, work_estimate), ["commitment.work_estimate_sha256 does not match evaluated work estimate payload"])
-
-        altered_work_unit = _valid_commitment_payload(work_estimate)
-        altered_work_unit["work_unit_id"] = "different-work-unit"
-        self.assertEqual(validate_worker_commitment(altered_work_unit, work_estimate), ["commitment.work_unit_id must match work_estimate.work_unit_id"])
-
-        altered_bead = _valid_commitment_payload(work_estimate)
-        altered_bead["bead_id"] = "different-bead"
-        self.assertEqual(validate_worker_commitment(altered_bead, work_estimate), ["commitment.bead_id must match work_estimate.bead_id"])
-
-        altered_model = _valid_commitment_payload(work_estimate)
-        altered_model["requested_model"] = "different-model"
-        altered_model["attested_model"] = "different-model"
-        self.assertEqual(validate_worker_commitment(altered_model, work_estimate), ["commitment.requested_model must match work_estimate.requested_model"])
-
-        altered_attested = _valid_commitment_payload(work_estimate)
-        altered_attested["attested_model"] = "different-attested-model"
-        self.assertEqual(validate_worker_commitment(altered_attested, work_estimate), ["commitment.attested_model must match commitment.requested_model"])
-
-    def test_native_commitment_validation_low_confidence_fails(self):
-        work_estimate = evaluate_work_estimate(_valid_raw_payload())
-        commitment = _valid_commitment_payload(work_estimate)
-        commitment["confidence"] = 0.74
-        errors = validate_worker_commitment(commitment, work_estimate)
-        self.assertEqual(errors, ["commitment.confidence must be at least 0.75"])
-
-    def test_native_commitment_validation_over_aggregate_allowance_fails(self):
-        work_estimate = evaluate_work_estimate(_valid_raw_payload())
-        commitment = _valid_commitment_payload(work_estimate)
-        commitment["estimates"]["tool_calls_p90"] = work_estimate["aggregate_allowance"]["tool_calls_hard"] + 1
-        self.assertEqual(
-            validate_worker_commitment(commitment, work_estimate),
-            ["commitment.estimates.tool_calls_p90 exceeds work_estimate.aggregate_allowance.tool_calls_hard"],
-        )
-
-        commitment = _valid_commitment_payload(work_estimate)
-        commitment["estimates"]["runtime_seconds_p90"] = work_estimate["aggregate_allowance"]["runtime_seconds_hard"] + 1
-        self.assertEqual(
-            validate_worker_commitment(commitment, work_estimate),
-            ["commitment.estimates.runtime_seconds_p90 exceeds work_estimate.aggregate_allowance.runtime_seconds_hard"],
-        )
-
-    def test_native_commitment_validation_rejects_unknown_fields(self):
-        work_estimate = evaluate_work_estimate(_valid_raw_payload())
-        commitment = _valid_commitment_payload(work_estimate)
-        commitment["extra_field"] = "extra"
-        self.assertEqual(validate_worker_commitment(commitment, work_estimate), ["malformed source payload: commitment has unknown field(s) extra_field"])
-
-        commitment = _valid_commitment_payload(work_estimate)
-        commitment["estimates"]["tool_calls_p95"] = 1
-        self.assertEqual(validate_worker_commitment(commitment, work_estimate), ["commitment.estimates has unknown field(s) tool_calls_p95"])
-
-    def test_native_commitment_validation_precommitment_usage_must_be_zero(self):
-        work_estimate = evaluate_work_estimate(_valid_raw_payload())
-        commitment = _valid_commitment_payload(work_estimate)
-        commitment["tool_calls_before_commitment"] = 1
-        self.assertEqual(
-            validate_worker_commitment(commitment, work_estimate),
-            ["malformed source payload: commitment.tool_calls_before_commitment must be at most 0"],
-        )
-
-        commitment = _valid_commitment_payload(work_estimate)
-        commitment["context_compactions_before_commitment"] = 1
-        self.assertEqual(
-            validate_worker_commitment(commitment, work_estimate),
-            ["malformed source payload: commitment.context_compactions_before_commitment must be at most 0"],
-        )
-
     def test_native_commitment_schema_json_loads(self):
         path = Path(__file__).resolve().parents[1] / "schemas" / "native-worker-commitment.schema.json"
         schema = json.loads(path.read_text(encoding="utf-8"))
         self.assertFalse(schema["additionalProperties"])
-
-    def test_validate_work_estimate_for_score_examples(self):
-        payload = _valid_raw_payload()
-        payload["scores"]["reasoning_uncertainty"] = 0
-        payload["scores"]["subsystem_coupling"] = 1
-        payload["scores"]["contract_risk"] = 1
-        payload["scores"]["diagnostic_uncertainty"] = 1
-        payload["scores"]["context_breadth"] = 1
-        payload["scores"]["validation_breadth"] = 2  # total 6
-        result = evaluate_work_estimate(payload)
-        payload.update(result)
-        self.assertEqual(validate_work_estimate(payload), [])
-
-        payload = _valid_raw_payload()
-        payload["scores"]["reasoning_uncertainty"] = 0
-        payload["scores"]["subsystem_coupling"] = 2
-        payload["scores"]["contract_risk"] = 2
-        payload["scores"]["diagnostic_uncertainty"] = 2
-        payload["scores"]["context_breadth"] = 2
-        payload["scores"]["validation_breadth"] = 2  # total 10
-        payload.update(evaluate_work_estimate(payload))
-        self.assertEqual(validate_work_estimate(payload), [])
-
-        payload = _valid_raw_payload()
-        payload["scores"]["reasoning_uncertainty"] = 3
-        payload["scores"]["subsystem_coupling"] = 0
-        payload["scores"]["contract_risk"] = 0
-        payload["scores"]["diagnostic_uncertainty"] = 0
-        payload["scores"]["context_breadth"] = 0
-        payload["scores"]["validation_breadth"] = 0  # total 3
-        payload.update(evaluate_work_estimate(payload))
-        self.assertEqual(validate_work_estimate(payload), [])
 
     def test_v1_remains_readable_without_semantic_policy(self):
         result = evaluate_work_estimate(_valid_raw_payload())
@@ -860,72 +799,57 @@ class NativeWorkSizingTest(unittest.TestCase):
             self.assertEqual({spec["cwd"] for spec in contract["checked_command_specs"]}, {str(Path(cwd).resolve())})
             self.assertEqual(validate_work_estimate(result), [])
 
-    def test_nonempty_literal_command_task_synthesizes_direct_execution_contract(self):
-        payload = _literal_command_payload()
-        inferred = evaluate_work_estimate(payload)
+    def test_direct_execution_contract_inference_rows(self):
+        rows = (
+            ("test_nonempty_literal_command_task_synthesizes_direct_execution_contract", "literal-command"),
+            ("test_nonempty_read_only_validation_task_synthesizes_direct_execution_contract", "read-only-validation"),
+        )
+        for row_id, task_class in rows:
+            with self.subTest(row=row_id):
+                payload = _literal_command_payload()
+                if task_class == "read-only-validation":
+                    payload["task_profile"]["task_class"] = task_class
+                    payload["task_profile"]["read_context_count"] = 0
+                    payload["semantic_estimate"]["expected_context_reads"] = 0
+                inferred = evaluate_work_estimate(payload)
+                self.assertEqual(inferred["fit_mode"], "deterministic")
+                self.assertEqual(inferred["task_class"], task_class)
+                self.assertEqual(inferred["route"], "spark")
+                self.assertEqual(inferred["authority_route"], "spark")
+                inferred_contract = inferred["task_profile"].get("execution_contract")
+                self.assertEqual(inferred_contract["mode"], "direct")
 
-        self.assertEqual(inferred["fit_mode"], "deterministic")
-        self.assertEqual(inferred["task_class"], "literal-command")
-        self.assertEqual(inferred["route"], "spark")
-        self.assertEqual(inferred["authority_route"], "spark")
-        inferred_contract = inferred["task_profile"].get("execution_contract")
-        self.assertEqual(inferred_contract["mode"], "direct")
+                explicit_payload = copy.deepcopy(payload)
+                explicit_payload["task_profile"]["execution_contract"] = {
+                    "mode": "direct",
+                    "checked_command_specs": [],
+                }
+                explicit = evaluate_work_estimate(explicit_payload)
+                if task_class == "literal-command":
+                    self.assertEqual(explicit["task_profile"]["execution_contract"].get("mode"), "direct")
+                self.assertEqual(canonical_work_estimate_sha256(inferred), canonical_work_estimate_sha256(explicit))
+                if task_class == "literal-command":
+                    with self.subTest(row="test_explicit_direct_validation_preserves_direct_execution_contract"):
+                        self.assertEqual(explicit["fit_mode"], "deterministic")
+                        self.assertEqual(explicit["task_profile"]["execution_contract"]["mode"], "direct")
+                        self.assertEqual(explicit["authority_route"], "spark")
+                        self.assertEqual(canonical_work_estimate_sha256(explicit), canonical_work_estimate_sha256(inferred))
 
-        explicit_payload = copy.deepcopy(payload)
-        explicit_payload["task_profile"]["execution_contract"] = {"mode": "direct", "checked_command_specs": []}
-        explicit = evaluate_work_estimate(explicit_payload)
-
-        self.assertEqual(explicit["task_profile"]["execution_contract"].get("mode"), "direct")
-        self.assertEqual(canonical_work_estimate_sha256(inferred), canonical_work_estimate_sha256(explicit))
-
-    def test_nonempty_read_only_validation_task_synthesizes_direct_execution_contract(self):
-        payload = _literal_command_payload()
-        payload["task_profile"]["task_class"] = "read-only-validation"
-        payload["task_profile"]["read_context_count"] = 0
-        payload["semantic_estimate"]["expected_context_reads"] = 0
-        inferred = evaluate_work_estimate(payload)
-
-        self.assertEqual(inferred["fit_mode"], "deterministic")
-        self.assertEqual(inferred["task_class"], "read-only-validation")
-        self.assertEqual(inferred["route"], "spark")
-        self.assertEqual(inferred["authority_route"], "spark")
-        self.assertEqual(inferred["task_profile"]["execution_contract"]["mode"], "direct")
-
-        explicit_payload = copy.deepcopy(payload)
-        explicit_payload["task_profile"]["execution_contract"] = {"mode": "direct", "checked_command_specs": []}
-        explicit = evaluate_work_estimate(explicit_payload)
-        self.assertEqual(canonical_work_estimate_sha256(inferred), canonical_work_estimate_sha256(explicit))
-
-    def test_empty_literal_command_does_not_synthesize_direct_execution_contract(self):
-        payload = _literal_command_payload()
-        payload["task_profile"]["command_count"] = 0
-        payload["task_profile"]["commands"] = []
-
-        result = evaluate_work_estimate(payload)
-        self.assertNotEqual(result["task_profile"].get("execution_contract", {}).get("mode"), "direct")
-
-    def test_unsupported_read_only_alias_does_not_synthesize_direct_execution_contract(self):
-        payload = _literal_command_payload()
-        payload["task_profile"]["task_class"] = "read-only"
-        result = evaluate_work_estimate(payload)
-
-        self.assertNotEqual(result["task_profile"].get("execution_contract", {}).get("mode"), "direct")
-
-    def test_explicit_direct_validation_preserves_direct_execution_contract(self):
-        payload = _literal_command_payload()
-        payload["task_profile"]["execution_contract"] = {
-            "mode": "direct",
-            "checked_command_specs": [],
-        }
-        result = evaluate_work_estimate(payload)
-
-        self.assertEqual(result["fit_mode"], "deterministic")
-        self.assertEqual(result["task_profile"]["execution_contract"]["mode"], "direct")
-        self.assertEqual(result["authority_route"], "spark")
-
-        inferred_payload = _literal_command_payload()
-        inferred_result = evaluate_work_estimate(inferred_payload)
-        self.assertEqual(canonical_work_estimate_sha256(result), canonical_work_estimate_sha256(inferred_result))
+    def test_direct_execution_contract_noninference_rows(self):
+        rows = (
+            ("test_empty_literal_command_does_not_synthesize_direct_execution_contract", "empty"),
+            ("test_unsupported_read_only_alias_does_not_synthesize_direct_execution_contract", "unsupported-alias"),
+        )
+        for row_id, kind in rows:
+            with self.subTest(row=row_id):
+                payload = _literal_command_payload()
+                if kind == "empty":
+                    payload["task_profile"]["command_count"] = 0
+                    payload["task_profile"]["commands"] = []
+                else:
+                    payload["task_profile"]["task_class"] = "read-only"
+                result = evaluate_work_estimate(payload)
+                self.assertNotEqual(result["task_profile"].get("execution_contract", {}).get("mode"), "direct")
 
     def test_checked_sequence_v1_does_not_receive_inferred_direct_execution_contract(self):
         with tempfile.TemporaryDirectory() as cwd:

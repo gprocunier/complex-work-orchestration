@@ -128,43 +128,47 @@ class RedactionTests(unittest.TestCase):
         self.assertIn('"notes": "visible"', redacted)
         self.assertNotIn("abc123", redacted)
 
-    def test_multiline_inline_json_object_under_sensitive_key_is_whole_replaced(self) -> None:
-        raw = "\n".join(
-            [
-                '{',
-                '  "token": {',
-                '    "password": "plaintextsecret",',
-                '    "safe": "safe-value"',
-                "  },",
-                '  "notes": "ok"',
-                "}",
-            ]
+    def test_nested_sensitive_json_value_redaction_variants(self) -> None:
+        variants = (
+            ('test_multiline_inline_json_object_under_sensitive_key_is_whole_replaced',
+             '  "token": {',
+             '    "password": "plaintextsecret",',
+             '    "safe": "safe-value"',
+             '  },',
+             '  "notes": "ok"',
+             'ok',
+             'plaintextsecret',
+             'safe-value'),
+            ('test_multiline_inline_json_list_under_sensitive_key_is_whole_replaced',
+             '  "token": [',
+             '    "firstsecret",',
+             '    "safesecret"',
+             '  ],',
+             '  "notes": "keep"',
+             'keep',
+             'firstsecret',
+             'safesecret'),
         )
-        redacted = redact_text(raw)
-        redacted_payload = json.loads(redacted)
-        self.assertEqual(redacted_payload["token"], "[REDACTED]")
-        self.assertEqual(redacted_payload["notes"], "ok")
-        self.assertNotIn("plaintextsecret", redacted)
-        self.assertNotIn("safe-value", redacted)
+        for original, opening, first_line, second_line, closing, notes_line, notes, first_secret, second_secret in variants:
+            with self.subTest(original=original):
+                raw = "\n".join(
+                    [
+                        '{',
+                        opening,
+                        first_line,
+                        second_line,
+                        closing,
+                        notes_line,
+                        "}",
+                    ]
+                )
+                redacted = redact_text(raw)
+                redacted_payload = json.loads(redacted)
+                self.assertEqual(redacted_payload["token"], "[REDACTED]")
+                self.assertEqual(redacted_payload["notes"], notes)
+                self.assertNotIn(first_secret, redacted)
+                self.assertNotIn(second_secret, redacted)
 
-    def test_multiline_inline_json_list_under_sensitive_key_is_whole_replaced(self) -> None:
-        raw = "\n".join(
-            [
-                '{',
-                '  "token": [',
-                '    "firstsecret",',
-                '    "safesecret"',
-                "  ],",
-                '  "notes": "keep"',
-                "}",
-            ]
-        )
-        redacted = redact_text(raw)
-        redacted_payload = json.loads(redacted)
-        self.assertEqual(redacted_payload["token"], "[REDACTED]")
-        self.assertEqual(redacted_payload["notes"], "keep")
-        self.assertNotIn("firstsecret", redacted)
-        self.assertNotIn("safesecret", redacted)
 
     def test_multiline_container_with_nested_delimiters_in_quoted_strings(self) -> None:
         raw = "\n".join(

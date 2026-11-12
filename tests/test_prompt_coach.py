@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import json
+from contextlib import nullcontext
 import subprocess
 import sys
 import unittest
 from pathlib import Path
 from typing import Any
+
+from typing import Iterator, NamedTuple
+from tests.structural_assertions import Check, assert_checks
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -167,6 +171,358 @@ def qualified_current_coach(prompt: str, **kwargs):
     )
 
 
+class PromptCoachCase(NamedTuple):
+    original: str
+    prompt: str
+    options: dict
+    checks: tuple[Check, ...]
+    historical: bool = False
+
+
+def _prompt_coach_rows() -> Iterator[PromptCoachCase]:
+    yield PromptCoachCase('test_narrow_work_recommends_in_thread', "Fix typo in README.md", {}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'in-thread'),
+        Check(lambda result: result['model_synthesis']['recommended_mode'], 'none'),
+        Check(lambda result: result['operator_calibration']['mode'], 'none'),
+        Check(lambda result: result['beads_tracking_required'], None, 'true'),
+        Check(lambda result: result['beads_context_depth'], {'summary', 'focused'}, 'in'),
+        Check(lambda result: result, RETIRED_FIELD, 'not-contains'),
+        Check(lambda result: result['beads_context_depth_provenance']['source'], 'autosized'),
+        Check(lambda result: result['paste_ready_prompt'], 'mandatory Beads tracking', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'beads-durable-state', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'beads-minimum-tracking', 'contains'),
+        Check(lambda result: result['disabled_levers'], 'full-harness', 'contains'),
+        Check(lambda result: result['disabled_levers'], 'model-synthesis-unselected', 'contains'),
+        Check(lambda result: result['disabled_levers'], 'beads-work-graph', 'not-contains'),
+    ))
+
+    yield PromptCoachCase('test_safety_deferred_clean_negative_requires_operator_calibration', "Close this lane as clean-negative after safety-deferred live execution was not run.", {}, (
+        Check(lambda result: result['operator_calibration']['mode'], 'required'),
+        Check(lambda result: result['operator_calibration']['trigger_reasons'], 'clean-negative', 'contains'),
+        Check(lambda result: result['operator_calibration']['trigger_reasons'], 'not run', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'operator-calibrated-execution=required', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'contract-jd-operator-calibrated-execution', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'contract-jd-operator-calibrated-execution', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'Are we closing this because the hypothesis is disproven', 'contains'),
+        Check(lambda result: result['operator_calibration']['prompt_user_in_plan_mode'], None, 'false'),
+    ))
+
+    yield PromptCoachCase('test_autonomous_commit_push_recommends_operator_calibration', "Proceed autonomously through the sprint loop, then commit and push the completed artifacts.", {}, (
+        Check(lambda result: result['operator_calibration']['mode'], 'recommended'),
+        Check(lambda result: result['operator_calibration']['trigger_reasons'], 'proceed autonomously', 'contains'),
+        Check(lambda result: result['operator_calibration']['trigger_reasons'], 'commit and push', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'operator-calibrated-execution=recommended', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'Consider contract-jd-operator-calibrated-execution', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_model_disagreement_exhausted_lane_requires_operator_calibration', "Review conflicting feedback from two models before we mark the lane exhausted and pivot away.", {}, (
+        Check(lambda result: result['operator_calibration']['mode'], 'required'),
+        Check(lambda result: result['operator_calibration']['trigger_reasons'], 'pivot away', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'operator-calibrated-execution=required', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_ordinary_docs_task_does_not_add_operator_calibration_lever', "Fix typo in README.md", {}, (
+        Check(lambda result: result['operator_calibration']['mode'], 'none'),
+        Check(lambda result: result['enabled_levers'], 'operator-calibrated-execution=required', 'not-contains'),
+        Check(lambda result: result['enabled_levers'], 'operator-calibrated-execution=recommended', 'not-contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'contract-jd-operator-calibrated-execution', 'not-contains'),
+    ))
+
+    yield PromptCoachCase('test_multi_session_work_recommends_lightweight_beads', "Plan a multi-session cleanup of installer docs, tests, and handoff notes.", {}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'lightweight-beads'),
+        Check(lambda result: any((item['id'] == 'beads_graph_size' for item in result['missing_questions'])), None, 'true'),
+        Check(lambda result: result['enabled_levers'], 'beads-durable-state', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_high_risk_architecture_recommends_full_harness', "Refactor the orchestration control plane across routing, schema validation, docs, and CI.", {'requested_roles': ["architecture"]}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'full-harness'),
+        Check(lambda result: result['enabled_levers'], 'architect-review', 'contains'),
+        Check(lambda result: result['model_synthesis']['recommended_mode'], 'recommended'),
+        Check(lambda result: result['model_synthesis']['active'], None, 'false'),
+        Check(lambda result: result['model_synthesis']['requires_user_acceptance'], None, 'true'),
+        Check(lambda result: result['model_synthesis']['prompt_user_in_plan_mode'], None, 'true'),
+        Check(lambda result: result['route']['model_synthesis']['recommended_mode'], 'recommended'),
+        Check(lambda result: result['enabled_levers'], 'model-synthesis=recommended', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'model-synthesis-opt-in-choice', 'contains'),
+        Check(lambda result: result['disabled_levers'], 'model-synthesis-until-opt-in', 'contains'),
+        Check(lambda result: any((item['id'] == 'model_synthesis_opt_in' for item in result['missing_questions'])), None, 'true'),
+        Check(lambda result: len([item for item in result['interactive_questions'] if item['id'] == 'model_synthesis_opt_in']), 1),
+        Check(lambda result: [item for item in result['interactive_questions'] if item['id'] == 'model_synthesis_opt_in'][0]['options'][0]['value'], 'model-synthesis'),
+    ))
+
+    yield PromptCoachCase('test_explicit_scaffold_recommends_full_harness', "Use $complex-work-orchestration to scaffold this project.", {}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'full-harness'),
+        Check(lambda result: result['scaffold_sizing']['recommended_size'], 'full'),
+        Check(lambda result: result['beads_tracking_required'], None, 'true'),
+        Check(lambda result: result['enabled_levers'], 'architect-review', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'validation-lane', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'scaffold-size=full', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'full architect/PM/subagent/validation harness', 'contains'),
+        Check(lambda result: len([item for item in result['interactive_questions'] if item['id'] == 'orchestration_level']), 1),
+        Check(lambda result: [item for item in result['interactive_questions'] if item['id'] == 'orchestration_level'][0]['options'][0]['value'], 'full-harness'),
+    ))
+
+    yield PromptCoachCase('test_tight_chain_scaffold_is_a_prompt_coach_graph_size_choice', "Use $complex-work-orchestration to scaffold a tight-chain review of CWO docs, routing, validation, and public pages.", {}, (
+        Check(lambda result: result['scaffold_sizing']['recommended_size'], 'tight'),
+        Check(lambda result: result['enabled_levers'], 'scaffold-size=tight', 'contains'),
+        Check(lambda result: result['disabled_levers'], 'optional-expert-fanout', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], '--scaffold-size tight', 'contains'),
+        Check(lambda result: len([item for item in result['interactive_questions'] if item['id'] == 'scaffold_size']), 1),
+        Check(lambda result: [item for item in result['interactive_questions'] if item['id'] == 'scaffold_size'][0]['options'][0]['value'], 'tight-chain'),
+    ))
+
+    yield PromptCoachCase('test_scaffold_size_flag_marks_coach_choice_accepted', "Use $complex-work-orchestration to scaffold this project.", {'scaffold_size': "tight"}, (
+        Check(lambda result: result['scaffold_sizing']['recommended_size'], 'tight'),
+        Check(lambda result: result['enabled_levers'], 'scaffold-size=tight', 'contains'),
+        Check(lambda result: ' '.join(result['scaffold_sizing']['rationale']), 'helper was launched with scaffold-size=tight', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_context_depth_override_is_auditable_and_prompted', "Use $complex-work-orchestration coach for a deep second pass on docs and prior Beads comments.", {'beads_context_depth': "heavy"}, (
+        Check(lambda result: result['beads_context_depth'], 'heavy'),
+        Check(lambda result: result, RETIRED_FIELD, 'not-contains'),
+        Check(lambda result: result['beads_context_depth_provenance']['source'], 'explicit'),
+        Check(lambda result: result['beads_context_depth_provenance']['computed_depth'], 'heavy'),
+        Check(lambda result: result['beads_context_depth_provenance']['effective_depth'], 'heavy'),
+        Check(lambda result: result['enabled_levers'], 'beads-context-depth=heavy', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'build_beads_brief.py --depth heavy --for subagent', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'do not export raw Beads comments', 'contains'),
+        Check(lambda result: any((item['id'] == 'beads_context_depth' for item in result['interactive_questions'])), None, 'true'),
+    ))
+
+    yield PromptCoachCase('test_data_sensitivity_declaration_is_preserved_in_route', "Publish public docs for the install flow.", {'data_sensitivity': "restricted"}, (
+        Check(lambda result: result['route']['data_sensitivity'], 'restricted'),
+        Check(lambda result: result['route']['data_sensitivity_source'], 'operator-declared'),
+        Check(lambda result: result['route']['data_sensitivity_heuristic'], 'public'),
+        Check(lambda result: result['route']['data_sensitivity_disclaimer'], 'can miss paraphrases', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_gemini_agy_critique_without_opt_in_asks_for_boundary', "Use Gemini via agy for a second opinion critique of the Codex architect design.", {'requested_roles': ["architecture"]}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'full-harness'),
+        Check(lambda result: result['route']['external_contract_allowed'], None, 'false'),
+        Check(lambda result: any((item['id'] == 'outside_sharing_boundary' for item in result['missing_questions'])), None, 'true'),
+        Check(lambda result: any((item['id'] == 'outside_sharing_boundary' for item in result['interactive_questions'])), None, 'true'),
+        Check(lambda result: result['disabled_levers'], 'external-contracting-until-explicit-opt-in', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_external_opt_in_recommends_external_contract', "Claude security review for contractor packet redaction.", {'external_ok': True, 'share_boundary': "redacted-packet", 'requested_roles': ["security"]}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'external-contract'),
+        Check(lambda result: result['enabled_levers'], 'contractor-only-bead', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'contractor-only bead', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_gemini_agy_critique_opt_in_recommends_external_contract', "Use Gemini via agy for a second opinion critique of the Codex architect design.", {'external_ok': True, 'share_boundary': "redacted-packet", 'requested_roles': ["architecture"]}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'external-contract'),
+        Check(lambda result: result['route']['recommended_executor'], 'gemini_architecture_critic'),
+        Check(lambda result: result['enabled_levers'], 'contractor-only-bead', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'contract-jd-architecture-reasoning', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_claude_and_gemini_architecture_critics_are_coached_as_parallel_contracts', "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics "
+        "of the Codex architect design for a cross-cutting public contract architecture migration.", {'external_ok': True, 'share_boundary': "redacted-packet", 'requested_roles': ["architecture"]}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'external-contract'),
+        Check(lambda result: result['route']['recommended_executor'], 'claude_architecture_critic'),
+        Check(lambda result: result['enabled_levers'], 'parallel-architecture-critic-contracts', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'architecture-critic=claude_architecture_critic', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'architecture-critic=gemini_architecture_critic', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'claude-effort=xhigh', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'one contractor-only/no-codex-exec Bead per selected architecture critic', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'claude --model claude-opus-4-6 --effort xhigh -p', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'agy --model gemini-3.1-pro-preview -p', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'Add ChatGPT Pro master review only after explicit opt-in', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_claude_and_gemini_2nd_opinions_wording_is_coached_as_parallel_contracts', "Have Claude Opus and Gemini provide 2nd opinions of the Codex architect design.", {'external_ok': True, 'share_boundary': "redacted-packet", 'requested_roles': ["architecture"]}, (
+        Check(lambda result: result['enabled_levers'], 'parallel-architecture-critic-contracts', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'architecture-critic=claude_architecture_critic', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'architecture-critic=gemini_architecture_critic', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_single_claude_critic_direct_adjudication_disables_synthesis_in_coach', "Use Claude Opus as only external architecture critic. "
+        "No Gemini/Agy. No GLM. "
+        "Do not use model synthesis; direct adjudication.", {'external_ok': True, 'share_boundary': "redacted-packet", 'requested_roles': ["architecture"]}, (
+        Check(lambda result: [lever for lever in result['enabled_levers'] if lever.startswith('architecture-critic=')], ['architecture-critic=claude_architecture_critic']),
+        Check(lambda result: result['model_synthesis']['recommended_mode'], 'disabled'),
+        Check(lambda result: result['model_synthesis']['active'], None, 'false'),
+        Check(lambda result: result['enabled_levers'], 'model-synthesis-lane', 'not-contains'),
+        Check(lambda result: result['disabled_levers'], 'model-synthesis-explicitly-disabled', 'contains'),
+        Check(lambda result: any((item['id'] == 'model_synthesis_opt_in' for item in result['missing_questions'])), None, 'false'),
+        Check(lambda result: result['paste_ready_prompt'], 'Do not add CWO-native model synthesis', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'Offer CWO-native model synthesis', 'not-contains'),
+        Check(lambda result: any(('direct architect adjudication' in item for item in result['rationale'])), None, 'true'),
+    ))
+
+    yield PromptCoachCase('test_chatgpt_pro_master_plan_opt_in_recommends_external_contract', "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet.", {'external_ok': True, 'share_boundary': "redacted-packet"}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'external-contract'),
+        Check(lambda result: result['route']['recommended_executor'], 'chatgpt_pro_browser_master_reviewer'),
+        Check(lambda result: result['enabled_levers'], 'contractor-only-bead', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'chatgpt-pro-master-review-blocking-gate', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'operator-waiver-required-for-chatgpt-pro-skip', 'contains'),
+        Check(lambda result: result['route']['blocking_review_active'], None, 'true'),
+        Check(lambda result: result['paste_ready_prompt'], 'contract-jd-master-plan-review', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'blocking gate before implementation', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'explicitly waive/downgrade it in Beads', 'contains'),
+        Check(lambda result: any(('ChatGPT Pro 5.5 master review is blocking' in item for item in result['warnings'])), None, 'true'),
+    ))
+
+    yield PromptCoachCase('test_chatgpt_pro_weigh_in_master_review_wording_is_coached', "Tap in ChatGPT Pro 5.5 to weigh in as a master review of the final architect plan.", {'external_ok': True, 'share_boundary': "redacted-packet"}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'external-contract'),
+        Check(lambda result: result['route']['recommended_executor'], 'chatgpt_pro_browser_master_reviewer'),
+        Check(lambda result: result['paste_ready_prompt'], 'contract-jd-master-plan-review', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_explicit_model_synthesis_request_is_enabled', "Use model synthesis to combine Claude Opus, Gemini, and ChatGPT Pro findings "
+        "into consensus, disagreements, and recommended plan revisions.", {'external_ok': True, 'share_boundary': "redacted-packet", 'requested_roles': ["architecture", "master-plan-review"]}, (
+        Check(lambda result: result['model_synthesis']['recommended_mode'], 'requested'),
+        Check(lambda result: result['model_synthesis']['active'], None, 'true'),
+        Check(lambda result: result['model_synthesis']['requires_user_acceptance'], None, 'false'),
+        Check(lambda result: result['model_synthesis']['prompt_user_in_plan_mode'], None, 'false'),
+        Check(lambda result: result['route']['model_synthesis']['recommended_mode'], 'requested'),
+        Check(lambda result: result['enabled_levers'], 'model-synthesis=requested', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'model-synthesis-lane', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'CWO-native model synthesis', 'contains'),
+        Check(lambda result: ' '.join(result['model_synthesis']['rationale']).lower(), 'architect adjudication', 'contains'),
+        Check(lambda result: [item['executor'] for item in result['model_synthesis']['recommended_panel']], 'claude_architecture_critic', 'contains'),
+        Check(lambda result: [item['executor'] for item in result['model_synthesis']['recommended_panel']], 'gemini_architecture_critic', 'contains'),
+        Check(lambda result: [item['executor'] for item in result['model_synthesis']['recommended_panel']], 'chatgpt_pro_browser_master_reviewer', 'contains'),
+        Check(lambda result: any((item['id'] == 'model_synthesis_opt_in' for item in result['missing_questions'])), None, 'false'),
+    ))
+
+    yield PromptCoachCase('test_model_synthesis_flag_marks_coach_opt_in_accepted', "Refactor architecture policy and routing tests.", {'requested_roles': ["architecture"], 'model_synthesis': True}, (
+        Check(lambda result: result['model_synthesis']['recommended_mode'], 'accepted'),
+        Check(lambda result: result['model_synthesis']['activation_state'], 'accepted'),
+        Check(lambda result: result['model_synthesis']['active'], None, 'true'),
+        Check(lambda result: result['model_synthesis']['requires_user_acceptance'], None, 'false'),
+        Check(lambda result: any((item['id'] == 'model_synthesis_opt_in' for item in result['missing_questions'])), None, 'false'),
+        Check(lambda result: result['enabled_levers'], 'model-synthesis=accepted', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'model-synthesis-lane', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_glm_primary_environment_is_visible_in_coach_output', "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.", {'requested_roles': ["architecture"], 'execution_environment': "connected-codex-glm-primary", 'model_synthesis': True}, (
+        Check(lambda result: result['route']['execution_environment'], 'connected-codex-glm-primary'),
+        Check(lambda result: result['enabled_levers'], 'execution-environment=connected-codex-glm-primary', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'primary-architect=rhoai_glm_primary_architect', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'project-manager=codex_project_manager', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'Primary architect: rhoai_glm_primary_architect', 'contains'),
+        Check(lambda result: result['model_synthesis']['synthesis_owner'], 'rhoai_glm_primary_architect'),
+    ))
+
+    yield PromptCoachCase('test_generic_weigh_in_does_not_coach_chatgpt_master_review', "Have someone weigh in on this plan.", {'external_ok': True, 'share_boundary': "redacted-packet"}, (
+        Check(lambda result: result['route']['recommended_executor'], 'chatgpt_pro_browser_master_reviewer', 'not-equal'),
+    ))
+
+    yield PromptCoachCase('test_local_worker_profile_recommends_local_worker', "Documentation review for internal example notes.", {'local_ok': True, 'prefer_local': True, 'local_profile': "openshift-ai-vllm", 'requested_roles': ["documentation"]}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'local-worker'),
+        Check(lambda result: result['route']['recommended_executor'], 'openshift_ai_vllm_worker'),
+        Check(lambda result: result['enabled_levers'], 'local-profile=openshift-ai-vllm', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_local_worker_terms_without_opt_in_do_not_dispatch', "Use local worker vLLM to review README examples.", {'requested_roles': ["documentation"]}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'in-thread'),
+        Check(lambda result: result['route']['recommended_executor'], 'internal_worker'),
+        Check(lambda result: result['route']['local_worker_allowed'], None, 'false'),
+        Check(lambda result: any((item['id'] == 'local_worker_opt_in' for item in result['missing_questions'])), None, 'true'),
+        Check(lambda result: any((item['id'] == 'local_worker_opt_in' for item in result['interactive_questions'])), None, 'true'),
+        Check(lambda result: result['disabled_levers'], 'local-worker-dispatch', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_publish_work_requires_publish_grade_levers', "Publish the skill to GitHub after release validation.", {}, (
+        Check(lambda result: result['recommended_orchestration_level'], 'publish-release'),
+        Check(lambda result: result['enabled_levers'], 'publish-sanitization', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'validation-lane', 'contains'),
+        Check(lambda result: any((item['id'] == 'repo_or_paths' for item in result['missing_questions'])), None, 'true'),
+        Check(lambda result: len([item for item in result['interactive_questions'] if item['id'] == 'validation_bar']), 1),
+        Check(lambda result: [item for item in result['interactive_questions'] if item['id'] == 'validation_bar'][0]['options'][0]['value'], 'publish-grade'),
+    ))
+
+    yield PromptCoachCase('test_active_default_missing_authority_is_not_native_spark_advice', "Use Spark workerbees for docs and validation.", {}, (
+        Check(lambda result: result['operative_route']['version'], 3),
+        Check(lambda result: result['operative_route']['dispatch_authorized'], None, 'false'),
+        Check(lambda result: result['operative_route']['stop_reason'], 'current-authority-missing'),
+        Check(lambda result: result['workerbee_planned_delegation']['mode'], 'blocked'),
+        Check(lambda result: result['workerbee_planned_delegation']['model'], None, 'none'),
+        Check(lambda result: result['paste_ready_prompt'], 'Native Spark dispatch is the preferred route', 'not-contains'),
+        Check(lambda result: result['enabled_levers'], 'workerbee-dispatch-route=native-spark', 'not-contains'),
+    ))
+
+    yield PromptCoachCase('test_public_docs_editor_task_requires_editor_gate_in_coach', "Fix public-docs editor oversharing on the homepage and improve the Beads install section.", {}, (
+        Check(lambda result: result['route']['editor_gate_required'], None, 'true'),
+        Check(lambda result: result['route']['editor_gate_experts'], 'editor', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_narrow_work_still_prompts_for_subagent_parallelism', "Fix typo in README.md", {}, (
+        Check(lambda result: result['workerbee_parallelism']['recommended_mode'], 'none'),
+        Check(lambda result: result['workerbee_parallelism']['recommended_model'], None, 'none'),
+        Check(lambda result: result['workerbee_parallelism']['suggested_lanes'], []),
+        Check(lambda result: len([item for item in result['interactive_questions'] if item['id'] == 'workerbee_parallelism']), 1),
+        Check(lambda result: [item for item in result['interactive_questions'] if item['id'] == 'workerbee_parallelism'][0]['options'][0]['value'], 'no-subagents'),
+        Check(lambda result: [option['value'] for option in [item for item in result['interactive_questions'] if item['id'] == 'workerbee_parallelism'][0]['options']], 'review-subagents', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_execution_request_clears_selection_before_plan_gate', "Implement the CWO coach UX guardrail plan after using the CWO coach.", {}, (
+        Check(lambda result: result['requires_user_selection_before_plan'], None, 'false'),
+        Check(lambda result: result['selection_before_plan_reason'], 'already requested execution', 'contains'),
+    ))
+
+    yield PromptCoachCase('test_publish_validation_dedupes_interactive_options', "Publish the skill to GitHub after release validation.", {}, (
+        Check(lambda result: len([item for item in result['interactive_questions'] if item['id'] == 'validation_bar']), 1),
+        Check(lambda result: [option['value'] for option in [item for item in result['interactive_questions'] if item['id'] == 'validation_bar'][0]['options']].count('publish-grade'), 1),
+    ))
+
+    yield PromptCoachCase('test_unrelated_tool_failure_does_not_block_spark', "Use Spark workerbees. The Figma tool is missing.", {}, (
+        Check(lambda result: result['workerbee_parallelism']['recommended_mode'], 'blocked', 'not-equal'),
+        Check(lambda result: result['workerbee_parallelism']['hard_stop'], None, 'false'),
+        Check(lambda result: result['workerbee_parallelism']['registry_tool_mismatch'], None, 'false'),
+        Check(lambda result: result['workerbee_parallelism']['spark_dispatch']['status'], 'hard-stop', 'not-equal'),
+    ), historical=True)
+
+    yield PromptCoachCase('test_unrelated_provider_tool_failure_does_not_block_native_route', "Use Spark workerbees. ChatGPT Pro tooling is unavailable, but this task is unrelated to non-native tooling.", {}, (
+        Check(lambda result: result['workerbee_parallelism']['recommended_mode'], 'blocked', 'not-equal'),
+        Check(lambda result: result['workerbee_parallelism']['hard_stop'], None, 'false'),
+        Check(lambda result: result['workerbee_parallelism']['registry_tool_mismatch'], None, 'false'),
+        Check(lambda result: result['workerbee_parallelism']['spark_dispatch']['status'], 'hard-stop', 'not-equal'),
+    ), historical=True)
+
+    yield PromptCoachCase('test_registry_tool_mismatch_hard_stops_execution', "There is a Spark registry/tool mismatch for this task; execution must stop until this is fixed.", {}, (
+        Check(lambda result: result['workerbee_parallelism']['recommended_mode'], 'blocked'),
+        Check(lambda result: result['workerbee_parallelism']['recommended_model'], None, 'none'),
+        Check(lambda result: result['workerbee_parallelism']['registry_tool_mismatch'], None, 'true'),
+        Check(lambda result: result['workerbee_parallelism']['hard_stop'], None, 'true'),
+        Check(lambda result: result['workerbee_parallelism']['hard_stop_reason'], 'registry_tool_mismatch'),
+        Check(lambda result: result['workerbee_parallelism']['spark_dispatch']['failed_native_capability_check'], 'spark-registry-tool-mismatch'),
+        Check(lambda result: result['workerbee_parallelism']['spark_dispatch'].get('status'), 'hard-stop'),
+        Check(lambda result: result['enabled_levers'], 'workerbee-dispatch-stopped', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'workerbee-blocked=registry_tool_mismatch', 'contains'),
+        Check(lambda result: any((item['id'] == 'workerbee_parallelism' for item in result['interactive_questions'])), None, 'false'),
+        Check(lambda result: result['disabled_levers'], 'subagent-parallelism-blocked', 'contains'),
+        Check(lambda result: any(('spark registry/tool mismatch is a hard stop' in str(warning).lower() for warning in result['warnings'])), None, 'true'),
+    ), historical=True)
+
+    yield PromptCoachCase('test_spark_operational_pairing_uses_canonical_lanes', "Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and report.", {}, (
+        Check(lambda result: set(result['workerbee_parallelism']['suggested_lanes']), {'implementation', 'docs', 'validation', 'wrap-up-report', 'dashboard-report'}),
+        Check(lambda result: result['workerbee_parallelism']['suggested_lanes'], 'test-construction', 'not-contains'),
+        Check(lambda result: result['workerbee_parallelism']['suggested_lanes'], 'validation-troubleshooting', 'not-contains'),
+        Check(lambda result: result['workerbee_parallelism']['suggested_lanes'], 'docs-reporting-dashboard', 'not-contains'),
+    ), historical=True)
+
+    yield PromptCoachCase('test_spark_operational_pairing_selects_implementation_capable_mode', "Native Spark is available. Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and reporting.", {}, (
+        Check(lambda result: result['workerbee_parallelism']['recommended_mode'], 'implementation-capable'),
+        Check(lambda result: result['workerbee_parallelism']['recommended_model'], 'gpt-5.3-codex-spark'),
+        Check(lambda result: result['workerbee_parallelism']['spark_operational_worker'], None, 'true'),
+        Check(lambda result: result['workerbee_parallelism']['registry_tool_mismatch'], None, 'false'),
+        Check(lambda result: result['workerbee_parallelism']['spark_dispatch'].get('status'), 'native-first'),
+        Check(lambda result: result['workerbee_parallelism']['spark_dispatch'].get('requested_route'), 'implementation-capable'),
+        Check(lambda result: result['workerbee_parallelism']['spark_dispatch'].get('requested_model'), 'gpt-5.3-codex-spark'),
+        Check(lambda result: set(result['workerbee_parallelism']['spark_dispatch']), {'status', 'requested_model', 'requested_route', 'failed_native_capability_check', 'failed_native_capability_check_justification'}),
+        Check(lambda result: result['workerbee_parallelism']['spark_dispatch'].get('failed_native_capability_check'), ''),
+        Check(lambda result: len([item for item in result['interactive_questions'] if item['id'] == 'workerbee_parallelism']), 1),
+        Check(lambda result: [item for item in result['interactive_questions'] if item['id'] == 'workerbee_parallelism'][0]['options'][0]['value'], 'implementation-subagents'),
+        Check(lambda result: result['paste_ready_prompt'], 'Native Spark dispatch is the preferred route.', 'contains'),
+        Check(lambda result: json.dumps(result).lower(), 'bridge', 'not-contains'),
+        Check(lambda result: result['operative_route']['fallback']['selected_model'], None, 'none'),
+        Check(lambda result: result['operative_route']['fallback']['decision_required'], None, 'false'),
+    ), historical=True)
+
+
 class PromptCoachTests(unittest.TestCase):
     def test_unknown_execution_environment_raises_typed_policy_error(self) -> None:
         with self.assertRaisesRegex(CWOPolicyError, "unknown execution environment: missing-env"):
@@ -192,63 +548,14 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("unknown execution environment: missing-env", result.stderr)
         self.assertNotIn("Traceback", result.stderr + result.stdout)
 
-    def test_narrow_work_recommends_in_thread(self) -> None:
-        result = coach_orchestration_prompt("Fix typo in README.md")
-        self.assertEqual(result["recommended_orchestration_level"], "in-thread")
-        self.assertEqual(result["model_synthesis"]["recommended_mode"], "none")
-        self.assertEqual(result["operator_calibration"]["mode"], "none")
-        self.assertTrue(result["beads_tracking_required"])
-        self.assertIn(result["beads_context_depth"], {"summary", "focused"})
-        self.assertNotIn(RETIRED_FIELD, result)
-        self.assertEqual(result["beads_context_depth_provenance"]["source"], "autosized")
-        self.assertIn("mandatory Beads tracking", result["paste_ready_prompt"])
-        self.assertIn("beads-durable-state", result["enabled_levers"])
-        self.assertIn("beads-minimum-tracking", result["enabled_levers"])
-        self.assertIn("full-harness", result["disabled_levers"])
-        self.assertIn("model-synthesis-unselected", result["disabled_levers"])
-        self.assertNotIn("beads-work-graph", result["disabled_levers"])
+    def test_prompt_coach_projection_rows(self) -> None:
+        for row in _prompt_coach_rows():
+            with self.subTest(original=row.original):
+                context = historical_v2_policy() if row.historical else nullcontext()
+                with context:
+                    result = coach_orchestration_prompt(row.prompt, **row.options)
+                    assert_checks(self, result, row.checks)
 
-    def test_safety_deferred_clean_negative_requires_operator_calibration(self) -> None:
-        result = coach_orchestration_prompt(
-            "Close this lane as clean-negative after safety-deferred live execution was not run."
-        )
-
-        self.assertEqual(result["operator_calibration"]["mode"], "required")
-        self.assertIn("clean-negative", result["operator_calibration"]["trigger_reasons"])
-        self.assertIn("not run", result["operator_calibration"]["trigger_reasons"])
-        self.assertIn("operator-calibrated-execution=required", result["enabled_levers"])
-        self.assertIn("contract-jd-operator-calibrated-execution", result["enabled_levers"])
-        self.assertIn("contract-jd-operator-calibrated-execution", result["paste_ready_prompt"])
-        self.assertIn("Are we closing this because the hypothesis is disproven", result["paste_ready_prompt"])
-        self.assertFalse(result["operator_calibration"]["prompt_user_in_plan_mode"])
-
-    def test_autonomous_commit_push_recommends_operator_calibration(self) -> None:
-        result = coach_orchestration_prompt(
-            "Proceed autonomously through the sprint loop, then commit and push the completed artifacts."
-        )
-
-        self.assertEqual(result["operator_calibration"]["mode"], "recommended")
-        self.assertIn("proceed autonomously", result["operator_calibration"]["trigger_reasons"])
-        self.assertIn("commit and push", result["operator_calibration"]["trigger_reasons"])
-        self.assertIn("operator-calibrated-execution=recommended", result["enabled_levers"])
-        self.assertIn("Consider contract-jd-operator-calibrated-execution", result["paste_ready_prompt"])
-
-    def test_model_disagreement_exhausted_lane_requires_operator_calibration(self) -> None:
-        result = coach_orchestration_prompt(
-            "Review conflicting feedback from two models before we mark the lane exhausted and pivot away."
-        )
-
-        self.assertEqual(result["operator_calibration"]["mode"], "required")
-        self.assertIn("pivot away", result["operator_calibration"]["trigger_reasons"])
-        self.assertIn("operator-calibrated-execution=required", result["enabled_levers"])
-
-    def test_ordinary_docs_task_does_not_add_operator_calibration_lever(self) -> None:
-        result = coach_orchestration_prompt("Fix typo in README.md")
-
-        self.assertEqual(result["operator_calibration"]["mode"], "none")
-        self.assertNotIn("operator-calibrated-execution=required", result["enabled_levers"])
-        self.assertNotIn("operator-calibrated-execution=recommended", result["enabled_levers"])
-        self.assertNotIn("contract-jd-operator-calibrated-execution", result["paste_ready_prompt"])
 
     def test_coach_cli_brief_mode_omits_launch_prompt(self) -> None:
         result = subprocess.run(
@@ -274,89 +581,6 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("Should CWO parallelize this work with subagent lanes?", result.stdout)
         self.assertNotIn("Recommended launch prompt:", result.stdout)
 
-    def test_multi_session_work_recommends_lightweight_beads(self) -> None:
-        result = coach_orchestration_prompt("Plan a multi-session cleanup of installer docs, tests, and handoff notes.")
-        self.assertEqual(result["recommended_orchestration_level"], "lightweight-beads")
-        self.assertTrue(any(item["id"] == "beads_graph_size" for item in result["missing_questions"]))
-        self.assertIn("beads-durable-state", result["enabled_levers"])
-
-    def test_high_risk_architecture_recommends_full_harness(self) -> None:
-        result = coach_orchestration_prompt(
-            "Refactor the orchestration control plane across routing, schema validation, docs, and CI.",
-            requested_roles=["architecture"],
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "full-harness")
-        self.assertIn("architect-review", result["enabled_levers"])
-        self.assertEqual(result["model_synthesis"]["recommended_mode"], "recommended")
-        self.assertFalse(result["model_synthesis"]["active"])
-        self.assertTrue(result["model_synthesis"]["requires_user_acceptance"])
-        self.assertTrue(result["model_synthesis"]["prompt_user_in_plan_mode"])
-        self.assertEqual(result["route"]["model_synthesis"]["recommended_mode"], "recommended")
-        self.assertIn("model-synthesis=recommended", result["enabled_levers"])
-        self.assertIn("model-synthesis-opt-in-choice", result["enabled_levers"])
-        self.assertIn("model-synthesis-until-opt-in", result["disabled_levers"])
-        self.assertTrue(any(item["id"] == "model_synthesis_opt_in" for item in result["missing_questions"]))
-        synthesis_questions = [
-            item for item in result["interactive_questions"] if item["id"] == "model_synthesis_opt_in"
-        ]
-        self.assertEqual(len(synthesis_questions), 1)
-        self.assertEqual(synthesis_questions[0]["options"][0]["value"], "model-synthesis")
-
-    def test_explicit_scaffold_recommends_full_harness(self) -> None:
-        result = coach_orchestration_prompt("Use $complex-work-orchestration to scaffold this project.")
-        self.assertEqual(result["recommended_orchestration_level"], "full-harness")
-        self.assertEqual(result["scaffold_sizing"]["recommended_size"], "full")
-        self.assertTrue(result["beads_tracking_required"])
-        self.assertIn("architect-review", result["enabled_levers"])
-        self.assertIn("validation-lane", result["enabled_levers"])
-        self.assertIn("scaffold-size=full", result["enabled_levers"])
-        self.assertIn("full architect/PM/subagent/validation harness", result["paste_ready_prompt"])
-        harness_questions = [
-            item for item in result["interactive_questions"] if item["id"] == "orchestration_level"
-        ]
-        self.assertEqual(len(harness_questions), 1)
-        self.assertEqual(harness_questions[0]["options"][0]["value"], "full-harness")
-
-    def test_tight_chain_scaffold_is_a_prompt_coach_graph_size_choice(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use $complex-work-orchestration to scaffold a tight-chain review of CWO docs, routing, validation, and public pages."
-        )
-
-        self.assertEqual(result["scaffold_sizing"]["recommended_size"], "tight")
-        self.assertIn("scaffold-size=tight", result["enabled_levers"])
-        self.assertIn("optional-expert-fanout", result["disabled_levers"])
-        self.assertIn("--scaffold-size tight", result["paste_ready_prompt"])
-        graph_questions = [
-            item for item in result["interactive_questions"] if item["id"] == "scaffold_size"
-        ]
-        self.assertEqual(len(graph_questions), 1)
-        self.assertEqual(graph_questions[0]["options"][0]["value"], "tight-chain")
-
-    def test_scaffold_size_flag_marks_coach_choice_accepted(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use $complex-work-orchestration to scaffold this project.",
-            scaffold_size="tight",
-        )
-
-        self.assertEqual(result["scaffold_sizing"]["recommended_size"], "tight")
-        self.assertIn("scaffold-size=tight", result["enabled_levers"])
-        self.assertIn("helper was launched with scaffold-size=tight", " ".join(result["scaffold_sizing"]["rationale"]))
-
-    def test_context_depth_override_is_auditable_and_prompted(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use $complex-work-orchestration coach for a deep second pass on docs and prior Beads comments.",
-            beads_context_depth="heavy",
-        )
-
-        self.assertEqual(result["beads_context_depth"], "heavy")
-        self.assertNotIn(RETIRED_FIELD, result)
-        self.assertEqual(result["beads_context_depth_provenance"]["source"], "explicit")
-        self.assertEqual(result["beads_context_depth_provenance"]["computed_depth"], "heavy")
-        self.assertEqual(result["beads_context_depth_provenance"]["effective_depth"], "heavy")
-        self.assertIn("beads-context-depth=heavy", result["enabled_levers"])
-        self.assertIn("build_beads_brief.py --depth heavy --for subagent", result["paste_ready_prompt"])
-        self.assertIn("do not export raw Beads comments", result["paste_ready_prompt"])
-        self.assertTrue(any(item["id"] == "beads_context_depth" for item in result["interactive_questions"]))
 
     def test_context_depth_question_is_always_present_with_autosized_default(self) -> None:
         result = coach_orchestration_prompt("Fix typo in README.md")
@@ -387,16 +611,6 @@ class PromptCoachTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(f"unrecognized arguments: {RETIRED_FLAG}", result.stderr)
 
-    def test_data_sensitivity_declaration_is_preserved_in_route(self) -> None:
-        result = coach_orchestration_prompt(
-            "Publish public docs for the install flow.",
-            data_sensitivity="restricted",
-        )
-
-        self.assertEqual(result["route"]["data_sensitivity"], "restricted")
-        self.assertEqual(result["route"]["data_sensitivity_source"], "operator-declared")
-        self.assertEqual(result["route"]["data_sensitivity_heuristic"], "public")
-        self.assertIn("can miss paraphrases", result["route"]["data_sensitivity_disclaimer"])
 
     def test_coach_cli_accepts_data_sensitivity_declaration(self) -> None:
         result = subprocess.run(
@@ -419,88 +633,28 @@ class PromptCoachTests(unittest.TestCase):
         self.assertEqual(payload["route"]["data_sensitivity"], "restricted")
         self.assertEqual(payload["route"]["data_sensitivity_source"], "operator-declared")
 
-    def test_contractor_lane_terms_ask_for_sharing_boundary(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use $complex-work-orchestration to scaffold this project with Beads epic, "
-            "PM coordination, workerbee validation, and contractor lanes."
+    def test_external_prompt_variants_require_share_boundary(self) -> None:
+        variants = (
+            ('test_contractor_lane_terms_ask_for_sharing_boundary',
+             'Use $complex-work-orchestration to scaffold this project with Beads epic, PM coordination, '
+             'workerbee validation, and contractor lanes.'),
+            ('test_external_terms_without_opt_in_ask_for_boundary',
+             'Claude security review for auth token handling and contractor packet boundaries.'),
+            ('test_chatgpt_pro_master_plan_without_opt_in_asks_for_boundary',
+             'Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan '
+             'and total work packet.'),
         )
-        self.assertEqual(result["recommended_orchestration_level"], "full-harness")
-        self.assertFalse(result["route"]["external_contract_allowed"])
-        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["missing_questions"]))
-        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["interactive_questions"]))
-        self.assertIn("external-contracting-until-explicit-opt-in", result["disabled_levers"])
+        for original, prompt in variants:
+            with self.subTest(original=original):
+                result = coach_orchestration_prompt(
+                    prompt
+                )
+                self.assertEqual(result["recommended_orchestration_level"], "full-harness")
+                self.assertFalse(result["route"]["external_contract_allowed"])
+                self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["missing_questions"]))
+                self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["interactive_questions"]))
+                self.assertIn("external-contracting-until-explicit-opt-in", result["disabled_levers"])
 
-    def test_external_terms_without_opt_in_ask_for_boundary(self) -> None:
-        result = coach_orchestration_prompt("Claude security review for auth token handling and contractor packet boundaries.")
-        self.assertEqual(result["recommended_orchestration_level"], "full-harness")
-        self.assertFalse(result["route"]["external_contract_allowed"])
-        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["missing_questions"]))
-        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["interactive_questions"]))
-        self.assertIn("external-contracting-until-explicit-opt-in", result["disabled_levers"])
-
-    def test_gemini_agy_critique_without_opt_in_asks_for_boundary(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use Gemini via agy for a second opinion critique of the Codex architect design.",
-            requested_roles=["architecture"],
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "full-harness")
-        self.assertFalse(result["route"]["external_contract_allowed"])
-        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["missing_questions"]))
-        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["interactive_questions"]))
-        self.assertIn("external-contracting-until-explicit-opt-in", result["disabled_levers"])
-
-    def test_external_opt_in_recommends_external_contract(self) -> None:
-        result = coach_orchestration_prompt(
-            "Claude security review for contractor packet redaction.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-            requested_roles=["security"],
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "external-contract")
-        self.assertIn("contractor-only-bead", result["enabled_levers"])
-        self.assertIn("contractor-only bead", result["paste_ready_prompt"])
-
-    def test_gemini_agy_critique_opt_in_recommends_external_contract(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use Gemini via agy for a second opinion critique of the Codex architect design.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-            requested_roles=["architecture"],
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "external-contract")
-        self.assertEqual(result["route"]["recommended_executor"], "gemini_architecture_critic")
-        self.assertIn("contractor-only-bead", result["enabled_levers"])
-        self.assertIn("contract-jd-architecture-reasoning", result["paste_ready_prompt"])
-
-    def test_claude_and_gemini_architecture_critics_are_coached_as_parallel_contracts(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics "
-            "of the Codex architect design for a cross-cutting public contract architecture migration.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-            requested_roles=["architecture"],
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "external-contract")
-        self.assertEqual(result["route"]["recommended_executor"], "claude_architecture_critic")
-        self.assertIn("parallel-architecture-critic-contracts", result["enabled_levers"])
-        self.assertIn("architecture-critic=claude_architecture_critic", result["enabled_levers"])
-        self.assertIn("architecture-critic=gemini_architecture_critic", result["enabled_levers"])
-        self.assertIn("claude-effort=xhigh", result["enabled_levers"])
-        self.assertIn("one contractor-only/no-codex-exec Bead per selected architecture critic", result["paste_ready_prompt"])
-        self.assertIn("claude --model claude-opus-4-6 --effort xhigh -p", result["paste_ready_prompt"])
-        self.assertIn("agy --model gemini-3.1-pro-preview -p", result["paste_ready_prompt"])
-        self.assertIn("Add ChatGPT Pro master review only after explicit opt-in", result["paste_ready_prompt"])
-
-    def test_claude_and_gemini_2nd_opinions_wording_is_coached_as_parallel_contracts(self) -> None:
-        result = coach_orchestration_prompt(
-            "Have Claude Opus and Gemini provide 2nd opinions of the Codex architect design.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-            requested_roles=["architecture"],
-        )
-        self.assertIn("parallel-architecture-critic-contracts", result["enabled_levers"])
-        self.assertIn("architecture-critic=claude_architecture_critic", result["enabled_levers"])
-        self.assertIn("architecture-critic=gemini_architecture_critic", result["enabled_levers"])
 
     def test_closed_critic_panel_omits_prohibited_models_from_coach(self) -> None:
         result = coach_orchestration_prompt(
@@ -534,189 +688,6 @@ class PromptCoachTests(unittest.TestCase):
         self.assertNotIn("gemini_architecture_critic", synthesis_line)
         self.assertNotIn("chatgpt_pro_browser_master_reviewer", synthesis_line)
 
-    def test_single_claude_critic_direct_adjudication_disables_synthesis_in_coach(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use Claude Opus as only external architecture critic. "
-            "No Gemini/Agy. No GLM. "
-            "Do not use model synthesis; direct adjudication.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-            requested_roles=["architecture"],
-        )
-
-        critic_levers = [
-            lever
-            for lever in result["enabled_levers"]
-            if lever.startswith("architecture-critic=")
-        ]
-        self.assertEqual(
-            critic_levers,
-            ["architecture-critic=claude_architecture_critic"],
-        )
-        self.assertEqual(result["model_synthesis"]["recommended_mode"], "disabled")
-        self.assertFalse(result["model_synthesis"]["active"])
-        self.assertNotIn("model-synthesis-lane", result["enabled_levers"])
-        self.assertIn(
-            "model-synthesis-explicitly-disabled",
-            result["disabled_levers"],
-        )
-        self.assertFalse(
-            any(
-                item["id"] == "model_synthesis_opt_in"
-                for item in result["missing_questions"]
-            )
-        )
-        self.assertIn(
-            "Do not add CWO-native model synthesis",
-            result["paste_ready_prompt"],
-        )
-        self.assertNotIn(
-            "Offer CWO-native model synthesis",
-            result["paste_ready_prompt"],
-        )
-        self.assertTrue(
-            any("direct architect adjudication" in item for item in result["rationale"])
-        )
-
-    def test_chatgpt_pro_master_plan_without_opt_in_asks_for_boundary(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet."
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "full-harness")
-        self.assertFalse(result["route"]["external_contract_allowed"])
-        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["missing_questions"]))
-        self.assertTrue(any(item["id"] == "outside_sharing_boundary" for item in result["interactive_questions"]))
-        self.assertIn("external-contracting-until-explicit-opt-in", result["disabled_levers"])
-
-    def test_chatgpt_pro_master_plan_opt_in_recommends_external_contract(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "external-contract")
-        self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
-        self.assertIn("contractor-only-bead", result["enabled_levers"])
-        self.assertIn("chatgpt-pro-master-review-blocking-gate", result["enabled_levers"])
-        self.assertIn("operator-waiver-required-for-chatgpt-pro-skip", result["enabled_levers"])
-        self.assertTrue(result["route"]["blocking_review_active"])
-        self.assertIn("contract-jd-master-plan-review", result["paste_ready_prompt"])
-        self.assertIn("blocking gate before implementation", result["paste_ready_prompt"])
-        self.assertIn("explicitly waive/downgrade it in Beads", result["paste_ready_prompt"])
-        self.assertTrue(any("ChatGPT Pro 5.5 master review is blocking" in item for item in result["warnings"]))
-
-    def test_chatgpt_pro_weigh_in_master_review_wording_is_coached(self) -> None:
-        result = coach_orchestration_prompt(
-            "Tap in ChatGPT Pro 5.5 to weigh in as a master review of the final architect plan.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "external-contract")
-        self.assertEqual(result["route"]["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
-        self.assertIn("contract-jd-master-plan-review", result["paste_ready_prompt"])
-
-    def test_explicit_model_synthesis_request_is_enabled(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use model synthesis to combine Claude Opus, Gemini, and ChatGPT Pro findings "
-            "into consensus, disagreements, and recommended plan revisions.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-            requested_roles=["architecture", "master-plan-review"],
-        )
-        self.assertEqual(result["model_synthesis"]["recommended_mode"], "requested")
-        self.assertTrue(result["model_synthesis"]["active"])
-        self.assertFalse(result["model_synthesis"]["requires_user_acceptance"])
-        self.assertFalse(result["model_synthesis"]["prompt_user_in_plan_mode"])
-        self.assertEqual(result["route"]["model_synthesis"]["recommended_mode"], "requested")
-        self.assertIn("model-synthesis=requested", result["enabled_levers"])
-        self.assertIn("model-synthesis-lane", result["enabled_levers"])
-        self.assertIn("CWO-native model synthesis", result["paste_ready_prompt"])
-        self.assertIn("architect adjudication", " ".join(result["model_synthesis"]["rationale"]).lower())
-        executors = [item["executor"] for item in result["model_synthesis"]["recommended_panel"]]
-        self.assertIn("claude_architecture_critic", executors)
-        self.assertIn("gemini_architecture_critic", executors)
-        self.assertIn("chatgpt_pro_browser_master_reviewer", executors)
-        self.assertFalse(any(item["id"] == "model_synthesis_opt_in" for item in result["missing_questions"]))
-
-    def test_model_synthesis_flag_marks_coach_opt_in_accepted(self) -> None:
-        result = coach_orchestration_prompt(
-            "Refactor architecture policy and routing tests.",
-            requested_roles=["architecture"],
-            model_synthesis=True,
-        )
-
-        self.assertEqual(result["model_synthesis"]["recommended_mode"], "accepted")
-        self.assertEqual(result["model_synthesis"]["activation_state"], "accepted")
-        self.assertTrue(result["model_synthesis"]["active"])
-        self.assertFalse(result["model_synthesis"]["requires_user_acceptance"])
-        self.assertFalse(any(item["id"] == "model_synthesis_opt_in" for item in result["missing_questions"]))
-        self.assertIn("model-synthesis=accepted", result["enabled_levers"])
-        self.assertIn("model-synthesis-lane", result["enabled_levers"])
-
-    def test_glm_primary_environment_is_visible_in_coach_output(self) -> None:
-        result = coach_orchestration_prompt(
-            "Substitute GLM-5.2 as primary architect with Codex shell PM and Codex 5.6 Sol counter-review.",
-            requested_roles=["architecture"],
-            execution_environment="connected-codex-glm-primary",
-            model_synthesis=True,
-        )
-
-        self.assertEqual(result["route"]["execution_environment"], "connected-codex-glm-primary")
-        self.assertIn("execution-environment=connected-codex-glm-primary", result["enabled_levers"])
-        self.assertIn(
-            "primary-architect=rhoai_glm_primary_architect",
-            result["enabled_levers"],
-        )
-        self.assertIn("project-manager=codex_project_manager", result["enabled_levers"])
-        self.assertIn("Primary architect: rhoai_glm_primary_architect", result["paste_ready_prompt"])
-        self.assertEqual(
-            result["model_synthesis"]["synthesis_owner"],
-            "rhoai_glm_primary_architect",
-        )
-
-    def test_generic_weigh_in_does_not_coach_chatgpt_master_review(self) -> None:
-        result = coach_orchestration_prompt(
-            "Have someone weigh in on this plan.",
-            external_ok=True,
-            share_boundary="redacted-packet",
-        )
-        self.assertNotEqual(result["route"]["recommended_executor"], "chatgpt_pro_browser_master_reviewer")
-
-    def test_local_worker_profile_recommends_local_worker(self) -> None:
-        result = coach_orchestration_prompt(
-            "Documentation review for internal example notes.",
-            local_ok=True,
-            prefer_local=True,
-            local_profile="openshift-ai-vllm",
-            requested_roles=["documentation"],
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "local-worker")
-        self.assertEqual(result["route"]["recommended_executor"], "openshift_ai_vllm_worker")
-        self.assertIn("local-profile=openshift-ai-vllm", result["enabled_levers"])
-
-    def test_local_worker_terms_without_opt_in_do_not_dispatch(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use local worker vLLM to review README examples.",
-            requested_roles=["documentation"],
-        )
-        self.assertEqual(result["recommended_orchestration_level"], "in-thread")
-        self.assertEqual(result["route"]["recommended_executor"], "internal_worker")
-        self.assertFalse(result["route"]["local_worker_allowed"])
-        self.assertTrue(any(item["id"] == "local_worker_opt_in" for item in result["missing_questions"]))
-        self.assertTrue(any(item["id"] == "local_worker_opt_in" for item in result["interactive_questions"]))
-        self.assertIn("local-worker-dispatch", result["disabled_levers"])
-
-    def test_publish_work_requires_publish_grade_levers(self) -> None:
-        result = coach_orchestration_prompt("Publish the skill to GitHub after release validation.")
-        self.assertEqual(result["recommended_orchestration_level"], "publish-release")
-        self.assertIn("publish-sanitization", result["enabled_levers"])
-        self.assertIn("validation-lane", result["enabled_levers"])
-        self.assertTrue(any(item["id"] == "repo_or_paths" for item in result["missing_questions"]))
-        validation_questions = [
-            item for item in result["interactive_questions"] if item["id"] == "validation_bar"
-        ]
-        self.assertEqual(len(validation_questions), 1)
-        self.assertEqual(validation_questions[0]["options"][0]["value"], "publish-grade")
 
     def test_parallelizable_work_asks_for_workerbees(self) -> None:
         result = qualified_current_coach(
@@ -794,17 +765,6 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIsNone(result["workerbee_parallelism"]["recommended_model"])
         self.assertEqual(result["workerbee_parallelism"]["suggested_lanes"], [])
 
-    def test_active_default_missing_authority_is_not_native_spark_advice(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use Spark workerbees for docs and validation."
-        )
-        self.assertEqual(result["operative_route"]["version"], 3)
-        self.assertFalse(result["operative_route"]["dispatch_authorized"])
-        self.assertEqual(result["operative_route"]["stop_reason"], "current-authority-missing")
-        self.assertEqual(result["workerbee_planned_delegation"]["mode"], "blocked")
-        self.assertIsNone(result["workerbee_planned_delegation"]["model"])
-        self.assertNotIn("Native Spark dispatch is the preferred route", result["paste_ready_prompt"])
-        self.assertNotIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
 
     def test_implementation_subagent_request_recommends_split_implementation(self) -> None:
         result = qualified_current_coach(
@@ -1209,73 +1169,6 @@ class PromptCoachTests(unittest.TestCase):
                 self.assertFalse(workerbee["registry_tool_mismatch"])
                 self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
 
-    @historical_v2_policy()
-    def test_unrelated_tool_failure_does_not_block_spark(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use Spark workerbees. The Figma tool is missing."
-        )
-        workerbee = result["workerbee_parallelism"]
-
-        self.assertNotEqual(workerbee["recommended_mode"], "blocked")
-        self.assertFalse(workerbee["hard_stop"])
-        self.assertFalse(workerbee["registry_tool_mismatch"])
-        self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
-
-    @historical_v2_policy()
-    def test_unrelated_provider_tool_failure_does_not_block_native_route(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use Spark workerbees. ChatGPT Pro tooling is unavailable, but this task is unrelated to non-native tooling."
-        )
-        workerbee = result["workerbee_parallelism"]
-
-        self.assertNotEqual(workerbee["recommended_mode"], "blocked")
-        self.assertFalse(workerbee["hard_stop"])
-        self.assertFalse(workerbee["registry_tool_mismatch"])
-        self.assertNotEqual(workerbee["spark_dispatch"]["status"], "hard-stop")
-
-    @historical_v2_policy()
-    def test_registry_tool_mismatch_hard_stops_execution(self) -> None:
-        result = coach_orchestration_prompt(
-            "There is a Spark registry/tool mismatch for this task; execution must stop until this is fixed."
-        )
-        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "blocked")
-        self.assertIsNone(result["workerbee_parallelism"]["recommended_model"])
-        self.assertTrue(result["workerbee_parallelism"]["registry_tool_mismatch"])
-        self.assertTrue(result["workerbee_parallelism"]["hard_stop"])
-        self.assertEqual(result["workerbee_parallelism"]["hard_stop_reason"], "registry_tool_mismatch")
-        self.assertEqual(
-            result["workerbee_parallelism"]["spark_dispatch"]["failed_native_capability_check"],
-            "spark-registry-tool-mismatch",
-        )
-        self.assertEqual(result["workerbee_parallelism"]["spark_dispatch"].get("status"), "hard-stop")
-        self.assertIn("workerbee-dispatch-stopped", result["enabled_levers"])
-        self.assertIn("workerbee-blocked=registry_tool_mismatch", result["enabled_levers"])
-        self.assertFalse(
-            any(
-                item["id"] == "workerbee_parallelism"
-                for item in result["interactive_questions"]
-            )
-        )
-        self.assertIn("subagent-parallelism-blocked", result["disabled_levers"])
-        self.assertTrue(
-            any(
-                "spark registry/tool mismatch is a hard stop" in str(warning).lower()
-                for warning in result["warnings"]
-            )
-        )
-
-    @historical_v2_policy()
-    def test_spark_operational_pairing_uses_canonical_lanes(self) -> None:
-        result = coach_orchestration_prompt(
-            "Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and report."
-        )
-        self.assertEqual(
-            set(result["workerbee_parallelism"]["suggested_lanes"]),
-            {"implementation", "docs", "validation", "wrap-up-report", "dashboard-report"},
-        )
-        self.assertNotIn("test-construction", result["workerbee_parallelism"]["suggested_lanes"])
-        self.assertNotIn("validation-troubleshooting", result["workerbee_parallelism"]["suggested_lanes"])
-        self.assertNotIn("docs-reporting-dashboard", result["workerbee_parallelism"]["suggested_lanes"])
 
     def test_conditional_workerbee_language_still_prompts_for_parallelism(self) -> None:
         result = qualified_current_coach(
@@ -1285,43 +1178,6 @@ class PromptCoachTests(unittest.TestCase):
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertTrue(any(item["id"] == "workerbee_parallelism" for item in result["interactive_questions"]))
 
-    @historical_v2_policy()
-    def test_spark_operational_pairing_selects_implementation_capable_mode(self) -> None:
-        result = coach_orchestration_prompt(
-            "Native Spark is available. Use Codex 5.6 Sol as architect and Codex 5.3 Spark as implementation worker for docs, validation, and reporting."
-        )
-        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "implementation-capable")
-        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.3-codex-spark")
-        self.assertTrue(result["workerbee_parallelism"]["spark_operational_worker"])
-        self.assertFalse(result["workerbee_parallelism"]["registry_tool_mismatch"])
-        spark_dispatch = result["workerbee_parallelism"]["spark_dispatch"]
-        self.assertEqual(spark_dispatch.get("status"), "native-first")
-        self.assertEqual(spark_dispatch.get("requested_route"), "implementation-capable")
-        self.assertEqual(spark_dispatch.get("requested_model"), "gpt-5.3-codex-spark")
-        self.assertEqual(
-            set(spark_dispatch),
-            {
-                "status",
-                "requested_model",
-                "requested_route",
-                "failed_native_capability_check",
-                "failed_native_capability_check_justification",
-            },
-        )
-        self.assertEqual(spark_dispatch.get("failed_native_capability_check"), "")
-        worker_questions = [
-            item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
-        ]
-        self.assertEqual(len(worker_questions), 1)
-        self.assertEqual(worker_questions[0]["options"][0]["value"], "implementation-subagents")
-        self.assertIn(
-            "Native Spark dispatch is the preferred route.",
-            result["paste_ready_prompt"],
-        )
-        emitted = json.dumps(result).lower()
-        self.assertNotIn("bridge", emitted)
-        self.assertIsNone(result["operative_route"]["fallback"]["selected_model"])
-        self.assertFalse(result["operative_route"]["fallback"]["decision_required"])
 
     @historical_v2_policy()
     def test_prompt_coach_schema_defines_spark_hard_stop_contract(self) -> None:
@@ -1468,24 +1324,6 @@ class PromptCoachTests(unittest.TestCase):
         worker_questions = [item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"]
         self.assertEqual(worker_questions[0]["options"][0]["value"], "review-subagents")
 
-    def test_public_docs_editor_task_requires_editor_gate_in_coach(self) -> None:
-        result = coach_orchestration_prompt(
-            "Fix public-docs editor oversharing on the homepage and improve the Beads install section."
-        )
-        self.assertTrue(result["route"]["editor_gate_required"])
-        self.assertIn("editor", result["route"]["editor_gate_experts"])
-
-    def test_narrow_work_still_prompts_for_subagent_parallelism(self) -> None:
-        result = coach_orchestration_prompt("Fix typo in README.md")
-        self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "none")
-        self.assertIsNone(result["workerbee_parallelism"]["recommended_model"])
-        self.assertEqual(result["workerbee_parallelism"]["suggested_lanes"], [])
-        worker_questions = [
-            item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
-        ]
-        self.assertEqual(len(worker_questions), 1)
-        self.assertEqual(worker_questions[0]["options"][0]["value"], "no-subagents")
-        self.assertIn("review-subagents", [option["value"] for option in worker_questions[0]["options"]])
 
     def test_cli_json_output_contains_prompt_and_route(self) -> None:
         output = subprocess.check_output(
@@ -1543,13 +1381,6 @@ class PromptCoachTests(unittest.TestCase):
         self.assertIn("workerbee_parallelism", result["selection_before_plan_question_ids"])
         self.assertIn("beads_context_depth", result["selection_before_plan_question_ids"])
 
-    def test_execution_request_clears_selection_before_plan_gate(self) -> None:
-        result = coach_orchestration_prompt(
-            "Implement the CWO coach UX guardrail plan after using the CWO coach."
-        )
-
-        self.assertFalse(result["requires_user_selection_before_plan"])
-        self.assertIn("already requested execution", result["selection_before_plan_reason"])
 
     def test_cli_model_synthesis_flag_outputs_accepted_state(self) -> None:
         output = subprocess.check_output(
@@ -1609,15 +1440,6 @@ class PromptCoachTests(unittest.TestCase):
             set(option_values),
             {"no-outside-sharing", "redacted-packet", "repo-readonly", "patch-branch"},
         )
-
-    def test_publish_validation_dedupes_interactive_options(self) -> None:
-        result = coach_orchestration_prompt("Publish the skill to GitHub after release validation.")
-        validation_questions = [
-            item for item in result["interactive_questions"] if item["id"] == "validation_bar"
-        ]
-        self.assertEqual(len(validation_questions), 1)
-        values = [option["value"] for option in validation_questions[0]["options"]]
-        self.assertEqual(values.count("publish-grade"), 1)
 
 
 if __name__ == "__main__":

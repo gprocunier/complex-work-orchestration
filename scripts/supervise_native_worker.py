@@ -1739,6 +1739,17 @@ def _consume_retry_recovery_action(
     _fail("retry recovery action authority is unsupported pending P1-13B")
 
 
+def _require_retry_authorization_for_recovery_hooks(
+    retry_authorization_path: str | None,
+    verified_recovery_action: object | None,
+    recovery_action_store: object | None,
+) -> None:
+    if not retry_authorization_path and (
+        verified_recovery_action is not None or recovery_action_store is not None
+    ):
+        _fail("recovery action hooks require --retry-authorization")
+
+
 def start(
     args: argparse.Namespace,
     *,
@@ -1749,10 +1760,9 @@ def start(
     maintenance_verifier: object = None,
 ) -> dict[str, Any]:
     retry_authorization_path = getattr(args, "retry_authorization", None)
-    if not retry_authorization_path and (
-        verified_recovery_action is not None or recovery_action_store is not None
-    ):
-        _fail("recovery action hooks require --retry-authorization")
+    _require_retry_authorization_for_recovery_hooks(
+        retry_authorization_path, verified_recovery_action, recovery_action_store
+    )
     packet_path = Path(args.packet).expanduser().resolve()
     packet = _load_json(packet_path, "packet")
     _require_current_packet_authority(packet, current_authority)
@@ -1828,6 +1838,10 @@ def start(
                 "serialized retry authorization is audit-only; "
                 "an exact in-process verified recovery action is required"
             )
+    # Allocate once after the read/validation gates, before consuming retry
+    # authority or preparing workspace/state/audit artifacts.
+    state_id = make_dispatch_id(f"supervision-{packet['packet_id']}")
+    if retry_authorization_path:
         _consume_retry_recovery_action(
             authorization,
             immutable_work_sha256=immutable_work_sha256,
@@ -1845,7 +1859,7 @@ def start(
         "result_type": STATE_TYPE,
         "version": 1,
         "schema": STATE_SCHEMA,
-        "state_id": make_dispatch_id(f"supervision-{packet['packet_id']}"),
+        "state_id": state_id,
         "packet_id": packet["packet_id"],
         "packet_sha256": artifact_hash(json.dumps(packet, sort_keys=True)),
         "packet_file": str(packet_path),

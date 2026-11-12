@@ -3,11 +3,11 @@ from __future__ import annotations
 import copy
 from dataclasses import replace
 import importlib.util
-import json
 from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
+import json  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,6 +28,10 @@ def snapshot(label: str, **value: object) -> LIVE.JsonArtifactSnapshot:
 
 
 class Generation8LiveLauncherTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(mock.patch.multiple(LIVE.live_availability,
+            N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True))
+
     def inputs(self) -> LIVE.CampaignLaunchInputs:
         ancestor_cause = b"ancestor-authorization-cause\n"
         grandancestor_cause = b"grandancestor-authorization-cause\n"

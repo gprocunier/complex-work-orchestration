@@ -116,7 +116,20 @@ class MaintenanceAuthorityTests(unittest.TestCase):
         plan, operation, _ = self.operation()
         plan["description"] = "maintenance café"
         directive = self.reseal(plan, operation)
-        self.verifier.verify_operation(plan, operation, directive).claim()
+        capability = self.verifier.verify_operation(plan, operation, directive)
+        capability.claim()
+        plan_payload = {key: value for key, value in plan.items() if key != "plan_sha256"}
+        expected = hashlib.sha256(json.dumps(
+            plan_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+        ).encode("utf-8")).hexdigest()
+        self.assertEqual(plan["plan_sha256"], expected)
+        self.assertNotEqual(expected, canonical_authority_sha256(plan_payload))
+        self.assertEqual(self.store.read_state()["operations"][operation["operation_id"]], {
+            "operation_sha256": capability.operation_sha256,
+            "plan_sha256": expected, "state": "claimed", "outcome": "pending",
+        })
+        self.assertEqual(capability.evidence()["operation"]["plan_sha256"], expected)
+        capability.revalidate(plan=plan)
 
     def test_no_total_budget_or_deadline_is_fabricated(self) -> None:
         normalized = normalize_maintenance_mission(self.mission)
@@ -381,6 +394,41 @@ class MaintenanceAuthorityTests(unittest.TestCase):
             state[key] = bad
             with self.subTest(key=key), self.assertRaises(MaintenanceAuthorityError):
                 self.make_verifier(state_reader=lambda value=state: value)
+
+    def test_current_check_only_vetoes_and_state_is_read_after_callout(self) -> None:
+        """Allocated maintenance join: preserve bound store, errors and reentrancy."""
+        with self.assertRaisesRegex(MaintenanceAuthorityError, "current-check-callable"):
+            self.make_verifier(current_check={"EXAMPLE": "not a callback"})
+        control = {"mode": None, "operation": None}
+        original = ValueError("EXAMPLE original current-source veto")
+        def veto():
+            if control["mode"] == "refuse":
+                raise original
+            if control["mode"] == "reenter":
+                control["operation"].revalidate()
+            if control["mode"] == "revoke":
+                self.store.revoke()
+                return {"EXAMPLE": "this returned observation cannot restore authority"}
+            return None
+        self.verifier = self.make_verifier(current_check=veto)
+        operation = self.verifier.verify_operation(*self.operation())
+        operation.claim()
+        control["operation"] = operation
+        before = self.store.read_state()
+        control["mode"] = "refuse"
+        with self.assertRaises(ValueError) as caught:
+            operation.revalidate()
+        self.assertIs(caught.exception, original)
+        control["mode"] = "reenter"
+        with self.assertRaisesRegex(MaintenanceAuthorityError, "verification-reentrant"):
+            operation.revalidate()
+        self.assertEqual(self.store.read_state(), before)
+        control["mode"] = None
+        operation.revalidate()
+        control["mode"] = "revoke"
+        with self.assertRaisesRegex(MaintenanceAuthorityError, "authority-not-current"):
+            operation.revalidate()
+        self.assertEqual(self.store.read_state()["status"], "revoked")
 
 
 def stat_mode(path: Path) -> int:

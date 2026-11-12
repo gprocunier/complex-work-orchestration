@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from cwo_core.codex_hook_enforcement import validate_advisory_hook_configuration
+from cwo_core.errors import CWOValidationError
 from cwo_core.util import atomic_write_text
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
@@ -107,6 +109,17 @@ def detect_visibility_hint_support(codex_bin: str) -> dict[str, Any]:
     }
 
 
+def unprobed_support_info(codex_bin: str) -> dict[str, Any]:
+    return {
+        "codex_bin": codex_bin,
+        "codex_version": None,
+        "visibility_hint_supported": False,
+        "candidate_paths": [],
+        "matching_paths": [],
+        "support_signal": "not probed",
+    }
+
+
 def managed_hook_entry(event: str, *, visibility_hint: str | None = None) -> dict[str, Any]:
     spec = MANAGED_EVENTS[event]
     hook: dict[str, Any] = {
@@ -143,11 +156,15 @@ def build_managed_hooks(
     allow_degraded_context: bool = False,
 ) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
     warnings: list[str] = []
+    # Support-dependent refusal: quiet/verbose modes require visibility hint support.
     if mode in VISIBILITY_MODES and not (visibility_hint_supported or force_visibility_hint):
         raise ConfigurationError(
             "Codex visibilityHint support was not detected; refusing to render quiet/verbose hooks "
             "because the only safe mitigation is display-layer suppression that preserves additionalContext."
         )
+    # Probe-independent refusal: compact-degraded requires acknowledgement.
+    # This check is also performed in main() before detection to avoid probing configurations
+    # that will be refused. Keeping it here provides defense in depth for direct callers.
     if mode == "compact-degraded" and not allow_degraded_context:
         raise ConfigurationError(
             "compact-degraded reduces automatic Beads context. Re-run with --allow-degraded-context "
@@ -184,13 +201,33 @@ def hook_group_is_managed(event: str, group: dict[str, Any]) -> bool:
     return False
 
 
+def hook_group_is_mixed(event: str, group: dict[str, Any]) -> bool:
+    """True when a managed group also holds entries that replacement would remove."""
+    if not hook_group_is_managed(event, group):
+        return False
+    expected = MANAGED_EVENTS[event]["command"]
+    return any(not (isinstance(hook, dict) and hook.get("command") == expected) for hook in group["hooks"])
+
+
 def merge_hooks(existing: dict[str, Any], managed: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
-    merged: dict[str, Any] = dict(existing) if isinstance(existing, dict) else {}
-    hooks = dict(merged.get("hooks") or {})
+    if not isinstance(existing, dict):
+        raise ConfigurationError("existing hooks configuration must be a JSON object; refusing to replace it")
+    current = existing.get("hooks", {})
+    if not isinstance(current, dict):
+        raise ConfigurationError("existing hooks configuration 'hooks' must be an object; refusing to replace it")
+    merged: dict[str, Any] = dict(existing)
+    hooks = dict(current)
     for event, groups in managed.items():
         existing_groups = hooks.get(event, [])
         if not isinstance(existing_groups, list):
-            existing_groups = []
+            raise ConfigurationError(f"existing {event} hooks must be a list of groups; refusing to replace them")
+        for index, group in enumerate(existing_groups):
+            if isinstance(group, dict) and hook_group_is_mixed(event, group):
+                raise ConfigurationError(
+                    f"existing {event} hook group {index} mixes the managed Beads command "
+                    f"{MANAGED_EVENTS[event]['command']!r} with other hook entries; replacing it would remove "
+                    "those entries, so it is refused. Split the group or remove the other entries first."
+                )
         preserved = [group for group in existing_groups if not (isinstance(group, dict) and hook_group_is_managed(event, group))]
         hooks[event] = preserved + groups
     merged["hooks"] = hooks
@@ -200,8 +237,22 @@ def merge_hooks(existing: dict[str, Any], managed: dict[str, list[dict[str, Any]
 def load_existing_hooks(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {"hooks": {}}
+
+    def unique_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in pairs:
+            if key in result:
+                raise ConfigurationError(f"{path} contains duplicate JSON key {key!r}; refusing ambiguous hooks configuration")
+            result[key] = value
+        return result
+
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        content = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ConfigurationError(f"{path} contains invalid UTF-8 encoding") from exc
+
+    try:
+        return json.loads(content, object_pairs_hook=unique_keys)
     except json.JSONDecodeError as exc:
         raise ConfigurationError(f"{path} is not valid JSON: {exc}") from exc
 
@@ -253,6 +304,7 @@ def _path_is_relative_to(path: Path, root: Path) -> bool:
 
 
 def write_hooks(path: Path, payload: dict[str, Any]) -> None:
+    validate_advisory_hook_configuration(payload, context=f"hooks file {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
@@ -339,9 +391,24 @@ def main() -> int:
         Path(args.hooks_file).expanduser() if args.hooks_file else project_dir / ".codex" / "hooks.json",
         project_dir=project_dir,
     )
-    support = detect_visibility_hint_support(args.codex_bin)
     warnings: list[str] = []
+    support: dict[str, Any] = unprobed_support_info(args.codex_bin)
     try:
+        # Validate existing hooks before running the probe to ensure existing-file validation
+        # failures do not invoke the configured executable.
+        existing = load_existing_hooks(hooks_file)
+        validate_advisory_hook_configuration(existing, context=f"existing hooks file {hooks_file}")
+
+        # Refuse probe-independent mode constraints before detection.
+        if args.mode == "compact-degraded" and not args.allow_degraded_context:
+            raise ConfigurationError(
+                "compact-degraded reduces automatic Beads context. Re-run with --allow-degraded-context "
+                "only for a deliberate operator fallback."
+            )
+
+        # Run the probe only after existing-file validation and probe-independent refusals.
+        support = detect_visibility_hint_support(args.codex_bin)
+
         managed, build_warnings = build_managed_hooks(
             mode=args.mode,
             visibility_hint_supported=support["visibility_hint_supported"],
@@ -349,9 +416,11 @@ def main() -> int:
             allow_degraded_context=args.allow_degraded_context,
         )
         warnings.extend(build_warnings)
-        existing = load_existing_hooks(hooks_file)
         rendered = merge_hooks(existing, managed)
-    except ConfigurationError as exc:
+        validate_advisory_hook_configuration(rendered, context=f"rendered hooks for {hooks_file}")
+        if args.apply:
+            write_hooks(hooks_file, rendered)
+    except (ConfigurationError, CWOValidationError) as exc:
         result = build_result(
             args=args,
             hooks_file=hooks_file,
@@ -367,8 +436,6 @@ def main() -> int:
             render_human(result)
         return 2
 
-    if args.apply:
-        write_hooks(hooks_file, rendered)
     result = build_result(
         args=args,
         hooks_file=hooks_file,

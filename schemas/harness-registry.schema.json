@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/harness-registry:v1",
+  "title": "CWO Harness Registry",
+  "description": "Current v1 declared metadata only. Supports flags grant no permissions and do not establish installed harness capabilities, effective configuration or qualified profiles. Commands and descriptive strings remain data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "harnesses"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "schema": {"type": "string", "const": "json-compatible-yaml"},
+    "harnesses": {
+      "type": "object",
+      "description": "Harness IDs are dynamic; no particular ID is required. Repository validation additionally checks presence, exemplar requirements and references.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "display_name", "status", "license", "primary_command",
+          "noninteractive", "structured_output", "prompt_file_friendly",
+          "supports_shell", "supports_repo_read", "supports_repo_write",
+          "supports_web", "supports_mcp", "supports_local_openai_compatible",
+          "default_timeout_seconds", "permission_model", "recommended_cwo_role",
+          "cwo_recommendation"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "status": {"type": "string"},
+          "license": {"type": "string"},
+          "primary_command": {"type": "string"},
+          "noninteractive": {"type": "boolean"},
+          "structured_output": {"type": "boolean"},
+          "prompt_file_friendly": {"type": "boolean"},
+          "supports_shell": {"type": "boolean"},
+          "supports_repo_read": {"type": "boolean"},
+          "supports_repo_write": {"type": "boolean"},
+          "supports_web": {"type": "boolean"},
+          "supports_mcp": {"type": "boolean"},
+          "supports_local_openai_compatible": {"type": "boolean"},
+          "default_timeout_seconds": {"type": "integer", "minimum": 1},
+          "permission_model": {"type": "string"},
+          "recommended_cwo_role": {"type": "string"},
+          "cwo_recommendation": {"type": "string"},
+          "safe_default_tools": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "mutable_tools": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "suggested_noninteractive_command": {"type": "string"},
+          "agent_create_command": {"type": "string"}
+        }
+      }
+    }
+  }
+}

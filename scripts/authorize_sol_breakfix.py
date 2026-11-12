@@ -63,7 +63,7 @@ def main() -> None:
             "automatic_selection_forbidden=true."
         )
         subprocess.run(
-            ["bd", "update", args.bead, "--add-label", "sol-breakfix-approved", "--append-notes", note],
+            ["bd", "update", "--add-label", "sol-breakfix-approved", "--append-notes", note, "--", args.bead],
             check=True,
         )
         payload = record_audit_event(payload)

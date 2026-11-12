@@ -10,6 +10,7 @@ from .access_profiles import (
     sanitized_access_profile,
     validate_access_profile_registry,
 )
+from .operative_routing import nonoperative_model_refusal
 from .policy import load_policy
 from .util import artifact_hash
 
@@ -385,6 +386,21 @@ def build_harness_prompt(
     )
 
 
+def _refuse_nonoperative_model(model: Any) -> None:
+    """Apply the general v3 deprecated-model outcome to the exact model a dispatch would name.
+
+    The model may come from a role binding or from an explicit argument; either way
+    a model the active task-selected policy marks historical-nonoperative stops the
+    render before any prompt, envelope or audit event exists. Nothing is substituted.
+    """
+    try:
+        refusal = nonoperative_model_refusal(model)
+    except ValueError as exc:
+        raise SystemExit(f"harness dispatch cannot check the task selected routing policy: {exc}") from exc
+    if refusal:
+        raise SystemExit(f"harness dispatch refused: {refusal}")
+
+
 def build_harness_dispatch(
     *,
     task: str,
@@ -478,6 +494,7 @@ def build_harness_dispatch(
         or resolved_profile.get("huggingface_model_id")
     )
     resolved_variant = variant or binding.get("variant") or resolved_profile.get("default_variant")
+    _refuse_nonoperative_model(resolved_model)
 
     prompt = build_harness_prompt(
         task=task,

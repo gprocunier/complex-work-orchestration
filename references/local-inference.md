@@ -5,7 +5,15 @@ This reference covers local OpenAI-compatible workers for
 
 A local reviewer receives a specific question and approved material. CWO writes
 a request record (`local_envelope`) before any call; `--execute-local` makes the
-actual endpoint request. Evaluate the answer and record the lead's decision before
+actual endpoint request.
+
+> **Currently unavailable:** `--execute-local` refuses before any quota check,
+> audit event, name resolution or request. CWO cannot yet bind workload-derived
+> sizing to the exact request and hold an atomic one-use reservation within an
+> aggregate budget before the call (issue #41). Writing the local envelope and
+> manual export still work. The commands below describe the route as it will
+> run once that admission exists.
+ Evaluate the answer and record the lead's decision before
 using it in implementation. This route does not make an ordinary cloud Codex
 session offline.
 
@@ -404,7 +412,7 @@ pending.write_text(value, encoding="utf-8")
 os.replace(pending, target)
 PY
 
-python3 scripts/evaluate_return.py \
+python3 scripts/evaluate_return.py --advisory --no-audit --waiver-reason "nonproduction diagnostic" \
   --file "$return_file" \
   --local-dispatch-result "$dispatch_json" \
   --peer-review-required \
@@ -516,7 +524,7 @@ treating the return as unknown evidence:
 
 ```bash
 python3 scripts/normalize_contractor_return.py --file local-return.md --executor openshift_ai_vllm_worker --output local-return-bundle.json
-python3 scripts/evaluate_return.py --file local-return.md --executor openshift_ai_vllm_worker
+python3 scripts/evaluate_return.py --file local-return.md --advisory --no-audit --waiver-reason "nonproduction diagnostic" --executor openshift_ai_vllm_worker
 ```
 
 Prefer the complete dispatch result when it is available. Version-2 local
@@ -525,7 +533,7 @@ version-2 envelope that omits or changes that contract. Version-1 envelopes
 remain compatible and use the current English policy default:
 
 ```bash
-python3 scripts/evaluate_return.py \
+python3 scripts/evaluate_return.py --advisory --no-audit --waiver-reason "nonproduction diagnostic" \
   --file local-return.md \
   --local-dispatch-result local-dispatch-result.json
 ```
@@ -536,7 +544,7 @@ local return can influence implementation. Review and quarantine findings still
 require architect adjudication; they do not authorize automatic rejection or
 follow-up work by themselves.
 
-The minimal fallback is `python3 scripts/evaluate_return.py --file local-return.md`,
+The minimal fallback is `python3 scripts/evaluate_return.py --file local-return.md --advisory --no-audit --waiver-reason "nonproduction diagnostic"`,
 but operator flows should prefer `--executor` or the equivalent
 `--provider-key`, `--provider-trust-tier`, `--dispatch-mode`, and
 `--local-profile` and `--model-profile` fields from the dispatch envelope.
@@ -545,7 +553,7 @@ Add `--peer-review-required` only when `route_work.py`, the Beads lane, or
 the evaluator policy says that peer review is required for that return:
 
 ```bash
-python3 scripts/evaluate_return.py --file local-return.md --executor openshift_ai_vllm_worker --peer-review-required
+python3 scripts/evaluate_return.py --file local-return.md --advisory --no-audit --waiver-reason "nonproduction diagnostic" --executor openshift_ai_vllm_worker --peer-review-required
 ```
 
 Review the evaluator fields before using any finding:
@@ -564,3 +572,28 @@ Review the evaluator fields before using any finding:
 
 Quarantined, failed, or disputed local returns must not become implementation
 dependencies until the architect adjudicates them.
+
+
+Disabled local-HTTP scaffolding rechecks persisted invocation intent, current
+owner and exact request binding after request observers and before transport.
+The final monotonic deadline follows that ledger read. Its internal preflight
+API accepts only validated numeric timing values, never a deferred callback;
+actual age is recorded from the gate at send entry. An observer that terminalizes
+the attempt causes zero subsequent HTTP sends and retains its full charge.
+This is not workload admission, remote cancellation or permission to restore.
+### Evaluation source restriction
+
+Local dispatch artifacts and raw metadata flags have no reviewed production
+producer contract. Production evaluation refuses them before scoring, acceptance
+audit or output. The examples above are explicit nonproduction diagnostics: they
+retain an implementation hold, cannot clear a finding and do not qualify local
+execution. Production evaluation requires an audited contractor packet through
+`--contractor-packet`; do not substitute an artifact, provider label or self-hash.
+
+
+Terminal observer failures do not overwrite a previously persisted terminal
+outcome or replace the original route/observer exception. Secondary settlement
+and terminal-observer errors are attached as notes; unresolved storage failures
+remain conservatively charged and reconciliation-required. Registered observer
+names remain the original names. This is local scaffolding, not remote stop or
+restoration qualification.

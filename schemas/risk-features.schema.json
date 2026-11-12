@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/risk-features:v1",
+  "title": "CWO Risk Feature Registry",
+  "description": "Current v1 configuration shape only. Terms and descriptive metadata are data, not task-source authentication, validated scope, clearance, risk reduction or dispatch authority. Existing typed consumer checks remain in place.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "features"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "description": {"type": "string"},
+    "features": {
+      "type": "object",
+      "description": "Feature IDs are dynamic; this schema requires no particular feature roster.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["floor", "terms"],
+        "properties": {
+          "label": {"type": "string"},
+          "floor": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+          "experts": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "terms": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    },
+    "combinations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["all", "floor"],
+        "properties": {
+          "all": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "floor": {"type": "string", "enum": ["low", "medium", "high", "critical"]}
+        }
+      }
+    }
+  }
+}

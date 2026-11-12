@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/return-tripwires:v1",
+  "title": "CWO Return Tripwires",
+  "description": "Whole-document schema for policy/return-tripwires.yaml version 1, checked by cwo_core.policy_schema whenever the policy is loaded. Consumer: cwo_core.return_tripwires, which read negatable and directive with bool() and every pattern with str(), so a string 'false' was a true flag and a number became a pattern. Regular expressions are checked as non-empty strings only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "description",
+    "confusables",
+    "negations",
+    "negation_note",
+    "corrections",
+    "critiques",
+    "context_corrections",
+    "action_verbs",
+    "extra_action_verb_forms",
+    "command_words",
+    "rules",
+    "directive_markers"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "confusables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Character folds: each key is one character, each value its comparison form (the subset cannot express single-character keys)."
+    },
+    "negations": {
+      "type": "string",
+      "minLength": 1
+    },
+    "negation_note": {
+      "type": "string",
+      "minLength": 1
+    },
+    "corrections": {
+      "type": "string",
+      "minLength": 1
+    },
+    "critiques": {
+      "type": "string",
+      "minLength": 1
+    },
+    "context_corrections": {
+      "type": "string",
+      "minLength": 1
+    },
+    "action_verbs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "extra_action_verb_forms": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "command_words": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "category",
+          "pattern",
+          "negatable",
+          "description"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "pattern": {
+            "type": "string",
+            "minLength": 1
+          },
+          "negatable": {
+            "type": "boolean"
+          },
+          "directive": {
+            "type": "boolean"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1
+          },
+          "negations": {
+            "type": "string",
+            "minLength": 1
+          },
+          "corrections": {
+            "type": "string",
+            "minLength": 1
+          },
+          "critiques": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "description": "One tripwire. negations, corrections and critiques override the document-level patterns for this rule only; directive defaults to false."
+      }
+    },
+    "directive_markers": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

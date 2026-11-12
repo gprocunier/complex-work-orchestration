@@ -262,13 +262,13 @@ def hooks(narrow):
 
 def contractors(narrow):
     nodes = {
-        'lead': ('Codex coordinates', ('Architecture + work graph', 'Limited scope per contractor')),
+        'lead': ('Lead coordinates', ('Architecture + work graph', 'Limited scope per contractor')),
         'prepare': ('Prepare briefs + branches', ('Preparation is not a call', 'Historical assignments below')),
-        'antigravity': ('Antigravity · documentation', ('Historical agy CLI work', 'Separate docs patch branch')),
-        'claude': ('Claude Code · Pages', ('Historical claude CLI work', 'Separate Pages patch branch')),
-        'integrate': ('Codex reviews + fixes', ('Fix attribution + paths', 'Prepare combined candidate')),
-        'validate': ('Codex validates', ('Check the integrated result', 'Not contractor confidence')),
-        'publication': ('Merge + publication', ('Historical Codex decision', 'No new permission implied')),
+        'antigravity': ('Task: documentation', ('Historical agy CLI work', 'Separate docs patch branch')),
+        'claude': ('Task: Pages', ('Historical claude CLI work', 'Separate Pages patch branch')),
+        'integrate': ('Lead reviews + fixes', ('Fix attribution + paths', 'Prepare combined candidate')),
+        'validate': ('Lead validates', ('Check the integrated result', 'Not contractor confidence')),
+        'publication': ('Merge + publication', ('Historical publication decision', 'No new permission implied')),
     }
     if narrow:
         pos = {key:(180,100+i*240) for i,key in enumerate(nodes)}

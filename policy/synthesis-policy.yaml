@@ -22,6 +22,16 @@
     "partial_only": ["missing", "empty", "timed-out"]
   },
   "salvage_only_provider_camps": ["google"],
+  "adjudication_authority": {
+    "rule_id": "synthesis-input-adjudication",
+    "description": "An adjudication record bound to the dispatch, return digest, exact candidate and scope may accept, accept with changes, reject or quarantine one evaluated return for synthesis use. Role labels on inputs grant nothing.",
+    "decisions": ["accepted", "accepted-with-changes", "rejected", "quarantined"],
+    "clearable_hold_reasons": [
+      "reviewer packet-only GO claim for merge/readiness requires architect adjudication"
+    ],
+    "clearable_hold_reason_prefixes": ["return-tripwire:"],
+    "not_clearable": "Peer-review, provider-conflict and risk-review holds clear only through a recorded peer review, not through adjudication."
+  },
   "partial_synthesis_policy": {
     "allow_partial": true,
     "minimum_usable_inputs": 2,

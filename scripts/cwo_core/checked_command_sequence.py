@@ -59,13 +59,17 @@ def _canonical_hash(value: Any) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
+def _supported_sequence_version(value: Any) -> bool:
+    return not isinstance(value, bool) and value == VERSION
+
+
 def normalize_sequence_spec(value: Any) -> dict[str, Any]:
     """Validate and normalize a checked-command sequence v1 specification."""
     if not isinstance(value, Mapping):
         raise ValueError("sequence spec must be a mapping")
     if set(value) != _SEQUENCE_FIELDS:
         raise ValueError(f"sequence spec must contain exact fields {sorted(_SEQUENCE_FIELDS)}")
-    if value["spec_type"] != SPEC_TYPE or value["version"] != VERSION:
+    if value["spec_type"] != SPEC_TYPE or not _supported_sequence_version(value["version"]):
         raise ValueError("unsupported checked-command sequence type or version")
 
     sequence_id = _strict_identifier(value["sequence_id"], "sequence_id")

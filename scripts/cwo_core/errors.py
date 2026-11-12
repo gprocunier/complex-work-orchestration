@@ -23,3 +23,11 @@ class CWOBoundaryError(CWOValidationError):
 
 class CWOBeadsError(CWOValidationError):
     """Raised when Beads-backed state cannot be read or validated."""
+
+
+class UnknownExecutorError(SystemExit):
+    """A requested executor is absent from a successfully loaded registry.
+
+    This remains a SystemExit for compatibility with direct policy callers;
+    malformed/unreadable policy and invalid alias graphs are not this category.
+    """

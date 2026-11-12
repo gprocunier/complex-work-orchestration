@@ -5,6 +5,8 @@ from typing import Any
 
 from .util import artifact_hash
 from .epic_convergence import CALL_CATEGORIES, GRAPH_COUNTER_FIELDS
+from .peer_review import peer_review_result_fields, validate_peer_review_request
+from .peer_review_identity import validate_separation
 
 
 TELEMETRY_NUMERIC_FIELDS = {
@@ -230,6 +232,7 @@ TELEMETRY_STRING_LIST_FIELDS = {
 }
 
 AUDIT_NUMERIC_FIELDS = {
+    "quarantine_file_count",
     "acceptance_score",
     "malpractice_score",
     "quota_remaining",
@@ -247,6 +250,16 @@ AUDIT_BOOLEAN_FIELDS = {
     "waiver_required",
 }
 AUDIT_STRING_FIELDS = {
+    "quarantine_transaction_id",
+    "quarantine_manifest_sha256",
+    "host_record_sha256",
+    "host_record_type",
+    "database_identity_sha256",
+    "acceptance_record_sha256",
+    "adjudication_record_sha256",
+    "host_control_id",
+    "return_sha256",
+    "evaluation_sha256",
     "audit_lock_mode",
     "bead_id",
     "dispatch_id",
@@ -516,6 +529,32 @@ def _sanitize_graph_counters(value: Any) -> dict[str, int | None] | None:
     return sanitized
 
 
+def _audit_peer_review_fields(event: dict[str, Any]) -> dict[str, Any]:
+    """Preserve the exact constrained pair, never normalize a bound identity."""
+    status = event.get("peer_review_status")
+    reviewer = event.get("peer_review_reviewer")
+    record = event.get("peer_review_record")
+    if status is None and reviewer is None and record is None:
+        return {}
+    record = validate_peer_review_request(status, reviewer, record)
+    if record is None:
+        return {}
+    separation = validate_separation(reviewer, event.get("peer_review_separation"))
+    return peer_review_result_fields(reviewer, record, separation)
+
+
+def _audit_database_identity_fields(value: Any) -> dict[str, Any]:
+    fields = {"database_id", "device", "inode", "owner", "mode"}
+    if type(value) is not dict or set(value) != fields:
+        return {}
+    identity = value["database_id"]
+    if type(identity) is not str or not 0 < len(identity) <= 256 or any(ord(c) < 32 for c in identity):
+        return {}
+    if not all(type(value[name]) is int and value[name] >= 0 for name in fields - {"database_id"}):
+        return {}
+    return {"database_identity": dict(value)} if value["mode"] <= 0o777 else {}
+
+
 def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
     sanitized: dict[str, Any] = {}
     for key, value in event.items():
@@ -603,6 +642,8 @@ def sanitize_audit_event(event: dict[str, Any]) -> dict[str, Any]:
         output_tokens = sanitized.get("output_tokens")
         if isinstance(input_tokens, (int, float)) and isinstance(output_tokens, (int, float)):
             sanitized["total_tokens"] = input_tokens + output_tokens
+    sanitized.update(_audit_peer_review_fields(event))
+    sanitized.update(_audit_database_identity_fields(event.get("database_identity")))
     return sanitized
 
 

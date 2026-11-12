@@ -14,6 +14,7 @@ from site_code import without_token_spans
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
 REPO_URL = "https://github.com/gprocunier/complex-work-orchestration"
+GITHUB_HOSTS = {"github.com", "www.github.com"}
 INCIDENT_PLAYBOOK_URL = f"{REPO_URL}/blob/main/references/incident-response-playbook.md"
 NATIVE_SUPERVISION_POOL_REFERENCE_URL = (
     f"{REPO_URL}/blob/main/references/native-supervision-pools.md"
@@ -372,12 +373,12 @@ def validate_html(path: Path) -> list[str]:
             ):
                 errors.append(f"{path.relative_to(ROOT)} links to non-source external URL: {href}")
             if (
-                "github.com" in parsed.netloc
+                parsed.hostname in GITHUB_HOSTS
                 and "/blob/main/" in parsed.path
                 and href not in SOURCE_BLOB_LINK_ALLOWLIST
             ):
                 errors.append(f"{path.relative_to(ROOT)} links to GitHub markdown/source blob instead of local docs: {href}")
-            if "github.com" in parsed.netloc and "/tree/main/" in parsed.path:
+            if parsed.hostname in GITHUB_HOSTS and "/tree/main/" in parsed.path:
                 errors.append(f"{path.relative_to(ROOT)} links to GitHub tree instead of local docs: {href}")
             continue
         if href.startswith("#"):

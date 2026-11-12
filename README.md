@@ -13,6 +13,92 @@ contributors. Using a model without guardrails is a choice to trust it implicitl
 Limit its access, check its work and keep consequential actions within your
 permissions. Guardrails reduce risk; they do not make the model trustworthy.
 
+## What CWO does today
+
+- **Plans before anyone edits.** Prompt Coach defines the result, sizes the job
+  and names the questions worth a second opinion. It does not call reviewers or
+  authorize implementation.
+- **Keeps the project record outside the conversation.** Beads holds tasks,
+  dependencies and accepted decisions, so a fresh session can continue after
+  compaction or a restart. It is a saved record, not perfect recall.
+- **Prepares focused review requests and checks the returns.** CWO builds and
+  validates request packets for approved cloud or local reviewers, then
+  normalizes and evaluates what comes back. In this version CWO does not send
+  them itself: local HTTP dispatch (`dispatch_work.py --execute-local`) and live
+  browser dispatch are disabled, so you send the exported request and bring the
+  response back.
+- **Defines supervision for delegated native work.** Live native launchers are
+  held in this release. In the supervision contract, the lead
+  checks the worker's recorded activity while it runs, and completion alone is
+  not acceptance. These checks are cooperative: the lead runs them, and nothing
+  stops a lead that skips one.
+- **Keeps delivered work open until it is accepted.** Delivered work is recorded
+  as `pending-acceptance` and the Bead stays open for you. Successful closure is
+  refused until CWO can verify the requirement baseline, the delivered candidate
+  and its evidence (issue #37).
+
+The [Limits](#limits) section lists what CWO does not do.
+
+## Setup
+
+Tested on Linux with Python 3.12 and 3.14. Other operating systems and
+interpreter versions are untested. You need an authenticated Codex CLI, Git and
+[Beads](https://github.com/gastownhall/beads). Keep three folders separate: the
+CWO source checkout, the installed skill and your target project. From the
+source checkout, following the
+[setup sequence](https://gprocunier.github.io/complex-work-orchestration/get-started.html#install):
+
+```bash
+./scripts/install.sh --yes --dry-run
+./scripts/install.sh --yes
+python3 scripts/check_installed_skill.py --check
+python3 scripts/manage_instruction_profile.py install --profile operator-e
+python3 scripts/manage_instruction_profile.py verify --profile operator-e
+```
+
+Then start a **fresh** session in your project with the named profile
+`cwo-sol-operator-e`:
+
+```bash
+cwo-codex -C "$PWD"
+# equivalent: codex --profile cwo-sol-operator-e -C "$PWD"
+```
+
+CWO uses a system prompt optimized for complex project work rather than the
+default OpenAI system prompt; the [CWO system prompt](references/cwo-system-prompt.md)
+explains its intended behavior, setup and limits, not measured superiority.
+The profile requests model `gpt-5.6-sol` and inherits reasoning effort from the
+host or user. The architect executor in `policy/execution-environments.yaml`
+binds `gpt-6.1-sol`; that route binding is separate from the bundled profile.
+Check the selected route and actual model/effort in the running session.
+Resuming an older conversation does not load that profile. Default profile
+settings remain intact; the installed CWO skill remains available in ordinary
+sessions until disabled or removed.
+
+CWO does not include model access; your account supplies it and its quota. Local
+task records do not mean prompts stay offline. Your configured model provider
+receives selected context. Additional outside review is off by default.
+
+## Example: one project across two fresh sessions
+
+This is recorded work, not an illustration. On October 15, 2026, two fresh
+named-profile sessions worked on the practice project, a small Python program
+that checks server names and port numbers:
+
+1. The first session repaired only the validator, saved its accepted decision
+   about boolean ports in Beads, and created a terminal-command task that
+   depends on the validator. The six original validator tests passed.
+2. The second session read the project files, `HANDOFF.md` and Beads, checked
+   the accepted validator behavior before editing, then added the command and
+   five subprocess tests. All eleven project tests passed in an independent run.
+
+Limits of this record: one configured Linux host and one existing account; not
+a novice study, benchmark or cost claim. The practice pages have since been
+split and have not had another full two-session model run, and that run
+predates the closure change, so the same work would now end at
+`pending-acceptance`. [Read the record](examples/first-project/VALIDATION.md)
+or [try the guided practice example](https://gprocunier.github.io/complex-work-orchestration/get-started.html).
+
 ## Plan across models, then supervise the work
 
 One lead coordinates approved cloud and open-weight contributors, compares their
@@ -25,17 +111,22 @@ contributions still need evidence checks and permitted access.
 [Explore the interactive architecture and zero-trust Review note](https://gprocunier.github.io/complex-work-orchestration/#ecosystem).
 The logos show model options, not endorsements or a qualification matrix.
 
-The next layer turns the plan into bounded assignments. Native supervision starts
-before dispatch and observes the work as it runs; completion alone is not
-acceptance. One worker is the default. Parallel work requires independent tasks,
-separate write ownership and an approved, qualified environment.
+The next layer turns the plan into bounded assignments. The native
+delegation contract sizes the task first and then selects a qualified exact worker:
+`gpt-5.6-luna` first, `gpt-5.6-terra` only with a recorded escalation.
+Parallel work requires independent tasks, separate write ownership and an
+approved, qualified environment.
 
 [![CWO delegation, fanout, live supervision and acceptance flow](docs/illustrations/supervised-delegation.svg)](https://gprocunier.github.io/complex-work-orchestration/#supervised-execution)
 
 [Read the delegation guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html).
-Concurrent native groups are an opt-in preview, currently up to three workers.
-Other review routes have separate contracts. These guardrails manage risk; they
-cannot make untrusted models inherently trustworthy or guarantee safety.
+The registered single-worker route, concurrent pools and live campaigns are
+unavailable in this release under default-off source holds. A qualified worker
+means an exact model, executable, configuration and enforced tool profile with
+matching observed capability evidence for the selected assignment. New worker-
+surface qualification is also held; existing receipts cannot restore a route.
+The pool contract bounds groups to three and additionally requires a trusted
+controller, which is not shipped.
 
 ### Plan your task with Prompt Coach
 
@@ -43,14 +134,9 @@ Start with [Prompt Coach](https://gprocunier.github.io/complex-work-orchestratio
 to define the result, size the whole job and decide which questions need another
 model. The lead drafts a plan; approved reviewers provide separate second
 opinions; synthesis turns supported findings into plan changes before execution.
-
-**Example: “retry twice” is not a complete plan.** A job-submission timeout may
-happen after the server creates the job. In the
-[planning example](https://gprocunier.github.io/complex-work-orchestration/model-synthesis.html#planning-example),
-a cloud reviewer challenges the retry assumption and a local vLLM reviewer raises
-restart behavior. The revised plan checks duplicate protection and adds lost-reply
-and restart tests before enabling retries. These are illustrative findings, not
-recorded model responses or proof that a model combination performs better.
+The [planning example](https://gprocunier.github.io/complex-work-orchestration/model-synthesis.html#planning-example)
+shows a retry plan revised after two reviews. Its findings are illustrative,
+not recorded model responses or proof that a model combination performs better.
 
 ## Keep project memory beyond the conversation
 
@@ -69,67 +155,12 @@ reports and the handoff remain in project files.
 After compaction or a restart, CWO reads the relevant records, checks the current
 checkout and remaining limits, and continues only permitted work. Accepted work
 is retained; a stopped attempt is not silently restarted. Missing or stale
-records need investigation—this is not perfect recall or automatic capture of
-every message. The diagram illustrates the workflow, not a new compaction trial.
+records need investigation. The diagram illustrates the workflow, not a new
+compaction trial.
 
 [What to save and how to recover](https://gprocunier.github.io/complex-work-orchestration/beads-memory.html#compaction).
 Local records are not remote backup; shared recovery needs separately configured
 and verified synchronization.
-
-## Put specialist findings to work
-
-- **Use local models as project reviewers.** Send a focused question to an approved
-  private endpoint, including OpenShift AI vLLM. CWO records the request and applies
-  the selected route's response checks before evaluation.
-  [Use a local reviewer](https://gprocunier.github.io/complex-work-orchestration/local-workers.html).
-- **Investigate disagreement rather than averaging it away.** Preserve separate
-  findings and their evidence. When structured comparison is needed, invoke CWO's
-  comparison API with explicit claims, then check the disputed behavior.
-  [Inspect the comparison test](https://gprocunier.github.io/complex-work-orchestration/zero-trust-consensus.html#tested-example).
-- **Continue from the accepted decision.** Retain requirements, actual checks,
-  unresolved risks and the permitted next task alongside the work.
-  [Continue in a fresh session](https://gprocunier.github.io/complex-work-orchestration/continue-project.html).
-
-Local review does not make a cloud session offline. Different models may contribute
-useful findings, but more models do not guarantee better answers. Structured
-cross-return comparison is explicitly invoked; it is not an automatic gate on
-every call. [How CWO fits the ecosystem](https://gprocunier.github.io/complex-work-orchestration/explanation.html#ecosystem).
-
-## Preserve the project requirements when work changes
-
-- **Keep evaluations comparable.** Save the test cases, scoring and selection rule
-  before comparing approaches. Repair a broken runner without quietly making the
-  test easier. CWO's protocol validator checks recorded fields when invoked; it
-  cannot detect every unrecorded change in intent.
-- **Account for failed attempts.** Preserve the failure, inspect files and cleanup,
-  and account for allowance already used. Continue unrelated work only when it is
-  still permitted and its own checks pass; do not silently restart an attempt that has already ended and used its allowance.
-
-[Use CWO on your project](https://gprocunier.github.io/complex-work-orchestration/workflows.html#operator)
-or [add CWO to Codex](https://gprocunier.github.io/complex-work-orchestration/install.html).
-New to project agents? [Try the guided practice example](https://gprocunier.github.io/complex-work-orchestration/get-started.html).
-
-## Inspect the implementation and recorded work
-
-**Repository component tests, using authored inputs:**
-[local-response checks](https://gprocunier.github.io/complex-work-orchestration/use-cases.html#local-review-checks)
-show usable and rejected responses; [structured claim comparison](https://gprocunier.github.io/complex-work-orchestration/use-cases.html#claim-comparison)
-retains conflicting encryption claims without deciding which is true. These are
-existing tests, not live provider conversations or endpoint qualification.
-
-**Recorded agent work:** a [configuration-validator exercise across two fresh sessions](examples/first-project/VALIDATION.md)
-fixed a Python program that checks server names and port numbers, then added
-a terminal command without changing those validation rules; eleven project
-tests passed. A separate [documentation-command review](examples/release-readiness/RECORD.md) found an
-encoding failure the first eight tests missed. The lead reproduced it, fixed JSON
-escaping and added a real subprocess regression. These small cases demonstrate
-review and continuation—not native concurrency or comparative productivity. The
-current split tutorial has not had another full two-session model run.
-
-**Designs to adapt, not completed demonstrations:**
-[compare converters against unchanged requirements](https://gprocunier.github.io/complex-work-orchestration/use-cases.html#migration-evaluation)
-and [avoid duplicate jobs when retrying](https://gprocunier.github.io/complex-work-orchestration/use-cases.html#retry-decision).
-Each identifies the work and checks an integrated demonstration would need.
 
 ## Match coordination to the task
 
@@ -137,6 +168,21 @@ A small edit may need one lead and focused validation. Add saved dependencies,
 specialist reviews, supervised delegation and handoffs when later work depends
 on earlier decisions or another session must continue the project. Assignments,
 records, specialist calls and repeated checks consume time and model quota.
+
+- **Narrow fix:** one Bead created with `bd create`, worked in the lead's
+  thread.
+- **Tight chain:** `python3 scripts/scaffold_workgraph.py --title "<goal>"
+  --description "<scope>" --scaffold-size tight`. It drops optional specialist
+  review lanes only; required evaluation, peer review, editorial gates, publish
+  sanitization, risk-required experts and named architecture critics stay.
+- **Full graph:** the same command without `--scaffold-size`, for broad, risky,
+  multi-lane, reviewed or release-sensitive work.
+
+Both graph sizes put implementation and docs before validation and the other
+final checks, and the wrap-up report and handoff after the last of them. No
+smaller scaffold tier is available: `--scaffold-size` accepts only `full` and
+`tight`, and a request that asks for a "minimal scaffold" gets the tight chain.
+[Scaffold sizes](references/prompt-coach.md#scaffold-size).
 
 Using fewer coordination steps does not remove the need for access limits and
 evidence checks. Every model remains untrusted, including the lead. Check its
@@ -146,42 +192,95 @@ Codex already plans, edits, uses tools and can delegate. Beads stores task state
 CWO connects them through project instructions, saved decisions, evidence checks
 and supervised delegation on supported routes. Some safeguards are code; others
 are instructions. Neither replaces the host's tool permissions or sandbox.
-[Understand these limits](https://gprocunier.github.io/complex-work-orchestration/explanation.html).
 
-## Setup
+## Limits
 
-You need an authenticated Codex CLI, Python 3, Git and
-[Beads](https://github.com/gastownhall/beads). Follow the
-[setup sequence](https://gprocunier.github.io/complex-work-orchestration/get-started.html#install)
-to keep the source checkout, installed skill and target project separate.
-Install and verify the named operator profile, then start a **fresh** session.
-Resuming an older conversation does not load that profile. Default profile settings
-remain intact; the installed CWO skill remains available in ordinary sessions
-until disabled or removed.
+- **Checks are cooperative.** Helper gates refuse when they are invoked and
+  their inputs fail; supervision checks classify a worker's recorded activity
+  when the lead runs them. Neither stops a lead that skips them.
+- **No boundary of its own.** CWO works inside whatever sandbox and approval
+  policy the host is configured with. A lead launched with Codex `--yolo` has
+  those checks disabled, and CWO supplies nothing in their place.
+- **Disabled in this version:** local HTTP dispatch, live browser dispatch and
+  browser model confirmation; registered native single-worker, pool and
+  campaign live routes; new worker-surface qualification; live native activation
+  (`run_native_pool_activation_preview.py run --enable-tech-preview`);
+  successful closure; risk narrowing (`--risk-scope` and `--risk-evidence-dir`
+  are refused); ordinary productive pool plans; and process termination by
+  `cleanup_stale_agents.py`, which only detects and prunes records.
+- **Records are evidence, not proof of origin.** Content digests and packet
+  `attestation` values identify exact bytes; they do not authenticate who
+  produced them. The configured host audit checks retained events, links, a
+  private head checkpoint and ordered segment seals. History inconsistent with
+  that retained checkpoint refuses verification. Custom legacy diagnostic logs
+  lack that checkpoint. A same-account writer can erase the state or rewrite
+  and rehash the chain and checkpoint; neither path authenticates the operator
+  or has an external anchor.
+- **More models do not mean better answers.** Different models may contribute
+  useful findings, but agreement is not validation, and a local reviewer does
+  not make a cloud session offline. Structured cross-return comparison runs
+  only when explicitly invoked.
 
-CWO does not include model access; your account supplies it and its quota. Local
-task records do not mean prompts stay offline. Your configured model provider
-receives selected context. Additional outside review is off by default.
+The [claims register](references/claims-register.md) maps each safety claim to
+its mechanism and limit. [Understand these limits](https://gprocunier.github.io/complex-work-orchestration/explanation.html).
 
-## Status and detailed controls
+## Glossary
+
+- **Lead:** the main Codex session running CWO. It plans, coordinates and
+  records decisions, and its work needs checks too.
+- **Worker:** a delegated session given one bounded assignment. A native worker
+  is another Codex agent. Supervision is required: the lead must invoke the
+  cooperative checks that classify a worker's recorded activity.
+- **Reviewer:** a cloud or local model asked a focused question. Its return is
+  evidence for the lead, not a decision.
+- **Bead:** one task record in Beads (the `bd` command), with its dependencies,
+  notes and closure record.
+- **Scaffold:** the linked set of Beads that `scaffold_workgraph.py` creates for
+  a job (the tight chain or the full graph).
+- **Route:** the classification `route_work.py` assigns, such as `in-thread`,
+  `internal-worker`, `local-worker` or `external-contract`. It sets required reviews and gates; it
+  does not grant permission to dispatch.
+- **Adjudication:** the lead's recorded decision on a return after evaluation,
+  for example to accept it, accept it with changes or reject it.
+- **Acceptance:** verified agreement that delivered work meets the recorded
+  requirements. `pending-acceptance` means delivered and not yet accepted.
+- **Operator continuation packet:** the handoff block every closeout includes,
+  from `templates/operator-handoff-packet.md`.
+- **Luna, Terra, Sol, Spark:** model names in the routing policy.
+  `gpt-5.6-luna` is the first choice for native workers, `gpt-5.6-terra` needs a
+  recorded escalation, the bundled profile requests `gpt-5.6-sol` while the policy architect executor
+  binds `gpt-6.1-sol`, and
+  `gpt-5.3-codex-spark` appears only in historical records.
+
+## More detail
+
+<a id="put-specialist-findings-to-work"></a>
+<a id="preserve-the-project-requirements-when-work-changes"></a>
+<a id="inspect-the-implementation-and-recorded-work"></a>
+
+- [Reviews, requirements and recorded work](references/reviews-and-requirements.md):
+  local reviewers, disagreement, unchanged evaluation requirements, failed
+  attempts, component tests and recorded examples. Former sections [Put specialist
+  findings to work](references/reviews-and-requirements.md#put-specialist-findings-to-work),
+  [Preserve the project requirements when work changes](references/reviews-and-requirements.md#preserve-the-project-requirements-when-work-changes),
+  and [Check examples against their evidence](references/reviews-and-requirements.md#check-examples-against-their-evidence)
+  are now in this reference.
+- [Use CWO on your project](https://gprocunier.github.io/complex-work-orchestration/workflows.html#operator)
+  and [Reference and troubleshooting](https://gprocunier.github.io/complex-work-orchestration/reference.html)
+  for the exact installation, update, policy and recovery instructions.
+- [Security policy](SECURITY.md) · [Threat model](references/security-threat-model.md)
+  · [Documentation maintenance](CONTRIBUTING.md).
+
+<a id="status-and-detailed-controls"></a>
+
+## Status
 
 CWO is a development-stage public skill package. See [VERSION](VERSION) and
 [CHANGELOG](CHANGELOG.md); neither implies a Git tag or a deployed site version.
-
-- CWO uses a system prompt optimized for complex project work rather than the
-  default OpenAI system prompt. The [CWO system prompt](references/cwo-system-prompt.md)
-  explains its intended behavior, setup and limits—not measured superiority.
-- Current native delegation sizes the task before selecting a qualified exact
-  Luna worker; Terra requires a recorded escalation. Historical Spark records do
-  not approve new dispatches. [Delegation guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html).
-- Concurrent native work is a host-qualified preview for fixed groups, not a
-  setup requirement or proof that this session can run several workers.
-- Outside review, local models and alternate agent tools are optional.
-  Each needs its own access, permission and availability checks.
-- [Reference and troubleshooting](https://gprocunier.github.io/complex-work-orchestration/reference.html)
-  links the exact installation, update, policy and recovery instructions.
-- [Security policy](SECURITY.md) · [Threat model](references/security-threat-model.md)
-  · [Documentation maintenance](CONTRIBUTING.md).
+Historical Spark records do not approve new dispatches. Concurrent native work
+is unavailable in this release; the capacity contract does not approve a launch. Outside review, local models and
+alternate agent tools are optional, and each needs its own access, permission
+and availability checks.
 
 Code is licensed under [GPL-3.0](LICENSE). Passing local checks does not authorize
 committing, pushing, deployment or changing a live skill installation.

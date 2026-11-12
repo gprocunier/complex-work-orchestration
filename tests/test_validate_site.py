@@ -5,6 +5,9 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from typing import Iterator, NamedTuple
+from tests.structural_assertions import Check, assert_checks
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
@@ -13,6 +16,155 @@ from validate_site import validate_html, ONBOARDING_STEPS, ONBOARDING_PAGE_STEPS
 
 def internal_copy_errors(errors: list[str]) -> list[str]:
     return [error for error in errors if "internal label" in error or "internal editorial wording" in error]
+
+
+class SiteSnippetCase(NamedTuple):
+    original: str
+    page: str
+    markup: str
+    options: dict
+    checks: tuple[Check, ...]
+
+
+def _site_snippet_rows() -> Iterator[SiteSnippetCase]:
+    yield SiteSnippetCase('test_rejects_contract_label_in_public_narrative', "workflows.html", "<section id='flow'><p>Use <code>contract-jd-editorial-reasoning</code> before publish.</p></section>", {}, (
+        Check(lambda result: any(('contract-jd-editorial-reasoning' in error for error in internal_copy_errors(result))), None, 'true'),
+    ))
+
+    yield SiteSnippetCase('test_rejects_editor_gate_monologue_in_public_narrative', "workflows.html", "<section id='flow'><p><strong>Editor gate:</strong> check AI-slop wording.</p></section>", {}, (
+        Check(lambda result: '\n'.join(internal_copy_errors(result)), 'Editor gate:', 'contains'),
+        Check(lambda result: '\n'.join(internal_copy_errors(result)), 'AI-slop wording', 'contains'),
+    ))
+
+    phrase = "Publication" + " gate"
+    yield SiteSnippetCase('test_rejects_publication_gate_monologue_in_public_narrative', "workflows.html", f"<section id='flow'><p><strong>{phrase}:</strong> run the first-reader walkthrough.</p></section>", {}, (
+        Check(lambda result: '\n'.join(internal_copy_errors(result)), phrase, 'contains'),
+    ))
+
+    phrase = "documentation" + " commit"
+    yield SiteSnippetCase('test_rejects_publication_rollback_monologue_in_public_narrative', "workflows.html", f"<section id='flow'><p><strong>Rollback:</strong> <code>git revert</code> the {phrase}, then start a fresh Pages deployment to restore the prior published copy.</p></section>", {}, (
+        Check(lambda result: '\n'.join(result), phrase, 'contains'),
+        Check(lambda result: '\n'.join(result), 'fresh Pages deployment', 'contains'),
+        Check(lambda result: '\n'.join(result), 'prior published copy', 'contains'),
+    ))
+
+    yield SiteSnippetCase('test_allows_specific_operational_rollback_guidance', "workflows.html", "<section id='flow'><p>Revert the documentation commit if its generated links fail validation. Start a fresh Pages deployment after the corrected source passes.</p></section>", {}, (
+        Check(lambda result: internal_copy_errors(result), []),
+    ))
+
+    yield SiteSnippetCase('test_rejects_design_source_as_public_reference_copy', "index.html", "<section id='reference'><p><a href='https://ux.redhat.com/'>Red Hat UX reference for the public docs site</a></p></section>", {}, (
+        Check(lambda result: '\n'.join(result), 'Red Hat UX reference', 'contains'),
+        Check(lambda result: '\n'.join(result), 'non-source external URL', 'contains'),
+    ))
+
+    url = (
+        "https://github.com/gprocunier/complex-work-orchestration/"
+        "blob/main/references/native-supervision-pools.md"
+    )
+    yield SiteSnippetCase('test_allows_native_supervision_operator_source_link', "workflows.html", f"<section id='preview'><p><a href='{url}'>Operator reference</a></p></section>", {}, (
+        Check(lambda result: any(('non-source external URL' in error for error in result)), None, 'false', message=lambda result: result),
+        Check(lambda result: any(('GitHub markdown/source blob' in error for error in result)), None, 'false', message=lambda result: result),
+    ))
+
+    url = (
+        "https://github.com/gprocunier/complex-work-orchestration/"
+        "blob/main/references/native-supervision.md"
+    )
+    yield SiteSnippetCase('test_allows_single_worker_supervision_operator_source_link', "native-supervision.html", f"<section id='reference'><p><a href='{url}'>Operator reference</a></p></section>", {}, (
+        Check(lambda result: any(('non-source external URL' in error for error in result)), None, 'false', message=lambda result: result),
+        Check(lambda result: any(('GitHub markdown/source blob' in error for error in result)), None, 'false', message=lambda result: result),
+    ))
+
+    yield SiteSnippetCase('test_rejects_duplicate_h1_and_ids', "workflows.html", "<section id='repeat'><h1>Second</h1></section><section id='repeat'></section>", {}, (
+        Check(lambda result: '\n'.join(result), 'must contain exactly one h1; found 2', 'contains'),
+        Check(lambda result: '\n'.join(result), 'contains duplicate id: repeat', 'contains'),
+    ))
+
+    yield SiteSnippetCase('test_rejects_repository_file_outside_pages_publication_root', "workflows.html", '<a href="../SECURITY.md">Security</a>', {}, (
+        Check(lambda result: any(('leaves published docs directory' in e for e in result)), None, 'true', message=lambda result: result),
+    ))
+
+    url = (
+        "https://github.com/gprocunier/complex-work-orchestration/"
+        "blob/main/references/unapproved.md"
+    )
+    yield SiteSnippetCase('test_rejects_unapproved_operator_source_blob', "workflows.html", f"<section id='preview'><p><a href='{url}'>Unapproved source</a></p></section>", {}, (
+        Check(lambda result: '\n'.join(result), 'non-source external URL', 'contains'),
+        Check(lambda result: '\n'.join(result), 'GitHub markdown/source blob', 'contains'),
+    ))
+
+    yield SiteSnippetCase('test_rejects_contractor_authority_public_copy', "use-cases.html", "<section id='fit'><p>Outside models can approve implementation when they agree.</p></section>", {}, (
+        Check(lambda result: '\n'.join(internal_copy_errors(result)), 'Outside models can approve', 'contains'),
+    ))
+
+    yield SiteSnippetCase('test_rejects_codex_required_public_copy', "workflows.html", "<section id='fit'><p>CWO requires Codex CLI for every execution path.</p></section>", {}, (
+        Check(lambda result: '\n'.join(internal_copy_errors(result)), 'CWO requires Codex CLI', 'contains'),
+    ))
+
+    yield SiteSnippetCase('test_rejects_raw_beads_comment_disclosure_copy', "external-contracting.html", "<section id='boundary'><p>Operators may send raw Beads comments to reviewers.</p></section>", {}, (
+        Check(lambda result: '\n'.join(internal_copy_errors(result)), 'send raw Beads comments', 'contains'),
+    ))
+
+    yield SiteSnippetCase('test_allows_contract_label_in_pre_code_block', "workflows.html", "<section id='flow'><pre><code>contract-jd-editorial-reasoning</code></pre></section>", {}, (
+        Check(lambda result: internal_copy_errors(result), []),
+    ))
+
+    yield SiteSnippetCase('test_allows_contract_label_on_reference_page', "reference.html", "<section id='experts'><p><code>contract-jd-editorial-reasoning</code> is an operator label.</p></section>", {}, (
+        Check(lambda result: internal_copy_errors(result), []),
+    ))
+
+    yield SiteSnippetCase('test_rejects_advanced_terms_before_index_novice_ramp', "index.html", """
+<section id="top"><p>Beads, model synthesis, sabotage, malpractice, quarantine, and adjudication make this powerful.</p></section>
+<section id="walk"><p>Now explain the ramp.</p></section>
+<a href="./workflows.html">Workflows</a>
+<a href="./use-cases.html">Examples</a>
+<a href="./explanation.html">Concepts</a>
+<a href="./native-supervision.html">Native Supervision</a>
+<a href="./beads-memory.html">Beads Memory</a>
+<a href="./model-synthesis.html">Model Synthesis</a>
+<a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
+<a href="./malpractice-sabotage.html">Guardrails</a>
+<a href="./reference.html">Reference</a>
+<a href="./contractor-demo.html">Demo</a>
+<a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+""", {}, (
+        Check(lambda result: '\n'.join(result), 'advanced term before novice ramp: Beads', 'contains'),
+        Check(lambda result: '\n'.join(result), 'advanced term before novice ramp: synthesis', 'contains'),
+        Check(lambda result: '\n'.join(result), 'advanced term before novice ramp: sabotage', 'contains'),
+        Check(lambda result: '\n'.join(result), 'advanced term before novice ramp: malpractice', 'contains'),
+        Check(lambda result: '\n'.join(result), 'advanced term before novice ramp: quarantine', 'contains'),
+        Check(lambda result: '\n'.join(result), 'advanced term before novice ramp: adjudication', 'contains'),
+    ))
+
+    yield SiteSnippetCase('test_index_requires_expert_routes', "index.html", """
+<section id="top"><p>Shell work should be recoverable.</p></section>
+<section id="walk"><p>Now explain the ramp.</p></section>
+""", {}, (
+        Check(lambda result: '\n'.join(result), 'missing expert route link: ./workflows.html', 'contains'),
+        Check(lambda result: '\n'.join(result), 'missing expert route link: ./use-cases.html', 'contains'),
+        Check(lambda result: '\n'.join(result), 'missing expert route link: ./explanation.html', 'contains'),
+        Check(lambda result: '\n'.join(result), 'missing expert route link: ./reference.html', 'contains'),
+    ))
+
+    yield SiteSnippetCase('test_allows_plain_index_opening_before_walk', "index.html", """
+<section id="top"><p>Turn AI coding sessions into work you can resume, review, test, and trust.</p></section>
+<section id="crawl"><p>A web chat answers questions. A coding shell works in the project.</p></section>
+<section id="walk"><p>Now introduce the workflow.</p></section>
+<a href="./workflows.html">Workflows</a>
+<a href="./use-cases.html">Examples</a>
+<a href="./explanation.html">Concepts</a>
+<a href="./native-supervision.html">Native Supervision</a>
+<a href="./beads-memory.html">Beads Memory</a>
+<a href="./model-synthesis.html">Model Synthesis</a>
+<a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
+<a href="./malpractice-sabotage.html">Guardrails</a>
+<a href="./reference.html">Reference</a>
+<a href="./contractor-demo.html">Demo</a>
+<a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
+""", {}, (
+        Check(lambda result: any(('advanced term before novice ramp' in error for error in result)), None, 'false'),
+        Check(lambda result: any(('missing expert route link' in error for error in result)), None, 'false'),
+    ))
 
 
 class ValidateSiteTests(unittest.TestCase):
@@ -38,90 +190,12 @@ class ValidateSiteTests(unittest.TestCase):
             )
             return validate_html(path)
 
-    def test_rejects_contract_label_in_public_narrative(self) -> None:
-        errors = self.validate_snippet(
-            "workflows.html",
-            "<section id='flow'><p>Use <code>contract-jd-editorial-reasoning</code> before publish.</p></section>",
-        )
-        self.assertTrue(any("contract-jd-editorial-reasoning" in error for error in internal_copy_errors(errors)))
+    def test_site_snippet_validation_rows(self) -> None:
+        for row in _site_snippet_rows():
+            with self.subTest(original=row.original):
+                result = self.validate_snippet(row.page, row.markup, **row.options)
+                assert_checks(self, result, row.checks)
 
-    def test_rejects_editor_gate_monologue_in_public_narrative(self) -> None:
-        errors = self.validate_snippet(
-            "workflows.html",
-            "<section id='flow'><p><strong>Editor gate:</strong> check AI-slop wording.</p></section>",
-        )
-        rendered = "\n".join(internal_copy_errors(errors))
-        self.assertIn("Editor gate:", rendered)
-        self.assertIn("AI-slop wording", rendered)
-
-    def test_rejects_publication_gate_monologue_in_public_narrative(self) -> None:
-        phrase = "Publication" + " gate"
-        errors = self.validate_snippet(
-            "workflows.html",
-            f"<section id='flow'><p><strong>{phrase}:</strong> run the first-reader walkthrough.</p></section>",
-        )
-        rendered = "\n".join(internal_copy_errors(errors))
-        self.assertIn(phrase, rendered)
-
-    def test_rejects_publication_rollback_monologue_in_public_narrative(self) -> None:
-        phrase = "documentation" + " commit"
-        errors = self.validate_snippet(
-            "workflows.html",
-            f"<section id='flow'><p><strong>Rollback:</strong> <code>git revert</code> the {phrase}, then start a fresh Pages deployment to restore the prior published copy.</p></section>",
-        )
-        rendered = "\n".join(errors)
-        self.assertIn(phrase, rendered)
-        self.assertIn("fresh Pages deployment", rendered)
-        self.assertIn("prior published copy", rendered)
-
-    def test_allows_specific_operational_rollback_guidance(self) -> None:
-        errors = self.validate_snippet(
-            "workflows.html",
-            "<section id='flow'><p>Revert the documentation commit if its generated links fail validation. Start a fresh Pages deployment after the corrected source passes.</p></section>",
-        )
-        self.assertEqual(internal_copy_errors(errors), [])
-
-    def test_rejects_design_source_as_public_reference_copy(self) -> None:
-        errors = self.validate_snippet(
-            "index.html",
-            "<section id='reference'><p><a href='https://ux.redhat.com/'>Red Hat UX reference for the public docs site</a></p></section>",
-        )
-        rendered = "\n".join(errors)
-        self.assertIn("Red Hat UX reference", rendered)
-        self.assertIn("non-source external URL", rendered)
-
-    def test_allows_native_supervision_operator_source_link(self) -> None:
-        url = (
-            "https://github.com/gprocunier/complex-work-orchestration/"
-            "blob/main/references/native-supervision-pools.md"
-        )
-        errors = self.validate_snippet(
-            "workflows.html",
-            f"<section id='preview'><p><a href='{url}'>Operator reference</a></p></section>",
-        )
-        self.assertFalse(any("non-source external URL" in error for error in errors), errors)
-        self.assertFalse(any("GitHub markdown/source blob" in error for error in errors), errors)
-
-    def test_allows_single_worker_supervision_operator_source_link(self) -> None:
-        url = (
-            "https://github.com/gprocunier/complex-work-orchestration/"
-            "blob/main/references/native-supervision.md"
-        )
-        errors = self.validate_snippet(
-            "native-supervision.html",
-            f"<section id='reference'><p><a href='{url}'>Operator reference</a></p></section>",
-        )
-        self.assertFalse(any("non-source external URL" in error for error in errors), errors)
-        self.assertFalse(any("GitHub markdown/source blob" in error for error in errors), errors)
-
-    def test_rejects_duplicate_h1_and_ids(self) -> None:
-        errors = self.validate_snippet(
-            "workflows.html",
-            "<section id='repeat'><h1>Second</h1></section><section id='repeat'></section>",
-        )
-        rendered = "\n".join(errors)
-        self.assertIn("must contain exactly one h1; found 2", rendered)
-        self.assertIn("contains duplicate id: repeat", rendered)
 
     def test_rejects_missing_cross_page_fragment(self) -> None:
         with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
@@ -166,87 +240,6 @@ class ValidateSiteTests(unittest.TestCase):
             errors = self.validate_snippet("workflows.html", f'<a href="{url}">Prerequisites</a>')
             self.assertEqual(any("non-source external URL" in e for e in errors), not allowed, errors)
 
-    def test_rejects_repository_file_outside_pages_publication_root(self) -> None:
-        errors = self.validate_snippet("workflows.html", '<a href="../SECURITY.md">Security</a>')
-        self.assertTrue(any("leaves published docs directory" in e for e in errors), errors)
-
-    def test_rejects_unapproved_operator_source_blob(self) -> None:
-        url = (
-            "https://github.com/gprocunier/complex-work-orchestration/"
-            "blob/main/references/unapproved.md"
-        )
-        errors = self.validate_snippet(
-            "workflows.html",
-            f"<section id='preview'><p><a href='{url}'>Unapproved source</a></p></section>",
-        )
-        rendered = "\n".join(errors)
-        self.assertIn("non-source external URL", rendered)
-        self.assertIn("GitHub markdown/source blob", rendered)
-
-    def test_rejects_contractor_authority_public_copy(self) -> None:
-        errors = self.validate_snippet(
-            "use-cases.html",
-            "<section id='fit'><p>Outside models can approve implementation when they agree.</p></section>",
-        )
-        rendered = "\n".join(internal_copy_errors(errors))
-        self.assertIn("Outside models can approve", rendered)
-
-    def test_rejects_codex_required_public_copy(self) -> None:
-        errors = self.validate_snippet(
-            "workflows.html",
-            "<section id='fit'><p>CWO requires Codex CLI for every execution path.</p></section>",
-        )
-        rendered = "\n".join(internal_copy_errors(errors))
-        self.assertIn("CWO requires Codex CLI", rendered)
-
-    def test_rejects_raw_beads_comment_disclosure_copy(self) -> None:
-        errors = self.validate_snippet(
-            "external-contracting.html",
-            "<section id='boundary'><p>Operators may send raw Beads comments to reviewers.</p></section>",
-        )
-        rendered = "\n".join(internal_copy_errors(errors))
-        self.assertIn("send raw Beads comments", rendered)
-
-    def test_allows_contract_label_in_pre_code_block(self) -> None:
-        errors = self.validate_snippet(
-            "workflows.html",
-            "<section id='flow'><pre><code>contract-jd-editorial-reasoning</code></pre></section>",
-        )
-        self.assertEqual(internal_copy_errors(errors), [])
-
-    def test_allows_contract_label_on_reference_page(self) -> None:
-        errors = self.validate_snippet(
-            "reference.html",
-            "<section id='experts'><p><code>contract-jd-editorial-reasoning</code> is an operator label.</p></section>",
-        )
-        self.assertEqual(internal_copy_errors(errors), [])
-
-    def test_rejects_advanced_terms_before_index_novice_ramp(self) -> None:
-        errors = self.validate_snippet(
-            "index.html",
-            """
-<section id="top"><p>Beads, model synthesis, sabotage, malpractice, quarantine, and adjudication make this powerful.</p></section>
-<section id="walk"><p>Now explain the ramp.</p></section>
-<a href="./workflows.html">Workflows</a>
-<a href="./use-cases.html">Examples</a>
-<a href="./explanation.html">Concepts</a>
-<a href="./native-supervision.html">Native Supervision</a>
-<a href="./beads-memory.html">Beads Memory</a>
-<a href="./model-synthesis.html">Model Synthesis</a>
-<a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
-<a href="./malpractice-sabotage.html">Guardrails</a>
-<a href="./reference.html">Reference</a>
-<a href="./contractor-demo.html">Demo</a>
-<a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-""",
-        )
-        rendered = "\n".join(errors)
-        self.assertIn("advanced term before novice ramp: Beads", rendered)
-        self.assertIn("advanced term before novice ramp: synthesis", rendered)
-        self.assertIn("advanced term before novice ramp: sabotage", rendered)
-        self.assertIn("advanced term before novice ramp: malpractice", rendered)
-        self.assertIn("advanced term before novice ramp: quarantine", rendered)
-        self.assertIn("advanced term before novice ramp: adjudication", rendered)
 
     def test_beads_definition_is_allowed_only_in_the_named_memory_section(self) -> None:
         definition = "<strong>Beads is the task database CWO uses for durable project memory.</strong>"
@@ -279,43 +272,6 @@ class ValidateSiteTests(unittest.TestCase):
             with self.subTest(url=url):
                 errors = self.validate_snippet('reference.html', f'<a href="{url}">Beads</a>')
                 self.assertEqual(any('non-source external URL' in e for e in errors), not allowed, errors)
-
-    def test_index_requires_expert_routes(self) -> None:
-        errors = self.validate_snippet(
-            "index.html",
-            """
-<section id="top"><p>Shell work should be recoverable.</p></section>
-<section id="walk"><p>Now explain the ramp.</p></section>
-""",
-        )
-        rendered = "\n".join(errors)
-        self.assertIn("missing expert route link: ./workflows.html", rendered)
-        self.assertIn("missing expert route link: ./use-cases.html", rendered)
-        self.assertIn("missing expert route link: ./explanation.html", rendered)
-        self.assertIn("missing expert route link: ./reference.html", rendered)
-
-    def test_allows_plain_index_opening_before_walk(self) -> None:
-        errors = self.validate_snippet(
-            "index.html",
-            """
-<section id="top"><p>Turn AI coding sessions into work you can resume, review, test, and trust.</p></section>
-<section id="crawl"><p>A web chat answers questions. A coding shell works in the project.</p></section>
-<section id="walk"><p>Now introduce the workflow.</p></section>
-<a href="./workflows.html">Workflows</a>
-<a href="./use-cases.html">Examples</a>
-<a href="./explanation.html">Concepts</a>
-<a href="./native-supervision.html">Native Supervision</a>
-<a href="./beads-memory.html">Beads Memory</a>
-<a href="./model-synthesis.html">Model Synthesis</a>
-<a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
-<a href="./malpractice-sabotage.html">Guardrails</a>
-<a href="./reference.html">Reference</a>
-<a href="./contractor-demo.html">Demo</a>
-<a href="https://github.com/gprocunier/complex-work-orchestration">GitHub</a>
-""",
-        )
-        self.assertFalse(any("advanced term before novice ramp" in error for error in errors))
-        self.assertFalse(any("missing expert route link" in error for error in errors))
 
 
 if __name__ == "__main__":

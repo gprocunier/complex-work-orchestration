@@ -15,6 +15,7 @@ from tests.test_run_native_pool_live_canaries import (
     FakeCalibrationServer,
     FakeElapsedClock,
     LIVE,
+    TRANSPORT,
 )
 
 
@@ -610,7 +611,8 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
             self.assertEqual(located.store, "archived_sessions")
             self.assertEqual(located.source_identity_sha256, source_identity)
 
-    def test_app_server_child_and_control_artifacts_are_private(self) -> None:
+    def test_r5_f5_held_route_fake_app_server_child_and_control_artifacts_are_private(self) -> None:
+        self.enterContext(mock.patch.object(LIVE.live_availability, 'N1_LIVE_AVAILABLE', True))
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             process = mock.Mock()
@@ -621,7 +623,7 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
             with mock.patch.dict(
                 os.environ, {"CODEX_HOME": str(root / "codex-home")}
             ), mock.patch.object(
-                LIVE, "_codex_binary", return_value=root / "codex"
+                TRANSPORT, "_codex_binary", return_value=root / "codex"
             ), mock.patch.object(
                 LIVE.subprocess, "Popen", return_value=process
             ) as popen, mock.patch.object(
@@ -631,7 +633,7 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
                 "request",
                 return_value=({"codexHome": str(root / "codex-home")}, 1.0),
             ), mock.patch.object(LIVE.AppServer, "notify"):
-                LIVE.AppServer()
+                LIVE.AppServer(executable=root / "codex", codex_home=root / "codex-home")
             self.assertEqual(popen.call_args.kwargs["umask"], 0o077)
             self.assertEqual(
                 popen.call_args.kwargs["env"]["CODEX_HOME"], str(root / "codex-home")
@@ -647,6 +649,7 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
 
 class Generation12CalibrationRecoveryTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.enterContext(mock.patch.object(LIVE.live_availability, 'N1_LIVE_AVAILABLE', True))
         patcher = mock.patch.object(
             LIVE,
             "_measure_action_ms",
@@ -993,46 +996,6 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                 first["source_identity_sha256"], r"^[0-9a-f]{64}$"
             )
 
-    def test_fault_boundary_still_rejects_partial_bytes_and_activity(self) -> None:
-        for kind, expected in (
-            ("partial", "trailing partial record"),
-            ("activity", "operative-activity-observed-at-fault"),
-        ):
-            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
-                root = Path(temporary)
-                if kind == "activity":
-                    server = OperativeActivityAtFaultServer(
-                        root,
-                        read_faults={1: ("thread/read", -32603, 1.0)},
-                    )
-                else:
-                    server = EmptySessionCalibrationServer(
-                        root,
-                        read_faults={1: ("thread/read", -32603, 1.0)},
-                    )
-                    original_start = server.start_turn
-
-                    def start_partial(
-                        thread_id: str, prompt: str
-                    ) -> tuple[dict, float]:
-                        result = original_start(thread_id, prompt)
-                        server.path.write_bytes(b"{")
-                        return result
-
-                    server.start_turn = start_partial  # type: ignore[method-assign]
-                record_dir = root / "records"
-                record_dir.mkdir()
-                with self.assertRaisesRegex(LIVE.AppServerError, expected):
-                    LIVE.calibration(
-                        server,
-                        root,
-                        record_dir,
-                        self.owner(),
-                        run_nonce=str(uuid.uuid4()),
-                        phase_nonce=str(uuid.uuid4()),
-                        startup_timeout_seconds=3.0,
-                        materialization_timeout_seconds=3.0,
-                    )
 
     def test_exceptional_calibration_exit_closes_pinned_descriptor(self) -> None:
         class RecordingTracker(LIVE.PreAttestationSessionBoundaryTracker):
@@ -1099,6 +1062,48 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
                 # host scheduling masquerading as a controller polling stall.
                 with self.assertRaisesRegex(LIVE.AppServerError, expected):
                     self.run_calibration(server, root)
+
+
+    def test_fault_boundary_still_rejects_partial_bytes_and_activity(self) -> None:
+        for kind, expected in (
+            ("partial", "trailing partial record"),
+            ("activity", "operative-activity-observed-at-fault"),
+        ):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                if kind == "activity":
+                    server = OperativeActivityAtFaultServer(
+                        root,
+                        read_faults={1: ("thread/read", -32603, 1.0)},
+                    )
+                else:
+                    server = EmptySessionCalibrationServer(
+                        root,
+                        read_faults={1: ("thread/read", -32603, 1.0)},
+                    )
+                    original_start = server.start_turn
+
+                    def start_partial(
+                        thread_id: str, prompt: str
+                    ) -> tuple[dict, float]:
+                        result = original_start(thread_id, prompt)
+                        server.path.write_bytes(b"{")
+                        return result
+
+                    server.start_turn = start_partial  # type: ignore[method-assign]
+                record_dir = root / "records"
+                record_dir.mkdir()
+                with self.assertRaisesRegex(LIVE.AppServerError, expected):
+                    LIVE.calibration(
+                        server,
+                        root,
+                        record_dir,
+                        self.owner(),
+                        run_nonce=str(uuid.uuid4()),
+                        phase_nonce=str(uuid.uuid4()),
+                        startup_timeout_seconds=3.0,
+                        materialization_timeout_seconds=3.0,
+                    )
 
 
 if __name__ == "__main__":

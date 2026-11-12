@@ -3,11 +3,15 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from .errors import CWOPolicyError
 from .policy import load_contracting_controls
 
 
 def malpractice_signal_weights() -> dict[str, int]:
-    configured = load_contracting_controls().get("malpractice_policy", {}).get("signal_weights", {})
+    section = load_contracting_controls().get("malpractice_policy", {})
+    if not isinstance(section, dict):
+        raise CWOPolicyError("policy/contracting-controls.yaml malpractice_policy must be a mapping")
+    configured = section.get("signal_weights", {})
     defaults = {
         "missing_evidence": 20,
         "thin_evidence": 20,
@@ -78,3 +82,26 @@ def affirmative_field(value: str) -> bool:
 
 def nonempty_work_field(value: str) -> bool:
     return bool(value.strip()) and not negative_field(value)
+
+
+def _threshold_value(configured: dict[str, Any], name: str, family: str) -> int:
+    value = configured.get(name)
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 100:
+        raise CWOPolicyError(
+            f"policy/contracting-controls.yaml {family}.thresholds.{name} must be an integer from 1 to 100")
+    return value
+
+
+def production_thresholds(controls: Any, family: str, names: tuple[str, ...]) -> dict[str, int]:
+    """Shared validation of current policy families, with no caller/default values."""
+    section = controls.get(family) if isinstance(controls, dict) else None
+    if not isinstance(section, dict):
+        raise CWOPolicyError(f"policy/contracting-controls.yaml {family} must be a mapping")
+    configured = section.get("thresholds")
+    if not isinstance(configured, dict):
+        raise CWOPolicyError(f"policy/contracting-controls.yaml {family}.thresholds is missing")
+    values = [_threshold_value(configured, name, family) for name in names]
+    if any(later <= earlier for earlier, later in zip(values, values[1:])):
+        raise CWOPolicyError(
+            f"policy/contracting-controls.yaml {family}.thresholds must increase in the order " + ", ".join(names))
+    return dict(zip(names, values))

@@ -8,8 +8,9 @@ from pathlib import Path
 from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.errors import CWOError
-from cwo_core.routing import classify_work
-from cwo_core.util import read_text_arg
+from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
+from cwo_core.routing import classify_work, experts_with_required, unmet_required_experts
+from cwo_core.util import read_text_segments
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 
@@ -132,7 +133,8 @@ def print_human(route: dict[str, object], top_n: int) -> None:
             )
 
     print("\nRanked experts:")
-    for expert in route.get("ranked_experts", [])[:top_n]:  # type: ignore[index]
+    shown = experts_with_required(route, top_n)  # risk-required experts are listed even past --top-n
+    for expert in shown:
         selected = expert.get("selected_executor", {})
         executor = expert.get("recommended_executor") or selected.get("key") or "unknown"
         external = selected.get("external")
@@ -141,6 +143,9 @@ def print_human(route: dict[str, object], top_n: int) -> None:
             f"- {expert['name']} score={expert['score']} label={expert['job_description_label']} "
             f"executor={executor} external={external} provider={selected.get('provider_key')} violations={violations}"
         )
+
+    for item in unmet_required_experts(route, list(route.get("ranked_experts") or [])):  # type: ignore[arg-type]
+        print(f"- UNMET required expert {item['expert']}: {item['reason']}")
 
     print("\nRanked executors:")
     for executor in route.get("ranked_executors", [])[:top_n]:  # type: ignore[index]
@@ -204,13 +209,17 @@ def main() -> None:
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     add_waiver_reason_argument(parser)
     parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
+    refuse_risk_narrowing_arguments(args, source="route_work.py")
     require_waiver_reason(args, ["allow_disclosure_escalation"])
 
-    text = read_text_arg(" ".join(args.text).strip() or None, args.file)
+    text_segments = read_text_segments(" ".join(args.text).strip() or None, args.file)
+    text = "\n\n".join(text_segments)
     try:
         route = classify_work(
             text,
+            text_segments=text_segments,
             external_ok=args.external_ok,
             allow_disclosure_escalation=args.allow_disclosure_escalation,
             local_ok=args.local_ok,

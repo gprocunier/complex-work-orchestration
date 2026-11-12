@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import getpass
+import json
 import os
 from pathlib import Path
 import re
+import secrets
 import stat
 import tempfile
 import time
@@ -22,8 +24,24 @@ def _find_repo_root(start: Path) -> Path:
 
 REPO_ROOT = _find_repo_root(Path(__file__).resolve())
 POLICY_DIR = REPO_ROOT / "policy"
-AUDIT_DIR = REPO_ROOT / ".orchestration-audit"
-AUDIT_LOG = Path(os.environ.get("CWO_AUDIT_FILE", AUDIT_DIR / "audit.jsonl")).expanduser()
+# Fixed workspace policy selects the authoritative store and every default
+# product audit consumer. CWO_AUDIT_FILE cannot replace that history. Workers use clones;
+# host state is outside the source/worktree bound writable to any worker.
+def _host_state_root() -> Path:
+    config = json.loads((POLICY_DIR / "workspace-host-state.json").read_text(encoding="utf-8"))
+    if set(config) != {"schema_version", "host_state_root"} or config["schema_version"] != 1:
+        raise RuntimeError("invalid workspace host-state configuration")
+    raw = config["host_state_root"]
+    if not isinstance(raw, str) or not raw:
+        raise RuntimeError("workspace host-state root must be configured")
+    path = Path(raw.replace("{workspace_name}", REPO_ROOT.name))
+    return Path(os.path.abspath(REPO_ROOT / path))
+
+
+HOST_STATE_ROOT = _host_state_root()
+HOST_AUDIT_LOG = HOST_STATE_ROOT / "audit.jsonl"
+AUDIT_DIR = HOST_STATE_ROOT
+AUDIT_LOG = HOST_AUDIT_LOG
 CWO_TEMP_DIR_PREFIX = "cwo-"
 CWO_EXCHANGE_DIR_NAME = "cwo-exchange"
 BLOCKED_PACKET_PATH_PARTS = {".git", ".beads", ".orchestration-audit"}
@@ -33,8 +51,14 @@ BLOCKED_PACKET_FILE_NAMES = {
     ".env.local",
     ".env.production",
     ".envrc",
-    "id_rsa",
+    # OpenSSH default private key names, matched exactly so that ordinary
+    # files such as id_utils.py or id_rsa.pub stay eligible.
+    "id_dsa",
+    "id_ecdsa",
+    "id_ecdsa_sk",
     "id_ed25519",
+    "id_ed25519_sk",
+    "id_rsa",
 }
 BLOCKED_PACKET_SUFFIXES = {".pem", ".key", ".p12", ".pfx"}
 
@@ -116,7 +140,7 @@ def cwo_session_id() -> str:
         return _sanitize_temp_component(configured, "session")
     global _DEFAULT_SESSION_ID
     if _DEFAULT_SESSION_ID is None:
-        _DEFAULT_SESSION_ID = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{os.getpid()}"
+        _DEFAULT_SESSION_ID = f"{time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())}-{os.getpid()}-{secrets.token_hex(16)}"
     return _DEFAULT_SESSION_ID
 
 

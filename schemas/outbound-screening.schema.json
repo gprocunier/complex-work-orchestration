@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/outbound-screening:v1",
+  "title": "CWO Outbound Screening Rules",
+  "description": "Whole-document schema for policy/outbound-screening.yaml version 1, checked by cwo_core.policy_schema whenever the policy is loaded. Consumer: cwo_core.outbound_screen, the final-bytes screen. Every rule list must be non-empty: an empty header or flag list would compile to an empty alternation. Regular expressions are checked as non-empty strings only; their compilation stays with the consumer.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "description",
+    "token_prefixes",
+    "secret_name_segments",
+    "secret_name_pairs",
+    "phrase_names",
+    "secret_headers",
+    "secret_cli_flags",
+    "role_email_local_parts",
+    "placeholder_values",
+    "placeholder_patterns",
+    "confusables",
+    "entropy",
+    "pii",
+    "limits"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "token_prefixes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "prefix",
+          "min_tail"
+        ],
+        "properties": {
+          "prefix": {
+            "type": "string",
+            "minLength": 1
+          },
+          "min_tail": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "secret_name_segments": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "secret_name_pairs": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "array",
+        "minItems": 2,
+        "items": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "uniqueItems": true
+    },
+    "phrase_names": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "secret_headers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "secret_cli_flags": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "role_email_local_parts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "placeholder_values": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "placeholder_patterns": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "confusables": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "Character folds: each key is one character, each value its comparison form (the subset cannot express single-character keys)."
+    },
+    "entropy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mixed_min_length",
+        "mixed_min_bits",
+        "long_min_length",
+        "long_min_bits"
+      ],
+      "properties": {
+        "mixed_min_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mixed_min_bits": {
+          "type": "number",
+          "minimum": 0
+        },
+        "long_min_length": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "long_min_bits": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "pii": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "email",
+        "phone",
+        "ssn"
+      ],
+      "properties": {
+        "email": {
+          "enum": [
+            "certain",
+            "uncertain"
+          ]
+        },
+        "phone": {
+          "enum": [
+            "certain",
+            "uncertain"
+          ]
+        },
+        "ssn": {
+          "enum": [
+            "certain",
+            "uncertain"
+          ]
+        }
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_input_bytes",
+        "max_json_depth"
+      ],
+      "properties": {
+        "max_input_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_json_depth": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    }
+  }
+}

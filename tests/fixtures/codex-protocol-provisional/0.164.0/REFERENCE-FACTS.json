@@ -1,0 +1,430 @@
+[
+  {
+    "id": "server-requests-stable",
+    "kind": "methods-equal",
+    "schema": "stable/ServerRequest.json",
+    "values": [
+      "account/chatgptAuthTokens/refresh",
+      "applyPatchApproval",
+      "attestation/generate",
+      "execCommandApproval",
+      "item/commandExecution/requestApproval",
+      "item/fileChange/requestApproval",
+      "item/permissions/requestApproval",
+      "item/tool/call",
+      "item/tool/requestUserInput",
+      "mcpServer/elicitation/request"
+    ],
+    "meaning": "The stable server-to-client requests are exactly these. No separate server request exists for stdin approval; the existing command approval request handles both command and writeStdin kinds."
+  },
+  {
+    "id": "server-requests-experimental",
+    "kind": "methods-equal",
+    "schema": "experimental/ServerRequest.json",
+    "values": [
+      "account/chatgptAuthTokens/refresh",
+      "applyPatchApproval",
+      "attestation/generate",
+      "currentTime/read",
+      "execCommandApproval",
+      "item/commandExecution/requestApproval",
+      "item/fileChange/requestApproval",
+      "item/permissions/requestApproval",
+      "item/tool/call",
+      "item/tool/requestUserInput",
+      "mcpServer/elicitation/request"
+    ],
+    "meaning": "The experimental set adds currentTime/read only. No separate server request exists for stdin approval; the existing command approval request handles both command and writeStdin kinds."
+  },
+  {
+    "id": "command-approval-kind-stable",
+    "kind": "param-property-enum",
+    "schema": "stable/CommandExecutionRequestApprovalParams.json",
+    "property": "kind",
+    "definition": "CommandExecutionApprovalKind",
+    "values": [
+      "command",
+      "writeStdin"
+    ],
+    "default": "command",
+    "meaning": "A command approval request can be for a new command or for input written to an existing command's stdin; the params' kind property, followed through its reference, allows exactly command and writeStdin and defaults to command."
+  },
+  {
+    "id": "command-approval-kind-reachable-stable",
+    "kind": "param-property-enum",
+    "schema": "stable/ServerRequest.json",
+    "method": "item/commandExecution/requestApproval",
+    "property": "kind",
+    "definition": "CommandExecutionApprovalKind",
+    "values": [
+      "command",
+      "writeStdin"
+    ],
+    "default": "command",
+    "meaning": "The params that the item/commandExecution/requestApproval server request actually carries have a kind property allowing exactly command and writeStdin, defaulting to command."
+  },
+  {
+    "id": "command-approval-kind-experimental",
+    "kind": "param-property-enum",
+    "schema": "experimental/CommandExecutionRequestApprovalParams.json",
+    "property": "kind",
+    "definition": "CommandExecutionApprovalKind",
+    "values": [
+      "command",
+      "writeStdin"
+    ],
+    "default": "command",
+    "meaning": "A command approval request can be for a new command or for input written to an existing command's stdin; the params' kind property, followed through its reference, allows exactly command and writeStdin and defaults to command."
+  },
+  {
+    "id": "command-approval-kind-reachable-experimental",
+    "kind": "param-property-enum",
+    "schema": "experimental/ServerRequest.json",
+    "method": "item/commandExecution/requestApproval",
+    "property": "kind",
+    "definition": "CommandExecutionApprovalKind",
+    "values": [
+      "command",
+      "writeStdin"
+    ],
+    "default": "command",
+    "meaning": "The params that the item/commandExecution/requestApproval server request actually carries have a kind property allowing exactly command and writeStdin, defaulting to command."
+  },
+  {
+    "id": "command-approval-id-correlation-stable",
+    "kind": "property-description-contains",
+    "schema": "stable/CommandExecutionRequestApprovalParams.json",
+    "property": "approvalId",
+    "text": "multiple callbacks can belong to one parent `itemId`",
+    "meaning": "approvalId distinguishes multiple approval callbacks for one item. Stdin approvals and zsh-exec-bridge subcommands use distinct callback ids; regular approvals set this to null. Runtime callback coverage remains unverified."
+  },
+  {
+    "id": "command-approval-id-correlation-experimental",
+    "kind": "property-description-contains",
+    "schema": "experimental/CommandExecutionRequestApprovalParams.json",
+    "property": "approvalId",
+    "text": "multiple callbacks can belong to one parent `itemId`",
+    "meaning": "approvalId distinguishes multiple approval callbacks for one item. Stdin approvals and zsh-exec-bridge subcommands use distinct callback ids; regular approvals set this to null. Runtime callback coverage remains unverified."
+  },
+  {
+    "id": "server-requests-answerable-stable",
+    "kind": "responses-present",
+    "schema": "stable/ServerRequest.json",
+    "bundle": "stable",
+    "meaning": "Every stable server request has a typed response schema in the bundle."
+  },
+  {
+    "id": "server-requests-answerable-experimental",
+    "kind": "responses-present",
+    "schema": "experimental/ServerRequest.json",
+    "bundle": "experimental",
+    "meaning": "Every experimental server request has a typed response schema in the bundle."
+  },
+  {
+    "id": "command-approval-correlation-stable",
+    "kind": "required-includes",
+    "schema": "stable/CommandExecutionRequestApprovalParams.json",
+    "names": [
+      "itemId",
+      "threadId",
+      "turnId"
+    ],
+    "meaning": "A command approval request always names the thread, turn and item it belongs to."
+  },
+  {
+    "id": "no-structured-retry-class-CommandExecutionRequestApprovalParams-stable",
+    "kind": "properties-absent",
+    "schema": "stable/CommandExecutionRequestApprovalParams.json",
+    "names": [
+      "retry_reason",
+      "retryReason",
+      "sandbox_permissions",
+      "sandboxPermissions"
+    ],
+    "meaning": "No structured retry or sandbox-permission field exists; only the free-text reason, which cannot authenticate a retry class."
+  },
+  {
+    "id": "no-structured-retry-class-FileChangeRequestApprovalParams-stable",
+    "kind": "properties-absent",
+    "schema": "stable/FileChangeRequestApprovalParams.json",
+    "names": [
+      "retry_reason",
+      "retryReason",
+      "sandbox_permissions",
+      "sandboxPermissions"
+    ],
+    "meaning": "No structured retry or sandbox-permission field exists; only the free-text reason, which cannot authenticate a retry class."
+  },
+  {
+    "id": "no-structured-retry-class-ExecCommandApprovalParams-stable",
+    "kind": "properties-absent",
+    "schema": "stable/ExecCommandApprovalParams.json",
+    "names": [
+      "retry_reason",
+      "retryReason",
+      "sandbox_permissions",
+      "sandboxPermissions"
+    ],
+    "meaning": "No structured retry or sandbox-permission field exists; only the free-text reason, which cannot authenticate a retry class."
+  },
+  {
+    "id": "no-structured-retry-class-ApplyPatchApprovalParams-stable",
+    "kind": "properties-absent",
+    "schema": "stable/ApplyPatchApprovalParams.json",
+    "names": [
+      "retry_reason",
+      "retryReason",
+      "sandbox_permissions",
+      "sandboxPermissions"
+    ],
+    "meaning": "No structured retry or sandbox-permission field exists; only the free-text reason, which cannot authenticate a retry class."
+  },
+  {
+    "id": "command-approval-correlation-experimental",
+    "kind": "required-includes",
+    "schema": "experimental/CommandExecutionRequestApprovalParams.json",
+    "names": [
+      "itemId",
+      "threadId",
+      "turnId"
+    ],
+    "meaning": "A command approval request always names the thread, turn and item it belongs to."
+  },
+  {
+    "id": "no-structured-retry-class-CommandExecutionRequestApprovalParams-experimental",
+    "kind": "properties-absent",
+    "schema": "experimental/CommandExecutionRequestApprovalParams.json",
+    "names": [
+      "retry_reason",
+      "retryReason",
+      "sandbox_permissions",
+      "sandboxPermissions"
+    ],
+    "meaning": "No structured retry or sandbox-permission field exists; only the free-text reason, which cannot authenticate a retry class."
+  },
+  {
+    "id": "no-structured-retry-class-FileChangeRequestApprovalParams-experimental",
+    "kind": "properties-absent",
+    "schema": "experimental/FileChangeRequestApprovalParams.json",
+    "names": [
+      "retry_reason",
+      "retryReason",
+      "sandbox_permissions",
+      "sandboxPermissions"
+    ],
+    "meaning": "No structured retry or sandbox-permission field exists; only the free-text reason, which cannot authenticate a retry class."
+  },
+  {
+    "id": "no-structured-retry-class-ExecCommandApprovalParams-experimental",
+    "kind": "properties-absent",
+    "schema": "experimental/ExecCommandApprovalParams.json",
+    "names": [
+      "retry_reason",
+      "retryReason",
+      "sandbox_permissions",
+      "sandboxPermissions"
+    ],
+    "meaning": "No structured retry or sandbox-permission field exists; only the free-text reason, which cannot authenticate a retry class."
+  },
+  {
+    "id": "no-structured-retry-class-ApplyPatchApprovalParams-experimental",
+    "kind": "properties-absent",
+    "schema": "experimental/ApplyPatchApprovalParams.json",
+    "names": [
+      "retry_reason",
+      "retryReason",
+      "sandbox_permissions",
+      "sandboxPermissions"
+    ],
+    "meaning": "No structured retry or sandbox-permission field exists; only the free-text reason, which cannot authenticate a retry class."
+  },
+  {
+    "id": "command-approval-reason-is-free-text",
+    "kind": "property-description-contains",
+    "schema": "stable/CommandExecutionRequestApprovalParams.json",
+    "property": "reason",
+    "text": "Optional explanatory reason",
+    "meaning": "reason is optional explanatory text."
+  },
+  {
+    "id": "additional-permissions-experimental-only",
+    "kind": "properties-absent",
+    "schema": "stable/CommandExecutionRequestApprovalParams.json",
+    "names": [
+      "additionalPermissions",
+      "availableDecisions"
+    ],
+    "meaning": "Stable approval requests carry neither additionalPermissions nor availableDecisions."
+  },
+  {
+    "id": "additional-permissions-in-experimental",
+    "kind": "properties-present",
+    "schema": "experimental/CommandExecutionRequestApprovalParams.json",
+    "names": [
+      "additionalPermissions",
+      "availableDecisions"
+    ],
+    "meaning": "Both exist only with the experimental capability, so a stable client never sees them."
+  },
+  {
+    "id": "command-approval-decisions",
+    "kind": "enum-includes",
+    "schema": "stable/CommandExecutionRequestApprovalResponse.json",
+    "definition": "CommandExecutionApprovalDecision",
+    "values": [
+      "accept",
+      "acceptForSession",
+      "decline",
+      "cancel",
+      "acceptWithExecpolicyAmendment",
+      "applyNetworkPolicyAmendment"
+    ],
+    "meaning": "A command approval can be one-action (accept) or session-scoped (acceptForSession), or amend execpolicy or network policy."
+  },
+  {
+    "id": "file-change-decisions",
+    "kind": "enum-includes",
+    "schema": "stable/FileChangeRequestApprovalResponse.json",
+    "definition": null,
+    "values": [
+      "accept",
+      "acceptForSession",
+      "decline",
+      "cancel"
+    ],
+    "meaning": "A file-change approval can be one-action or session-scoped."
+  },
+  {
+    "id": "named-profile-selector-experimental-only",
+    "kind": "properties-absent",
+    "schema": "stable/v2/ThreadStartParams.json",
+    "names": [
+      "permissions"
+    ],
+    "meaning": "thread/start has no named permission-profile selector without the experimental capability."
+  },
+  {
+    "id": "named-profile-selector-in-experimental",
+    "kind": "property-description-contains",
+    "schema": "experimental/v2/ThreadStartParams.json",
+    "property": "permissions",
+    "text": "Cannot be combined with `sandbox`",
+    "meaning": "The experimental selector names a profile and is exclusive with the legacy sandbox field."
+  },
+  {
+    "id": "approvals-reviewer-routing",
+    "kind": "properties-present",
+    "schema": "stable/v2/ThreadStartParams.json",
+    "names": [
+      "approvalsReviewer",
+      "approvalPolicy",
+      "sandbox"
+    ],
+    "meaning": "Approval routing (approvalsReviewer) and the legacy policy and sandbox fields are stable thread/start fields."
+  },
+  {
+    "id": "configuration-readable-without-a-turn",
+    "kind": "methods-include",
+    "schema": "stable/ClientRequest.json",
+    "values": [
+      "config/read",
+      "configRequirements/read",
+      "permissionProfile/list"
+    ],
+    "meaning": "A client can ask for configuration, managed requirements and the permission profiles without starting a turn. Whether config/read reports the effective execpolicy is not established by the schema."
+  },
+  {
+    "id": "config-read-no-turn-required-stable",
+    "kind": "method-params-exclude",
+    "schema": "stable/ClientRequest.json",
+    "method": "config/read",
+    "forbidden_required": [
+      "turnId"
+    ],
+    "meaning": "config/read can be called without a turnId; it does not require an active turn. The experimental ClientRequest schema is not vendored, so experimental client parameter requirements are not yet qualified."
+  },
+  {
+    "id": "command-approval-decision-union-stable",
+    "kind": "response-decision-union",
+    "schema": "stable/ServerRequest.json",
+    "bundle": "stable",
+    "method": "item/commandExecution/requestApproval",
+    "decision_field": "decision",
+    "strings": [
+      "accept",
+      "acceptForSession",
+      "decline",
+      "cancel"
+    ],
+    "objects": {
+      "acceptWithExecpolicyAmendment": {
+        "properties": {
+          "execpolicy_amendment": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "execpolicy_amendment"
+        ],
+        "type": "object"
+      },
+      "applyNetworkPolicyAmendment": {
+        "properties": {
+          "network_policy_amendment": {
+            "$ref": "#/definitions/NetworkPolicyAmendment"
+          }
+        },
+        "required": [
+          "network_policy_amendment"
+        ],
+        "type": "object"
+      }
+    },
+    "meaning": "The command approval response requires decision, and its union is exactly four string values (accept, acceptForSession, decline, cancel) and two amendment objects (acceptWithExecpolicyAmendment with a string array, applyNetworkPolicyAmendment with a network policy amendment). No integer, untyped or other branch exists."
+  },
+  {
+    "id": "command-approval-decision-union-experimental",
+    "kind": "response-decision-union",
+    "schema": "experimental/ServerRequest.json",
+    "bundle": "experimental",
+    "method": "item/commandExecution/requestApproval",
+    "decision_field": "decision",
+    "strings": [
+      "accept",
+      "acceptForSession",
+      "decline",
+      "cancel"
+    ],
+    "objects": {
+      "acceptWithExecpolicyAmendment": {
+        "properties": {
+          "execpolicy_amendment": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "execpolicy_amendment"
+        ],
+        "type": "object"
+      },
+      "applyNetworkPolicyAmendment": {
+        "properties": {
+          "network_policy_amendment": {
+            "$ref": "#/definitions/NetworkPolicyAmendment"
+          }
+        },
+        "required": [
+          "network_policy_amendment"
+        ],
+        "type": "object"
+      }
+    },
+    "meaning": "The command approval response requires decision, and its union is exactly four string values (accept, acceptForSession, decline, cancel) and two amendment objects (acceptWithExecpolicyAmendment with a string array, applyNetworkPolicyAmendment with a network policy amendment). No integer, untyped or other branch exists."
+  }
+]

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from functools import partial
+import contextlib
+import io
 from http.server import ThreadingHTTPServer
 import importlib.util
 from pathlib import Path
@@ -8,6 +10,7 @@ import re
 import sys
 import threading
 import unittest
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError
 from urllib.request import urlopen
 
@@ -95,6 +98,29 @@ class DocumentationToolTests(unittest.TestCase):
             server.server_close()
             thread.join(timeout=5)
         self.assertFalse(thread.is_alive())
+
+    def test_preview_main_binds_only_loopback_and_closes_the_server(self):
+        preview = load("preview_site")
+        for port, failure in ((8765, KeyboardInterrupt), (0, RuntimeError("EXAMPLE server failure"))):
+            with self.subTest(port=port):
+                server = Mock(server_port=port or 43210)
+                server.serve_forever.side_effect = failure
+                with patch.object(sys, "argv", ["preview_site.py", "--port", str(port)]), \
+                        patch.object(preview, "ThreadingHTTPServer", return_value=server) as constructor, \
+                        contextlib.redirect_stdout(io.StringIO()) as output:
+                    if failure is KeyboardInterrupt:
+                        preview.main()
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "EXAMPLE server failure"):
+                            preview.main()
+                self.assertEqual(constructor.call_count, 1)
+                address, handler = constructor.call_args.args
+                self.assertEqual(address, ("127.0.0.1", port))
+                self.assertIs(handler.func, preview.PagesHandler)
+                self.assertEqual(handler.keywords, {"directory": str(preview.DOCS)})
+                server.serve_forever.assert_called_once_with()
+                server.server_close.assert_called_once_with()
+                self.assertIn(f"http://127.0.0.1:{server.server_port}{preview.PREFIX}", output.getvalue())
 
 
 if __name__ == "__main__":

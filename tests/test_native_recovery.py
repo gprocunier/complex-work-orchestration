@@ -8,6 +8,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -34,6 +35,7 @@ from cwo_core.workspace import (
     clear_write_scope_leases,
     compare_workspace_baseline,
 )
+from tests.real_beads_fixture import configure_git_fixture
 
 
 MODEL = "gpt-5.3-codex-spark"
@@ -90,6 +92,22 @@ def _workspace(**overrides) -> dict:
     }
     value.update(overrides)
     return value
+
+
+class SemanticInput(NamedTuple):
+    claims: dict
+    usage: dict
+    receipts: list
+    workspace: dict
+    validation: dict
+
+
+class SemanticRow(NamedTuple):
+    original_id: str
+    cases: tuple[SemanticInput, ...]
+    accepting: bool = False
+    diagnostic_result: bool = False
+    label: str = ""
 
 
 class NativeRecoveryTests(unittest.TestCase):
@@ -1566,29 +1584,15 @@ class NativeRecoveryTests(unittest.TestCase):
         ):
             self.assertTrue(verify_first_action(receipt, phase, elapsed_seconds=elapsed)["fail_closed"])
 
-    def test_semantic_verifier_accepts_receipt_bound_claims(self) -> None:
-        result = verify_native_worker_semantics(
-            _packet(), _claims(), _trusted_usage(), [], _workspace(), {"status": "pass"}
-        )
-        self.assertTrue(result["eligible"])
-        self.assertFalse(result["fail_closed"])
-
-    def test_semantic_verifier_rejects_identity_model_usage_and_file_contradictions(self) -> None:
-        cases = (
+    def test_semantic_verifier_decision_family(self) -> None:
+        identity_cases = (
             (_claims(packet_id="other"), _trusted_usage(), _workspace()),
             (_claims(actual_model="other"), _trusted_usage(), _workspace()),
             (_claims(usage={"tool_calls": 99}), _trusted_usage(), _workspace()),
             (_claims(files_touched=["src/missing.py"]), _trusted_usage(), _workspace()),
         )
-        for claims, usage, workspace in cases:
-            with self.subTest(claims=claims):
-                result = verify_native_worker_semantics(_packet(), claims, usage, [], workspace, {"status": "pass"})
-                self.assertTrue(result["fail_closed"])
-                self.assertTrue(result["errors"])
-
-    def test_semantic_verifier_rejects_unpaired_commands_results_artifacts_and_validation(self) -> None:
         bad_receipt = {"pairing_status": "unpaired", "action_class": "unknown", "redacted_command": "", "exit_code": None}
-        cases = (
+        receipt_cases = (
             (_claims(), [bad_receipt], {"status": "pass"}),
             (_claims(commands_run=["python missing.py"]), [], {"status": "pass"}),
             (_claims(command_results=[{"exit_code": 7}]), [], {"status": "pass"}),
@@ -1596,26 +1600,45 @@ class NativeRecoveryTests(unittest.TestCase):
             (_claims(), [], {"status": "failed"}),
             (_claims(), [], {"status": "pass", "contradiction": True}),
         )
-        for claims, receipts, validation in cases:
-            with self.subTest(validation=validation):
-                result = verify_native_worker_semantics(_packet(), claims, _trusted_usage(), receipts, _workspace(), validation)
-                self.assertTrue(result["fail_closed"])
-                self.assertTrue(result["errors"])
-
-    def test_semantic_verifier_rejects_incomplete_or_ambiguous_workspace_evidence(self) -> None:
-        for workspace in (
+        workspace_cases = (
             _workspace(incomplete=True),
             _workspace(attribution_ambiguous=True),
             _workspace(unexpected_mutation_detected=True),
-        ):
-            result = verify_native_worker_semantics(_packet(), _claims(), _trusted_usage(), [], workspace, {"status": "pass"})
-            self.assertTrue(result["fail_closed"], result)
-            self.assertTrue(result["errors"], result)
+        )
+        rows = (
+            SemanticRow("tests.test_native_recovery.NativeRecoveryTests.test_semantic_verifier_accepts_receipt_bound_claims",
+                        (SemanticInput(_claims(), _trusted_usage(), [], _workspace(), {"status": "pass"}),), True),
+            SemanticRow("tests.test_native_recovery.NativeRecoveryTests.test_semantic_verifier_rejects_identity_model_usage_and_file_contradictions",
+                        tuple(SemanticInput(c, u, [], w, {"status": "pass"}) for c, u, w in identity_cases), label="claims"),
+            SemanticRow("tests.test_native_recovery.NativeRecoveryTests.test_semantic_verifier_rejects_unpaired_commands_results_artifacts_and_validation",
+                        tuple(SemanticInput(c, _trusted_usage(), a, _workspace(), v) for c, a, v in receipt_cases), label="validation"),
+            SemanticRow("tests.test_native_recovery.NativeRecoveryTests.test_semantic_verifier_rejects_incomplete_or_ambiguous_workspace_evidence",
+                        tuple(SemanticInput(_claims(), _trusted_usage(), [], w, {"status": "pass"}) for w in workspace_cases),
+                        diagnostic_result=True),
+        )
+        for row in rows:
+            for case in row.cases:
+                labels = ({"claims": case.claims} if row.label == "claims" else
+                          {"validation": case.validation} if row.label == "validation" else {})
+                with self.subTest(original_id=row.original_id, **labels):
+                    result = verify_native_worker_semantics(
+                        _packet(), case.claims, case.usage, case.receipts, case.workspace, case.validation
+                    )
+                    if row.accepting:
+                        self.assertTrue(result["eligible"])
+                        self.assertFalse(result["fail_closed"])
+                    elif row.diagnostic_result:
+                        self.assertTrue(result["fail_closed"], result)
+                        self.assertTrue(result["errors"], result)
+                    else:
+                        self.assertTrue(result["fail_closed"])
+                        self.assertTrue(result["errors"])
 
     def test_content_baseline_detects_same_status_content_change(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             subprocess.run(["git", "init", "-q", str(root)], check=True)
+            configure_git_fixture(root)
             subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.com"], check=True)
             subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
             path = root / "tracked.txt"
@@ -1635,6 +1658,7 @@ class NativeRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             subprocess.run(["git", "init", "-q", str(root)], check=True)
+            configure_git_fixture(root)
             subprocess.run(["git", "-C", str(root), "config", "user.email", "test@example.com"], check=True)
             subprocess.run(["git", "-C", str(root), "config", "user.name", "Test"], check=True)
             path = root / "large.bin"

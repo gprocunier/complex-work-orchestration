@@ -30,11 +30,11 @@ def parse_duration_seconds(value: str) -> int:
         multiplier = {"s": 1, "m": 60, "h": 3600, "d": 86400}[unit]
     try:
         amount = float(text)
-    except ValueError as exc:
+        if amount < 0:
+            raise argparse.ArgumentTypeError("duration must be non-negative")
+        seconds = int(amount * multiplier)
+    except (ValueError, OverflowError) as exc:
         raise argparse.ArgumentTypeError(f"invalid duration: {value}") from exc
-    seconds = int(amount * multiplier)
-    if seconds < 0:
-        raise argparse.ArgumentTypeError("duration must be non-negative")
     return seconds
 
 

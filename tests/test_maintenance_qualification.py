@@ -127,6 +127,7 @@ class SyntheticServer:
 
 class QualificationTests(unittest.TestCase):
     def setUp(self):
+        self.enterContext(mock.patch.object(q.live_availability, 'N1_LIVE_AVAILABLE', True))
         self.fixture = authority_fixture.MaintenanceAuthorityTests("test_review_positive_no_write_authority")
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
@@ -160,7 +161,7 @@ class QualificationTests(unittest.TestCase):
         def create(**kwargs):
             self.server = server_type(**kwargs)
             return self.server
-        with mock.patch("run_native_pool_live_canaries.AppServer", side_effect=create), \
+        with mock.patch("cwo_core.supervision.transport.app_server.AppServer", side_effect=create), \
              mock.patch("run_native_pool_live_canaries.contain_started_threads", side_effect=lambda server, **kw: server.contain()), \
              mock.patch("codex_tool_surface.require_surface_proof", side_effect=lambda value, **kw: deepcopy(value)):
             return q.observe_qualification(operation=self.cap, verifier=self.verifier, plan=self.plan,
@@ -186,21 +187,46 @@ class QualificationTests(unittest.TestCase):
         report_path.write_text(json.dumps(report))
         return q.digest(report_path.read_bytes())
 
-    def test_real_reader_cli_and_opaque_adjudication_positive_synthetic_provider(self):
+    def test_observed_checked_qualification_and_consumed_replay_contracts(self):
         observation = self.observe()
-        self.assertEqual(self.ledger.count(), 1)
-        self.assertFalse(observation.record["qualified"])
+        with self.subTest(original_id="test_record_property_is_detached_not_mutable_authority"):
+            record = observation.record
+            record["model"] = "forged-model"
+            record["pins"].clear()
+            self.assertEqual(observation.record["model"], "test-model")
+        with self.subTest(original_id="test_real_reader_cli_and_opaque_adjudication_positive_synthetic_provider"):
+            self.assertEqual(self.ledger.count(), 1)
+            self.assertFalse(observation.record["qualified"])
         checked = self.check(observation)
-        receipt = json.loads((self.output / "checker-receipt.json").read_text())
-        spec = json.loads((self.output / "checker-intent.json").read_text())["spec"]
-        self.assertEqual(spec["argv"][3], str(ROOT / "scripts/check_maintenance_qualification.py"))
-        self.assertEqual(receipt["exit_code"], 0)
-        self.assertIs(receipt["execution_started"], True)
-        self.assertIs(json.loads(receipt["diagnostics"]["stdout"])["authority"], False)
+        with self.subTest(original_id="test_real_reader_cli_and_opaque_adjudication_positive_synthetic_provider"):
+            receipt = json.loads((self.output / "checker-receipt.json").read_text())
+            spec = json.loads((self.output / "checker-intent.json").read_text())["spec"]
+            self.assertEqual(spec["argv"][3], str(ROOT / "scripts/check_maintenance_qualification.py"))
+            self.assertEqual(receipt["exit_code"], 0)
+            self.assertIs(receipt["execution_started"], True)
+            self.assertIs(json.loads(receipt["diagnostics"]["stdout"])["authority"], False)
         qualification = self.adjudicate(observation, checked)
-        self.assertIs(q.require_maintenance_qualification(qualification, operation=self.cap, verifier=self.verifier), qualification)
-        self.assertEqual(qualification.record["origin_expires_at"], observation.record["origin_expires_at"])
-        self.assertEqual(qualification.record["execution_sha256"], q.canonical_sha256(receipt))
+        with self.subTest(original_id="test_real_reader_cli_and_opaque_adjudication_positive_synthetic_provider"):
+            self.assertIs(q.require_maintenance_qualification(qualification, operation=self.cap, verifier=self.verifier), qualification)
+            self.assertEqual(qualification.record["origin_expires_at"], observation.record["origin_expires_at"])
+            self.assertEqual(qualification.record["execution_sha256"], q.canonical_sha256(receipt))
+        with self.subTest(original_id="test_checker_adjudicator_and_observation_replays_are_denied"):
+            with self.assertRaisesRegex(q.QualificationError, "already-consumed"):
+                self.adjudicate(observation, checked)
+            with self.assertRaisesRegex(q.QualificationError, "already-consumed"):
+                self.check(observation)
+            self.output = self.fixture.controller / "second-output"
+            constructed = []
+
+            class ConstructionSpy(SyntheticServer):
+                def __init__(self, **kwargs):
+                    constructed.append(kwargs)
+                    super().__init__(**kwargs)
+
+            with self.assertRaisesRegex(q.QualificationError, "operation-already-observed"):
+                self.observe(server_type=ConstructionSpy)
+            self.assertEqual(constructed, [])
+            self.assertEqual(self.ledger.count(), 1)
 
     def test_old_true_command_receipt_and_free_json_api_are_rejected(self):
         observation = self.observe()
@@ -231,20 +257,6 @@ class QualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(q.QualificationError, "foreign-operation"):
             q._observation_current(observation, operation=cap, verifier=self.verifier)
 
-    def test_checker_adjudicator_and_observation_replays_are_denied(self):
-        observation = self.observe()
-        checked = self.check(observation)
-        self.adjudicate(observation, checked)
-        with self.assertRaisesRegex(q.QualificationError, "already-consumed"):
-            self.adjudicate(observation, checked)
-        with self.assertRaisesRegex(q.QualificationError, "already-consumed"):
-            self.check(observation)
-        self.output = self.fixture.controller / "second-output"
-        with mock.patch("run_native_pool_live_canaries.AppServer") as server, \
-             self.assertRaisesRegex(q.QualificationError, "operation-already-observed"):
-            self.observe()
-        server.assert_not_called()
-        self.assertEqual(self.ledger.count(), 1)
 
     def test_qualification_reuse_new_owner_operation_retains_original_expiry(self):
         observation = self.observe()
@@ -258,13 +270,6 @@ class QualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(q.QualificationError, "not-current"):
             q.require_maintenance_qualification(qualification, operation=cap, verifier=self.verifier, now=expired)
 
-    def test_record_property_is_detached_not_mutable_authority(self):
-        observation = self.observe()
-        record = observation.record
-        record["model"] = "forged-model"
-        record["pins"].clear()
-        self.assertEqual(observation.record["model"], "test-model")
-        self.adjudicate(observation, self.check(observation))
 
     def test_source_inode_replacement_and_byte_drift_denied(self):
         observation = self.observe()
@@ -351,7 +356,7 @@ class QualificationTests(unittest.TestCase):
             q.inspect_observation(root=self.output, observation_sha256=hashed)
 
     def test_owned_early_read_rpc_failure_then_real_terminal_qualifies(self):
-        from run_native_pool_live_canaries import AppServerRpcError
+        from cwo_core.supervision.transport.errors import AppServerRpcError
         class Early(SyntheticServer):
             reads = 0
             def read_thread(self, tid, **kwargs):
@@ -367,7 +372,7 @@ class QualificationTests(unittest.TestCase):
         self.assertTrue((self.output/"thread-read-startup-0.json").is_file())
 
     def test_other_rpc_errors_do_not_enter_startup_retry(self):
-        from run_native_pool_live_canaries import AppServerRpcError
+        from cwo_core.supervision.transport.errors import AppServerRpcError
         class Denied(SyntheticServer):
             reads = 0
             def read_thread(self, tid, **kwargs):
@@ -380,7 +385,7 @@ class QualificationTests(unittest.TestCase):
         self.assertIs(json.loads((self.output/"observation.json").read_text())["qualified"], False)
 
     def test_startup_retry_exhaustion_remains_nonqualified(self):
-        from run_native_pool_live_canaries import AppServerRpcError
+        from cwo_core.supervision.transport.errors import AppServerRpcError
         class Missing(SyntheticServer):
             def read_thread(self, tid, **kwargs):
                 raise AppServerRpcError(method="thread/read", code=-32603, request_id=42, latency_ms=.1)
@@ -492,7 +497,7 @@ class QualificationTests(unittest.TestCase):
         for failure in ("exit", "nonce"):
             with self.subTest(failure=failure):
                 # Separate fresh owner fixture: a failed check cannot reset its old right.
-                other = QualificationTests("test_real_reader_cli_and_opaque_adjudication_positive_synthetic_provider")
+                other = QualificationTests("test_observed_checked_qualification_and_consumed_replay_contracts")
                 other.setUp()
                 try:
                     observation = other.observe()
@@ -583,30 +588,46 @@ class TypedHostMetadataTests(unittest.TestCase):
         self.usage={'type':'token_usage_record','payload':{'thread_id':'thread','session_id':'thread','turn_id':'turn','root_turn_id':'turn','response_id':'response','usage':counts,'turn_token_usage':deepcopy(counts),'thread_token_usage':deepcopy(counts)}}
     def validate(self,rows):
         return q._validate_session_metadata(rows,model='model',tid='thread',turn_id='turn',workspace='/fixture/workspace')
-    def test_known_metadata_positive(self):self.validate([self.world,self.usage])
-    def test_locale_skill_and_catalog_preferences_are_not_authority_gates(self):
-        self.world['payload']['state'].update(host_skills={'body':'changed'},model_catalog='changed-cache',timezone='different')
-        self.validate([self.world])
-    def test_world_state_types_identity_and_scope_negatives(self):
+    def test_known_host_metadata_and_non_authority_preferences(self):
+        preferred_world = deepcopy(self.world)
+        preferred_world['payload']['state'].update(host_skills={'body':'changed'}, model_catalog='changed-cache', timezone='different')
+        rows = (
+            ('test_known_metadata_positive', [self.world, self.usage]),
+            ('test_locale_skill_and_catalog_preferences_are_not_authority_gates', [preferred_world]),
+        )
+        for original_id, events in rows:
+            with self.subTest(original_id=original_id):
+                self.validate(events)
+    def test_host_metadata_rejection_matrix(self):
+        rows: list[tuple[str, dict, dict]] = []
+        original_id = 'test_world_state_types_identity_and_scope_negatives'
         for change in [lambda p:p.update(full=1),lambda p:p.update(state=[]),lambda p:p['state'].update(model='wrong'),lambda p:p['state']['environments']['environments']['local'].update(cwd='/wrong'),lambda p:p.update(extra='unknown')]:
-            row=deepcopy(self.world);change(row['payload'])
-            with self.subTest(row=row),self.assertRaises(q.QualificationError):self.validate([row])
-    def test_token_counter_types_and_arithmetic_negatives(self):
-        for value in (True,False,1.0,'1',None,[],{},-1):
-            row=deepcopy(self.usage);row['payload']['usage']['input_tokens']=value
-            with self.subTest(value=value),self.assertRaises(q.QualificationError):self.validate([row])
-        row=deepcopy(self.usage);row['payload']['usage']['total_tokens']=999
-        with self.assertRaises(q.QualificationError):self.validate([row])
-    def test_token_identity_and_extra_fields_negatives(self):
-        for key in ('thread_id','session_id','turn_id','root_turn_id'):
-            row=deepcopy(self.usage);row['payload'][key]='wrong'
-            with self.subTest(key=key),self.assertRaises(q.QualificationError):self.validate([row])
-        row=deepcopy(self.usage);row['payload']['usage']['extra']=0
-        with self.assertRaises(q.QualificationError):self.validate([row])
-    def test_unknown_events_and_permission_escalation_rejected(self):
-        with self.assertRaises(q.QualificationError):self.validate([{'type':'event_msg','payload':{'type':'future_execution'}}])
-        row={'type':'turn_context','payload':{'permission_profile':{'type':'managed','network':'restricted','file_system':{'type':'restricted','entries':[{'access':'write','path':{}}]}}}}
-        with self.assertRaises(q.QualificationError):self.validate([row])
+            row = deepcopy(self.world)
+            change(row['payload'])
+            rows.append((original_id, {'row': row}, row))
+        original_id = 'test_token_counter_types_and_arithmetic_negatives'
+        for value in (True, False, 1.0, '1', None, [], {}, -1):
+            row = deepcopy(self.usage)
+            row['payload']['usage']['input_tokens'] = value
+            rows.append((original_id, {'value': value}, row))
+        row = deepcopy(self.usage)
+        row['payload']['usage']['total_tokens'] = 999
+        rows.append((original_id, {'arithmetic': 'total'}, row))
+        original_id = 'test_token_identity_and_extra_fields_negatives'
+        for key in ('thread_id', 'session_id', 'turn_id', 'root_turn_id'):
+            row = deepcopy(self.usage)
+            row['payload'][key] = 'wrong'
+            rows.append((original_id, {'key': key}, row))
+        row = deepcopy(self.usage)
+        row['payload']['usage']['extra'] = 0
+        rows.append((original_id, {'extra': 'usage'}, row))
+        original_id = 'test_unknown_events_and_permission_escalation_rejected'
+        rows.append((original_id, {'event': 'unknown'}, {'type':'event_msg','payload':{'type':'future_execution'}}))
+        row = {'type':'turn_context','payload':{'permission_profile':{'type':'managed','network':'restricted','file_system':{'type':'restricted','entries':[{'access':'write','path':{}}]}}}}
+        rows.append((original_id, {'event': 'permission-escalation'}, row))
+        for original_id, labels, row in rows:
+            with self.subTest(original_id=original_id, **labels), self.assertRaises(q.QualificationError):
+                self.validate([row])
     def test_nested_json_type_preservation(self):
         for bad in (0,0.0,None,[],{}):self.assertFalse(q._same_json({'config':{'fallback':False}},{'config':{'fallback':bad}}))
         self.assertTrue(q._same_json({'x':[False,1,1.0,None]},{'x':[False,1,1.0,None]}))

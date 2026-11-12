@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/provider-registry:v1",
+  "title": "CWO Provider Registry",
+  "description": "Current v1 metadata shape only; typing grants no access, source binding, family independence or output validation. Required fields reflect the complete shipped entry contract; provider names remain dynamic.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "providers", "usage_accounting", "conflict_risk_terms"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "schema": {"type": "string", "const": "json-compatible-yaml"},
+    "providers": {
+      "type": "object",
+      "description": "Provider IDs are dynamic; every entry has the same closed metadata shape. No particular provider ID is required.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "display_name", "trust_tier", "family", "external", "retention_class",
+          "allowed_roles", "conflict_risk_domains", "may_primary", "may_peer_review", "may_counter_review"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "trust_tier": {"type": "string"},
+          "family": {"type": "string"},
+          "external": {"type": "boolean"},
+          "retention_class": {"type": "string"},
+          "allowed_roles": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          },
+          "conflict_risk_domains": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          },
+          "may_primary": {"type": "boolean"},
+          "may_peer_review": {"type": "boolean"},
+          "may_counter_review": {"type": "boolean"}
+        }
+      }
+    },
+    "usage_accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "total_tokens_formula", "cached_tokens_scope", "reasoning_tokens_scope", "note"
+      ],
+      "properties": {
+        "total_tokens_formula": {"type": "string"},
+        "cached_tokens_scope": {"type": "string"},
+        "reasoning_tokens_scope": {"type": "string"},
+        "note": {"type": "string"}
+      }
+    },
+    "conflict_risk_terms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["frontier-ai-development", "model-provider-competition", "provider-policy-intervention"],
+      "properties": {
+        "frontier-ai-development": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "model-provider-competition": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "provider-policy-intervention": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      }
+    },
+    "review_models": {
+      "type": "object",
+      "description": "Recorded model family and explicit escalation edges by registry-derived provider family. Configuration is not dispatch proof.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "model_family",
+            "stronger_than"
+          ],
+          "properties": {
+            "model_family": {
+              "type": "string",
+              "minLength": 1
+            },
+            "stronger_than": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      }
+    }
+  }
+}

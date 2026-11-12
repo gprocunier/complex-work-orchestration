@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -26,7 +27,9 @@ from validate_repository import (  # noqa: E402
     validate_retired_beads_context_aliases,
     validate_waiver_conventions,
 )
+from cwo_core import release_effect_routes
 from cwo_core.waivers import require_waiver_reason  # noqa: E402
+from tests.real_beads_fixture import configure_git_fixture
 
 
 class ValidateRepositoryTests(unittest.TestCase):
@@ -51,7 +54,7 @@ class ValidateRepositoryTests(unittest.TestCase):
 <p>Confirm owned processes and resources are closed</p>
 <p>N=1..3</p>
 <p>host that has proved the required capabilities</p>
-<p>Optional concurrency is a preview</p>
+<p>Concurrent native work is held</p>
 <p>model dispatch serial</p>
 <p>A stopped attempt cannot be resumed; another attempt needs its own fresh allowance</p>
 <p>https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md</p>
@@ -61,50 +64,84 @@ class ValidateRepositoryTests(unittest.TestCase):
     def test_repository_control_plane_is_consistent(self) -> None:
         self.assertEqual(validate_repository(), [])
 
-    def test_native_pool_capacity_validator_rejects_divergent_literal(self) -> None:
+    def test_real_validator_rejects_stale_release_inventory_source(self) -> None:
+        """Real copied validator refuses drift; healthy and restored copies pass."""
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            (root / "policy").mkdir()
-            shutil.copy2(
-                ROOT / "policy/native-worker-execution.yaml",
-                root / "policy/native-worker-execution.yaml",
+            root = Path(temporary) / "repo"
+            shutil.copytree(
+                ROOT, root,
+                ignore=shutil.ignore_patterns(
+                    ".git", "__pycache__", ".ruff_cache", ".beads", ".orchestration-audit",
+                ),
             )
-            shutil.copytree(ROOT / "schemas", root / "schemas")
-            source = root / "scripts/cwo_core/native_pool.py"
-            source.parent.mkdir(parents=True)
-            source.write_text("MAX_ACTIVE_WORKERS = 99\n", encoding="utf-8")
-            errors: list[str] = []
-            validate_native_pool_capacity_invariants(errors, repo_root=root)
-        self.assertIn(
-            "active native-pool source uses deprecated MAX_ACTIVE_WORKERS: "
-            "scripts/cwo_core/native_pool.py",
-            errors,
-        )
+            # A validator fault must reach the behavioural assertion below.
+            # Rebind only its copied bytes, preserving every other source and
+            # primitive disposition, so stale self-metadata cannot kill it first.
+            inventory_path = root / release_effect_routes.INVENTORY
+            inventory = json.loads(inventory_path.read_bytes())
+            validator = "scripts/validate_repository.py"
+            _data, identity = release_effect_routes.read_file(root, validator)
+            inventory["source_bindings"][validator] = identity
+            inventory_path.write_bytes(release_effect_routes.encoded(inventory) + b"\n")
+            environment = {
+                key: value for key, value in os.environ.items()
+                if not key.startswith("PYTHON")
+            }
 
-    def test_native_pool_capacity_validator_rejects_duplicate_schedulability_math(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            (root / "policy").mkdir()
-            shutil.copy2(
-                ROOT / "policy/native-worker-execution.yaml",
-                root / "policy/native-worker-execution.yaml",
+            def run_validator() -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [sys.executable, "-B", "scripts/validate_repository.py"],
+                    cwd=root, env=environment, capture_output=True, text=True,
+                    timeout=900, check=False,
+                )
+
+            healthy = run_validator()
+            self.assertEqual(healthy.returncode, 0, healthy.stdout + healthy.stderr)
+            self.assertIn("Repository validation passed.", healthy.stdout)
+            source = root / "scripts/cwo_core/util.py"
+            original = source.read_bytes()
+            source.write_bytes(original + b"\n# Disposable release inventory drift probe.\n")
+            stale = run_validator()
+            self.assertEqual(
+                stale.returncode, 1,
+                "actual validator accepted stale release source: " + stale.stdout + stale.stderr,
             )
-            shutil.copytree(ROOT / "schemas", root / "schemas")
-            source = root / "scripts/cwo_core/native_pool.py"
-            source.parent.mkdir(parents=True)
-            source.write_text(
-                "demand = lifecycle_max + workers * check_max + overhead\n",
-                encoding="utf-8",
-            )
-            errors: list[str] = []
-            validate_native_pool_capacity_invariants(errors, repo_root=root)
-        self.assertIn(
-            "active native-pool source duplicates schedulability arithmetic: "
-            "scripts/cwo_core/native_pool.py",
-            errors,
+            self.assertIn("release effect inventory refused: stale route source binding", stale.stderr)
+            self.assertNotIn("Repository validation passed.", stale.stdout)
+            source.write_bytes(original)
+            restored = run_validator()
+            self.assertEqual(restored.returncode, 0, restored.stdout + restored.stderr)
+            self.assertIn("Repository validation passed.", restored.stdout)
+
+    def test_native_pool_capacity_source_contract_refusals(self) -> None:
+        variants = (
+            ('test_native_pool_capacity_validator_rejects_divergent_literal',
+             'MAX_ACTIVE_WORKERS = 99\n',
+             'active native-pool source uses deprecated MAX_ACTIVE_WORKERS: scripts/cwo_core/native_pool.py'),
+            ('test_native_pool_capacity_validator_rejects_duplicate_schedulability_math',
+             'demand = lifecycle_max + workers * check_max + overhead\n',
+             'active native-pool source duplicates schedulability arithmetic: scripts/cwo_core/native_pool.py'),
         )
+        for original, source_text, diagnostic in variants:
+            with self.subTest(original=original):
+                with tempfile.TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    (root / "policy").mkdir()
+                    shutil.copy2(
+                        ROOT / "policy/native-worker-execution.yaml",
+                        root / "policy/native-worker-execution.yaml",
+                    )
+                    shutil.copytree(ROOT / "schemas", root / "schemas")
+                    source = root / "scripts/cwo_core/native_pool.py"
+                    source.parent.mkdir(parents=True)
+                    source.write_text(source_text, encoding="utf-8")
+                    errors: list[str] = []
+                    validate_native_pool_capacity_invariants(errors, repo_root=root)
+                self.assertIn(
+                    diagnostic,
+                    errors,
+                )
+
 
     def test_native_pool_capacity_validator_rejects_unschedulable_hard_cap(
         self,
@@ -164,7 +201,7 @@ class ValidateRepositoryTests(unittest.TestCase):
             'owned cleanup': ('Confirm owned processes and resources are closed', 'REMOVED_CONTRACT'),
             'fixed cohort ceiling': ('N=1..3', 'REMOVED_CONTRACT'),
             'actual host capability': ('host that has proved the required capabilities', 'REMOVED_CONTRACT'),
-            'preview boundary': ('Optional concurrency is a preview', 'REMOVED_CONTRACT'),
+            'preview boundary': ('Concurrent native work is held', 'REMOVED_CONTRACT'),
             'stateful operations serial': ('model dispatch serial', 'REMOVED_CONTRACT'),
             'terminal attempts': ('A stopped attempt cannot be resumed; another attempt needs its own fresh allowance', 'REMOVED_CONTRACT'),
             'single-worker operator link': ('https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md', 'REMOVED_CONTRACT'),
@@ -194,12 +231,13 @@ class ValidateRepositoryTests(unittest.TestCase):
         self.assertIn(f"CI workflow is missing required command: {CI_REQUIRED_COMMANDS[1]}", errors)
         self.assertIn(f"CI workflow is missing required command: {CI_REQUIRED_COMMANDS[2]}", errors)
 
-    def test_ci_contract_requires_temporary_eight_worker_validation(self) -> None:
+    def test_ci_contract_requires_runner_sized_worker_validation(self) -> None:
+        # Hosted runners have four cores; timing-bounded tests need one worker per core.
         self.assertTrue(
             any(command.startswith("python -m compileall -j 8 -x ") for command in CI_REQUIRED_COMMANDS)
         )
         self.assertIn(
-            "python scripts/run_parallel_unittest.py --workers 8",
+            "python scripts/run_parallel_unittest.py --workers 4",
             CI_REQUIRED_COMMANDS,
         )
 
@@ -296,6 +334,7 @@ class ValidateRepositoryTests(unittest.TestCase):
             repo = Path(tmpdir)
             if subprocess.call(["git", "-C", str(repo), "init", "-q"]) != 0:
                 self.skipTest("git unavailable for validate_retired_beads_context_aliases gitignore path")
+            configure_git_fixture(repo)
 
             (repo / ".gitignore").write_text("work-packets/\n", encoding="utf-8")
             ignored = repo / "work-packets"

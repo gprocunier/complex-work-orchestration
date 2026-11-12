@@ -1,0 +1,67 @@
+{
+  "record_type": "cwo-requirement-amendment",
+  "version": 1,
+  "bead_id": "proj-abc",
+  "amendment_id": "add-changelog",
+  "prior_digest": "sha256:a6bfbb11e22599467f86398b54f9e6bc72db04dce9fb524f257436d35348aa97",
+  "prior_baseline_version": 1,
+  "added_criterion_ids": [
+    "changelog-entry"
+  ],
+  "removed_criterion_ids": [],
+  "changed_criterion_ids": [],
+  "rationale": "The reviewer asked for the rename to be recorded in the changelog.",
+  "authority": {
+    "role": "lead",
+    "reference": "issue #12 review comment"
+  },
+  "baseline": {
+    "record_type": "cwo-requirement-baseline",
+    "version": 1,
+    "bead_id": "proj-abc",
+    "baseline_version": 2,
+    "criteria": [
+      {
+        "id": "rename-complete",
+        "requirement": "Rename the tool from old-name to new-name everywhere it is delivered, including packaging and site navigation.",
+        "reference": "issue #12, acceptance list item 1",
+        "expected_outcome": "No tracked file, package metadata field or navigation entry contains old-name, and the installed package is named new-name.",
+        "applicability": "required",
+        "evidence_kind": "validator"
+      },
+      {
+        "id": "service-retired",
+        "requirement": "Retire the legacy-sync service; nothing may recreate it.",
+        "reference": "issue #12, acceptance list item 2",
+        "expected_outcome": "legacy-sync and the timer that recreated it are both inactive and disabled on the target host.",
+        "applicability": "required",
+        "evidence_kind": "artifact"
+      },
+      {
+        "id": "docs-name-reviewed",
+        "requirement": "The user guide names new-name in every section that named old-name.",
+        "reference": "issue #12, acceptance list item 3",
+        "expected_outcome": "An editorial review of the final candidate finds no section that still names old-name.",
+        "applicability": "required",
+        "evidence_kind": "review-gate"
+      },
+      {
+        "id": "windows-installer",
+        "requirement": "Update the Windows installer.",
+        "reference": "issue #12, acceptance list item 4",
+        "expected_outcome": "The Windows installer installs new-name.",
+        "applicability": "not-applicable",
+        "not_applicable_reason": "The project ships no Windows installer; the issue template lists it for every rename.",
+        "evidence_kind": "artifact"
+      },
+      {
+        "id": "changelog-entry",
+        "requirement": "Record the rename in the changelog without reintroducing the old name.",
+        "reference": "review comment on issue #12",
+        "expected_outcome": "CHANGELOG.md has an entry that names new-name and says the tool was renamed. Like every tracked file under rename-complete, it does not contain old-name.",
+        "applicability": "required",
+        "evidence_kind": "artifact"
+      }
+    ]
+  }
+}

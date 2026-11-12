@@ -1,0 +1,8 @@
+{
+  "id": "EXAMPLE-required-output",
+  "requirement": "cwo-required-file-v1:{\"path\":\"src/item.txt\",\"utf8\":\"EXAMPLE required output\\n\"}",
+  "reference": "tests/fixtures/EXAMPLE-authoritative-artifact-requirement.json#/requirement",
+  "expected_outcome": "cwo-artifact-v1:{\"op\":\"regular-file-sha256\",\"path\":\"src/item.txt\",\"sha256\":\"332193285bc9eabaabdf22a65ff1d15b4c6078d51e21029709abf070a0ea83aa\"}",
+  "applicability": "required",
+  "evidence_kind": "artifact"
+}

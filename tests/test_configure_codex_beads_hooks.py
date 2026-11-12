@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import json
 import subprocess
 import sys
@@ -11,6 +12,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import configure_codex_beads_hooks as config_module  # noqa: E402
 from configure_codex_beads_hooks import (  # noqa: E402
     ConfigurationError,
     assert_safe_hooks_file_path,
@@ -22,6 +24,35 @@ from configure_codex_beads_hooks import (  # noqa: E402
 
 
 class ConfigureCodexBeadsHooksTests(unittest.TestCase):
+    def test_valid_preview_never_writes_and_apply_persists_exact_managed_commands(self) -> None:
+        for apply in (False, True):
+            with self.subTest(apply=apply), tempfile.TemporaryDirectory() as directory:
+                project = Path(directory)
+                target = project / ".codex" / "hooks.json"
+                argv = ["configure_codex_beads_hooks.py", "--project-dir", str(project),
+                        "--mode", "full-context", "--json"]
+                if apply:
+                    argv.append("--apply")
+                output = io.StringIO()
+                with patch.object(sys, "argv", argv), patch.object(sys, "stdout", output), \
+                        patch.object(config_module, "detect_visibility_hint_support",
+                                     return_value=config_module.unprobed_support_info("EXAMPLE")), \
+                        patch.object(config_module, "write_hooks", wraps=config_module.write_hooks) as write, \
+                        patch("subprocess.Popen") as process:
+                    self.assertEqual(config_module.main(), 0)
+                rendered = json.loads(output.getvalue())
+                self.assertEqual(write.call_count, int(apply), "preview reached persistence")
+                self.assertEqual(target.exists(), apply)
+                process.assert_not_called()
+                self.assertEqual(rendered["applied"], apply)
+                self.assertEqual({event: groups[0]["hooks"][0]["command"]
+                                  for event, groups in rendered["rendered_hooks"]["hooks"].items()},
+                                 {event: spec["command"] for event, spec in config_module.MANAGED_EVENTS.items()})
+                if apply:
+                    write.assert_called_once_with(target, rendered["rendered_hooks"])
+                    self.assertEqual(json.loads(target.read_text()), rendered["rendered_hooks"])
+                    self.assertEqual(list(target.parent.iterdir()), [target])
+
     def test_detect_visibility_hint_support_uses_installed_binary_signal(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             codex = Path(tmpdir) / "codex"
@@ -49,10 +80,20 @@ class ConfigureCodexBeadsHooksTests(unittest.TestCase):
             self.assertFalse(file_has_visibility_hint(link))
             self.assertTrue(file_has_visibility_hint(real))
 
-    def test_quiet_profile_fails_closed_without_visibility_hint_support(self) -> None:
-        with self.assertRaises(ConfigurationError) as context:
-            build_managed_hooks(mode="quiet", visibility_hint_supported=False)
-        self.assertIn("refusing to render quiet/verbose hooks", str(context.exception))
+    def test_hook_configuration_requires_explicit_supported_mode(self) -> None:
+        variants = (
+            ('test_quiet_profile_fails_closed_without_visibility_hint_support',
+             'quiet',
+             'refusing to render quiet/verbose hooks'),
+            ('test_compact_degraded_requires_explicit_acknowledgement',
+             'compact-degraded',
+             'reduces automatic Beads context'),
+        )
+        for original, mode, diagnostic in variants:
+            with self.subTest(original=original):
+                with self.assertRaises(ConfigurationError) as context:
+                    build_managed_hooks(mode=mode, visibility_hint_supported=False)
+                self.assertIn(diagnostic, str(context.exception))
 
     def test_full_context_preserves_beads_codex_hook_commands_without_visibility_hint(self) -> None:
         managed, warnings = build_managed_hooks(mode="full-context", visibility_hint_supported=False)
@@ -90,10 +131,6 @@ class ConfigureCodexBeadsHooksTests(unittest.TestCase):
         self.assertEqual(session_groups[1]["hooks"][0]["visibilityHint"], "quiet")
         self.assertEqual(merged["hooks"]["Stop"][0]["hooks"][0]["command"], "echo stop")
 
-    def test_compact_degraded_requires_explicit_acknowledgement(self) -> None:
-        with self.assertRaises(ConfigurationError) as context:
-            build_managed_hooks(mode="compact-degraded", visibility_hint_supported=False)
-        self.assertIn("reduces automatic Beads context", str(context.exception))
 
     def test_hooks_path_guard_allows_project_codex_hooks_file(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

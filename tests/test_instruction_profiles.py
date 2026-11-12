@@ -258,13 +258,26 @@ class InstructionProfileTests(unittest.TestCase):
         self.assertIn("frozen-protocol-lock.md", guide)
         self.assertIn("does not set `model_reasoning_effort`", guide)
         self.assertIn("default OpenAI system prompt", README.read_text(encoding="utf-8"))
-        # Prospectively version the active source for scoped continuation. The
-        # previously pinned post-v5 bytes remain in the v110 preimage evidence;
-        # this assertion does not claim the installed profile has reloaded.
+        # Active source after the issue #44 wording revision. Earlier active bytes
+        # (post-v5 repair, scoped continuation) are listed in the qualification
+        # summary; this assertion does not claim the installed profile has reloaded.
         self.assertEqual(
             hashlib.sha256(E_PROMPT.read_bytes()).hexdigest(),
-            "82fdd0a53aa188cfa5779950cd32d6f7d7b9fa2c4dac3af1c72480a75548f22d",
+            "78a322fe1b5e72ba7f1d1a4253230f90fef37a372ed1334ec00c1e20647874b8",
         )
+
+    def test_issue_44_passages_name_the_permitted_action(self) -> None:
+        normalized = " ".join(E_PROMPT.read_text(encoding="utf-8").split())
+        self.assertNotIn("blocking ceremony", normalized)
+        self.assertNotIn("already-authorized bypass", normalized)
+        self.assertNotIn("If ceremony blocks", normalized)
+        for expected in (
+            "Use an alternative workflow only when the applicable CWO contract already authorizes it within the existing task scope.",
+            "Provider safeguards, security and access gates, required validation, and frozen protocol bindings are not optional workflow steps.",
+            "authorizes continuation within the lock; it does not authorize a replacement benchmark",
+            "Do not request another user authorization for routine same-scope repair already covered by the request.",
+        ):
+            self.assertIn(expected, normalized)
 
     def test_default_e_launcher_selects_profile_and_forwards_arguments(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

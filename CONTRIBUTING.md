@@ -122,6 +122,26 @@ python3 scripts/check_documentation.py
 git diff --check
 ```
 
+Every release candidate must pass CI's **Required Debian 13 filesystem release
+gate** on its exact source, in addition to the host normal/disk checks. Run
+`timeout --kill-after=10 300 python -B scripts/check_release_filesystem.py` in the
+existing isolated Debian 13 test environment; Fedora with portable Python does
+not satisfy this gate. It executes the original D1 and ten recovery witnesses,
+plus descriptor/link/mode, database lock, fsync failure, collision, Git metadata
+indirection and bounded source-read witnesses. Missing methods, skips, expected
+failures, test failures, the wrong OS and source drift refuse the gate. Keep
+stdout (source/OS/kernel/interpreter/probe/result identities) and stderr (named
+test outcomes) with release evidence. Receipts are execution records, not reusable
+permission or proof of a future source. Linux qualification covers tmpfs and
+btrfs with Python 3.14 and Debian 13 RAM-backed ext4 with Python 3.12. The
+Debian 13/Python 3.12 release gate satisfies the required CI filesystem gate;
+no separate Python 3.11 release run is required. The checked-in CI workflow
+configures its filesystem subset with a pinned Debian 13 Python 3.11 image;
+that configuration does not establish full-suite support for Python 3.11.
+Its scratch directory is a container filesystem, not a claimed tmpfs mount,
+and the gate checks `/etc/os-release` at runtime. Other filesystems/platforms
+are untested. This gate grants no product activation or live-run authority.
+
 Before handoff, run the broader checks in AGENTS.md and CI, using an isolated
 test environment with `requirements-test.txt`. Stateful operations stay serial;
 the prescribed test fanout does not authorize concurrent Beads/model dispatch.
@@ -155,3 +175,33 @@ packets, or mission-specific model allocations. Review sanitized evidence before
 including it in public copy. Run publish sanitization before a formal push,
 release, or tag. A passing local change set is not authorization to commit,
 push, deploy, change remote metadata, or update someone's installed skill.
+
+## Test maintenance
+
+See [process sharding](tests/process-sharding.md) for method-group discovery,
+packing and repeated-fixture behavior. Keep stateful operations serial.
+Retain a test when it is the sole witness for a guarded effect, refusal,
+zero-effect hold, reproduced defect or public contract. Before pruning, compare
+actual semantic faults against the retained witnesses. Source pins, setup
+failures, timeouts and unrun cases do not establish fault catches. Shared fixture
+seeds must preserve private mutable state, bytes, modes and cleanup assertions.
+
+## Maintaining the release effect inventory
+
+Every file under `scripts/`, including benign helpers and the checker, has an
+exact byte/mode binding in `policy/release-effect-routes.json`. Any edit requires
+regeneration before repository validation can pass. Read
+[the inventory contract](references/release-effect-routes.md). Relocate changed
+declaration, gate and effect spans to their actual source statements; classify
+all Python primitive candidates and review every changed route/exclusion
+individually. Preserve each disposition's guarded effect, refusal and positive
+witness; a hash refresh alone is not a review. Unknown or new candidates require
+explicit decisions. Keep full traces and regeneration tooling outside the
+installed projection. The bounded checker does not supply an automatic rebind
+command or prove runtime dominance or arbitrary shell/wrapper semantics.
+
+Generate a fresh external trace, run the checker and repository validator, and
+obtain independent review plus the required VM gates for the exact source.
+Do not expand limits or bypass coverage equality to make regeneration pass.
+Build release/install artifacts from a clean export so untracked files cannot
+enter the installer's on-disk projection.

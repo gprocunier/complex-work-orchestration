@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/model-identity-scope:v1",
+  "title": "CWO Model Identity Scope Register",
+  "description": "Whole-document schema for policy/model-identity-scope.yaml version 1, checked by cwo_core.policy_schema whenever the register is loaded and by the model-identity lint. The register classifies model identities for the lint only and grants no authority.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "name", "authority", "scope", "current_models", "policy_locations", "source_literals"],
+  "properties": {
+    "version": {"const": 1},
+    "schema": {"const": "json-compatible-yaml"},
+    "name": {"const": "model-identity-scope"},
+    "authority": {"const": "none"},
+    "scope": {"type": "string", "minLength": 1},
+    "current_models": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "policy_locations": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["file", "pointer", "class", "literals", "reason"],
+        "properties": {
+          "file": {"type": "string", "minLength": 1},
+          "pointer": {"type": "string"},
+          "class": {"enum": ["current", "historical", "unadjudicated", "detection-term", "nonoperative"]},
+          "literals": {
+            "type": "object",
+            "additionalProperties": {"type": "integer", "minimum": 1}
+          },
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "source_literals": {
+      "type": "array",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "literal", "count", "class", "reason"],
+        "properties": {
+          "path": {"type": "string", "minLength": 1},
+          "literal": {"type": "string", "minLength": 1},
+          "count": {"type": "integer", "minimum": 1},
+          "class": {"enum": ["current", "historical", "unadjudicated", "detection-term", "nonoperative"]},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  }
+}

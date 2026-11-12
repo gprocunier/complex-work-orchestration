@@ -10,7 +10,7 @@ from cwo_core.audit import verify_audit_log
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Verify orchestration audit JSONL hashes and hash-chain links.")
-    parser.add_argument("--audit-file", help="Audit JSONL path; defaults to .orchestration-audit/audit.jsonl.")
+    parser.add_argument("--audit-file", help="Audit JSONL path; defaults to ../.cwo-host-state/<package-name>/audit.jsonl (verified segments included).")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     args = parser.parse_args()
 

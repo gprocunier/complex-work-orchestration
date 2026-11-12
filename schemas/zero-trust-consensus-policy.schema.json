@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/zero-trust-consensus-policy:v1",
+  "title": "CWO Zero-Trust Consensus Policy",
+  "description": "Registered configuration shape only. Schema component for current configuration shape. Labels, aliases and descriptive metadata do not establish observed provider provenance, independent domains, adjudication authority, clearance or verification.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "defaults", "status_values", "resolution_authority"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "schema": {"type": "string"},
+    "scope": {"type": "string"},
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["minimum_independent_domains"],
+      "properties": {
+        "minimum_independent_domains": {"type": "integer", "minimum": 2}
+      }
+    },
+    "status_values": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["informational", "blocked", "divergent"]}
+    },
+    "recommended_actions": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["none", "review", "escalate", "quarantine", "block"]}
+    },
+    "resolution_authority": {"type": "string", "const": "architect"},
+    "trust_domain_independence_disclaimer": {"type": "string"},
+    "trust_domain_resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "domain_source": {"type": "string"},
+        "claimed_domain_fields": {"type": "array", "items": {"type": "string"}},
+        "field_precedence": {"type": "array", "items": {"type": "string"}},
+        "unknown_domain": {"type": "string"},
+        "domain_aliases": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        }
+      }
+    },
+    "routing_triggers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "explicit_terms": {"type": "array", "items": {"type": "string"}},
+        "security_sensitive_terms": {"type": "array", "items": {"type": "string"}},
+        "activation_context_terms": {"type": "array", "items": {"type": "string"}},
+        "required_risk_levels": {
+          "type": "array",
+          "items": {"type": "string", "enum": ["low", "medium", "high", "critical"]}
+        }
+      }
+    },
+    "claim_types": {"type": "array", "items": {"type": "string"}},
+    "claim_categories": {
+      "type": "object",
+      "description": "Dynamic category names accept either integer weights or closed weight records, as in consensus_policy_view.",
+      "additionalProperties": {
+        "type": ["object", "integer"],
+        "additionalProperties": false,
+        "required": ["weight"],
+        "properties": {
+          "weight": {"type": "integer"}
+        }
+      }
+    },
+    "thresholds": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "review": {"type": "integer"},
+        "escalation": {"type": "integer"},
+        "quarantine": {"type": "integer"}
+      }
+    },
+    "weakness_pattern_source_version": {"type": "integer"},
+    "weakness_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "category": {"type": "string"},
+          "severity": {"type": "string"},
+          "terms": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

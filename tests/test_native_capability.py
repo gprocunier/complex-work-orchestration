@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import NamedTuple
+
 import copy
 import hashlib
 import json
@@ -14,7 +16,11 @@ if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
 
 import cwo_core.native_capability as native_capability
-from cwo_core.native_authority import trusted_actor_authority
+from cwo_core.native_authority import (
+    canonical_authority_sha256,
+    trusted_actor_authority,
+    validate_authority_provenance,
+)
 
 
 SCHEMA_PATH = ROOT / "schemas" / "native-model-capability-receipt.schema.json"
@@ -520,6 +526,207 @@ class NativeCapabilityTests(unittest.TestCase):
         self.assertEqual(
             schema["properties"]["receipt_sha256"]["$ref"], "#/$defs/sha256"
         )
+
+
+ISSUED_AT = "2026-01-01T12:00:00+00:00"
+EXPIRES_AT = "2026-01-02T12:00:00+00:00"
+ISSUANCE_REFUSAL = "capability session authority does not match trusted evidence: "
+OTHER_SHA256 = hashlib.sha256(b"other session evidence").hexdigest()
+
+
+def _authority_for(evidence: dict, **changes):
+    """A verified authority built by the public constructor for ``evidence``, with ``changes`` applied."""
+    arguments = {
+        "source_type": "worker-discovery",
+        "source_id": evidence["canary_session_id"],
+        "source_sha256": native_capability.canonical_capability_evidence_sha256(evidence),
+        "actor_id": "capability-worker-1",
+        "actor_role": "operative-worker",
+        "identity_source": evidence["attestation_source"],
+    }
+    arguments.update(changes)
+    return trusted_actor_authority(**arguments)
+
+
+def _resealed(receipt: dict) -> dict:
+    """``receipt`` with its outer digest recomputed over its current contents."""
+    body = {key: value for key, value in receipt.items() if key != "receipt_sha256"}
+    body["receipt_sha256"] = native_capability._compute_receipt_sha256(body)
+    return body
+
+
+class ProvenanceMutationCase(NamedTuple):
+    original: str
+    changes: dict
+    reasons: list[str]
+
+
+class BoundValueMutationTests(unittest.TestCase):
+    """Audit of native_capability.py. Each intended binding is changed alone to a valid but different value and
+    must refuse with its own reason. Evidence changes keep the original verified authority, so only the authority
+    comparison can refuse them. Provenance changes are internally consistent (the authority digest is recomputed and
+    the provenance validates on its own), so only the capability binding can refuse them. Receipts are resealed after
+    every change, with the session-evidence digest recomputed whenever an evidence field changes. Fields with no valid
+    but different value refuse during evaluation."""
+
+    AUTHORITY_BOUND_MUTATIONS = {
+        "advertised": True,
+        "advertised_models": ["gpt-4o-native", "gpt-4o-mini-native"],
+        "canary_session_id": "different-canary-session",
+        "runtime_seconds": 10.5,
+        "tool_surface_id": "other-surface",
+    }
+
+    EVALUATION_BOUND_MUTATIONS = {
+        "requested_model": "gpt-4o-mini-native",
+        "configured_model": "gpt-4o-mini-native",
+        "spawn_accepted": False,
+        "attestation_source": "self-reported",
+        "attested_model": "gpt-4o-mini-native",
+        "tool_calls": 1,
+        "context_compactions": 1,
+        "closure_receipt": False,
+    }
+
+    @staticmethod
+    def _evidence_refusals(field: str) -> list[str]:
+        if field == "canary_session_id":
+            return ["capability-authority-session-mismatch", "capability-authority-evidence-mismatch"]
+        return ["capability-authority-evidence-mismatch"]
+
+    def assertIssuanceRefused(self, evidence: dict, authority, reasons: list[str],
+                              authorized_models: list[str] | None = None) -> None:
+        with self.assertRaises(ValueError) as caught:
+            native_capability.build_native_capability_receipt(
+                evidence,
+                authorized_models or ["gpt-4o-native"],
+                issued_at=ISSUED_AT,
+                expires_at=EXPIRES_AT,
+                session_authority=authority,
+            )
+        self.assertEqual(str(caught.exception), ISSUANCE_REFUSAL + "; ".join(reasons))
+
+    def assertProvenanceRefused(self, changes: dict, reasons: list[str]) -> None:
+        receipt = _build_receipt(_base_evidence())
+        self.assertEqual(_validate_receipt(receipt), [])
+        provenance = copy.deepcopy(receipt["authority_provenance"])
+        provenance.update(changes)
+        provenance.pop("authority_sha256")
+        provenance["authority_sha256"] = canonical_authority_sha256(provenance)
+        self.assertEqual(validate_authority_provenance(provenance), [], "the changed provenance must be valid alone")
+        tampered = _resealed({**receipt, "authority_provenance": provenance})
+        self.assertEqual(_validate_receipt(tampered), reasons)
+
+    def test_every_evidence_field_is_bound(self) -> None:
+        all_mutations = {**self.AUTHORITY_BOUND_MUTATIONS, **self.EVALUATION_BOUND_MUTATIONS}
+        self.assertEqual(set(all_mutations), set(native_capability.CAPABILITY_EVIDENCE_FIELDS))
+        base_evidence = _base_evidence()
+        self.assertEqual(native_capability.evaluate_native_capability(base_evidence, ["gpt-4o-native"])["outcome"],
+                         "native-capability-confirmed")
+        original_authority = _session_authority(base_evidence)
+        for field, value in self.AUTHORITY_BOUND_MUTATIONS.items():
+            with self.subTest(field=field, category="authority"):
+                changed_evidence = _base_evidence({field: value})
+                result = native_capability.evaluate_native_capability(changed_evidence, ["gpt-4o-native"])
+                self.assertEqual(result["outcome"], "native-capability-confirmed", f"evaluation should pass for {field}")
+                self.assertTrue(result["states"]["dispatchable"], f"should be dispatchable for {field}")
+                self.assertIssuanceRefused(changed_evidence, original_authority, self._evidence_refusals(field))
+        for field, value in self.EVALUATION_BOUND_MUTATIONS.items():
+            with self.subTest(field=field, category="evaluation"):
+                changed_evidence = _base_evidence({field: value})
+                result = native_capability.evaluate_native_capability(changed_evidence, ["gpt-4o-native", "gpt-4o-mini-native"])
+                self.assertNotEqual(result["outcome"], "native-capability-confirmed", f"evaluation should refuse for {field}")
+                self.assertFalse(result["states"]["dispatchable"], f"should not be dispatchable for {field}")
+                with self.assertRaises(ValueError):
+                    _build_receipt(changed_evidence)
+
+    def test_a_different_model_identity_is_bound_by_the_evidence_digest(self) -> None:
+        models = ["gpt-4o-native", "gpt-4o-mini-native"]
+        identity = {"requested_model": "gpt-4o-mini-native", "configured_model": "gpt-4o-mini-native",
+                    "attested_model": "gpt-4o-mini-native"}
+        changed_evidence = _base_evidence(identity)
+        self.assertEqual(native_capability.evaluate_native_capability(changed_evidence, models)["outcome"],
+                         "native-capability-confirmed")
+        self.assertIssuanceRefused(changed_evidence, _session_authority(_base_evidence()),
+                                   ["capability-authority-evidence-mismatch"], models)
+        receipt = _build_receipt(_base_evidence())
+        tampered = {**receipt, **identity}
+        tampered["session_evidence_sha256"] = native_capability.canonical_capability_evidence_sha256(tampered)
+        self.assertEqual(_validate_receipt(_resealed(tampered)), ["capability-authority-evidence-mismatch"])
+
+    def test_issuance_refuses_authority_from_another_source_type(self) -> None:
+        # Only worker discovery may name an operative worker, so the role and its derived scope change with it.
+        evidence = _base_evidence()
+        self.assertIssuanceRefused(
+            evidence, _authority_for(evidence, source_type="pm-observation", actor_role="project-manager"),
+            ["capability-authority-source-type-mismatch", "capability-authority-role-mismatch",
+             "capability-authority-scope-mismatch"])
+
+    def test_issuance_refuses_authority_for_another_session(self) -> None:
+        evidence = _base_evidence()
+        self.assertIssuanceRefused(evidence, _authority_for(evidence, source_id="other-canary-session"),
+                                   ["capability-authority-session-mismatch"])
+
+    def test_issuance_refuses_authority_over_other_evidence(self) -> None:
+        evidence = _base_evidence()
+        self.assertIssuanceRefused(evidence, _authority_for(evidence, source_sha256=OTHER_SHA256),
+                                   ["capability-authority-evidence-mismatch"])
+
+    def test_issuance_refuses_authority_for_another_role(self) -> None:
+        # The public constructor derives the scope from the role, so a critic also carries the wider cohort scope.
+        evidence = _base_evidence()
+        self.assertIssuanceRefused(evidence, _authority_for(evidence, actor_role="critic"),
+                                   ["capability-authority-role-mismatch", "capability-authority-scope-mismatch"])
+
+    def test_issuance_refuses_authority_from_another_identity_source(self) -> None:
+        evidence = _base_evidence()
+        self.assertIssuanceRefused(evidence, _authority_for(evidence, identity_source="other-identity-source"),
+                                   ["capability-authority-identity-source-mismatch"])
+
+    def test_issuance_refuses_authority_with_a_parent_receipt(self) -> None:
+        evidence = _base_evidence()
+        self.assertIssuanceRefused(evidence, _authority_for(evidence, parent_receipt_sha256=OTHER_SHA256),
+                                   ["capability-authority-parent-receipt-forbidden"])
+
+    def test_every_receipt_field_is_bound_even_when_all_digests_are_recomputed(self) -> None:
+        base_evidence = _base_evidence()
+        receipt = _build_receipt(base_evidence)
+        self.assertEqual(_validate_receipt(receipt), [])
+        for field, value in self.AUTHORITY_BOUND_MUTATIONS.items():
+            with self.subTest(field=field):
+                tampered = copy.deepcopy(receipt)
+                tampered[field] = value
+                tampered["session_evidence_sha256"] = native_capability.canonical_capability_evidence_sha256(tampered)
+                self.assertNotEqual(tampered["session_evidence_sha256"], receipt["session_evidence_sha256"])
+                tampered = _resealed(tampered)
+                self.assertEqual(tampered["authority_provenance"], receipt["authority_provenance"])
+                self.assertEqual(_validate_receipt(tampered), self._evidence_refusals(field))
+
+    def test_provenance_binding_mutation_rows(self):
+        rows = (
+            ProvenanceMutationCase('test_validation_refuses_provenance_from_another_source_type', {"source_type": "pm-observation", "actor_role": "project-manager"}, ["capability-authority-source-type-mismatch", "capability-authority-role-mismatch"]),
+            ProvenanceMutationCase('test_validation_refuses_provenance_for_another_session', {"source_id": "other-canary-session"}, ["capability-authority-session-mismatch"]),
+            ProvenanceMutationCase('test_validation_refuses_provenance_over_other_evidence', {"source_sha256": OTHER_SHA256, "verification": {"method": "trusted-runtime-role-binding-v1",
+                                                             "evidence_sha256": OTHER_SHA256}}, ["capability-authority-evidence-mismatch"]),
+            ProvenanceMutationCase('test_validation_refuses_provenance_for_another_role', {"actor_role": "critic"}, ["capability-authority-role-mismatch"]),
+            ProvenanceMutationCase('test_validation_refuses_provenance_from_another_identity_source', {"identity_source": "other-identity-source"}, ["capability-authority-identity-source-mismatch"]),
+            ProvenanceMutationCase('test_validation_refuses_provenance_with_a_wider_scope', {"actor_role": "critic", "authorized_scope": "cohort"}, ["capability-authority-role-mismatch", "capability-authority-scope-mismatch"]),
+            ProvenanceMutationCase('test_validation_refuses_provenance_with_a_parent_receipt', {"parent_receipt_sha256": OTHER_SHA256}, ["capability-authority-parent-receipt-forbidden"]),
+        )
+        for row in rows:
+            with self.subTest(original=row.original):
+                self.assertProvenanceRefused(row.changes, row.reasons)
+
+
+    def test_a_receipt_applies_only_to_its_model_surface_and_window(self) -> None:
+        receipt = _build_receipt(_base_evidence())
+        applies = native_capability.capability_receipt_applies
+        self.assertTrue(applies(receipt, "gpt-4o-native", "spark-registry", "2026-01-01T13:00:00+00:00"))
+        for model, surface, at in (("other-model", "spark-registry", "2026-01-01T13:00:00+00:00"),
+                                   ("gpt-4o-native", "other-surface", "2026-01-01T13:00:00+00:00"),
+                                   ("gpt-4o-native", "spark-registry", "2026-01-03T13:00:00+00:00")):
+            with self.subTest(model=model, surface=surface, at=at):
+                self.assertFalse(applies(receipt, model, surface, at))
 
 
 if __name__ == "__main__":

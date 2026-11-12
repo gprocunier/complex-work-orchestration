@@ -808,56 +808,6 @@ class Generation8FiniteDagContractTests(unittest.TestCase):
             )
             self.assertEqual(manifest_errors, [])
 
-    def test_v7_rejects_v5_shortcut_and_v6_identity_tamper(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            generation6, predecessor, generation8 = self._complete_chain(root)
-            shortcut_errors = self._authorization_errors(
-                root, generation6, generation8
-            )
-            self.assertIn(
-                "authorization-v7-predecessor-proof-missing", shortcut_errors
-            )
-
-            changed = json.loads(json.dumps(predecessor.authorization.value))
-            changed["version"] = 7
-            changed_predecessor = CONTRACTS.Version6PredecessorProofInputs(
-                authorization=CONTRACTS.JsonArtifactSnapshot(
-                    raw=predecessor.authorization.raw, value=changed
-                ),
-                manifest=predecessor.manifest,
-                authorization_state=predecessor.authorization_state,
-                failure_evidence=predecessor.failure_evidence,
-                containment=predecessor.containment,
-                allocation_ledger=predecessor.allocation_ledger,
-                allocation_audit_bytes=predecessor.allocation_audit_bytes,
-                authorization_recovery_cause_evidence=(
-                    predecessor.authorization_recovery_cause_evidence
-                ),
-                authorization_recovery_cause_source_analysis=(
-                    predecessor.authorization_recovery_cause_source_analysis
-                ),
-                outer_authority=predecessor.outer_authority,
-                independent_validation_receipt=(
-                    predecessor.independent_validation_receipt
-                ),
-                independent_validation_session_bytes=(
-                    predecessor.independent_validation_session_bytes
-                ),
-                ancestor=predecessor.ancestor,
-                contained_session_bytes=predecessor.contained_session_bytes,
-            )
-            tamper_errors = self._authorization_errors(
-                root, changed_predecessor, generation8
-            )
-            self.assertTrue(
-                any(
-                    "predecessor-v6-contract" in item
-                    or item == "authorization-predecessor-v6-v3-binding-invalid"
-                    for item in tamper_errors
-                ),
-                tamper_errors,
-            )
 
     def test_v7_validates_ancestor_and_grandancestor_causes_independently(
         self,
@@ -947,6 +897,34 @@ class Generation8FiniteDagContractTests(unittest.TestCase):
                 mixed_errors,
             )
 
+    def test_v7_rejects_predecessor_campaign_nonce_replay(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _generation6, predecessor, generation8 = self._complete_chain(root)
+            authorization = json.loads(json.dumps(generation8["authorization"]))
+            predecessor_bindings = predecessor.authorization.value["bindings"]
+            authorization["bindings"]["campaign_nonce"] = predecessor_bindings[
+                "campaign_nonce"
+            ]
+            self._reseal_v7_authorization(authorization)
+            errors = CONTRACTS.validate_full_auto_authorization(
+                authorization,
+                expected_campaign_nonce=authorization["bindings"][
+                    "campaign_nonce"
+                ],
+                predecessor_proof=predecessor,
+                recovery_cause_evidence=generation8["cause_snapshot"],
+                recovery_cause_source_analysis=generation8["source_analysis"],
+                expected_validator_contract_sha256=generation8[
+                    "validator_sha256"
+                ],
+                repo_root=root,
+            )
+            self.assertIn(
+                "authorization-v7-predecessor-campaign-nonce-reused",
+                errors,
+            )
+
     def test_v7_rejects_v1_digest_and_v4_cross_field_replay(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -1005,32 +983,55 @@ class Generation8FiniteDagContractTests(unittest.TestCase):
                 manifest_errors,
             )
 
-    def test_v7_rejects_predecessor_campaign_nonce_replay(self) -> None:
+    def test_v7_rejects_v5_shortcut_and_v6_identity_tamper(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            _generation6, predecessor, generation8 = self._complete_chain(root)
-            authorization = json.loads(json.dumps(generation8["authorization"]))
-            predecessor_bindings = predecessor.authorization.value["bindings"]
-            authorization["bindings"]["campaign_nonce"] = predecessor_bindings[
-                "campaign_nonce"
-            ]
-            self._reseal_v7_authorization(authorization)
-            errors = CONTRACTS.validate_full_auto_authorization(
-                authorization,
-                expected_campaign_nonce=authorization["bindings"][
-                    "campaign_nonce"
-                ],
-                predecessor_proof=predecessor,
-                recovery_cause_evidence=generation8["cause_snapshot"],
-                recovery_cause_source_analysis=generation8["source_analysis"],
-                expected_validator_contract_sha256=generation8[
-                    "validator_sha256"
-                ],
-                repo_root=root,
+            generation6, predecessor, generation8 = self._complete_chain(root)
+            shortcut_errors = self._authorization_errors(
+                root, generation6, generation8
             )
             self.assertIn(
-                "authorization-v7-predecessor-campaign-nonce-reused",
-                errors,
+                "authorization-v7-predecessor-proof-missing", shortcut_errors
+            )
+
+            changed = json.loads(json.dumps(predecessor.authorization.value))
+            changed["version"] = 7
+            changed_predecessor = CONTRACTS.Version6PredecessorProofInputs(
+                authorization=CONTRACTS.JsonArtifactSnapshot(
+                    raw=predecessor.authorization.raw, value=changed
+                ),
+                manifest=predecessor.manifest,
+                authorization_state=predecessor.authorization_state,
+                failure_evidence=predecessor.failure_evidence,
+                containment=predecessor.containment,
+                allocation_ledger=predecessor.allocation_ledger,
+                allocation_audit_bytes=predecessor.allocation_audit_bytes,
+                authorization_recovery_cause_evidence=(
+                    predecessor.authorization_recovery_cause_evidence
+                ),
+                authorization_recovery_cause_source_analysis=(
+                    predecessor.authorization_recovery_cause_source_analysis
+                ),
+                outer_authority=predecessor.outer_authority,
+                independent_validation_receipt=(
+                    predecessor.independent_validation_receipt
+                ),
+                independent_validation_session_bytes=(
+                    predecessor.independent_validation_session_bytes
+                ),
+                ancestor=predecessor.ancestor,
+                contained_session_bytes=predecessor.contained_session_bytes,
+            )
+            tamper_errors = self._authorization_errors(
+                root, changed_predecessor, generation8
+            )
+            self.assertTrue(
+                any(
+                    "predecessor-v6-contract" in item
+                    or item == "authorization-predecessor-v6-v3-binding-invalid"
+                    for item in tamper_errors
+                ),
+                tamper_errors,
             )
 
 

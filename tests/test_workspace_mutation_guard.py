@@ -14,6 +14,7 @@ from cwo_core.workspace import (  # noqa: E402
     capture_tracked_workspace_state,
     diff_workspace_state,
 )
+from tests.real_beads_fixture import configure_git_fixture
 
 
 class WorkspaceMutationGuardTests(unittest.TestCase):
@@ -21,6 +22,7 @@ class WorkspaceMutationGuardTests(unittest.TestCase):
         root = Path(tempfile.mkdtemp(prefix="cwo-workspace-guard-"))
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True)
+        configure_git_fixture(root)
         subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True)
         subprocess.run(["git", "config", "user.name", "CWO Test"], cwd=root, check=True)
         (root / "tracked.txt").write_text("before\n", encoding="utf-8")

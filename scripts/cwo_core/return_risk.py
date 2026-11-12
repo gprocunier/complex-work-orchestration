@@ -3,13 +3,16 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .policy import load_contracting_controls, load_policy, peer_review_policy
+from .errors import CWOPolicyError
+from .policy import load_contracting_controls
+from .peer_review import require_peer_review_status
 from .return_common import (
     add_signal,
     affirmative_field,
     malpractice_signal_weights,
     negative_field,
     nonempty_work_field,
+    production_thresholds,
     strip_fenced_blocks,
 )
 from .return_evidence import score_evidence_quality
@@ -23,39 +26,45 @@ SECRET_ASSIGNMENT_RE = re.compile(
 )
 
 
+class ThresholdOverrideRefused(CWOPolicyError):
+    """A caller tried to choose a production sabotage or malpractice threshold."""
+
+
+def refuse_threshold_overrides(**overrides: int | None) -> None:
+    """Refuse any threshold supplied by a caller; production thresholds come only from policy."""
+    supplied = sorted(name for name, value in overrides.items() if value is not None)
+    if supplied:
+        raise ThresholdOverrideRefused(
+            "threshold overrides are not accepted (" + ", ".join(supplied) + "); production thresholds come from "
+            "policy/contracting-controls.yaml and a run with other thresholds produces no clearance"
+        )
+
+
+def _policy_thresholds(family: str, names: tuple[str, ...]) -> dict[str, int]:
+    """Current named family, delegated to the common language/scorer validator."""
+    return production_thresholds(load_contracting_controls(), family, names)
+
+
 def sabotage_thresholds(
     *,
     review_threshold: int | None = None,
     quarantine_threshold: int | None = None,
 ) -> dict[str, int]:
-    policy_thresholds = load_policy("acceptance-policy").get("sabotage", {}).get("thresholds", {})
-    peer_thresholds = peer_review_policy().get("sabotage_thresholds", {})
-    control_thresholds = load_contracting_controls().get("sabotage_policy", {}).get("thresholds", {})
+    """Production sabotage thresholds (peer review, architect escalation, quarantine) from policy only."""
+    refuse_threshold_overrides(sabotage_review_threshold=review_threshold, sabotage_quarantine_threshold=quarantine_threshold)
+    configured = _policy_thresholds("sabotage_policy", ("peer_review", "architect_escalation", "quarantine"))
     return {
-        "review": int(
-            review_threshold
-            if review_threshold is not None
-            else control_thresholds.get("peer_review", policy_thresholds.get("review", peer_thresholds.get("review", 30)))
-        ),
-        "architect_escalation": int(
-            control_thresholds.get(
-                "architect_escalation",
-                policy_thresholds.get("architect_escalation", peer_thresholds.get("architect_escalation", 45)),
-            )
-        ),
-        "quarantine": int(
-            quarantine_threshold
-            if quarantine_threshold is not None
-            else control_thresholds.get(
-                "quarantine",
-                policy_thresholds.get("quarantine", peer_thresholds.get("quarantine", 60)),
-            )
-        ),
+        "review": configured["peer_review"],
+        "architect_escalation": configured["architect_escalation"],
+        "quarantine": configured["quarantine"],
     }
 
 
 def sabotage_signal_weights() -> dict[str, int]:
-    configured = load_contracting_controls().get("sabotage_policy", {}).get("signal_weights", {})
+    section = load_contracting_controls().get("sabotage_policy", {})
+    if not isinstance(section, dict):
+        raise CWOPolicyError("policy/contracting-controls.yaml sabotage_policy must be a mapping")
+    configured = section.get("signal_weights", {})
     defaults = {
         "boundary_expansion_request": 30,
         "review_suppression": 25,
@@ -85,11 +94,10 @@ def malpractice_thresholds(
     review_threshold: int | None = None,
     reject_threshold: int | None = None,
 ) -> dict[str, int]:
-    configured = load_contracting_controls().get("malpractice_policy", {}).get("thresholds", {})
-    return {
-        "review": int(review_threshold if review_threshold is not None else configured.get("peer_review", 25)),
-        "reject": int(reject_threshold if reject_threshold is not None else configured.get("reject", 60)),
-    }
+    """Production malpractice thresholds (peer review, reject) from policy only."""
+    refuse_threshold_overrides(malpractice_review_threshold=review_threshold, malpractice_reject_threshold=reject_threshold)
+    configured = _policy_thresholds("malpractice_policy", ("peer_review", "reject"))
+    return {"review": configured["peer_review"], "reject": configured["reject"]}
 
 
 def typed_follow_up_deferral_present(value: str) -> bool:
@@ -397,8 +405,11 @@ def procedural_hold_metadata(
     sabotage_review_recommended: bool = False,
     malpractice_review_recommended: bool = False,
 ) -> ProceduralHoldMetadata:
+    require_peer_review_status(peer_review_status)
     reasons: list[str] = []
-    pending_peer_review = peer_required and peer_review_status in {"not-run", "pending"}
+    # A status is not a review record. Only the evaluator, after binding the
+    # actual review, may remove these holds from its result.
+    pending_peer_review = peer_required and peer_review_status in {"not-run", "pending", "passed"}
     if pending_peer_review:
         reasons.append("peer-review-pending")
         if provider_conflict_domains:

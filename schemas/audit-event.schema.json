@@ -150,6 +150,51 @@
     "malpractice_score": {"type": ["integer", "null"]},
     "peer_review_required": {"type": ["boolean", "null"]},
     "peer_review_status": {"type": ["string", "null"]},
+    "peer_review_reviewer": {"$ref": "peer-review-record.schema.json#/properties/reviewer_identity"},
+    "peer_review_record": {"$ref": "peer-review-record.schema.json"},
+    "peer_review_separation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "level",
+        "executor_identity",
+        "executor_session_id",
+        "reviewer_session_id",
+        "executor_dispatch_sha256",
+        "reviewer_dispatch_sha256"
+      ],
+      "properties": {
+        "level": {
+          "enum": [
+            "cross-family",
+            "escalation"
+          ]
+        },
+        "executor_identity": {
+          "$ref": "peer-review-record.schema.json#/properties/reviewer_identity"
+        },
+        "executor_session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "reviewer_session_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/-]{0,127}$"
+        },
+        "executor_dispatch_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reviewer_dispatch_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
     "implementation_blocked": {"type": ["boolean", "null"]},
     "hold_reasons": {"type": "array", "items": {"type": "string"}},
     "hold_classification": {"type": ["string", "null"]},

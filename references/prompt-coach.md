@@ -9,6 +9,43 @@ The helper calls the same policy router as `scripts/route_work.py`. Its output
 includes the route, warnings, permitted and disabled options,
 `beads_tracking_required=true`, `workerbee_parallelism`, `model_synthesis` and
 `beads_context_depth`. The sections below define those exact fields.
+`execution_availability` says separately whether models can be dispatched for
+the work, after every gate: a route stop or native containment makes dispatch
+unavailable even when operative route selection succeeded, and its reason is
+listed. A stop blocks dispatching workers, not planning, and stays in force
+until its gate passes. Native containment also takes precedence in
+`workerbee_parallelism`: the signal is a hard stop with no selected model. The
+`--brief` and default human output print `Model dispatch available` from this
+combined field, with the stops that deny it.
+
+The router's risk level is at least the floor set by risk features found in the
+task text (`route.risk_assessment`): curated terms for migrations, destructive
+actions, credential rotation, credentials, authentication, databases and
+production, listed in `policy/risk-features.yaml`. The text is normalized with
+NFKC and case folding; a token is a run of ASCII letters and digits, and every
+other character is a boundary. Terms match only as whole tokens, and multi-word
+terms only as consecutive whole tokens, so "products" is not "prod" and "sign
+indicator" is not "sign in". A feature counts wherever it appears, negated or
+quoted. The task text and the `--file` contents are separate segments: the
+joined text, each segment alone and every cumulative prefix of the segments
+are assessed and the union is kept, so a feature formed at any point in the
+append history, across a segment boundary or mid-token, keeps its floor and
+experts when later segments are appended. That guarantee is for appended
+segments; it is tested on bounded generated suffixes, multi-segment histories
+and the labelled corpus, not claimed for every string.
+
+Risk narrowing is not supported in this version. No
+structured scope, evidence file, `--file-path`, `--stage` or flag resolves a
+risk feature or lowers its floor. Passing `--risk-scope` or
+`--risk-evidence-dir` to the coach or any routing command is refused with
+"risk narrowing is not supported in this version" before any
+routing output. Ordinary work without risk features, such as a README typo
+fix, still routes proportionately. Every expert a risk feature requires (for
+example security for OIDC work) stays in the route, in tight scaffolds and in
+default expert review plans wherever it ranks; one that cannot be supplied is
+reported in `route.risk_assessment.unmet_required_experts`, and the review and
+scaffold commands refuse rather than plan without it. Routing risk is a
+planning signal, not dispatch authority.
 
 Provider names in explicit prohibitions are not opt-ins. Phrases such as
 `do not add Gemini` or `Claude is not authorized`
@@ -98,11 +135,38 @@ When the user chooses tight-chain, run:
 python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>" --scaffold-size tight
 ```
 
-The tight chain keeps architect, PM, implementation, validation, docs/handoff,
-required evaluation, peer review, editor gates, the primary expert lane, and
+The tight chain keeps architect, PM, implementation, docs, validation, the
+wrap-up report and handoff, required evaluation, peer review, editor gates,
+publish sanitization, the primary expert lane, risk-required experts and
 explicit architecture-critic contracts. It drops optional secondary expert
-fan-out. If there are no independent lanes to coordinate, prefer one manual
-Bead instead of a scaffold.
+fan-out. In both sizes implementation and docs come before validation and the
+other final checks, and the wrap-up report follows the last of them. If there
+are no independent lanes to coordinate, prefer one manual Bead instead of a
+scaffold.
+
+`--scaffold-size` accepts only `full` and `tight`; any other value is refused
+before a graph is planned. Requests that say `minimal scaffold` select the
+tight chain, not a separate tier.
+
+### Proposed in-thread tier (not available)
+
+A smaller in-thread scaffold is designed but deliberately not available. It
+stays absent until successful closure can verify the requirement baseline, the
+delivered candidate and its evidence (issue #37). Until then a
+compact graph could only end at `pending-acceptance`, so it would add steps
+without a verifiable acceptance. The design, for review only:
+
+- Four lanes in one thread: frame (record the requirement baseline and
+  acceptance criteria), produce (all content, implementation and docs),
+  check (run the recorded criteria against the exact candidate) and report
+  (wrap-up and handoff, inspection only).
+- No invented delegation, paid review or native admission: no PM lane,
+  optional expert fan-out or dispatch lane.
+- No omitted obligation: a route that names a risk-required expert, an
+  editorial gate, publish sanitization, peer review or an outside acceptance
+  chain is refused for this tier and needs the tight chain or the full graph.
+- A content change after the check invalidates that check and any acceptance
+  based on it.
 
 ## Beads Context Depth
 

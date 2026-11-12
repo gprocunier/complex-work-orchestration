@@ -1,11 +1,34 @@
 from __future__ import annotations
 
-import hashlib
-import json
-import re
+from dataclasses import dataclass
 from typing import Any
 
-from .policy import load_policy, local_v2_critic_eligible
+from .adjudication import (
+    AUTHORITY_ENFORCEMENT,
+    RESTRICTIVE_DECISIONS,
+    Binding,
+    Clearance,
+    Resolution,
+    bind_inputs,
+    hold_clearance,
+    load_registries,
+    resolve_adjudication,
+)
+from .policy import load_policy
+from .synthesis_inputs import (
+    UNRESOLVED,
+    Claim,
+    ConsensusLane,
+    ConsensusPolicy,
+    SynthesisInput,
+    SynthesisPolicy,
+    call_view,
+    consensus_lanes_from_summaries,
+    consensus_policy_view,
+    policy_sha256,
+    synthesis_policy_view,
+    zero_trust_normalize,
+)
 from .util import provider_term_intent, term_hits, term_intent
 
 
@@ -18,9 +41,7 @@ def zero_trust_consensus_policy() -> dict[str, Any]:
 
 
 def zero_trust_policy_sha256(policy: dict[str, Any] | None = None) -> str:
-    config = policy or zero_trust_consensus_policy()
-    encoded = json.dumps(config, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+    return policy_sha256(policy or zero_trust_consensus_policy())
 
 
 def mentioned_provider_camps(text: str, policy: dict[str, Any] | None = None) -> list[str]:
@@ -290,67 +311,240 @@ def provider_conflict_flags(route: dict[str, Any], camps: list[str]) -> list[dic
     return flags
 
 
-def _normalize_disposition(value: Any) -> str:
-    disposition = str(value or "missing").strip().lower().replace("_", "-").replace(" ", "-")
-    aliases = {
-        "accept": "accepted",
-        "accepted-with-modifications": "accepted-with-modification",
-        "accept-with-modification": "accepted-with-modification",
-        "modified-accept": "accepted-with-modification",
-        "partial-accept": "accepted-with-modification",
-        "timeout": "timed-out",
-        "timedout": "timed-out",
-        "blank": "empty",
-        "quarantine": "quarantined",
-        "boundary-taint": "boundary-tainted",
-        "tainted": "boundary-tainted",
-        "reject": "rejected",
-        "failure": "failed-evaluation",
-        "failed": "failed-evaluation",
+# ---------------------------------------------------------------------------
+# Synthesis input evaluation. Every raw input, record and argument is parsed
+# once by cwo_core.synthesis_inputs; the code below reads only parsed forms.
+# An UNRESOLVED field maps to the most restrictive outcome any well-formed
+# value of it could produce, in every context.
+
+
+_FINAL_USES = frozenset({"primary", "salvage-only", "partial-only", "open-risk", "quarantine", "reject"})
+
+
+@dataclass(frozen=True)
+class _Lane:
+    item: SynthesisInput
+    binding: Binding
+    resolution: Resolution
+    clearance: Clearance
+    synthesis_use: str
+    effective_disposition: str
+    requested_use: str | None
+    use_hold_resolved_by: str | None
+    primary_use_withheld: str | None
+    quarantine_sources: tuple[str, ...]
+    overridden_restrictions: tuple[str, ...]
+    unresolved_primary_request: bool
+    # Why the lane's use or inclusion is unresolved (empty when every field
+    # that decides it is resolved). A lane with unresolved data that carries
+    # zero-trust claims keeps them as unresolved claims when it is excluded.
+    unresolved_data: tuple[str, ...]
+
+    @property
+    def quarantine_in_force(self) -> bool:
+        return bool(self.quarantine_sources)
+
+
+def _decide_lane(item: SynthesisInput, binding: Binding, resolution: Resolution, config: SynthesisPolicy) -> _Lane:
+    clearance = hold_clearance(item, resolution, config)
+    decision = resolution.decision if resolution.applied else None
+    # A failed, invalid or ambiguous resolution never discards a refusal:
+    # refusals in records that are not provably history stay in force.
+    pending = resolution.pending_restrictions
+    authorized = clearance.authorized
+    effective = "boundary-tainted" if item.boundary_status == "boundary-tainted" else item.disposition
+    local_v2_unusable = item.local_v2.unresolved or (item.local_v2.valid and item.local_v2.value is False)
+    if item.local_v2_marker_unresolved or local_v2_unusable:
+        effective = "quarantined"
+    explicit = item.explicit_use.value if item.explicit_use.valid else None
+    recommended = item.recommended_use.value if item.recommended_use.valid else None
+    requested = explicit or recommended
+    # The salvage-only provider rule applies when any caller provider label
+    # or the dispatch-derived family names a salvage-only provider; a label
+    # can add the restriction but never remove it.
+    derived_family = binding.provider_family if binding.provenance_known else None
+    salvage_provider = bool(item.provider_labels & config.salvage_only_camps) or derived_family in config.salvage_only_camps
+    use_hold_resolved_by = None
+
+    if not item.is_object:
+        use = "reject"
+    elif decision == "rejected":
+        # A bound rejection resolves this return's use-hold without accepting
+        # its advice; the return is excluded from use.
+        use = "reject"
+        if item.held or effective in config.quarantine:
+            use_hold_resolved_by = resolution.adjudication_id
+    elif effective in config.quarantine or decision == "quarantined":
+        use = "quarantine"
+    elif effective in config.rejected:
+        use = "reject"
+    elif item.held and not authorized:
+        use = "open-risk"
+    elif "quarantined" in pending:
+        # An unresolved refusal stays in force. It does not resolve a hold (a
+        # held return stays open-risk above); it keeps an otherwise usable
+        # return out of use.
+        use = "quarantine"
+    elif "rejected" in pending:
+        use = "reject"
+    elif requested == "primary" and not authorized:
+        use = "salvage-only" if salvage_provider else "unknown"
+    elif requested:
+        use = requested
+    elif effective in config.salvage_only:
+        use = "salvage-only"
+    elif salvage_provider and effective in config.use_as_input:
+        use = "salvage-only"
+    elif effective in config.use_as_input:
+        use = "primary"
+    elif effective in config.partial_only:
+        use = "partial-only"
+    elif effective in config.open_risk:
+        use = "open-risk"
+    else:
+        use = "unknown"
+
+    disposition_unresolved = item.disposition_state == UNRESOLVED
+    # A requested primary use that no applied adjudication decides is
+    # unresolved ("unknown") whatever else sets the final use: a hold, a
+    # quarantine or a rejection does not resolve the request.
+    unresolved_primary_request = (
+        item.is_object
+        and requested == "primary"
+        and not authorized
+        and not salvage_provider
+        and decision not in RESTRICTIVE_DECISIONS
+        and use != "unknown"
+    )
+    primary_use_withheld = None
+    if use == "primary":
+        if item.use_unresolved:
+            use, primary_use_withheld = "unknown", "invalid synthesis_use or recommended_synthesis_use"
+        elif recommended == "quarantine":
+            # An explicit use, even one an adjudication authorizes, does not
+            # clear a recommended quarantine.
+            use, primary_use_withheld = "quarantine", "recommended_synthesis_use is quarantine"
+        elif disposition_unresolved and not item.disposition_missing:
+            # An adjudication can promote a recognized evaluation; it does not
+            # turn an unreadable one into a primary input. (A missing
+            # disposition reads as "missing", withheld below.)
+            use, primary_use_withheld = "unknown", "unrecognized evaluator disposition"
+        elif item.disposition in config.partial_only or item.disposition in config.open_risk:
+            # Nor does it turn a missing, empty, timed-out or deferred
+            # evaluation into a primary input.
+            use = "partial-only" if item.disposition in config.partial_only else "open-risk"
+            primary_use_withheld = "evaluator disposition cannot be promoted to primary"
+        elif binding.state == "failed":
+            # A binding was attempted and failed or is ambiguous. That is not
+            # the absence of a binding, so legacy treatment does not apply.
+            use, primary_use_withheld = "open-risk", "dispatch binding was attempted and failed or is ambiguous"
+        elif resolution.unresolved:
+            use, primary_use_withheld = "open-risk", f"adjudication resolution is {resolution.state}"
+        elif binding.provenance_unresolved:
+            # The registry identity and the record's labels disagree, or the
+            # executor is unknown: adjudication cannot settle identity.
+            use, primary_use_withheld = "salvage-only", "dispatch provenance is unknown or conflicting"
+        elif item.provider_labels_unresolved:
+            use, primary_use_withheld = "salvage-only", "malformed provider label"
+
+    # A quarantine is in force when the evaluator or the boundary set it, when
+    # a bound adjudication applied it, when a quarantining record is still
+    # pending, when the final, requested or recommended use is quarantine, or
+    # when a use field or the disposition is unresolved or the input is not an
+    # object, and so may be read as quarantine. The external-input block reads
+    # this, and any quarantine in force keeps the result from being ready.
+    quarantine_sources = tuple(
+        source
+        for source, active in (
+            ("evaluator disposition or boundary status", effective in config.quarantine),
+            ("applied adjudication", decision == "quarantined"),
+            ("pending adjudication record", "quarantined" in pending),
+            ("final synthesis use", use == "quarantine"),
+            ("synthesis_use", explicit == "quarantine"),
+            ("recommended_synthesis_use", recommended == "quarantine"),
+            ("malformed use field", item.use_unresolved),
+            ("unresolved evaluator disposition", item.is_object and disposition_unresolved),
+            ("input is not an object", not item.is_object),
+        )
+        if active
+    )
+    # A use field may lower an input to salvage-only, but it does not clear an
+    # open-risk or partial-only evaluation, a more restrictive recommendation,
+    # an unresolved adjudication, or an unreadable evaluation or use field.
+    overridden: list[str] = []
+    if use == "salvage-only":
+        if effective in config.partial_only or effective in config.open_risk:
+            overridden.append(f"evaluator disposition {effective}")
+        if explicit is not None and recommended in {"partial-only", "open-risk", "reject"}:
+            overridden.append(f"recommended_synthesis_use {recommended}")
+        if resolution.unresolved:
+            overridden.append(f"adjudication resolution is {resolution.state}")
+        if item.is_object and disposition_unresolved:
+            overridden.append("evaluator disposition is unresolved")
+        if item.use_unresolved:
+            overridden.append("a use field is malformed")
+    unresolved_data = list(item.errors)
+    if binding.state == "failed":
+        unresolved_data.append("dispatch binding was attempted and failed or is ambiguous")
+    if binding.provenance_unresolved:
+        unresolved_data.append("dispatch provenance is unknown or conflicting")
+    if resolution.unresolved or resolution.state == "unbound":
+        unresolved_data.append(f"adjudication resolution is {resolution.state}")
+    return _Lane(
+        item=item,
+        binding=binding,
+        resolution=resolution,
+        clearance=clearance,
+        synthesis_use=use,
+        effective_disposition=effective,
+        requested_use=requested,
+        use_hold_resolved_by=use_hold_resolved_by,
+        primary_use_withheld=primary_use_withheld,
+        quarantine_sources=quarantine_sources,
+        overridden_restrictions=tuple(overridden),
+        unresolved_primary_request=unresolved_primary_request,
+        unresolved_data=tuple(unresolved_data),
+    )
+
+
+def _lane_summary(lane: _Lane) -> dict[str, Any]:
+    item = lane.item
+    local_v2_unusable = item.local_v2.unresolved or (item.local_v2.valid and item.local_v2.value is False)
+    return {
+        "lane": item.lane,
+        "provider_camp": item.reported_provider_camp,
+        "disposition": item.disposition,
+        "effective_disposition": lane.effective_disposition,
+        "boundary_status": item.boundary_status,
+        "synthesis_use": lane.synthesis_use,
+        "requested_synthesis_use": lane.requested_use,
+        "recommended_synthesis_use": item.recommended_use.value if item.recommended_use.valid else None,
+        "evidence_quality_score": item.reported_evidence_quality_score,
+        "external": not (item.external.valid and item.external.value is False),
+        "reason": "unusable GLM critic v2 dispatch evidence" if local_v2_unusable else item.reported_reason,
+        "implementation_blocked": item.held,
+        "hold_flag_malformed": item.hold_flag_unresolved,
+        "hold_reasons_malformed": item.hold_reasons_unresolved,
+        "hold_classification": item.hold_classification,
+        "hold_reasons": list(item.hold_reasons),
+        "dispatch_binding": lane.binding.as_dict(),
+        "adjudication": {
+            **lane.resolution.as_dict(),
+            "authorizes_requested_use": lane.clearance.authorized,
+            "uncleared_hold_reasons": list(lane.clearance.uncleared_hold_reasons),
+            "not_authorized_reason": None if lane.clearance.authorized else lane.clearance.reason,
+        },
+        "use_hold_resolved_by": lane.use_hold_resolved_by,
+        "pending_restrictions": list(lane.resolution.pending_restrictions),
+        "quarantine_in_force": lane.quarantine_in_force,
+        "quarantine_sources": list(lane.quarantine_sources),
+        "overridden_restrictions": list(lane.overridden_restrictions),
+        "adjudication_unresolved": lane.resolution.unresolved,
+        "primary_use_withheld": lane.primary_use_withheld,
+        "unresolved_data": list(lane.unresolved_data),
+        "input_errors": list(item.errors),
+        "ignored_authority_claims": list(item.ignored_authority_claims),
     }
-    return aliases.get(disposition, disposition)
-
-
-def _normalize_boundary_status(value: Any) -> str:
-    status = str(value or "unknown").strip().lower().replace("_", "-").replace(" ", "-")
-    aliases = {
-        "clean": "clear",
-        "not-tainted": "clear",
-        "boundary-taint": "boundary-tainted",
-        "tainted": "boundary-tainted",
-    }
-    return aliases.get(status, status)
-
-
-def _normalize_synthesis_use(value: Any) -> str | None:
-    if value is None:
-        return None
-    use = str(value).strip().lower().replace("_", "-").replace(" ", "-")
-    aliases = {
-        "use": "primary",
-        "usable": "primary",
-        "use-as-input": "primary",
-        "use-as-primary": "primary",
-        "salvage": "salvage-only",
-        "salvageonly": "salvage-only",
-        "partial": "partial-only",
-        "partialonly": "partial-only",
-        "openrisk": "open-risk",
-        "quarantined": "quarantine",
-        "rejected": "reject",
-    }
-    normalized = aliases.get(use, use)
-    if normalized in {"primary", "salvage-only", "partial-only", "open-risk", "quarantine", "reject"}:
-        return normalized
-    return None
-
-
-def _truthy(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if value is None:
-        return False
-    return str(value).strip().lower() in {"1", "true", "yes", "y", "on"}
 
 
 def evaluate_synthesis_inputs(
@@ -358,194 +552,166 @@ def evaluate_synthesis_inputs(
     policy: dict[str, Any] | None = None,
     *,
     zero_trust_required: bool = False,
+    dispatch_records: list[dict[str, Any]] | None = None,
+    adjudications: list[dict[str, Any]] | None = None,
+    candidate: str | None = None,
+    scope: str | None = None,
 ) -> dict[str, Any]:
-    """Apply synthesis disposition policy to independently evaluated model returns."""
+    """Apply synthesis disposition policy to independently evaluated model returns.
 
-    config = policy or synthesis_policy()
-    disposition_policy = dict(config.get("input_disposition_policy", {}))
-    partial_policy = dict(config.get("partial_synthesis_policy", {}))
-    use_as_input = {
-        _normalize_disposition(item)
-        for item in disposition_policy.get(
-            "use_as_synthesis_input",
-            disposition_policy.get("use_as_primary", ["accepted", "accepted-with-modification"]),
-        )
-    }
-    open_risk = {
-        _normalize_disposition(item) for item in disposition_policy.get("summarize_as_open_risk", [])
-    }
-    salvage_only = {
-        _normalize_disposition(item) for item in disposition_policy.get("salvage_only", ["salvage-only"])
-    }
-    salvage_only_camps = {str(item) for item in config.get("salvage_only_provider_camps", [])}
-    partial_only = {
-        _normalize_disposition(item) for item in disposition_policy.get("partial_only", [])
-    }
-    quarantine = {
-        _normalize_disposition(item)
-        for item in disposition_policy.get("quarantine", ["quarantined", "boundary-tainted"])
-    }
-    rejected = {
-        _normalize_disposition(item)
-        for item in disposition_policy.get("exclude_as_rejected", disposition_policy.get("reject", ["rejected"]))
-    }
-    rejected.update({"rejected", "failed-evaluation"})
+    Every argument is parsed once by ``cwo_core.synthesis_inputs``; nothing
+    below reads a raw record. Provider identity for independence counting and
+    the salvage-only provider rule comes from each return's bound dispatch
+    record (see ``cwo_core.adjudication``). Primary use of a
+    recommended-primary return and clearing of an adjudication hold need an
+    adjudication record bound to the same dispatch, return digest, exact
+    ``candidate`` and ``scope``; role labels on the input are reported and
+    ignored.
+    """
 
-    input_summaries: list[dict[str, Any]] = []
-    primary_inputs: list[dict[str, Any]] = []
-    salvage_inputs: list[dict[str, Any]] = []
-    partial_inputs: list[dict[str, Any]] = []
-    open_risk_inputs: list[dict[str, Any]] = []
-    quarantined_inputs: list[dict[str, Any]] = []
-    rejected_inputs: list[dict[str, Any]] = []
-    unknown_inputs: list[dict[str, Any]] = []
-    held_inputs: list[dict[str, Any]] = []
-    external_inputs: list[dict[str, Any]] = []
+    config = synthesis_policy_view(policy or synthesis_policy())
+    consensus_config = consensus_policy_view(zero_trust_consensus_policy())
+    call = call_view(
+        inputs,
+        dispatch_records=dispatch_records,
+        adjudications=adjudications,
+        candidate=candidate,
+        scope=scope,
+        zero_trust_required=zero_trust_required,
+        policy=config,
+        consensus_policy=consensus_config,
+    )
+    bindings = bind_inputs(call, load_registries())
+    claimed = frozenset(item.dispatch_id.value for item in call.inputs if item.dispatch_id.valid)
+    lanes = tuple(
+        _decide_lane(item, binding, resolve_adjudication(item, binding, call, claimed_dispatch_ids=claimed), config)
+        for item, binding in zip(call.inputs, bindings)
+    )
 
-    for index, entry in enumerate(inputs, start=1):
-        disposition = _normalize_disposition(entry.get("disposition"))
-        boundary_status = _normalize_boundary_status(
-            entry.get("boundary_taint_status")
-            or entry.get("boundary_status")
-            or entry.get("share_boundary_status")
-        )
-        effective_disposition = "boundary-tainted" if boundary_status == "boundary-tainted" else disposition
-        local_v2_eligible = local_v2_critic_eligible(
-            executor=entry.get("executor"),
-            expected_contract=entry.get("local_expected_response_contract"),
-            response_contract=entry.get("local_response_contract"),
-            contract_status=entry.get("local_response_contract_status"),
-            completion_status=entry.get("local_completion_status"),
-            usable_final_content=entry.get("local_usable_final_content"),
-            normalized_return_matches=entry.get("local_normalized_return_matches"),
-            frame_valid=entry.get("local_v2_frame_valid"),
-            identity_consistent=entry.get("local_v2_identity_consistent"),
-            response_model_status=entry.get("local_response_model_status"),
-            model_preflight_status=entry.get("local_model_preflight_status"),
-            http_status=entry.get("local_http_status"),
-        )
-        if local_v2_eligible is False:
-            effective_disposition = "quarantined"
-        lane = str(entry.get("lane") or entry.get("id") or entry.get("name") or f"input-{index}")
-        external = bool(entry.get("external", True))
-        provider_camp = str(entry.get("provider_camp") or "")
-        implementation_blocked = _truthy(entry.get("implementation_blocked"))
-        hold_reasons = [str(item) for item in entry.get("hold_reasons", []) if str(item).strip()]
-        hold_classification = str(entry.get("hold_classification") or "none")
-        requested_synthesis_use = _normalize_synthesis_use(
-            entry.get("synthesis_use") or entry.get("recommended_synthesis_use")
-        )
+    adjudication_errors: list[str] = []
+    unattributable_restrictions: list[int] = []
+    unattributable_records: list[int] = []
+    if call.adjudications.unresolved:
+        adjudication_errors.append("adjudications must be a list")
+    for record in call.adjudication_items:
+        if record.dispatch_id.unresolved:
+            if record.decision.valid and record.decision.value in RESTRICTIVE_DECISIONS:
+                unattributable_restrictions.append(record.position)
+            else:
+                # Not an object, or no readable dispatch_id, and no readable
+                # refusal either: what it decides and whom it concerns are unknown.
+                unattributable_records.append(record.position)
+        if not (record.dispatch_id.valid and record.dispatch_id.value in claimed):
+            adjudication_errors.append(
+                f"adjudications[{record.position}] does not name the dispatch_id of any input and was not applied"
+            )
 
-        requested_primary_authorized = bool(
-            entry.get("architect_adjudicated")
-            or entry.get("architect_upgrade")
-            or entry.get("architect_adjudication_authorized")
-            or entry.get("implementation_block_override_authorized")
-            or str(entry.get("synthesis_use_authority") or "").strip().lower() in {"architect", "architect-adjudication"}
-        )
+    summaries = [_lane_summary(lane) for lane in lanes]
+    rejections = list(call.record_rejections)
+    for lane in lanes:
+        if lane.item.errors:
+            rejections.append(
+                {"source": "inputs", "index": lane.item.position, "id": lane.item.lane, "errors": list(lane.item.errors)}
+            )
 
-        if effective_disposition in quarantine:
-            synthesis_use = "quarantine"
-        elif effective_disposition in rejected:
-            synthesis_use = "reject"
-        elif implementation_blocked and not requested_primary_authorized:
-            synthesis_use = "open-risk"
-        elif requested_synthesis_use == "primary" and not requested_primary_authorized:
-            synthesis_use = "salvage-only" if provider_camp in salvage_only_camps else "unknown"
-        elif requested_synthesis_use:
-            synthesis_use = requested_synthesis_use
-        elif effective_disposition in salvage_only:
-            synthesis_use = "salvage-only"
-        elif provider_camp in salvage_only_camps and effective_disposition in use_as_input:
-            synthesis_use = "salvage-only"
-        elif effective_disposition in use_as_input:
-            synthesis_use = "primary"
-        elif effective_disposition in partial_only:
-            synthesis_use = "partial-only"
-        elif effective_disposition in open_risk:
-            synthesis_use = "open-risk"
-        else:
-            synthesis_use = "unknown"
+    def with_use(*uses: str) -> list[dict[str, Any]]:
+        return [summary for lane, summary in zip(lanes, summaries) if lane.synthesis_use in uses]
 
-        summary = {
-            "lane": lane,
-            "provider_camp": entry.get("provider_camp"),
-            "disposition": disposition,
-            "effective_disposition": effective_disposition,
-            "boundary_status": boundary_status,
-            "synthesis_use": synthesis_use,
-            "requested_synthesis_use": requested_synthesis_use,
-            "evidence_quality_score": entry.get("evidence_quality_score"),
-            "external": external,
-            "reason": (
-                "unusable GLM critic v2 dispatch evidence"
-                if local_v2_eligible is False
-                else entry.get("reason")
-            ),
-            "implementation_blocked": implementation_blocked,
-            "hold_classification": hold_classification,
-            "hold_reasons": hold_reasons,
-        }
-        input_summaries.append(summary)
-        if implementation_blocked:
-            held_inputs.append(summary)
-        if external:
-            external_inputs.append(summary)
-        if synthesis_use == "primary":
-            primary_inputs.append(summary)
-        elif synthesis_use == "salvage-only":
-            salvage_inputs.append(summary)
-        elif synthesis_use == "partial-only":
-            partial_inputs.append(summary)
-        elif synthesis_use == "quarantine":
-            quarantined_inputs.append(summary)
-        elif synthesis_use == "reject":
-            rejected_inputs.append(summary)
-        elif synthesis_use == "open-risk":
-            open_risk_inputs.append(summary)
-        else:
-            unknown_inputs.append(summary)
+    primary_inputs = with_use("primary")
+    salvage_inputs = with_use("salvage-only")
+    partial_inputs = with_use("partial-only")
+    open_risk_inputs = with_use("open-risk")
+    quarantined_inputs = with_use("quarantine")
+    rejected_inputs = with_use("reject")
+    unknown_inputs = [
+        summary for lane, summary in zip(lanes, summaries) if lane.synthesis_use not in _FINAL_USES
+    ]
+    held_inputs = [summary for lane, summary in zip(lanes, summaries) if lane.item.held]
+    external_lanes = [lane for lane in lanes if lane.item.external.valid and lane.item.external.value is True]
+    ambiguous_external = [lane for lane in lanes if lane.item.external.unresolved]
 
-    minimum_usable_inputs = int(partial_policy.get("minimum_usable_inputs", 2))
+    minimum_usable_inputs = config.minimum_usable_inputs
     blocked_reasons: list[str] = []
     if len(primary_inputs) < minimum_usable_inputs:
         blocked_reasons.append("fewer than minimum_usable_inputs accepted or accepted-with-modification inputs")
         if salvage_inputs:
             blocked_reasons.append("salvage-only inputs do not satisfy minimum_usable_inputs")
-    if external_inputs and all(item["effective_disposition"] in quarantine for item in external_inputs):
+    # A malformed external flag may be read either way; the block applies if it
+    # applies under any reading, which means counting the ambiguous inputs that
+    # are quarantined and ignoring the ambiguous inputs that are not.
+    quarantined_ambiguous = [lane for lane in ambiguous_external if lane.quarantine_in_force]
+    if (external_lanes or quarantined_ambiguous) and all(lane.quarantine_in_force for lane in external_lanes):
         blocked_reasons.append("all external inputs are quarantined or boundary-tainted")
-    if unknown_inputs:
+    if unknown_inputs or any(lane.item.is_object and lane.item.disposition_state == UNRESOLVED for lane in lanes):
         blocked_reasons.append("one or more inputs have unknown evaluator dispositions")
+    if any(lane.unresolved_primary_request for lane in lanes):
+        blocked_reasons.append(
+            "one or more inputs request primary use that no applied adjudication authorizes, "
+            "and a hold or another restriction does not resolve the request"
+        )
+    if any(not lane.item.is_object for lane in lanes):
+        blocked_reasons.append("one or more inputs are not objects, so what they would decide is unresolved")
+    if any(lane.item.use_unresolved for lane in lanes):
+        blocked_reasons.append("one or more inputs have an invalid synthesis_use or recommended_synthesis_use")
+    if unattributable_restrictions:
+        blocked_reasons.append(
+            "an adjudication record states a restrictive decision but has no readable dispatch_id, "
+            "so the input it restricts is unknown"
+        )
+    if unattributable_records:
+        blocked_reasons.append(
+            "an adjudication record is not an object or has no readable dispatch_id, so what it decides "
+            "and the input it concerns are unresolved"
+        )
+    if call.adjudications.unresolved:
+        blocked_reasons.append("adjudications is not a list, so the records it holds are unresolved")
+    blocked_reasons.extend(call.argument_errors)
 
-    zero_trust_consensus = evaluate_zero_trust_consensus(
-        inputs,
-        input_summaries,
-        required=zero_trust_required,
-    )
-    if zero_trust_consensus["required"]:
-        if zero_trust_consensus["consensus_status"] == "blocked":
-            blocked_reasons.extend(zero_trust_consensus["blocked_reasons"])
-        elif zero_trust_consensus["recommended_action"] in {"escalate", "quarantine"}:
-            blocked_reasons.append(
-                "zero-trust cross-domain divergence requires architect resolution"
+    consensus = _zero_trust_consensus(
+        tuple(
+            ConsensusLane(
+                lane=lane.item.lane,
+                synthesis_use=lane.synthesis_use,
+                bound=lane.binding.bound,
+                provenance_known=lane.binding.provenance_known,
+                provider_family=zero_trust_normalize(lane.binding.provider_family),
+                domain_labels=lane.item.domain_labels,
+                claims=lane.item.claims,
+                unresolved_data=lane.unresolved_data,
             )
+            for lane in lanes
+        ),
+        required=call.zero_trust_required,
+        policy=consensus_config,
+    )
+    if consensus.required:
+        if consensus.status == "blocked":
+            blocked_reasons.extend(consensus.blocked_reasons)
+        elif consensus.recommended_action in {"escalate", "quarantine"}:
+            blocked_reasons.append("zero-trust cross-domain divergence requires architect resolution")
 
-    allow_partial = bool(partial_policy.get("allow_partial", True))
     status = "ready"
     if blocked_reasons:
         status = "blocked"
-    elif partial_inputs or open_risk_inputs or rejected_inputs or quarantined_inputs or unknown_inputs:
-        status = str(partial_policy.get("partial_status", "partial")) if allow_partial else "blocked"
-        if not allow_partial:
+    elif (
+        partial_inputs
+        or open_risk_inputs
+        or rejected_inputs
+        or quarantined_inputs
+        or unknown_inputs
+        or any(lane.quarantine_in_force or lane.overridden_restrictions or lane.resolution.unresolved for lane in lanes)
+    ):
+        status = config.partial_status if config.allow_partial else "blocked"
+        if not config.allow_partial:
             blocked_reasons.append("partial synthesis is disabled by policy")
 
     return {
         "status": status,
         "blocked": bool(blocked_reasons),
         "blocked_reasons": blocked_reasons,
-        "allow_partial": allow_partial,
+        "allow_partial": config.allow_partial,
         "minimum_usable_inputs": minimum_usable_inputs,
-        "input_count": len(input_summaries),
+        "input_count": len(summaries),
         "usable_input_count": len(primary_inputs),
         "primary_input_count": len(primary_inputs),
         "salvage_input_count": len(salvage_inputs),
@@ -555,7 +721,7 @@ def evaluate_synthesis_inputs(
         "rejected_input_count": len(rejected_inputs),
         "unknown_input_count": len(unknown_inputs),
         "held_input_count": len(held_inputs),
-        "input_summaries": input_summaries,
+        "input_summaries": summaries,
         "primary_inputs": primary_inputs,
         "salvage_inputs": salvage_inputs,
         "partial_inputs": partial_inputs,
@@ -564,275 +730,264 @@ def evaluate_synthesis_inputs(
         "rejected_inputs": rejected_inputs,
         "unknown_inputs": unknown_inputs,
         "held_inputs": held_inputs,
-        "zero_trust_consensus": zero_trust_consensus,
+        "quarantine_in_force_inputs": [lane.item.lane for lane in lanes if lane.quarantine_in_force],
+        "candidate": candidate,
+        "scope": scope,
+        "adjudication_errors": adjudication_errors,
+        "record_rejections": rejections,
+        "authority_enforcement": AUTHORITY_ENFORCEMENT,
+        "trusted_host_authority": False,
+        "zero_trust_consensus": consensus.as_dict(),
     }
 
 
-def _zero_trust_normalize(value: Any) -> str:
-    return re.sub(r"\s+", " ", str(value or "").strip().lower())
+@dataclass(frozen=True)
+class _Domain:
+    trust_domain: str
+    source_field: str
+    conflicting_domain_fields: tuple[tuple[str, str], ...]
+    unknown: bool
 
 
-def _zero_trust_normalize_claim_value(value: Any, *, category: str) -> str:
-    """Normalize short technical identifiers without treating prose as equivalent."""
+def _zero_trust_domain(lane: ConsensusLane, policy: ConsensusPolicy) -> _Domain:
+    """Resolve a trust domain from the bound dispatch record only.
 
-    normalized = _zero_trust_normalize(value)
-    if category not in {"crypto", "auth", "network"}:
-        return normalized
-    if len(normalized) > 64:
-        return normalized
-    if re.search(r"https?://|[/\\{}\\[\\]=]", normalized):
-        return normalized
-    if "." in normalized:
-        return normalized
-    if not re.fullmatch(r"[a-z0-9][a-z0-9\s_-]*[a-z0-9]", normalized):
-        return normalized
-    compact = re.sub(r"[\s_-]+", "", normalized)
-    tokens = re.findall(r"[a-z]+|\d+", compact)
-    if 2 <= len(tokens) <= 6 and "".join(tokens) == compact:
-        return " ".join(tokens)
-    return normalized
+    Caller labels are compared with the derived family; any disagreement
+    excludes the input. An unbound return or unknown provenance has the
+    unknown domain.
+    """
 
-
-def _zero_trust_domain_for_input(
-    entry: dict[str, Any],
-    policy: dict[str, Any],
-) -> dict[str, Any]:
-    resolution = dict(policy.get("trust_domain_resolution", {}))
-    precedence = list(resolution.get("field_precedence", ["trust_domain", "provider_family", "provider_camp"]))
-    aliases = {
-        _zero_trust_normalize(key): _zero_trust_normalize(value)
-        for key, value in dict(resolution.get("domain_aliases", {})).items()
-    }
-    observed: list[dict[str, str]] = []
-    for field in precedence:
-        raw = entry.get(field)
-        if raw is None:
-            continue
-        normalized = _zero_trust_normalize(raw)
-        if not normalized:
-            continue
-        observed.append({"field": str(field), "value": aliases.get(normalized, normalized)})
-    unknown = str(resolution.get("unknown_domain", "unknown"))
-    if len({item["value"] for item in observed}) > 1:
-        return {
-            "trust_domain": unknown,
-            "source_field": "conflict",
-            "conflicting_domain_fields": observed,
-            "unknown": True,
-        }
-    if observed and observed[0]["field"] == "trust_domain" and len(observed) == 1:
-        return {
-            "trust_domain": unknown,
-            "source_field": "trust_domain-unbound",
-            "conflicting_domain_fields": [],
-            "unknown": True,
-        }
-    selected = observed[0] if observed else {"field": "none", "value": unknown}
-    conflicts = [
-        item for item in observed[1:] if item["value"] != selected["value"]
-    ]
-    return {
-        "trust_domain": selected["value"],
-        "source_field": selected["field"],
-        "conflicting_domain_fields": conflicts,
-        "unknown": selected["value"] == unknown,
-    }
+    unknown = policy.unknown_domain
+    if not lane.bound:
+        return _Domain(unknown, "unbound", (), True)
+    if not lane.provenance_known or not lane.provider_family:
+        return _Domain(unknown, "provenance-unknown", (), True)
+    derived = policy.alias(lane.provider_family)
+    conflicts = tuple((name, value) for name, value in lane.domain_labels if value != derived)
+    if conflicts or derived == unknown:
+        return _Domain(unknown, "conflict" if conflicts else "provenance-unknown", conflicts, True)
+    return _Domain(derived, "dispatch-record", (), False)
 
 
-def _zero_trust_normalize_claims(
-    entry: dict[str, Any],
-    *,
-    lane: str,
-    trust_domain: str,
-    policy: dict[str, Any],
-) -> tuple[list[dict[str, Any]], list[str]]:
-    allowed_types = {str(item) for item in policy.get("claim_types", ["security_assertion"])}
-    allowed_categories = set(policy.get("claim_categories", {}).keys())
-    claims: list[dict[str, Any]] = []
-    warnings: list[str] = []
-    for index, raw_claim in enumerate(entry.get("zero_trust_claims") or [], start=1):
-        if not isinstance(raw_claim, dict):
-            warnings.append(f"{lane}: claim {index} is not an object")
-            continue
-        category = _zero_trust_normalize(raw_claim.get("category"))
-        key = _zero_trust_normalize(raw_claim.get("key"))
-        value = str(raw_claim.get("value", "")).strip()
-        if not category or not key or not value:
-            warnings.append(f"{lane}: claim {index} missing category, key, or value")
-            continue
-        if allowed_categories and category not in allowed_categories:
-            warnings.append(f"{lane}: claim {index} unknown category {category!r}")
-            continue
-        claim_type = _zero_trust_normalize(raw_claim.get("claim_type") or "security_assertion")
-        if claim_type not in allowed_types:
-            warnings.append(f"{lane}: claim {index} unknown claim_type {claim_type!r}")
-            continue
-        claim_id = _zero_trust_normalize(raw_claim.get("claim_id")) or f"{category}:{key}"
-        claims.append(
-            {
-                "claim_id": claim_id,
-                "category": category,
-                "key": key,
-                "value": value,
-                "normalized_value": _zero_trust_normalize_claim_value(value, category=category),
-                "claim_type": claim_type,
-                "evidence": str(raw_claim.get("evidence", "")).strip(),
-                "lane": lane,
-                "trust_domain": trust_domain,
-            }
+@dataclass(frozen=True)
+class _PlacedClaim:
+    claim: Claim
+    lane: str
+    trust_domain: str
+
+
+@dataclass(frozen=True)
+class _UnresolvedClaim:
+    lane: str
+    claim: int | None
+    claim_id: str | None
+    reason: str
+
+    def as_dict(self) -> dict[str, Any]:
+        return {"lane": self.lane, "claim": self.claim, "claim_id": self.claim_id, "reason": self.reason}
+
+    def blocked_reason(self) -> str:
+        claim = "" if self.claim is None else f" claim {self.claim}"
+        claim_id = "" if self.claim_id is None else f" ({self.claim_id})"
+        return f"zero-trust consensus is unresolved: {self.lane}{claim}{claim_id}: {self.reason}"
+
+
+_unresolved_claim = _UnresolvedClaim
+
+
+@dataclass(frozen=True)
+class _Consensus:
+    required: bool
+    status: str
+    recommended_action: str
+    blocked_reasons: tuple[str, ...]
+    fields: tuple[tuple[str, Any], ...]
+
+    def as_dict(self) -> dict[str, Any]:
+        result = {name: value for name, value in self.fields}
+        result.update(
+            consensus_status=self.status,
+            recommended_action=self.recommended_action,
+            blocked_reasons=list(self.blocked_reasons),
         )
-    return claims, warnings
+        return result
 
 
-def _zero_trust_weakness_findings(
-    claims: list[dict[str, Any]],
-    *,
-    policy: dict[str, Any],
-) -> list[dict[str, Any]]:
-    findings: list[dict[str, Any]] = []
-    for pattern in policy.get("weakness_patterns", []):
-        if not isinstance(pattern, dict):
-            continue
-        terms = [_zero_trust_normalize(term) for term in pattern.get("terms", [])]
-        if not terms:
-            continue
-        for claim in claims:
-            haystack = _zero_trust_normalize(" ".join([claim["value"], claim.get("evidence", "")]))
-            hits = [term for term in terms if term and term in haystack]
-            if hits:
-                findings.append(
-                    {
-                        "id": pattern.get("id"),
-                        "name": pattern.get("name"),
-                        "category": pattern.get("category"),
-                        "severity": pattern.get("severity", "informational"),
-                        "lane": claim["lane"],
-                        "trust_domain": claim["trust_domain"],
-                        "claim_id": claim["claim_id"],
-                        "matched_terms": hits,
-                        "effect": "informational-only",
-                    }
-                )
-    return findings
-
-
-def evaluate_zero_trust_consensus(
-    inputs: list[dict[str, Any]],
-    input_summaries: list[dict[str, Any]],
-    *,
-    required: bool = False,
-    policy: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    config = policy or zero_trust_consensus_policy()
-    defaults = dict(config.get("defaults", {}))
-    thresholds = dict(config.get("thresholds", {}))
-    category_weights = {
-        str(key): int(value.get("weight", value) if isinstance(value, dict) else value)
-        for key, value in dict(config.get("claim_categories", {})).items()
-    }
-    minimum = int(defaults.get("minimum_independent_domains", 2))
-    allowed_statuses = {str(item) for item in config.get("status_values", ["informational", "blocked", "divergent"])}
-    disclaimer = str(config.get("trust_domain_independence_disclaimer", "Agreement is not verification."))
-    resolution_authority = str(config.get("resolution_authority", "architect"))
-
+def _zero_trust_consensus(lanes: tuple[ConsensusLane, ...], *, required: bool, policy: ConsensusPolicy) -> _Consensus:
+    minimum = policy.minimum_independent_domains
     trust_domain_summaries: list[dict[str, Any]] = []
     excluded_inputs: list[dict[str, Any]] = []
-    eligible_claims: list[dict[str, Any]] = []
+    eligible: list[_PlacedClaim] = []
     claim_warnings: list[str] = []
+    unresolved_claims: list[_UnresolvedClaim] = []
     independent_domains: set[str] = set()
 
-    for entry, summary in zip(inputs, input_summaries):
-        lane = str(summary.get("lane") or entry.get("lane") or entry.get("id") or "input")
-        domain_info = _zero_trust_domain_for_input({**entry, **summary}, config)
-        synthesis_use = str(summary.get("synthesis_use") or "unknown")
-        included = synthesis_use == "primary" and not domain_info["unknown"]
+    for lane in lanes:
+        # Structural summary uncertainty is blocking even when the omitted or
+        # mismatched lane happens not to carry readable claims.
+        unresolved_claims.extend(_unresolved_claim(lane.lane, None, None, reason)
+                                 for reason in lane.summary_errors)
+        domain = _zero_trust_domain(lane, policy)
+        use = lane.synthesis_use
+        included = use == "primary" and not domain.unknown
+        conflicts = [{"field": name, "value": value} for name, value in domain.conflicting_domain_fields]
         trust_domain_summaries.append(
             {
-                "lane": lane,
-                "trust_domain": domain_info["trust_domain"],
-                "source_field": domain_info["source_field"],
-                "synthesis_use": synthesis_use,
+                "lane": lane.lane,
+                "trust_domain": domain.trust_domain,
+                "source_field": domain.source_field,
+                "synthesis_use": use,
                 "included_for_independence": included,
-                "conflicting_domain_fields": domain_info["conflicting_domain_fields"],
+                "conflicting_domain_fields": conflicts,
             }
         )
         if not included:
             excluded_inputs.append(
                 {
-                    "lane": lane,
-                    "trust_domain": domain_info["trust_domain"],
-                    "synthesis_use": synthesis_use,
-                    "reason": "only primary synthesis inputs with known trust domains count",
+                    "lane": lane.lane,
+                    "trust_domain": domain.trust_domain,
+                    "synthesis_use": use,
+                    "reason": "only primary synthesis inputs with a trust domain derived from a bound dispatch record count",
                 }
             )
+            if lane.claims.carried and use == "primary":
+                # A primary input still feeds the synthesis. When its domain is
+                # unknown or its labels conflict with the dispatch record, its
+                # claims cannot be compared, so any disagreement they carry is
+                # unresolved rather than absent.
+                unresolved_claims.append(
+                    _unresolved_claim(
+                        lane.lane,
+                        None,
+                        None,
+                        f"the input is primary but its trust domain is {domain.source_field}, "
+                        "so its zero_trust_claims cannot be compared",
+                    )
+                )
+            elif lane.claims.carried and lane.unresolved_data:
+                # A lane is excluded from consensus only by a resolved, readable
+                # reason. Its use, binding, provenance, eligibility or
+                # adjudication is unresolved, and a well-formed value might
+                # have made it primary, so its claims are unresolved rather
+                # than absent.
+                unresolved_claims.append(
+                    _unresolved_claim(
+                        lane.lane,
+                        None,
+                        None,
+                        f"the input is {use} because of malformed or unresolved data, "
+                        "so whether its zero_trust_claims count is unresolved",
+                    )
+                )
             continue
-        independent_domains.add(domain_info["trust_domain"])
-        claims, warnings = _zero_trust_normalize_claims(
-            entry,
-            lane=lane,
-            trust_domain=domain_info["trust_domain"],
-            policy=config,
-        )
-        eligible_claims.extend(claims)
-        claim_warnings.extend(warnings)
+        independent_domains.add(domain.trust_domain)
+        for claim in lane.claims.items:
+            if claim.comparable:
+                eligible.append(_PlacedClaim(claim, lane.lane, domain.trust_domain))
+            else:
+                claim_warnings.append(str(claim.warning))
+                unresolved_claims.append(
+                    _unresolved_claim(lane.lane, claim.index, claim.reported_claim_id, str(claim.reason))
+                )
 
-    by_claim: dict[str, list[dict[str, Any]]] = {}
-    for claim in eligible_claims:
-        by_claim.setdefault(str(claim["claim_id"]), []).append(claim)
+    by_claim: dict[str, list[_PlacedClaim]] = {}
+    for placed in eligible:
+        if placed.claim.claim_id not in by_claim:
+            by_claim[placed.claim.claim_id] = []
+        by_claim[placed.claim.claim_id].append(placed)
 
     divergence_report: list[dict[str, Any]] = []
     divergence_score = 0
     comparable_claim_count = 0
-    for claim_id, claims in sorted(by_claim.items()):
-        domains = {claim["trust_domain"] for claim in claims}
+    for claim_id in sorted(by_claim):
+        placed_claims = by_claim[claim_id]
+        shapes = {(placed.claim.category, placed.claim.key, placed.claim.claim_type) for placed in placed_claims}
+        if len(shapes) > 1:
+            # Claims under one ID that name different categories, keys or claim
+            # types are not the same claim; which one sets the weight must not
+            # depend on input order, and the conflict is unresolved.
+            unresolved_claims.append(
+                _unresolved_claim(
+                    ", ".join(sorted({placed.lane for placed in placed_claims})),
+                    None,
+                    claim_id,
+                    "the claims under this claim_id differ in category, key or claim_type",
+                )
+            )
+        domains = {placed.trust_domain for placed in placed_claims}
         if len(domains) < 2:
             continue
         comparable_claim_count += 1
-        values = {}
-        for claim in claims:
-            values.setdefault(claim["normalized_value"], []).append(claim)
+        values: dict[str, list[_PlacedClaim]] = {}
+        for placed in placed_claims:
+            if placed.claim.normalized_value not in values:
+                values[placed.claim.normalized_value] = []
+            values[placed.claim.normalized_value].append(placed)
         if len(values) < 2:
             continue
-        sample = claims[0]
-        weight = int(category_weights.get(sample["category"], 10))
+        sample = placed_claims[0].claim
+        weight = max(policy.weight(placed.claim.category) for placed in placed_claims)
         score = weight * max(1, len(domains) - 1)
         divergence_score += score
         divergence_report.append(
             {
                 "claim_id": claim_id,
-                "category": sample["category"],
-                "key": sample["key"],
-                "claim_type": sample["claim_type"],
+                "category": sample.category,
+                "key": sample.key,
+                "claim_type": sample.claim_type,
                 "score": score,
-                "resolution_authority": resolution_authority,
+                "resolution_authority": policy.resolution_authority,
                 "values": [
                     {
-                        "value": grouped[0]["value"],
-                        "trust_domains": sorted({item["trust_domain"] for item in grouped}),
-                        "lanes": sorted({item["lane"] for item in grouped}),
-                        "evidence": [item["evidence"] for item in grouped if item.get("evidence")],
+                        "value": grouped[0].claim.value,
+                        "trust_domains": sorted({placed.trust_domain for placed in grouped}),
+                        "lanes": sorted({placed.lane for placed in grouped}),
+                        "evidence": [placed.claim.evidence for placed in grouped if placed.claim.evidence],
                     }
-                    for grouped in values.values()
+                    for grouped in (values[normalized] for normalized in values)
                 ],
             }
         )
 
-    weakness_findings = _zero_trust_weakness_findings(eligible_claims, policy=config)
+    weakness_findings: list[dict[str, Any]] = []
+    for pattern in policy.weakness_patterns:
+        for placed in eligible:
+            haystack = zero_trust_normalize(" ".join([placed.claim.value, placed.claim.evidence]))
+            hits = [term for term in pattern.terms if term and term in haystack]
+            if hits:
+                weakness_findings.append(
+                    {
+                        "id": pattern.pattern_id,
+                        "name": pattern.name,
+                        "category": pattern.category,
+                        "severity": pattern.severity,
+                        "lane": placed.lane,
+                        "trust_domain": placed.trust_domain,
+                        "claim_id": placed.claim.claim_id,
+                        "matched_terms": hits,
+                        "effect": "informational-only",
+                    }
+                )
+
     blocked_reasons: list[str] = []
     if required and len(independent_domains) < minimum:
         blocked_reasons.append(
             f"zero-trust consensus requires {minimum} independent trust domains; observed {len(independent_domains)}"
         )
-    if required and not eligible_claims:
+    if required and not eligible:
         blocked_reasons.append("zero-trust consensus requires explicit zero_trust_claims on accepted primary inputs")
     elif required and comparable_claim_count == 0:
         blocked_reasons.append("zero-trust consensus requires comparable claims across independent trust domains")
+    if required:
+        # A claim that could not be compared would have fed the divergence; it
+        # leaves the consensus unresolved instead of dropping out of it.
+        blocked_reasons.extend(item.blocked_reason() for item in unresolved_claims)
     recommended_action = "none"
-    if divergence_score >= int(thresholds.get("quarantine", 70)):
+    if divergence_score >= policy.quarantine_threshold:
         recommended_action = "quarantine"
-    elif divergence_score >= int(thresholds.get("escalation", 40)):
+    elif divergence_score >= policy.escalation_threshold:
         recommended_action = "escalate"
-    elif divergence_score >= int(thresholds.get("review", 20)):
+    elif divergence_score >= policy.review_threshold:
         recommended_action = "review"
 
     if blocked_reasons:
@@ -842,34 +997,67 @@ def evaluate_zero_trust_consensus(
         status = "divergent"
     else:
         status = "informational"
-    if status not in allowed_statuses:
+    if status not in policy.allowed_statuses:
         status = "blocked"
         blocked_reasons.append("zero-trust policy produced disallowed status")
 
-    return {
-        "required": bool(required),
-        "policy_version": config.get("version"),
-        "policy_sha256": zero_trust_policy_sha256(config),
-        "minimum_independent_domains": minimum,
-        "independent_trust_domain_count": len(independent_domains),
-        "independent_trust_domains": sorted(independent_domains),
-        "trust_domain_summaries": trust_domain_summaries,
-        "excluded_input_count": len(excluded_inputs),
-        "excluded_inputs": excluded_inputs,
-        "claim_count": len(eligible_claims),
-        "comparable_claim_count": comparable_claim_count,
-        "claim_warnings": claim_warnings,
-        "divergence_score": divergence_score,
-        "divergence_report": divergence_report,
-        "weakness_pattern_findings": weakness_findings,
-        "weakness_pattern_source_version": config.get("weakness_pattern_source_version"),
-        "consensus_status": status,
-        "recommended_action": recommended_action,
-        "blocked_reasons": blocked_reasons,
-        "trust_domain_independence_disclaimer": disclaimer,
-        "resolution_authority": resolution_authority,
-        "agreement_is_not_validation": True,
-    }
+    return _Consensus(
+        required=bool(required),
+        status=status,
+        recommended_action=recommended_action,
+        blocked_reasons=tuple(blocked_reasons),
+        fields=(
+            ("required", bool(required)),
+            ("policy_version", policy.version),
+            ("policy_sha256", policy.sha256),
+            ("minimum_independent_domains", minimum),
+            ("independent_trust_domain_count", len(independent_domains)),
+            ("independent_trust_domains", sorted(independent_domains)),
+            ("trust_domain_summaries", trust_domain_summaries),
+            ("excluded_input_count", len(excluded_inputs)),
+            ("excluded_inputs", excluded_inputs),
+            ("claim_count", len(eligible)),
+            ("comparable_claim_count", comparable_claim_count),
+            ("claim_warnings", claim_warnings),
+            ("unresolved_claims", [item.as_dict() for item in unresolved_claims]),
+            ("divergence_score", divergence_score),
+            ("divergence_report", divergence_report),
+            ("weakness_pattern_findings", weakness_findings),
+            ("weakness_pattern_source_version", policy.weakness_pattern_source_version),
+            ("consensus_status", None),
+            ("recommended_action", None),
+            ("blocked_reasons", None),
+            ("trust_domain_independence_disclaimer", policy.disclaimer),
+            ("resolution_authority", policy.resolution_authority),
+            ("agreement_is_not_validation", True),
+        ),
+    )
+
+
+def evaluate_zero_trust_consensus(
+    inputs: list[dict[str, Any]],
+    input_summaries: list[dict[str, Any]],
+    *,
+    required: bool = False,
+    policy: dict[str, Any] | None = None,
+    synthesis_policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Zero-trust consensus over caller-supplied inputs and synthesis summaries.
+
+    Both are parsed by ``cwo_core.synthesis_inputs``; a summary that does not
+    record whether its data is resolved is read as unresolved. When the producer
+    uses a custom synthesis policy, supply that same context as ``synthesis_policy``.
+    """
+
+    config = consensus_policy_view(policy or zero_trust_consensus_policy())
+    # A value that is not a boolean may mean either, so consensus is required.
+    required = required if isinstance(required, bool) else True
+    return _zero_trust_consensus(
+        consensus_lanes_from_summaries(
+            inputs, input_summaries, config,
+            synthesis_config=synthesis_policy_view(synthesis_policy or load_policy("synthesis-policy")),
+        ), required=required, policy=config
+    ).as_dict()
 
 
 def recommend_model_synthesis(

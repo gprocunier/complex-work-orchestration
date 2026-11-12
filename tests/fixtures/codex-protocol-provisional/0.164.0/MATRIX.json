@@ -1,0 +1,214 @@
+{
+  "purpose": "provisional actual0.164 generated-schema diagnostic matrix ONLY, NOT a new qualified pin or activeprofile/runtime/OS evidence",
+  "actual_executable_version": "codex-cli 0.164.0",
+  "actual_executable_sha256": "b93f6811d3f653f0fb83be4050d857fb9abbb111dfa2ce160563327daff7f306",
+  "source_Git_revision": null,
+  "source_provenance_status": "exact executable hash/version known; corresponding source checkout/ref unavailable in this isolated scope, no source-ref invented",
+  "old_hypotheses_only_from": "current PRODUCT pin0.163.0 fact definitions, NOT its executable/source identity reused as0.164",
+  "repeat_inventories_exact": true,
+  "generation": "finite local app-server generate-json-schema with/without --experimental, no app-server service/model/observer/network; HOMEprivate and clearenv/offlinev3",
+  "counts": {
+    "stable-a": 320,
+    "stable-b": 320,
+    "experimental-a": 458,
+    "experimental-b": 458
+  },
+  "rows": [
+    {
+      "reference_fact_id": "server-requests-stable",
+      "fact_kind": "methods-equal",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "server-requests-experimental",
+      "fact_kind": "methods-equal",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-kind-stable",
+      "fact_kind": "param-property-enum",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-kind-reachable-stable",
+      "fact_kind": "param-property-enum",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-kind-experimental",
+      "fact_kind": "param-property-enum",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-kind-reachable-experimental",
+      "fact_kind": "param-property-enum",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-id-correlation-stable",
+      "fact_kind": "property-description-contains",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-id-correlation-experimental",
+      "fact_kind": "property-description-contains",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "server-requests-answerable-stable",
+      "fact_kind": "responses-present",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "server-requests-answerable-experimental",
+      "fact_kind": "responses-present",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-correlation-stable",
+      "fact_kind": "required-includes",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "no-structured-retry-class-CommandExecutionRequestApprovalParams-stable",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "no-structured-retry-class-FileChangeRequestApprovalParams-stable",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "no-structured-retry-class-ExecCommandApprovalParams-stable",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "no-structured-retry-class-ApplyPatchApprovalParams-stable",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-correlation-experimental",
+      "fact_kind": "required-includes",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "no-structured-retry-class-CommandExecutionRequestApprovalParams-experimental",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "no-structured-retry-class-FileChangeRequestApprovalParams-experimental",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "no-structured-retry-class-ExecCommandApprovalParams-experimental",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "no-structured-retry-class-ApplyPatchApprovalParams-experimental",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-reason-is-free-text",
+      "fact_kind": "property-description-contains",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "additional-permissions-experimental-only",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "additional-permissions-in-experimental",
+      "fact_kind": "properties-present",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-decisions",
+      "fact_kind": "enum-includes",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "file-change-decisions",
+      "fact_kind": "enum-includes",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "named-profile-selector-experimental-only",
+      "fact_kind": "properties-absent",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "named-profile-selector-in-experimental",
+      "fact_kind": "property-description-contains",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "approvals-reviewer-routing",
+      "fact_kind": "properties-present",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "configuration-readable-without-a-turn",
+      "fact_kind": "methods-include",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "config-read-no-turn-required-stable",
+      "fact_kind": "method-params-exclude",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-decision-union-stable",
+      "fact_kind": "response-decision-union",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    },
+    {
+      "reference_fact_id": "command-approval-decision-union-experimental",
+      "fact_kind": "response-decision-union",
+      "diagnostic_status": "schema-supported",
+      "problem": null
+    }
+  ],
+  "product_pins_policy_unchanged": true,
+  "model_calls": 0,
+  "OS_runtime_qualification": "not performed",
+  "remaining": "source ref provenance + independent new-pin proposal/review and actualeffectiveconfig/platform qualifications; do not change current productpin or claimliveW14complete"
+}

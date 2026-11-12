@@ -102,9 +102,13 @@ def _reseal_retry_evidence_bindings(receipt: dict) -> None:
     _reseal_retry_receipt(receipt)
 
 
+from tests.historical_policy_fixtures import historical_v2_policy
+
 class NativeRetrySupervisionTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.enterContext(historical_v2_policy())
         self.tmp = tempfile.TemporaryDirectory(prefix="cwo-native-retry-supervision-")
+        self.addCleanup(self.tmp.cleanup)
         outer_root = Path(self.tmp.name)
         self.environment = mock.patch.dict(
             os.environ,
@@ -114,9 +118,14 @@ class NativeRetrySupervisionTests(unittest.TestCase):
             },
         )
         self.environment.start()
+        self.addCleanup(self.environment.stop)
         self.root = cwo_temp_dir(scope="session")
         os.environ["CWO_PRECOMMIT_REGISTRY_ROOT"] = str(self.root / "precommit-registry")
-        supervisor_fixtures._FIXTURE_ROOT = self.root
+        self.enterContext(mock.patch.object(supervisor_fixtures, "_FIXTURE_ROOT", self.root))
+        self.enterContext(mock.patch.object(
+            supervisor_fixtures, "_FIXTURE_WORKDIR",
+            supervisor_fixtures.private_fixture_workdir(),
+        ))
         self.session_id = "spark-session"
         self.session_file = self.root / "session.jsonl"
         self.packet_file = self.root / "packet.json"
@@ -134,11 +143,6 @@ class NativeRetrySupervisionTests(unittest.TestCase):
         )
         self.packet_file.write_text(json.dumps(self.parent_packet), encoding="utf-8")
         write_records(self.session_file, [session_meta(self.session_id)])
-
-    def tearDown(self) -> None:
-        self.environment.stop()
-        supervisor_fixtures._FIXTURE_ROOT = None
-        self.tmp.cleanup()
 
     def _reset_workflow_artifacts(self) -> None:
         for path in (self.state_file, self.audit_file):

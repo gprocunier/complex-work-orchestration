@@ -9,6 +9,7 @@ from fnmatch import fnmatch
 from math import isfinite
 from typing import Any
 
+from cwo_core.model_identities import SPARK_MODEL
 from cwo_core.policy import load_policy
 from cwo_core.native_authority import (
     OPERATOR_APPROVAL_FIELDS,
@@ -322,9 +323,13 @@ def _bucket_read_mutation_ratio_score(ratio: float) -> int:
 
 
 def _normalize_ratio(expected_reads: int, expected_mutations: int) -> float:
-    if expected_mutations <= 0:
-        return float(expected_reads)
-    return float(expected_reads) / float(expected_mutations)
+    try:
+        # Let integer true division scale the operands before producing a float.
+        return expected_reads / max(expected_mutations, 1)
+    except OverflowError as exc:
+        raise ValueError(
+            "malformed source payload: semantic_estimate.read_to_mutation_ratio must be a finite number"
+        ) from exc
 
 
 def _validate_ratio_input(expected_ratio: Any, expected_reads: int, expected_mutations: int, path: str) -> float:
@@ -372,14 +377,23 @@ def _ensure_int(value: Any, *, path: str, minimum: int = 0, maximum: int | None 
     return int(value)
 
 
+def _finite_float(value: int | float, *, path: str) -> float:
+    try:
+        number = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"malformed source payload: {path} must be a finite number") from exc
+    if not isfinite(number):
+        raise ValueError(f"malformed source payload: {path} must be a finite number")
+    return number
+
+
 def _ensure_float(value: Any, *, path: str, minimum: float = 0.0, maximum: float = 1.0) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(f"malformed source payload: {path} must be a number")
-    if not isfinite(value):
-        raise ValueError(f"malformed source payload: {path} must be a finite number")
-    if value < minimum or value > maximum:
+    number = _finite_float(value, path=path)
+    if number < minimum or number > maximum:
         raise ValueError(f"malformed source payload: {path} must be between {minimum} and {maximum}")
-    return float(value)
+    return number
 
 
 def _ensure_mapping_exact(value: Any, *, path: str, required_fields: tuple[str, ...], allow_empty: bool = False) -> dict[str, Any]:
@@ -852,7 +866,7 @@ def _compute_semantic_scores(semantic_payload: dict[str, Any]) -> dict[str, int]
     )
     surface_score = _bucket_surface_score(_surface_total(semantic_payload))
     regression_score = _bucket_regression_score(int(semantic_payload["expected_regressions"]))
-    ratio_score = _bucket_read_mutation_ratio_score(float(semantic_payload["read_to_mutation_ratio"]))
+    ratio_score = _bucket_read_mutation_ratio_score(semantic_payload["read_to_mutation_ratio"])
     return {
         "diff_p90": diff_score,
         "behavioral_changes": behavior_score,
@@ -1305,7 +1319,7 @@ def _evaluate_v2_route(
         and int(semantic_payload["expected_regressions"]) <= int(semantic_policy.get("max_expected_regressions_for_spark", 12))
         and len(source["write_paths"]) <= int(semantic_policy.get("max_write_paths_for_spark", 6))
         and int(semantic_payload["expected_context_reads"]) <= int(semantic_policy.get("max_context_reads_for_spark", 12))
-        and float(semantic_payload["read_to_mutation_ratio"]) <= float(semantic_policy.get("max_read_mutation_ratio_for_spark", 6))
+        and semantic_payload["read_to_mutation_ratio"] <= float(semantic_policy.get("max_read_mutation_ratio_for_spark", 6))
         and int(estimates["tool_calls_p90"]) <= int(semantic_policy.get("max_tool_calls_p90", 25))
         and int(estimates["runtime_seconds_p90"]) <= int(semantic_policy.get("max_runtime_seconds_p90", 480))
         and not zero_mutation_split
@@ -1939,8 +1953,8 @@ def build_policy_fit_commitment(
         raise ValueError("invalid work_estimate: " + "; ".join(estimate_errors))
     estimate = deepcopy(_ensure_mapping(work_estimate, label="work_estimate"))
     requested_model = _ensure_nonempty_str(estimate.get("requested_model"), path="work_estimate.requested_model")
-    if requested_model != "gpt-5.3-codex-spark":
-        raise ValueError("policy-derived commitment requires requested_model gpt-5.3-codex-spark")
+    if requested_model != SPARK_MODEL:
+        raise ValueError(f"policy-derived commitment requires requested_model {SPARK_MODEL}")
     if estimate.get("fit_mode") != "deterministic":
         raise ValueError("policy-derived commitment requires work_estimate.fit_mode deterministic")
     if any(estimate.get(field) != "spark" for field in ("route", "authority_route", "operative_route")):

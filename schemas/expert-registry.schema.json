@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/expert-registry:v2",
+  "title": "CWO Expert Registry",
+  "description": "Current v2 declared metadata only. Persona paths and descriptive strings are data; validation establishes neither persona provenance nor architect, adjudication or dispatch authority. Existing repository cross-reference checks remain additional contracts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "schema", "defaults", "experts"],
+  "properties": {
+    "version": {"type": "integer", "const": 2},
+    "schema": {"type": "string", "const": "json-compatible-yaml"},
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["review_stage", "default_share_boundary", "acceptance_required"],
+      "properties": {
+        "review_stage": {"type": "string"},
+        "default_share_boundary": {"type": "string"},
+        "acceptance_required": {"type": "boolean"}
+      }
+    },
+    "experts": {
+      "type": "object",
+      "description": "Expert IDs are dynamic; no particular expert or minimum roster is required by this schema.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "display_name", "discipline", "persona_file", "job_description_label",
+          "aliases", "task_class", "review_stage", "default_risk",
+          "preferred_executors", "file_path_patterns", "trigger_terms", "required_inputs",
+          "output_contract", "acceptance_checks", "escalation_rules"
+        ],
+        "properties": {
+          "display_name": {"type": "string"},
+          "discipline": {"type": "string"},
+          "persona_file": {"type": "string"},
+          "job_description_label": {"type": "string"},
+          "aliases": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "task_class": {"type": "string"},
+          "review_stage": {"type": "string"},
+          "default_risk": {"type": "string", "enum": ["low", "medium", "high", "critical"]},
+          "default_share_boundary": {"type": "string"},
+          "validation_gate_required": {"type": "boolean"},
+          "gate_scope": {"type": "string"},
+          "preferred_executors": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "file_path_patterns": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "trigger_terms": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "required_inputs": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "output_contract": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "acceptance_checks": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          },
+          "escalation_rules": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}

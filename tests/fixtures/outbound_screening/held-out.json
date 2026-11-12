@@ -1,0 +1,175 @@
+{
+ "version": 1,
+ "purpose": "Held-out outbound screening cases reserved before screening rule development. They are not used while developing rules; results on them are reported separately.",
+ "authored_at": "2026-10-21T23:13:00Z",
+ "cases": [
+  {
+   "id": "held/gitlab_token_prose",
+   "category": "token-prefix",
+   "text": "use glpat-Xy12Ab34Cd56Ef78Gh90 for the mirror",
+   "sensitive": [
+    "glpat-Xy12Ab34Cd56Ef78Gh90"
+   ]
+  },
+  {
+   "id": "held/stripe_live_key",
+   "category": "token-prefix",
+   "text": "STRIPE_KEY=sk_live_51HxYzAbCdEfGh1234567890",
+   "sensitive": [
+    "sk_live_51HxYzAbCdEfGh1234567890"
+   ]
+  },
+  {
+   "id": "held/redis_url_userinfo",
+   "category": "url-userinfo",
+   "text": "cache at redis://default:Tr0ub4dor3@cache.invalid:6379/0",
+   "sensitive": [
+    "Tr0ub4dor3"
+   ]
+  },
+  {
+   "id": "held/https_userinfo_token",
+   "category": "url-userinfo",
+   "text": "fetch https://deploy:Zq9Wx8Ec7Rv6@registry.invalid/v2/",
+   "sensitive": [
+    "Zq9Wx8Ec7Rv6"
+   ]
+  },
+  {
+   "id": "held/env_secret_key",
+   "category": "assignment",
+   "text": "export DJANGO_SECRET_KEY='n0t-a-real-but-long-secret-value-42'",
+   "sensitive": [
+    "n0t-a-real-but-long-secret-value-42"
+   ]
+  },
+  {
+   "id": "held/yaml_password",
+   "category": "assignment",
+   "text": "database:\n  user: app\n  password: \"Gr33n-Lantern-77\"",
+   "sensitive": [
+    "Gr33n-Lantern-77"
+   ]
+  },
+  {
+   "id": "held/header_private_token",
+   "category": "header",
+   "text": "PRIVATE-TOKEN: Qm9vbGVhbkJlYW5zMTIzNDU2",
+   "sensitive": [
+    "Qm9vbGVhbkJlYW5zMTIzNDU2"
+   ]
+  },
+  {
+   "id": "held/cli_password_flag",
+   "category": "cli-flag",
+   "text": "psql --password=Pl4net-Express-9 -h db.invalid",
+   "sensitive": [
+    "Pl4net-Express-9"
+   ]
+  },
+  {
+   "id": "held/ec_private_key",
+   "category": "key-block",
+   "text": "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIHELDOUTSYNTHETICKEYMATERIAL\n-----END EC PRIVATE KEY-----",
+   "sensitive": [
+    "MHcCAQEEIHELDOUTSYNTHETICKEYMATERIAL"
+   ]
+  },
+  {
+   "id": "held/truncated_openssh",
+   "category": "key-block",
+   "text": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEHELDOUT",
+   "sensitive": [
+    "b3BlbnNzaC1rZXktdjEHELDOUT"
+   ]
+  },
+  {
+   "id": "held/json_escaped_password",
+   "category": "encoded",
+   "text": "{\"config\": \"{\\\"password\\\": \\\"Esc4ped-Value-31\\\"}\"}",
+   "sensitive": [
+    "Esc4ped-Value-31"
+   ]
+  },
+  {
+   "id": "held/cyrillic_password_label",
+   "category": "unicode",
+   "text": "pаssword: H0m0glyph-Value-5",
+   "sensitive": [
+    "H0m0glyph-Value-5"
+   ]
+  },
+  {
+   "id": "held/benign_sha256",
+   "category": "benign-digest",
+   "text": "artifact sha256 3f79bb7b435b05321651daefd374cdc681dc06faa65e374e38337b88ca046dea",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_commit",
+   "category": "benign-digest",
+   "text": "fixed in commit 9fceb02d0ae598e95dc970b74767f19372d61af8",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_uuid",
+   "category": "benign-identifier",
+   "text": "dispatch 123e4567-e89b-12d3-a456-426614174000 finished",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_password_code",
+   "category": "benign-code",
+   "text": "password = request.form[\"password\"]\nif not check_password(password):",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_url_no_userinfo",
+   "category": "benign-url",
+   "text": "see https://docs.python.org/3/library/os.html#os.open",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_public_contact",
+   "category": "benign-contact",
+   "text": "report issues to security@python.org",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_placeholder",
+   "category": "benign-placeholder",
+   "text": "API_KEY=<your-api-key-here>",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_redacted",
+   "category": "benign-placeholder",
+   "text": "Authorization: Bearer [REDACTED]",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_test_ssn_word",
+   "category": "benign-prose",
+   "text": "the SSN field must be masked in the UI",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_base64_image",
+   "category": "benign-encoded",
+   "text": "icon: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_semver",
+   "category": "benign-identifier",
+   "text": "requires git >= 2.35.0 and python 3.12",
+   "sensitive": []
+  },
+  {
+   "id": "held/benign_env_name_only",
+   "category": "benign-code",
+   "text": "read AWS_SECRET_ACCESS_KEY from the environment; never log it",
+   "sensitive": []
+  }
+ ]
+}

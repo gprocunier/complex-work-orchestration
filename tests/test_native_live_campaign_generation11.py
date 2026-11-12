@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
 from tests import test_generation11_live_launcher as LAUNCHER  # noqa: E402
+from tests.real_beads_fixture import configure_git_fixture
 
 
 def snapshot(value: dict) -> CONTRACTS.JsonArtifactSnapshot:
@@ -570,6 +571,7 @@ class Generation11PreallocationContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            configure_git_fixture(root)
             for relative in CONTRACTS.VALIDATOR_CONTRACT_PATHS_V5:
                 target = root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)

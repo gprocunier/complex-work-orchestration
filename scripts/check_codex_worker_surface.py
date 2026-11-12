@@ -19,6 +19,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from cwo_core import native_live_availability as live_availability  # noqa: E402
 from codex_tool_surface import (  # noqa: E402
     CodexToolSurfaceError,
     EXACT_READ_ONLY_TOOLS,
@@ -35,10 +36,12 @@ from codex_tool_surface import (  # noqa: E402
     probe_thread_config,
     validate_surface_proof,
 )
-from run_native_pool_live_canaries import AppServer, AppServerError  # noqa: E402
+from cwo_core.supervision.transport.app_server import AppServer  # noqa: E402
+from cwo_core.supervision.transport.errors import AppServerError as AppServerError  # noqa: E402
+from cwo_core.model_identities import SPARK_MODEL  # noqa: E402
 
 
-DEFAULT_MODEL = "gpt-5.3-codex-spark"
+DEFAULT_MODEL = SPARK_MODEL
 EXACT_TOOLS = ["apply_patch", "exec_command", "write_stdin"]
 
 
@@ -89,6 +92,7 @@ def capture_tool_request(
     evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     tools = normalized_tools(permitted_tools)
+    live_availability.require_n1_live()
     binding = prepare_capture_binding(codex_home, requested_model=requested_model,
         permitted_tools=tools, catalog_projection=catalog_projection)
     captured: dict[str, Any] = {}
@@ -324,6 +328,7 @@ def main() -> int:
                   "read-only-core-resources-v2": EXACT_CORE_RESOURCE_READ_ONLY_TOOLS}[args.profile])
     if (not tools_are_mutable(tools)) != (args.catalog_projection is not None):
         parser.error("read-only requires --catalog-projection; mutating forbids it")
+    live_availability.require_n1_live()
     evidence: dict[str, Any] = {"qualification": False, "provider_model_calls": 0}
     try:
         if args.catalog_projection is not None:
