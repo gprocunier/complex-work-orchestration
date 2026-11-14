@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-11-14
+
 - Native supervision preserves incomplete inspection refusals and rejects unexplained Git metadata or reference changes.
 - Beads continuation queries and private activation graph commands reject option-like issue IDs while preserving ordinary ID behavior.
 
