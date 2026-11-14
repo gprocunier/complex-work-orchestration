@@ -49,7 +49,8 @@ class RebindReleaseInventoryTests(unittest.TestCase):
                     "current_file_modes": {path: row["mode"] for path, row in files.items()},
                     "registered_source_callers": {
                         path: files[path]["sha256"]
-                        for path in ("scripts/other.py", "references/example.txt")},
+                        for path in ("scripts/example.py", "scripts/other.py",
+                                     "tests/test_example.py", "references/example.txt")},
                     "historical_files": {"EXAMPLE-archived": {"archive.py": "0" * 64}}}
         path = root / MANIFEST
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -231,6 +232,8 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         self.assertNotEqual(manifest["files"]["scripts/example.py"], old_manifest["files"]["scripts/example.py"])
         self.assertEqual(manifest["historical_files"], old_manifest["historical_files"])
         self.assertEqual(manifest["current_file_modes"]["scripts/example.py"], 0o755)
+        self.assertEqual(manifest["registered_source_callers"], {
+            path: manifest["files"][path] for path in old_manifest["registered_source_callers"]})
         self.assertEqual(value["source_bindings"][MANIFEST], R.read_file(root, MANIFEST)[1])
         self.assertNotEqual(value["source_bindings"][MANIFEST], original["source_bindings"][MANIFEST])
         files, contents = R.source(root)
@@ -246,6 +249,7 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         self.assertIn("source_bindings " + MANIFEST, result.stdout)
         self.assertIn("checkpoint files scripts/example.py", result.stdout)
         self.assertIn("checkpoint current_file_modes scripts/example.py", result.stdout)
+        self.assertIn("checkpoint registered_source_callers scripts/example.py", result.stdout)
         self.assertIn("declaration entry scripts/example.py:run", result.stdout)
         self.assertIn("affected route EXAMPLE-A: scripts/example.py", result.stdout)
         self.assertIn("affected route EXAMPLE-B: scripts/example.py", result.stdout)
@@ -313,6 +317,38 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         self.assertNotIn("registered_source_callers", after)
         self.assertEqual(after, manifest)
         R.trace(root)
+
+    def test_refreshes_stale_registered_caller_with_current_dependency_binding(self):
+        root, _inventory, manifest = self.fixture()
+        source = root / "scripts/example.py"
+        source.write_text(source.read_text().replace("note = 'before'", "note = 'current caller'"))
+        current = R.read_file(root, "scripts/example.py")[1]["sha256"]
+        manifest["files"]["scripts/example.py"] = current
+        (root / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n")
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        updated = json.loads((root / MANIFEST).read_bytes())
+        self.assertEqual(updated["registered_source_callers"]["scripts/example.py"], current)
+        self.assertEqual(set(updated["registered_source_callers"]), set(manifest["registered_source_callers"]))
+        self.assertEqual(updated["historical_files"], manifest["historical_files"])
+        self.assertIn("checkpoint registered_source_callers scripts/example.py", result.stdout)
+        R.trace(root)
+        before = self.bindings_snapshot(root)
+        second = self.run_rebind(root)
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertEqual(second.stdout, "No bindings changed.\n")
+        self.assertEqual(self.bindings_snapshot(root), before)
+
+    def test_unbound_registered_caller_refuses_without_writing_bindings(self):
+        root, _inventory, manifest = self.fixture()
+        manifest["registered_source_callers"]["EXAMPLE-unbound.py"] = "0" * 64
+        (root / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n")
+        self.assert_refuses_untouched(root, "checkpoint registered caller outside dependency roster: EXAMPLE-unbound.py")
+
+    def test_missing_registered_caller_refuses_without_writing_bindings(self):
+        root, _inventory, _manifest = self.fixture()
+        (root / "scripts/example.py").unlink()
+        self.assert_refuses_untouched(root, "checkpoint source missing: scripts/example.py")
 
     def test_moved_line_span_names_point_and_writes_neither_file(self):
         root, _value, _manifest = self.fixture()

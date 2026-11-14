@@ -1860,7 +1860,7 @@
 
 "pe5a2f2f7":[49,"RegisteredReviewHost.dispatch",227,"f52b608fbfbf5fa2b8dcd957ec3494093145da05dbf930b86981f552a38dbf9b"],
 
-"pe5a51117":[97,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",283,"99cc7956cef56b6f6f3eaf05f025fb18cab8ced1c5c3831c06f01e7d3eeb9a85"],
+"pe5a51117":[97,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",286,"99cc7956cef56b6f6f3eaf05f025fb18cab8ced1c5c3831c06f01e7d3eeb9a85"],
 
 "pe5b1afbde03a":[63,7467,"campaign_live_route=True,"],
 
@@ -1894,7 +1894,7 @@
 
 "pea688137":[34,"WorktreeCapture._git",1542,"957bbafc0ae3a4261e504991fcbd97b3bade28080c0065c3e78da2eba25e419c"],
 
-"peb04be82":[97,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",1809,"87d2d1e7e9e8fe4dc70702ac561a0b9be21dd81919ffe96319bea529fb0a31b6"],
+"peb04be82":[97,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",1812,"87d2d1e7e9e8fe4dc70702ac561a0b9be21dd81919ffe96319bea529fb0a31b6"],
 
 "peb0ab97bc960":[24,"MaintenanceAuthorityVerifier.__init__",344,"03802d0590db57d2c1f457a056a7a56ee8a0e0ffce20be5e4abbad96ece2eb34"],
 
@@ -4918,7 +4918,7 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"dee85b8e5f48c02ee31c78a8f3391d1a84cde127c8e74c728bea6612091e0514","size":125291},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"6c76567ea633d3ea92785140f8e0a3fe6a469f8b35f99a7f2a5761a0d5290504","size":125291},
 
 "tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"39a346be94280200fcd732c8f3a9a2113eb357fef8931575947e4334983d8be6","size":1797},
 
@@ -5006,7 +5006,7 @@
 
 "tests/test_registered_app_server_transport_f2.py":{"mode":420,"sha256":"ff436963e4d601a4276d0bc0acf44386b05f347745876099cff17b06e8b3e851","size":13049},
 
-"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"65d759a58d9be3accd98b68a36aaab24d8e2d07222d84d16869a2bcd8172cedc","size":177528},
+"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"d9f502f857d4c8ce1e8240053706493d8a43f07febdb3db757300c21f3fdc17d","size":177698},
 
 "tests/test_release_effect_routes.py":{"mode":420,"sha256":"6ab2a0b96ee93c809701528424a8cc92a9803e0fa714fd05d95ea614e0bb573a","size":84786},
 
