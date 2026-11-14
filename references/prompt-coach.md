@@ -150,7 +150,7 @@ tight chain, not a separate tier.
 
 ### Proposed in-thread tier (not available)
 
-A smaller in-thread scaffold is designed but deliberately not available. The
+A smaller in-thread scaffold is designed but deliberately not available (issue #37). The
 separate [verified closure library](run-readiness.md#verified-closure-library)
 does not qualify or enable this tier. Its compact graph still has no verified
 completion consumer and can only end at `pending-acceptance`. The design, for
