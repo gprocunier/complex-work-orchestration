@@ -624,6 +624,45 @@ python3 scripts/build_contractor_packet.py \
    python3 scripts/workspace_mutation_guard.py --compare before.json --output mutation-report.json
    ```
 
+   Workspace comparison refuses Git metadata and ref changes by default, even
+   beneath an `--allow-path`. A trusted caller may explicitly pass
+   `--expected-git-transition approved-transition.json` to `--compare` for an
+   independently approved exact transition. The comparator never consumes a
+   record embedded in a snapshot. Keep the record and both snapshots under
+   trusted caller control, outside the inspected worker's write access.
+
+   The version 1 record is a JSON object with exactly these fields:
+
+   - `record_type`: `"expected-git-transition"`; `version`: integer `1`.
+   - `approved`: boolean `true`; `reason`: a nonempty approval explanation.
+     These are caller assertions, not authenticated authority. Capturing or
+     copying before/after evidence does not establish authorization.
+   - `before` and `after`: exact objects copied from the independently approved
+     before/after Git context. Each has exactly `capture_identity`,
+     `git_executable`, `object_format`, `head`, `head_manifest_sha256` and
+     `git_metadata`, with the corresponding values from its snapshot.
+     `capture_identity` binds device, inode and mode of the worktree root,
+     Git directory and common directory. `git_metadata` binds both directory
+     paths and every captured entry's name, mode, content digest and indirection.
+   - `paths`: a nonempty list of unique exact changed paths from the comparison's
+     `git_metadata_changes`, such as `.git:worktree:.git` or `.git:common:config`.
+     No glob, prefix or whole-category approval is supported. Every selected
+     path must actually change; unselected changes remain unexpected.
+
+   Both captures must be complete, well-formed version 3 evidence; the worktree
+   root identity must stay unchanged. A malformed, unapproved, stale or
+   mismatched record refuses, including when no change remains. A record never
+   overrides incomplete capture, an unsupported layout, a within-capture
+   indirection change, or workspace content scope checks. This is retrospective
+   classification, not permission to execute a Git command or replay a change.
+
+   Reports retain `git-refs` and `git-metadata` categories and add
+   `authorization` to each Git change. Explicitly matched paths report
+   `authorized`; other paths report `unexplained`. The
+   `expected_git_transition.status` is `not-supplied`, `accepted` or `refused`,
+   with the refusal reason included. An accepted record can still leave
+   unselected changes unexpected.
+
    For `redacted-packet` contracts, run the external CLI from a neutral
    directory unless the CLI is proven unable to inspect the current checkout.
    If a return uses repository context that was not approved by the share

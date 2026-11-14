@@ -449,7 +449,7 @@
     "scripts/cwo_core/waivers.py": "dd27ea554c45d372b8f5967b833bff3e2cf74cad9fc9767dd18683229c5cd106",
     "scripts/cwo_core/work_sizing.py": "bb388a4f9964f219504b3cd268464075e8d31a848d78a4918a4b8d48d411360d",
     "scripts/cwo_core/workgraph_markdown.py": "f135fb64e2e62747178a3521792d4cb934d2b4680a7560b9ecc20290b6404cb3",
-    "scripts/cwo_core/workspace.py": "54f952f45e28d31ccc364e003264770242e4099e1845d237e7685543aa196631",
+    "scripts/cwo_core/workspace.py": "2b824126a09ec2d13594816e69208a17fc720e42a1d301ccf7913f09b81ec772",
     "scripts/cwo_core/workspace_capture.py": "80273f8a536024990cf07159b18437511566bc01f1c90ddd171fa7d34dd87632",
     "scripts/dispatch_work.py": "952e89dec2a2148c55cdf2fd8f419395cf054ff7a998a7860b5c725a59a4fced",
     "scripts/evaluate_return.py": "0d26722a7c2628ed7abfcc8b10764bcb33e7c847e5b769af125c8240128584b8",
