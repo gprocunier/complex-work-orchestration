@@ -1,7 +1,7 @@
 """Bead IDs reach ``bd`` as operands, never as options.
 
-Every ``bd`` call puts all options and option values before ``--`` and the
-Bead IDs after it. The real-``bd`` tests below run complete commands in a
+Positional IDs use command-qualified separators; parent IDs occupy their
+command's option-value slot. The real-``bd`` tests below run complete commands in a
 disposable database: ordinary IDs keep their exact semantics, and option-like
 IDs fail without changing the database (a full export is compared before and
 after). The fake-runner tests pin the full argv of each call site.
@@ -24,12 +24,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import close_bead_with_summary  # noqa: E402
+import continue_sprint  # noqa: E402
 from build_beads_brief import build_brief  # noqa: E402
 from close_bead_with_summary import PartialPersistence, execute  # noqa: E402
 from continue_sprint import load_beads_items  # noqa: E402
 from cwo_core import beads  # noqa: E402
-from cwo_core.beads import add_dependency, show_bead_exact_structured, show_bead_json  # noqa: E402
-from cwo_core.native_pool_admission import BeadsClaimAdapter, NativePoolAdmissionError  # noqa: E402
+from cwo_core import native_activation_preview as activation  # noqa: E402
+from cwo_core.beads import add_dependency, create_bead, show_bead_exact_structured, show_bead_json  # noqa: E402
+from cwo_core.native_pool_admission import (  # noqa: E402
+    BeadsClaimAdapter,
+    NativePoolAdmissionError,
+    canonical_admission_sha256,
+)
 from tests.real_beads_fixture import (  # noqa: E402
     REAL_BEADS_FIXTURE_TIMEOUT_SECONDS,
     initialize_real_beads,
@@ -285,6 +291,29 @@ class RealBeadsBoundaryTests(unittest.TestCase):
                 self.assertIsNone(issue)
         self.assertEqual(self.export(), before)
 
+    def test_create_parent_creates_only_the_exact_child_relationship(self) -> None:
+        before = self.export()
+        result = create_bead("Exact parent child", parent=self.alpha)
+        after = self.export()
+        child_id = result["id"]
+        self.assertEqual(set(after), {*before, child_id})
+        self.assertNotIn(child_id, before)
+        self.assertEqual({key: after[key] for key in before}, before)
+        self.assertEqual(after[child_id]["title"], "Exact parent child")
+        self.assertEqual(after[child_id]["status"], "open")
+        self.assertEqual(
+            [(item["depends_on_id"], item["type"])
+             for item in after[child_id]["dependencies"]],
+            [(self.alpha, "parent-child")],
+        )
+
+    def test_create_parent_option_like_ids_refuse_without_creating_an_issue(self) -> None:
+        before = self.export()
+        for bead_id in OPTION_LIKE_IDS:
+            with self.subTest(parent=bead_id), self.assertRaises(SystemExit):
+                create_bead("Refused parent child", parent=bead_id)
+            self.assertEqual(self.export(), before)
+
     # dep add
 
     def test_dependency_types_persist_and_change_only_the_blocked_bead(self) -> None:
@@ -381,6 +410,36 @@ class RealBeadsBoundaryTests(unittest.TestCase):
                         attempt()
         self.assertEqual(self.export(), before)
 
+    def test_admission_write_parsers_refuse_option_like_ids_after_substituted_show(self) -> None:
+        adapter = self.adapter()
+        open_issue = dict(adapter.show_exact(self.gamma))
+        claim = adapter.claim(self.gamma)
+        self.assertTrue(claim.owned)
+        owned_issue = dict(claim.post_issue)
+        before = self.export()
+        # Substitute only exact-show observations to reach the original write
+        # builders. The update/close subprocesses and disposable store are real.
+        for bead_id in OPTION_LIKE_IDS:
+            for action, projection in (("claim", open_issue), ("close", owned_issue)):
+                issue = {**projection, "id": bead_id}
+                with self.subTest(bead_id=bead_id, action=action), \
+                        mock.patch.object(adapter, "show_exact", return_value=issue), \
+                        mock.patch.object(adapter, "_run", wraps=adapter._run) as run:
+                    if action == "claim":
+                        transition = adapter.claim(bead_id)
+                        self.assertFalse(transition.owned)
+                        expected = ("update", "--claim", "--json", "--", bead_id)
+                    else:
+                        transition = adapter.close_owned(
+                            bead_id, expected_pre_show_sha256=canonical_admission_sha256(issue),
+                            reason="Parser boundary refusal")
+                        self.assertFalse(transition.closed)
+                        expected = ("close", "--reason", "Parser boundary refusal",
+                                    "--json", "--", bead_id)
+                    run.assert_called_once_with(expected)
+                    self.assertNotEqual(transition.receipt["command_returncode"], 0)
+                self.assertEqual(self.export(), before)
+
     def authorize(self, bead_id: str) -> subprocess.CompletedProcess[str]:
         return run_fixture_subprocess(
             [
@@ -431,6 +490,174 @@ class RealBeadsBoundaryTests(unittest.TestCase):
                 load_beads_items(epic_id)
             self.assertIn(epic_id, str(raised.exception))
         self.assertEqual(self.export(), before)
+
+    def test_continuation_option_like_epic_refuses_before_parent_queries(self) -> None:
+        before = self.export()
+        for epic_id in OPTION_LIKE_IDS:
+            with self.subTest(epic_id=epic_id), \
+                    mock.patch.object(continue_sprint, "run_bd", wraps=continue_sprint.run_bd) as run, \
+                    self.assertRaises(SystemExit):
+                load_beads_items(epic_id)
+            self.assertEqual(self.export(), before)
+            run.assert_not_called()
+
+    def test_continuation_option_like_discovered_parent_refuses_before_its_query(self) -> None:
+        before = self.export()
+        original = continue_sprint.bd_json
+        for bead_id in OPTION_LIKE_IDS:
+            commands = []
+
+            def discovered(args):
+                commands.append(args)
+                result = original(args)
+                if args[0] == "list" and args[args.index("--parent") + 1] == self.alpha:
+                    # Only discovery data is substituted; attempted queries
+                    # otherwise use the original runner and disposable store.
+                    return [{"id": bead_id}]
+                return result
+
+            with self.subTest(bead_id=bead_id), \
+                    mock.patch.object(continue_sprint, "bd_json", side_effect=discovered), \
+                    self.assertRaises(SystemExit):
+                load_beads_items(self.alpha)
+            self.assertEqual(self.export(), before)
+            self.assertFalse(any(args[0] == "list" and bead_id in args for args in commands))
+
+    def test_parent_queries_read_only_the_exact_ordinary_parent(self) -> None:
+        child = self.bd("create", "Selected child", "--parent", self.alpha, "--silent")
+        self.bd("create", "Other child", "--parent", self.beta, "--silent")
+        closed = self.bd("create", "Closed selected child", "--parent", self.alpha, "--silent")
+        self.bd("close", "--reason", "Closed query control", "--", closed)
+        before = self.export()
+        for ready, expected in ((True, {child}), (False, {child, closed})):
+            with self.subTest(ready=ready), \
+                    mock.patch.object(continue_sprint, "run_bd", wraps=continue_sprint.run_bd) as run:
+                issues = continue_sprint._parent_query(self.alpha, ready=ready)
+                self.assertEqual({issue["id"] for issue in issues}, expected)
+                args = (["ready", "--json", "--parent", self.alpha, "--unassigned", "--limit", "0"]
+                        if ready else ["list", "--json", "--all", "--parent", self.alpha, "--limit", "0"])
+                run.assert_called_once_with(args)
+            self.assertEqual(self.export(), before)
+
+    def test_parent_queries_refuse_option_like_values_before_execution(self) -> None:
+        before = self.export()
+        for ready in (True, False):
+            for bead_id in OPTION_LIKE_IDS:
+                with self.subTest(ready=ready, parent=bead_id), \
+                        mock.patch.object(continue_sprint, "run_bd", wraps=continue_sprint.run_bd) as run, \
+                        self.assertRaisesRegex(SystemExit, "refusing option-like Bead ID"):
+                    continue_sprint._parent_query(bead_id, ready=ready)
+                self.assertEqual(self.export(), before)
+                run.assert_not_called()
+
+    def test_activation_generated_id_update_parser_refuses_without_changes(self) -> None:
+        original = activation._bd
+        for bead_id in OPTION_LIKE_IDS:
+            run_root = self.root / ("update-" + bead_id.lstrip("-"))
+            run_root.mkdir()
+            before = []
+
+            def generated(directory, *args):
+                output = original(directory, *args)
+                if args[0] == "create" and "--parent" in args:
+                    before.extend(json.loads(line) for line in original(directory, "export").splitlines())
+                    # Only the returned child identity is substituted. The
+                    # original builder sends its update to the real parser.
+                    return bead_id
+                return output
+
+            with self.subTest(bead_id=bead_id), \
+                    mock.patch.object(activation, "_bd", side_effect=generated), \
+                    mock.patch.object(activation, "_admission_metadata", return_value=({}, {})), \
+                    self.assertRaisesRegex(activation.NativeActivationPreviewError, "activation-beads-failed"):
+                activation._create_beads_graph(run_root, profile="n1-read-only",
+                    integration=self.root, override={}, now=None)
+            self.assertTrue(before)
+            after = [json.loads(line) for line in original(run_root / "private-beads", "export").splitlines()]
+            self.assertEqual(after, before)
+
+    def test_activation_private_graph_updates_and_shows_only_its_exact_children(self) -> None:
+        run_root = self.root / "ordinary-activation-graph"
+        run_root.mkdir()
+        before = self.export()
+        with mock.patch.object(activation, "_admission_metadata", return_value=({"marker": "exact metadata"}, {})), \
+                mock.patch.object(activation, "_normalize_issue", side_effect=lambda issue, **_kwargs: dict(issue)):
+            directory, database, epic, children, _estimates, items = activation._create_beads_graph(
+                run_root, profile="n1-read-only", integration=self.root, override={}, now=None)
+        exported = {item["id"]: item for item in (
+            json.loads(line) for line in activation._bd(directory, "export").splitlines())}
+        self.assertEqual(database, directory / ".beads" / "embeddeddolt")
+        self.assertEqual(set(exported), {epic, *children})
+        self.assertEqual({item["id"] for item in items}, set(exported))
+        self.assertEqual(len(children), 1)
+        child = exported[children[0]]
+        self.assertEqual(child["metadata"], {"cwo_ready_set_admission": {"marker": "exact metadata"}})
+        self.assertEqual([(item["depends_on_id"], item["type"]) for item in child["dependencies"]],
+                         [(epic, "parent-child")])
+        self.assertEqual(self.export(), before)
+
+    def test_activation_ready_parent_refuses_before_query_after_substituted_prior_steps(self) -> None:
+        original = activation._bd
+        for bead_id in OPTION_LIKE_IDS:
+            run_root = self.root / ("ready-" + bead_id.lstrip("-"))
+            run_root.mkdir()
+            before, commands = [], []
+
+            def generated(directory, *args):
+                commands.append(args)
+                if args[0] == "create" and "--parent" in args:
+                    return "EXAMPLE-child"
+                if args[0] == "update":
+                    return "{}"
+                output = original(directory, *args)
+                if args[0] == "create":
+                    before.extend(json.loads(line) for line in original(directory, "export").splitlines())
+                    # Only prior child creation/update observations are
+                    # substituted to reach this independent parent boundary.
+                    return bead_id
+                return output
+
+            with self.subTest(bead_id=bead_id), \
+                    mock.patch.object(activation, "_bd", side_effect=generated), \
+                    mock.patch.object(activation, "_admission_metadata", return_value=({}, {})), \
+                    self.assertRaisesRegex(activation.NativeActivationPreviewError, "activation-beads-id-option-like"):
+                activation._create_beads_graph(run_root, profile="n1-read-only",
+                    integration=self.root, override={}, now=None)
+            after = [json.loads(line) for line in original(run_root / "private-beads", "export").splitlines()]
+            self.assertEqual(after, before)
+            self.assertFalse(any(args[0] == "ready" for args in commands))
+
+    def test_activation_generated_id_show_refuses_before_query_after_substituted_prior_steps(self) -> None:
+        original = activation._bd
+        for bead_id in OPTION_LIKE_IDS:
+            run_root = self.root / ("show-" + bead_id.lstrip("-"))
+            run_root.mkdir()
+            before, commands = [], []
+
+            def generated(directory, *args):
+                commands.append(args)
+                # Bypass metadata delivery and readiness observations only to
+                # reach the original final show builder with a malformed ID.
+                if args[0] == "update":
+                    return "{}"
+                if args[0] == "ready":
+                    return json.dumps([{"id": bead_id}])
+                output = original(directory, *args)
+                if args[0] == "create" and "--parent" in args:
+                    before.extend(json.loads(line) for line in original(directory, "export").splitlines())
+                    return bead_id
+                return output
+
+            with self.subTest(bead_id=bead_id), \
+                    mock.patch.object(activation, "_bd", side_effect=generated), \
+                    mock.patch.object(activation, "_admission_metadata", return_value=({}, {})), \
+                    self.assertRaisesRegex(activation.NativeActivationPreviewError, "activation-beads-id-option-like"):
+                activation._create_beads_graph(run_root, profile="n1-read-only",
+                    integration=self.root, override={}, now=None)
+            self.assertTrue(before)
+            after = [json.loads(line) for line in original(run_root / "private-beads", "export").splitlines()]
+            self.assertEqual(after, before)
+            self.assertFalse(any(args[0] == "show" for args in commands))
 
 
     def test_show_option_like_ids_fail_without_changes(self) -> None:

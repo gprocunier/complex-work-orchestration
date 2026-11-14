@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Native supervision preserves incomplete inspection refusals and rejects unexplained Git metadata or reference changes.
+- Beads continuation queries and private activation graph commands reject option-like issue IDs while preserving ordinary ID behavior.
+
 ## 0.5.0 - 2026-11-14
 
 - Add separate create-share authorization bound to conversation and content, with one-use execution admission and conservative aggregate accounting; live sharing remains unavailable.

@@ -527,7 +527,6 @@
     "scripts/supervise_native_worker.py::_authorized_continuation_calls": 23,
     "scripts/supervise_native_worker.py::_checked_sequence_result_valid": 17,
     "scripts/supervise_native_worker.py::_classify_native_activity": 33,
-    "scripts/supervise_native_worker.py::_compare_live_workspace": 17,
     "scripts/supervise_native_worker.py::_context_manifest": 23,
     "scripts/supervise_native_worker.py::_declared_validation_commands": 51,
     "scripts/supervise_native_worker.py::_evaluate_operative_readiness": 65,

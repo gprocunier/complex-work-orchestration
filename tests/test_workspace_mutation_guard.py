@@ -119,6 +119,47 @@ class WorkspaceMutationGuardTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("requires --compare", result.stderr)
 
+    def test_cli_real_scoped_edit_has_matched_unapproved_control(self) -> None:
+        root = self.make_repo()
+        with tempfile.TemporaryDirectory() as temporary:
+            before = Path(temporary) / "before.json"
+            command = [sys.executable, str(ROOT / "scripts" / "workspace_mutation_guard.py"), "--workspace-root", str(root)]
+            subprocess.run(command + ["--snapshot", "--output", str(before)], check=True, capture_output=True)
+            (root / "tracked.txt").write_text("scoped\n", encoding="utf-8")
+            ordinary = subprocess.run(command + ["--compare", str(before)], check=True, capture_output=True, text=True)
+            allowed = subprocess.run(command + ["--compare", str(before), "--allow-path", "tracked.txt"],
+                                     check=True, capture_output=True, text=True)
+        self.assertTrue(json.loads(ordinary.stdout)["unexpected_mutation_detected"])
+        self.assertFalse(json.loads(allowed.stdout)["unexpected_mutation_detected"])
+        self.assertEqual(json.loads(allowed.stdout)["mutation_categories"]["scoped"], ["tracked.txt"])
+
+    def test_cli_real_non_repository_capture_stays_incomplete(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            before = root / "before.json"
+            command = [sys.executable, str(ROOT / "scripts" / "workspace_mutation_guard.py"), "--workspace-root", str(root)]
+            subprocess.run(command + ["--snapshot", "--output", str(before)], check=True, capture_output=True)
+            snapshot = json.loads(before.read_text(encoding="utf-8"))
+            compared = subprocess.run(command + ["--compare", str(before)], check=True, capture_output=True, text=True)
+        report = json.loads(compared.stdout)
+        self.assertTrue(snapshot["incomplete"])
+        self.assertFalse(snapshot["baseline_complete"])
+        self.assertTrue(report["incomplete"])
+        self.assertTrue(report["unexpected_mutation_detected"])
+
+    def test_cli_require_clean_refuses_real_preexisting_dirt(self) -> None:
+        root = self.make_repo()
+        (root / "tracked.txt").write_bytes(b"preexisting dirt\n")
+        with tempfile.TemporaryDirectory() as temporary:
+            before = Path(temporary) / "before.json"
+            command = [sys.executable, str(ROOT / "scripts" / "workspace_mutation_guard.py"), "--workspace-root", str(root)]
+            subprocess.run(command + ["--snapshot", "--output", str(before)], check=True, capture_output=True)
+            command += ["--compare", str(before), "--allow-path", "tracked.txt"]
+            ordinary = subprocess.run(command, check=True, capture_output=True, text=True)
+            strict = subprocess.run(command + ["--require-clean"], check=True, capture_output=True, text=True)
+        self.assertFalse(json.loads(ordinary.stdout)["unexpected_mutation_detected"])
+        self.assertTrue(json.loads(strict.stdout)["unexpected_mutation_detected"])
+
 
 if __name__ == "__main__":
     unittest.main()

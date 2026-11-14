@@ -25,6 +25,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core import native_live_campaign_contracts as CAMPAIGN_CONTRACTS  # noqa: E402
 from cwo_core import workspace_capture  # noqa: E402
+from cwo_core import workspace as workspace_module  # noqa: E402
 # AppServer and its helpers live here; patch module globals they read at their
 # defining module, not on the runner that re-exports them.
 from cwo_core.supervision.transport import app_server as TRANSPORT  # noqa: E402
@@ -6133,6 +6134,67 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             finally:
                 marker.unlink(missing_ok=True)
                 hook.unlink(missing_ok=True)
+
+    def test_real_bound_capture_reaches_readonly_evidence_refusal(self) -> None:
+        from tests.test_native_pool_workspace import WorkspaceFixture
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            root = fixture.first
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(server, server.thread_response(), prompt="bounded prompt",
+                expected_token="DONE", worktree=root, mutable=False, expected_mutation=None,
+                record_dir=root, monotonic_ns=FakeMonotonicClock(), campaign_live_route=False)
+            adapter.bind_workspace_baseline(LIVE.capture_workspace_baseline(root, allowed_paths=[], include_untracked=True))
+            self.controller_bind_and_arm(adapter)
+            self.assertFalse(adapter.evidence()["protected_fault"])
+            (root / "README.md").write_text("unapproved\n", encoding="utf-8")
+            evidence = adapter.evidence()
+            self.assertIn("read-only-workspace-mutation", evidence["reasons"])
+            self.assertTrue(evidence["protected_fault"])
+
+    def test_real_bound_capture_cap_and_config_change_cannot_accept(self) -> None:
+        from tests.test_native_pool_workspace import WorkspaceFixture
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            root = fixture.first
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            adapter = LIVE.LiveThreadAdapter(server, server.thread_response(), prompt="bounded prompt",
+                expected_token="DONE", worktree=root, mutable=False, expected_mutation=None,
+                record_dir=root, monotonic_ns=FakeMonotonicClock(), campaign_live_route=False)
+            adapter.bind_workspace_baseline(LIVE.capture_workspace_baseline(root, allowed_paths=[], include_untracked=True))
+            self.controller_bind_and_arm(adapter)
+            original = LIVE.capture_workspace_baseline
+            capped = lambda *args, **kwargs: original(*args, **{**kwargs, "max_files": 0})
+            with mock.patch.object(LIVE, "capture_workspace_baseline", side_effect=capped):
+                with self.assertRaisesRegex(LIVE.AppServerError, "workspace-baseline-comparison-incomplete"):
+                    adapter.evidence()
+            subprocess.run(["git", "config", "core.sshCommand", "EXAMPLE-unapproved"], cwd=root, check=True)
+            evidence = adapter.evidence()
+            self.assertIn("read-only-workspace-mutation", evidence["reasons"])
+            self.assertTrue(evidence["protected_fault"])
+
+    def test_real_bound_mutable_scoped_write_and_unplanned_control(self) -> None:
+        from tests.test_native_pool_workspace import WorkspaceFixture
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            root = fixture.first
+            records = Path(temporary) / "records"
+            records.mkdir(mode=0o700)
+            server = FakeLiveThreadServer(root, initial_boundary="valid")
+            target = "scripts/child_0.py"
+            adapter = LIVE.LiveThreadAdapter(server, server.thread_response(mutable=True), prompt="bounded prompt",
+                expected_token="DONE", worktree=root, mutable=True, expected_mutation=target,
+                record_dir=records, monotonic_ns=FakeMonotonicClock(), campaign_live_route=False)
+            adapter.bind_workspace_baseline(LIVE.capture_workspace_baseline(root, allowed_paths=[target], include_untracked=True))
+            self.controller_bind_and_arm(adapter)
+            self.assertFalse(adapter.evidence()["protected_fault"])
+            adapter.send_input(message="bounded prompt")
+            (root / target).write_bytes(b"ZERO = 2\n")
+            self.assertFalse(adapter.evidence()["protected_fault"])
+            (root / "README.md").write_bytes(b"unplanned\n")
+            evidence = adapter.evidence()
+            self.assertIn("mutable-workspace-attribution-mismatch", evidence["reasons"])
+            self.assertTrue(evidence["protected_fault"])
 
     def test_unbound_workspace_mutations_refuse_unknown_cleanliness(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -14442,6 +14504,21 @@ class FullAutoAuthorizationLauncherTests(unittest.TestCase):
                             invalid["bindings"]["campaign_nonce"],
                             repo_root=root,
                         )
+
+    def test_real_checkpoint_clean_dirty_and_capture_cap_controls(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            head, _orphan = self.make_repo(root)
+            LIVE.require_repository_checkpoint(root, head)
+            target = root / "baseline.txt"
+            original = target.read_bytes()
+            target.write_bytes(b"unapproved\n")
+            with self.assertRaisesRegex(LIVE.AppServerError, "repository-not-clean"):
+                LIVE.require_repository_checkpoint(root, head)
+            target.write_bytes(original)
+            with mock.patch.dict(workspace_module.STATE_CAPS, {"max_files": 0}):
+                with self.assertRaisesRegex(LIVE.AppServerError, "repository-not-clean"):
+                    LIVE.require_repository_checkpoint(root, head)
 
     def test_manifest_strict_binding_replay_and_policy_contract(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

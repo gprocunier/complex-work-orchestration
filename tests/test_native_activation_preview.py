@@ -199,6 +199,66 @@ def claim_worker(
         queue.put(("rejected", str(exc)))
 
 
+class ActivationWorkspaceInspectionTests(unittest.TestCase):
+    def test_source_identity_uses_real_clean_capture_and_refuses_dirty_or_incomplete(self) -> None:
+        from cwo_core import native_activation_preview as preview
+        from cwo_core import workspace
+
+        with tempfile.TemporaryDirectory() as temporary:
+            source = initialize_source(Path(temporary))
+            tracked = source / "source.txt"
+            tracked.write_text("trusted source\n", encoding="utf-8")
+            subprocess.run(["git", "add", "source.txt"], cwd=source, check=True)
+            subprocess.run(["git", "commit", "-qm", "source input"], cwd=source, check=True)
+            root, commit, tree = preview._source_identity(source)
+            self.assertEqual(root, source)
+            self.assertEqual(commit, preview._git(source, "rev-parse", "HEAD^{commit}"))
+            self.assertEqual(tree, preview._git(source, "rev-parse", "HEAD^{tree}"))
+            tracked.write_text("changed source\n", encoding="utf-8")
+            with self.assertRaisesRegex(NativeActivationPreviewError, "activation-source-repository-dirty"):
+                preview._source_identity(source)
+            tracked.write_text("trusted source\n", encoding="utf-8")
+            with patch.dict(workspace.STATE_CAPS, {"max_files": 0}):
+                evidence = workspace.capture_tracked_workspace_state(source)
+                self.assertTrue(evidence["incomplete"])
+                with self.assertRaisesRegex(NativeActivationPreviewError, "activation-source-repository-dirty"):
+                    preview._source_identity(source)
+
+    def test_runner_monitor_uses_real_capture_for_clean_metadata_and_incomplete_controls(self) -> None:
+        import run_native_pool_activation_preview as runner
+        from cwo_core import native_pool_workspace as pool_workspace
+        from tests.test_native_pool_workspace import WorkspaceFixture
+
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            hook = fixture.integration / ".git" / "hooks" / "activation-control"
+            hook.write_text("# inert hook 0\n", encoding="utf-8")
+            contract, worktrees = fixture.contract(read_only=True)
+            monitor = runner.PoolWorkspaceMonitor(contract,
+                integration_root=fixture.integration, child_worktrees=worktrees)
+            clean = monitor.compare(contract=contract, phase="unchanged")
+            self.assertTrue(clean["integration_root_clean"])
+            self.assertTrue(clean["child_worktrees_clean"])
+            hook.write_text("# inert hook 1\n", encoding="utf-8")
+            changed = monitor.compare(contract=contract, phase="same-size-hook")
+            self.assertFalse(changed["integration_root_clean"])
+            self.assertFalse(changed["child_worktrees_clean"])
+            report = monitor.observations()[-1]["children"]["child-0"]
+            self.assertIn(".git:common:hooks/activation-control",
+                          {item["path"] for item in report["git_metadata_changes"]})
+            hook.write_text("# inert hook 0\n", encoding="utf-8")
+            original = pool_workspace.capture_workspace_baseline
+
+            def capped(*args, **kwargs):
+                return original(*args, **{**kwargs, "max_files": 0})
+
+            with patch.object(pool_workspace, "capture_workspace_baseline", side_effect=capped):
+                incomplete = monitor.compare(contract=contract, phase="capture-cap")
+            self.assertFalse(incomplete["integration_root_clean"])
+            self.assertFalse(incomplete["child_worktrees_clean"])
+            self.assertTrue(monitor.observations()[-1]["children"]["child-0"]["incomplete"])
+
+
 @unittest.skipUnless(BD_PATH, "bd CLI not available")
 class NativeActivationPreviewTests(unittest.TestCase):
     def test_prepare_root_refuses_before_graph_and_private_graph_uses_only_fake_bd(self) -> None:
@@ -253,13 +313,21 @@ class NativeActivationPreviewTests(unittest.TestCase):
                             (private / ".beads" / "embeddeddolt").mkdir(parents=True)
                             output = ""
                         elif action == "create":
+                            if "--parent" in command:
+                                self.assertEqual(command[command.index("--parent") + 1], "EXAMPLE-epic")
                             output = next(creates)
                         elif action == "ready":
+                            self.assertEqual(command, ["bd", "ready", "--json", "--parent",
+                                "EXAMPLE-epic", "--unassigned", "--limit", "0"])
                             output = json.dumps([{"id": child} for child in children])
                         elif action == "show":
+                            self.assertEqual(command, ["bd", "show", "--json", "--", "EXAMPLE-epic", *children])
                             output = json.dumps([{"id": child} for child in ["EXAMPLE-epic", *children]])
                         else:
                             self.assertEqual(action, "update")
+                            updated = sum(row[1] == "update" for row in history) - 1
+                            self.assertEqual(command, ["bd", "update", "--metadata",
+                                '{"cwo_ready_set_admission":{}}', "--json", "--", children[updated]])
                             output = "{}"
                         return subprocess.CompletedProcess(command, 0, output, "")
 
@@ -331,6 +399,34 @@ class NativeActivationPreviewTests(unittest.TestCase):
                     validate_activation_plan(tampered, check_live_source=False),
                     ["activation-plan-beads-not-private"],
                 )
+
+    def test_prospective_task_uses_real_snapshot_and_refuses_dirty_or_incomplete(self) -> None:
+        from cwo_core import native_activation_preview as preview
+        from cwo_core import native_pool_workspace as pool_workspace
+
+        temporary, _control, _plan_path, _approval_path, plan, _approval = self.fixture()
+        self.addCleanup(temporary.cleanup)
+        selected = plan["tasks"][0]
+        root = Path(selected["worktree"])
+        arguments = dict(profile=plan["profile"], ordinal=0, bead_id=selected["bead_id"],
+            estimate=plan["work_estimates"][selected["bead_id"]], worktree=root, override=plan["override"])
+        expected = pool_workspace.capture_workspace_snapshot(root, allowed_paths=[])
+        task = preview._prospective_task(**arguments)
+        self.assertEqual(task["worktree_identity_sha256"], canonical_activation_sha256(expected["identity"]))
+        self.assertEqual(task["declared_write_paths"], [])
+        dirt = root / "unexpected.txt"
+        dirt.write_text("unapproved task input\n", encoding="utf-8")
+        with self.assertRaisesRegex(pool_workspace.PoolWorkspaceError, "workspace-baseline-not-clean"):
+            preview._prospective_task(**arguments)
+        dirt.unlink()
+        original = pool_workspace.capture_workspace_baseline
+
+        def capped(*args, **kwargs):
+            return original(*args, **{**kwargs, "max_files": 0})
+
+        with patch.object(pool_workspace, "capture_workspace_baseline", side_effect=capped), \
+                self.assertRaisesRegex(pool_workspace.PoolWorkspaceError, "workspace-baseline-incomplete"):
+            preview._prospective_task(**arguments)
 
     def test_keygen_prepare_approve_and_dry_run_are_non_live(self) -> None:
         temporary, control, plan_path, approval_path, plan, _approval = (

@@ -20,6 +20,7 @@ from cwo_core.native_pool_workspace import (  # noqa: E402
     use_sealed_workspace_baselines,
 )
 from cwo_core import workspace as workspace_module  # noqa: E402
+from cwo_core import native_pool_workspace as pool_workspace  # noqa: E402
 from tests.test_native_pool_contracts import pool_contract  # noqa: E402
 from tests.real_beads_fixture import configure_git_fixture
 
@@ -79,6 +80,55 @@ class WorkspaceFixture:
 
 
 class NativePoolWorkspaceTests(unittest.TestCase):
+    def test_real_capture_cap_refuses_normal_and_sealed_snapshots(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            baseline = capture_workspace_snapshot(fixture.first)["baseline"]
+            original = pool_workspace.capture_workspace_baseline
+            capped = lambda *args, **kwargs: original(*args, **{**kwargs, "max_files": 0})
+            with mock.patch.object(pool_workspace, "capture_workspace_baseline", side_effect=capped):
+                with self.assertRaisesRegex(PoolWorkspaceError, "baseline-incomplete"):
+                    capture_workspace_snapshot(fixture.first)
+                with use_sealed_workspace_baselines({fixture.first: {"baseline": baseline, "allowed_paths": []}}):
+                    with self.assertRaisesRegex(PoolWorkspaceError, "baseline-drift"):
+                        capture_workspace_snapshot(fixture.first)
+
+    def test_real_capture_cap_rejects_integration_and_child_observations(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            contract, worktrees = fixture.contract(read_only=True)
+            monitor = PoolWorkspaceMonitor(contract, integration_root=fixture.integration, child_worktrees=worktrees)
+            self.assertTrue(monitor.compare(contract=contract, phase="complete")["child_worktrees_clean"])
+            original = pool_workspace.capture_workspace_baseline
+            for target, field in ((fixture.integration, "integration_root_clean"), (fixture.first, "child_worktrees_clean")):
+                def capped(root, **kwargs):
+                    if Path(root) == target:
+                        kwargs["max_files"] = 0
+                    return original(root, **kwargs)
+                with self.subTest(surface=field), mock.patch.object(pool_workspace, "capture_workspace_baseline", side_effect=capped):
+                    report = monitor.compare(contract=contract, phase="incomplete")
+                    terminal = monitor.reconcile_terminal(contract=contract, no_inflight_tool_calls=True,
+                        no_inflight_callbacks=True, no_background_processes=True, no_writable_sessions=True)
+                self.assertFalse(report[field])
+                self.assertFalse(terminal["terminal_clean"])
+
+    def test_real_unapproved_refs_and_same_size_hook_changes_reject_pool(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            hook = fixture.integration / ".git" / "hooks" / "EXAMPLE-inert"
+            hook.write_bytes(b"before")
+            contract, worktrees = fixture.contract()
+            monitor = PoolWorkspaceMonitor(contract, integration_root=fixture.integration, child_worktrees=worktrees)
+            hook.write_bytes(b"after!")
+            changed = monitor.compare(contract=contract, phase="hook-change")
+            self.assertFalse(changed["integration_root_clean"])
+            self.assertFalse(changed["child_worktrees_clean"])
+            hook.write_bytes(b"before")
+            git("update-ref", "refs/EXAMPLE/unapproved", "HEAD", cwd=fixture.integration)
+            changed = monitor.compare(contract=contract, phase="ref-change")
+            self.assertFalse(changed["integration_root_clean"])
+            self.assertFalse(changed["child_worktrees_clean"])
+
     def test_sealed_dirty_baseline_is_explicit_scoped_and_drift_checked(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = WorkspaceFixture(Path(temporary))

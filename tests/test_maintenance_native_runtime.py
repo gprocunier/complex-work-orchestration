@@ -42,6 +42,8 @@ from cwo_core.native_pool_transaction import (
     AdmittedPoolLaunch, TransactionRuntime, execution_authoritative_bead_sha256, seal_transaction_plan,
 )
 from cwo_core.native_pool_workspace import capture_workspace_snapshot
+from cwo_core import native_pool_workspace as pool_workspace
+from cwo_core.native_pool_workspace import PoolWorkspaceError
 from cwo_core.native_tool_isolation import default_tool_policy
 from cwo_core.paths import cwo_temp_dir
 from tests.test_native_pool_admission import MemoryBdRunner
@@ -474,6 +476,33 @@ class MaintenanceRuntimeTests(unittest.TestCase):
         self.assertEqual(fixture.ledger.count(), 2)
         self.assertEqual(state.server.events.count("thread/start"), 2)
 
+    def test_real_capture_cap_refuses_runtime_construction(self):
+        fixture = self.fixture()
+        original = pool_workspace.capture_workspace_baseline
+        capped = lambda *args, **kwargs: original(*args, **{**kwargs, "max_files": 0})
+        with mock.patch.object(pool_workspace, "capture_workspace_baseline", side_effect=capped):
+            with self.assertRaisesRegex(PoolWorkspaceError, "baseline-incomplete"):
+                module.build_transaction_runtime(fixture.plan, fixture.context)
+        self.assertEqual(fixture.ledger.count(), 0)
+        (fixture.worker / "seed.txt").write_bytes(b"unapproved\n")
+        with self.assertRaisesRegex(PoolWorkspaceError, "baseline-not-clean"):
+            module.build_transaction_runtime(fixture.plan, fixture.context)
+
+    def test_real_incomplete_and_dirty_capture_refuse_predispatch_admission(self):
+        fixture = self.fixture()
+        runtime, state, context, allocation = self.released(fixture)
+        runtime.bind_admitted_launch(fixture.plan, [allocation], context)
+        binding = state.reserved.receipt["child_bindings"][0]
+        self.assertEqual(state._live_revalidate(binding), binding)
+        original = pool_workspace.capture_workspace_baseline
+        capped = lambda *args, **kwargs: original(*args, **{**kwargs, "max_files": 0})
+        with mock.patch.object(pool_workspace, "capture_workspace_baseline", side_effect=capped):
+            with self.assertRaisesRegex(PoolWorkspaceError, "baseline-incomplete"):
+                state._live_revalidate(binding)
+        (fixture.worker / "seed.txt").write_text("unapproved\n", encoding="utf-8")
+        with self.assertRaisesRegex(PoolWorkspaceError, "baseline-not-clean"):
+            state._live_revalidate(binding)
+
     def test_product_real_admission_contract_and_effective_boundary(self):
         fixture = self.fixture(role="product")
         runtime, state, context, allocation = self.released(fixture)
@@ -579,6 +608,23 @@ class MaintenanceRuntimeTests(unittest.TestCase):
         commands = (ValidationCommand((sys.executable, "-c", "from pathlib import Path; Path('seed.txt').write_text('bad')"), 5),)
         fixture = RuntimeFixture(self.root, commands=commands)
         result = self.final_validation_fixture(fixture)
+        self.assertFalse(result["accepted"])
+        self.assertIn("validation-mutated-workspace", result["errors"])
+        self.assertIn("workspace-final-observation-rejected", result["errors"])
+
+    def test_real_capture_cap_denies_final_validation(self):
+        fixture = self.fixture()
+        original = module.capture_workspace_baseline
+        capped = lambda *args, **kwargs: original(*args, **{**kwargs, "max_files": 0})
+        with mock.patch.object(module, "capture_workspace_baseline", side_effect=capped):
+            result = self.final_validation_fixture(fixture)
+        self.assertFalse(result["accepted"])
+        self.assertIn("validation-mutated-workspace", result["errors"])
+        self.assertTrue(result["independent_checks"][0]["accepted"])
+
+    def test_real_validator_config_mutation_denies_final_validation(self):
+        commands = (ValidationCommand(("git", "config", "core.sshCommand", "EXAMPLE-unapproved"), 5),)
+        result = self.final_validation_fixture(RuntimeFixture(self.root, commands=commands))
         self.assertFalse(result["accepted"])
         self.assertIn("validation-mutated-workspace", result["errors"])
         self.assertIn("workspace-final-observation-rejected", result["errors"])

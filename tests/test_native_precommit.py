@@ -590,6 +590,55 @@ class NativePrecommitTests(unittest.TestCase):
                 state_file=self.root / "non-git-workspace-state.json",
             )
 
+    def test_real_capture_cap_refuses_creation_and_arming(self) -> None:
+        original = native_precommit.capture_workspace_baseline
+        capped = lambda *args, **kwargs: original(*args, **{**kwargs, "max_files": 0})
+        with mock.patch.object(native_precommit, "capture_workspace_baseline", side_effect=capped):
+            with self.assertRaisesRegex(ValueError, "baseline comparison is incomplete"):
+                self.create()
+        self.create()
+        with mock.patch.object(native_precommit, "capture_workspace_baseline", side_effect=capped):
+            with self.assertRaisesRegex(ValueError, "comparison failed or is incomplete"):
+                arm_precommit(self.state_file, CONTROL_TURN)
+
+    def test_real_capture_cap_fails_dispatched_check(self) -> None:
+        self.create()
+        self.dispatch()
+        original = native_precommit.capture_workspace_baseline
+        capped = lambda *args, **kwargs: original(*args, **{**kwargs, "max_files": 0})
+        with mock.patch.object(native_precommit, "capture_workspace_baseline", side_effect=capped):
+            state, code = check_precommit(self.state_file, CONTROL_TURN, now="2026-07-15T00:00:00.300Z")
+        self.assertEqual(code, 2)
+        self.assertEqual(state["status"], "control-failed")
+        self.assertTrue(any("incomplete" in reason for reason in state["reasons"]))
+
+    def test_real_capture_cap_refuses_receipt_issue_and_live_validation(self) -> None:
+        receipt = self.positive_receipt()
+        payload = {key: value for key, value in receipt.items() if key != "receipt_file"}
+        original = native_precommit.capture_workspace_baseline
+        capped = lambda *args, **kwargs: original(*args, **{**kwargs, "max_files": 0})
+        with mock.patch.object(native_precommit, "capture_workspace_baseline", side_effect=capped):
+            with self.assertRaisesRegex(ValueError, "comparison failed or is incomplete"):
+                issue_precommit_receipt(self.state_file, receipt_file=self.root / "second-receipt.json")
+            errors = validate_precommit_receipt(payload, work_plan(), live=True, require_accepting=True)
+        self.assertTrue(any("incomplete" in error for error in errors))
+
+    def test_real_config_change_refuses_arming(self) -> None:
+        self.create()
+        subprocess.run(["git", "config", "core.sshCommand", "EXAMPLE-unapproved"], cwd=self.workdir, check=True)
+        with self.assertRaisesRegex(ValueError, "workspace changed"):
+            arm_precommit(self.state_file, CONTROL_TURN)
+
+    def test_real_config_change_invalidates_receipt_issue_and_validation(self) -> None:
+        receipt = self.positive_receipt()
+        payload = {key: value for key, value in receipt.items() if key != "receipt_file"}
+        subprocess.run(["git", "config", "core.sshCommand", "EXAMPLE-unapproved"], cwd=self.workdir, check=True)
+        changed = issue_precommit_receipt(self.state_file, receipt_file=self.root / "changed-receipt.json")
+        self.assertFalse(changed["accepting"])
+        self.assertIn("workspace-mutation", changed["observed"]["forbidden_events"])
+        errors = validate_precommit_receipt(payload, work_plan(), live=True, require_accepting=True)
+        self.assertTrue(any("intervening workspace mutation" in error for error in errors))
+
     def test_state_transition_lock_serializes_concurrent_writers(self) -> None:
         self.create()
 
