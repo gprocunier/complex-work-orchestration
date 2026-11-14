@@ -14,11 +14,42 @@ BINDING_FIELDS = (
 )
 _RECORD_FIELDS = {"record_type", "version", "approved", "reason", "before", "after", "paths"}
 _REF_KEYS = ("gitdir:HEAD", "gitdir:refs", "common:packed-refs", "common:refs", "common:reftable")
+_KINDS = {
+    "capture-identity": "indirection", "git_dir": "indirection", "common_dir": "indirection",
+    "worktree:.git": "indirection", "gitdir:commondir": "indirection", "gitdir:gitdir": "indirection",
+    "gitdir:HEAD": "head", "gitdir:config.worktree": "config", "common:config": "config",
+}
+_KIND_PREFIXES = (
+    ("config-file:", "config"), ("dependency:core.hookspath:", "hooks"),
+    ("common:hooks", "hooks"), ("gitdir:info", "info"), ("common:info", "info"),
+    ("gitdir:refs", "refs"), ("common:packed-refs", "refs"),
+    ("common:refs", "refs"), ("common:reftable", "refs"),
+)
+_SCOPES = {"capture-identity": "capture", "git_dir": "per-worktree", "common_dir": "common"}
+_SCOPE_PREFIXES = (("worktree:", "worktree"), ("gitdir:", "per-worktree"), ("common:", "common"))
 
 
 def metadata_category(key: str) -> str:
     """Keep reference changes separate from other Git metadata."""
     return "git-refs" if any(key == ref or key.startswith(ref + "/") for ref in _REF_KEYS) else "git-metadata"
+
+
+def _metadata_kind(key: str) -> str:
+    if key in _KINDS:
+        return _KINDS[key]
+    for prefix, kind in _KIND_PREFIXES:
+        if key == prefix or key.startswith(prefix + "/") or prefix.endswith(":") and key.startswith(prefix):
+            return kind
+    return "other"
+
+
+def _metadata_scope(key: str) -> str:
+    if key in _SCOPES:
+        return _SCOPES[key]
+    for prefix, scope in _SCOPE_PREFIXES:
+        if key.startswith(prefix):
+            return scope
+    return "external"
 
 
 def git_metadata_changes(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]:
@@ -172,11 +203,35 @@ def _record_error(record: Any, before: dict[str, Any], after: dict[str, Any], ch
     return None
 
 
+def metadata_capture_incomplete(evidence: dict[str, Any], *, strict: bool = False) -> bool:
+    """Only complete capture can establish authorization; keep legacy no-record comparisons compatible."""
+    if strict:
+        try:
+            return not _valid_capture(evidence)
+        except (TypeError, ValueError, KeyError, RecursionError):
+            return True
+    metadata = evidence.get("git_metadata")
+    return bool(evidence.get("error") or evidence.get("incomplete") or not evidence.get("is_git_repo", True)
+                or isinstance(metadata, dict) and metadata.get("complete") is False)
+
+
+def _authorization(path: str, approved: set[str], incomplete: bool) -> str:
+    if incomplete:
+        return "incomplete"
+    return "authorized" if path in approved else "unexplained"
+
+
+def _classifications(changes: list[dict[str, Any]]) -> dict[str, list[str]]:
+    return {status: [change["path"] for change in changes if change["authorization"] == status]
+            for status in ("authorized", "unexplained", "incomplete")}
+
+
 def compare_git_metadata(before: dict[str, Any], after: dict[str, Any], record: Any = None) -> dict[str, Any]:
     """Classify exact approved paths; a refused record never authorizes a change."""
     changes = git_metadata_changes(before, after)
     result = {"status": "not-supplied", "reason": None}
     approved: set[str] = set()
+    incomplete = any(metadata_capture_incomplete(evidence, strict=record is not None) for evidence in (before, after))
     if record is not None:
         try:
             error = _record_error(record, before, after, changes)
@@ -186,8 +241,10 @@ def compare_git_metadata(before: dict[str, Any], after: dict[str, Any], record: 
         if not error:
             approved = set(record["paths"])
     for change in changes:
-        change["authorization"] = "authorized" if change["path"] in approved else "unexplained"
-    return {"changes": changes, "record": result}
+        key = change["path"].removeprefix(".git:")
+        change.update(metadata_kind=_metadata_kind(key), metadata_scope=_metadata_scope(key),
+                      authorization=_authorization(change["path"], approved, incomplete))
+    return {"changes": changes, "record": result, "incomplete": incomplete, "classifications": _classifications(changes)}
 
 
 def mutation_is_allowed(item: dict[str, Any]) -> bool:

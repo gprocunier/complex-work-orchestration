@@ -708,6 +708,104 @@ class ExpectedGitTransitionTests(unittest.TestCase):
                     self.assertEqual(report["expected_git_transition"]["status"], "refused")
 
 
+class GitTransitionClassificationTests(unittest.TestCase):
+    def linked_fixture(self, base):
+        repo = make_repo(base)
+        worktree = base / "wt"
+        git(repo, "config", "extensions.worktreeConfig", "true")
+        git(repo, "branch", "head-control")
+        git(repo, "worktree", "add", "-q", str(worktree))
+        git_dir = Path(workspace_capture.repository_dirs(worktree)[1])
+        (git_dir / "config.worktree").write_text("[review]\n\tsetting = before\n", encoding="utf-8")
+        hook = repo / ".git" / "hooks" / "review-hook"
+        hook.write_text("before\n", encoding="utf-8")
+        hook.chmod(0o644)
+        (git_dir / "info").mkdir(exist_ok=True)
+        (git_dir / "info" / "review").write_text("before\n", encoding="utf-8")
+        (repo / ".git" / "info" / "review").write_text("before\n", encoding="utf-8")
+        return repo, worktree, git_dir, hook
+
+    def mutate(self, kind, repo, worktree, git_dir, hook):
+        if kind == "common config":
+            git(repo, "config", "review.setting", "after")
+        elif kind == "worktree config":
+            (git_dir / "config.worktree").write_text("[review]\n\tsetting = after\n", encoding="utf-8")
+        elif kind == "hook name":
+            hook.rename(hook.with_name("renamed-hook"))
+        elif kind == "hook mode":
+            hook.chmod(0o755)
+        elif kind == "hook content":
+            hook.write_text("after!\n", encoding="utf-8")
+        elif kind == "common info":
+            (repo / ".git" / "info" / "review").write_text("after\n", encoding="utf-8")
+        elif kind == "worktree info":
+            (git_dir / "info" / "review").write_text("after\n", encoding="utf-8")
+        elif kind == "HEAD":
+            git(worktree, "symbolic-ref", "HEAD", "refs/heads/head-control")
+        elif kind == "common refs":
+            git(repo, "branch", "review")
+        elif kind == "worktree refs":
+            git(worktree, "update-ref", "refs/worktree/review", "HEAD")
+        else:
+            git(repo, "pack-refs", "--all")
+
+    def test_each_metadata_scope_has_authorized_unexplained_and_incomplete_results(self):
+        cases = {
+            "common config": ("config", "common"), "worktree config": ("config", "per-worktree"),
+            "hook name": ("hooks", "common"), "hook mode": ("hooks", "common"),
+            "hook content": ("hooks", "common"), "common info": ("info", "common"),
+            "worktree info": ("info", "per-worktree"), "HEAD": ("head", "per-worktree"),
+            "common refs": ("refs", "common"), "worktree refs": ("refs", "per-worktree"),
+            "packed refs": ("refs", "common"),
+        }
+        for kind, expected in cases.items():
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmpdir:
+                repo, worktree, git_dir, hook = self.linked_fixture(Path(tmpdir))
+                before = capture_workspace_baseline(worktree, allowed_paths=["src"])
+                self.mutate(kind, repo, worktree, git_dir, hook)
+                after = capture_workspace_baseline(worktree, allowed_paths=["src"])
+                self.assertTrue(before["baseline_complete"], before["incomplete_reasons"])
+                self.assertTrue(after["baseline_complete"], after["incomplete_reasons"])
+                metadata = copy.deepcopy((before["git_metadata"], after["git_metadata"]))
+                ordinary = compare_workspace_baseline(before, after)
+                paths = [change["path"] for change in ordinary["git_metadata_changes"]]
+                self.assertTrue(paths)
+                self.assertTrue(ordinary["unexpected_mutation_detected"])
+                self.assertEqual(ordinary["git_transition_classifications"]["unexplained"], paths)
+                self.assertEqual({(change["metadata_kind"], change["metadata_scope"])
+                                  for change in ordinary["git_metadata_changes"]}, {expected})
+                record = expected_transition_record(before, after)
+                approved = compare_workspace_baseline(before, after, expected_git_transition=record)
+                self.assertFalse(approved["unexpected_mutation_detected"], approved["unexpected_mutations"])
+                self.assertEqual(approved["git_transition_classifications"]["authorized"], paths)
+                self.assertTrue(approved["git_metadata_capture_complete"])
+                incomplete = copy.deepcopy(after)
+                incomplete.update(incomplete=True, baseline_complete=False, incomplete_reasons=["capture interrupted"])
+                incomplete["git_metadata"]["complete"] = False
+                partial_record = expected_transition_record(before, incomplete)
+                partial = compare_workspace_baseline(before, incomplete, expected_git_transition=partial_record)
+                self.assertTrue(partial["unexpected_mutation_detected"])
+                self.assertEqual(partial["expected_git_transition"]["status"], "refused")
+                self.assertEqual(partial["git_transition_classifications"]["incomplete"], paths)
+                self.assertFalse(partial["git_metadata_capture_complete"])
+                self.assertEqual((before["git_metadata"], after["git_metadata"]), metadata)
+
+    def test_authorized_config_leaves_changed_ref_and_hook_unexplained(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = make_repo(Path(tmpdir))
+            before = capture_workspace_baseline(repo, allowed_paths=["src"])
+            git(repo, "config", "review.setting", "approved")
+            git(repo, "branch", "unapproved")
+            (repo / ".git" / "hooks" / "review-hook").write_text("unapproved\n", encoding="utf-8")
+            after = capture_workspace_baseline(repo, allowed_paths=["src"])
+            record = expected_transition_record(before, after, [".git:common:config"])
+            report = compare_workspace_baseline(before, after, expected_git_transition=record)
+        self.assertTrue(report["unexpected_mutation_detected"])
+        self.assertEqual(report["git_transition_classifications"]["authorized"], [".git:common:config"])
+        self.assertEqual(set(report["git_transition_classifications"]["unexplained"]),
+                         {".git:common:hooks/review-hook", ".git:common:refs/heads/unapproved"})
+
+
 def make_dirty_repo(base: Path) -> Path:
     repo = make_repo(base)
     (repo / "docs" / "guide.md").write_text("dirty\n", encoding="utf-8")

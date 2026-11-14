@@ -101,6 +101,8 @@ class WorkspaceMutationGuardTests(unittest.TestCase):
         report = json.loads(approved.stdout)
         self.assertFalse(report["unexpected_mutation_detected"])
         self.assertEqual(report["expected_git_transition"]["status"], "accepted")
+        self.assertEqual(report["git_transition_classifications"]["authorized"], [".git:common:config"])
+        self.assertEqual(report["git_metadata_changes"][0]["metadata_kind"], "config")
         self.assertNotEqual(invalid.returncode, 0)
 
     def test_transition_option_requires_compare(self) -> None:

@@ -133,4 +133,5 @@ __all__ = [
     "workgraph_markdown",
     "workspace",
     "workspace_capture",
+    "workspace_transition",
 ]

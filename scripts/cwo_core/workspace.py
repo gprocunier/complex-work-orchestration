@@ -481,11 +481,11 @@ def compare_workspace_baseline(
     transition = compare_git_metadata(before, after, expected_git_transition)
     metadata_changes = transition["changes"]
     for change in metadata_changes:
-        mutations.append({"path": change["path"], "category": change["category"], "authorization": change["authorization"], "before_status": change["before"], "after_status": change["after"], "content_changed": True})
+        mutations.append({"path": change["path"], "category": change["category"], "authorization": change["authorization"], "metadata_kind": change["metadata_kind"], "metadata_scope": change["metadata_scope"], "before_status": change["before"], "after_status": change["after"], "content_changed": True})
     categories = {name: sorted(item["path"] for item in mutations if item["category"] == name) for name in ("scoped", "out-of-scope", "untracked", "unchanged-dirty", "attribution-ambiguous", "git-metadata", "git-refs")}
     categories["unchanged-dirty"] = sorted(unchanged_dirty)
     unexpected = unexpected_mutations(mutations, transition)
-    incomplete = _evidence_incomplete(before) or _evidence_incomplete(after)
+    incomplete = transition["incomplete"]
     return {
         "workspace_mutation_report_type": "content-aware-diff",
         "version": 2,
@@ -501,6 +501,8 @@ def compare_workspace_baseline(
         "attribution_ambiguous": bool(categories["attribution-ambiguous"]),
         "git_metadata_changes": metadata_changes,
         "expected_git_transition": transition["record"],
+        "git_transition_classifications": transition["classifications"],
+        "git_metadata_capture_complete": not transition["incomplete"],
         "incomplete": incomplete,
         "capture_failed": bool(before.get("error") or after.get("error")),
         "replay_allowed": False,
@@ -570,7 +572,7 @@ def diff_workspace_state(
     changes.extend(transition["changes"])
     allowed.extend(filter(mutation_is_allowed, transition["changes"]))
     unexpected.extend(unexpected_mutations(transition["changes"], transition))
-    incomplete = _evidence_incomplete(before) or _evidence_incomplete(after)
+    incomplete = transition["incomplete"]
     if incomplete:
         unexpected.append({"path": ".", "before": before.get("error"), "after": after.get("error"), "category": "capture-incomplete"})
     if require_clean and before.get("tracked_status"):
@@ -598,6 +600,8 @@ def diff_workspace_state(
         "incomplete": incomplete,
         "git_metadata_changes": transition["changes"],
         "expected_git_transition": transition["record"],
+        "git_transition_classifications": transition["classifications"],
+        "git_metadata_capture_complete": not transition["incomplete"],
         "reverted": False,
     }
 
