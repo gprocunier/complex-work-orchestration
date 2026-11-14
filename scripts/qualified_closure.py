@@ -231,6 +231,12 @@ def _production_contract(raw: bytes) -> dict[str, Any]:
     return value
 
 
+def _delivery_context(contract: dict[str, Any]) -> dict[str, str]:
+    chain = original.rb.resolve_chain(contract["initial"], contract["amendments"])
+    return {"task": contract["bead"]["id"], "scope": chain["digest"],
+            "candidate": original.ci.candidate_digest(contract["candidate"])}
+
+
 def _report() -> dict[str, Any]:
     return {"record_type": "cwo-qualified-EXAMPLE-closure", "version": 1,
             **dict.fromkeys(original.AUTHORITY_FIELDS, False),
@@ -316,7 +322,8 @@ def production_custody(directory: str, *, database: str, actor: str,
                                     acceptance_record=acceptance_record,
                                     return_sha256=return_sha256,
                                     evaluation_sha256=evaluation_sha256,
-                                    worker_writable_roots=(root, custody))
+                                    delivery_context=_delivery_context(contract),
+                                    worker_writable_roots=(root, custody, database_root))
         _need(not custody.is_relative_to(root) and not root.is_relative_to(custody)
               and not database_root.is_relative_to(root) and not root.is_relative_to(database_root)
               and not database_root.is_relative_to(custody) and not custody.is_relative_to(database_root),

@@ -42,6 +42,35 @@ class HostAcceptanceTests(unittest.TestCase):
         return {k: copy.deepcopy(v) for k, v in record.items()
                 if k not in ('record_type', 'schema_version', 'created_at', '_record_sha256')}
 
+    def test_delivery_join_requires_original_source_and_each_exact_digest(self):
+        """Changing only baseline or candidate cannot borrow an otherwise valid acceptance."""
+        context = {'task': self.beacon['bead_id'], 'scope': 'sha256:' + '1' * 64,
+                   'candidate': 'sha256:' + '2' * 64}
+        args = provision_acceptance(self.store, **self.beacon, delivery_context=context)
+        accepted = require_acceptance(self.store, **args, **self.beacon, delivery_context=context)
+        legacy, _ = self.accepted()
+        before = {p.relative_to(self.store.state_root): p.read_bytes()
+                  for p in self.store.state_root.rglob('*') if p.is_file()}
+        for field in ('scope', 'candidate'):
+            with self.subTest(field=field), self.assertRaisesRegex(CWOPolicyError, 'accepted source'):
+                require_acceptance(self.store, **args, **self.beacon,
+                                   delivery_context={**context, field: 'sha256:' + '3' * 64})
+        with self.assertRaisesRegex(CWOPolicyError, 'accepted source'):
+            require_acceptance(self.store, **legacy, **self.beacon, delivery_context=context)
+        self.assertEqual(before, {p.relative_to(self.store.state_root): p.read_bytes()
+                                  for p in self.store.state_root.rglob('*') if p.is_file()})
+        from cwo_core.host_acceptance import _require_source_context, _source_context
+        expected = {'dispatch_id': accepted['dispatch_id']}
+        for changed in (None, {**accepted['source_context'], 'candidate': 'sha256:' + '4' * 64}):
+            with self.subTest(changed=changed), self.assertRaisesRegex(CWOPolicyError, 'differs from dispatch'):
+                _require_source_context(self.store, {**accepted, 'source_context': changed}, expected.copy(), context)
+        dispatch = self.store.require_dispatch(accepted['dispatch_id'])
+        for changed in ({}, {**accepted['source_context'], 'dispatch_id': 'EXAMPLE-other'}):
+            with self.subTest(changed=changed), self.assertRaises(CWOPolicyError):
+                _source_context({**dispatch, 'evaluation_metadata': {'source_context': changed}})
+        self.assertEqual(require_acceptance(self.store, **args, **self.beacon,
+                                           delivery_context=context), accepted)
+
     def test_p0_exact_context_database_and_all_linked_records_required(self):
         args, accepted = self.accepted()
         for field, value in (('bead_id', 'EXAMPLE_OTHER'), ('return_sha256', '0' * 64),

@@ -150,11 +150,11 @@ tight chain, not a separate tier.
 
 ### Proposed in-thread tier (not available)
 
-A smaller in-thread scaffold is designed but deliberately not available. It
-stays absent until successful closure can verify the requirement baseline, the
-delivered candidate and its evidence (issue #37). Until then a
-compact graph could only end at `pending-acceptance`, so it would add steps
-without a verifiable acceptance. The design, for review only:
+A smaller in-thread scaffold is designed but deliberately not available. The
+separate [verified closure library](run-readiness.md#verified-closure-library)
+does not qualify or enable this tier. Its compact graph still has no verified
+completion consumer and can only end at `pending-acceptance`. The design, for
+review only:
 
 - Four lanes in one thread: frame (record the requirement baseline and
   acceptance criteria), produce (all content, implementation and docs),

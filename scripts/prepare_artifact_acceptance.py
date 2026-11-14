@@ -462,7 +462,7 @@ class _Parser(argparse.ArgumentParser):
 
 def main(argv: list[str] | None = None) -> int:
     try:
-        parser = _Parser(description="Prepare diagnostic artifact observations; successful closure stays unavailable.")
+        parser = _Parser(description="Prepare diagnostic artifact observations; this helper grants no closure authority.")
         parser.add_argument("--root", required=True, help="Explicit absolute repository root.")
         parser.add_argument("--baseline", required=True)
         parser.add_argument("--amendment", action="append", default=[])

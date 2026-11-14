@@ -91,11 +91,30 @@ See [the exact record and source contract](peer-review-record.md).
 
 The host acceptance pipeline records evaluation, adjudication and the evidence
 that clears every required hold, including independently dispatched peer review
-where policy requires it. Closure verifies that acceptance for the exact bead,
-return, evaluation and setup-time database identity. Caller-written production
+where policy requires it. The original submitted source context binds its task,
+requirement-baseline digest and delivered-candidate digest. The original host
+dispatch retains this context; acceptance snapshots it in its evaluation,
+adjudication, clearance and decision records. Closure independently compares
+the custody contract to that accepted origin, then rechecks the origin, return,
+evaluation, every clearance and setup-time database identity before each Beads
+call. An otherwise valid acceptance for the same task cannot authorize another
+baseline or candidate. Legacy acceptances without that source context cannot
+authorize production completion. Caller-written production
 approval files are retired. Human confirmation and signing are not part of the
 pipeline. The production source gate stays false and is checked before any
 validation, I/O or effect.
+
+The supported library sequence is `qualified_closure.production_custody` →
+`qualified_closure.observe` → `qualified_closure.bind` →
+`close_bead_with_summary.execute_qualified_completed`; its
+[contract and availability](run-readiness.md#verified-closure-library) are
+documented separately from narrative dispositions. Original issued observations
+must cover every required criterion. A serialized success field grants nothing.
+The source hold refuses before setup or inspection reads; other refusals may
+need read-only custody, candidate, policy and host-record inspection. No comment,
+close or acceptance write is made by those closure refusals. After a comment has
+persisted, a later refusal retains a sticky partial-persistence report and never
+automatically retries.
 
 Sandboxed workers cannot write the configured store; a separate test exercises
 that boundary through the offline N1 host. A same-user process can alter records

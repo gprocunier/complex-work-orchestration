@@ -559,7 +559,7 @@ def _summary(data: _Bound, operation: str, revision: int) -> str:
     lines = [
         "Offline memory closure summary:",
         "This summary records checked offline evidence for a memory task.",
-        "Production closure and all external effects remain unavailable.",
+        "This offline memory consumer grants no production closure or external effect authority.",
         "Reliability production mode: " + observed.production_mode,
         "Operation digest: " + operation,
         "Original memory revision: " + str(revision),

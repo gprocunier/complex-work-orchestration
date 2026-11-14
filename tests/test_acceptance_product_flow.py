@@ -38,7 +38,10 @@ class AcceptanceProductFlowTests(unittest.TestCase):
             'EXAMPLE-review-model': {'model_family': 'EXAMPLE-local', 'stronger_than': []}}
         path.write_text(json.dumps(document))
         policy.clear_policy_cache()
-        producer, _, _ = self.source(clean=clean)
+        builders = P.fixtures.QualifiedClosureTests('runTest')
+        self.addCleanup(builders.doCleanups)
+        self.delivery_case = builders.compact(bead_id=self.route['parent_id'])
+        producer, _, _ = self.source(clean=clean, closure_case=self.delivery_case)
         control, _, _, _ = self.designated(producer, support_override=())
         storage = self.home / 'EXAMPLE-database-storage'
         storage.mkdir(mode=0o700)
@@ -52,10 +55,10 @@ class AcceptanceProductFlowTests(unittest.TestCase):
         return producer, control, database, host_records.configured_store()
 
     @contextmanager
-    def closure(self, producer, database, authority):
+    def closure(self, producer, database, authority, *, case=None):
         builders = P.fixtures.QualifiedClosureTests('runTest')
         self.addCleanup(builders.doCleanups)
-        case = builders.compact(bead_id=producer.expected.task)
+        case = self.delivery_case if case is None else case
         custody = self.home / 'EXAMPLE-closure-custody'
         custody.mkdir(mode=0o700)
         builders.provision(case, custody)
@@ -70,10 +73,71 @@ class AcceptanceProductFlowTests(unittest.TestCase):
                 patch.object(shutil, 'which', side_effect=process.lookup):
             yield case, custody, process
 
+    def test_unrelated_valid_candidate_cannot_consume_same_task_acceptance(self):
+        """The accepted return must concern this baseline and delivered candidate."""
+        producer, control, database, store = self.provision()
+        control.current()
+        accepted = store.get(control.acceptance_record)
+        authority = dict(acceptance_record=control.acceptance_record,
+                         return_sha256=binding._sha(producer.raw),
+                         evaluation_sha256=accepted['evaluation_sha256'])
+        builders = P.fixtures.QualifiedClosureTests('runTest')
+        self.addCleanup(builders.doCleanups)
+        other = builders.compact(bead_id=producer.expected.task, additive=True)
+        with self.closure(producer, database, authority, case=other) as (_, custody, process), \
+                patch.object(P.qualified, 'PRODUCTION_CLOSURE_AVAILABLE', True):
+            before = {p.relative_to(self.home): p.read_bytes() for p in self.home.rglob('*') if p.is_file()}
+            with self.assertRaisesRegex(P.original.ClosureError, 'accepted source.*candidate|delivery context'):
+                with P.qualified.production_custody(str(custody), database=str(database),
+                        actor='EXAMPLE-supervisor', **authority) as host:
+                    P.qualified.observe(host)
+                    P.qualified.bind(host)
+                    P.closure.execute_qualified_completed(host)
+            self.assertEqual(process.calls, [])
+            self.assertEqual(process.effects, [])
+            self.assertEqual(before, {p.relative_to(self.home): p.read_bytes()
+                                     for p in self.home.rglob('*') if p.is_file()})
+
+    def test_same_baseline_different_delivered_candidate_refuses_before_beads(self):
+        """A passing candidate under the same obligations is still a different delivery."""
+        producer, control, database, store = self.provision()
+        control.current()
+        accepted = store.get(control.acceptance_record)
+        authority = dict(acceptance_record=control.acceptance_record,
+                         return_sha256=binding._sha(producer.raw),
+                         evaluation_sha256=accepted['evaluation_sha256'])
+        case = self.delivery_case
+        (case.repo / 'src/extra.txt').write_text('EXAMPLE additional delivered content\n')
+        case.candidate = P.original.ci.capture_candidate(case.repo, chain=case.chain,
+            base_commit=case.workspace.base, scope_paths=['src'])
+        case.bead['comments'].append({'text': P.original.ci.candidate_reference_line(
+            case.bead['id'], P.original.ci.candidate_digest(case.candidate))})
+        self.assertEqual(producer.expected.scope, case.chain['digest'])
+        self.assertNotEqual(producer.expected.candidate, P.original.ci.candidate_digest(case.candidate))
+        with self.closure(producer, database, authority) as (_, custody, process), \
+                patch.object(P.qualified, 'PRODUCTION_CLOSURE_AVAILABLE', True):
+            before = {p.relative_to(self.home): p.read_bytes() for p in self.home.rglob('*') if p.is_file()}
+            with self.assertRaisesRegex(P.original.ClosureError, 'accepted source.*candidate'):
+                with P.qualified.production_custody(str(custody), database=str(database),
+                        actor='EXAMPLE-supervisor', **authority):
+                    self.fail('different delivered candidate registered')
+            self.assertEqual(process.calls, [])
+            self.assertEqual(process.effects, [])
+            self.assertEqual(before, {p.relative_to(self.home): p.read_bytes()
+                                     for p in self.home.rglob('*') if p.is_file()})
+
     def test_completed_adjudication_persists_once_then_real_closure_requires_every_phase(self):
         """Checks: setup, original capture/evaluation/decision, exact receipt, gate and every reference."""
         producer, control, database, store = self.provision()
         self.assertFalse(P.qualified.PRODUCTION_CLOSURE_AVAILABLE)
+        request = binding._parse(producer.observed.ticket.prepared.request_bytes)
+        evidence = [binding._parse(item['text'].encode()) for item in request['sources']
+                    if item['id'] == 'EXAMPLE-delivery-observations']
+        self.assertEqual(len(evidence), 1)
+        self.assertEqual(evidence[0]['initial'], self.delivery_case.initial)
+        self.assertEqual(evidence[0]['candidate'], self.delivery_case.candidate)
+        self.assertTrue(evidence[0]['observations']['observations_complete'])
+        self.assertIn(producer.expected.candidate, producer.raw.decode())
         self.assertIsNone(control.acceptance_record)
         self.assertFalse(store.find('acceptance-decision'))
         receipt = control.current()  # Existing completed-adjudication flow, never pipeline.accept.
@@ -81,6 +145,9 @@ class AcceptanceProductFlowTests(unittest.TestCase):
         acceptance_id = control.acceptance_record
         self.assertIsInstance(acceptance_id, str)
         accepted = store.get(acceptance_id)
+        self.assertEqual(accepted['source_context']['scope'], self.delivery_case.chain['digest'])
+        self.assertEqual(accepted['source_context']['candidate'],
+                         P.original.ci.candidate_digest(self.delivery_case.candidate))
         authority = dict(acceptance_record=acceptance_id, return_sha256=binding._sha(producer.raw),
                          evaluation_sha256=accepted['evaluation_sha256'])
         before = len(store.find('acceptance-decision'))
@@ -128,6 +195,16 @@ class AcceptanceProductFlowTests(unittest.TestCase):
                 result = P.closure.execute_qualified_completed(host)
             self.assertTrue(result['completed'])
             self.assertEqual([effect[0] for effect in process.effects], ['comment', 'close'])
+            self.assertEqual(process.effects[0][1:3], ('--', producer.expected.task))
+            self.assertEqual(process.effects[0][3], result['summary'])
+            self.assertIn('Baseline ' + producer.expected.scope, result['summary'])
+            self.assertIn('Candidate ' + producer.expected.candidate, result['summary'])
+            self.assertEqual(process.bead['comments'][-1]['text'], result['summary'])
+            self.assertEqual(process.bead['status'], 'closed')
+            before_effects = list(process.effects)
+            with self.assertRaises(P.original.ClosureError):
+                P.closure.execute_qualified_completed(host)
+            self.assertEqual(process.effects, before_effects)
 
     def test_missing_setup_or_original_designation_never_manufactures_acceptance(self):
         """Checks: setup is physical and original designated completion remains the decision authority."""
@@ -188,6 +265,7 @@ class AcceptanceProductFlowTests(unittest.TestCase):
             'model_family', 'model_id', 'reasoning_effort', 'session_id', 'packet_sha256',
             'request_sha256', 'review_target', 'evaluation_metadata', 'bead_id', 'executor', 'provider_key')}
         fields.update(dispatch_id='EXAMPLE-another-dispatch', session_id='EXAMPLE-another-session')
+        fields['evaluation_metadata']['source_context']['dispatch_id'] = fields['dispatch_id']
         store.write_dispatch(**fields)
         record_received_return(store, fields['dispatch_id'], producer.raw)
         # A coherent second host-pipeline acceptance isolates the cached reader:

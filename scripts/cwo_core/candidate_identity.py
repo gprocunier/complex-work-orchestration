@@ -38,7 +38,8 @@ record. A Bead retains a candidate by a comment whose whole text is its referenc
 Verification re-identifies the working tree with the record's own base, scope and exclusions and refuses any
 difference (drift), checks that the record claims the current baseline of the chain and that the Bead records both
 that baseline and, as its most recent candidate, this one. Recording returns a record and writes nothing, to Beads
-or to the repository. Successful closure stays unavailable (see scripts/close_bead_with_summary.py).
+or to the repository. This helper grants no completion authority; the separate verified closure consumer
+independently joins these records to host acceptance (see scripts/close_bead_with_summary.py).
 
 Independently observed live-resource state (a retired service, a deployed name) cannot be bound yet: that needs a
 producer-bound observation record which does not exist. A delivery scope that names live resources is therefore

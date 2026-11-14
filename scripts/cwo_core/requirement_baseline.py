@@ -11,8 +11,8 @@ the complete next baseline; the criteria it declares as added, removed and chang
 In this version only amendments that add criteria are supported. Removing or changing a recorded criterion would
 remove or weaken an obligation, which needs authority that CWO cannot verify yet, so those amendments are refused.
 
-These checks are read-only: they open no files, run no commands and never write to Beads. Successful closure stays
-unavailable (see scripts/close_bead_with_summary.py); this module is one of the parts it will need.
+These checks are read-only: they open no files, run no commands and never write to Beads. They grant no completion
+authority; the separate verified closure consumer independently checks acceptance and current evidence.
 """
 from __future__ import annotations
 

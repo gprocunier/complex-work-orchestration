@@ -1,4 +1,4 @@
-"""Offline checked-command observations; successful closure stays unavailable."""
+"""Offline checked-command observations; this producer grants no closure authority."""
 from __future__ import annotations
 
 import contextlib

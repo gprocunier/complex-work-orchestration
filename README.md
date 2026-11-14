@@ -33,9 +33,10 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   not acceptance. These checks are cooperative: the lead runs them, and nothing
   stops a lead that skips one.
 - **Keeps delivered work open until it is accepted.** Delivered work is recorded
-  as `pending-acceptance` and the Bead stays open for you. Successful closure is
-  refused until CWO can verify the requirement baseline, the delivered candidate
-  and its evidence (issue #37).
+  as `pending-acceptance` through narrative summaries. The separate
+  [verified closure library](references/run-readiness.md#verified-closure-library)
+  joins the original accepted requirement baseline, exact candidate and current
+  evidence. Its production source availability remains held.
 
 The [Limits](#limits) section lists what CWO does not do.
 
