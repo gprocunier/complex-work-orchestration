@@ -15,8 +15,16 @@ concurrency:
 
 jobs:
   test:
+    name: unit-tests (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    env:
+      CWO_TEST_SHARD_INDEX: ${{ matrix.shard }}
+      CWO_TEST_SHARD_COUNT: 4
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -53,7 +61,7 @@ jobs:
       - name: Code-health ratchets
         run: python scripts/check_code_health.py
       - name: Unit tests
-        run: python scripts/run_parallel_unittest.py --workers 4 --verbose
+        run: python scripts/run_parallel_unittest.py --workers 4 --verbose --shard-index "${CWO_TEST_SHARD_INDEX:-0}" --shard-count "${CWO_TEST_SHARD_COUNT:-1}"
       - name: Route dry run
         run: bash examples/sample-route-command.sh
       - name: Prompt coach dry run
@@ -72,6 +80,18 @@ jobs:
         run: python scripts/cleanup_stale_agents.py --dry-run --json
       - name: Installer dry run
         run: ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run
+
+  test-result:
+    name: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [test]
+    if: ${{ always() }}
+    env:
+      UNIT_TEST_RESULT: ${{ needs.test.result }}
+    steps:
+      - name: Require all unit test shards
+        run: test "$UNIT_TEST_RESULT" = success
 
   debian-filesystem:
     name: Required Debian 13 filesystem release gate

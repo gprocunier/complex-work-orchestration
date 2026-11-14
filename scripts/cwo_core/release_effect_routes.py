@@ -17,9 +17,9 @@ import stat
 
 INVENTORY = "policy/release-effect-routes.json"
 IGNORED = {".git", "__pycache__", ".ruff_cache"}
-# Complete script bindings and individual primitive dispositions need more than
-# the old 200,000 bytes. Keep authored installed data finite; traces stay external.
-MAX_INVENTORY = 512 * 1024
+# The merged canonical inventory measured 528,451 bytes. Allow 12,221 bytes
+# of headroom; keep authored installed data finite and traces external.
+MAX_INVENTORY = 528 * 1024
 MAX_FILE = 2 * 1024 * 1024
 MAX_TOTAL = 128 * 1024 * 1024
 MAX_FILES = 12000
@@ -46,6 +46,31 @@ def digest(data):
 
 def encoded(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+
+
+def _inventory_records(value):
+    """Put independent entries on separate lines; keep each record compact."""
+    if isinstance(value, dict):
+        rows = [encoded(key) + b":" + encoded(value[key]) for key in sorted(value)]
+        return b"{\n" + b",\n\n".join(rows) + b"\n}"
+    if isinstance(value, list):
+        return b"[\n" + b",\n\n".join(encoded(row) for row in value) + b"\n]"
+    return encoded(value)
+
+
+def _inventory_sections(value):
+    rows = []
+    for key in sorted(value):
+        item = value[key]
+        # Coverage groups contain independent exclusion entries and hit rows.
+        raw = _inventory_sections(item) if key == "primitive_coverage" else _inventory_records(item)
+        rows.append(encoded(key) + b":" + raw)
+    return b"{\n" + b",\n\n".join(rows) + b"\n}"
+
+
+def inventory_bytes(value):
+    """Sorted keys, authored array order, compact rows with blank separators."""
+    return _inventory_sections(value) + b"\n"
 
 
 def mark(value):
@@ -1135,6 +1160,7 @@ def inventory(root):
     need(value["schema"] == "compact-release-routes-v1", "inventory schema refused")
     ids = [route["id"] for route in value["routes"]]
     need(ids and len(ids) == len(set(ids)), "missing or duplicate routes")
+    need(data == inventory_bytes(value), "canonical inventory layout required")
     return value, digest(data)
 
 

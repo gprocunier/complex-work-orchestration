@@ -155,6 +155,7 @@ class Shard:
     paths: list[Path]
     estimated_bytes: int = 0
     selectors: list[str] | None = None
+    serial: bool = False
 
 
 @dataclass
@@ -239,6 +240,8 @@ def _write_discovery(paths: list[str], output: str) -> int:
         if program.testLoader.errors:
             raise ValueError("unittest discovery failed: " + "\n".join(program.testLoader.errors))
         ids = _case_ids(program.result)
+        if not ids:
+            raise ValueError(f"empty unittest discovery: {path}")
         if len(ids) != len(set(ids)):
             raise ValueError(f"duplicate unittest discovery IDs: {path}")
         found[path] = ids
@@ -317,6 +320,45 @@ def build_work_units(paths: list[Path], workers: int, methods: dict[Path, list[s
     for index, unit in enumerate(units):
         unit.index = index
     return units
+
+
+def partition_work_units(units: list[Shard], shard_count: int) -> list[list[Shard]]:
+    """Assign each whole workunit once, balancing existing cost hints deterministically."""
+    if shard_count < 1:
+        raise ValueError("shard count must be a positive integer")
+    if shard_count == 1:
+        return [list(units)]
+    partitions: list[list[Shard]] = [[] for _ in range(shard_count)]
+    costs = [0] * shard_count
+    ordered = sorted(units, key=lambda unit: (-unit.estimated_bytes, tuple(map(str, unit.paths)),
+                                              tuple(unit.selectors or [])))
+    for unit in ordered:
+        target = min(range(shard_count), key=lambda index: (costs[index], index))
+        partitions[target].append(unit)
+        costs[target] += unit.estimated_bytes
+    return [sorted(partition, key=lambda unit: unit.index) for partition in partitions]
+
+
+def _selected_work_units(paths: list[Path], args: argparse.Namespace,
+                         working_directory: Path, start_directory: Path) -> list[Shard]:
+    if not paths:
+        raise ValueError("no test files matched")
+    parallel_paths = [path for path in paths if path.name not in SERIAL_TEST_FILES]
+    methods = discover_methods(
+        [path for path in parallel_paths if path.name in METHOD_SHARDED_TEST_FILES],
+        working_directory, start_directory,
+    )
+    # Plan for all hosted CPUs before selecting a job; default 0/1 is unchanged.
+    units = build_work_units(parallel_paths, args.workers * args.shard_count, methods, _cost_hints())
+    for path in paths:
+        if path.name in SERIAL_TEST_FILES:
+            units.append(Shard(len(units), [path], _estimated_bytes(path), serial=True))
+    selected = partition_work_units(units, args.shard_count)[args.shard_index]
+    if not selected:
+        raise ValueError("no workunits assigned to shard; reduce --shard-count")
+    for index, unit in enumerate(selected):
+        unit.index = index
+    return selected
 
 
 def _result(log: str) -> tuple[int | None, float | None]:
@@ -483,6 +525,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Run unittest files in a temporary fixed-width process pool."
     )
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS)
+    parser.add_argument("--shard-index", type=int, default=0,
+                        help="Zero-based hosted shard index (default: 0).")
+    parser.add_argument("--shard-count", type=int, default=1,
+                        help="Total hosted shards; defaults to the complete suite (1).")
     parser.add_argument("--start-directory", default="tests")
     parser.add_argument("--pattern", default="test_*.py")
     parser.add_argument("--working-directory", default=".")
@@ -493,7 +539,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--verbose", action="store_true")
     parser.add_argument("--list-test-methods", nargs="+", help=argparse.SUPPRESS)
     parser.add_argument("--discovery-output", help=argparse.SUPPRESS)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.shard_count < 1:
+        parser.error("--shard-count must be a positive integer")
+    if not 0 <= args.shard_index < args.shard_count:
+        parser.error("--shard-index must be in [0, --shard-count)")
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -509,25 +560,20 @@ def main(argv: list[str] | None = None) -> int:
         start_directory = working_directory / start_directory
     try:
         paths = discover_test_files(start_directory, args.pattern)
-        serial_paths = [path for path in paths if path.name in SERIAL_TEST_FILES]
-        parallel_paths = [path for path in paths if path.name not in SERIAL_TEST_FILES]
-        methods = discover_methods(
-            [path for path in parallel_paths if path.name in METHOD_SHARDED_TEST_FILES],
-            working_directory, start_directory,
-        )
-        shards = build_work_units(parallel_paths, args.workers, methods, _cost_hints())
+        selected = _selected_work_units(paths, args, working_directory, start_directory)
+        shards = [unit for unit in selected if not unit.serial]
+        serial_paths = [path for unit in selected if unit.serial for path in unit.paths]
     except (OSError, ValueError) as exc:
         print(f"parallel unittest: {exc}", file=sys.stderr)
         return 2
-    if not shards and not serial_paths:
-        print("parallel unittest: no test files matched", file=sys.stderr)
-        return 2
-
+    selected_paths = {path for unit in selected for path in unit.paths}
     print(
-        f"parallel unittest: files={len(paths)} parallel_files={len(parallel_paths)} "
+        f"parallel unittest: files={len(selected_paths)} parallel_files={len(selected_paths) - len(serial_paths)} "
         f"serial_files={len(serial_paths)} workers={min(args.workers, len(shards))} "
         f"configured_workers={args.workers}"
     )
+    print(f"hosted unittest shard={args.shard_index}/{args.shard_count} "
+          f"discovered_files={len(paths)} selected_workunits={len(selected)}")
     overall_started = time.monotonic()
 
     def execute(artifacts_directory: Path) -> int:
