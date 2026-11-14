@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import subprocess
+import json
 import sys
 import shutil
 import tempfile
@@ -15,6 +16,7 @@ from cwo_core.workspace import (  # noqa: E402
     diff_workspace_state,
 )
 from tests.real_beads_fixture import configure_git_fixture
+from tests.test_workspace_inert_inspection import expected_transition_record
 
 
 class WorkspaceMutationGuardTests(unittest.TestCase):
@@ -75,6 +77,38 @@ class WorkspaceMutationGuardTests(unittest.TestCase):
         self.assertTrue(report["mutation_detected"])
         self.assertTrue(report["unexpected_mutation_detected"])
         self.assertEqual(report["unexpected_mutations"][0]["path"], "new.txt")
+
+    def test_explicit_transition_reaches_cli_comparator(self) -> None:
+        root = self.make_repo()
+        before = capture_tracked_workspace_state(root)
+        subprocess.run(["git", "config", "core.sshCommand", "approved"], cwd=root, check=True)
+        after = capture_tracked_workspace_state(root)
+        record = expected_transition_record(before, after)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            before_path = Path(tmpdir) / "before.json"
+            record_path = Path(tmpdir) / "expected.json"
+            before_path.write_text(json.dumps(before), encoding="utf-8")
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            command = [sys.executable, str(ROOT / "scripts" / "workspace_mutation_guard.py"),
+                       "--workspace-root", str(root), "--compare", str(before_path)]
+            ordinary = subprocess.run(command, check=True, capture_output=True, text=True)
+            approved = subprocess.run(command + ["--expected-git-transition", str(record_path)],
+                                      check=True, capture_output=True, text=True)
+            record_path.write_text("null", encoding="utf-8")
+            invalid = subprocess.run(command + ["--expected-git-transition", str(record_path)],
+                                     check=False, capture_output=True, text=True)
+        self.assertTrue(json.loads(ordinary.stdout)["unexpected_mutation_detected"])
+        report = json.loads(approved.stdout)
+        self.assertFalse(report["unexpected_mutation_detected"])
+        self.assertEqual(report["expected_git_transition"]["status"], "accepted")
+        self.assertNotEqual(invalid.returncode, 0)
+
+    def test_transition_option_requires_compare(self) -> None:
+        result = subprocess.run([sys.executable, str(ROOT / "scripts" / "workspace_mutation_guard.py"),
+                                 "--snapshot", "--expected-git-transition", "unused.json"],
+                                capture_output=True, text=True, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires --compare", result.stderr)
 
 
 if __name__ == "__main__":

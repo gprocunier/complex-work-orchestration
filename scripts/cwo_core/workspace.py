@@ -14,6 +14,8 @@ from .path_contract import path_components, path_within
 from .paths import REPO_ROOT
 from .util import artifact_hash
 from .workspace_capture import INDEX_MODES, WorkspaceDiscoveryError, capture as _capture, worktree_top_level
+from .workspace_transition import compare_git_metadata, mutation_is_allowed, unexpected_mutations
+from .workspace_transition import metadata_category as metadata_category
 
 
 FINGERPRINT_EXCLUDED_PARTS = frozenset(
@@ -55,7 +57,10 @@ def tracked_status_map(lines: list[str], *, legacy: bool = False) -> dict[str, s
 
 
 def _evidence_is_legacy(evidence: dict[str, Any]) -> bool:
-    return int(evidence.get("evidence_version", 0) or 0) < EVIDENCE_VERSION
+    try:
+        return int(evidence.get("evidence_version", 0) or 0) < EVIDENCE_VERSION
+    except (TypeError, ValueError):
+        return True
 
 
 def _excluded(path: str) -> bool:
@@ -412,6 +417,7 @@ def compare_workspace_baseline(
     after: dict[str, Any],
     *,
     allowed_paths: list[str] | tuple[str, ...] | None = None,
+    expected_git_transition: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compare status, index, raw inventory, content and Git metadata.
 
@@ -472,14 +478,13 @@ def compare_workspace_baseline(
         else:
             category = "scoped"
         mutations.append({"path": path, "category": category, "before_status": before_status.get(path), "after_status": after_status.get(path), "content_changed": content_changed})
-    metadata_changes = _git_metadata_changes(before, after)
+    transition = compare_git_metadata(before, after, expected_git_transition)
+    metadata_changes = transition["changes"]
     for change in metadata_changes:
-        mutations.append({"path": change["path"], "category": change["category"], "before_status": change["before"], "after_status": change["after"], "content_changed": True})
+        mutations.append({"path": change["path"], "category": change["category"], "authorization": change["authorization"], "before_status": change["before"], "after_status": change["after"], "content_changed": True})
     categories = {name: sorted(item["path"] for item in mutations if item["category"] == name) for name in ("scoped", "out-of-scope", "untracked", "unchanged-dirty", "attribution-ambiguous", "git-metadata", "git-refs")}
     categories["unchanged-dirty"] = sorted(unchanged_dirty)
-    # No consumer authorizes Git transitions yet, so reference changes are
-    # unexpected too; they stay a separate category so one can be classified.
-    unexpected = [item for item in mutations if item["category"] in {"out-of-scope", "untracked", "attribution-ambiguous", "git-metadata", "git-refs"}]
+    unexpected = unexpected_mutations(mutations, transition)
     incomplete = _evidence_incomplete(before) or _evidence_incomplete(after)
     return {
         "workspace_mutation_report_type": "content-aware-diff",
@@ -495,11 +500,12 @@ def compare_workspace_baseline(
         "unexpected_mutation_detected": bool(unexpected) or incomplete,
         "attribution_ambiguous": bool(categories["attribution-ambiguous"]),
         "git_metadata_changes": metadata_changes,
+        "expected_git_transition": transition["record"],
         "incomplete": incomplete,
         "capture_failed": bool(before.get("error") or after.get("error")),
         "replay_allowed": False,
         "changes": [{"path": item["path"], "before": item["before_status"], "after": item["after_status"]} for item in mutations],
-        "allowed_mutations": [item for item in mutations if item["category"] == "scoped"],
+        "allowed_mutations": [item for item in mutations if mutation_is_allowed(item)],
         "unexpected_mutations": unexpected,
         "reverted": False,
     }
@@ -508,34 +514,6 @@ def compare_workspace_baseline(
 def path_allowed(path: str, allowed_paths: list[str] | tuple[str, ...] | None) -> bool:
     """Component-wise scope check; see ``cwo_core.path_contract``."""
     return path_within(path, allowed_paths)
-
-
-_REF_KEYS = ("gitdir:HEAD", "gitdir:refs", "common:packed-refs", "common:refs", "common:reftable")
-
-
-def metadata_category(key: str) -> str:
-    """``git-refs`` for HEAD and references, ``git-metadata`` for everything else."""
-    return "git-refs" if any(key == ref or key.startswith(ref + "/") for ref in _REF_KEYS) else "git-metadata"
-
-
-def _git_metadata_changes(before: dict[str, Any], after: dict[str, Any]) -> list[dict[str, Any]]:
-    """Changes to Git metadata, its dependencies or the bound capture identity."""
-    first = before.get("git_metadata")
-    second = after.get("git_metadata")
-    if not isinstance(first, dict) or not isinstance(second, dict):
-        return []
-    changes: list[dict[str, Any]] = []
-    for key in ("git_dir", "common_dir"):
-        if first.get(key) != second.get(key):
-            changes.append({"path": f".git:{key}", "before": first.get(key), "after": second.get(key), "category": "git-metadata"})
-    if before.get("capture_identity") and after.get("capture_identity") and before["capture_identity"] != after["capture_identity"]:
-        changes.append({"path": ".git:capture-identity", "before": before["capture_identity"], "after": after["capture_identity"], "category": "git-metadata"})
-    first_entries = first.get("entries") or {}
-    second_entries = second.get("entries") or {}
-    for key in sorted(set(first_entries) | set(second_entries)):
-        if first_entries.get(key) != second_entries.get(key):
-            changes.append({"path": f".git:{key}", "before": first_entries.get(key), "after": second_entries.get(key), "category": metadata_category(key)})
-    return changes
 
 
 _UNKNOWN_CLEANLINESS = {"path": ".", "before": None, "after": None, "category": "cleanliness-unknown"}
@@ -557,9 +535,10 @@ def diff_workspace_state(
     *,
     allowed_paths: list[str] | tuple[str, ...] | None = None,
     require_clean: bool = False,
+    expected_git_transition: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if "content_fingerprints" in before or "content_fingerprints" in after:
-        report = compare_workspace_baseline(before, after, allowed_paths=allowed_paths)
+        report = compare_workspace_baseline(before, after, allowed_paths=allowed_paths, expected_git_transition=expected_git_transition)
         if require_clean and before.get("tracked_status"):
             report["unexpected_mutations"] = list(report.get("unexpected_mutations", [])) + [
                 {"path": status_path(line), "before": line, "after": line, "category": "unchanged-dirty"}
@@ -587,10 +566,10 @@ def diff_workspace_state(
             allowed.append(change)
         else:
             unexpected.append(change)
-    # Git metadata is never inside a workspace write scope.
-    for change in _git_metadata_changes(before, after):
-        changes.append(change)
-        unexpected.append(change)
+    transition = compare_git_metadata(before, after, expected_git_transition)
+    changes.extend(transition["changes"])
+    allowed.extend(filter(mutation_is_allowed, transition["changes"]))
+    unexpected.extend(unexpected_mutations(transition["changes"], transition))
     incomplete = _evidence_incomplete(before) or _evidence_incomplete(after)
     if incomplete:
         unexpected.append({"path": ".", "before": before.get("error"), "after": after.get("error"), "category": "capture-incomplete"})
@@ -617,6 +596,8 @@ def diff_workspace_state(
         "mutation_detected": bool(changes),
         "unexpected_mutation_detected": bool(unexpected),
         "incomplete": incomplete,
+        "git_metadata_changes": transition["changes"],
+        "expected_git_transition": transition["record"],
         "reverted": False,
     }
 

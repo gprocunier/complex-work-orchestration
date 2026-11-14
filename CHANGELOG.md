@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Workspace inspection recognises authorized Git changes and reports them separately from unexplained changes.
+
 ## 0.3.1 - 2026-11-14
 
 - Strengthened release checks for structured Beads helpers and shell command candidates.
