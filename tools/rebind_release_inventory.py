@@ -52,6 +52,10 @@ def refresh_points(value, contents, messages):
 def refresh_checkpoint(manifest, files, messages):
     R.need(set(manifest["files"]) == set(manifest["current_file_modes"]),
            "checkpoint dependency/mode roster mismatch")
+    callers = manifest.get("registered_source_callers", {})
+    R.need(isinstance(callers, dict), "checkpoint registered caller mapping required")
+    for path in callers:
+        R.need(path in manifest["files"], f"checkpoint registered caller outside dependency roster: {path}")
     for path, previous in manifest["files"].items():
         R.need(path in files, f"checkpoint source missing: {path}")
         identity = files[path]
@@ -62,6 +66,11 @@ def refresh_checkpoint(manifest, files, messages):
         if mode != identity["mode"]:
             messages.append(f"checkpoint current_file_modes {path}: mode {mode} -> {identity['mode']}")
             manifest["current_file_modes"][path] = identity["mode"]
+    for path, previous in callers.items():
+        observed = files[path]["sha256"]
+        if previous != observed:
+            messages.append(f"checkpoint registered_source_callers {path}: sha256 {previous} -> {observed}")
+            callers[path] = observed
 
 
 def route_paths(route):

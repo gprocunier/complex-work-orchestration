@@ -2315,7 +2315,7 @@
   "registered_current_scope": "Current imports, source bytes/modes and neutral offline compatibility inputs are independently bound. verify_fixture_checkpoint is explicitly fixture-only: archived IDs are non-reverified metadata, historical_artifacts_verified=false and all effect/current/semantic authority is false. verify_checkpoint and the process entry remain strict original Git verification without fixture fallback.",
   "registered_source_callers": {
     "references/registered-effect-contract.md": "87274ee9b26e2826a75dd021920f0efa584ebdeb098eaae3b27c0cb64d77751f",
-    "tests/test_registered_n1_factory.py": "dc2a163fed17f64e3c3a18bb48d3c097c52de442ed0a4939efec80941f2dfc23",
+    "tests/test_registered_n1_factory.py": "5a2a8f225a525773b488ffb1196c8c0b0b14947d70c498965b3b012029374f62",
     "tests/test_registered_server_requests.py": "ba21e30399ae5157abd85ca12cb07490344a394c3dd1e9d4bd7ceac6ee42c96c"
   },
   "roots": [

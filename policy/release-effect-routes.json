@@ -4918,7 +4918,7 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"2017bcdfb93ad120b0e8e81e865d309b2dacec4e970506151f4b55e789027c36","size":125291},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"3ae0257013620e277846d9699953620967bfdd66388c842d86273af7625be8b1","size":125291},
 
 "tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"39a346be94280200fcd732c8f3a9a2113eb357fef8931575947e4334983d8be6","size":1797},
 
