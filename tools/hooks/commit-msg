@@ -10,7 +10,7 @@ import sys
 
 
 ATTRIBUTION_TRAILER = re.compile(r"^[ \t]*[a-z][a-z -]*[- ]by[ \t]*:", re.I | re.M)
-INTERNAL_CODE = re.compile(r"\b(?:W[0-9]{2}|F[0-9]|M1[ab]|M2)\b|cwor-", re.I)
+INTERNAL_CODE = re.compile(r"\b(?:W[0-9]{2}|F[0-9]+|M1[ab]|M2)\b|cwor-", re.I)
 AUTHORSHIP = (
     r"(?:generated|written|authored|co-?authored|co-developed|created|produced|implemented|"
     r"developed|assisted|built|made|prepared|reviewed|pair[- ]programmed)"
