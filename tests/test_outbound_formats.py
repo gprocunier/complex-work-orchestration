@@ -172,17 +172,52 @@ class RendererScanCoverageTests(_OutboundHelpers, unittest.TestCase):
                             for name, text in seen))
 
     def test_incomplete_scans_refuse_at_each_consumer(self) -> None:
-        rules = {**screening._rules(), "limits": {"max_input_bytes": 16, "max_json_depth": 3}}
+        normal_rules = screening._rules()
+        rules = {**normal_rules, "limits": {"max_input_bytes": 16, "max_json_depth": 3}}
         with patch.object(screening, "_rules", return_value=rules), patch.object(manual, "write_export") as write:
             with self.assertRaises(screening.OutboundRefused):
                 manual.export_screened("Long review document.", as_json=False)
-            helper = browser_tests.ChatGPTBrowserReviewTests()
-            outcome, effects = helper._drive_fake_browser({"selectors": {}, "chrome_user_data_dir": "/tmp/profile"})
-            self.assertTrue(isinstance(outcome, (browser.ChatGPTBrowserReviewError, screening.OutboundRefused)),
-                            "an incomplete destination or Send scan must refuse")
-            effects["submit"].assert_not_called()
             opener = self.Opener()
             with self.assertRaises(screening.OutboundRefused):
                 self._execute("Documentation review for internal example notes.", opener)
-            self.assertEqual(opener.bodies, [])
-        write.assert_not_called()
+            self.assertEqual(len(opener.bodies), 0)
+        self.assertEqual(write.call_count, 0)
+
+        # The destination fits this limit; the complete request-ID-bound Send does not.
+        browser_rules = {**rules, "limits": {**rules["limits"], "max_input_bytes": 32}}
+        real_screen = browser.require_clean
+
+        @contextlib.contextmanager
+        def consumer_policy(policy):
+            def screen(text, **kwargs):
+                if kwargs.get("surface") == "ChatGPT browser Send":
+                    scans.append((len(text.encode("utf-8")), browser.artifact_hash(text)))
+                return real_screen(text, **kwargs)
+
+            with patch.object(screening, "_rules", return_value=policy), \
+                    patch.object(browser, "require_clean", side_effect=screen):
+                yield
+
+        helper = browser_tests.ChatGPTBrowserReviewTests()
+        request_id = "0" * 32
+        final = browser.bound_request("Prompt", request_id)
+        expected_scan = (len(final.encode("utf-8")), browser.artifact_hash(final))
+        for incomplete in (True, False):
+            scans = []
+            policy = browser_rules if incomplete else normal_rules
+            with self.subTest(incomplete=incomplete), patch.object(browser.secrets, "token_hex", return_value=request_id):
+                outcome, effects = helper._drive_fake_browser(
+                    {"selectors": {}, "chrome_user_data_dir": "/tmp/profile"},
+                    consumer_context=lambda: consumer_policy(policy))
+                self.assertEqual(scans, [expected_scan], "the actual renderer must scan the complete Send bytes")
+                self.assertEqual(effects["submit"].call_count, int(not incomplete))
+                self.assertEqual(effects["send_count"], int(not incomplete))
+                self.assertEqual(effects["capture"].call_count, int(not incomplete))
+                self.assertEqual(effects["pin"].call_count, int(not incomplete))
+                if incomplete:
+                    self.assertTrue(isinstance(outcome, browser.ChatGPTBrowserReviewError), "renderer scan must refuse")
+                    self.assertEqual(outcome.stage, "prompt-submit")
+                    self.assertTrue(outcome.reason == "outbound screening refused ChatGPT browser Send: "
+                                    "payload exceeds the 32-byte screening limit", "fixed incomplete-Send refusal required")
+                else:
+                    self.assertTrue(isinstance(outcome, dict), "matched normal scanner control must complete")

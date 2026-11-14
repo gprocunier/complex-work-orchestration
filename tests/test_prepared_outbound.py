@@ -312,6 +312,9 @@ class PreparedManualTests(unittest.TestCase):
                 self.assertEqual(host.call_args.kwargs["request_sha256"], hashlib.sha256(prompt.encode()).hexdigest())
 
 
+from tests.browser_connected_fixture import admitted_runner
+
+
 class PreparedBrowserTests(unittest.TestCase):
     def test_replaced_config_by_browser_callbacks_refuses_before_fill_or_send(self):
         for stage in ("origin", "stamp", "fill", "button"):
@@ -335,7 +338,7 @@ class PreparedBrowserTests(unittest.TestCase):
                         runner.config = {**runner.config, "late": PREPARATION["value"]}
                     return "https://chatgpt.com"
 
-                with patch.object(runner, "_frame_origin", side_effect=origin), self.assertRaises(OutboundRefused) as caught:
+                with admitted_runner(runner, "Review the public plan.", timeout_ms=1000), patch.object(runner, "_frame_origin", side_effect=origin), self.assertRaises(SystemExit) as caught:
                     runner._submit_prompt(page, "Review the public plan.", 1000, "0" * 32)
                 self.assertEqual(button.evaluate.call_count, 0, "replacement config reached Send")
                 self.assertEqual(box.evaluate.call_count, {"origin": 0, "stamp": 1, "fill": 2, "button": 2}[stage], "replacement config reached a later fill effect")
@@ -355,7 +358,7 @@ class PreparedBrowserTests(unittest.TestCase):
                         runner.config["late"] = PREPARATION["value"]
                     return "https://chatgpt.com"
 
-                with patch.object(runner, "_frame_origin", side_effect=origin), self.assertRaises(OutboundRefused) as caught:
+                with admitted_runner(runner, "Review the plan.", timeout_ms=1000), patch.object(runner, "_frame_origin", side_effect=origin), self.assertRaises(SystemExit) as caught:
                     runner._submit_prompt(page, "Review the plan.", 1000, "0" * 32)
                 self.assertEqual(button.evaluate.call_count, 0, "refusal reached an effect")
                 if stage == "origin":
@@ -381,7 +384,7 @@ class PreparedBrowserTests(unittest.TestCase):
             def change(handle):
                 path.write_text(PREPARATION["credential"], encoding="utf-8")
                 return "https://chatgpt.com"
-            with patch.object(runner, "_frame_origin", side_effect=change), self.assertRaises(OutboundRefused) as caught:
+            with admitted_runner(runner, prompt, timeout_ms=1000), patch.object(runner, "_frame_origin", side_effect=change), self.assertRaises(SystemExit) as caught:
                 runner._submit_prompt(page, prompt, 1000, "0" * 32)
             self.assertEqual(box.evaluate.call_count, 0, "refusal reached an effect")
             self.assertFalse(PREPARATION["value"] in str(caught.exception), "private diagnostic content")
@@ -438,7 +441,10 @@ class PreparedRouteTraceTests(unittest.TestCase):
         # Local HTTP and registered review dispatch call the helper through the
         # same consumer. Browser submission and model-only confirmation bind
         # destinations; raw network helpers and dormant sharing methods do not.
-        expected = {"H1.1", "H1.2", "H2.1", "H4.1", "H4.2", "H4.3", "H4.4"}
+        expected = {
+            "H1.1", "H1.2", "H2.1", "H4.1", "H4.2", "H4.3", "H4.4",
+            "H4.5", "H4.6", "H5.5",
+        }
         observed = {route["id"] for route in routes._routes(inventory) if helper in route["trace_files"]}
         self.assertEqual(observed, expected)
 

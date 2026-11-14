@@ -59,13 +59,12 @@
     "scripts/build_contractor_packet.py::infer_epic_id_from_bead": 16,
     "scripts/build_contractor_packet.py::main": 23,
     "scripts/build_contractor_packet.py::validate_gate": 16,
-    "scripts/chatgpt_browser_review.py::PlaywrightChatGPTRunner._capture_assistant_response": 54,
+    "scripts/chatgpt_browser_review.py::PlaywrightChatGPTRunner._capture_assistant_response": 26,
     "scripts/chatgpt_browser_review.py::PlaywrightChatGPTRunner._confirm_configured_labels": 25,
-    "scripts/chatgpt_browser_review.py::PlaywrightChatGPTRunner._submit_prompt": 18,
     "scripts/chatgpt_browser_review.py::build_result": 17,
     "scripts/chatgpt_browser_review.py::load_browser_config": 18,
-    "scripts/chatgpt_browser_review.py::main": 42,
-    "scripts/chatgpt_browser_review.py::write_private_response": 33,
+    "scripts/chatgpt_browser_review.py::main": 30,
+    "scripts/chatgpt_browser_review.py::write_private_response": 21,
     "scripts/check_code_health.py::_python_files_in_tree.scan_directory": 17,
     "scripts/check_codex_worker_surface.py::capture_tool_request": 49,
     "scripts/check_documentation.py::check": 16,
@@ -469,9 +468,7 @@
     "scripts/generate_manual_dispatch_prompt.py::content_free_route": 16,
     "scripts/import_execution_telemetry.py::build_import_event": 39,
     "scripts/import_execution_telemetry.py::normalize_import_record": 47,
-    "scripts/ingest_chatgpt_share_return.py::_provenance_errors": 20,
     "scripts/ingest_chatgpt_share_return.py::extract_assistant_text": 28,
-    "scripts/ingest_chatgpt_share_return.py::load_private_response": 18,
     "scripts/prepare_native_worker.py::_build_native_worker_packet_unreserved": 69,
     "scripts/prepare_native_worker.py::_render_prompt": 36,
     "scripts/prepare_native_worker.py::_validate_checked_command_sequence_receipt": 38,
@@ -652,8 +649,8 @@
   "created": "Existing diagnostic, import and complexity debt recorded when change-focused ratchets were introduced; inline suppressions are ignored.",
   "repeated": {
     "tests/test_codex_protocol_pin.py::_fact_mutation_rows.drop": [
-      "e3dd4c04b843328b",
-      "fcdc61aaa05417da"
+      "b9c1eb371d692579",
+      "2305f070d9c90788"
     ]
   },
   "moved": [

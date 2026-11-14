@@ -151,7 +151,6 @@
     "scripts/cwo_core/peer_review_identity.py": 420,
     "scripts/cwo_core/policy.py": 420,
     "scripts/cwo_core/policy_schema.py": 420,
-    "scripts/cwo_core/prepared_outbound.py": 420,
     "scripts/cwo_core/private_authority_input.py": 420,
     "scripts/cwo_core/process_identity.py": 420,
     "scripts/cwo_core/requirement_baseline.py": 420,
@@ -184,7 +183,6 @@
     "scripts/cwo_core/workgraph_markdown.py": 420,
     "scripts/cwo_core/workspace.py": 420,
     "scripts/cwo_core/workspace_capture.py": 420,
-    "scripts/cwo_core/workspace_transition.py": 420,
     "scripts/dispatch_work.py": 493,
     "scripts/evaluate_return.py": 493,
     "scripts/evidence_use.py": 420,
@@ -283,7 +281,12 @@
     "tests/test_run_native_pool_live_canaries.py": 420,
     "tests/test_run_readiness_plan.py": 420,
     "tests/test_w20_affected_contract_w13.py": 420,
-    "tests/test_workflow_adjudication.py": 420
+    "tests/test_workflow_adjudication.py": 420,
+    "scripts/cwo_core/prepared_outbound.py": 420,
+    "scripts/cwo_core/workspace_transition.py": 420,
+    "scripts/cwo_core/browser_provenance.py": 420,
+    "scripts/cwo_core/chatgpt_urls.py": 420,
+    "scripts/cwo_core/private_artifact.py": 420
   },
   "files": {
     "policy/acceptance-policy.yaml": "783bd8ec8440ca3d12a1efa0b01542c110171eccf25794839a2686f78d75d998",
@@ -333,12 +336,12 @@
     "schemas/share-boundaries.schema.json": "d8ce86c636b0d67a9f7787aa80d86c5e793f36792fafe0363a2f50625b814926",
     "schemas/synthesis-policy.schema.json": "5187cd9bd68a8fdb877a0847be6696ff7f0c2102d0c3707d1d2614ba922055b6",
     "schemas/zero-trust-consensus-policy.schema.json": "75b2cb1a3927a973008ac60e2739f6b92ea0fdb96d368a0e97b33bf9625fca85",
-    "scripts/build_contractor_packet.py": "cebfaa0fc7abc78f7e5bef414b157faac2b8dcd64497c217f4d4d699c40b5636",
+    "scripts/build_contractor_packet.py": "2cbb3c9d5eba1ea2ef2cfd7aedf32ae5cdf4bee4e7a6baaba5c7a626a093b431",
     "scripts/check_codex_worker_surface.py": "6874a3e21680b3bac6575c858ddef873ccdc30a3a6ff72fa329f8299720918cd",
     "scripts/check_installed_skill.py": "a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",
     "scripts/cleanup_stale_agents.py": "b1efd8bfc45345a64fdc5e89ec11c972c56cb8ad0557ac88aa86ef285cffc1a8",
     "scripts/codex_tool_surface.py": "36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",
-    "scripts/cwo_core/__init__.py": "5170d651a12a03109be26e104b4ada5aabcc2768c0861039039b9309b15d86c3",
+    "scripts/cwo_core/__init__.py": "4b027294c5167f2561b12ba5378f5970577a9e8b35a8efffcd54c5298b1e68fc",
     "scripts/cwo_core/access_profiles.py": "da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",
     "scripts/cwo_core/adjudication.py": "fa1661792c179819faf2a03382836326f04af919f8f95ebff6b9c70b2a18100d",
     "scripts/cwo_core/adjudication_binding.py": "422f973c806eee9a7aa6cee7b0f5ec651b332129024f298ce303b51a4c99d513",
@@ -347,7 +350,9 @@
     "scripts/cwo_core/audit_segments.py": "378b9dd5ff015cbe380d4767abfae409fd56adf304255fa615d3d1d08d0ecb12",
     "scripts/cwo_core/beads.py": "d69ec6cbc01d2c7286c62de517d342687e7224292e8cd0cd68f3ad6111bfbbf0",
     "scripts/cwo_core/beads_ready_set.py": "14dfb42d41fb6508f56d2be418600b89d62838e0989bb228b027f38f8cb3da95",
+    "scripts/cwo_core/browser_provenance.py": "e3b6feb3de6eba537e86599d19e5935a2b2b35360be1b2c4e73e0d41529f0a39",
     "scripts/cwo_core/candidate_identity.py": "02aac60f74a03c422d2e8b29c806a0236c84939cba384ce47aac7f8b073877c7",
+    "scripts/cwo_core/chatgpt_urls.py": "99f28a57df7fbbb84342be73d2ac19b1f10e7e22aa9a32c60c3d538d0fa3ecc2",
     "scripts/cwo_core/checked_command.py": "5a019dc810fc8a096cf422484c797515c35b745e474881d7dbda1beee41d6548",
     "scripts/cwo_core/checked_command_sequence.py": "ba99b618d548ff236de1735127a4cbc5370f5f554d9ea21c696171841e0d6f3b",
     "scripts/cwo_core/coach.py": "a2e975b1d5516e32c0374824a0dbb6db64165ad5a91ee9020b9fd500d3edcabc",
@@ -414,7 +419,7 @@
     "scripts/cwo_core/outbound_screen.py": "cb160e0e0ee6967c5beef8a748daee9e73f7bcdd135f75481fbc0ec4c13482c6",
     "scripts/cwo_core/ownership_producer.py": "181bec5f0d6e176ef9b19298d28d25634886a89b830ba10460fa8164fb4e74d8",
     "scripts/cwo_core/packet_provenance.py": "2b0486df948bf62941a2cc4be2f244ad5f92533af780950ffff9f6ff768e7e3b",
-    "scripts/cwo_core/packets.py": "44cae7e45b071d02e7a44b54d9a26189a3f1ccb172b2228b385c81055893e202",
+    "scripts/cwo_core/packets.py": "063e3b7654fa825cb47f6379617d4a893fd31615a58d3bec1bf41a09da15a1e8",
     "scripts/cwo_core/path_contract.py": "77c8bf04fd11076263cf34ee08278865fe277cf42459ad790bfb8c5ce7557245",
     "scripts/cwo_core/paths.py": "866cc0fe7dec368687ae428f53679167f86c9464330adeace0d273673cb2a72d",
     "scripts/cwo_core/peer_review.py": "4f7de160687d1f38b84cd99623532fd3074b78b46f4fe4ec4e6d087d8e4552c0",
@@ -422,6 +427,7 @@
     "scripts/cwo_core/policy.py": "2fa1301d5dccb72ae70f3c54bc83a0a82c3f86b8e9d329f037c654b8208c48b9",
     "scripts/cwo_core/policy_schema.py": "5d5438e3b87004b9830b813e408b1b7c24b88d71ac784f93bd32021c48c38be3",
     "scripts/cwo_core/prepared_outbound.py": "70935d818023406be9283a85fa56e42a47cb0940eea0f423bc792cae485a687f",
+    "scripts/cwo_core/private_artifact.py": "c55461e3c33cce57046336920512f2c5ed0ed8e9ebcff5f6df3d74f9e653f29f",
     "scripts/cwo_core/private_authority_input.py": "0f01b3f20792a1656708f5fd0fb2c2e0931a6b396f72896702b04198e4a36827",
     "scripts/cwo_core/process_identity.py": "d98a08cc72b97cb012c31a7d8dee3a9be245c41280e62f4f709c8ef3c1686589",
     "scripts/cwo_core/requirement_baseline.py": "e5a912d39a7e9f10f35ab7b210c4c0e04de5db093c8bcc1545867b97919a90a6",
@@ -445,7 +451,7 @@
     "scripts/cwo_core/supervision/turn_observations.py": "51692167b2cd81f6083e5e168f748ab26439623ed9607cdb5fc8158c2ef9cb59",
     "scripts/cwo_core/synthesis.py": "139b1e183cadd3aefbdd3623b0b549307c55df0edb8549adfefabe5602fd40d4",
     "scripts/cwo_core/synthesis_inputs.py": "1ab5c6c75540c0d022df3151750d7fad8b4d523d0fa8ca1776f1f587679ebaeb",
-    "scripts/cwo_core/telemetry.py": "7ceaa0d5cf70152896dd1cc71f4d24467e22481159ffe97c2aabb4afb4dfaa8d",
+    "scripts/cwo_core/telemetry.py": "0de39ed344e27d05ffdaaf450a4fbd0bb49fe785b8583c3556b4746a2f4fe2e1",
     "scripts/cwo_core/typed_artifact_requirement.py": "b193db816372482206aab6f34e06cf0239437761683880f49204b87c08ca0e2a",
     "scripts/cwo_core/types.py": "e3d3f0a4908090aa7405ffbab3dc288689ac7592589be3b095ce33bb73c5ded8",
     "scripts/cwo_core/util.py": "c4172ab8755f97d17f4e92873c90a094fd4ad52bc04fdb6af77ceff274f31b77",
@@ -515,7 +521,7 @@
     "tests/test_affected_contract_compatibility.py": "126716fae90e972362d876a806bff0b2429d8ca0b5c548f5bf00971c026fa2be",
     "tests/test_beads_ready_set.py": "705503cb2a4811579bb4b018bcb23445d9b1551d07acae577be17d2191dde3c6",
     "tests/test_codex_tool_surface.py": "162b77a5b7c7885422b5ebeb0e0f0807e22304e2ef6bd5a365c8137e5cd1fb07",
-    "tests/test_invocation_ledger.py": "3092382431535e3209c84fca3e881ead3ec68d81d2019c8e47bb845b575d5dbb",
+    "tests/test_invocation_ledger.py": "31df25162f54ed7a897b054ecbc794e55f4f6db5743bf5852c7d50829ace28da",
     "tests/test_linux_owned_children.py": "0e3d966c71bf397199e3129e46cbb39e4a926789f630cd7ae63a495629c5ee24",
     "tests/test_local_admission_preparation.py": "e57e952c8e0f908b535e18971f0dbefc7606648f2b87c910bbd47e9290547551",
     "tests/test_maintenance_authority.py": "aa834050333ec749804ce51dc2cf51b343ae4cfb6348d95a02a98995c870641d",
@@ -693,6 +699,7 @@
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/audit.py",
       "scripts/cwo_core/beads.py",
+      "scripts/cwo_core/browser_provenance.py",
       "scripts/cwo_core/errors.py",
       "scripts/cwo_core/packets.py",
       "scripts/cwo_core/paths.py",
@@ -865,7 +872,8 @@
     "scripts/cwo_core/local_invocation.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/invocation_ledger.py",
-      "scripts/cwo_core/policy.py"
+      "scripts/cwo_core/policy.py",
+      "scripts/cwo_core/prepared_outbound.py"
     ],
     "scripts/cwo_core/maintenance_authority.py": [
       "scripts/cwo_core/__init__.py",
@@ -1378,9 +1386,6 @@
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/git_store.py",
       "scripts/cwo_core/path_contract.py"
-    ],
-    "scripts/cwo_core/workspace_transition.py": [
-      "scripts/cwo_core/__init__.py"
     ],
     "scripts/dispatch_work.py": [
       "scripts/cwo_core/__init__.py",
@@ -2179,7 +2184,22 @@
       "tests/test_policy_current_effects.py",
       "tests/test_qualified_review_dispatch.py",
       "tests/test_run_readiness_plan.py"
-    ]
+    ],
+    "scripts/cwo_core/workspace_transition.py": [
+      "scripts/cwo_core/__init__.py"
+    ],
+    "scripts/cwo_core/browser_provenance.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/audit.py",
+      "scripts/cwo_core/candidate_identity.py",
+      "scripts/cwo_core/chatgpt_urls.py",
+      "scripts/cwo_core/outbound_screen.py",
+      "scripts/cwo_core/packet_provenance.py",
+      "scripts/cwo_core/private_artifact.py",
+      "scripts/cwo_core/util.py"
+    ],
+    "scripts/cwo_core/chatgpt_urls.py": [],
+    "scripts/cwo_core/private_artifact.py": []
   },
   "portable_contract_evidence": {
     "canonical_sha256": "8828c94c7041e4750f6f895e87828ce95e824e938d9cc54bc4c8404c26c13d28",

@@ -101,11 +101,16 @@ class ShippedRoutesAreDisabledTests(unittest.TestCase):
         """With the switch off, nothing happens; the same request with the switch on reaches the effect and the
         audit log, so the refusal, not the fixture, is what stops it."""
         from tests.test_chatgpt_browser_review import ChatGPTBrowserReviewTests
+        from tests.browser_connected_fixture import captured_result
 
         modules, started = fake_playwright()
         attested = {"model_attestation": {"required": True, "status": "confirmed", "labels": {}}}
         # A complete, verified capture, so the enabled control finishes the way a real Send would.
         captured = ChatGPTBrowserReviewTests("test_config_summary_does_not_include_profile_path")._browser_result()
+
+        def finish_capture(runner, prompt):
+            return captured_result(runner, prompt, captured)
+
         for mode, effect, quota_calls in (((), "run", 1), (("--confirm-only",), "confirm_model_only", 0)):
             for available in (False, True):
                 with self.subTest(mode=mode, available=available), tempfile.TemporaryDirectory() as tmpdir:
@@ -117,8 +122,13 @@ class ShippedRoutesAreDisabledTests(unittest.TestCase):
                             patch.object(audit_lib, "AUDIT_LOG", directory / "audit.jsonl"), \
                             patch.object(chatgpt_browser_review, "BROWSER_DISPATCH_AVAILABLE", available), \
                             patch.object(chatgpt_browser_review, "enforce_contracting_quota", return_value={}) as quota, \
+                            patch.object(chatgpt_browser_review, "load_browser_config",
+                                         wraps=chatgpt_browser_review.load_browser_config) as config_load, \
+                            patch.object(chatgpt_browser_review, "load_prompt_from_args",
+                                         wraps=chatgpt_browser_review.load_prompt_from_args) as prompt_load, \
                             patch.object(chatgpt_browser_review.PlaywrightChatGPTRunner, effect,
-                                         return_value=captured if effect == "run" else attested) as reached:
+                                         autospec=True, side_effect=finish_capture if effect == "run" else None,
+                                         return_value=attested) as reached:
                         if available:
                             chatgpt_browser_review.main()
                         else:
@@ -126,6 +136,7 @@ class ShippedRoutesAreDisabledTests(unittest.TestCase):
                                 chatgpt_browser_review.main()
                             self.assertEqual(str(raised.exception), chatgpt_browser_review.BROWSER_DISPATCH_UNAVAILABLE)
                     audited = (directory / "audit.jsonl").exists()
+                    self.assertEqual((config_load.call_count, prompt_load.call_count), (int(available), int(available)))
                     if available:
                         self.assertEqual((quota.call_count, reached.call_count, audited), (quota_calls, 1, True))
                     else:

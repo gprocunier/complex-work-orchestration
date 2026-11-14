@@ -16,7 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import ingest_chatgpt_share_return  # noqa: E402
-from cwo_core.private_artifact import sha256_bytes, write_private_artifact  # noqa: E402
+from cwo_core.host_records import HostRecordStore, using_test_store  # noqa: E402
+from tests.browser_provenance_fixture import publish_return  # noqa: E402
+from cwo_core.private_artifact import sha256_bytes  # noqa: E402
 from ingest_chatgpt_share_return import (  # noqa: E402
     extract_assistant_text,
     is_chatgpt_share_source,
@@ -37,39 +39,24 @@ class FakeCompletedProcess:
 CAPTURE_CHECKS = ("request_turn", "response_turn", "completion_confirmed", "content_stable", "conversation_stable", "assistant_extraction")
 
 
+PRIVATE_SELECTIONS: dict[str, list[str]] = {}
+
+
 def write_private_return(directory: Path, text: str, **overrides: object) -> Path:
-    response_name = overrides.pop("response_name", "run.response.txt")
-    data = text.encode("utf-8")
-    write_private_artifact(directory, response_name, data)
-    provenance = {
-        "artifact_type": "chatgpt-browser-private-response",
-        "version": 4,
-        "captured_at": "2026-10-21T00:00:00Z",
-        "capture_complete": True,
-        "capture_checks": {name: True for name in CAPTURE_CHECKS},
-        "capture_incomplete_reasons": [],
-        "dispatch_id": "dispatch-1",
-        "bead_id": "cwo-1",
-        "executor": "chatgpt_pro_browser_master_reviewer",
-        "packet_sha256": "a" * 64,
-        "prompt_sha256": "b" * 64,
-        "request_id": "0123456789abcdef0123456789abcdef",
-        "submitted_sha256": "c" * 64,
-        "conversation_id": "conv-0001",
-        "conversation_url": "https://chatgpt.com/c/conv-0001",
-        "assistant_message_id": "msg-1",
-        "user_message_id": "msg-0",
-        "response_extraction": "assistant-message",
-        "response_file": response_name,
-        "response_sha256": sha256_bytes(data),
-        "response_chars": len(text),
-        "share": {"created": False},
-    }
-    provenance.update(overrides)
-    return write_private_artifact(directory, "run.provenance.json", json.dumps(provenance).encode("utf-8"))
+    path, selection = publish_return(directory, text, **overrides)
+    PRIVATE_SELECTIONS[str(path.resolve())] = selection
+    return path
 
 
 class ChatGPTShareIngestTests(unittest.TestCase):
+    def setUp(self) -> None:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        context = using_test_store(HostRecordStore.for_tests(Path(temp.name) / "host"))
+        context.__enter__()
+        self.addCleanup(context.__exit__, None, None, None)
+        PRIVATE_SELECTIONS.clear()
+
     def test_source_validation_accepts_chatgpt_shares_only(self) -> None:
         self.assertTrue(is_chatgpt_share_source("https://chatgpt.com/s/t_abc"))
         self.assertTrue(is_chatgpt_share_source("https://chatgpt.com/share/abc"))
@@ -164,7 +151,11 @@ class ChatGPTShareIngestTests(unittest.TestCase):
         self.assertIn("Peer-review disposition: Pending", rendered)
 
 
-    def run_ingest_main(self, argv: list[str]) -> tuple[str, BaseException | None]:
+    def run_ingest_main(self, argv: list[str], *, with_expectations: bool = True) -> tuple[str, BaseException | None]:
+        if with_expectations and "--private-artifact" in argv:
+            path = Path(argv[argv.index("--private-artifact") + 1])
+            selection = PRIVATE_SELECTIONS.get(str(path.resolve()), [])
+            argv = [*argv, *selection]
         stdout = io.StringIO()
         raised = None
         with patch.object(sys, "argv", ["ingest_chatgpt_share_return.py", *argv]), contextlib.redirect_stdout(stdout):
@@ -177,18 +168,148 @@ class ChatGPTShareIngestTests(unittest.TestCase):
     def test_private_artifact_round_trip_feeds_a_contractor_return(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             provenance = write_private_return(Path(tmpdir) / "returns", "Findings: add an idempotency key.")
-            rendered, raised = self.run_ingest_main(["--private-artifact", str(provenance), "--bead", "cwo-1"])
+            target = Path(tmpdir) / "return.md"
+            stdout, raised = self.run_ingest_main(["--private-artifact", str(provenance), "--bead", "cwo-1", "--output", str(target)])
+            self.assertTrue(stdout == "", "explicit body output also emitted stdout")
+            rendered = target.read_text() if target.exists() else ""
             metadata_out, metadata_raised = self.run_ingest_main(["--private-artifact", str(provenance), "--json"])
         self.assertIsNone(raised)
         self.assertIsNone(metadata_raised)
-        self.assertIn("Private ChatGPT browser response ingested", rendered)
-        self.assertIn("Findings: add an idempotency key.", rendered)
-        self.assertIn("no public share link was created", rendered)
-        self.assertNotIn("Share page parsed", rendered)
+        self.assertTrue("Private ChatGPT browser response ingested" in rendered, "private return summary missing")
+        self.assertTrue("Findings: add an idempotency key." in rendered, "private return body missing")
+        self.assertTrue("no public share link was created" in rendered, "private return boundary missing")
+        self.assertFalse("Share page parsed" in rendered, "private return claims share parsing")
         metadata = json.loads(metadata_out)
         self.assertEqual(metadata["source_kind"], "private-artifact")
         self.assertEqual(metadata["conversation_id"], "conv-0001")
         self.assertEqual(metadata["response_sha256"], sha256_bytes(b"Findings: add an idempotency key."))
+
+    def test_private_intake_requires_independent_expectations(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            provenance = write_private_return(Path(tmpdir) / "returns", "PRIVATE_SENTINEL")
+            output = Path(tmpdir) / "output.md"
+            rendered, raised = self.run_ingest_main(["--private-artifact", str(provenance), "--output", str(output)], with_expectations=False)
+            self.assertIsNotNone(raised)
+            self.assertTrue(rendered == "", "refusal produced output")
+            self.assertFalse(output.exists())
+
+    def test_private_return_preserves_exact_utf8_bytes_and_body_free_metadata(self) -> None:
+        from cwo_core import browser_provenance as api, host_records
+        text = " \nPRIVATE_SENTINEL Résumé — 雪\r\n  "
+        with tempfile.TemporaryDirectory() as tmpdir:
+            provenance = write_private_return(Path(tmpdir) / "returns", text)
+            selection = PRIVATE_SELECTIONS[str(provenance.resolve())]
+            packet = json.loads(Path(selection[1]).read_text())
+            expected = api.select_private_capture(packet, packet_source_sha256=selection[3], capture_event_hash=selection[5])
+            decoded, record, _ = ingest_chatgpt_share_return.load_private_response(provenance, expected=expected)
+            self.assertTrue(decoded.encode() == text.encode(), "response bytes changed")
+            self.assertEqual(record["response_bytes"], len(text.encode()))
+            metadata, raised = self.run_ingest_main(["--private-artifact", str(provenance), "--json"])
+            self.assertIsNone(raised)
+            self.assertFalse("PRIVATE_SENTINEL" in metadata, "response body entered metadata")
+            self.assertFalse("PRIVATE_SENTINEL" in host_records.configured_store().audit_file.read_text(), "response body entered audit")
+            self.assertIn("same-user", json.loads(metadata)["access_limit"])
+
+    def test_private_default_stdout_is_metadata_and_output_body_is_explicit(self) -> None:
+        text = " \nPRIVATE_DEFAULT_SENTINEL Résumé — 雪\r\n  "
+        with tempfile.TemporaryDirectory() as tmpdir:
+            base = Path(tmpdir)
+            provenance = write_private_return(base / "returns", text)
+            stdout, raised = self.run_ingest_main(["--private-artifact", str(provenance)])
+            self.assertIsNone(raised)
+            self.assertFalse("PRIVATE_DEFAULT_SENTINEL" in stdout, "default stdout exposed response")
+            self.assertEqual(json.loads(stdout)["source_kind"], "private-artifact")
+            target = base / "return.md"
+            stdout, raised = self.run_ingest_main(["--private-artifact", str(provenance), "--output", str(target)])
+            self.assertIsNone(raised)
+            self.assertTrue(stdout == "", "explicit body output also emitted stdout")
+            self.assertTrue(text.encode() in target.read_bytes(), "explicit output changed response bytes")
+
+    def test_coherently_rewritten_chain_cannot_replace_independent_audit(self) -> None:
+        from cwo_core import host_records
+        substitutions = {
+            "subject": {"kind": "packet-input", "source_sha256": "0" * 64},
+            "packet_source_sha256": "0" * 64, "packet_sha256": "0" * 64,
+            "request_id": "2" * 32, "outbound_source_sha256": "0" * 64,
+            "outbound_export_sha256": "0" * 64, "outbound_prepared_sha256": "0" * 64,
+            "outbound_screen_version": 999, "send_admission_sha256": "0" * 64,
+            "submitted_sha256": "0" * 64, "conversation_id": "conv-9999",
+            "user_message_id": "other-user", "assistant_message_id": "other-assistant",
+            "observed_document_request_id": "2" * 32, "observed_user_sha256": "0" * 64,
+            "response": "REWRITTEN_PRIVATE_SENTINEL",
+        }
+        for key, value in substitutions.items():
+            with self.subTest(field=key), tempfile.TemporaryDirectory() as tmpdir:
+                base = Path(tmpdir)
+                provenance = write_private_return(base / "returns", "PRIVATE_SENTINEL")
+                record = json.loads(provenance.read_text())
+                if key == "response":
+                    response = provenance.parent / record["response_file"]
+                    response.write_text(value)
+                    record.update(response_sha256=sha256_bytes(value.encode()), response_bytes=len(value.encode()),
+                                  response_chars=len(value))
+                else:
+                    record[key] = value
+                if key == "conversation_id":
+                    record.update(pinned_conversation_id=value, conversation_url="https://chatgpt.com/c/" + value)
+                provenance.write_text(json.dumps(record))
+                target = base / "existing.md"
+                target.write_text("previous evaluation\n")
+                audit_before = host_records.configured_store().audit_file.read_bytes()
+                stdout, raised = self.run_ingest_main(["--private-artifact", str(provenance), "--output", str(target)])
+                self.assertIsNotNone(raised)
+                self.assertTrue("independent audit provenance digest" in str(raised), "unexpected refusal boundary")
+                self.assertFalse("PRIVATE_SENTINEL" in str(raised), "response body entered diagnostics")
+                self.assertTrue(stdout == "", "refusal produced output")
+                self.assertTrue(target.read_text() == "previous evaluation\n", "refusal replaced output")
+                self.assertEqual(sha256_bytes(host_records.configured_store().audit_file.read_bytes()), sha256_bytes(audit_before))
+
+    def test_current_packet_and_capture_reference_are_independently_selected(self) -> None:
+        from cwo_core.util import packet_payload_hash
+        with tempfile.TemporaryDirectory() as tmpdir:
+            provenance = write_private_return(Path(tmpdir) / "returns", "PRIVATE_SENTINEL")
+            selection = PRIVATE_SELECTIONS[str(provenance.resolve())]
+            for index, value in ((3, "invalid-source"), (3, "0" * 64), (5, "0" * 64)):
+                changed = list(selection)
+                changed[index] = value
+                stdout, raised = self.run_ingest_main(["--private-artifact", str(provenance), *changed], with_expectations=False)
+                self.assertTrue(stdout == "", "refusal produced output")
+                self.assertIsNotNone(raised)
+                self.assertFalse("PRIVATE_SENTINEL" in str(raised), "response body entered diagnostics")
+            packet_path = Path(selection[1])
+            packet = json.loads(packet_path.read_text())
+            packet["dispatch_id"] = "replacement"
+            packet["packet_sha256"] = packet_payload_hash(packet)
+            packet_path.write_text(json.dumps(packet))
+            stdout, raised = self.run_ingest_main(["--private-artifact", str(provenance)])
+            self.assertTrue(stdout == "", "refusal produced output")
+            self.assertIsNotNone(raised)
+
+    def test_private_file_substitution_hardlinks_and_missing_response_refuse(self) -> None:
+        for kind in ("provenance-symlink", "provenance-hardlink", "response-hardlink", "missing-response", "open-directory"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmpdir:
+                base = Path(tmpdir)
+                provenance = write_private_return(base / "returns", "PRIVATE_SENTINEL")
+                selection = PRIVATE_SELECTIONS[str(provenance.resolve())]
+                record = json.loads(provenance.read_text())
+                response = provenance.parent / record["response_file"]
+                if kind == "provenance-symlink":
+                    real = provenance.with_name("real.json")
+                    provenance.rename(real)
+                    provenance.symlink_to(real)
+                elif kind == "provenance-hardlink":
+                    os.link(provenance, provenance.with_name("alias.json"))
+                elif kind == "response-hardlink":
+                    os.link(response, response.with_name("alias.txt"))
+                elif kind == "missing-response":
+                    response.unlink()
+                else:
+                    provenance.parent.chmod(0o755)
+                # Keep the original independently selected event even when the path changes.
+                stdout, raised = self.run_ingest_main(["--private-artifact", str(provenance), *selection], with_expectations=False)
+                self.assertTrue(stdout == "", "refusal produced output")
+                self.assertIsNotNone(raised)
+                self.assertFalse("PRIVATE_SENTINEL" in str(raised), "response body entered diagnostics")
 
     def test_private_artifact_refuses_substitution_and_mismatch(self) -> None:
         def digest_mismatch(directory: Path) -> Path:
@@ -227,6 +348,7 @@ class ChatGPTShareIngestTests(unittest.TestCase):
             "version 1 record": (lambda d: write_private_return(d, "Text", version=1), []),
             "unverified check": (lambda d: write_private_return(d, "Text", capture_checks={name: name != "response_turn" for name in CAPTURE_CHECKS}), []),
             "version 2 record": (lambda d: write_private_return(d, "Text", version=2), []),
+            "version 4 record": (lambda d: write_private_return(d, "Text", version=4), []),
             "version 3 record without request binding": (lambda d: write_private_return(d, "Text", version=3), []),
             "missing request id": (lambda d: write_private_return(d, "Text", request_id=None), []),
             "malformed request id": (lambda d: write_private_return(d, "Text", request_id="0123"), []),

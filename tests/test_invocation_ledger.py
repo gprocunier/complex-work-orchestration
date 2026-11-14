@@ -1053,6 +1053,8 @@ class SchemaAndContainmentTests(unittest.TestCase):
 
         self.assertIs(dispatch_work.LOCAL_INVOCATION_AVAILABLE, False)
         self.assertEqual(self.importers_of("invocation_ledger"), [
+            "scripts/browser_action_dispatch.py",
+            "scripts/chatgpt_browser_review.py",
             "scripts/cwo_core/local_invocation.py",
             # Experimental fake host reads persisted admission; production stays disabled.
             "scripts/offline_admitted_n1.py",

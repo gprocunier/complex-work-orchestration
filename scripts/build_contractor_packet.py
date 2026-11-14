@@ -47,6 +47,7 @@ from cwo_core.packets import (
     validate_opt_in_record,
 )
 from cwo_core.beads import show_bead_json
+from cwo_core.browser_provenance import add_candidate_arguments, candidate_context, packet_subject
 
 
 def extract_labels(bead: Any) -> list[str]:
@@ -216,6 +217,8 @@ def build_packet(
     packet_version: int = 2,
     expected_return_language: str | None = None,
     nonproduction: bool = False,
+    candidate_record: Any = None,
+    candidate_root: Path | None = None,
 ) -> dict[str, Any]:
     boundary = boundary_config(share_boundary)
     executor_info = load_policy("executor-registry").get("executors", {}).get(executor, {})
@@ -359,6 +362,7 @@ def build_packet(
         packet["canonical_executor"] = executor
     packet.update(quota_info or {"quota_checked": False, "quota_remaining": None})
     packet.update(_result_class_fields(nonproduction))
+    packet["subject"] = packet_subject(packet, candidate_record=candidate_record, candidate_root=candidate_root)
     packet["packet_sha256"] = packet_payload_hash(packet)
     return packet
 
@@ -466,6 +470,7 @@ Expected return language: {packet.get('expected_return_language', 'policy-defaul
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build a boundary-aware contractor packet.")
+    add_candidate_arguments(parser)
     parser.add_argument("--bead", required=True)
     parser.add_argument("--executor", default="openai_deep_research_manual")
     parser.add_argument(
@@ -571,6 +576,7 @@ def main() -> None:
         requested_executor=requested_executor,
         expected_return_language=args.expected_return_language,
         nonproduction=args.rehearsal,
+        **candidate_context(args),
     )
     packet_errors = validate_contractor_packet(
         packet,

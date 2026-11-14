@@ -35,9 +35,17 @@ from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.packets import contractor_packet_language_metadata, find_residual_private_context
 from cwo_core.outbound_screen import require_clean, require_text_disclosure
 from cwo_core.prepared_outbound import PreparedSource
+from cwo_core.browser_provenance import (
+    PRIVATE_RESPONSE_ARTIFACT_TYPE as PRIVATE_RESPONSE_ARTIFACT_TYPE,
+    PRIVATE_RESPONSE_VERSION as PRIVATE_RESPONSE_VERSION,
+    build_private_provenance,
+    capture_audit_fields,
+)
 from cwo_core.policy import load_policy
 from cwo_core.telemetry import safe_text_hash, telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
+from browser_action_dispatch import BrowserActionRefused, RegisteredBrowserParent
+from cwo_core.invocation_ledger import InvocationLedgerError
 
 EXECUTOR_KEY = "chatgpt_pro_browser_master_reviewer"
 DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"
@@ -67,8 +75,6 @@ DEFAULT_SCROLL_TO_BOTTOM_SELECTOR = (
 DEFAULT_SHARE_BUTTON_SELECTOR = "[data-testid='share-chat-button'], button[aria-label*='Share']"
 DEFAULT_ASSISTANT_MESSAGE_SELECTOR = "[data-message-author-role='assistant']"
 DEFAULT_USER_MESSAGE_SELECTOR = "[data-message-author-role='user']"
-PRIVATE_RESPONSE_ARTIFACT_TYPE = "chatgpt-browser-private-response"
-PRIVATE_RESPONSE_VERSION = 4
 DEFAULT_COMPLETION_MARKER_SELECTOR = "[data-testid='copy-turn-action-button']"
 # Every check must pass before a capture is a complete return.
 CAPTURE_CHECKS = (
@@ -351,6 +357,8 @@ def load_prompt_from_args(args: argparse.Namespace, *, prepared_sources: list | 
             "bead_id": packet.get("bead_id"),
             "epic_id": packet.get("epic_id"),
             "packet_sha256": packet.get("packet_sha256"),
+            "subject": packet.get("subject"),
+            "packet_source_sha256": capture.sha256,
             "executor": packet.get("executor"),
             "provider_key": packet.get("provider_key"),
             "provider_family": packet.get("provider_family"),
@@ -439,6 +447,65 @@ BROWSER_DISPATCH_UNAVAILABLE = (
 )
 
 
+class BrowserRunnerAdapter:
+    """Original browser edges registered by a trusted offline application parent.
+
+    Constructing an adapter does not issue authority. The registered parent owns
+    its immutable execution contract and tickets; CLI/config never creates one.
+    """
+    def __init__(self, runner, *, create_share=None):
+        self.runner = runner
+        self._registered_runner = runner
+        self._create_effect = create_share
+        self._registered_create_effect = create_share
+        self.parent = None
+        self.ticket = None
+
+    def snapshot(self):
+        runner = self.runner
+        if runner is not self._registered_runner or self._create_effect is not self._registered_create_effect:
+            raise BrowserActionRefused("browser action adapter changed")
+        if self.parent is not None and runner._action_parent is not self.parent:
+            raise BrowserActionRefused("browser action parent changed")
+        if self.ticket is not None and runner._send_ticket is not self.ticket:
+            raise BrowserActionRefused("browser Send ticket changed")
+        prepared, source, prompt, request_id, timeout_ms = runner._action_submission
+        runner._require_current_source(prepared, source, prompt)
+        metadata = runner.packet_metadata
+        return {
+            "source": {**source, "config": runner.config, "selectors": runner.selectors},
+            "payload": prompt,
+            "request": {"packet_sha256": metadata.get("packet_sha256"), "dispatch_id": metadata.get("dispatch_id"),
+                        "request_id": request_id, "subject_sha256": artifact_hash(json.dumps(metadata.get("subject"), sort_keys=True, separators=(",", ":")))},
+            "execution": {"executor": metadata.get("executor") or EXECUTOR_KEY,
+                          "provider": metadata.get("provider_key") or "openai_manual",
+                          "adapter_id": "cwo-browser-runner", "adapter_version": "1",
+                          "model": runner.config.get("model_label", DEFAULT_MODEL_LABEL),
+                          "effort": runner.config.get("reasoning_label", DEFAULT_REASONING_LABEL),
+                          "options": runner._execution_options(timeout_ms)},
+            "limits": runner._action_limits,
+            "share": runner._share_selection,
+        }
+
+    def send(self, target, submission, *, timeout_seconds, max_output_bytes):
+        runner = self.runner
+        runner.send_state = "may-have-been-submitted"
+        try:
+            state = target.evaluate(_SEND_SCRIPT, submission)
+        except Exception:
+            raise SystemExit("the page changed while Send was being pressed; the prompt may have been submitted") from None
+        except BaseException as exc:
+            runner.note_submission(exc)
+            raise
+        runner.send_state = "submitted" if state == "pressed" else "not-sent"
+        return state
+
+    def create_share(self, selection, *, timeout_seconds, max_output_bytes):
+        if self._create_effect is None:
+            raise BrowserActionRefused("offline share creation adapter is unavailable")
+        return self._create_effect(selection, timeout_seconds=timeout_seconds, max_output_bytes=max_output_bytes)
+
+
 class PlaywrightChatGPTRunner:
     def __init__(self, config: dict[str, Any]) -> None:
         self.config = config
@@ -450,6 +517,36 @@ class PlaywrightChatGPTRunner:
         # any instruction, can say the prompt may have gone out.
         self.send_state = "not-sent"
         self.prepared_sources: tuple = ()
+        self.packet_metadata: dict = {}
+        self._action_parent = self._send_ticket = None
+        self._action_submission = None
+        self._active_send_guard = None
+        self._action_limits: dict = {}
+        self._share_selection = None
+        self._model_observation = None
+        self._observed_conversation_url = None
+        self.send_admission_sha256 = None
+
+    def _execution_options(self, timeout_ms):
+        return {
+            "selectors": self.selectors,
+            "prompt_box": self.selector("prompt_box", "textarea, [contenteditable='true']"),
+            "submit_button": self.selector("submit_button", "[data-testid='send-button'], button[aria-label*='Send']"),
+            "completion_marker": self.selector("completion_marker", DEFAULT_COMPLETION_MARKER_SELECTOR),
+            "conversation_container": self.selector("conversation_container", "main"),
+            "page_timeout_ms": timeout_ms,
+            "response_timeout_seconds": int(self.config.get("response_timeout_seconds", 1800)),
+            "stable_wait_seconds": int(self.config.get("stable_wait_seconds", 8)),
+            "destination": self.config.get("chatgpt_url", "https://chatgpt.com/"),
+            "conversation_url": self._observed_conversation_url,
+            "model_observation": self._model_observation,
+        }
+
+    def create_share(self, ticket):
+        """Separate action: only the original parent's registered creation edge."""
+        if type(self._action_parent) is not RegisteredBrowserParent:
+            raise SystemExit("browser share execution admission is required")
+        return self._action_parent.create_share(ticket)
 
     def _require_sources_unchanged(self) -> None:
         for capture, source in self.prepared_sources:
@@ -457,6 +554,7 @@ class PlaywrightChatGPTRunner:
 
     def _capture_submission_source(self, prompt: str):
         source = {"prompt": prompt, "config": self.config,
+                  "selectors": self.selectors,
                   "inputs": [capture.sha256 for capture, _ in self.prepared_sources]}
         files = tuple(file for cap, _ in self.prepared_sources for file in cap.files)
         return source, PreparedSource.capture(source, files)
@@ -494,7 +592,7 @@ class PlaywrightChatGPTRunner:
 
     def _require_current_source(self, prepared, source, output):
         self._require_sources_unchanged()
-        return prepared.require_unchanged({**source, "config": self.config}, output)
+        return prepared.require_unchanged({**source, "config": self.config, "selectors": self.selectors}, output)
 
     def submission_note(self) -> str | None:
         """What a failure report must say about Send, or None if nothing was sent."""
@@ -626,9 +724,11 @@ class PlaywrightChatGPTRunner:
                 self._select_configured_labels(page, timeout_ms, PlaywrightTimeoutError)
                 stage = "model-confirmation"
                 model_attestation = self._confirm_configured_labels(page, timeout_ms)
+                self._model_observation = model_attestation
                 before_text = self._conversation_text(page)
                 before_messages = self._message_snapshot(page)
                 before_url = before_messages.get("url") or str(getattr(page, "url", "") or "")
+                self._observed_conversation_url = before_url
                 stage = "prompt-submit"
                 # Nothing is typed unless the page is on a ChatGPT origin and the
                 # conversation could be read, so the reply can be bound to it.
@@ -639,21 +739,9 @@ class PlaywrightChatGPTRunner:
                 screened = require_clean(submitted, surface="ChatGPT browser Send")
                 prepared = capture.bind(source, screened)
                 self._require_current_source(prepared, source, screened.data)
-                self._submit_prompt(page, screened.text(), timeout_ms, request_id, prepared=prepared, source=source)
-                stage = "response-wait"
-                pinned = self._pin_conversation(page, request_id, before_url, timeout_ms)
-                response_text = self._wait_for_stable_response(
-                    page, before_text, response_timeout, stable_wait, request_id=request_id
-                )
-                captured = self._capture_assistant_response(
-                    page,
-                    before_text,
-                    response_text,
-                    before_messages=before_messages,
-                    prompt=submitted,
-                    request_id=request_id,
-                    before_url=before_url,
-                    pinned_conversation_id=pinned,
+                captured, response_text = self._submit_and_capture(
+                    page, screened.text(), timeout_ms, request_id, prepared, source,
+                    before_text, before_messages, before_url, response_timeout, stable_wait,
                 )
                 # Public share creation is unavailable until share consent binds the
                 # exact conversation and content at the moment of sharing.
@@ -700,12 +788,59 @@ class PlaywrightChatGPTRunner:
             "conversation_text_sha256": artifact_hash(response_text),
             "request_id": request_id,
             "submitted_sha256": artifact_hash(submitted),
+            "send_admission_sha256": self.send_admission_sha256,
             **prepared.metadata(),
+            **{key: captured.get(key) for key in (
+                "pinned_conversation_id", "observed_document_request_id", "observed_user_sha256",
+                "submitted_user_sha256", "user_text_normalization",
+            )},
             "capture_complete": captured.get("capture_complete") is True,
             "capture_checks": captured.get("checks", {}),
             "capture_incomplete_reasons": captured.get("incomplete_reasons", ["capture-checks-missing"]),
             "share": share_status(self.config),
         }
+
+    def _submit_and_capture(self, page, submitted, timeout_ms, request_id, prepared, source,
+                            before_text, before_messages, before_url, response_timeout, stable_wait):
+        self._require_send_admission()
+        self._action_submission = prepared, source, submitted, request_id, timeout_ms
+        try:
+            with self._action_parent.send(self._send_ticket) as guard:
+                self._active_send_guard = guard
+                self._submit_prompt(page, submitted, timeout_ms, request_id, prepared=prepared, source=source, guard=guard)
+                pinned = self._pin_conversation(page, request_id, before_url, timeout_ms)
+                response_text = self._wait_for_stable_response(page, before_text, response_timeout, stable_wait, request_id=request_id)
+                captured = self._capture_assistant_response(
+                    page, before_text, response_text, before_messages=before_messages,
+                    prompt=submitted, request_id=request_id, before_url=before_url, pinned_conversation_id=pinned,
+                )
+                raw = captured["text"].encode("utf-8")
+                guard.observe_output(len(raw), sha256=sha256_bytes(raw))
+            self.send_admission_sha256 = guard.result.admission_sha256
+            return captured, response_text
+        except (BrowserActionRefused, InvocationLedgerError):
+            self._capture_failure("browser Send execution admission refused")
+        except (SystemExit, Exception):
+            self._capture_failure("browser response capture failed")
+        except BaseException as exc:
+            self.note_submission(exc)
+            raise
+        finally:
+            self._active_send_guard = None
+
+    def _capture_failure(self, reason):
+        if self.send_state == "not-sent":
+            raise SystemExit(reason) from None
+        raise ChatGPTBrowserReviewError("response-wait", reason,
+                                        {"model_attestation": self._model_observation}) from None
+
+    def _check_capture_admission(self):
+        if self._active_send_guard is not None:
+            self._active_send_guard.check()
+
+    def _require_send_admission(self):
+        if type(self._action_parent) is not RegisteredBrowserParent or self._send_ticket is None:
+            raise SystemExit("browser Send execution admission is required before fill")
 
     def _page_snapshot(self, page: Any) -> dict[str, Any] | None:
         """One synchronous read of URL, generation state and every message; None if unreadable."""
@@ -738,6 +873,43 @@ class PlaywrightChatGPTRunner:
     def _request_text(value: str) -> str:
         """Compare requests exactly, ignoring only line-ending style and surrounding whitespace."""
         return value.replace("\r\n", "\n").strip()
+
+    def _observed_turn(self, snapshot, before_ids, prompt, request_id, checks):
+        messages = snapshot["messages"]
+        users = [i for i, item in enumerate(messages)
+                 if item["role"] == "user" and item["id"] and item["id"] not in before_ids]
+        carriers = [i for i, item in enumerate(messages)
+                    if item["role"] == "user" and request_id in (item["text"] or "")]
+        if len(users) != 1 or users != carriers:
+            return None, None, "", None
+        user = messages[users[0]]
+        user_text = user["text"]
+        checks["request_turn"] = prompt is not None and user_text is not None and self._request_text(user_text) == self._request_text(prompt)
+        following = messages[users[0] + 1:]
+        assistant = self._observed_assistant(following, before_ids, snapshot["stopping"], checks)
+        return user["id"], assistant.get("id"), assistant.get("text") or "", user_text
+
+    @staticmethod
+    def _observed_assistant(following, before_ids, stopping, checks):
+        if len(following) != 1:
+            return {}
+        assistant = following[0]
+        if assistant["role"] != "assistant" or not assistant["id"] or assistant["id"] in before_ids:
+            return {}
+        checks["response_turn"] = True
+        checks["completion_confirmed"] = assistant["marked"] and not stopping
+        checks["assistant_extraction"] = bool((assistant["text"] or "").strip())
+        return assistant
+
+    @staticmethod
+    def _capture_conversation_matches(first, second, url, conversation_id, request_id, before_url, pinned):
+        if not first or not request_id or not conversation_id or conversation_id != pinned:
+            return False
+        before_match = CONVERSATION_ID_RE.search(urlparse(before_url).path)
+        origin = approved_chatgpt_origin(url)
+        return (first.get("stamp") == request_id and origin is not None
+                and origin == approved_chatgpt_origin(before_url) and (second or {}).get("url") == url
+                and (before_match is None or before_match.group(1) == conversation_id))
 
     def _capture_assistant_response(
         self,
@@ -772,7 +944,7 @@ class PlaywrightChatGPTRunner:
         before = before_messages or {"available": False, "messages": []}
         before_ids = {item.get("id") for item in before.get("messages") or [] if item.get("id")}
         checks = {name: False for name in CAPTURE_CHECKS}
-        user_id = assistant_id = None
+        user_id = assistant_id = user_text = None
         text = ""
         first = self._page_snapshot(page)
         second = self._page_snapshot(page) if first is not None else None
@@ -780,31 +952,7 @@ class PlaywrightChatGPTRunner:
         match = CONVERSATION_ID_RE.search(urlparse(url).path) if url else None
         conversation_id = match.group(1) if match else None
         if first is not None and before.get("available") and request_id and REQUEST_ID_RE.match(request_id):
-            messages = first["messages"]
-            new_users = [index for index, item in enumerate(messages)
-                         if item["role"] == "user" and item["id"] and item["id"] not in before_ids]
-            carriers = [index for index, item in enumerate(messages)
-                        if item["role"] == "user" and request_id in (item["text"] or "")]
-            if len(new_users) == 1 and carriers == new_users:
-                index = new_users[0]
-                user_id = messages[index]["id"]
-                user_text = messages[index]["text"]
-                checks["request_turn"] = (
-                    prompt is not None and user_text is not None and self._request_text(user_text) == self._request_text(prompt)
-                )
-                following = messages[index + 1:]
-                if (
-                    len(following) == 1
-                    and following[0]["role"] == "assistant"
-                    and following[0]["id"]
-                    and following[0]["id"] not in before_ids
-                ):
-                    assistant_id = following[0]["id"]
-                    checks["response_turn"] = True
-                    checks["completion_confirmed"] = following[0]["marked"] and not first["stopping"]
-                    # The reply is kept exactly as read; surrounding whitespace can be meaningful.
-                    text = following[0]["text"] or ""
-                    checks["assistant_extraction"] = bool(text.strip())
+            user_id, assistant_id, text, user_text = self._observed_turn(first, before_ids, prompt, request_id, checks)
             checks["content_stable"] = second is not None and second == first
         extraction = "assistant-message"
         if not text.strip():
@@ -812,19 +960,8 @@ class PlaywrightChatGPTRunner:
             text = conversation_text[len(before_text):] if conversation_text.startswith(before_text) else conversation_text
             text = text.strip()
             assistant_id = None
-        before_match = CONVERSATION_ID_RE.search(urlparse(before_url).path) if before_url else None
-        origin = approved_chatgpt_origin(url) if url else None
-        second_url = (second or {}).get("url", "")
-        checks["conversation_stable"] = (
-            bool(conversation_id)
-            and conversation_id == pinned_conversation_id
-            and first is not None
-            and bool(request_id)
-            and first.get("stamp") == request_id
-            and origin is not None
-            and origin == (approved_chatgpt_origin(before_url) if before_url else None)
-            and second_url == url
-            and (before_match is None or before_match.group(1) == conversation_id)
+        checks["conversation_stable"] = self._capture_conversation_matches(
+            first, second, url, conversation_id, request_id, before_url, pinned_conversation_id,
         )
         reasons = [name for name in CAPTURE_CHECKS if not checks[name]]
         return {
@@ -834,6 +971,11 @@ class PlaywrightChatGPTRunner:
             "user_message_id": user_id,
             "conversation_url": url,
             "conversation_id": conversation_id,
+            "pinned_conversation_id": pinned_conversation_id,
+            "observed_document_request_id": (first or {}).get("stamp"),
+            "observed_user_sha256": sha256_bytes(self._request_text(user_text).encode("utf-8")) if user_text is not None else None,
+            "submitted_user_sha256": sha256_bytes(self._request_text(prompt).encode("utf-8")) if prompt is not None else None,
+            "user_text_normalization": "crlf-strip-v1",
             "checks": checks,
             "capture_complete": not reasons and bool(text.strip()),
             "incomplete_reasons": reasons if text.strip() else reasons + ["empty-response"],
@@ -971,7 +1113,7 @@ class PlaywrightChatGPTRunner:
         frame = handle.owner_frame()
         return approved_chatgpt_origin(str(frame.url)) if frame is not None else None
 
-    def _submit_prompt(self, page: Any, prompt: str, timeout_ms: int, request_id: str, *, prepared=None, source=None) -> str:
+    def _submit_prompt(self, page: Any, prompt: str, timeout_ms: int, request_id: str, *, prepared=None, source=None, guard=None) -> str:
         """Insert ``prompt`` and press Send inside one document on a ChatGPT origin.
 
         The composer's frame origin is checked from outside the page before
@@ -983,60 +1125,79 @@ class PlaywrightChatGPTRunner:
         anywhere else. There is no keyboard or mouse fallback: page-level input
         goes to whichever document is current when it arrives.
         """
+        self._require_send_admission()
         prepared, source = self._prepare_submission(prompt, prepared, source)
         prompt = self._require_current_source(prepared, source, prompt).decode("utf-8")
-        submission = request_id + "\n" + prompt
+        self._action_submission = prepared, source, prompt, request_id, timeout_ms
+        if guard is not None:
+            if guard is not self._active_send_guard:
+                raise SystemExit("browser Send execution admission refused")
+            return self._submit_guarded(page, prompt, request_id, timeout_ms, guard)
+        try:
+            with self._action_parent.send(self._send_ticket) as guard:
+                state = self._submit_guarded(page, prompt, request_id, timeout_ms, guard)
+            self.send_admission_sha256 = guard.result.admission_sha256
+            return state
+        except (BrowserActionRefused, InvocationLedgerError):
+            raise SystemExit("browser Send execution admission refused") from None
+        except SystemExit as exc:
+            note = self.submission_note()
+            if note:
+                raise SystemExit(f"{exc}; {note}") from None
+            raise
+        except BaseException as exc:
+            self.note_submission(exc)
+            raise
+
+    def _submit_guarded(self, page, prompt, request_id, timeout_ms, guard):
+        box, origin = self._insert_prompt(page, prompt, request_id, guard)
+        return self._press_until_ready(box, origin, timeout_ms, guard)
+
+    def _insert_prompt(self, page, prompt, request_id, guard):
+        guard.check()
         boxes = page.query_selector_all(self.selector("prompt_box", "textarea, [contenteditable='true']"))
         if not boxes:
             raise SystemExit("the prompt box was not found; the prompt was not sent")
         box = boxes[-1]
         try:
             origin = self._frame_origin(box)
-        except Exception as exc:
-            raise SystemExit("the page changed before the prompt was inserted; the prompt was not sent") from exc
-        if origin is None:
-            raise SystemExit("the page is not on a ChatGPT origin; the prompt was not sent")
-        self._require_current_source(prepared, source, prompt)
-        try:
+            guard.check()
+            if origin is None:
+                raise SystemExit("the page is not on a ChatGPT origin; the prompt was not sent")
             stamped = box.evaluate(_STAMP_SCRIPT, request_id) is True
-            self._require_current_source(prepared, source, prompt)
+            guard.check()
             inserted = stamped and box.evaluate(_FILL_SCRIPT, prompt) is True
-        except Exception as exc:
-            raise SystemExit("the page changed before the prompt was inserted; the prompt was not sent") from exc
+            guard.check()
+        except (BrowserActionRefused, InvocationLedgerError):
+            raise
+        except Exception:
+            raise SystemExit("the page changed before the prompt was inserted; the prompt was not sent") from None
         if not inserted:
             raise SystemExit("the prompt box left the page before insertion; the prompt was not sent")
+        return box, origin
+
+    def _press_until_ready(self, box, origin, timeout_ms, guard):
         selector = self.selector("submit_button", "[data-testid='send-button'], button[aria-label*='Send']")
         deadline = time.monotonic() + timeout_ms / 1000
         while True:
             try:
                 button = box.evaluate_handle(_SEND_BUTTON_SCRIPT, selector).as_element()
-                if button is None:
-                    state = "waiting"
-                elif self._frame_origin(button) != origin:
-                    state = "refused"
-                else:
-                    state = None
-            except Exception as exc:
-                raise SystemExit("the page changed before Send was pressed; the prompt was not sent") from exc
+                state = self._ready_send_state(button, origin)
+            except Exception:
+                raise SystemExit("the page changed before Send was pressed; the prompt was not sent") from None
+            guard.check()
             if state is None:
-                self._require_current_source(prepared, source, prompt)
-                self.send_state = "may-have-been-submitted"
-                try:
-                    state = button.evaluate(_SEND_SCRIPT, submission)
-                except Exception as exc:
-                    # The script presses Send before it answers, so a failure
-                    # here does not show that nothing was submitted.
-                    raise SystemExit("the page changed while Send was being pressed; the prompt may have been submitted") from exc
-                except BaseException as exc:
-                    # An interruption keeps its type and says the same.
-                    self.note_submission(exc)
-                    raise
-                self.send_state = "submitted" if state == "pressed" else "not-sent"
+                state = guard.press(button)
             if state == "pressed":
                 return state
             if state != "waiting" or time.monotonic() >= deadline:
                 raise SystemExit("Send could not be pressed in the checked document; the prompt was not sent")
             time.sleep(0.2)
+
+    def _ready_send_state(self, button, origin):
+        if button is None:
+            return "waiting"
+        return None if self._frame_origin(button) == origin else "refused"
 
     def _pin_conversation(self, page: Any, request_id: str, before_url: str, timeout_ms: int) -> str | None:
         """The conversation the submission landed in, read as soon as it is known.
@@ -1051,6 +1212,7 @@ class PlaywrightChatGPTRunner:
         before_match = CONVERSATION_ID_RE.search(urlparse(before_url).path) if before_url else None
         deadline = time.monotonic() + timeout_ms / 1000
         while time.monotonic() < deadline:
+            self._check_capture_admission()
             snapshot = self._page_snapshot(page)
             if snapshot is not None:
                 if snapshot.get("stamp") != request_id:
@@ -1087,6 +1249,7 @@ class PlaywrightChatGPTRunner:
         saw_growth = False
         self.completion_confirmed = False
         while time.monotonic() < deadline:
+            self._check_capture_admission()
             text = self._conversation_text(page)
             if len(text) > len(before_text) + 20:
                 saw_growth = True
@@ -1485,43 +1648,11 @@ def write_private_response(
         raise SystemExit("browser response capture is empty; no private response artifact was written")
     response_bytes = text.encode("utf-8")
     provenance_name, response_name = names or private_response_names(metadata)
-    response_sha256 = sha256_bytes(response_bytes)
-    checks = browser_result.get("capture_checks") if isinstance(browser_result.get("capture_checks"), dict) else {}
-    bound = isinstance(browser_result.get("request_id"), str) and bool(REQUEST_ID_RE.match(browser_result["request_id"]))
-    complete = bound and browser_result.get("capture_complete") is True and all(checks.get(name) is True for name in CAPTURE_CHECKS)
-    reasons = list(browser_result.get("capture_incomplete_reasons") or [])
-    if not bound:
-        reasons.append("request-binding-missing")
-    reasons = reasons or ["capture-checks-missing"]
-    provenance = {
-        "artifact_type": PRIVATE_RESPONSE_ARTIFACT_TYPE,
-        "version": PRIVATE_RESPONSE_VERSION,
-        "captured_at": now_utc(),
-        "capture_complete": complete,
-        "capture_checks": {name: checks.get(name) is True for name in CAPTURE_CHECKS},
-        "capture_incomplete_reasons": [] if complete else reasons,
-        "dispatch_id": metadata.get("dispatch_id"),
-        "bead_id": metadata.get("bead_id"),
-        "epic_id": metadata.get("epic_id"),
-        "executor": metadata.get("executor") or EXECUTOR_KEY,
-        "provider_key": metadata.get("provider_key") or "openai_manual",
-        "packet_sha256": metadata.get("packet_sha256"),
-        "prompt_sha256": artifact_hash(prompt),
-        "request_id": browser_result.get("request_id"),
-        "submitted_sha256": browser_result.get("submitted_sha256"),
-        "share_boundary": metadata.get("share_boundary"),
-        "conversation_url": browser_result.get("conversation_url"),
-        "conversation_id": browser_result.get("conversation_id"),
-        "assistant_message_id": browser_result.get("assistant_message_id"),
-        "user_message_id": browser_result.get("user_message_id"),
-        "response_extraction": browser_result.get("response_extraction"),
-        "conversation_text_sha256": browser_result.get("conversation_text_sha256"),
-        "response_file": response_name,
-        "response_sha256": response_sha256,
-        "response_chars": len(text),
-        "model_attestation": browser_result.get("model_attestation"),
-        "share": {"created": bool(browser_result.get("share_url"))},
-    }
+    provenance = build_private_provenance(
+        metadata, prompt, browser_result, response_file=response_name, captured_at=now_utc(),
+    )
+    response_sha256 = provenance["response_sha256"]
+    complete = provenance["capture_complete"]
     provenance_bytes = (json.dumps(provenance, indent=2, sort_keys=True) + "\n").encode("utf-8")
     try:
         directory = PrivateDirectory.open(response_dir, create=True)
@@ -1562,6 +1693,7 @@ def write_private_response(
                 "response_path": str(response_path),
                 "response_sha256": response_sha256,
                 "provenance_sha256": sha256_bytes(provenance_bytes),
+                "capture_audit_fields": capture_audit_fields(provenance, sha256_bytes(provenance_bytes)),
                 "response_chars": len(text),
                 "capture_complete": complete,
                 "capture_incomplete_reasons": provenance["capture_incomplete_reasons"],
@@ -1622,6 +1754,7 @@ def build_result(
         "reasoning_label": config.get("reasoning_label"),
         "share_boundary": metadata.get("share_boundary"),
         "packet_sha256": metadata.get("packet_sha256"),
+        "packet_source_sha256": metadata.get("packet_source_sha256"),
         "expected_return_language": metadata.get("expected_return_language"),
         "expected_return_language_source": metadata.get("expected_return_language_source"),
         "prompt_sha256": artifact_hash(prompt),
@@ -1636,6 +1769,71 @@ def build_result(
         "response_artifact": None,
         "share": (browser_result or {}).get("share") or share_status(config),
     }
+
+
+def record_browser_dispatch(result, args, quota_info):
+    attestation = result.get("model_attestation") if isinstance(result.get("model_attestation"), dict) else {}
+    telemetry_kind = "browser_dispatch"
+    if args.dry_run:
+        telemetry_kind = "browser_rehearsal"
+    elif args.confirm_only:
+        telemetry_kind = "browser_confirmation"
+    live_submission = telemetry_kind == "browser_dispatch"
+    event = record_audit_event(
+        {
+            "event_type": "chatgpt_browser_dispatch",
+            **(result.get("response_artifact") or {}).get("capture_audit_fields", {}),
+            "quota_event_type": quota_info.get("quota_event_type"),
+            "quota_stage": "consumed" if quota_info.get("quota_checked") else None,
+            "dispatch_id": result["dispatch_id"],
+            "bead_id": result["bead_id"],
+            "epic_id": result["epic_id"],
+            "executor_key": result["executor"],
+            **waiver_audit_fields(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"]),
+            "provider_key": result["provider_key"],
+            "executor_external": True,
+            "dispatch_mode": "browser_automation",
+            "share_boundary": result["share_boundary"],
+            "packet_sha256": result["packet_sha256"],
+            "prompt_sha256": result["prompt_sha256"],
+            "quota_remaining": quota_info.get("quota_remaining"),
+            "share_url_present": bool(result.get("share_url")),
+            "response_artifact_present": bool(result.get("response_artifact")),
+            "response_sha256": (result.get("response_artifact") or {}).get("response_sha256"),
+            "share_link_method": result.get("share_link_method"),
+            "model_attestation_present": bool(result.get("model_attestation")),
+            "status": result["status"],
+            "failure_stage": result.get("failure_stage"),
+            **telemetry_fields(
+                telemetry_kind=telemetry_kind,
+                telemetry_status=result["status"],
+                telemetry_missing_reason="browser-ui-token-usage-unavailable" if live_submission else None,
+                agent_model_calls=1 if live_submission else 0,
+                retry_count=0,
+                model=result.get("model"),
+                model_label=result.get("model_label"),
+                reasoning_label=result.get("reasoning_label"),
+                provider_family=result.get("provider_family"),
+                provider_retention_class=result.get("provider_retention_class"),
+                job_description_label=result.get("job_description_label"),
+                expert_profile=result.get("expert_profile"),
+                elapsed_seconds=result.get("elapsed_seconds") if live_submission else None,
+                prompt_chars=result.get("prompt_chars"),
+                response_chars=result.get("response_chars"),
+                share_url_sha256=safe_text_hash(result.get("share_url")),
+                share_url_chars=len(str(result.get("share_url") or "")) if result.get("share_url") else None,
+                failure_reason_sha256=safe_text_hash(result.get("failure_reason")),
+                failure_reason_chars=len(str(result.get("failure_reason") or "")) if result.get("failure_reason") else None,
+                model_attestation_status=attestation.get("status"),
+                model_attestation_required=attestation.get("required"),
+                expected_return_language=result.get("expected_return_language"),
+                expected_return_language_source=result.get("expected_return_language_source"),
+            ),
+        }
+    )
+    if result.get("response_artifact"):
+        result["response_artifact"]["capture_event_hash"] = event["event_hash"]
+    return event
 
 
 def main() -> None:
@@ -1728,6 +1926,7 @@ def main() -> None:
             planned_names = private_response_names(metadata)
             runner = PlaywrightChatGPTRunner(config)
             runner.prepared_sources = tuple(prepared_sources)
+            runner.packet_metadata = metadata
             try:
                 browser_result = runner.run(prompt)
                 result = build_result(
@@ -1779,64 +1978,7 @@ def main() -> None:
         result["elapsed_seconds"] = round(time.monotonic() - dispatch_started, 3)
         result.update(quota_info)
         if args.audit:
-            attestation = result.get("model_attestation") if isinstance(result.get("model_attestation"), dict) else {}
-            telemetry_kind = "browser_dispatch"
-            if args.dry_run:
-                telemetry_kind = "browser_rehearsal"
-            elif args.confirm_only:
-                telemetry_kind = "browser_confirmation"
-            live_submission = telemetry_kind == "browser_dispatch"
-            record_audit_event(
-                {
-                    "event_type": "chatgpt_browser_dispatch",
-                    "quota_event_type": quota_info.get("quota_event_type"),
-                    "quota_stage": "consumed" if quota_info.get("quota_checked") else None,
-                    "dispatch_id": result["dispatch_id"],
-                    "bead_id": result["bead_id"],
-                    "epic_id": result["epic_id"],
-                    "executor_key": result["executor"],
-                    **waiver_audit_fields(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"]),
-                    "provider_key": result["provider_key"],
-                    "executor_external": True,
-                    "dispatch_mode": "browser_automation",
-                    "share_boundary": result["share_boundary"],
-                    "packet_sha256": result["packet_sha256"],
-                    "prompt_sha256": result["prompt_sha256"],
-                    "quota_remaining": quota_info.get("quota_remaining"),
-                    "share_url_present": bool(result.get("share_url")),
-                    "response_artifact_present": bool(result.get("response_artifact")),
-                    "response_sha256": (result.get("response_artifact") or {}).get("response_sha256"),
-                    "share_link_method": result.get("share_link_method"),
-                    "model_attestation_present": bool(result.get("model_attestation")),
-                    "status": result["status"],
-                    "failure_stage": result.get("failure_stage"),
-                    **telemetry_fields(
-                        telemetry_kind=telemetry_kind,
-                        telemetry_status=result["status"],
-                        telemetry_missing_reason="browser-ui-token-usage-unavailable" if live_submission else None,
-                        agent_model_calls=1 if live_submission else 0,
-                        retry_count=0,
-                        model=result.get("model"),
-                        model_label=result.get("model_label"),
-                        reasoning_label=result.get("reasoning_label"),
-                        provider_family=result.get("provider_family"),
-                        provider_retention_class=result.get("provider_retention_class"),
-                        job_description_label=result.get("job_description_label"),
-                        expert_profile=result.get("expert_profile"),
-                        elapsed_seconds=result.get("elapsed_seconds") if live_submission else None,
-                        prompt_chars=result.get("prompt_chars"),
-                        response_chars=result.get("response_chars"),
-                        share_url_sha256=safe_text_hash(result.get("share_url")),
-                        share_url_chars=len(str(result.get("share_url") or "")) if result.get("share_url") else None,
-                        failure_reason_sha256=safe_text_hash(result.get("failure_reason")),
-                        failure_reason_chars=len(str(result.get("failure_reason") or "")) if result.get("failure_reason") else None,
-                        model_attestation_status=attestation.get("status"),
-                        model_attestation_required=attestation.get("required"),
-                        expected_return_language=result.get("expected_return_language"),
-                        expected_return_language_source=result.get("expected_return_language_source"),
-                    ),
-                }
-            )
+            record_browser_dispatch(result, args, quota_info)
         rendered = json.dumps(result, indent=2, sort_keys=True)
         if args.output:
             atomic_write_text(assert_safe_output_path(Path(args.output)), rendered + "\n")

@@ -232,6 +232,7 @@ TELEMETRY_STRING_LIST_FIELDS = {
 }
 
 AUDIT_NUMERIC_FIELDS = {
+    "outbound_screen_version",
     "quarantine_file_count",
     "acceptance_score",
     "malpractice_score",
@@ -250,6 +251,21 @@ AUDIT_BOOLEAN_FIELDS = {
     "waiver_required",
 }
 AUDIT_STRING_FIELDS = {
+    "private_provenance_sha256",
+    "private_capture_binding_sha256",
+    "packet_source_sha256",
+    "subject_sha256",
+    "outbound_source_sha256",
+    "outbound_export_sha256",
+    "outbound_prepared_sha256",
+    "request_id",
+    "submitted_sha256",
+    "send_admission_sha256",
+    "observation_sha256",
+    "conversation_id",
+    "user_message_id",
+    "assistant_message_id",
+    "response_sha256",
     "quarantine_transaction_id",
     "quarantine_manifest_sha256",
     "host_record_sha256",

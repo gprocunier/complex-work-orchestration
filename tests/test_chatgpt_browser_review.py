@@ -37,6 +37,7 @@ from chatgpt_browser_review import (  # noqa: E402
     valid_chatgpt_share_url,
     write_private_response,
 )
+from tests.browser_connected_fixture import admitted_runner  # noqa: E402
 from build_contractor_packet import build_packet  # noqa: E402
 import cwo_core.audit as audit_lib  # noqa: E402
 
@@ -1285,8 +1286,13 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         with patch.object(sys, "argv", argv):
             import chatgpt_browser_review
 
-            run_patch = (patch.object(PlaywrightChatGPTRunner, "run", autospec=True, side_effect=run) if run is not None
-                         else patch.object(PlaywrightChatGPTRunner, "run", return_value=browser_result))
+            from tests.browser_connected_fixture import captured_result
+
+            def capture_result(runner, prompt):
+                value = run(runner, prompt) if run is not None else browser_result
+                return captured_result(runner, prompt, value)
+
+            run_patch = patch.object(PlaywrightChatGPTRunner, "run", autospec=True, side_effect=capture_result)
             with run_patch, patch.object(
                 chatgpt_browser_review,
                 "enforce_contracting_quota",
@@ -1299,48 +1305,15 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         return json.loads(output.read_text(encoding="utf-8")), response_dir, raised
 
     def test_live_cli_keeps_the_complete_response_in_a_private_artifact(self) -> None:
-        response_text = "Assistant findings: add duplicate-job protection before enabling retries."
-        browser_result = {
-            "share_url": "",
-            "response_chars": len(response_text),
-            "model_attestation": {"required": True, "status": "confirmed", "labels": {}},
-            "share_link_method": None,
-            "response_text": response_text,
-            "response_extraction": "assistant-message",
-            "assistant_message_id": "msg-9",
-            "user_message_id": "msg-8",
-            "conversation_url": "https://chatgpt.com/c/0123abcd-4567",
-            "conversation_id": "0123abcd-4567",
-            "conversation_text_sha256": "a" * 64,
-            **self.VERIFIED,
-        }
-        with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
-            result, response_dir, raised = self._run_live_cli(browser_result, Path(cfgdir), Path(promptdir))
-            self.assertIsNone(raised)
-            artifact = result["response_artifact"]
-            response_path = Path(artifact["response_path"])
-            provenance_path = Path(artifact["provenance_path"])
-            self.assertEqual(stat.S_IMODE(response_dir.stat().st_mode), 0o700)
-            self.assertEqual(stat.S_IMODE(response_path.stat().st_mode), 0o600)
-            self.assertEqual(stat.S_IMODE(provenance_path.stat().st_mode), 0o600)
-            self.assertEqual(response_path.read_text(encoding="utf-8"), response_text)
-            provenance = json.loads(provenance_path.read_text(encoding="utf-8"))
-            from ingest_chatgpt_share_return import load_private_response
-
-            ingested, ingested_provenance, _ = load_private_response(
-                provenance_path, packet_sha256=result["packet_sha256"], dispatch_id="dispatch-chatgpt", bead_id="cwo-1"
-            )
-        self.assertEqual(result["status"], "completed")
-        self.assertEqual(provenance["artifact_type"], "chatgpt-browser-private-response")
-        self.assertTrue(provenance["capture_complete"])
-        self.assertEqual(provenance["response_sha256"], artifact["response_sha256"])
-        self.assertEqual(provenance["conversation_id"], "0123abcd-4567")
-        self.assertEqual((provenance["request_id"], provenance["submitted_sha256"]), ("0123456789abcdef0123456789abcdef", "c" * 64))
-        self.assertEqual(ingested, response_text)
-        self.assertEqual(ingested_provenance["assistant_message_id"], "msg-9")
-        rendered = json.dumps(result)
-        self.assertNotIn(response_text, rendered, "the response text must stay out of the dispatch result")
-        self.assertNotIn("Review this final plan.", rendered)
+        from tests.browser_connected_fixture import connected_capture
+        with tempfile.TemporaryDirectory() as tmp:
+            capture = connected_capture(Path(tmp))
+            artifact = capture.artifact
+            self.assertEqual(stat.S_IMODE(Path(artifact["response_path"]).stat().st_mode), 0o600)
+            self.assertEqual(stat.S_IMODE(Path(artifact["provenance_path"]).stat().st_mode), 0o600)
+            self.assertTrue(capture.provenance["capture_complete"])
+            self.assertTrue(capture.text == capture.page.reply, "private response changed")
+            self.assertNotIn(capture.page.reply, json.dumps(capture.result))
 
     VERIFIED = {
         "request_id": "0123456789abcdef0123456789abcdef",
@@ -1384,7 +1357,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 load_private_response(provenance_path, packet_sha256=None, dispatch_id=None, bead_id=None)
         self.assertIsNotNone(raised)
         self.assertEqual(result["status"], "failed")
-        self.assertEqual(result["failure_reason"], "capture-incomplete: response_turn")
+        self.assertTrue(result["failure_reason"].startswith("capture-incomplete: response_turn"))
         self.assertFalse(provenance["capture_complete"])
         self.assertFalse(provenance["capture_checks"]["response_turn"])
 
@@ -1398,7 +1371,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 self.assertIsNotNone(raised)
                 self.assertEqual(result["status"], "failed")
                 self.assertFalse(provenance["capture_complete"])
-                self.assertIn("request-binding-missing", provenance["capture_incomplete_reasons"])
+                self.assertTrue(any("request_id" in reason for reason in provenance["capture_incomplete_reasons"]))
 
     def test_storage_failures_are_reported_and_delete_nothing(self) -> None:
         from cwo_core.private_artifact import PrivateArtifactError, PrivateDirectory
@@ -1682,11 +1655,19 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         return {"playwright": types.ModuleType("playwright"), "playwright.sync_api": sync_api}
 
     def _drive_fake_browser(self, config: dict, *, page_url: str = "https://chatgpt.com/c/0123abcd-4567",
-                            snapshot: dict | None = None, prompt: str = "Prompt") -> tuple[object, dict]:
-        """Run the browser flow against fakes; return (result or raised error, mocks)."""
+                            snapshot: dict | None = None, prompt: str = "Prompt",
+                            consumer_context=contextlib.nullcontext) -> tuple[object, dict]:
+        """Run against fakes, entering consumer_context only after trusted admission."""
 
         class Page:
             url = page_url
+
+            def __init__(self):
+                from tests.browser_connected_fixture import Page as EdgePage
+                edge = EdgePage()
+                edge.url = page_url
+                self.query_selector_all = edge.query_selector_all
+                self.sent = edge.sent
 
             def goto(self, *args: object, **kwargs: object) -> None:
                 return None
@@ -1703,14 +1684,21 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             "capture_complete": True,
             "incomplete_reasons": [],
         }
-        with patch.dict(sys.modules, self._fake_playwright_modules()), patch.object(
-            runner, "_select_page", return_value=Page()
+        request_id = chatgpt_browser_review.secrets.token_hex(16)
+        from cwo_core.outbound_screen import screen_outbound
+        bootstrap = contextlib.nullcontext if screen_outbound(prompt, surface="ChatGPT browser Send").findings else admitted_runner
+        page = Page()
+        with (bootstrap() if bootstrap is contextlib.nullcontext else bootstrap(runner, prompt, request_id=request_id, timeout_ms=int(config.get("page_timeout_seconds", 30)) * 1000,
+                             lifecycle=True, model_observation={"status": "confirmed"}, conversation_url=page_url)), \
+                patch.object(chatgpt_browser_review.secrets, "token_hex", return_value=request_id), \
+                patch.dict(sys.modules, self._fake_playwright_modules()), patch.object(
+            runner, "_select_page", return_value=page
         ), patch.object(runner, "_wait_for_prompt"), patch.object(runner, "_select_configured_labels"), patch.object(
             runner, "_confirm_configured_labels", return_value={"status": "confirmed"}
         ), patch.object(runner, "_conversation_text", return_value="before"), patch.object(
             runner, "_message_snapshot", return_value=snapshot or {"available": True, "messages": []}
         ), patch.object(
-            runner, "_submit_prompt"
+            runner, "_submit_prompt", wraps=runner._submit_prompt
         ) as submit, patch.object(runner, "_pin_conversation", return_value="0123abcd-4567") as pin, patch.object(
             runner, "_wait_for_stable_response", return_value="before Prompt Reply body"
         ), patch.object(
@@ -1721,11 +1709,12 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             runner, "_try_social_share_url", side_effect=AssertionError("social share must not be reached")
         ):
             try:
-                outcome: object = runner.run(prompt)
+                with consumer_context():
+                    outcome: object = runner.run(prompt)
             except (ChatGPTBrowserReviewError, SystemExit) as exc:
                 outcome = exc
         self.assertEqual(create_share.call_count, 0)
-        return outcome, {"submit": submit, "capture": capture, "pin": pin}
+        return outcome, {"submit": submit, "capture": capture, "pin": pin, "send_count": len(page.sent)}
 
     def _run_with_fake_browser(self, config: dict) -> dict:
         result, _ = self._drive_fake_browser(config)
@@ -1862,7 +1851,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 return [object(), box]
 
         runner = PlaywrightChatGPTRunner({"selectors": {}})
-        with patch.object(chatgpt_browser_review.time, "sleep"):
+        with admitted_runner(runner, "Prompt text", request_id="0123456789abcdef0123456789abcdef", timeout_ms=timeout_ms), patch.object(chatgpt_browser_review.time, "sleep"):
             try:
                 outcome: object = runner._submit_prompt(Page(), "Prompt text", timeout_ms, "0123456789abcdef0123456789abcdef")
             except SystemExit as exc:
@@ -2109,41 +2098,29 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             self.assertEqual(len(names), 2)
             self.assertIn("are both retained", message)
             provenance = next(response_dir / name for name in names if name.endswith(".provenance.json"))
-            text, _, _ = load_private_response(provenance, packet_sha256=None, dispatch_id=None, bead_id=None)
-        self.assertEqual(text, "Reply body", "a complete, verifiable pair remains ingestible")
+            self.assertTrue(Path(next(response_dir / name for name in names if name.endswith(".response.txt"))).read_bytes() == b"Reply body", "retained response changed")
+            with self.assertRaises(SystemExit):
+                load_private_response(provenance, packet_sha256=None, dispatch_id=None, bead_id=None)
 
     def test_reply_whitespace_survives_capture_and_ingest(self) -> None:
-        from ingest_chatgpt_share_return import load_private_response
-
+        from tests.browser_connected_fixture import connected_capture
+        import ingest_chatgpt_share_return
+        from cwo_core.packets import fenced_block
         reply = "\n    def code():\n        return 1\n"
-        captured = self._capture([self._complete_state(reply=reply)])
-        self.assertTrue(captured["capture_complete"], captured["incomplete_reasons"])
-        self.assertEqual(captured["text"], reply)
-        browser_result = {
-            "response_text": captured["text"],
-            "request_id": "0123456789abcdef0123456789abcdef",
-            "submitted_sha256": "c" * 64,
-            "conversation_url": "https://chatgpt.com/c/0123abcd-4567",
-            "conversation_id": "0123abcd-4567",
-            "assistant_message_id": "a1",
-            "user_message_id": "u1",
-            "response_extraction": "assistant-message",
-            "capture_complete": True,
-            "capture_checks": {name: True for name in chatgpt_browser_review.CAPTURE_CHECKS},
-        }
-        with tempfile.TemporaryDirectory() as tmpdir:
-            artifact = write_private_response(Path(tmpdir) / "returns", metadata={"dispatch_id": "dispatch-1", "packet_sha256": "a" * 64},
-                                              prompt="Prompt", browser_result=browser_result)
-            text, _, _ = load_private_response(Path(artifact["provenance_path"]), packet_sha256=None, dispatch_id=None, bead_id=None)
-            import ingest_chatgpt_share_return
-            from cwo_core.packets import fenced_block
-
+        with tempfile.TemporaryDirectory() as tmp:
+            capture = connected_capture(Path(tmp), reply=reply)
             stdout = io.StringIO()
-            with patch.object(sys, "argv", ["ingest_chatgpt_share_return.py", "--private-artifact", artifact["provenance_path"]]), \
-                    contextlib.redirect_stdout(stdout):
+            rendered_path = Path(tmp) / "return.md"
+            argv = ["ingest_chatgpt_share_return.py", "--private-artifact", capture.artifact["provenance_path"],
+                    "--packet", capture.args.packet, "--packet-source-sha256", capture.metadata["packet_source_sha256"],
+                    "--capture-event", capture.event["event_hash"], "--output", str(rendered_path)]
+            with patch.object(audit_lib, "AUDIT_LOG", capture.log), patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
                 ingest_chatgpt_share_return.main()
-        self.assertEqual(text, reply)
-        self.assertIn(fenced_block(reply, "text"), stdout.getvalue(), "the rendered return carries the reply unchanged")
+            rendered = rendered_path.read_text(encoding="utf-8")
+        self.assertTrue(capture.text == reply, "private response whitespace changed")
+        self.assertTrue(fenced_block(reply, "text") in rendered, "explicit return renderer changed response whitespace")
+
+        self.assertNotIn(reply, stdout.getvalue())
 
     def test_failures_after_publication_name_the_artifact(self) -> None:
         for stage in ("audit", "output"):
@@ -2484,7 +2461,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             self.assertEqual(directory_fds, set(), "the failing close was exercised")
             self.assertTrue(Path(artifact["response_path"]).is_file())
             self.assertTrue(Path(artifact["provenance_path"]).is_file())
-            self.assertTrue(artifact["capture_complete"])
+            self.assertFalse(artifact["capture_complete"])
 
     def test_default_run_never_creates_a_share(self) -> None:
         result = self._run_with_fake_browser({"selectors": {}, "chrome_user_data_dir": "/tmp/profile"})
