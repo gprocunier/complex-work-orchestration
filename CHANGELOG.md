@@ -13,7 +13,8 @@
 - Recorded the qualification target as Codex 0.163.0 with the `constrained-integrity` profile; confidential operation is unsupported.
 - Documented legacy transport limits and checked typed replies against the selected protocol schemas.
 - Made terminal projection tests deterministic while retaining lifecycle and accounting checks.
-- Made terminal projection test scheduling deterministic while preserving transport refusal checks.
+- Increase the release inventory limit from 512 to 528 KiB for the 528,671-byte merged inventory, retaining 12,001 bytes of headroom without removing routes or bindings.
+
 - Store the release inventory one record per line with canonical ordering so independent rebinds merge cleanly.
 - Run hosted unit tests in deterministic shards for faster CI while retaining the aggregate `test` check.
 - Refuse empty method-sharded test discovery instead of silently omitting a test family.

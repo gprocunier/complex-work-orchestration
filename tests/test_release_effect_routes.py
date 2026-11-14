@@ -375,9 +375,9 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             self.fail(f"valid inventory over the former cap refused: {error}")
         self.assertEqual(loaded["schema"], "compact-release-routes-v1",
                          "valid inventory over the former cap must load")
-        value["capacity_example"] = "x" * (524288 - base)
+        value["capacity_example"] = "x" * (R.MAX_INVENTORY - base)
         path.write_bytes(R.inventory_bytes(value))
-        self.assertEqual(path.stat().st_size, 524288)
+        self.assertEqual(path.stat().st_size, R.MAX_INVENTORY)
         self.assertEqual(R.inventory(root)[0]["schema"], "compact-release-routes-v1")
         value["capacity_example"] += "x"
         path.write_bytes(R.inventory_bytes(value))
