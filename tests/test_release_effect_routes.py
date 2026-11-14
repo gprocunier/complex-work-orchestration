@@ -378,6 +378,136 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         with self.assertRaisesRegex(R.Refused, "regular bounded file required"):
             R.inventory(root)
 
+    def compact_primitive_paths(self, value):
+        coverage = value["primitive_coverage"]
+        paths = sorted({row[0] for row in coverage["hits"]})
+        coverage.update(schema="bounded-primitives-v2", paths=paths,
+                        hits=[[paths.index(row[0]), *row[1:]] for row in coverage["hits"]])
+
+    def test_compact_primitive_paths_preserve_expanded_spans_and_decisions(self):
+        code = "import subprocess\nlabel = 'é'; result = subprocess.run(\n    ['true']\n)\n"
+        for disposition in ("route", "exclude"):
+            with self.subTest(disposition=disposition):
+                root, value, _hits = self.primitive_example(code, disposition)
+                shell = "scripts/second.sh"
+                (root / shell).write_text("# EXAMPLE bd close and curl are lexical candidates\n")
+                files, contents = R.source(root)
+                value["source_bindings"][shell] = files[shell]
+                coverage = value["primitive_coverage"]
+                for index, hit in enumerate(R.primitive_hits({shell: contents[shell]})):
+                    key = f"EXAMPLE-shell-{index}"
+                    coverage["exclusions"][key] = {"reason": "EXAMPLE comment only",
+                                                   "conclusion": "no effect is executed"}
+                    coverage["hits"].append([*hit, ["exclude", key]])
+                path = root / R.INVENTORY
+                path.write_bytes(R.encoded(value))
+                expanded = R.trace(root)
+                original = copy.deepcopy(coverage)
+                self.compact_primitive_paths(value)
+                path.write_bytes(R.encoded(value))
+                compact = R.trace(root)
+                self.assertEqual(compact["primitive_hits"], expanded["primitive_hits"])
+                self.assertEqual(compact["routes"], expanded["routes"])
+                self.assertEqual(compact["primitive_coverage"], original)
+                for row in value["primitive_coverage"]["hits"]:
+                    self.assertEqual(len(row[6]), 64)
+                # Table order has no meaning beyond each explicit index.
+                coverage = value["primitive_coverage"]
+                coverage["paths"].reverse()
+                for row in coverage["hits"]:
+                    row[0] = len(coverage["paths"]) - 1 - row[0]
+                path.write_bytes(R.encoded(value))
+                self.assertEqual(R.trace(root)["primitive_coverage"], original)
+                coverage["hits"][0][0], coverage["hits"][1][0] = coverage["hits"][1][0], coverage["hits"][0][0]
+                path.write_bytes(R.encoded(value))
+                with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
+                    R.trace(root)
+        # An empty table is the exact representation of no candidates.
+        root, _output, _review = self.example()
+        value = json.loads((root / R.INVENTORY).read_bytes())
+        self.compact_primitive_paths(value)
+        (root / R.INVENTORY).write_bytes(R.encoded(value))
+        self.assertEqual(R.trace(root)["primitive_hits"], [])
+
+    def test_compact_primitive_path_tables_and_indices_refuse_malformed_input(self):
+        root, value, _hits = self.primitive_example("import subprocess\nsubprocess.run(['true'])\n", "exclude")
+        self.compact_primitive_paths(value)
+        coverage = value["primitive_coverage"]
+        changes = {
+            "missing-table": (lambda x: x.pop("paths"), "primitive path table"),
+            "wrong-table-type": (lambda x: x.update(paths={"0": "scripts/primitive.py"}), "primitive path table"),
+            "duplicate-path": (lambda x: x["paths"].append(x["paths"][0]), "duplicate primitive path"),
+            "nonstring-path": (lambda x: x["paths"].__setitem__(0, []), "primitive path entry"),
+            "missing-source": (lambda x: x["paths"].__setitem__(0, "scripts/missing.py"), "primitive path entry"),
+            "unnormalized-path": (lambda x: x["paths"].__setitem__(0, "scripts/../scripts/primitive.py"),
+                                  "primitive path entry"),
+            "unused-path": (lambda x: x["paths"].append("scripts/example.py"), "unused primitive path"),
+            "table-bound": (lambda x: x.update(paths=[x["paths"][0]] * (R.MAX_FILES + 1)), "primitive path table"),
+            "v1-with-table": (lambda x: x.update(schema="bounded-primitives-v1"), "unexpected primitive path table"),
+            "malformed-schema": (lambda x: x.update(schema=[]), "primitive coverage schema"),
+        }
+        for index in (False, True, -1, 1, 0.0, "0", None, []):
+            changes[f"index-{index!r}"] = (
+                lambda x, index=index: x["hits"][0].__setitem__(0, index), "primitive path index")
+        for name, (change, message) in changes.items():
+            with self.subTest(invalid=name):
+                changed = copy.deepcopy(coverage)
+                change(changed)
+                (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                with self.assertRaisesRegex(R.Refused, message):
+                    R.trace(root)
+
+    def test_compact_primitive_hits_and_exclusions_require_exact_coverage(self):
+        code = "import subprocess\nsubprocess.run(['true'])\nsubprocess.check_call(['true'])\n"
+        root, value, _hits = self.primitive_example(code, "exclude")
+        self.compact_primitive_paths(value)
+        coverage = value["primitive_coverage"]
+        first, second = [row[-1][1] for row in coverage["hits"]]
+        changes = {
+            "missing": lambda x: x["hits"].pop(),
+            "extra": lambda x: x["hits"].append([*x["hits"][0][:6], "0" * 64, x["hits"][0][-1]]),
+            "duplicate": lambda x: x["hits"].append(copy.deepcopy(x["hits"][0])),
+            "stale-span": lambda x: x["hits"][0].__setitem__(4, 999),
+            "stale-hash": lambda x: x["hits"][0].__setitem__(6, "0" * 64),
+            "short-hash": lambda x: x["hits"][0].__setitem__(6, x["hits"][0][6][:16]),
+            "bool-column": lambda x: x["hits"][0].__setitem__(2, False),
+            "malformed-row": lambda x: x["hits"][0].pop(),
+            "nonlist-hits": lambda x: x.update(hits={}),
+            "unknown-exclusion": lambda x: x["hits"][0].__setitem__(7, ["exclude", "missing"]),
+            "malformed-exclusion": lambda x: x["exclusions"].__setitem__(first, []),
+            "nonmapping-exclusions": lambda x: x.update(exclusions=[]),
+            "missing-exclusion": lambda x: x["exclusions"].pop(first),
+            "duplicate-exclusion": lambda x: x["hits"][1].__setitem__(7, ["exclude", first]),
+            "orphan-exclusion": lambda x: x["exclusions"].update({"EXAMPLE-orphan": x["exclusions"][second]}),
+            "missing-conclusion": lambda x: x["exclusions"][first].pop("conclusion"),
+            "malformed-exclusion-route": lambda x: x["exclusions"][first].update(route=[]),
+        }
+        for name, change in changes.items():
+            with self.subTest(invalid=name):
+                changed = copy.deepcopy(coverage)
+                change(changed)
+                (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                with self.assertRaises(R.Refused, msg=f"invalid compact {name} admitted"):
+                    R.trace(root)
+
+    def test_compact_primitive_route_dispositions_require_exact_selection(self):
+        root, value, _hits = self.primitive_example("import subprocess\nsubprocess.run(['true'])\n", "route")
+        self.compact_primitive_paths(value)
+        coverage = value["primitive_coverage"]
+        changes = {
+            "malformed-route": lambda x: x["hits"][0][-1].__setitem__(1, []),
+            "unknown-route": lambda x: x["hits"][0][-1].__setitem__(1, "missing"),
+            "unknown-point": lambda x: x["hits"][0][-1].__setitem__(2, "missing"),
+            "unrelated-point": lambda x: x["hits"][0][-1][2].update(line=1, text="import subprocess"),
+        }
+        for name, change in changes.items():
+            with self.subTest(invalid=name):
+                changed = copy.deepcopy(coverage)
+                change(changed)
+                (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                with self.assertRaises(R.Refused, msg=f"invalid compact {name} admitted"):
+                    R.trace(root)
+
     def test_unmapped_primitives_refuse_after_coherent_rebinding(self):
         cases = [
             ("process", "import subprocess\nsubprocess.run(['bd', 'close', 'EXAMPLE'])\n"),
