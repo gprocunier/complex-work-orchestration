@@ -10,6 +10,7 @@
 - Added a CI-parity release test environment covering checkout includes, relocated Python and four-CPU execution.
 - Added explicit host selection and transport dry runs to the release gate dispatcher.
 - Limited push-triggered CI to `main` and `v*` tags while preserving pull-request checks.
+- Made polling-close test coverage deterministic while preserving admission and containment checks.
 
 ## 0.2.0 - 2026-11-11
 

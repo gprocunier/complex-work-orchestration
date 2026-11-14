@@ -44,11 +44,15 @@ class FiniteInputTests(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(family.cleanup_helper, self, self.fixture)
 
-    def _active(self):
+    def _active(self, *, hold_admission=False):
         from tests.test_registered_finite_tool_wiring import DynamicRpcProcess
         fixture = self.fixture
         case = fixture.case(finite_tool_mode='captured-host-tools', complete_after_refusal=True)
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
+        if hold_admission:
+            # A poll fault otherwise releases the host's Condition scheduler
+            # before the held fake callback, allowing admission to settle.
+            case.scheduler_gate = case.poll_release
         case.result_done = threading.Event()
         factory = fixture.factory(case)
         result = []
@@ -1551,7 +1555,7 @@ class FiniteInputTests(unittest.TestCase):
         self.assertTrue(self._wait(lambda: bool(result), 8))
 
     def test_close_during_pipe_wait_revokes_next_ticket(self):
-        case, factory, tool, _stream, read, release, result = self._active()
+        case, factory, tool, _stream, read, release, result = self._active(hold_admission=True)
         gate = factory.server.finite_input
         ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
             turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
@@ -1589,7 +1593,9 @@ class FiniteInputTests(unittest.TestCase):
         self.assertIsInstance(polled[0], finite.FiniteInputError)
         self.assertTrue(closed.is_set())
         self.assertTrue(tool.contained)
-        with self.assertRaises(finite.FiniteInputError):
+        factory.require_effect()
+        with self.assertRaisesRegex(finite.FiniteInputError,
+                                    'The original registered tool item is no longer active.'):
             gate.reserve(b'', thread_id=case.scenario.thread_id,
                 turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
                 approval_id='EXAMPLE-after-close', deadline=time.monotonic() + 2)
