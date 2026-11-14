@@ -806,6 +806,105 @@ class GitTransitionClassificationTests(unittest.TestCase):
                          {".git:common:hooks/review-hook", ".git:common:refs/heads/unapproved"})
 
 
+class GitTransitionPositiveControlTests(unittest.TestCase):
+    def test_ordinary_commit_requires_record_and_separate_content_scope(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = make_repo(Path(tmpdir))
+            before = capture_workspace_baseline(repo, allowed_paths=["src"])
+            (repo / "src" / "app.py").write_text("print('approved commit')\n", encoding="utf-8")
+            git(repo, "add", "src/app.py")
+            git(repo, "commit", "-qm", "approved change")
+            after = capture_workspace_baseline(repo, allowed_paths=["src"])
+            self.assertTrue(before["baseline_complete"], before["incomplete_reasons"])
+            self.assertTrue(after["baseline_complete"], after["incomplete_reasons"])
+            self.assertNotEqual(before["head"], after["head"])
+            self.assertNotEqual(before["head_manifest_sha256"], after["head_manifest_sha256"])
+            ordinary = compare_workspace_baseline(before, after, allowed_paths=["src"])
+            self.assertTrue(ordinary["unexpected_mutation_detected"])
+            self.assertTrue(ordinary["mutation_categories"]["git-refs"])
+            record = expected_transition_record(before, after)
+            approved = compare_workspace_baseline(before, after, allowed_paths=["src"], expected_git_transition=record)
+            self.assertFalse(approved["unexpected_mutation_detected"], approved["unexpected_mutations"])
+            self.assertEqual(approved["mutation_categories"]["scoped"], ["src/app.py"])
+            self.assertTrue(approved["git_transition_classifications"]["authorized"])
+            out_of_scope = compare_workspace_baseline(before, after, allowed_paths=["docs"], expected_git_transition=record)
+            self.assertEqual(out_of_scope["expected_git_transition"]["status"], "accepted")
+            self.assertTrue(out_of_scope["unexpected_mutation_detected"])
+            self.assertEqual(out_of_scope["mutation_categories"]["out-of-scope"], ["src/app.py"])
+            unchanged = compare_workspace_baseline(after, after, expected_git_transition=record)
+            self.assertEqual(unchanged["expected_git_transition"]["status"], "refused")
+            self.assertTrue(unchanged["unexpected_mutation_detected"])
+
+    def test_authorization_keeps_marker_and_same_size_mtime_controls_inert(self):
+        for kind in ("fsmonitor", "clean", "process"):
+            with self.subTest(kind=kind), tempfile.TemporaryDirectory() as tmpdir:
+                base = Path(tmpdir)
+                repo = make_repo(base)
+                same = repo / "src" / "same.py"
+                same.write_text("x = 1\n", encoding="utf-8")
+                git(repo, "add", "src/same.py")
+                git(repo, "commit", "-qm", "unchanged control")
+                marker = InertInspectionTests().plant(repo, base, kind)
+                hook_marker = base / "HOOK_RAN"
+                index = repo / ".git" / "index"
+                index_before = (index.read_bytes(), index.stat().st_mtime_ns)
+                before = capture_workspace_baseline(repo, allowed_paths=["src"])
+                original_size = (repo / "src" / "app.py").stat().st_size
+                (repo / "src" / "app.py").write_text("print('b')\n", encoding="utf-8")
+                self.assertEqual((repo / "src" / "app.py").stat().st_size, original_size)
+                stamp = same.stat()
+                os.utime(same, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 5_000_000_000))
+                git(repo, "config", "review.setting", "approved")
+                hook = repo / ".git" / "hooks" / "pre-commit"
+                hook.write_text(f"#!/bin/sh\ntouch '{hook_marker}'\n", encoding="utf-8")
+                hook.chmod(0o755)
+                after = capture_workspace_baseline(repo, allowed_paths=["src"])
+                record = expected_transition_record(before, after)
+                report = compare_workspace_baseline(before, after, allowed_paths=["src"], expected_git_transition=record)
+                self.assertFalse(marker.exists(), f"{kind} must not run during capture or classification")
+                self.assertFalse(hook_marker.exists(), "capturing an approved hook must not run it")
+                self.assertEqual((index.read_bytes(), index.stat().st_mtime_ns), index_before)
+                category = "attribution-ambiguous" if kind == "fsmonitor" else "scoped"
+                self.assertIn("src/app.py", report["mutation_categories"][category])
+                self.assertNotIn("src/same.py", [change["path"] for change in report["mutations"]])
+                changed = {change["path"] for change in report["git_metadata_changes"]}
+                self.assertIn(".git:common:config", changed)
+                self.assertIn(".git:common:hooks/pre-commit", changed)
+                if kind == "fsmonitor":
+                    self.assertTrue(report["incomplete"])
+                    self.assertTrue(report["unexpected_mutation_detected"])
+                    self.assertEqual(report["expected_git_transition"]["status"], "refused")
+                    self.assertEqual(set(report["git_transition_classifications"]["incomplete"]), changed)
+                else:
+                    self.assertFalse(report["incomplete"], after["incomplete_reasons"])
+                    self.assertFalse(report["unexpected_mutation_detected"], report["unexpected_mutations"])
+                    self.assertEqual(set(report["git_transition_classifications"]["authorized"]), changed)
+                subprocess.run(["git", "-C", str(repo), "status", "--porcelain"], check=False, capture_output=True)
+                self.assertTrue(marker.exists(), f"ordinary Git control must execute the planted {kind}")
+                self.assertFalse(hook_marker.exists(), "status does not execute a pre-commit hook")
+
+    def test_matching_records_refuse_omitted_metadata_and_non_directory_identities(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = make_repo(Path(tmpdir))
+            before = capture_workspace_baseline(repo, allowed_paths=["src"])
+            git(repo, "config", "review.setting", "approved")
+            after = capture_workspace_baseline(repo, allowed_paths=["src"])
+            for kind in ("omitted config", "file identity", "zero mode identity"):
+                first, second = copy.deepcopy(before), copy.deepcopy(after)
+                if kind == "omitted config":
+                    del second["git_metadata"]["entries"]["common:config"]
+                else:
+                    mode = 0o100644 if kind == "file identity" else 0
+                    first["capture_identity"]["root"][2] = mode
+                    second["capture_identity"]["root"][2] = mode
+                record = expected_transition_record(first, second)
+                with self.subTest(kind=kind):
+                    report = compare_workspace_baseline(first, second, expected_git_transition=record)
+                    self.assertEqual(report["expected_git_transition"]["status"], "refused")
+                    self.assertTrue(report["unexpected_mutation_detected"])
+                    self.assertFalse(report["git_transition_classifications"]["authorized"])
+
+
 def make_dirty_repo(base: Path) -> Path:
     repo = make_repo(base)
     (repo / "docs" / "guide.md").write_text("dirty\n", encoding="utf-8")

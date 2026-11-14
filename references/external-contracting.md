@@ -650,7 +650,8 @@ python3 scripts/build_contractor_packet.py \
      path must actually change; unselected changes remain unexpected.
 
    Both captures must be complete, well-formed version 3 evidence; the worktree
-   root identity must stay unchanged. A malformed, unapproved, stale or
+   root identity must stay unchanged. Missing standard metadata entries and
+   non-directory capture identities refuse. A malformed, unapproved, stale or
    mismatched record refuses, including when no change remains. A record never
    overrides incomplete capture, an unsupported layout, a within-capture
    indirection change, or workspace content scope checks. This is retrospective
