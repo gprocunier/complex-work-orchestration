@@ -1722,7 +1722,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         ):
             try:
                 outcome: object = runner.run(prompt)
-            except ChatGPTBrowserReviewError as exc:
+            except (ChatGPTBrowserReviewError, SystemExit) as exc:
                 outcome = exc
         self.assertEqual(create_share.call_count, 0)
         return outcome, {"submit": submit, "capture": capture, "pin": pin}
@@ -1755,7 +1755,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 real_screen = chatgpt_browser_review.require_clean
 
                 def record_screen(text, **kwargs):
-                    scans.append(text)
+                    if kwargs.get("surface") == "ChatGPT browser Send":
+                        scans.append(text)
                     return real_screen(text, **kwargs)
 
                 with patch.object(chatgpt_browser_review.secrets, "token_hex", return_value="0123456789abcdef0123456789abcdef"), \

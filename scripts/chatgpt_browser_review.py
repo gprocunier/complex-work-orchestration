@@ -467,6 +467,35 @@ class PlaywrightChatGPTRunner:
             prepared = capture.bind(source, require_clean(prompt, surface="ChatGPT browser Send"))
         return prepared, source
 
+    def _prepare_destinations(self, source, capture):
+        """Screen only disclosed URLs, selected from the same frozen inputs as the prompt."""
+        config = capture.value()["config"]
+        navigation = require_text_disclosure(config.get("chatgpt_url", "https://chatgpt.com/"), surface="ChatGPT browser destination")
+        if approved_chatgpt_origin(navigation) is None:
+            raise SystemExit("ChatGPT browser config chatgpt_url must be an https URL on a ChatGPT host")
+        cdp = config.get("connect_over_cdp_url") or config.get("cdp_url")
+        if cdp:
+            cdp = require_text_disclosure(cdp, surface="ChatGPT browser destination")
+            try:
+                parsed = urlparse(cdp)
+            except ValueError:
+                raise SystemExit("ChatGPT browser CDP URL must be an unauthenticated local HTTP(S) URL") from None
+            if parsed.scheme not in {"http", "https"} or parsed.username or parsed.password:
+                raise SystemExit("ChatGPT browser CDP URL must be an unauthenticated local HTTP(S) URL")
+            if (parsed.hostname or "").lower() not in LOCAL_CDP_HOSTS:
+                raise SystemExit("ChatGPT browser CDP URL must point at localhost")
+            cdp = capture.bind(source, require_clean(cdp, surface="ChatGPT browser destination"))
+        navigation = capture.bind(source, require_clean(navigation, surface="ChatGPT browser destination"))
+        self._destination_url(navigation, source)
+        return navigation, cdp
+
+    def _destination_url(self, prepared, source):
+        return self._require_current_source(prepared, source, prepared.payload.data).decode("utf-8")
+
+    def _require_current_source(self, prepared, source, output):
+        self._require_sources_unchanged()
+        return prepared.require_unchanged({**source, "config": self.config}, output)
+
     def submission_note(self) -> str | None:
         """What a failure report must say about Send, or None if nothing was sent."""
         if self.send_state == "may-have-been-submitted":
@@ -498,6 +527,8 @@ class PlaywrightChatGPTRunner:
         # Confirmation clicks configurable controls, which could resolve to Send.
         if not BROWSER_DISPATCH_AVAILABLE:
             raise SystemExit(BROWSER_DISPATCH_UNAVAILABLE)
+        source, capture = self._capture_submission_source("")
+        navigation, cdp = self._prepare_destinations(source, capture)
         try:
             from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
             from playwright.sync_api import sync_playwright
@@ -506,22 +537,25 @@ class PlaywrightChatGPTRunner:
 
         timeout_ms = int(self.config.get("page_timeout_seconds", 30)) * 1000
         manager = sync_playwright()
+        self._destination_url(navigation, source)
         playwright = manager.start()
         context = None
         attached = False
         try:
-            if self.config.get("connect_over_cdp_url"):
+            if cdp:
                 attached = True
-                browser = playwright.chromium.connect_over_cdp(str(self.config["connect_over_cdp_url"]))
+                browser = playwright.chromium.connect_over_cdp(self._destination_url(cdp, source))
+                self._destination_url(navigation, source)
                 context = browser.contexts[0] if browser.contexts else browser.new_context()
             else:
+                self._destination_url(navigation, source)
                 context = playwright.chromium.launch_persistent_context(
                     self.config["chrome_user_data_dir"],
                     executable_path=self.config.get("chrome_executable_path"),
                     headless=bool(self.config.get("headless", False)),
                 )
             page = self._select_page(context)
-            page.goto(str(self.config.get("chatgpt_url")), wait_until="domcontentloaded", timeout=timeout_ms)
+            page.goto(self._destination_url(navigation, source), wait_until="domcontentloaded", timeout=timeout_ms)
             self._wait_for_prompt(page, timeout_ms)
             self._select_configured_labels(page, timeout_ms, PlaywrightTimeoutError)
             model_attestation = self._confirm_configured_labels(page, timeout_ms)
@@ -548,6 +582,7 @@ class PlaywrightChatGPTRunner:
             raise SystemExit(BROWSER_DISPATCH_UNAVAILABLE)
         prompt = require_text_disclosure(prompt, surface="ChatGPT browser Send")
         source, capture = self._capture_submission_source(prompt)
+        navigation, cdp = self._prepare_destinations(source, capture)
         try:
             from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
             from playwright.sync_api import sync_playwright
@@ -564,15 +599,18 @@ class PlaywrightChatGPTRunner:
         share_url = ""
         response_text = ""
         manager = sync_playwright()
+        self._destination_url(navigation, source)
         playwright = manager.start()
         context = None
         attached = False
         try:
-            if self.config.get("connect_over_cdp_url"):
+            if cdp:
                 attached = True
-                browser = playwright.chromium.connect_over_cdp(str(self.config["connect_over_cdp_url"]))
+                browser = playwright.chromium.connect_over_cdp(self._destination_url(cdp, source))
+                self._destination_url(navigation, source)
                 context = browser.contexts[0] if browser.contexts else browser.new_context()
             else:
+                self._destination_url(navigation, source)
                 context = playwright.chromium.launch_persistent_context(
                     self.config["chrome_user_data_dir"],
                     executable_path=self.config.get("chrome_executable_path"),
@@ -581,7 +619,7 @@ class PlaywrightChatGPTRunner:
             try:
                 stage = "page-load"
                 page = self._select_page(context)
-                page.goto(str(self.config.get("chatgpt_url")), wait_until="domcontentloaded", timeout=timeout_ms)
+                page.goto(self._destination_url(navigation, source), wait_until="domcontentloaded", timeout=timeout_ms)
                 stage = "prompt-ready"
                 self._wait_for_prompt(page, timeout_ms)
                 stage = "model-selection"
@@ -600,7 +638,7 @@ class PlaywrightChatGPTRunner:
                     raise SystemExit("the conversation could not be read before submission; the prompt was not sent")
                 screened = require_clean(submitted, surface="ChatGPT browser Send")
                 prepared = capture.bind(source, screened)
-                self._require_sources_unchanged()
+                self._require_current_source(prepared, source, screened.data)
                 self._submit_prompt(page, screened.text(), timeout_ms, request_id, prepared=prepared, source=source)
                 stage = "response-wait"
                 pinned = self._pin_conversation(page, request_id, before_url, timeout_ms)
@@ -946,7 +984,7 @@ class PlaywrightChatGPTRunner:
         goes to whichever document is current when it arrives.
         """
         prepared, source = self._prepare_submission(prompt, prepared, source)
-        prompt = prepared.require_unchanged(source, prompt).decode("utf-8")
+        prompt = self._require_current_source(prepared, source, prompt).decode("utf-8")
         submission = request_id + "\n" + prompt
         boxes = page.query_selector_all(self.selector("prompt_box", "textarea, [contenteditable='true']"))
         if not boxes:
@@ -958,10 +996,11 @@ class PlaywrightChatGPTRunner:
             raise SystemExit("the page changed before the prompt was inserted; the prompt was not sent") from exc
         if origin is None:
             raise SystemExit("the page is not on a ChatGPT origin; the prompt was not sent")
-        prepared.require_unchanged(source, prompt)
-        self._require_sources_unchanged()
+        self._require_current_source(prepared, source, prompt)
         try:
-            inserted = box.evaluate(_STAMP_SCRIPT, request_id) is True and box.evaluate(_FILL_SCRIPT, prompt) is True
+            stamped = box.evaluate(_STAMP_SCRIPT, request_id) is True
+            self._require_current_source(prepared, source, prompt)
+            inserted = stamped and box.evaluate(_FILL_SCRIPT, prompt) is True
         except Exception as exc:
             raise SystemExit("the page changed before the prompt was inserted; the prompt was not sent") from exc
         if not inserted:
@@ -980,8 +1019,7 @@ class PlaywrightChatGPTRunner:
             except Exception as exc:
                 raise SystemExit("the page changed before Send was pressed; the prompt was not sent") from exc
             if state is None:
-                prepared.require_unchanged(source, prompt)
-                self._require_sources_unchanged()
+                self._require_current_source(prepared, source, prompt)
                 self.send_state = "may-have-been-submitted"
                 try:
                     state = button.evaluate(_SEND_SCRIPT, submission)

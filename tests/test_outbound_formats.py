@@ -178,7 +178,8 @@ class RendererScanCoverageTests(_OutboundHelpers, unittest.TestCase):
                 manual.export_screened("Long review document.", as_json=False)
             helper = browser_tests.ChatGPTBrowserReviewTests()
             outcome, effects = helper._drive_fake_browser({"selectors": {}, "chrome_user_data_dir": "/tmp/profile"})
-            self.assertIsInstance(outcome, browser.ChatGPTBrowserReviewError)
+            self.assertTrue(isinstance(outcome, (browser.ChatGPTBrowserReviewError, screening.OutboundRefused)),
+                            "an incomplete destination or Send scan must refuse")
             effects["submit"].assert_not_called()
             opener = self.Opener()
             with self.assertRaises(screening.OutboundRefused):
