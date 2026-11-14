@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## 0.2.2 - 2026-11-14
+
+- Strengthened release checks for structured Beads helpers and shell command candidates.
+- Bound release guard checks to their effects through local control structure or explicitly validated calls.
+- Strengthened closure and release guard witnesses, including refusal before opening an unpinned share reader.
+- Reduced release inventory size with lossless primitive path references and unchanged limits.
+- Made terminal projection test scheduling deterministic while preserving transport refusal checks.
+
 ## 0.2.1 - 2026-11-14
 
 - Added an optional repository hook to check commit messages and contributor identity.

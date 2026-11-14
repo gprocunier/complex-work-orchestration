@@ -68,7 +68,7 @@ def refresh_checkpoint(manifest, files, messages):
 
 
 def route_paths(route):
-    points = [route["entrypoint"], *route["gates"], *route["effect_points"]]
+    points = R.route_points(route)
     for witness in route["witnesses"]:
         points.extend([witness["body"], *witness.get("support", [])])
     return set(route["trace_files"]) | {point["path"] for point in points}

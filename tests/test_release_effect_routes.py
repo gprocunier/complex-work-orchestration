@@ -50,6 +50,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         witness, _text = R.body(contents, {"path": "tests/test_example.py", "symbol": "ExampleTests.test_zero_and_positive"})
         route = {"id": "EXAMPLE-send", "entrypoint": entry, "effect": "append to disposable list",
                  "gates": [{"path": "scripts/example.py", "line": 2, "text": "if not allowed:"}],
+                 "effect_points": [{"path": "scripts/example.py", "line": 4, "text": "effects.append('EXAMPLE send')"}],
                  "authority": "EXAMPLE fixture Boolean only", "earlier_effects": "none",
                  "trace_files": ["scripts/example.py"],
                  "witnesses": [{"test_id": test_id, "body": witness,
@@ -324,6 +325,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         """Rebind every source identity; classifier failures cannot hide behind drift."""
         root, _output, _review = self.example()
         selected = root / path
+        selected.parent.mkdir(parents=True, exist_ok=True)
         prefix = selected.read_text() + "\n" if selected.exists() else ""
         selected.write_text(prefix + code)
         value = json.loads((root / R.INVENTORY).read_bytes())
@@ -332,6 +334,11 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                                          if path.startswith("scripts/")})
         hits = R.primitive_hits(contents)
         coverage = value["primitive_coverage"]
+        if disposition == "route":
+            # These classifier fixtures deliberately place unexecuted calls in
+            # other functions/files. They make no guard-order claim for them.
+            value["routes"][0].update(gates=[], admission="inspection-only")
+            value["routes"][0]["witnesses"][0]["kind"] = "inspection-only"
         if disposition:
             for index, hit in enumerate(hits):
                 if disposition == "exclude":
@@ -371,6 +378,136 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         with self.assertRaisesRegex(R.Refused, "regular bounded file required"):
             R.inventory(root)
 
+    def compact_primitive_paths(self, value):
+        coverage = value["primitive_coverage"]
+        paths = sorted({row[0] for row in coverage["hits"]})
+        coverage.update(schema="bounded-primitives-v2", paths=paths,
+                        hits=[[paths.index(row[0]), *row[1:]] for row in coverage["hits"]])
+
+    def test_compact_primitive_paths_preserve_expanded_spans_and_decisions(self):
+        code = "import subprocess\nlabel = 'é'; result = subprocess.run(\n    ['true']\n)\n"
+        for disposition in ("route", "exclude"):
+            with self.subTest(disposition=disposition):
+                root, value, _hits = self.primitive_example(code, disposition)
+                shell = "scripts/second.sh"
+                (root / shell).write_text("# EXAMPLE bd close and curl are lexical candidates\n")
+                files, contents = R.source(root)
+                value["source_bindings"][shell] = files[shell]
+                coverage = value["primitive_coverage"]
+                for index, hit in enumerate(R.primitive_hits({shell: contents[shell]})):
+                    key = f"EXAMPLE-shell-{index}"
+                    coverage["exclusions"][key] = {"reason": "EXAMPLE comment only",
+                                                   "conclusion": "no effect is executed"}
+                    coverage["hits"].append([*hit, ["exclude", key]])
+                path = root / R.INVENTORY
+                path.write_bytes(R.encoded(value))
+                expanded = R.trace(root)
+                original = copy.deepcopy(coverage)
+                self.compact_primitive_paths(value)
+                path.write_bytes(R.encoded(value))
+                compact = R.trace(root)
+                self.assertEqual(compact["primitive_hits"], expanded["primitive_hits"])
+                self.assertEqual(compact["routes"], expanded["routes"])
+                self.assertEqual(compact["primitive_coverage"], original)
+                for row in value["primitive_coverage"]["hits"]:
+                    self.assertEqual(len(row[6]), 64)
+                # Table order has no meaning beyond each explicit index.
+                coverage = value["primitive_coverage"]
+                coverage["paths"].reverse()
+                for row in coverage["hits"]:
+                    row[0] = len(coverage["paths"]) - 1 - row[0]
+                path.write_bytes(R.encoded(value))
+                self.assertEqual(R.trace(root)["primitive_coverage"], original)
+                coverage["hits"][0][0], coverage["hits"][1][0] = coverage["hits"][1][0], coverage["hits"][0][0]
+                path.write_bytes(R.encoded(value))
+                with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
+                    R.trace(root)
+        # An empty table is the exact representation of no candidates.
+        root, _output, _review = self.example()
+        value = json.loads((root / R.INVENTORY).read_bytes())
+        self.compact_primitive_paths(value)
+        (root / R.INVENTORY).write_bytes(R.encoded(value))
+        self.assertEqual(R.trace(root)["primitive_hits"], [])
+
+    def test_compact_primitive_path_tables_and_indices_refuse_malformed_input(self):
+        root, value, _hits = self.primitive_example("import subprocess\nsubprocess.run(['true'])\n", "exclude")
+        self.compact_primitive_paths(value)
+        coverage = value["primitive_coverage"]
+        changes = {
+            "missing-table": (lambda x: x.pop("paths"), "primitive path table"),
+            "wrong-table-type": (lambda x: x.update(paths={"0": "scripts/primitive.py"}), "primitive path table"),
+            "duplicate-path": (lambda x: x["paths"].append(x["paths"][0]), "duplicate primitive path"),
+            "nonstring-path": (lambda x: x["paths"].__setitem__(0, []), "primitive path entry"),
+            "missing-source": (lambda x: x["paths"].__setitem__(0, "scripts/missing.py"), "primitive path entry"),
+            "unnormalized-path": (lambda x: x["paths"].__setitem__(0, "scripts/../scripts/primitive.py"),
+                                  "primitive path entry"),
+            "unused-path": (lambda x: x["paths"].append("scripts/example.py"), "unused primitive path"),
+            "table-bound": (lambda x: x.update(paths=[x["paths"][0]] * (R.MAX_FILES + 1)), "primitive path table"),
+            "v1-with-table": (lambda x: x.update(schema="bounded-primitives-v1"), "unexpected primitive path table"),
+            "malformed-schema": (lambda x: x.update(schema=[]), "primitive coverage schema"),
+        }
+        for index in (False, True, -1, 1, 0.0, "0", None, []):
+            changes[f"index-{index!r}"] = (
+                lambda x, index=index: x["hits"][0].__setitem__(0, index), "primitive path index")
+        for name, (change, message) in changes.items():
+            with self.subTest(invalid=name):
+                changed = copy.deepcopy(coverage)
+                change(changed)
+                (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                with self.assertRaisesRegex(R.Refused, message):
+                    R.trace(root)
+
+    def test_compact_primitive_hits_and_exclusions_require_exact_coverage(self):
+        code = "import subprocess\nsubprocess.run(['true'])\nsubprocess.check_call(['true'])\n"
+        root, value, _hits = self.primitive_example(code, "exclude")
+        self.compact_primitive_paths(value)
+        coverage = value["primitive_coverage"]
+        first, second = [row[-1][1] for row in coverage["hits"]]
+        changes = {
+            "missing": lambda x: x["hits"].pop(),
+            "extra": lambda x: x["hits"].append([*x["hits"][0][:6], "0" * 64, x["hits"][0][-1]]),
+            "duplicate": lambda x: x["hits"].append(copy.deepcopy(x["hits"][0])),
+            "stale-span": lambda x: x["hits"][0].__setitem__(4, 999),
+            "stale-hash": lambda x: x["hits"][0].__setitem__(6, "0" * 64),
+            "short-hash": lambda x: x["hits"][0].__setitem__(6, x["hits"][0][6][:16]),
+            "bool-column": lambda x: x["hits"][0].__setitem__(2, False),
+            "malformed-row": lambda x: x["hits"][0].pop(),
+            "nonlist-hits": lambda x: x.update(hits={}),
+            "unknown-exclusion": lambda x: x["hits"][0].__setitem__(7, ["exclude", "missing"]),
+            "malformed-exclusion": lambda x: x["exclusions"].__setitem__(first, []),
+            "nonmapping-exclusions": lambda x: x.update(exclusions=[]),
+            "missing-exclusion": lambda x: x["exclusions"].pop(first),
+            "duplicate-exclusion": lambda x: x["hits"][1].__setitem__(7, ["exclude", first]),
+            "orphan-exclusion": lambda x: x["exclusions"].update({"EXAMPLE-orphan": x["exclusions"][second]}),
+            "missing-conclusion": lambda x: x["exclusions"][first].pop("conclusion"),
+            "malformed-exclusion-route": lambda x: x["exclusions"][first].update(route=[]),
+        }
+        for name, change in changes.items():
+            with self.subTest(invalid=name):
+                changed = copy.deepcopy(coverage)
+                change(changed)
+                (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                with self.assertRaises(R.Refused, msg=f"invalid compact {name} admitted"):
+                    R.trace(root)
+
+    def test_compact_primitive_route_dispositions_require_exact_selection(self):
+        root, value, _hits = self.primitive_example("import subprocess\nsubprocess.run(['true'])\n", "route")
+        self.compact_primitive_paths(value)
+        coverage = value["primitive_coverage"]
+        changes = {
+            "malformed-route": lambda x: x["hits"][0][-1].__setitem__(1, []),
+            "unknown-route": lambda x: x["hits"][0][-1].__setitem__(1, "missing"),
+            "unknown-point": lambda x: x["hits"][0][-1].__setitem__(2, "missing"),
+            "unrelated-point": lambda x: x["hits"][0][-1][2].update(line=1, text="import subprocess"),
+        }
+        for name, change in changes.items():
+            with self.subTest(invalid=name):
+                changed = copy.deepcopy(coverage)
+                change(changed)
+                (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                with self.assertRaises(R.Refused, msg=f"invalid compact {name} admitted"):
+                    R.trace(root)
+
     def test_unmapped_primitives_refuse_after_coherent_rebinding(self):
         cases = [
             ("process", "import subprocess\nsubprocess.run(['bd', 'close', 'EXAMPLE'])\n"),
@@ -388,6 +525,8 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             ("appserver", "RegisteredAppServer('EXAMPLE')\n"),
             ("appserver", "transport.send_request('EXAMPLE')\n"),
             ("beads", "run_bd(['close', 'EXAMPLE'])\n"),
+            ("beads", "run_bd_structured(['close', 'EXAMPLE'])\n"),
+            ("beads", "beads.run_bd_structured(['close', 'EXAMPLE'])\n"),
             ("beads", "create_bead('EXAMPLE')\n"),
             ("install-copy", "from shutil import copytree as copy_skill\ncopy_skill('EXAMPLE', 'skills')\n"),
             ("dynamic", "import importlib\nimportlib.import_module(module_name)\n"),
@@ -445,6 +584,59 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     self.assertTrue(hits, "constructed primitive must have an exact disposition")
                     self.assertEqual(R.trace(root)["primitive_hits"], hits)
 
+    def test_module_local_beads_helpers_require_dispositions_after_rebinding(self):
+        helpers = {
+            "scripts/qualified_closure.py": "_bd",
+            "scripts/cwo_core/native_activation_preview.py": "_bd",
+            "scripts/continue_sprint.py": "bd_json",
+            "scripts/summarize_resume_state.py": "bd_json",
+        }
+        for path, helper in helpers.items():
+            for code in (f"{helper}(['close', 'EXAMPLE'])\n",
+                         f"invoke = {helper}\ninvoke(['close', 'EXAMPLE'])\n"):
+                with self.subTest(path=path, code=code):
+                    root, _value, hits = self.primitive_example(code, path=path)
+                    with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
+                        R.trace(root)
+                    self.assertEqual([hit[5] for hit in hits], ["beads"])
+                    root, _value, hits = self.primitive_example(code, "route", path)
+                    self.assertEqual(R.trace(root)["primitive_hits"], hits)
+        self.assertEqual(R.primitive_hits({"scripts/unrelated.py": b"_bd([])\nbd_json([])\n"}), [])
+
+    def test_shell_candidates_require_per_line_dispositions_after_rebinding(self):
+        cases = (("beads", '  bd close "$1"\n'),
+                 ("process", 'systemctl --user stop EXAMPLE\n'),
+                 ("network", 'curl --fail https://EXAMPLE.invalid\n'))
+        for path in ("scripts/primitive.sh", "scripts/nested/primitive.sh", "scripts/cwo-codex"):
+            for family, code in cases:
+                with self.subTest(path=path, code=code):
+                    root, _value, hits = self.primitive_example(code, path=path)
+                    with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
+                        R.trace(root)
+                    self.assertEqual([hit[5] for hit in hits], [family])
+                    self.assertEqual(hits[0][1:5], [1, 0, 1, len(code.rstrip().encode())])
+                    for disposition in ("route", "exclude"):
+                        root, _value, hits = self.primitive_example(code, disposition, path)
+                        self.assertEqual(R.trace(root)["primitive_hits"], hits)
+
+    def test_shell_lexical_candidates_include_text_and_bind_each_line(self):
+        code = ('# bd close EXAMPLE\n'
+                'printf "curl EXAMPLE"\n'
+                "cat <<'EXAMPLE'\n"
+                'systemctl stop EXAMPLE\n'
+                'EXAMPLE\n'
+                'printf "caf\u00e9"; bd version; bd --version; curl EXAMPLE\n'
+                'cwo-bd systemctl-helper curl_helper\n')
+        root, value, hits = self.primitive_example(code, "exclude", "scripts/primitive.sh")
+        self.assertEqual([(row[1], row[5]) for row in hits],
+                         [(1, "beads"), (2, "network"), (4, "process"), (6, "beads"), (6, "network")])
+        self.assertEqual(hits[-1][4], len(code.splitlines()[5].encode()))
+        self.assertEqual(R.trace(root)["primitive_hits"], hits)
+        value["primitive_coverage"]["hits"].pop()
+        (root / R.INVENTORY).write_bytes(R.encoded(value) + b"\n")
+        with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
+            R.trace(root)
+
     def test_effect_points_and_named_manual_exclusions_cover_each_hit(self):
         code = "import subprocess\nresult = subprocess.run(\n    ['true']\n)\n"
         for disposition in ("route", "exclude"):
@@ -500,7 +692,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     # Exercise the actual compact table path with an assigned,
                     # multiline call; line-only points cannot select that span.
                     valid = copy.deepcopy(value)
-                    point = valid["routes"][0]["effect_points"][0]
+                    point = valid["routes"][0]["effect_points"][-1]
                     valid["point_files"] = [point["path"]]
                     valid["points"] = {"EXAMPLE-primitive": [0, point["line"], point["text"],
                                                              point["col"], point["end_line"], point["end_col"]]}
@@ -591,6 +783,180 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                          end_col=node.end_col_offset, text=R._span(code.encode(), node).decode())
         return point
 
+    def structural_route(self, code, gate_line, effect_line, *, shell=False):
+        gate = self.gate_point(code, gate_line, shell=shell)
+        effect = self.gate_point(code, effect_line, shell=shell)
+        return {gate["path"]: code.encode()}, {"id": "EXAMPLE-order", "gates": [gate],
+                                                "effect_points": [effect]}
+
+    def test_gate_must_dominate_its_effect(self):
+        negatives = [
+            ("def unrelated(allowed):\n    need(allowed)\ndef run(effects):\n    effects.append(1)\n", 2, 4),
+            ("def run(allowed, effects):\n    if allowed:\n        need(allowed)\n    else:\n        effects.append(1)\n", 3, 5),
+            ("def run(allowed, effects):\n    if allowed:\n        need(allowed)\n    effects.append(1)\n", 3, 4),
+            ("def run(allowed, effects):\n    if allowed:\n        pass\n    effects.append(1)\n", 2, 4),
+            ("def run(allowed, effects):\n    effects.append(1)\n    need(allowed)\n", 3, 2),
+            ("def run(allowed, effects):\n    try:\n        need(allowed)\n    except ValueError:\n        pass\n    effects.append(1)\n", 3, 6),
+            ("def run(allowed, effects):\n    def deferred():\n        need(allowed)\n    effects.append(1)\n", 3, 4),
+            ("def run(allowed, effects):\n    if allowed:\n        try:\n            need(allowed)\n        except ValueError:\n            pass\n    effects.append(1)\n", 2, 7),
+        ]
+        for code, gate, effect in negatives:
+            with self.subTest(code=code):
+                contents, route = self.structural_route(code, gate, effect)
+                with self.assertRaisesRegex(R.Refused, "gate does not dominate"):
+                    R._check_gate_effects(contents, [route], [])
+
+    def test_supported_refusal_order_and_positive_effect(self):
+        sources = [
+            ("def run(allowed, effects):\n    if not allowed:\n        raise ValueError('held')\n    effects.append(1)\n", 2, 4),
+            ("def run(allowed, effects):\n    if not allowed:\n        return\n    effects.append(1)\n", 2, 4),
+            ("def run(allowed, effects):\n    need(allowed)\n    effects.append(1)\n", 2, 3),
+            ("def run(allowed, effects):\n    try:\n        need(allowed)\n    except ValueError:\n        return\n    effects.append(1)\n", 3, 6),
+        ]
+        for code, gate, effect in sources:
+            with self.subTest(code=code):
+                contents, route = self.structural_route(code, gate, effect)
+                R._check_gate_effects(contents, [route], [])
+                def need(allowed):
+                    if not allowed:
+                        raise ValueError('held')
+                namespace = {"need": need}
+                exec(code, namespace)
+                effects = []
+                try:
+                    namespace['run'](False, effects)
+                except ValueError:
+                    pass
+                self.assertEqual(effects, [])
+                namespace['run'](True, effects)
+                self.assertEqual(effects, [1])
+
+    def test_sibling_effect_cannot_borrow_another_effects_gate(self):
+        code = ("def run(allowed, effects):\n    if allowed:\n        need(allowed)\n"
+                "        effects.append(1)\n    else:\n        effects.append(2)\n")
+        contents, route = self.structural_route(code, 3, 4)
+        route["effect_points"].append(self.gate_point(code, 6))
+        with self.assertRaisesRegex(R.Refused, "effect has no dominating gate"):
+            R._check_gate_effects(contents, [route], [])
+
+    def test_shell_gate_order_is_function_and_branch_bound(self):
+        guard = '  if [ "$DRY_RUN" -eq 1 ]; then\n    return 0\n  fi\n'
+        good = 'run() {\n' + guard + '  effect\n}\n'
+        bad = 'other() {\n' + guard + '}\nrun() {\n  effect\n}\n'
+        sibling = 'run() {\n  if other; then\n' + guard + '  else\n    effect\n  fi\n}\n'
+        elif_sibling = ('run() {\n  if first; then\n    :\n  elif second; then\n' + guard +
+                        '  elif third; then\n    effect\n  fi\n}\n')
+        for code, gate, effect, accepted in ((good, 2, 5, True), (bad, 2, 7, False),
+                                            (sibling, 3, 7, False), (elif_sibling, 5, 9, False)):
+            with self.subTest(code=code):
+                contents, route = self.structural_route(code, gate, effect, shell=True)
+                if accepted:
+                    R._check_gate_effects(contents, [route], [])
+                else:
+                    with self.assertRaisesRegex(R.Refused, "gate does not dominate"):
+                        R._check_gate_effects(contents, [route], [])
+
+    def test_explicit_call_chains_validate_calls_refusal_and_order(self):
+        source = ("def validate(allowed):\n    if not allowed:\n        raise ValueError('held')\n"
+                  "def send(effects):\n    effects.append(1)\n"
+                  "def run(allowed, effects):\n    validate(allowed)\n    send(effects)\n")
+        def fixture(code):
+            lines = code.splitlines()
+            point = lambda text: self.gate_point(code, next(i for i, line in enumerate(lines, 1) if line.strip() == text))
+            gate, effect = point("if not allowed:"), point("effects.append(1)")
+            contents = {gate["path"]: code.encode()}
+            def call(name):
+                line = next(n.lineno for n in ast.walk(ast.parse(code)) if isinstance(n, ast.Call) and
+                            ast.unparse(n.func) == name)
+                return self.gate_point(code, line, callee=name)
+            def target(name):
+                return R.body(contents, {"path": gate["path"], "symbol": name})[0]
+            route = {"id": "EXAMPLE-chain", "gates": [gate], "effect_points": [effect], "gate_chains": [
+                {"gate": gate, "effect": effect, "calls": [
+                    {"call": call("validate"), "target": target("validate"), "direction": "return"},
+                    {"call": call("send"), "target": target("send"), "direction": "into"}]}]}
+            return contents, route
+        contents, route = fixture(source)
+        R._check_gate_effects(contents, [route], [])
+        other = "scripts/unrelated.py"
+        contents[other] = b"def send(effects):\n    effects.append(2)\n"
+        bad = copy.deepcopy(route)
+        unrelated_effect = {"path": other, "line": 2, "text": "effects.append(2)"}
+        bad["effect_points"] = [unrelated_effect]
+        bad["gate_chains"][0]["effect"] = unrelated_effect
+        bad["gate_chains"][0]["calls"][-1]["target"] = R.body(contents, {"path": other, "symbol": "send"})[0]
+        with self.assertRaisesRegex(R.Refused, "chain call target mismatch"):
+            R._check_gate_effects(contents, [bad], [])
+        for change in ("target", "direction", "unbound-gate", "invented-call"):
+            with self.subTest(metadata=change):
+                bad = copy.deepcopy(route)
+                edge = bad["gate_chains"][0]["calls"][0]
+                if change == "target":
+                    edge["target"] = bad["gate_chains"][0]["calls"][1]["target"]
+                elif change == "direction":
+                    edge["direction"] = "invented"
+                elif change == "unbound-gate":
+                    bad["gates"] = []
+                else:
+                    edge["call"] = bad["gate_chains"][0]["gate"]
+                with self.assertRaises(R.Refused):
+                    R._check_gate_effects(contents, [bad], [])
+        for code in (source.replace("    validate(allowed)", "    if allowed:\n        validate(allowed)"),
+                     source.replace("    validate(allowed)\n    send(effects)", "    send(effects)\n    validate(allowed)"),
+                     source.replace("    if not allowed:", "    if allowed:\n        return\n    if not allowed:"),
+                     source.replace("raise ValueError('held')", "return False"),
+                     source.replace("def send", "async def send"),
+                     source.replace("def send", "@decorator\ndef send")):
+            with self.subTest(source=code):
+                contents, route = fixture(code)
+                with self.assertRaises(R.Refused):
+                    R._check_gate_effects(contents, [route], [])
+
+    def test_real_ruff_and_installer_routes_bind_their_actual_checks(self):
+        value = json.loads((ROOT / R.INVENTORY).read_bytes())
+        routes = {route["id"]: route for route in R._routes(value)}
+        for name in ("X6.2", "I2.1"):
+            route = routes[name]
+            contents = {point["path"]: (ROOT / point["path"]).read_bytes() for point in R.route_points(route)}
+            with self.subTest(route=name):
+                R._check_gate_effects(contents, [route], [])
+                bad = copy.deepcopy(route)
+                if name == "X6.2":
+                    gate = next(g for g in bad["gates"] if "ruff_version" in g["text"])
+                    self.assertEqual(gate["text"], "if initial.ruff_version() != RUFF:")
+                    # A real, current refusal in the same file is still unrelated
+                    # to either guarded effect (it runs after the Ruff child).
+                    lines = contents[gate["path"]].decode().splitlines()
+                    gate.update(line=next(i for i, line in enumerate(lines, 1) if line.strip() == "if not isinstance(records, list):"),
+                                text="if not isinstance(records, list):")
+                else:
+                    owners = set()
+                    for gate in bad["gates"]:
+                        data = contents[gate["path"]]
+                        blocks = R._shell_blocks(data)[0][gate["line"]]
+                        start = next(start for kind, start, _branch in blocks if kind == "function")
+                        owners.add(data.decode().splitlines()[start - 1].strip())
+                    self.assertEqual(owners, {"uninstall_skill() {", "validate_skill() {"})
+                    enabling = next(g for g in route["review_gates"] if "args.write_manifest" in g["text"])
+                    bad["gates"].append(enabling)
+                bad["manual_order_override"] = "EXAMPLE invented exemption must have no authority"
+                with self.assertRaisesRegex(R.Refused, "gate does not dominate"):
+                    R._check_gate_effects(contents, [bad], [])
+
+    def test_annotation_version_refuses_before_subprocess_with_positive(self):
+        import check_extended_code_health as health
+        with mock.patch.object(health.initial, "ruff_version", return_value="EXAMPLE-wrong"), \
+             mock.patch.object(health.subprocess, "run") as child:
+            with self.assertRaisesRegex(SystemExit, "pinned Ruff"):
+                health.annotation_diagnostics(ROOT, ["scripts/EXAMPLE.py"])
+            child.assert_not_called()
+        completed = subprocess.CompletedProcess([], 0, "[]", "")
+        with mock.patch.object(health.initial, "ruff_version", return_value=health.RUFF), \
+             mock.patch.object(health.subprocess, "run", return_value=completed) as child:
+            self.assertEqual(health.annotation_diagnostics(ROOT, ["scripts/EXAMPLE.py"]), {})
+            child.assert_called_once()
+            self.assertEqual(child.call_args.args[0][:2], ["ruff", "check"])
+
     def gate_example(self, code, gate, effects=(), *, compact=False, same_key=False):
         root, _output, _review = self.example()
         (root / gate["path"]).write_text(code)
@@ -624,7 +990,14 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
     def assert_gate_accepts(self, root):
         failure, observed = None, None
         try:
-            observed = R.trace(root)
+            route = R._routes(json.loads((root / R.INVENTORY).read_bytes()))[0]
+            if route["effect_points"]:
+                observed = R.trace(root)
+            else:
+                # Form-only samples (including a standalone raise) do not claim
+                # to guard an unrelated function in the functioning fixture.
+                contents = R.source(root)[1]
+                observed = {"routes": [R.gate_span(contents, route["gates"][0])]}
         except R.Refused as error:
             failure = error
         self.assertIsNone(failure, f"current valid guard refused: {failure}")
@@ -754,6 +1127,9 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                 "end_col": len("if allowed:"), "text": "if allowed:"}
         self.assert_gate_accepts(self.gate_example(code, gate,
                                                  [self.gate_point(code, callee="effects.append")]))
+        code = "if allowed():\n    effects.append('EXAMPLE')\n"
+        self.assert_gate_accepts(self.gate_example(code, self.gate_point(code, predicate=True),
+                                                 [self.gate_point(code, 2, callee="effects.append")]))
         code = "need(\n    allowed\n)\n"
         prefix = self.gate_point(code)
         self.assertEqual(R._effect_interval(code.encode(), prefix), (0, len(code.rstrip())))

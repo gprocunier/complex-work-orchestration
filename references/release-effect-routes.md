@@ -32,7 +32,11 @@ Every current `scripts/` file must appear in `source_bindings`, including benign
 files and the checker itself. Added, removed, changed or unbound scripts refuse.
 The bounded Python classifier covers process creation (`subprocess`, `os` exec/
 spawn), socket/HTTP constructors and requests, Playwright entry/method candidates,
-AppServer constructors/RPC candidates, Beads helpers, and `shutil` copy/move calls.
+AppServer constructors/RPC candidates, Beads helpers (including bare and qualified
+`run_bd_structured`), and `shutil` copy/move calls. The reviewed module-local
+`_bd` adapters in qualified closure and activation preview, and `bd_json` helpers
+in continuation and resume summaries, seed the same file-local alias unions.
+Unrelated functions with these local names do not inherit that classification.
 All copies are candidates; destination safety remains a manual decision. Imported
 aliases, simple assigned aliases, literal `importlib` and `getattr` expressions
 are resolved within these families. Alias unions preserve possible effects across
@@ -47,16 +51,40 @@ the existing eight alias passes and twelve expression levels. A chain
 that exceeds the alias budget refuses. Unknown imports/getattr targets and other
 unresolved dynamic call candidates require individual named exclusions. This
 finite classifier does not detect arbitrary reflection, generated code, arbitrary
-wrapper calls or shell command semantics. Shell lines remain lexical evidence for
-external review; their files still require complete byte/mode bindings.
+wrapper calls or shell command semantics. For every `.sh` file under `scripts/`
+and `scripts/cwo-codex`, lexical `bd`, `systemctl` and `curl` tokens create
+Beads, process and network candidates respectively. Each matching whole line
+requires a disposition for each family present, including help, comments, quoted
+strings and here-documents. These are candidates for manual review, not inferred
+command execution. Token boundaries exclude adjacent letters, digits, underscores
+and hyphens; expansions and generated command names remain outside this bounded
+scan. Shell files still require complete byte/mode bindings.
 
-`primitive_coverage` uses schema `bounded-primitives-v1`. Each `hits` row is
-`[path, line, col, end_line, end_col, family, sha256, disposition]`; its hash binds
-the exact UTF-8 call bytes. The observed and authored hit sets must match exactly,
+`primitive_coverage` supports the expanded `bounded-primitives-v1` schema and
+the compact `bounded-primitives-v2` schema. Expanded `hits` rows are
+`[path, line, col, end_line, end_col, family, sha256, disposition]`.
+Compact coverage adds an explicit `paths` table of unique current script paths;
+each hit replaces only its path with a zero-based integer table index:
+`[path_index, line, col, end_line, end_col, family, sha256, disposition]`.
+For example, `"paths":["scripts/example.py"]` makes index `0` select that path.
+Boolean, negative, noninteger and out-of-range indices refuse, as do malformed,
+duplicate, missing-source or unused table entries. The table retains the existing
+source-file count bound; an empty hit set uses an empty table. Expanded v1 data
+has no `paths` table and remains supported, including EXAMPLE fixtures.
+
+Both forms retain full 64-character SHA256 values binding the exact UTF-8 call
+bytes, or whole shell line bytes without its newline. Columns remain UTF-8 byte
+offsets and the span end remains excluded. Trace evidence expands compact rows
+before applying the same exact hit, route and exclusion checks. Rebinding keeps
+the selected representation and layout, preserves all primitive decisions and
+is a byte-for-byte no-op when bindings are current. The 512 KiB inventory cap,
+all source/file/count bounds, alias budgets and deadlines are unchanged; source
+bindings, gates, manual decisions and named witnesses retain their full semantics.
+The observed and authored hit sets must match exactly,
 without duplicate, missing, stale or extra rows. A disposition is either
 `["route", route_id, point_key]`, selecting an exact effect point of that route,
 or `["exclude", exclusion_id]`. Expanded EXAMPLE routes may supply the effect
-point dict directly. Mapped points must equal the complete classified call span.
+point dict directly. Mapped points must equal the complete classified call or shell line span.
 Each exclusion is used once and supplies a nonempty `reason` and `conclusion`,
 optionally naming an existing route. Thus its name and decision bind one specific
 source span, never a file-wide exemption. Orphan/duplicate/unknown exclusions
@@ -88,9 +116,48 @@ unsupported here-document forms refuse. This is bounded lexical context, not a
 general Bash parser, expansion evaluator or control-flow proof. Unknown selected
 forms refuse; external review still checks the complete shell programme.
 
-These checks establish source form and interval consistency. They cannot prove
-predicate correctness, runtime dominance, callback identity or refusal causality.
-The named functioning witnesses and independent semantic review remain required.
+Every operative gate must structurally precede an effect of its route, and every
+guarded effect must have such a gate. Python checks stay within one function and
+suite: a sibling branch, nested function, optional nested check, later statement
+or caught refusal cannot establish order. Enclosing conditionals select their
+own suites; a preceding conditional must contain a terminating refusal, with
+caught or deferred refusals excluded. A try suite can
+establish order beyond the try only when every handler terminates and there is
+no finally suite. Shell checks bind the same function and lexical branch, with
+the finite dry-run returns, checker failure and projection refusal forms above.
+This is bounded structural analysis, not a general Python or Bash interpreter.
+
+Cross-function bindings use explicit `gate_chains`, each naming a gate, effect
+and ordered `calls`. Every edge names an exact call point, a digest-bound target
+declaration and direction (`into` the callee or `return` from a validator).
+The call must match a local function, explicit import, same-class `self` method
+or a directly constructed or uniquely assigned local receiver (an earlier
+`None` initialization is allowed). Unlinked
+same-named targets refuse. Each step must preserve local order; a returning
+validator must raise on refusal and cannot return successfully before its check.
+Async, generator and decorated targets refuse.
+No chain, exemption or manual fallback is invented by the checker or rebinder.
+Named targets are reviewed lexical links, not proof of runtime import/module
+identity, virtual dispatch, callbacks or arbitrary downstream code.
+
+`review_gates` retains exact source/form/overlap checks for contextual observations
+with explicit `gate_limits`; those observations receive no dominance credit.
+Sibling entry checks, optional profile/hash checks, lifecycle registration and
+retrospective identity checks are distinguished from operative gates. Raw helper
+and dormant browser candidates retain individual manual dispositions rather than
+borrowing a caller's gate. Conditional command validation, the fixed measurement
+path loop and constructed transports still need their named witnesses and manual
+review. Ruff annotation checks bind the actual version refusal. Installer
+uninstall and validator routes bind their own dry-run returns; manifest writing
+is intentional persistence requested through the staged projection checker,
+with the direct writer covered by its manual programme contract. Its enabling
+option supplies no refusal credit, and postactivation validation cannot undo an
+install.
+
+These checks establish source form, interval consistency and the stated bounded
+ordering relationships. They cannot prove predicate correctness, runtime value
+or callback identity, all runtime paths, or refusal causality. Functioning
+refusal/positive witnesses and independent semantic review remain required.
 
 Release review combines the effect-path trace, milestone assessment, actual
 platform gates and semantic fault witnesses. The trace checker alone does not

@@ -324,8 +324,10 @@ class ChatGPTShareIngestTests(unittest.TestCase):
             marker = Path(tmpdir) / "READER_RAN"
             reader = Path(tmpdir) / "read_chatgpt_share.py"
             reader.write_text(f"from pathlib import Path\nPath({str(marker)!r}).touch()\nprint('{{}}')\n", encoding="utf-8")
-            with self.assertRaisesRegex(SystemExit, "share-reader-not-pinned"):
-                ingest_chatgpt_share_return.run_reader(reader, "https://chatgpt.com/share/abc", 5)
+            with patch.object(ingest_chatgpt_share_return.os, "open", wraps=os.open) as opened:
+                with self.assertRaisesRegex(SystemExit, "share-reader-not-pinned"):
+                    ingest_chatgpt_share_return.run_reader(reader, "https://chatgpt.com/share/abc", 5, pins=frozenset())
+                opened.assert_not_called()
             self.assertFalse(marker.exists(), "an unpinned reader is never executed")
             # A caller-chosen hash is not a pin: only CWO's own constant counts.
             rendered, raised = self.run_ingest_main(["https://chatgpt.com/share/abc", "--reader", str(reader)])
