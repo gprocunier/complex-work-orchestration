@@ -67,6 +67,45 @@ class F1ProductionClosureGuardTests(unittest.TestCase):
             self.assertTrue(closure.execute_qualified_completed(host)["completed"])
             self.assertEqual([command[0] for command in process.effects], ["comment", "close"])
 
+    def test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control(self):
+        adapter = qualified._bd
+        case = self.builders.compact()
+        for revoke in (True, False):
+            with self.subTest(revoke=revoke), \
+                    patch.object(qualified, "_BEADS_CALL", wraps=qualified._BEADS_CALL) as run_bd, \
+                    self.fixture.registered(case) as (host, process, custody):
+                self.fixture.reviewed(case, host, custody)
+                run_bd.reset_mock()
+                process.calls.clear()
+                entries = []
+                with patch.object(qualified, "_production_guard", wraps=qualified._production_guard) as guard:
+                    def enter_adapter(state, args):
+                        # Earlier consume validators see the enabled flag. Keep the
+                        # original adapter and downstream authority checks intact.
+                        entries.append(guard.call_count)
+                        qualified.PRODUCTION_CLOSURE_AVAILABLE = not revoke
+                        return adapter(state, args)
+
+                    with patch.object(qualified, "PRODUCTION_CLOSURE_AVAILABLE", True), \
+                            patch.object(qualified, "_bd", side_effect=enter_adapter) as reached:
+                        if revoke:
+                            with self.assertRaisesRegex(original.ClosureError, "production closure is unavailable"):
+                                closure.execute_qualified_completed(host)
+                            reached.assert_called_once()
+                            self.assertGreater(entries[0], 0)
+                            # The downstream flag check must not hide deletion of
+                            # the adapter's own check, even when both refuse.
+                            self.assertEqual(guard.call_count, entries[0])
+                            run_bd.assert_not_called()
+                            self.assertEqual(process.calls, [])
+                            self.assertEqual(process.effects, [])
+                        else:
+                            self.assertTrue(closure.execute_qualified_completed(host)["completed"])
+                            self.assertGreater(reached.call_count, 0)
+                            self.assertGreater(run_bd.call_count, 0)
+                            self.assertEqual([command[0] for command in process.effects], ["comment", "close"])
+        self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, False)
+
     def test_F1_M024_example_scope_is_required_independently_of_example_task_id(self):
         case = self.builders.compact()
         for scope in ("EXAMPLE-only", "production"):

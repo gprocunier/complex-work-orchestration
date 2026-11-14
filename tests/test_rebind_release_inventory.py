@@ -151,6 +151,52 @@ class RebindReleaseInventoryTests(unittest.TestCase):
             "    note = 'before'\n    if not allowed:\n        raise ValueError('held')\n"))
         self.assert_refuses_untouched(root, "guard", "scripts/example.py:8")
 
+    def test_compact_hit_rebind_preserves_layout_decisions_and_idempotence(self):
+        for indent in (None, 2):
+            with self.subTest(indent=indent):
+                root, value, _manifest = self.fixture()
+                coverage = value["primitive_coverage"]
+                coverage.update(schema="bounded-primitives-v2", paths=["scripts/example.py"])
+                coverage["hits"] = [[0, *row[1:]] for row in coverage["hits"]]
+                raw = json.dumps(value, indent=indent, separators=(",", ":") if indent is None else None) + "\n"
+                (root / R.INVENTORY).write_text(raw)
+                source = root / "scripts/other.py"
+                source.write_text(source.read_text().replace("'other'", "'other edited'"))
+                result = self.run_rebind(root)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                after = json.loads((root / R.INVENTORY).read_bytes())
+                self.assertEqual(after["primitive_coverage"], coverage)
+                rendered = json.dumps(after, indent=indent, separators=(",", ":") if indent is None else None) + "\n"
+                self.assertEqual((root / R.INVENTORY).read_text(), rendered)
+                self.assertEqual(R.trace(root)["primitive_hits"], [
+                    [coverage["paths"][row[0]], *row[1:7]] for row in coverage["hits"]])
+                before = self.bindings_snapshot(root)
+                result = self.run_rebind(root)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(result.stdout, "No bindings changed.\n")
+                self.assertEqual(self.bindings_snapshot(root), before)
+
+    def test_malformed_compact_hits_rebind_writes_neither_file(self):
+        for malformed in ("bool-index", "duplicate-path", "duplicate-hit"):
+            with self.subTest(malformed=malformed):
+                root, value, _manifest = self.fixture()
+                coverage = value["primitive_coverage"]
+                coverage.update(schema="bounded-primitives-v2", paths=["scripts/example.py"])
+                coverage["hits"] = [[0, *row[1:]] for row in coverage["hits"]]
+                if malformed == "bool-index":
+                    coverage["hits"][0][0] = False
+                    message = "primitive path index"
+                elif malformed == "duplicate-path":
+                    coverage["paths"].append(coverage["paths"][0])
+                    message = "duplicate primitive path"
+                else:
+                    coverage["hits"].append(coverage["hits"][0])
+                    message = "primitive hit coverage mismatch"
+                (root / R.INVENTORY).write_bytes(R.encoded(value) + b"\n")
+                source = root / "scripts/other.py"
+                source.write_text(source.read_text().replace("'other'", "'changed'"))
+                self.assert_refuses_untouched(root, message)
+
     def test_moved_multiline_column_span_names_point_and_writes_neither_file(self):
         root, _value, _manifest = self.fixture()
         source = root / "scripts/example.py"

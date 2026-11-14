@@ -2275,11 +2275,11 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
     def _terminal_projection_schedule(self, *, before_wait):
         case = self.fixture.case(finite_tool_mode='captured-host-tools',
-                                 materialize_on_turn_start=True)
+                                 materialize_on_turn_start=True, no_fake_scheduler=True)
         case.command_prepared, case.command_release = threading.Event(), threading.Event()
         factory = self.fixture.factory(case)
         outcome, observed, result = [], threading.Event(), []
-        driver_release = threading.Event()
+        driver_entered, driver_release = threading.Event(), threading.Event()
         self.addCleanup(driver_release.set)
         original_result = DynamicRpcProcess.result
         def projection(process, method, params):
@@ -2299,7 +2299,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         original_progress = family.runtime._RegisteredServer.await_finite_progress
         def held_progress(server, *args, **kwargs):
             if server is factory.server and threading.current_thread() is worker:
-                driver_release.wait(5)
+                driver_entered.set()
+                self.assertTrue(driver_release.wait(5))
             return original_progress(server, *args, **kwargs)
         with patch.object(family, 'RpcProcess', DynamicRpcProcess), patch.object(
                 DynamicRpcProcess, 'result', projection), patch.object(
@@ -2310,12 +2311,14 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             self.addCleanup(family.finish_worker, self, worker, case.command_release, driver_release)
             self.addCleanup(case.command_release.set)
             self.assertTrue(self.wait_for_startup(case.command_prepared, worker, outcome))
+            # This fixture withholds the command entirely. Its own driver hold
+            # replaces the wire hook that normally waits for command completion;
+            # that shared hook could otherwise hold the foreground projection.
+            case.command_release.set()
+            self.assertTrue(driver_entered.wait(3), outcome)
             server = factory.server
             lifecycle = server.finite_input.lifecycle
-            end = time.monotonic() + 3
-            while lifecycle.phase != 'await-command':
-                self.assertLess(time.monotonic(), end)
-                time.sleep(.001)
+            self.assertEqual(lifecycle.phase, 'await-command')
             original_wait = lifecycle.condition.wait
             def wait(timeout=None):
                 observed.set()
@@ -2345,6 +2348,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     waiter.join(2)
                     self.assertFalse(waiter.is_alive())
             self.assertEqual(result, [None])
+            self.assertIsNone(server.transport_failure)
             case.command_release.set()
             driver_release.set()
             worker.join(12)
@@ -2360,6 +2364,18 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     fixture._terminal_projection_schedule(before_wait=before_wait)
                 finally:
                     family.cleanup_helper(self, fixture)
+
+    def test_original_read_projection_with_foreground_scheduler_custody(self):
+        """Select the old wire hook's foreground owner without a timing race."""
+        foreground = threading.current_thread()
+        original = family.RpcProcess.before_consumption
+
+        def foreground_consumption(process, observed, *, armed=lambda: True):
+            return original(process, observed, armed=lambda: (
+                armed() and threading.current_thread() is foreground))
+
+        with patch.object(DynamicRpcProcess, 'before_consumption', foreground_consumption):
+            self._terminal_projection_schedule(before_wait=True)
 
 
     def _split_original_publication_schedule(self, route, before_wait):
