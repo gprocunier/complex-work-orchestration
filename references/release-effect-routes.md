@@ -98,9 +98,48 @@ unsupported here-document forms refuse. This is bounded lexical context, not a
 general Bash parser, expansion evaluator or control-flow proof. Unknown selected
 forms refuse; external review still checks the complete shell programme.
 
-These checks establish source form and interval consistency. They cannot prove
-predicate correctness, runtime dominance, callback identity or refusal causality.
-The named functioning witnesses and independent semantic review remain required.
+Every operative gate must structurally precede an effect of its route, and every
+guarded effect must have such a gate. Python checks stay within one function and
+suite: a sibling branch, nested function, optional nested check, later statement
+or caught refusal cannot establish order. Enclosing conditionals select their
+own suites; a preceding conditional must contain a terminating refusal, with
+caught or deferred refusals excluded. A try suite can
+establish order beyond the try only when every handler terminates and there is
+no finally suite. Shell checks bind the same function and lexical branch, with
+the finite dry-run returns, checker failure and projection refusal forms above.
+This is bounded structural analysis, not a general Python or Bash interpreter.
+
+Cross-function bindings use explicit `gate_chains`, each naming a gate, effect
+and ordered `calls`. Every edge names an exact call point, a digest-bound target
+declaration and direction (`into` the callee or `return` from a validator).
+The call must match a local function, explicit import, same-class `self` method
+or a directly constructed or uniquely assigned local receiver (an earlier
+`None` initialization is allowed). Unlinked
+same-named targets refuse. Each step must preserve local order; a returning
+validator must raise on refusal and cannot return successfully before its check.
+Async, generator and decorated targets refuse.
+No chain, exemption or manual fallback is invented by the checker or rebinder.
+Named targets are reviewed lexical links, not proof of runtime import/module
+identity, virtual dispatch, callbacks or arbitrary downstream code.
+
+`review_gates` retains exact source/form/overlap checks for contextual observations
+with explicit `gate_limits`; those observations receive no dominance credit.
+Sibling entry checks, optional profile/hash checks, lifecycle registration and
+retrospective identity checks are distinguished from operative gates. Raw helper
+and dormant browser candidates retain individual manual dispositions rather than
+borrowing a caller's gate. Conditional command validation, the fixed measurement
+path loop and constructed transports still need their named witnesses and manual
+review. Ruff annotation checks bind the actual version refusal. Installer
+uninstall and validator routes bind their own dry-run returns; manifest writing
+is intentional persistence requested through the staged projection checker,
+with the direct writer covered by its manual programme contract. Its enabling
+option supplies no refusal credit, and postactivation validation cannot undo an
+install.
+
+These checks establish source form, interval consistency and the stated bounded
+ordering relationships. They cannot prove predicate correctness, runtime value
+or callback identity, all runtime paths, or refusal causality. Functioning
+refusal/positive witnesses and independent semantic review remain required.
 
 Release review combines the effect-path trace, milestone assessment, actual
 platform gates and semantic fault witnesses. The trace checker alone does not

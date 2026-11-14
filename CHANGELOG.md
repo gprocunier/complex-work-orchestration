@@ -9,6 +9,7 @@
 - Screen and freeze browser navigation and local debugger URLs before startup, and refuse configuration drift before connecting, navigating or submitting.
 
 - Strengthened release checks for structured Beads helpers and shell command candidates.
+- Bound release guard checks to their effects through local control structure or explicitly validated calls.
 
 ## 0.2.1 - 2026-11-14
 
