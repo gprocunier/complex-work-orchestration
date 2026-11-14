@@ -376,6 +376,123 @@ class Case(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("positive integer", result.stderr)
 
+    @staticmethod
+    def _run_fixture(root: Path) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "--workers", "2", "--verbose",
+             "--artifacts-dir", str(root / "artifacts")],
+            cwd=root, text=True, capture_output=True, check=False,
+        )
+
+    def test_cli_method_workunit_failures_and_errors_expose_logs(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tests = root / "tests"
+            tests.mkdir()
+            filename = "test_registered_finite_tool_wiring.py"
+            self.assertIn(filename, parallel_unittest.METHOD_SHARDED_TEST_FILES)
+            (tests / filename).write_text(
+                "import unittest\nclass Case(unittest.TestCase):\n"
+                "    def test_failure(self): self.fail('EXAMPLE method failure')\n"
+                "    def test_error(self): raise RuntimeError('EXAMPLE method error')\n",
+                encoding="utf-8",
+            )
+            result = self._run_fixture(root)
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertIn("parallel unittest: FAIL workers=2 tests=2", result.stdout)
+            logs = sorted((root / "artifacts").glob("worker-*/unittest.log"))
+            self.assertGreaterEqual(len(logs), 2, "fixture must span multiple method workunits")
+            self.assertEqual(result.stdout.count("] FAIL files=1 tests=1"), 2)
+            for index, log in enumerate(logs, 1):
+                self.assertIn(f"--- shard {index:02d} log ---", result.stderr)
+                self.assertIn(log.read_text(), result.stderr)
+            self.assertIn("AssertionError: EXAMPLE method failure", result.stderr)
+            self.assertIn("RuntimeError: EXAMPLE method error", result.stderr)
+
+    def test_cli_rejects_exit_zero_without_unittest_footer(self) -> None:
+        for filename in ("test_example.py", "test_registered_finite_tool_wiring.py"):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                tests = root / "tests"
+                tests.mkdir()
+                (tests / filename).write_text(
+                    "import os, unittest\nclass Case(unittest.TestCase):\n"
+                    "    def test_exit(self):\n"
+                    "        print('EXAMPLE missing footer', flush=True)\n"
+                    "        os._exit(0)\n",
+                    encoding="utf-8",
+                )
+                result = self._run_fixture(root)
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn("] FAIL files=1 tests=unknown", result.stdout)
+                self.assertIn("fixed-width unittest: FAIL", result.stdout)
+                self.assertIn("tests=incomplete", result.stdout)
+                self.assertIn("missing unittest footer", result.stderr)
+                self.assertIn("--- shard 01 log ---", result.stderr)
+                self.assertIn("EXAMPLE missing footer", result.stderr)
+
+    def test_cli_method_workunit_requires_exact_case_count(self) -> None:
+        for cases in (0, 1, 2, 3):
+            with self.subTest(cases=cases), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                tests = root / "tests"
+                tests.mkdir()
+                filename = "test_registered_finite_input.py"
+                self.assertIn(filename, parallel_unittest.METHOD_SHARDED_TEST_FILES)
+                (tests / filename).write_text(
+                    "import unittest\nclass Case(unittest.TestCase):\n"
+                    "    def test_first(self): pass\n"
+                    "    def test_second(self): pass\n"
+                    "    def run(self, result=None):\n"
+                    f"        if {cases} == 0 or ({cases} == 1 and "
+                    "self._testMethodName == 'test_second'): return result\n"
+                    "        super().run(result)\n"
+                    f"        if {cases} == 3 and self._testMethodName == 'test_first':\n"
+                    "            super().run(result)\n"
+                    "        return result\n",
+                    encoding="utf-8",
+                )
+                result = self._run_fixture(root)
+                self.assertIn("parallel unittest workunits=1 capacity=1", result.stdout)
+                self.assertEqual(result.returncode, int(cases != 2), result.stdout + result.stderr)
+                self.assertIn(f"tests={cases}", result.stdout)
+                if cases != 2:
+                    self.assertIn(f"expected_tests=2 reported_tests={cases}", result.stderr)
+                    self.assertIn("--- shard 01 log ---", result.stderr)
+                else:
+                    self.assertIn("fixed-width unittest: PASS", result.stdout)
+
+    def test_cli_serial_fixture_intervals_never_overlap(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tests = root / "tests"
+            tests.mkdir()
+            names = ("test_native_recovery.py", "test_native_release.py")
+            for filename in names:
+                self.assertIn(filename, parallel_unittest.SERIAL_TEST_FILES)
+                (tests / filename).write_text(
+                    "import json, time, unittest\nfrom pathlib import Path\n"
+                    "def setUpModule():\n"
+                    "    global started\n"
+                    "    started = time.monotonic_ns()\n"
+                    "def tearDownModule():\n"
+                    "    finished = time.monotonic_ns()\n"
+                    "    Path(__file__).with_suffix('.json').write_text(\n"
+                    "        json.dumps([started, finished]))\n"
+                    "class Case(unittest.TestCase):\n"
+                    "    def test_wait(self): time.sleep(0.5)\n",
+                    encoding="utf-8",
+                )
+            result = self._run_fixture(root)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            intervals = sorted(json.loads((tests / filename).with_suffix('.json').read_text())
+                               for filename in names)
+            for start, finish in intervals:
+                self.assertLess(start, finish)
+            self.assertLessEqual(intervals[0][1], intervals[1][0], "serial fixtures overlapped")
+            self.assertIn("parallel_files=0 serial_files=2", result.stdout)
+            self.assertIn("serial unittest: PASS workers=1 tests=2", result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -91,7 +91,7 @@
     },
     {
       "path": "tools",
-      "reason": "site build tooling for docs/; the generated pages are installed under docs"
+      "reason": "maintainer-only repository hooks and site build tooling; generated pages are installed under docs"
     },
     {
       "path": ".github",
