@@ -7,6 +7,11 @@
 - Native supervision preserves incomplete inspection refusals and rejects unexplained Git metadata or reference changes.
 - Beads continuation queries and private activation graph commands reject option-like issue IDs while preserving ordinary ID behavior.
 
+- Increase the release inventory limit from 512 to 528 KiB for the 528,451-byte merged inventory, retaining 12,221 bytes of headroom without removing routes or bindings.
+- Store the release inventory one record per line with canonical ordering so independent rebinds merge cleanly.
+- Run hosted unit tests in deterministic shards for faster CI while retaining the aggregate `test` check.
+- Refuse empty method-sharded test discovery instead of silently omitting a test family.
+
 ## 0.5.0 - 2026-11-14
 
 - Add separate create-share authorization bound to conversation and content, with one-use execution admission and conservative aggregate accounting; live sharing remains unavailable.

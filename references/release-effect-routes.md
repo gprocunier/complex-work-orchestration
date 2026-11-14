@@ -20,6 +20,22 @@ The compact inventory has a finite 512 KiB (524,288 byte) limit. Complete script
 capacity; source/file/count bounds and deadlines remain finite. Full traces, graphs and intermediates stay
 external; compression is not a substitute for compact authored installed data.
 
+The file remains a single JSON document. Its canonical layout sorts object keys
+at every level, uses compact records without indentation, and separates records
+with one blank line so even adjacent independent edits can merge. Each top-level
+map entry and array row has its own line; `primitive_coverage` additionally splits
+its exclusion entries, hit rows and path entries. Nested objects within a record
+also have sorted keys. Arrays retain their authored order: file/path indices,
+guard chains and other ordered references are never renumbered or rearranged.
+There is exactly one final newline. The checker and rebind command refuse
+one-line, indented, reordered-key and otherwise noncanonical byte layouts.
+
+Independent source bindings can merge without a textual conflict. Changes to a
+shared record still overlap: in particular, two checkpoint dependency edits both
+change the checkpoint's full-file SHA256 binding. Those require reconciliation
+and rebinding after the merge. The checkpoint manifest keeps its indented,
+sorted object keys; an unchanged manifest remains byte-identical.
+
 The inventory is authored decision data. Every route has an explicit manual
 conclusion and limits. Neither its presence nor a matching source hash approves
 that conclusion. Constructors, virtual calls, callbacks, context entry, dynamic
@@ -76,7 +92,7 @@ Both forms retain full 64-character SHA256 values binding the exact UTF-8 call
 bytes, or whole shell line bytes without its newline. Columns remain UTF-8 byte
 offsets and the span end remains excluded. Trace evidence expands compact rows
 before applying the same exact hit, route and exclusion checks. Rebinding keeps
-the selected representation and layout, preserves all primitive decisions and
+the selected representation and canonical record layout, preserves all primitive decisions and
 is a byte-for-byte no-op when bindings are current. The 512 KiB inventory cap,
 all source/file/count bounds, alias budgets and deadlines are unchanged; source
 bindings, gates, manual decisions and named witnesses retain their full semantics.
