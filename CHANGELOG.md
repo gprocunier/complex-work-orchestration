@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Recorded the qualification target as Codex 0.163.0 with constrained integrity; confidential operation is unsupported.
+
 ## 0.4.0 - 2026-11-14
 
 - Workspace inspection recognises authorized Git changes and reports them separately from unexplained changes.

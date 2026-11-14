@@ -286,7 +286,9 @@
     "scripts/cwo_core/workspace_transition.py": 420,
     "scripts/cwo_core/browser_provenance.py": 420,
     "scripts/cwo_core/chatgpt_urls.py": 420,
-    "scripts/cwo_core/private_artifact.py": 420
+    "scripts/cwo_core/private_artifact.py": 420,
+    "policy/qualification-target.yaml": 420,
+    "schemas/qualification-target.schema.json": 420
   },
   "files": {
     "policy/acceptance-policy.yaml": "783bd8ec8440ca3d12a1efa0b01542c110171eccf25794839a2686f78d75d998",
@@ -559,7 +561,9 @@
     "tests/test_run_native_pool_live_canaries.py": "d02043f5b8e80df965b4e847dabc6ea33545fd830fc115a140c4ac06270394d9",
     "tests/test_run_readiness_plan.py": "7a334e1790c4fd09729c99e5c2241c957c81e8a22eeaae0d501087b905925849",
     "tests/test_w20_affected_contract_w13.py": "e74db7bc762a5b84649a14d46b914018853562a87bc8b202feb2fdd78158923c",
-    "tests/test_workflow_adjudication.py": "ed2772e7aff2581a4299d53a999d1ca7dfacbf9d904d7b648e00e7b34022347a"
+    "tests/test_workflow_adjudication.py": "ed2772e7aff2581a4299d53a999d1ca7dfacbf9d904d7b648e00e7b34022347a",
+    "policy/qualification-target.yaml": "77554acd9fba144baf4f49e9e9e8c7e1ac5e2df0b8e5474c009c1e6b26d63593",
+    "schemas/qualification-target.schema.json": "08033fd4771e9bb57d26029602f9cc54887d5d5e5f2d260ab57d92da4226fbc6"
   },
   "historical_files": {
     "238ddfb22c52f5e753bc5b24ba1e24b30df7b347": {
@@ -2241,7 +2245,7 @@
     "tests/test_registered_server_requests.py",
     "tests/test_run_admitted_native_pool_transaction.py"
   ],
-  "registered_current_resource_scope": "Original mandatory workflow._policy_image and qualified_risk_use._policies snapshot all21 policy YAML documents; original policy_schema loader selects from20 registered schemas, including both provider registry versions. Exact roster plus file pins precede observations. The persisted peer-review record additionally binds schemas/audit-event.schema.json as its current public event contract. Peer-review identity validation additionally binds the public structured peer-review record schema referenced by audit events.",
+  "registered_current_resource_scope": "Original mandatory policy snapshots bind every current policy YAML document. The policy schema loader selects from the complete registered schema roster, including both provider registry versions and the selected qualification target. Exact resources and byte/mode pins precede observations. Persisted peer review additionally binds the audit event and structured peer review record schemas.",
   "registered_current_resources": [
     "policy/acceptance-policy.yaml",
     "policy/access-profiles.yaml",
@@ -2258,6 +2262,7 @@
     "policy/outbound-screening.yaml",
     "policy/peer-review-policy.yaml",
     "policy/provider-registry.yaml",
+    "policy/qualification-target.yaml",
     "policy/return-tripwires.yaml",
     "policy/risk-features.yaml",
     "policy/routing-policy.yaml",
@@ -2281,6 +2286,7 @@
     "schemas/peer-review-record.schema.json",
     "schemas/provider-registry-v2.schema.json",
     "schemas/provider-registry.schema.json",
+    "schemas/qualification-target.schema.json",
     "schemas/return-tripwires.schema.json",
     "schemas/risk-features.schema.json",
     "schemas/routing-policy.schema.json",
