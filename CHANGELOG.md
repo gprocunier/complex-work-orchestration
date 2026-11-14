@@ -2,16 +2,18 @@
 
 ## Unreleased
 
-## 0.3.0 - 2026-11-14
-
-- Refuse unsupported disclosure formats, encodings and attachment declarations, and verify decoded fields and final serialized text before manual export, browser submission or local HTTP dispatch.
-- Freeze screened outbound content and renderer inputs, refuse source or file drift before disclosure, and record exact manual export digests with dispatch decisions.
-- Screen and freeze browser navigation and local debugger URLs before startup, and refuse configuration drift before connecting, navigating or submitting.
+## 0.3.1 - 2026-11-14
 
 - Strengthened release checks for structured Beads helpers and shell command candidates.
 - Bound release guard checks to their effects through local control structure or explicitly validated calls.
 - Strengthened closure and release guard witnesses, including refusal before opening an unpinned share reader.
 - Reduced release inventory size with lossless primitive path references and unchanged limits.
+
+## 0.3.0 - 2026-11-14
+
+- Refuse unsupported disclosure formats, encodings and attachment declarations, and verify decoded fields and final serialized text before manual export, browser submission or local HTTP dispatch.
+- Freeze screened outbound content and renderer inputs, refuse source or file drift before disclosure, and record exact manual export digests with dispatch decisions.
+- Screen and freeze browser navigation and local debugger URLs before startup, and refuse configuration drift before connecting, navigating or submitting.
 
 ## 0.2.1 - 2026-11-14
 
