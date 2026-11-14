@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +39,9 @@ from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authori
 from tests.test_native_pool_contracts import capability_payload, sha  # noqa: E402
 from tests import test_run_native_pool_live_canaries as live_test_helpers  # noqa: E402
 from tests.real_beads_fixture import configure_git_fixture
+from cwo_core import native_pool_workspace as pool_workspace
+from cwo_core import native_pool_config as pool_config
+from cwo_core.native_pool_workspace import PoolWorkspaceError
 
 
 def git(*args: str, cwd: Path) -> None:
@@ -159,6 +163,55 @@ class RenderFixture:
 
 
 class NativePoolConfigTests(unittest.TestCase):
+    def test_final_monitor_recapture_refuses_real_incomplete_capture(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = RenderFixture(Path(temporary), 1)
+            original_capture = pool_workspace.capture_workspace_baseline
+            original_monitor = pool_config.PoolWorkspaceMonitor
+            capped = lambda *args, **kwargs: original_capture(*args, **{**kwargs, "max_files": 0})
+            def observe(*args, **kwargs):
+                with mock.patch.object(pool_workspace, "capture_workspace_baseline", side_effect=capped):
+                    return original_monitor(*args, **kwargs)
+            with mock.patch.object(pool_config, "PoolWorkspaceMonitor", side_effect=observe):
+                with self.assertRaisesRegex(PoolWorkspaceError, "baseline-incomplete"):
+                    build_pool_contract(fixture.request)
+
+    def test_final_monitor_recapture_refuses_real_workspace_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = RenderFixture(Path(temporary), 1)
+            original_monitor = pool_config.PoolWorkspaceMonitor
+            def observe(*args, **kwargs):
+                (fixture.integration / "scripts" / "child_0.py").write_bytes(b"VALUE = 7\n")
+                return original_monitor(*args, **kwargs)
+            with mock.patch.object(pool_config, "PoolWorkspaceMonitor", side_effect=observe):
+                with self.assertRaisesRegex(PoolWorkspaceError, "baseline-not-clean"):
+                    build_pool_contract(fixture.request)
+
+    def test_real_incomplete_integration_and_child_capture_refuse_render(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = RenderFixture(Path(temporary), 1)
+            original = pool_workspace.capture_workspace_baseline
+            for target in (fixture.integration, fixture.worktrees[0]):
+                def capped(root, **kwargs):
+                    if Path(root) == target:
+                        kwargs["max_files"] = 0
+                    return original(root, **kwargs)
+                with self.subTest(root=target.name), mock.patch.object(pool_workspace, "capture_workspace_baseline", side_effect=capped):
+                    with self.assertRaisesRegex(PoolWorkspaceError, "baseline-incomplete"):
+                        build_pool_contract(fixture.request)
+
+    def test_real_dirty_integration_and_child_refuse_render(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = RenderFixture(Path(temporary), 1)
+            for target in (fixture.integration, fixture.worktrees[0]):
+                source = target / "scripts" / "child_0.py"
+                original = source.read_bytes()
+                source.write_bytes(b"VALUE = 7\n")
+                with self.subTest(root=target.name), self.assertRaisesRegex(PoolWorkspaceError, "baseline-not-clean"):
+                    build_pool_contract(fixture.request)
+                source.write_bytes(original)
+            self.assertEqual(validate_pool_contract(build_pool_contract(fixture.request)), [])
+
     def test_cap_one_render_derives_live_identity_and_strict_child_bindings(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = RenderFixture(Path(temporary), 1)

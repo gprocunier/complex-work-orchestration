@@ -16,6 +16,7 @@ import subprocess
 from typing import Any
 import uuid
 
+from .beads import bead_id_operand
 from .beads_ready_set import (
     LEASE_SCOPE_TYPE,
     LEASE_SCOPE_VERSION,
@@ -311,6 +312,13 @@ def _bd(directory: Path, *args: str) -> str:
         env=_bd_environment(directory),
         label="activation-beads",
     )
+
+
+def _bead_id(value: str) -> str:
+    try:
+        return bead_id_operand(value)
+    except ValueError as exc:
+        raise NativeActivationPreviewError("activation-beads-id-option-like") from exc
 
 
 def _json_output(raw: str, *, label: str) -> Any:
@@ -831,7 +839,6 @@ def _create_beads_graph(
         _bd(
             beads_directory,
             "update",
-            issue_id,
             "--metadata",
             json.dumps(
                 {"cwo_ready_set_admission": metadata},
@@ -839,6 +846,8 @@ def _create_beads_graph(
                 separators=(",", ":"),
             ),
             "--json",
+            "--",
+            issue_id,
         )
         issue_ids.append(issue_id)
         estimates[issue_id] = estimate
@@ -848,7 +857,7 @@ def _create_beads_graph(
             "ready",
             "--json",
             "--parent",
-            epic_id,
+            _bead_id(epic_id),
             "--unassigned",
             "--limit",
             "0",
@@ -874,9 +883,10 @@ def _create_beads_graph(
         _bd(
             beads_directory,
             "show",
-            epic_id,
-            *issue_ids,
             "--json",
+            "--",
+            _bead_id(epic_id),
+            *map(_bead_id, issue_ids),
         ),
         label="activation-beads-show",
     )

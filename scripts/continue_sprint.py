@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cwo_core.beads import run_bd
+from cwo_core.beads import bead_id_operand, run_bd
 from cwo_core.beads_ready_set import (
     CONTAINER_LABELS,
     CONTAINER_TYPES,
@@ -27,6 +27,22 @@ HARD_BLOCKING_DEPENDENCY_TYPES = {"blocks", "until"}
 
 def bd_json(args: list[str]) -> Any:
     return json.loads(run_bd(args))
+
+
+def _parent_query(parent_id: str, *, ready: bool) -> Any:
+    # Beads accepts option-like parent values as literal filters. Reject them
+    # before either query rather than treating an empty result as valid work.
+    try:
+        parent = bead_id_operand(parent_id)
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+    args = ["ready" if ready else "list", "--json"]
+    if not ready:
+        args.append("--all")
+    args.extend(["--parent", parent])
+    if ready:
+        args.append("--unassigned")
+    return bd_json([*args, "--limit", "0"])
 
 
 def as_list(value: Any) -> list[Any]:
@@ -159,17 +175,7 @@ def belongs_to_epic(item: dict[str, Any], epic_id: str) -> bool:
 def load_beads_items(epic_id: str) -> list[dict[str, Any]]:
     """Load exact issue projections while taking readiness only from ``bd ready``."""
 
-    ready_payload = bd_json(
-        [
-            "ready",
-            "--json",
-            "--parent",
-            epic_id,
-            "--unassigned",
-            "--limit",
-            "0",
-        ]
-    )
+    ready_payload = _parent_query(epic_id, ready=True)
     ready_items = coerce_items(ready_payload)
     ready_order: list[str] = []
     for item in ready_items:
@@ -187,19 +193,7 @@ def load_beads_items(epic_id: str) -> list[dict[str, Any]]:
         if parent_id in queried_parents:
             continue
         queried_parents.add(parent_id)
-        children = coerce_items(
-            bd_json(
-                [
-                    "list",
-                    "--json",
-                    "--all",
-                    "--parent",
-                    parent_id,
-                    "--limit",
-                    "0",
-                ]
-            )
-        )
+        children = coerce_items(_parent_query(parent_id, ready=False))
         for child in children:
             child_id = issue_id(child)
             if child_id:

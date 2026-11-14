@@ -1474,6 +1474,232 @@ class NativeSupervisorSemanticTests(unittest.TestCase):
         Path(metadata["path"]).unlink(missing_ok=True)
 
 
+class NativeWorkspaceInspectionTests(unittest.TestCase):
+    """Real disposable captures through persisted supervisor baseline custody."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory(prefix="cwo-supervisor-workspace-")
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.workspace = self.root / "workspace"
+        self.workspace.mkdir()
+        self.enterContext(mock.patch.dict(os.environ, {
+            "CWO_TEMP_ROOT": str(self.root / "control"),
+            "CWO_SESSION_ID": "workspace-inspection-test",
+        }))
+        self.git("init", "-q")
+        configure_git_fixture(self.workspace)
+        (self.workspace / "src").mkdir()
+        (self.workspace / "src" / "owned.py").write_text("value = 1\n", encoding="utf-8")
+        (self.workspace / "outside.txt").write_text("outside\n", encoding="utf-8")
+        self.hook = self.workspace / ".git" / "hooks" / "pre-commit"
+        self.hook.write_text("#!/bin/sh\n: a\n", encoding="utf-8")
+        self.hook.chmod(0o755)
+        self.git("add", "--", ".")
+        self.git("commit", "-qm", "EXAMPLE workspace")
+
+    def git(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false",
+             "-C", str(self.workspace), *arguments],
+            check=True, capture_output=True, text=True,
+        )
+
+    def baseline(self, *, allowed_paths=None, session="baseline") -> tuple[dict, dict]:
+        packet = {"packet_id": "workspace-inspection", "scope": {"workdir": str(self.workspace)},
+                  "work_plan": {"write_paths": ["src"] if allowed_paths is None else allowed_paths}}
+        metadata = supervisor._persist_workspace_baseline(packet, session)
+        before = supervisor._load_workspace_baseline(metadata)
+        self.assertTrue(before["baseline_complete"], before.get("incomplete_reasons"))
+        self.assertEqual(before["capture_method"], "index-manifest-raw-inventory")
+        return metadata, before
+
+    def test_real_unexplained_refs_config_and_same_size_hook_stay_hard(self) -> None:
+        for kind, category, reason in (
+            ("refs", "git-refs", "unexpected-git-reference-mutation"),
+            ("config", "git-metadata", "unexpected-git-metadata-mutation"),
+            ("hook", "git-metadata", "unexpected-git-metadata-mutation"),
+        ):
+            metadata, before = self.baseline(session=kind)
+            if kind == "refs":
+                self.git("branch", "unapproved")
+            elif kind == "config":
+                self.git("config", "review.setting", "unapproved")
+            else:
+                size = self.hook.stat().st_size
+                self.hook.write_text("#!/bin/sh\n: b\n", encoding="utf-8")
+                self.assertEqual(self.hook.stat().st_size, size)
+            after = supervisor.capture_workspace_baseline(self.workspace, allowed_paths=["src"])
+            self.assertTrue(after["baseline_complete"], after.get("incomplete_reasons"))
+            original = supervisor.compare_workspace_baseline(before, after, allowed_paths=["src"])
+            self.assertTrue(original["unexpected_mutation_detected"])
+            self.assertTrue(original["mutation_categories"][category])
+            with self.subTest(kind=kind, consumer="live comparison"):
+                report = supervisor._compare_live_workspace(metadata)
+                self.assertTrue(report["unexpected_mutation_detected"])
+                self.assertEqual(report, original)
+            with self.subTest(kind=kind, consumer="hard reasons"):
+                self.assertIn(reason, supervisor._workspace_hard_reasons(original))
+
+    def test_real_byte_cap_without_observed_mutations_stays_unexpected(self) -> None:
+        self.workspace = self.root / "empty-workspace"
+        self.workspace.mkdir()
+        self.git("init", "-q")
+        configure_git_fixture(self.workspace)
+        self.git("commit", "--allow-empty", "-qm", "EXAMPLE empty workspace")
+        metadata, _ = self.baseline(allowed_paths=["future-output"])
+        with (self.workspace / "oversize.bin").open("wb") as stream:
+            stream.truncate(50_000_001)
+        report = supervisor._compare_live_workspace(metadata)
+        self.assertTrue(report["after"]["incomplete"])
+        self.assertEqual(report["after"]["error_kind"], "budget")
+        self.assertEqual(report["mutations"], [])
+        self.assertTrue(report["unexpected_mutation_detected"])
+        self.assertIn("incomplete-mutation-evidence", supervisor._workspace_hard_reasons(report))
+
+    def test_real_unchanged_scoped_edit_and_new_file_remain_useful(self) -> None:
+        metadata, _ = self.baseline()
+        unchanged = supervisor._compare_live_workspace(metadata)
+        self.assertFalse(unchanged["mutation_detected"])
+        self.assertFalse(unchanged["unexpected_mutation_detected"])
+        self.assertEqual(supervisor._workspace_hard_reasons(unchanged), [])
+        (self.workspace / "src" / "owned.py").write_text("value = 2\n", encoding="utf-8")
+        edited = supervisor._compare_live_workspace(metadata)
+        self.assertEqual(edited["mutation_categories"]["scoped"], ["src/owned.py"])
+        self.assertFalse(edited["unexpected_mutation_detected"])
+        self.assertEqual(supervisor._workspace_hard_reasons(edited), [])
+        created = self.workspace / "src" / "new" / "created.py"
+        created.parent.mkdir()
+        created.write_text("created = True\n", encoding="utf-8")
+        added = supervisor._compare_live_workspace(metadata)
+        self.assertIn("src/new/created.py", added["mutation_categories"]["scoped"])
+        self.assertFalse(added["unexpected_mutation_detected"])
+        self.assertEqual(supervisor._workspace_hard_reasons(added), [])
+
+    def test_real_out_of_scope_and_unplanned_files_remain_hard(self) -> None:
+        metadata, _ = self.baseline()
+        (self.workspace / "outside.txt").write_text("changed\n", encoding="utf-8")
+        outside = supervisor._compare_live_workspace(metadata)
+        self.assertTrue(outside["unexpected_mutation_detected"])
+        self.assertIn("out-of-scope-mutation", supervisor._workspace_hard_reasons(outside))
+        metadata, _ = self.baseline(session="preexisting-dirt")
+        unchanged_dirty = supervisor._compare_live_workspace(metadata)
+        self.assertEqual(unchanged_dirty["mutation_categories"]["unchanged-dirty"], ["outside.txt"])
+        self.assertFalse(unchanged_dirty["unexpected_mutation_detected"])
+        self.assertEqual(supervisor._workspace_hard_reasons(unchanged_dirty), [])
+        (self.workspace / "unplanned.py").write_text("unplanned = True\n", encoding="utf-8")
+        unplanned = supervisor._compare_live_workspace(metadata)
+        self.assertEqual(unplanned["mutation_categories"]["untracked"], ["unplanned.py"])
+        self.assertIn("unexpected-untracked-mutation", supervisor._workspace_hard_reasons(unplanned))
+
+    def test_legacy_projection_of_real_baseline_still_scopes_a_new_file(self) -> None:
+        metadata, before = self.baseline(allowed_paths=["new-owned.py"])
+        # Only this compatibility control projects the old stored schema. The
+        # file identities/content originate in a real capture; after capture is real.
+        fields = ("cwd", "allowed_paths", "include_untracked", "tracked_status", "tracked_paths",
+                  "tracked_paths_complete", "preexisting_dirty_paths", "content_fingerprints",
+                  "baseline_complete", "incomplete", "caps", "is_git_repo")
+        legacy = {field: before[field] for field in fields}
+        legacy["evidence_version"] = 2
+        payload = json.dumps(legacy)
+        Path(metadata["path"]).write_text(payload, encoding="utf-8")
+        metadata["sha256"] = supervisor.artifact_hash(payload)
+        (self.workspace / "new-owned.py").write_text("created = True\n", encoding="utf-8")
+        report = supervisor._compare_live_workspace(metadata)
+        self.assertEqual(report["mutation_categories"]["scoped"], ["new-owned.py"])
+        self.assertFalse(report["unexpected_mutation_detected"])
+        self.assertEqual(supervisor._workspace_hard_reasons(report), [])
+
+    def test_trusted_authorization_and_ignored_embedded_worker_records(self) -> None:
+        metadata, before = self.baseline()
+        self.git("config", "review.setting", "approved-by-test-caller")
+        after = supervisor.capture_workspace_baseline(self.workspace, allowed_paths=["src"])
+        self.assertTrue(after["baseline_complete"])
+        fields = ("capture_identity", "git_executable", "object_format", "head", "head_manifest_sha256", "git_metadata")
+        record = {"record_type": "expected-git-transition", "version": 1, "approved": True,
+                  "reason": "Independent test caller approval", "paths": [".git:common:config"],
+                  "before": {field: before[field] for field in fields},
+                  "after": {field: after[field] for field in fields}}
+        authorized = supervisor.compare_workspace_baseline(before, after, expected_git_transition=record)
+        self.assertEqual(authorized["expected_git_transition"]["status"], "accepted")
+        self.assertTrue(authorized["allowed_mutations"])
+        self.assertTrue(authorized["mutation_categories"]["git-metadata"])
+        self.assertEqual(supervisor._workspace_hard_reasons(authorized), [])
+        before["expected_git_transition"] = record
+        payload = json.dumps(before)
+        Path(metadata["path"]).write_text(payload, encoding="utf-8")
+        metadata.update(sha256=supervisor.artifact_hash(payload), expected_git_transition=record)
+        report = supervisor._compare_live_workspace(metadata)
+        self.assertEqual(report["expected_git_transition"]["status"], "not-supplied")
+        self.assertTrue(report["unexpected_mutation_detected"])
+        self.assertEqual(report["git_transition_classifications"]["authorized"], [])
+        self.assertIn("unexpected-git-metadata-mutation", supervisor._workspace_hard_reasons(report))
+
+    def test_real_read_failure_and_unsupported_layout_stay_incomplete(self) -> None:
+        metadata, _ = self.baseline()
+        real_open = os.open
+        denied = []
+        def denied_config(path, flags, *args, **kwargs):
+            parent = kwargs.get("dir_fd")
+            if path == "config" and parent is not None:
+                if Path(os.readlink(f"/proc/self/fd/{parent}")) == self.workspace / ".git":
+                    denied.append(path)
+                    raise PermissionError(13, "EXAMPLE metadata read unavailable")
+            return real_open(path, flags, *args, **kwargs)
+        # Inject one real descriptor-read failure, never a replacement capture.
+        with mock.patch.object(os, "open", side_effect=denied_config):
+            unreadable = supervisor._compare_live_workspace(metadata)
+        self.assertTrue(denied)
+        self.assertTrue(unreadable["after"]["incomplete"])
+        self.assertTrue(unreadable["unexpected_mutation_detected"])
+        self.assertIn("EXAMPLE metadata read unavailable", str(unreadable["after"]["incomplete_reasons"]))
+        self.assertIn("incomplete-mutation-evidence", supervisor._workspace_hard_reasons(unreadable))
+        self.git("config", "core.worktree", "../unsupported-worktree")
+        unsupported = supervisor._compare_live_workspace(metadata)
+        self.assertTrue(unsupported["after"]["incomplete"])
+        self.assertTrue(unsupported["unexpected_mutation_detected"])
+        self.assertIn("core.worktree is not supported", str(unsupported["after"]["incomplete_reasons"]))
+        self.assertIn("incomplete-mutation-evidence", supervisor._workspace_hard_reasons(unsupported))
+
+    def test_real_fsmonitor_marker_stays_inert_and_incomplete(self) -> None:
+        metadata, _ = self.baseline()
+        marker = self.root / "FSMONITOR_RAN"
+        self.git("config", "core.fsmonitor", f"sh -c 'touch {marker}; exit 1' --")
+        report = supervisor._compare_live_workspace(metadata)
+        self.assertFalse(marker.exists())
+        self.assertTrue(report["incomplete"])
+        self.assertTrue(report["unexpected_mutation_detected"])
+        self.assertIn("incomplete-mutation-evidence", supervisor._workspace_hard_reasons(report))
+        subprocess.run(["git", "-C", str(self.workspace), "status", "--porcelain"], capture_output=True, check=False)
+        self.assertTrue(marker.exists(), "ordinary Git must execute the planted fsmonitor")
+
+    def test_real_clean_and_process_markers_stay_inert_and_metadata_is_hard(self) -> None:
+        (self.workspace / ".gitattributes").write_text("*.py filter=review\n", encoding="utf-8")
+        self.git("add", ".gitattributes")
+        self.git("commit", "-qm", "EXAMPLE attributes")
+        for number, kind in enumerate(("clean", "process"), start=2):
+            metadata, _ = self.baseline(session=kind)
+            marker = self.root / (kind.upper() + "_RAN")
+            command = f"sh -c 'touch {marker}; cat'" if kind == "clean" else f"sh -c 'touch {marker}; exit 1'"
+            self.git("config", "filter.review." + kind, command)
+            (self.workspace / "src" / "owned.py").write_text(f"value = {number}\n", encoding="utf-8")
+            report = supervisor._compare_live_workspace(metadata)
+            self.assertFalse(marker.exists())
+            self.assertFalse(report["incomplete"], report["after"].get("incomplete_reasons"))
+            self.assertTrue(report["unexpected_mutation_detected"])
+            self.assertIn("src/owned.py", report["mutation_categories"]["scoped"])
+            self.assertIn("unexpected-git-metadata-mutation", supervisor._workspace_hard_reasons(report))
+            subprocess.run(["git", "-C", str(self.workspace), "status", "--porcelain"], capture_output=True, check=False)
+            self.assertTrue(marker.exists(), f"ordinary Git must execute the planted {kind} filter")
+
+    def test_other_unexpected_comparator_results_stay_hard(self) -> None:
+        # Forward compatibility: substituted decision-shape control, not a capture witness.
+        self.assertEqual(supervisor._workspace_hard_reasons({
+            "unexpected_mutation_detected": True,
+            "unexpected_mutations": [{"path": ".git:unknown", "category": "new-protected-category"}],
+        }), ["unexpected-workspace-mutation"])
+
+
 class NativeWorkerSupervisorTests(unittest.TestCase):
     def setUp(self) -> None:
         self.enterContext(historical_v2_policy())
@@ -1917,6 +2143,50 @@ class NativeWorkerSupervisorTests(unittest.TestCase):
         payload = json.loads(checked.stdout)
         self.assertEqual(payload["decision"], "complete")
         self.assertFalse(payload["control_action_required"])
+
+    def test_real_unexplained_git_config_interrupts_completed_supervision(self) -> None:
+        started = self.start()
+        self.assertEqual(started.returncode, 0, started.stderr)
+        self.activate_before("2026-07-11T00:00:03Z")
+        subprocess.run(["git", "-C", str(fixture_workdir()), "config", "review.setting", "unapproved"],
+                       check=True, capture_output=True)
+        write_records(self.session_file, [
+            session_meta(self.session_id),
+            event("2026-07-11T00:00:01Z", self.session_id, "task_started"),
+            event("2026-07-11T00:00:02Z", self.session_id, "task_complete"),
+        ])
+        checked = self.check("2026-07-11T00:00:03Z")
+        payload = json.loads(checked.stdout)
+        self.assertEqual(payload["decision"], "interrupt")
+        self.assertEqual(checked.returncode, 2, checked.stderr)
+        self.assertIn("unexpected-git-metadata-mutation", payload["reasons"])
+        self.assertEqual(payload["session_disposition"], "quarantined")
+        report = payload["observed"]["workspace_report"]
+        self.assertFalse(report["incomplete"])
+        self.assertTrue(report["unexpected_mutation_detected"])
+        self.assertIn(".git:common:config", report["mutation_categories"]["git-metadata"])
+
+    def test_real_incomplete_layout_interrupts_completed_supervision(self) -> None:
+        started = self.start()
+        self.assertEqual(started.returncode, 0, started.stderr)
+        self.activate_before("2026-07-11T00:00:03Z")
+        subprocess.run(["git", "-C", str(fixture_workdir()), "config", "core.worktree", "../unsupported"],
+                       check=True, capture_output=True)
+        write_records(self.session_file, [
+            session_meta(self.session_id),
+            event("2026-07-11T00:00:01Z", self.session_id, "task_started"),
+            event("2026-07-11T00:00:02Z", self.session_id, "task_complete"),
+        ])
+        checked = self.check("2026-07-11T00:00:03Z")
+        payload = json.loads(checked.stdout)
+        self.assertEqual(checked.returncode, 2, checked.stderr)
+        self.assertEqual(payload["decision"], "interrupt")
+        self.assertIn("incomplete-mutation-evidence", payload["reasons"])
+        self.assertEqual(payload["session_disposition"], "quarantined")
+        report = payload["observed"]["workspace_report"]
+        self.assertTrue(report["incomplete"])
+        self.assertTrue(report["unexpected_mutation_detected"])
+        self.assertFalse(report["git_metadata_capture_complete"])
 
     def test_check_compact_projection_preserves_full_state_and_stays_bounded(self) -> None:
         self.assertEqual(self.start().returncode, 0)

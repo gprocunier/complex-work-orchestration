@@ -401,6 +401,7 @@ def _load_workspace_baseline(metadata: Any) -> dict[str, Any]:
 
 
 def _compare_live_workspace(metadata: dict[str, Any]) -> dict[str, Any]:
+    """Preserve core classification; baseline metadata grants no transition approval."""
     before = _load_workspace_baseline(metadata)
     caps = before.get("caps")
     caps = caps if isinstance(caps, dict) else {}
@@ -412,53 +413,11 @@ def _compare_live_workspace(metadata: dict[str, Any]) -> dict[str, Any]:
         max_bytes=int(caps.get("max_bytes", 50_000_000)),
         max_seconds=float(caps.get("max_seconds", 5.0)),
     )
-    report = compare_workspace_baseline(
+    return compare_workspace_baseline(
         before,
         after,
         allowed_paths=list(before.get("allowed_paths", [])),
     )
-    allowed_paths = list(before.get("allowed_paths", []))
-    mutations = report.get("mutations")
-    if isinstance(mutations, list):
-        for mutation in mutations:
-            if (
-                isinstance(mutation, dict)
-                and mutation.get("category") == "untracked"
-                and _path_is_allowed(str(mutation.get("path", "")), allowed_paths)
-            ):
-                mutation["category"] = "scoped"
-        category_names = (
-            "scoped",
-            "out-of-scope",
-            "untracked",
-            "unchanged-dirty",
-            "attribution-ambiguous",
-        )
-        categories = {
-            name: sorted(
-                str(item["path"])
-                for item in mutations
-                if isinstance(item, dict) and item.get("category") == name
-            )
-            for name in category_names
-        }
-        categories["unchanged-dirty"] = sorted(
-            set(categories["unchanged-dirty"]) | set(report.get("unchanged_dirty", []))
-        )
-        unexpected = [
-            item
-            for item in mutations
-            if isinstance(item, dict)
-            and item.get("category") in {"out-of-scope", "untracked", "attribution-ambiguous"}
-        ]
-        report["mutation_categories"] = categories
-        report["allowed_mutations"] = [
-            item for item in mutations if isinstance(item, dict) and item.get("category") == "scoped"
-        ]
-        report["unexpected_mutations"] = unexpected
-        report["unexpected_mutation_detected"] = bool(unexpected)
-        report["attribution_ambiguous"] = bool(categories["attribution-ambiguous"])
-    return report
 
 
 def _workspace_hard_reasons(report: dict[str, Any]) -> list[str]:
@@ -473,6 +432,17 @@ def _workspace_hard_reasons(report: dict[str, Any]) -> list[str]:
         reasons.append("out-of-scope-mutation")
     if categories.get("untracked"):
         reasons.append("unexpected-untracked-mutation")
+    unexpected = report.get("unexpected_mutations")
+    unexpected = unexpected if isinstance(unexpected, list) else []
+    unexpected_categories = {
+        item.get("category") for item in unexpected if isinstance(item, dict)
+    }
+    if "git-metadata" in unexpected_categories:
+        reasons.append("unexpected-git-metadata-mutation")
+    if "git-refs" in unexpected_categories:
+        reasons.append("unexpected-git-reference-mutation")
+    if report.get("unexpected_mutation_detected") and not reasons:
+        reasons.append("unexpected-workspace-mutation")
     return reasons
 
 

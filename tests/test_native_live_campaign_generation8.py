@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 import uuid
 
 
@@ -15,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
+from cwo_core import workspace as workspace_module  # noqa: E402
 import test_run_native_pool_live_canaries as legacy_tests  # noqa: E402
 
 
@@ -730,6 +732,47 @@ class Generation8FiniteDagContractTests(unittest.TestCase):
             expected_validator_contract_sha256=generation8["validator_sha256"],
             repo_root=root,
         )
+
+    def _current_manifest_errors(self, root, predecessor, generation8):
+        return CONTRACTS.validate_campaign_manifest(
+            generation8["manifest"], authorization=generation8["authorization"],
+            authorization_raw_sha256=generation8["authorization_snapshot"].raw_sha256,
+            outer_authority=generation8["outer_snapshot"].value,
+            outer_authority_raw_sha256=generation8["outer_snapshot"].raw_sha256,
+            predecessor_proof=predecessor, recovery_cause_evidence=generation8["cause_snapshot"],
+            recovery_cause_source_analysis=generation8["source_analysis"],
+            independent_validation_receipt=generation8["receipt"],
+            independent_validation_receipt_raw_sha256=generation8["receipt_snapshot"].raw_sha256,
+            expected_validator_contract_sha256=generation8["validator_sha256"],
+            repo_root=root, expected_primary_diff_sha256=LIVE.sha256_bytes(b""),
+        )
+
+    def test_real_capture_cap_refuses_authorization_and_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _ancestor, predecessor, generation8 = self._complete_chain(root)
+            self.assertEqual(self._authorization_errors(root, predecessor, generation8), [])
+            self.assertEqual(self._current_manifest_errors(root, predecessor, generation8), [])
+            with mock.patch.dict(workspace_module.STATE_CAPS, {"max_files": 0}):
+                authorization_errors = self._authorization_errors(root, predecessor, generation8)
+                manifest_errors = self._current_manifest_errors(root, predecessor, generation8)
+            self.assertTrue(any("repository-not-clean" in error for error in authorization_errors), authorization_errors)
+            self.assertTrue(any("repository-not-clean" in error for error in manifest_errors), manifest_errors)
+
+    def test_real_dirty_source_refuses_authorization_and_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            _ancestor, predecessor, generation8 = self._complete_chain(root)
+            target = root / "baseline.txt"
+            original = target.read_bytes()
+            target.write_bytes(b"unapproved\n")
+            authorization_errors = self._authorization_errors(root, predecessor, generation8)
+            manifest_errors = self._current_manifest_errors(root, predecessor, generation8)
+            self.assertTrue(any("repository-not-clean" in error for error in authorization_errors), authorization_errors)
+            self.assertTrue(any("repository-not-clean" in error for error in manifest_errors), manifest_errors)
+            target.write_bytes(original)
+            self.assertEqual(self._authorization_errors(root, predecessor, generation8), [])
+            self.assertEqual(self._current_manifest_errors(root, predecessor, generation8), [])
 
     def test_v1_digest_is_frozen_and_v2_requires_the_new_schema_blobs(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

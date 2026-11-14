@@ -107,6 +107,7 @@ ALLOWED_IMPORTS = {
     "native_authority": set(),
     "native_activation_ledger": set(),
     "native_activation_preview": {
+        "beads",
         "beads_ready_set",
         "model_identities",
         "native_activation_ledger",

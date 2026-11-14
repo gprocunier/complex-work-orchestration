@@ -985,6 +985,28 @@ class StagedStateTests(unittest.TestCase):
 
 
 class RawInventoryTests(unittest.TestCase):
+    def test_ordinary_id_source_file_is_captured_and_scoped(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo = make_repo(Path(tmpdir))
+            source = repo / "src" / "id_parser.py"
+            source.write_text("VALUE = 'before'\n", encoding="utf-8")
+            git(repo, "add", "src/id_parser.py")
+            git(repo, "commit", "-qm", "add ordinary source")
+            before = capture_workspace_baseline(repo, allowed_paths=["src/id_parser.py"])
+            unchanged = capture_workspace_baseline(repo, allowed_paths=["src/id_parser.py"])
+            clean = compare_workspace_baseline(before, unchanged, allowed_paths=["src/id_parser.py"])
+            source.write_text("VALUE = 'edited'\n", encoding="utf-8")
+            after = capture_workspace_baseline(repo, allowed_paths=["src/id_parser.py"])
+            scoped = compare_workspace_baseline(before, after, allowed_paths=["src/id_parser.py"])
+        self.assertTrue(before["baseline_complete"], before["incomplete_reasons"])
+        self.assertIn("src/id_parser.py", before["raw_inventory"])
+        self.assertFalse(clean["unexpected_mutation_detected"])
+        self.assertFalse(scoped["incomplete"])
+        self.assertFalse(scoped["unexpected_mutation_detected"])
+        self.assertEqual(scoped["mutation_categories"]["scoped"], ["src/id_parser.py"])
+        self.assertNotEqual(before["raw_inventory"]["src/id_parser.py"],
+                            after["raw_inventory"]["src/id_parser.py"])
+
     def test_mode_change_on_a_dirty_file_is_a_mutation(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             repo = make_dirty_repo(Path(tmpdir))
