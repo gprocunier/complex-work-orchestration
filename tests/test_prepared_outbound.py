@@ -441,9 +441,11 @@ class PreparedRouteTraceTests(unittest.TestCase):
         # Local HTTP and registered review dispatch call the helper through the
         # same consumer. Browser submission and model-only confirmation bind
         # destinations; raw network helpers and dormant sharing methods do not.
+        # The registered offline share boundary carries the prepared-disclosure
+        # context; its raw forwarder remains contextual, without standalone admission.
         expected = {
             "H1.1", "H1.2", "H2.1", "H4.1", "H4.2", "H4.3", "H4.4",
-            "H4.5", "H4.6", "H5.5",
+            "H4.5", "H4.6", "H5.5", "H5.7",
         }
         observed = {route["id"] for route in routes._routes(inventory) if helper in route["trace_files"]}
         self.assertEqual(observed, expected)
