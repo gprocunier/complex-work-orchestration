@@ -1022,21 +1022,25 @@ def primitive_hits(contents):
 
 
 def _excluded_primitive(disposition, exclusions, by_id, used):
-    need(len(disposition) == 2 and disposition[1] in exclusions, "unknown primitive exclusion")
+    need(len(disposition) == 2 and isinstance(disposition[1], str), "unknown primitive exclusion")
     key = disposition[1]
-    need(isinstance(key, str) and key.strip() and key not in used, "duplicate primitive exclusion")
+    need(key in exclusions, "unknown primitive exclusion")
+    need(key.strip() and key not in used, "duplicate primitive exclusion")
     used.add(key)
     exclusion = exclusions[key]
+    need(isinstance(exclusion, dict), "named primitive exclusion decision required")
     need(isinstance(exclusion.get("reason"), str) and exclusion["reason"].strip() and
          isinstance(exclusion.get("conclusion"), str) and exclusion["conclusion"].strip(),
          "named primitive exclusion decision required")
-    need("route" not in exclusion or exclusion["route"] in by_id, "unknown exclusion route")
+    need("route" not in exclusion or isinstance(exclusion["route"], str) and exclusion["route"] in by_id,
+         "unknown exclusion route")
 
 
 def _mapped_primitive(row, value, contents, by_id):
     path, line, col, end_line, end_col, _family, sha, disposition = row
-    need(disposition[0] == "route" and len(disposition) == 3 and disposition[1] in by_id,
+    need(disposition[0] == "route" and len(disposition) == 3 and isinstance(disposition[1], str),
          "unknown primitive route disposition")
+    need(disposition[1] in by_id, "unknown primitive route disposition")
     route, selected_point = by_id[disposition[1]], disposition[2]
     if isinstance(selected_point, str):
         need(selected_point in value.get("points", {}), "unknown primitive effect point")
@@ -1055,13 +1059,53 @@ def _mapped_primitive(row, value, contents, by_id):
     need(observed == expected and digest(text) == sha, "primitive effect point must equal exact hit")
 
 
-def _check_primitive_coverage(value, contents, routes):
-    coverage = value.get("primitive_coverage", {})
-    need(coverage.get("schema") == "bounded-primitives-v1", "primitive coverage schema required")
-    rows, exclusions = coverage.get("hits", []), coverage.get("exclusions", {})
-    hits = primitive_hits(contents)
+def _primitive_path_table(coverage, contents):
+    paths = coverage.get("paths")
+    need(isinstance(paths, list) and len(paths) <= MAX_FILES, "primitive path table required within source bound")
+    need(all(isinstance(path, str) and path.startswith("scripts/") and path in contents for path in paths),
+         "primitive path entry must name current script source")
+    need(len(set(paths)) == len(paths), "duplicate primitive path entry")
+    return paths
+
+
+def _expanded_primitive_coverage(coverage, contents):
+    """Decode explicit path indices only; keep evidence and dispositions expanded."""
+    need(isinstance(coverage, dict) and coverage.get("schema") in ("bounded-primitives-v1", "bounded-primitives-v2"),
+         "primitive coverage schema required")
+    rows = coverage.get("hits", [])
+    need(isinstance(rows, list), "primitive hit rows required")
     need(all(isinstance(row, list) and len(row) == 8 for row in rows), "primitive hit row required")
-    selected = [row[:7] for row in rows]
+    if coverage["schema"] == "bounded-primitives-v1":
+        need("paths" not in coverage, "unexpected primitive path table")
+        return coverage
+    paths = _primitive_path_table(coverage, contents)
+    expanded, used = [], set()
+    for row in rows:
+        index = row[0]
+        need(type(index) is int and 0 <= index < len(paths), "primitive path index outside table")
+        expanded.append([paths[index], *row[1:]])
+        used.add(index)
+    need(used == set(range(len(paths))), "unused primitive path table entry")
+    result = {**coverage, "schema": "bounded-primitives-v1", "hits": expanded}
+    del result["paths"]
+    return result
+
+
+def _primitive_hit_key(row):
+    need(isinstance(row[0], str) and all(type(number) is int for number in row[1:5]),
+         "primitive hit path and integer span required")
+    need(row[1] > 0 and row[2] >= 0 and row[3] >= row[1] and row[4] >= 0, "invalid primitive hit span")
+    need(isinstance(row[5], str) and row[5] in PRIMITIVE_FAMILIES and isinstance(row[6], str)
+         and re.fullmatch(r"[0-9a-f]{64}", row[6]), "primitive hit family and full SHA256 required")
+    return row[:7]
+
+
+def _check_primitive_coverage(value, contents, routes):
+    coverage = _expanded_primitive_coverage(value.get("primitive_coverage", {}), contents)
+    rows, exclusions = coverage.get("hits", []), coverage.get("exclusions", {})
+    need(isinstance(exclusions, dict), "primitive exclusions mapping required")
+    hits = primitive_hits(contents)
+    selected = [_primitive_hit_key(row) for row in rows]
     need(sorted(selected) == hits and len({tuple(row) for row in selected}) == len(selected),
          "primitive hit coverage mismatch")
     by_id = {route["id"]: route for route in routes}

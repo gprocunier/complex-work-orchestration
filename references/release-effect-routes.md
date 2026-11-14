@@ -60,9 +60,27 @@ command execution. Token boundaries exclude adjacent letters, digits, underscore
 and hyphens; expansions and generated command names remain outside this bounded
 scan. Shell files still require complete byte/mode bindings.
 
-`primitive_coverage` uses schema `bounded-primitives-v1`. Each `hits` row is
-`[path, line, col, end_line, end_col, family, sha256, disposition]`; its hash binds
-the exact UTF-8 call bytes, or whole shell line bytes without its newline. The observed and authored hit sets must match exactly,
+`primitive_coverage` supports the expanded `bounded-primitives-v1` schema and
+the compact `bounded-primitives-v2` schema. Expanded `hits` rows are
+`[path, line, col, end_line, end_col, family, sha256, disposition]`.
+Compact coverage adds an explicit `paths` table of unique current script paths;
+each hit replaces only its path with a zero-based integer table index:
+`[path_index, line, col, end_line, end_col, family, sha256, disposition]`.
+For example, `"paths":["scripts/example.py"]` makes index `0` select that path.
+Boolean, negative, noninteger and out-of-range indices refuse, as do malformed,
+duplicate, missing-source or unused table entries. The table retains the existing
+source-file count bound; an empty hit set uses an empty table. Expanded v1 data
+has no `paths` table and remains supported, including EXAMPLE fixtures.
+
+Both forms retain full 64-character SHA256 values binding the exact UTF-8 call
+bytes, or whole shell line bytes without its newline. Columns remain UTF-8 byte
+offsets and the span end remains excluded. Trace evidence expands compact rows
+before applying the same exact hit, route and exclusion checks. Rebinding keeps
+the selected representation and layout, preserves all primitive decisions and
+is a byte-for-byte no-op when bindings are current. The 512 KiB inventory cap,
+all source/file/count bounds, alias budgets and deadlines are unchanged; source
+bindings, gates, manual decisions and named witnesses retain their full semantics.
+The observed and authored hit sets must match exactly,
 without duplicate, missing, stale or extra rows. A disposition is either
 `["route", route_id, point_key]`, selecting an exact effect point of that route,
 or `["exclude", exclusion_id]`. Expanded EXAMPLE routes may supply the effect
