@@ -2249,18 +2249,27 @@ def _ci_required_lines(block: str, lines: tuple[str, ...]) -> bool:
                for line in lines)
 
 
+def _ci_exact_job_section(block: str, name: str, expected: str) -> bool:
+    """Compare the entire section up to the next job key, not just its prefix."""
+    sections = re.findall(r"^    " + re.escape(name) + r":\n.*?(?=^    \S|\Z)", block,
+                          flags=re.MULTILINE | re.DOTALL)
+    return sections == [expected]
+
+
 def _validate_ci_unit_shards(errors: list[str], ci: str) -> None:
     job = _ci_job_block(ci, "test")
+    strategy = ("    strategy:\n      fail-fast: false\n"
+                "      matrix:\n        shard: [0, 1, 2, 3]\n")
     required = (
         "    name: unit-tests (${{ matrix.shard }}/4)",
-        "    strategy:\n      fail-fast: false\n      matrix:\n        shard: [0, 1, 2, 3]",
         "    env:\n      CWO_TEST_SHARD_INDEX: ${{ matrix.shard }}\n      CWO_TEST_SHARD_COUNT: 4",
     )
     units = re.findall(r"^      - name: Unit tests\n(.*?)(?=^      - |\Z)", job,
                        flags=re.MULTILINE | re.DOTALL)
     literal_command = len(units) == 1 and units[0].strip("\n") == "        run: " + CI_UNIT_TEST_COMMAND
     checkout_count = len(re.findall(r"^      - uses: actions/checkout@", job, re.MULTILINE))
-    if (not _ci_required_lines(job, required) or not literal_command or checkout_count != 1
+    if (not _ci_required_lines(job, required) or not _ci_exact_job_section(job, "strategy", strategy)
+            or not literal_command or checkout_count != 1
             or re.search(r"^    (?:if|continue-on-error):", job, re.MULTILINE)):
         errors.append("CI unit shards must cover 0..3/4 with literal full-suite defaults and unconditional steps")
 

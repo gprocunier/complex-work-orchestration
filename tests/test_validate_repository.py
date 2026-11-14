@@ -299,6 +299,22 @@ class ValidateRepositoryTests(unittest.TestCase):
                 self.assertIn(old, fixture)
                 self.assertTrue(any("unit shard" in error for error in self._ci_errors(fixture.replace(old, new))))
 
+    def test_ci_sharding_contract_requires_exact_checked_in_matrix(self) -> None:
+        fixture = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        matrix = "      matrix:\n        shard: [0, 1, 2, 3]\n"
+        self.assertEqual(fixture.count(matrix), 1)
+        with self.subTest(matrix="unchanged"):
+            self.assertEqual(self._ci_errors(fixture), [])
+        additions = {
+            "exclude": "        exclude:\n          - shard: 3\n",
+            "include": "        include:\n          - shard: 4\n",
+            "extra axis": "        python-version: ['3.12', '3.13']\n",
+        }
+        for label, addition in additions.items():
+            with self.subTest(matrix=label):
+                errors = self._ci_errors(fixture.replace(matrix, matrix + addition, 1))
+                self.assertTrue(any("unit shard" in error for error in errors), errors)
+
     def test_ci_aggregate_requires_all_results_and_always_runs(self) -> None:
         fixture = self._ci_fixture()
         changes = (
