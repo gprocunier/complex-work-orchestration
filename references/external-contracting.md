@@ -658,7 +658,14 @@ python3 scripts/build_contractor_packet.py \
 
    Reports retain `git-refs` and `git-metadata` categories and add
    `authorization` to each Git change. Explicitly matched paths report
-   `authorized`; other paths report `unexplained`. The
+   `authorized`; other complete changes report `unexplained`; changes from
+   incomplete Git evidence report `incomplete` and cannot be authorized.
+   `metadata_kind` distinguishes `indirection`, `config`, `hooks`, `info`,
+   `head`, `refs` and `other`; `metadata_scope` distinguishes `worktree`,
+   `per-worktree`, `common`, `external` dependencies and `capture` identities.
+   `git_transition_classifications` lists exact paths under each authorization
+   status; `git_metadata_capture_complete` reports Git evidence completeness.
+   The
    `expected_git_transition.status` is `not-supplied`, `accepted` or `refused`,
    with the refusal reason included. An accepted record can still leave
    unselected changes unexpected.
