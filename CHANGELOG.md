@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Recorded the qualification target as Codex 0.163.0 with the `constrained-integrity` profile; confidential operation is unsupported.
+- Documented legacy transport limits and checked typed replies against the selected protocol schemas.
+- Made terminal projection tests deterministic while retaining lifecycle and accounting checks.
+
 ## 0.4.0 - 2026-11-14
 
 - Workspace inspection recognises authorized Git changes and reports them separately from unexplained changes.

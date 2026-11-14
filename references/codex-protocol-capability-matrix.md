@@ -20,6 +20,45 @@ The policy file holds the full digests, the generation commands
 `tests/fixtures/codex-protocol/`. Generating the 0.163.0 bundles twice gave
 identical bytes. Every fact below holds for both versions.
 
+## Selected qualification target
+
+`policy/qualification-target.yaml` selects the existing **Codex 0.163.0** pin,
+the standalone `x86_64-unknown-linux-musl` package, and the
+**constrained-integrity** profile. The package entrypoint is `bin/codex` relative
+to an operator-supplied package directory; `codex-package.json` has SHA-256
+`5fa8533bde21972564cbb2c665c99c6d6d0e92b625fa6f4fdf1354ac5fb71a78`.
+
+The selected configuration is the native worker's `workspace-write` sandbox,
+`approvalPolicy: never`, no network, and a bwrap host. Qualification must show
+that the worker writes only its workspace, cannot change host records, policy
+or receipts, and cannot retry or escalate without separate approval. These are
+requirements for the selected target; effective configuration and enforcement
+remain **unknown**. The profile is selected and unqualified. **Confidential**
+operation is **unsupported**: Codex can read the full disk, and CWO supplies no
+confidentiality sandbox of its own.
+
+On 2026-11-14, no-model local observations confirmed the executable version,
+executable hash and package-manifest hash. Stable and experimental schema
+generation ran with empty `HOME` and `CODEX_HOME` in bwrap with `--unshare-net`;
+both complete bundle digests matched the existing pin. This observes identity
+and schema generation only. No worker containment test or model turn ran.
+
+The machine-readable property matrix labels every row as **source-supported**,
+**fake-tested**, **os-observed**, **unknown**, or **unsupported**, and links each
+row to its evidence or stated limit. Source support can describe schema fields
+or the host's requested configuration; fake tests establish check behavior.
+Neither establishes platform enforcement. Unknown properties include effective
+rules and grants, protected write roots, network denial, retries and escalation,
+stdin gating, named-profile compilation, tool behavior and live model behavior.
+
+`cwo_core.qualification_target.selected_target()` validates the document and
+resolves its executable and package through `pin_for`. `target_for` additionally
+checks a supplied profile, observed executable version/hash, package-manifest
+hash and selected configuration descriptor. A different hash, profile or
+configuration refuses. Repository validation uses the same resolver. These
+checks return metadata and grant no execution authority; existing live holds
+remain in force. Historical pins and their default lookup behavior are retained.
+
 ## Classification
 
 - **source-supported (schema):** stated by the schema Codex generates from its
@@ -29,7 +68,8 @@ identical bytes. Every fact below holds for both versions.
   at `c1382380`; no source checkout is available offline, so it is not
   re-verified here.
 - **live-untested:** needs a running app-server, an effective configuration or
-  an OS boundary. None was used.
+  an OS boundary. The historical rows below make no runtime or OS claim; the
+  selected target's later identity observations are scoped above.
 
 ## Matrix
 

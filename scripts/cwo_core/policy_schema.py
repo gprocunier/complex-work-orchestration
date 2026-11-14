@@ -61,6 +61,7 @@ TYPE_NAMES = ("object", "array", "string", "integer", "number", "boolean", "null
 
 # Current policy files covered by a whole-document schema, validated at every load.
 POLICY_SCHEMAS = {'acceptance-policy.yaml': 'acceptance-policy.schema.json',
+ 'qualification-target.yaml': 'qualification-target.schema.json',
  'access-profiles.yaml': 'access-profiles.schema.json',
  'contracting-controls.yaml': 'contracting-controls.schema.json',
  'execution-environments.yaml': 'execution-environments.schema.json',
@@ -87,6 +88,12 @@ POLICY_SCHEMAS = {'acceptance-policy.yaml': 'acceptance-policy.schema.json',
 #   partial           named sections checked by typed code; the rest is read without validation
 #   none              read by consumers without a validator (coercive reads included)
 POLICY_VALIDATION_BOUNDARIES = {
+    "qualification-target.yaml": (
+        "schema",
+        "schemas/qualification-target.schema.json fixes the selected target and labels every property; "
+        "cwo_core.qualification_target.selected_target additionally resolves the existing executable/package pin; "
+        "target_for rejects observed identity, profile and configuration drift without granting execution authority",
+    ),
     "acceptance-policy.yaml": (
         "schema",
         'schemas/acceptance-policy.schema.json validates current configuration shape at load; section aliases, score/evidence fallbacks and dedicated tripwire thresholds remain additional consumer contracts; labels are data, not authority',
