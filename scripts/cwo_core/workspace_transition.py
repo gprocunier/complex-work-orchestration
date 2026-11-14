@@ -6,6 +6,7 @@ Nothing in captured repository data supplies approval or changes capture rules.
 from __future__ import annotations
 
 import json
+import stat
 from typing import Any
 
 
@@ -27,6 +28,11 @@ _KIND_PREFIXES = (
 )
 _SCOPES = {"capture-identity": "capture", "git_dir": "per-worktree", "common_dir": "common"}
 _SCOPE_PREFIXES = (("worktree:", "worktree"), ("gitdir:", "per-worktree"), ("common:", "common"))
+_REQUIRED_METADATA = frozenset({
+    "worktree:.git", "gitdir:HEAD", "gitdir:config.worktree", "gitdir:commondir", "gitdir:gitdir",
+    "common:config", "common:packed-refs", "common:shallow", "common:objects/info/alternates",
+    "common:hooks", "common:info", "common:refs", "common:reftable",
+})
 
 
 def metadata_category(key: str) -> str:
@@ -86,8 +92,12 @@ def _canonical(value: Any) -> str:
 def _valid_identity(value: Any) -> bool:
     if not isinstance(value, dict) or set(value) != {"root", "git_dir", "common_dir"}:
         return False
-    return all(isinstance(mark, list) and len(mark) == 3 and all(type(part) is int and part >= 0 for part in mark)
-               for mark in value.values())
+    return all(_valid_directory_identity(mark) for mark in value.values())
+
+
+def _valid_directory_identity(value: Any) -> bool:
+    return (isinstance(value, list) and len(value) == 3
+            and all(type(part) is int and part >= 0 for part in value) and stat.S_ISDIR(value[2]))
 
 
 def _valid_metadata(value: Any) -> bool:
@@ -96,7 +106,15 @@ def _valid_metadata(value: Any) -> bool:
     if not all(isinstance(value.get(key), str) and value[key] for key in ("git_dir", "common_dir")):
         return False
     entries = value.get("entries")
-    return isinstance(entries, dict) and bool(entries) and all(_valid_entry(key, entry) for key, entry in entries.items())
+    return (isinstance(entries, dict) and _metadata_roster_complete(value, entries)
+            and all(_valid_entry(key, entry) for key, entry in entries.items()))
+
+
+def _metadata_roster_complete(metadata: dict[str, Any], entries: dict[str, Any]) -> bool:
+    required = _REQUIRED_METADATA
+    if metadata["git_dir"] != metadata["common_dir"]:
+        required = required | {"gitdir:refs", "gitdir:info"}
+    return required <= entries.keys()
 
 
 def _valid_entry(key: Any, value: Any) -> bool:
