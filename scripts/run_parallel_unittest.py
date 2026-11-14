@@ -436,8 +436,9 @@ def run_shards(
         parse_complete = parse_complete and tests is not None
         total_tests += tests or 0
         elapsed = entry.finished - entry.started
-        status = "PASS" if entry.process.returncode == 0 else "FAIL"
-        failures += int(entry.process.returncode != 0)
+        failure = _workunit_failure(entry, tests)
+        status = "FAIL" if failure else "PASS"
+        failures += int(bool(failure))
         detail = f"tests={tests}" if tests is not None else "tests=unknown"
         if test_seconds is not None:
             detail += f" test_seconds={test_seconds:.3f}"
@@ -446,8 +447,9 @@ def run_shards(
             f"files={len(entry.shard.paths)} {detail} wall_seconds={elapsed:.3f} "
             f"estimated_seconds={entry.shard.estimated_bytes / 10_000:.3f}"
         )
-        if entry.process.returncode != 0:
+        if failure:
             print(f"--- shard {entry.shard.index + 1:02d} log ---", file=sys.stderr)
+            print(f"workunit failed: {failure}", file=sys.stderr)
             print(log, file=sys.stderr, end="" if log.endswith("\n") else "\n")
         entry.temp_directory.cleanup()
 
@@ -464,6 +466,16 @@ def run_shards(
         tests=total_tests if parse_complete else None,
         wall_seconds=wall_seconds,
     )
+
+
+def _workunit_failure(entry: RunningShard, tests: int | None) -> str:
+    """Require a footer and exact method coverage as well as a successful exit."""
+    if tests is None:
+        return "missing unittest footer"
+    selectors = entry.shard.selectors
+    if selectors is not None and tests != len(selectors):
+        return f"expected_tests={len(selectors)} reported_tests={tests}"
+    return f"exit_code={entry.process.returncode}" if entry.process.returncode else ""
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:

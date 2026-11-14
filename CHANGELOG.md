@@ -4,6 +4,7 @@
 
 - Added an optional repository hook to check commit messages and contributor identity.
 - Added a release inventory rebind command that reports affected routes and refuses stale source spans.
+- Tightened parallel test-runner checks for missing results and method case counts, with regression coverage for failed workunit logs and serial fixture isolation.
 
 ## 0.2.0 - 2026-11-11
 
