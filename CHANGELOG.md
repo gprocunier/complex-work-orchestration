@@ -2,9 +2,11 @@
 
 ## Unreleased
 
+## 0.2.1 - 2026-11-14
+
 - Added an optional repository hook to check commit messages and contributor identity.
 - Added a release inventory rebind command that reports affected routes and refuses stale source spans.
-- Tightened parallel test-runner checks for missing results and method case counts, with regression coverage for failed workunit logs and serial fixture isolation.
+- Tightened parallel test checks for missing results and incorrect case counts, with regression tests for failed groups and serial test isolation.
 - Added a CI-parity release test environment covering checkout includes, relocated Python and four-CPU execution.
 - Added explicit host selection and transport dry runs to the release gate dispatcher.
 - Limited push-triggered CI to `main` and `v*` tags while preserving pull-request checks.
