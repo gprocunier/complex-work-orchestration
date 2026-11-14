@@ -105,6 +105,7 @@ __all__ = [
     "model_identities",
     "proportional_execution",
     "public_copy",
+    "qualification_target",
     "return_boundary",
     "return_common",
     "return_evidence",

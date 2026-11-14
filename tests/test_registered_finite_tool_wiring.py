@@ -2274,12 +2274,14 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
 
     def _terminal_projection_schedule(self, *, before_wait):
-        case = self.fixture.case(finite_tool_mode='captured-host-tools',
-                                 materialize_on_turn_start=True)
+        # This test owns the driver/read ordering; the generic fake scheduler
+        # waits for a command completion that this no-command case never emits.
+        case = self.fixture.case(archive_schedule='concurrent', finite_tool_mode='captured-host-tools',
+                                 materialize_on_turn_start=True, no_fake_scheduler=True)
         case.command_prepared, case.command_release = threading.Event(), threading.Event()
         factory = self.fixture.factory(case)
         outcome, observed, result = [], threading.Event(), []
-        driver_release = threading.Event()
+        driver_parked, driver_release = threading.Event(), threading.Event()
         self.addCleanup(driver_release.set)
         original_result = DynamicRpcProcess.result
         def projection(process, method, params):
@@ -2290,7 +2292,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             return response
         def no_command_until_projection(process):
             case.command_prepared.set()
-            case.command_release.wait(5)
+            self.assertTrue(case.command_release.wait(5),
+                            'EXAMPLE projection producer release missing')
         def run():
             try:
                 outcome.append(factory.run())
@@ -2299,7 +2302,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         original_progress = family.runtime._RegisteredServer.await_finite_progress
         def held_progress(server, *args, **kwargs):
             if server is factory.server and threading.current_thread() is worker:
-                driver_release.wait(5)
+                driver_parked.set()
+                self.assertTrue(driver_release.wait(5),
+                                'EXAMPLE projection driver release missing')
             return original_progress(server, *args, **kwargs)
         with patch.object(family, 'RpcProcess', DynamicRpcProcess), patch.object(
                 DynamicRpcProcess, 'result', projection), patch.object(
@@ -2310,12 +2315,14 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             self.addCleanup(family.finish_worker, self, worker, case.command_release, driver_release)
             self.addCleanup(case.command_release.set)
             self.assertTrue(self.wait_for_startup(case.command_prepared, worker, outcome))
+            case.command_release.set()
             server = factory.server
             lifecycle = server.finite_input.lifecycle
-            end = time.monotonic() + 3
-            while lifecycle.phase != 'await-command':
-                self.assertLess(time.monotonic(), end)
-                time.sleep(.001)
+            self.assertTrue(driver_parked.wait(3),
+                            'EXAMPLE projection driver must park before the terminal read')
+            self.assertEqual(lifecycle.phase, 'await-command')
+            self.assertIsNone(server.transport_failure)
+            self.assertEqual(outcome, [])
             original_wait = lifecycle.condition.wait
             def wait(timeout=None):
                 observed.set()
@@ -2349,7 +2356,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             driver_release.set()
             worker.join(12)
         self.assertEqual(len(outcome), 1)
-        self.assertEqual(self.fixture.attempt(case)['outcome'], 'unknown')
+        attempt = self.fixture.attempt(case)
+        self.assertEqual(attempt['outcome'], 'unknown')
+        self.assertEqual(attempt['charge'], attempt['amount'])
 
     def test_original_read_projection_wakes_before_and_during_wait(self):
         for before_wait in (True, False):
