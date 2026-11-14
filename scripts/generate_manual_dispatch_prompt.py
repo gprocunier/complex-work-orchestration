@@ -10,7 +10,10 @@ from typing import Any
 from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.errors import CWOError
-from cwo_core.outbound_screen import ScreenedPayload, ScreeningArgumentParser, require_clean, withheld_diagnostics
+from cwo_core.prepared_outbound import PreparedOutbound, PreparedSource
+from cwo_core.outbound_screen import (
+    ScreenedPayload, ScreeningArgumentParser, refuse_attachments, require_clean, require_text_disclosure, withheld_diagnostics,
+)
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.packets import fenced_block, redact_text
@@ -124,6 +127,7 @@ Rules:
 
 
 def render_packet_prompt(packet: dict[str, Any]) -> str:
+    refuse_attachments(packet, surface="manual/browser packet")
     included_lines = "\n".join(
         f"- {item.get('type')}: {item.get('path', 'assignment')} sha256={item.get('sha256', 'n/a')}"
         for item in packet.get("included_artifacts", [])
@@ -212,20 +216,24 @@ Rules:
 """
 
 
-def read_input_file(path: str, label: str) -> str:
+def read_input_file(path: str, label: str, *, captures: list | None = None) -> str:
     """Read a file named on the command line. The path is caller input that no screen has
     seen, so an error names it only by digest and does not chain the original exception."""
     try:
-        return Path(path).read_text(encoding="utf-8")
+        raw = Path(path).read_bytes()
+        text = raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n")
+        if captures is not None:
+            captures.append((str(Path(path).absolute()), raw))
+        return text
     except (OSError, UnicodeError) as exc:
         digest = hashlib.sha256(str(path).encode("utf-8", errors="surrogatepass")).hexdigest()[:12]
         reason = exc.strerror if isinstance(exc, OSError) and exc.strerror else type(exc).__name__
         raise SystemExit(f"cannot read the {label} (path sha256 {digest}): {reason}") from None
 
 
-def load_packet_file(path: str) -> dict[str, Any]:
+def load_packet_file(path: str, *, captures: list | None = None) -> dict[str, Any]:
     """The contractor packet in ``path``; unreadable or malformed files refuse with digest-only diagnostics."""
-    text = read_input_file(path, "packet file")
+    text = read_input_file(path, "packet file", captures=captures)
     try:
         packet = json.loads(text)
     except (ValueError, RecursionError) as exc:
@@ -237,12 +245,12 @@ def load_packet_file(path: str) -> dict[str, Any]:
     return packet
 
 
-def read_task_segments(text: str | None, file_path: str | None) -> list[str]:
+def read_task_segments(text: str | None, file_path: str | None, *, captures: list | None = None) -> list[str]:
     """The task text and the --file contents appended to it, as separate segments in order, read with
     digest-only file errors. Routing assesses each segment and the append history, not only the joined text."""
     parts = [text] if text else []
     if file_path:
-        parts.append(read_input_file(file_path, "task file"))
+        parts.append(read_input_file(file_path, "task file", captures=captures))
     if not parts:
         raise SystemExit("provide task text or --file")
     return parts
@@ -279,27 +287,37 @@ def content_free_route(route: Any) -> Any:
 
 def screen_export(text: str, *, as_json: bool) -> ScreenedPayload:
     """Screen exactly the bytes a manual export will print (output plus newline)."""
+    text = require_text_disclosure(text, surface="manual export")
     return require_clean(text + "\n", surface="manual export", content_type="application/json" if as_json else "text/plain")
 
 
-def write_export(screened: ScreenedPayload) -> None:
+def write_export(screened: ScreenedPayload, *, prepared: PreparedOutbound | None = None, source: Any = None) -> None:
     """Write screened bytes to the byte stream under stdout.
 
     No text encoding, error handler or newline translation can change them.
     A text-only stream (as in tests) stores the string itself, unencoded.
     """
+    raw = screened.require_unchanged(screened.data)
+    if prepared is not None:
+        prepared.require_unchanged(source, raw)
     buffer = getattr(sys.stdout, "buffer", None)
     if buffer is None:
         sys.stdout.write(screened.text())
         return
     sys.stdout.flush()
-    buffer.write(screened.data)
+    if prepared is not None:
+        prepared.require_unchanged(source, raw)
+    buffer.write(screened.require_unchanged(raw))
     buffer.flush()
 
 
-def export_screened(text: str, *, as_json: bool) -> None:
+def export_screened(text: str, *, as_json: bool, capture: PreparedSource | None = None, source: Any = None) -> None:
     """Screen exactly the bytes about to be printed for copying, then write those bytes."""
-    write_export(screen_export(text, as_json=as_json))
+    capture = capture or PreparedSource.capture({"text": text, "as_json": as_json})
+    source = {"text": text, "as_json": as_json} if source is None else source
+    screened = screen_export(text, as_json=as_json)
+    prepared = capture.bind(source, screened)
+    write_export(screened, prepared=prepared, source=source)
 
 
 def main() -> None:
@@ -351,18 +369,24 @@ def _main() -> None:
     refuse_risk_narrowing_arguments(args, source="generate_manual_dispatch_prompt.py")
     require_waiver_reason(args, ["allow_degraded_packet", "allow_raw_manual_prompt", "allow_disclosure_escalation"])
 
+    files: list = []
     if args.packet:
-        packet = load_packet_file(args.packet)
+        packet = load_packet_file(args.packet, captures=files)
+        source = {"packet": packet, "options": vars(args)}
+        capture = PreparedSource.capture(source, files)
         # Production provenance (the packet_built audit event), not only the content checks; no waiver.
         require_production_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
-        prompt = render_packet_prompt(packet)
+        captured = capture.value()
+        prompt = render_packet_prompt(captured["packet"])
+        capture.require_unchanged(captured)
         if args.json:
-            export_screened(json.dumps({"packet": packet, "prompt": prompt}, indent=2, sort_keys=True), as_json=True)
+            export_screened(json.dumps({"packet": capture.value()["packet"], "prompt": prompt}, indent=2, sort_keys=True),
+                            as_json=True, capture=capture, source=source)
         else:
-            export_screened(prompt, as_json=False)
+            export_screened(prompt, as_json=False, capture=capture, source=source)
         return
 
-    task_segments = read_task_segments(" ".join(args.text).strip() or None, args.file)
+    task_segments = read_task_segments(" ".join(args.text).strip() or None, args.file, captures=files)
     task = "\n\n".join(task_segments)
     try:
         route = classify_work(
@@ -385,11 +409,16 @@ def _main() -> None:
         )
     if route.get("route") == "external-contract" and args.allow_raw_manual_prompt and not args.rehearsal:
         raise SystemExit("--allow-raw-manual-prompt requires --rehearsal and must not be used as production dispatch evidence")
-    prompt = render_prompt(redact_text(task) if args.allow_raw_manual_prompt else task, route)
+    source = {"task": task, "segments": task_segments, "route": route, "options": vars(args)}
+    capture = PreparedSource.capture(source, files)
+    captured = capture.value()
+    prompt = render_prompt(redact_text(captured["task"]) if args.allow_raw_manual_prompt else captured["task"], captured["route"])
+    capture.require_unchanged(captured)
     if args.json:
-        export_screened(json.dumps({"route": content_free_route(route), "prompt": prompt}, indent=2, sort_keys=True), as_json=True)
+        export_screened(json.dumps({"route": content_free_route(captured["route"]), "prompt": prompt}, indent=2, sort_keys=True),
+                        as_json=True, capture=capture, source=source)
     else:
-        export_screened(prompt, as_json=False)
+        export_screened(prompt, as_json=False, capture=capture, source=source)
 
 
 if __name__ == "__main__":

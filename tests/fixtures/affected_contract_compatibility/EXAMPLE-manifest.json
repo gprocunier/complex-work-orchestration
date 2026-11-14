@@ -281,7 +281,8 @@
     "tests/test_run_native_pool_live_canaries.py": 420,
     "tests/test_run_readiness_plan.py": 420,
     "tests/test_w20_affected_contract_w13.py": 420,
-    "tests/test_workflow_adjudication.py": 420
+    "tests/test_workflow_adjudication.py": 420,
+    "scripts/cwo_core/prepared_outbound.py": 420
   },
   "files": {
     "policy/acceptance-policy.yaml": "783bd8ec8440ca3d12a1efa0b01542c110171eccf25794839a2686f78d75d998",
@@ -336,7 +337,7 @@
     "scripts/check_installed_skill.py": "a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",
     "scripts/cleanup_stale_agents.py": "b1efd8bfc45345a64fdc5e89ec11c972c56cb8ad0557ac88aa86ef285cffc1a8",
     "scripts/codex_tool_surface.py": "36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",
-    "scripts/cwo_core/__init__.py": "2fef6dc68ba15f9845d21ccc6b77ebb63d5d47c9229778aa9535aed5c75f189f",
+    "scripts/cwo_core/__init__.py": "7d89da14ae6b4384b2a0e19ce114ec257332183da18e406382f6972104306efe",
     "scripts/cwo_core/access_profiles.py": "da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",
     "scripts/cwo_core/adjudication.py": "fa1661792c179819faf2a03382836326f04af919f8f95ebff6b9c70b2a18100d",
     "scripts/cwo_core/adjudication_binding.py": "422f973c806eee9a7aa6cee7b0f5ec651b332129024f298ce303b51a4c99d513",
@@ -362,7 +363,7 @@
     "scripts/cwo_core/host_records.py": "4fd937a81095b34bb38904919f3537e9f94aa66c8038f7f9fa4af8fdff3660bd",
     "scripts/cwo_core/host_return_intake.py": "9288a318e9f1b5dcdf9a9535cfd8518976baf9ef421385ae45e03e5c3fe9fb60",
     "scripts/cwo_core/invocation_ledger.py": "97dbe00124b7b21064b5e1d131c966eb70e64f275a1f75ead71bb23dcddb6773",
-    "scripts/cwo_core/local_invocation.py": "653002561ed3fe3bca1d7edb486ef7117abbe99cf41fb4831786017bb231eba7",
+    "scripts/cwo_core/local_invocation.py": "4f12d5c1aa54a588f0f0e28af9aa9d3eb2f5a183464f18bbea890d35eb3fd9c3",
     "scripts/cwo_core/maintenance_authority.py": "6149f3cae3fc268a1e16dad46664323a893b76586f5ed74d2d4e4e30fcae77e4",
     "scripts/cwo_core/maintenance_image.py": "a0dec8f85ac3267eac07409ba860ce14d584998462df839114f7dcbf5267bf66",
     "scripts/cwo_core/maintenance_native_runtime.py": "fef3a7a19d08d82d689ee9a8471e07c0d37dd59aa9841b2af93099fa3ccdb63f",
@@ -409,7 +410,7 @@
     "scripts/cwo_core/native_turn_dispatch.py": "9a8ecaacd04876a1378fb7b544619c1e69fcf67c4f012eb92ef7f6468408e1bb",
     "scripts/cwo_core/native_worker_contracts.py": "3162aa1846bcd951b14b645754cf9e696b774e5b795cf37fef5e4d7840bdb7a5",
     "scripts/cwo_core/operative_routing.py": "092a3194772f4d699523707bbb5e240cfda0d95fb4d951bfb61706cd0926e13c",
-    "scripts/cwo_core/outbound_screen.py": "ab24150d4963b43e049d58d419634dcc6ccb0707e7465cfd17a57a86fc29bed1",
+    "scripts/cwo_core/outbound_screen.py": "cb160e0e0ee6967c5beef8a748daee9e73f7bcdd135f75481fbc0ec4c13482c6",
     "scripts/cwo_core/ownership_producer.py": "181bec5f0d6e176ef9b19298d28d25634886a89b830ba10460fa8164fb4e74d8",
     "scripts/cwo_core/packet_provenance.py": "2b0486df948bf62941a2cc4be2f244ad5f92533af780950ffff9f6ff768e7e3b",
     "scripts/cwo_core/packets.py": "44cae7e45b071d02e7a44b54d9a26189a3f1ccb172b2228b385c81055893e202",
@@ -451,10 +452,10 @@
     "scripts/cwo_core/workgraph_markdown.py": "f135fb64e2e62747178a3521792d4cb934d2b4680a7560b9ecc20290b6404cb3",
     "scripts/cwo_core/workspace.py": "54f952f45e28d31ccc364e003264770242e4099e1845d237e7685543aa196631",
     "scripts/cwo_core/workspace_capture.py": "80273f8a536024990cf07159b18437511566bc01f1c90ddd171fa7d34dd87632",
-    "scripts/dispatch_work.py": "952e89dec2a2148c55cdf2fd8f419395cf054ff7a998a7860b5c725a59a4fced",
+    "scripts/dispatch_work.py": "3ae8d1f8ddeb202a8e99d6f2c752f55cbd10d77765a837faaafd411b589cd580",
     "scripts/evaluate_return.py": "0d26722a7c2628ed7abfcc8b10764bcb33e7c847e5b769af125c8240128584b8",
     "scripts/evidence_use.py": "60387077e995f67da609cba1fe7df8fb6a7b63f6fd5526078f8d707c1a52bfa4",
-    "scripts/generate_manual_dispatch_prompt.py": "a7f21617e5e621e007e362405a4fae1cd84de75df0b3d83182f22057373b2f52",
+    "scripts/generate_manual_dispatch_prompt.py": "825604cc6bfb067c417c96cee3b9cc0e104955a9342460aa6523f2bb63406ff3",
     "scripts/guarded_artifact_target.py": "51418e0d9dcf9e5ab2a7ae6e3c7fee1820e73bd6bdd4935e507ba132e8483802",
     "scripts/import_execution_telemetry.py": "bc5531f6014a7afde377b71f752dc668657561ba6c59a2c9ed2d3dc7bf663f75",
     "scripts/install.sh": "13f0cb58c6755d2ea6b649a6538fb328d1da71727825d06080571a7a06f89c9c",
@@ -549,7 +550,8 @@
     "tests/test_run_native_pool_live_canaries.py": "d02043f5b8e80df965b4e847dabc6ea33545fd830fc115a140c4ac06270394d9",
     "tests/test_run_readiness_plan.py": "7a334e1790c4fd09729c99e5c2241c957c81e8a22eeaae0d501087b905925849",
     "tests/test_w20_affected_contract_w13.py": "e74db7bc762a5b84649a14d46b914018853562a87bc8b202feb2fdd78158923c",
-    "tests/test_workflow_adjudication.py": "ed2772e7aff2581a4299d53a999d1ca7dfacbf9d904d7b648e00e7b34022347a"
+    "tests/test_workflow_adjudication.py": "ed2772e7aff2581a4299d53a999d1ca7dfacbf9d904d7b648e00e7b34022347a",
+    "scripts/cwo_core/prepared_outbound.py": "70935d818023406be9283a85fa56e42a47cb0940eea0f423bc792cae485a687f"
   },
   "historical_files": {
     "238ddfb22c52f5e753bc5b24ba1e24b30df7b347": {

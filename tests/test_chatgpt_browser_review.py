@@ -1722,7 +1722,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         ):
             try:
                 outcome: object = runner.run(prompt)
-            except ChatGPTBrowserReviewError as exc:
+            except (ChatGPTBrowserReviewError, SystemExit) as exc:
                 outcome = exc
         self.assertEqual(create_share.call_count, 0)
         return outcome, {"submit": submit, "capture": capture, "pin": pin}
@@ -1755,7 +1755,8 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                 real_screen = chatgpt_browser_review.require_clean
 
                 def record_screen(text, **kwargs):
-                    scans.append(text)
+                    if kwargs.get("surface") == "ChatGPT browser Send":
+                        scans.append(text)
                     return real_screen(text, **kwargs)
 
                 with patch.object(chatgpt_browser_review.secrets, "token_hex", return_value="0123456789abcdef0123456789abcdef"), \
@@ -1875,7 +1876,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                          [chatgpt_browser_review._STAMP_SCRIPT, chatgpt_browser_review._FILL_SCRIPT])
         self.assertEqual(seen["box"].scripts[0][1], "0123456789abcdef0123456789abcdef")
         self.assertEqual(seen["box"].scripts[1][1], "Prompt text", "the prompt is passed as one primitive argument")
-        self.assertEqual([arg for _, arg in seen["button"].scripts], ["0123456789abcdef0123456789abcdef"] * 3)
+        self.assertEqual([arg for _, arg in seen["button"].scripts], ["0123456789abcdef0123456789abcdef\nPrompt text"] * 3)
         self.assertEqual(len(seen["results"]), 3, "Send waits until the control is enabled")
 
     def test_no_script_receives_the_prompt_outside_a_chatgpt_frame(self) -> None:
