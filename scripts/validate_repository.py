@@ -51,6 +51,10 @@ EMITTED_PACKET_ARTIFACT_TYPES = {
     "inline_snippet",
     "expert_profile",
 }
+CI_UNIT_TEST_COMMAND = (
+    'python scripts/run_parallel_unittest.py --workers 4 --verbose '
+    '--shard-index "${CWO_TEST_SHARD_INDEX:-0}" --shard-count "${CWO_TEST_SHARD_COUNT:-1}"'
+)
 CI_REQUIRED_COMMANDS = [
     "timeout --kill-after=10 300 python -B scripts/check_release_filesystem.py",
     "python -m compileall -j 8 -x '(^|/)(\\.git|\\.beads|\\.orchestration-audit|__pycache__|\\.ruff_cache)(/|$)' .",
@@ -59,7 +63,7 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/check_code_health.py",
     "python scripts/validate_site.py",
     "python scripts/generate_site.py --check",
-    "python scripts/run_parallel_unittest.py --workers 4",
+    CI_UNIT_TEST_COMMAND,
     "bash examples/sample-prompt-coach-command.sh",
     "python scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json",
     "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet",
@@ -2234,11 +2238,53 @@ def cwo_core_import_targets(
     return targets
 
 
+def _ci_job_block(ci: str, job: str) -> str:
+    blocks = re.findall(r"^  " + re.escape(job) + r":\n(.*?)(?=^  [\w-]+:|\Z)", ci,
+                        flags=re.MULTILINE | re.DOTALL)
+    return blocks[0] if len(blocks) == 1 else ""
+
+
+def _ci_required_lines(block: str, lines: tuple[str, ...]) -> bool:
+    return all(len(re.findall("^" + re.escape(line) + "$", block, re.MULTILINE)) == 1
+               for line in lines)
+
+
+def _validate_ci_unit_shards(errors: list[str], ci: str) -> None:
+    job = _ci_job_block(ci, "test")
+    required = (
+        "    name: unit-tests (${{ matrix.shard }}/4)",
+        "    strategy:\n      fail-fast: false\n      matrix:\n        shard: [0, 1, 2, 3]",
+        "    env:\n      CWO_TEST_SHARD_INDEX: ${{ matrix.shard }}\n      CWO_TEST_SHARD_COUNT: 4",
+    )
+    units = re.findall(r"^      - name: Unit tests\n(.*?)(?=^      - |\Z)", job,
+                       flags=re.MULTILINE | re.DOTALL)
+    literal_command = len(units) == 1 and units[0].strip("\n") == "        run: " + CI_UNIT_TEST_COMMAND
+    checkout_count = len(re.findall(r"^      - uses: actions/checkout@", job, re.MULTILINE))
+    if (not _ci_required_lines(job, required) or not literal_command or checkout_count != 1
+            or re.search(r"^    (?:if|continue-on-error):", job, re.MULTILINE)):
+        errors.append("CI unit shards must cover 0..3/4 with literal full-suite defaults and unconditional steps")
+
+
+def _validate_ci_test_aggregate(errors: list[str], ci: str) -> None:
+    job = _ci_job_block(ci, "test-result")
+    required = (
+        "    name: test", "    needs: [test]", "    if: ${{ always() }}",
+        "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}",
+    )
+    steps = ('    steps:\n      - name: Require all unit test shards\n'
+             '        run: test "$UNIT_TEST_RESULT" = success')
+    if (not _ci_required_lines(job, required) or not job.rstrip().endswith(steps)
+            or re.search(r"^    continue-on-error:", job, re.MULTILINE)):
+        errors.append("CI test aggregate must always require success from every unit shard")
+
+
 def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None:
     path = ci_path or REPO_ROOT / ".github" / "workflows" / "ci.yml"
     if not path.is_file():
         return
     ci = path.read_text(encoding="utf-8")
+    _validate_ci_unit_shards(errors, ci)
+    _validate_ci_test_aggregate(errors, ci)
     for term in CI_REQUIRED_COMMANDS:
         if term not in ci:
             errors.append(f"CI workflow is missing required command: {term}")

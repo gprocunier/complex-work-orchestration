@@ -48,6 +48,31 @@ def encoded(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
 
 
+def _inventory_records(value):
+    """Put independent entries on separate lines; keep each record compact."""
+    if isinstance(value, dict):
+        rows = [encoded(key) + b":" + encoded(value[key]) for key in sorted(value)]
+        return b"{\n" + b",\n\n".join(rows) + b"\n}"
+    if isinstance(value, list):
+        return b"[\n" + b",\n\n".join(encoded(row) for row in value) + b"\n]"
+    return encoded(value)
+
+
+def _inventory_sections(value):
+    rows = []
+    for key in sorted(value):
+        item = value[key]
+        # Coverage groups contain independent exclusion entries and hit rows.
+        raw = _inventory_sections(item) if key == "primitive_coverage" else _inventory_records(item)
+        rows.append(encoded(key) + b":" + raw)
+    return b"{\n" + b",\n\n".join(rows) + b"\n}"
+
+
+def inventory_bytes(value):
+    """Sorted keys, authored array order, compact rows with blank separators."""
+    return _inventory_sections(value) + b"\n"
+
+
 def mark(value):
     return (value.st_dev, value.st_ino, value.st_mode, value.st_size,
             value.st_mtime_ns, value.st_ctime_ns)
@@ -1135,6 +1160,7 @@ def inventory(root):
     need(value["schema"] == "compact-release-routes-v1", "inventory schema refused")
     ids = [route["id"] for route in value["routes"]]
     need(ids and len(ids) == len(set(ids)), "missing or duplicate routes")
+    need(data == inventory_bytes(value), "canonical inventory layout required")
     return value, digest(data)
 
 

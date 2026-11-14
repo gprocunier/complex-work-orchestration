@@ -82,7 +82,7 @@ class RebindReleaseInventoryTests(unittest.TestCase):
                                             "exclusions": {"EXAMPLE-exclusion": {
                                                 "reason": "inert fixture", "conclusion": "never executed"}}}}
         (root / "policy").mkdir()
-        (root / R.INVENTORY).write_bytes(R.encoded(inventory) + b"\n")
+        (root / R.INVENTORY).write_bytes(R.inventory_bytes(inventory))
         R.trace(root)
         return root, inventory, manifest
 
@@ -102,6 +102,118 @@ class RebindReleaseInventoryTests(unittest.TestCase):
             self.assertIn(message, result.stderr)
         self.assertEqual(result.stdout, "")
         self.assertEqual(self.bindings_snapshot(root), before)
+
+    def test_inventory_layout_is_record_per_line_and_refuses_other_layouts(self):
+        root, value, _manifest = self.fixture()
+        path = root / R.INVENTORY
+        original = path.read_bytes()
+        self.assertEqual(R.inventory(root)[0], value)
+        for label, raw in (
+            ("one-line", R.encoded(value) + b"\n"),
+            ("indented", (json.dumps(value, sort_keys=True, indent=2) + "\n").encode()),
+            ("extra-newline", original + b"\n"),
+            ("missing-newline", original.rstrip(b"\n")),
+            ("crlf", original.replace(b"\n", b"\r\n")),
+        ):
+            with self.subTest(layout=label):
+                path.write_bytes(raw)
+                with self.assertRaisesRegex(R.Refused, "canonical inventory layout"):
+                    R.inventory(root)
+                self.assert_refuses_untouched(root, "canonical inventory layout")
+        path.write_bytes(original)
+        self.assertGreater(len(original.splitlines()), 20)
+        self.assertTrue(all(not line.startswith(b" ") for line in original.splitlines()))
+        R.trace(root)
+
+    def test_independent_script_rebinds_merge_in_git_and_validate(self):
+        root, value, manifest = self.fixture()
+        # These scripts are independently bound, outside the checkpoint roster.
+        # A shared checkpoint hash would be a genuinely overlapping record.
+        paths = ("scripts/other.py", "scripts/trace_only.py")
+        for path in paths:
+            del manifest["files"][path]
+            del manifest["current_file_modes"][path]
+        (root / MANIFEST).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        value["source_bindings"][MANIFEST] = R.read_file(root, MANIFEST)[1]
+        (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
+        self.git(root, "init", "--initial-branch=base")
+        self.git(root, "config", "user.name", "Example Maintainer")
+        self.git(root, "config", "user.email", "example@example.invalid")
+        self.git(root, "config", "commit.gpgsign", "false")
+        self.git(root, "add", ".")
+        self.git(root, "commit", "-m", "Initial example")
+        for branch, path in zip(("first", "second"), paths):
+            self.git(root, "checkout", "-b", branch, "base")
+            source = root / path
+            source.write_text(source.read_text() + f"\n# independent edit to {path}\n")
+            result = self.run_rebind(root)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.git(root, "add", ".")
+            self.git(root, "commit", "-m", f"Edit {path}")
+        self.git(root, "checkout", "base")
+        self.git(root, "merge", "--no-edit", "first")
+        self.git(root, "merge", "--no-edit", "second")
+        self.assertEqual(self.git(root, "status", "--porcelain"), "")
+        self.assertEqual(len(R.trace(root)["routes"]), 3)
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "No bindings changed.\n")
+
+    def test_independent_map_entries_and_route_rows_have_separate_lines(self):
+        root, value, _manifest = self.fixture()
+        lines = {line.removesuffix(b",") for line in (root / R.INVENTORY).read_bytes().splitlines()}
+        for key in ("contracts", "points", "witnesses", "manual_decisions", "source_bindings"):
+            for name, record in value[key].items():
+                self.assertIn(R.encoded(name) + b":" + R.encoded(record), lines)
+        coverage = value["primitive_coverage"]
+        for name, record in coverage["exclusions"].items():
+            self.assertIn(R.encoded(name) + b":" + R.encoded(record), lines)
+        for record in value["routes"] + coverage["hits"] + value["point_files"]:
+            self.assertIn(R.encoded(record), lines)
+
+    def test_inventory_growth_over_cap_writes_neither_file(self):
+        root, value, _manifest = self.fixture()
+        value["capacity_example"] = ""
+        value["capacity_example"] = "x" * (R.MAX_INVENTORY - len(R.inventory_bytes(value)))
+        path = root / R.INVENTORY
+        path.write_bytes(R.inventory_bytes(value))
+        self.assertEqual(path.stat().st_size, R.MAX_INVENTORY)
+        R.trace(root)
+        source = root / "scripts/other.py"
+        source.write_text("def run():\n    return " + repr("x" * 1000) + "\n")
+        self.assert_refuses_untouched(root, "inventory byte limit exceeded")
+
+    def test_reordered_sections_entries_and_keys_within_records_refuse(self):
+        root, value, _manifest = self.fixture()
+        path = root / R.INVENTORY
+        original = path.read_bytes()
+        section = b'"schema":"compact-release-routes-v1",\n\n'
+        reordered = original.replace(section, b"").replace(b"{\n", b"{\n" + section, 1)
+        entries = original.splitlines(keepends=True)
+        first = next(i for i, line in enumerate(entries) if line.startswith(b'"scripts/example.py":'))
+        second = next(i for i, line in enumerate(entries) if line.startswith(b'"scripts/other.py":'))
+        entries[first], entries[second] = entries[second], entries[first]
+        for raw in (reordered, b"".join(entries)):
+            path.write_bytes(raw)
+            self.assertEqual(json.loads(path.read_bytes()), value)
+            self.assert_refuses_untouched(root, "canonical inventory layout")
+        for record in (value["source_bindings"]["scripts/other.py"], value["routes"][0]):
+            reordered = {key: record[key] for key in sorted(record, reverse=True)}
+            raw = json.dumps(reordered, separators=(",", ":")).encode()
+            changed = original.replace(R.encoded(record), raw)
+            self.assertNotEqual(changed, original)
+            path.write_bytes(changed)
+            self.assertEqual(json.loads(changed), value)
+            self.assert_refuses_untouched(root, "canonical inventory layout")
+        path.write_bytes(original)
+        self.assertEqual(R.inventory(root)[0], value)
+        R.trace(root)
+
+    def git(self, root, *arguments):
+        result = subprocess.run(["git", "-c", "core.hooksPath=/dev/null", *arguments],
+                                cwd=root, capture_output=True, text=True, timeout=20)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return result.stdout
 
     def test_refreshes_all_bindings_manifest_and_affected_routes_then_noops(self):
         root, original, old_manifest = self.fixture()
@@ -134,7 +246,7 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         self.assertIn("affected route EXAMPLE-A: scripts/example.py", result.stdout)
         self.assertIn("affected route EXAMPLE-B: scripts/example.py", result.stdout)
         self.assertNotIn("affected route EXAMPLE-C", result.stdout)
-        self.assertEqual((root / R.INVENTORY).read_bytes(), R.encoded(value) + b"\n")
+        self.assertEqual((root / R.INVENTORY).read_bytes(), R.inventory_bytes(value))
         self.assertEqual((root / MANIFEST).read_text(), json.dumps(manifest, indent=2) + "\n")
         R.trace(root)
         before = self.bindings_snapshot(root)
@@ -152,24 +264,25 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         self.assert_refuses_untouched(root, "guard", "scripts/example.py:8")
 
     def test_compact_hit_rebind_preserves_layout_decisions_and_idempotence(self):
-        for indent in (None, 2):
-            with self.subTest(indent=indent):
+        for schema in ("bounded-primitives-v1", "bounded-primitives-v2"):
+            with self.subTest(schema=schema):
                 root, value, _manifest = self.fixture()
                 coverage = value["primitive_coverage"]
-                coverage.update(schema="bounded-primitives-v2", paths=["scripts/example.py"])
-                coverage["hits"] = [[0, *row[1:]] for row in coverage["hits"]]
-                raw = json.dumps(value, indent=indent, separators=(",", ":") if indent is None else None) + "\n"
-                (root / R.INVENTORY).write_text(raw)
+                if schema == "bounded-primitives-v2":
+                    coverage.update(schema=schema, paths=["scripts/example.py"])
+                    coverage["hits"] = [[0, *row[1:]] for row in coverage["hits"]]
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
                 source = root / "scripts/other.py"
                 source.write_text(source.read_text().replace("'other'", "'other edited'"))
                 result = self.run_rebind(root)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 after = json.loads((root / R.INVENTORY).read_bytes())
                 self.assertEqual(after["primitive_coverage"], coverage)
-                rendered = json.dumps(after, indent=indent, separators=(",", ":") if indent is None else None) + "\n"
-                self.assertEqual((root / R.INVENTORY).read_text(), rendered)
-                self.assertEqual(R.trace(root)["primitive_hits"], [
-                    [coverage["paths"][row[0]], *row[1:7]] for row in coverage["hits"]])
+                self.assertEqual((root / R.INVENTORY).read_bytes(), R.inventory_bytes(after))
+                expected = [row[:7] for row in coverage["hits"]]
+                if schema == "bounded-primitives-v2":
+                    expected = [[coverage["paths"][row[0]], *row[1:7]] for row in coverage["hits"]]
+                self.assertEqual(R.trace(root)["primitive_hits"], expected)
                 before = self.bindings_snapshot(root)
                 result = self.run_rebind(root)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -192,7 +305,7 @@ class RebindReleaseInventoryTests(unittest.TestCase):
                 else:
                     coverage["hits"].append(coverage["hits"][0])
                     message = "primitive hit coverage mismatch"
-                (root / R.INVENTORY).write_bytes(R.encoded(value) + b"\n")
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
                 source = root / "scripts/other.py"
                 source.write_text(source.read_text().replace("'other'", "'changed'"))
                 self.assert_refuses_untouched(root, message)

@@ -16,13 +16,10 @@ MANIFEST = "tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json
 
 
 def render(value, original):
-    """Retain the inventory's compact layout and the checkpoint's indented layout."""
+    """Retain the checkpoint's indented layout and stable authored row order."""
     if value == json.loads(original):
         return original
-    if b"\n" in original.rstrip(b"\n"):
-        text = json.dumps(value, ensure_ascii=True, indent=2)
-    else:
-        text = json.dumps(value, ensure_ascii=True, separators=(",", ":"))
+    text = json.dumps(value, ensure_ascii=True, indent=2)
     return text.encode() + b"\n"
 
 
@@ -120,7 +117,8 @@ def rebind(root):
         affected = sorted(changed_files & route_paths(route))
         if affected:
             messages.append(f"affected route {route['id']}: {', '.join(affected)}")
-    proposed_inventory = render(value, contents[R.INVENTORY])
+    proposed_inventory = R.inventory_bytes(value)
+    R.need(len(proposed_inventory) <= R.MAX_INVENTORY, "inventory byte limit exceeded")
     # All refusal checks, rendering and source-drift checks precede either write.
     after, _contents = R.source(root)
     R.need(captured_files == after, "source changed before write")

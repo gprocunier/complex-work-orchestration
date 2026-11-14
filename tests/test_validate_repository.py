@@ -82,7 +82,7 @@ class ValidateRepositoryTests(unittest.TestCase):
             validator = "scripts/validate_repository.py"
             _data, identity = release_effect_routes.read_file(root, validator)
             inventory["source_bindings"][validator] = identity
-            inventory_path.write_bytes(release_effect_routes.encoded(inventory) + b"\n")
+            inventory_path.write_bytes(release_effect_routes.inventory_bytes(inventory))
             environment = {
                 key: value for key, value in os.environ.items()
                 if not key.startswith("PYTHON")
@@ -237,9 +237,95 @@ class ValidateRepositoryTests(unittest.TestCase):
             any(command.startswith("python -m compileall -j 8 -x ") for command in CI_REQUIRED_COMMANDS)
         )
         self.assertIn(
-            "python scripts/run_parallel_unittest.py --workers 4",
+            'python scripts/run_parallel_unittest.py --workers 4 --verbose '
+            '--shard-index "${CWO_TEST_SHARD_INDEX:-0}" --shard-count "${CWO_TEST_SHARD_COUNT:-1}"',
             CI_REQUIRED_COMMANDS,
         )
+
+    @staticmethod
+    def _ci_fixture() -> str:
+        unit_command = ('python scripts/run_parallel_unittest.py --workers 4 --verbose '
+                        '--shard-index "${CWO_TEST_SHARD_INDEX:-0}" '
+                        '--shard-count "${CWO_TEST_SHARD_COUNT:-1}"')
+        commands = "".join(f"      - run: {command}\n" for command in CI_REQUIRED_COMMANDS
+                           if "run_parallel_unittest.py" not in command)
+        return ("permissions:\n  contents: read\nconcurrency:\n  cancel-in-progress: true\n"
+                "jobs:\n  test:\n    name: unit-tests (${{ matrix.shard }}/4)\n"
+                "    runs-on: ubuntu-latest\n    timeout-minutes: 90\n"
+                "    strategy:\n      fail-fast: false\n      matrix:\n        shard: [0, 1, 2, 3]\n"
+                "    env:\n      CWO_TEST_SHARD_INDEX: ${{ matrix.shard }}\n"
+                "      CWO_TEST_SHARD_COUNT: 4\n    steps:\n"
+                "      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6\n"
+                "        with:\n          persist-credentials: false\n" + commands +
+                "      - name: Unit tests\n        run: " + unit_command + "\n"
+                "  test-result:\n    name: test\n    runs-on: ubuntu-latest\n"
+                "    timeout-minutes: 5\n    needs: [test]\n    if: ${{ always() }}\n"
+                "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}\n    steps:\n"
+                "      - name: Require all unit test shards\n"
+                '        run: test "$UNIT_TEST_RESULT" = success\n'
+                "  codeql:\n    timeout-minutes: 15\n  shellcheck:\n    timeout-minutes: 10\n")
+
+    @staticmethod
+    def _ci_errors(content: str) -> list[str]:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / ".github/workflows/ci.yml"
+            path.parent.mkdir(parents=True)
+            path.write_text(content, encoding="utf-8")
+            errors: list[str] = []
+            with mock.patch.object(validate_repository_module, "REPO_ROOT", root):
+                validate_ci_workflow(errors, path)
+            return errors
+
+    def test_ci_sharding_contract_rejects_missing_work_and_gate_context_changes(self) -> None:
+        fixture = self._ci_fixture()
+        self.assertEqual(self._ci_errors(fixture), [])
+        changes = (
+            ("shard: [0, 1, 2, 3]", "shard: [0, 1, 2]"),
+            ("shard: [0, 1, 2, 3]", "shard: [0, 1, 2, 2]"),
+            ("fail-fast: false", "fail-fast: true"),
+            ("CWO_TEST_SHARD_COUNT: 4", "CWO_TEST_SHARD_COUNT: 3"),
+            ("CWO_TEST_SHARD_INDEX: ${{ matrix.shard }}", "CWO_TEST_SHARD_INDEX: 0"),
+            ("      - name: Unit tests\n", "      - name: Unit tests\n        if: false\n"),
+            ("      - name: Unit tests\n", "      - name: Unit tests\n        env: {}\n"),
+            ("      - name: Unit tests\n", "      - name: Unit tests\n        shell: bash\n"),
+            ("      - name: Unit tests\n", "      - name: Unit tests\n        working-directory: tests\n"),
+            ("    strategy:\n", "    if: false\n    strategy:\n"),
+            ("    strategy:\n", "    continue-on-error: true\n    strategy:\n"),
+            ('--shard-index "${CWO_TEST_SHARD_INDEX:-0}"', '--shard-index "${{ matrix.shard }}"'),
+        )
+        for old, new in changes:
+            with self.subTest(change=new):
+                self.assertIn(old, fixture)
+                self.assertTrue(any("unit shard" in error for error in self._ci_errors(fixture.replace(old, new))))
+
+    def test_ci_aggregate_requires_all_results_and_always_runs(self) -> None:
+        fixture = self._ci_fixture()
+        changes = (
+            ("    name: test\n", "    name: summary\n"),
+            ("    needs: [test]\n", "    needs: [codeql]\n"),
+            ("    if: ${{ always() }}\n", ""),
+            ("${{ needs.test.result }}", "success"),
+            ('run: test "$UNIT_TEST_RESULT" = success', "run: true"),
+            ("      - name: Require all unit test shards\n",
+             "      - name: Require all unit test shards\n        if: false\n"),
+            ("    timeout-minutes: 5\n", "    timeout-minutes: 5\n    continue-on-error: true\n"),
+        )
+        for old, new in changes:
+            with self.subTest(change=new):
+                self.assertTrue(any("aggregate" in error for error in self._ci_errors(fixture.replace(old, new))))
+
+    def test_checked_in_aggregate_shell_refuses_unsuccessful_results(self) -> None:
+        content = (ROOT / ".github/workflows/ci.yml").read_text()
+        self.assertIn("  test-result:\n", content)
+        aggregate = content.split("  test-result:\n", 1)[1].split("\n  debian-filesystem:", 1)[0]
+        command = next(line.removeprefix("        run: ") for line in aggregate.splitlines()
+                       if line.startswith("        run: "))
+        for result in ("success", "failure", "cancelled", "skipped", "", "unknown"):
+            with self.subTest(result=result):
+                process = subprocess.run(["/bin/sh", "-c", command],
+                                         env=dict(os.environ, UNIT_TEST_RESULT=result), check=False)
+                self.assertEqual(process.returncode, int(result != "success"))
 
     def test_workflow_controls_accept_independent_positive_fixture(self) -> None:
         errors: list[str] = []
@@ -248,7 +334,7 @@ class ValidateRepositoryTests(unittest.TestCase):
             workflow_dir = root / ".github" / "workflows"
             workflow_dir.mkdir(parents=True)
             fixture = root / "ci.yml"
-            fixture.write_text("\n".join(CI_REQUIRED_COMMANDS) + "\npermissions:\n  contents: read\nconcurrency:\n  cancel-in-progress: true\ntimeout-minutes: 5\ncodeql:\nshellcheck:\n", encoding="utf-8")
+            fixture.write_text(self._ci_fixture(), encoding="utf-8")
             original = validate_repository_module.REPO_ROOT
             validate_repository_module.REPO_ROOT = root
             try:
@@ -265,7 +351,7 @@ class ValidateRepositoryTests(unittest.TestCase):
             workflow_dir = root / ".github" / "workflows"
             workflow_dir.mkdir(parents=True)
             fixture = root / "ci.yml"
-            fixture.write_text("\n".join(CI_REQUIRED_COMMANDS) + "\npermissions:\n  contents: read\nconcurrency:\n  cancel-in-progress: true\ntimeout-minutes: 5\ncodeql:\nshellcheck:\n", encoding="utf-8")
+            fixture.write_text(self._ci_fixture(), encoding="utf-8")
             original = validate_repository_module.REPO_ROOT
             validate_repository_module.REPO_ROOT = root
             try:

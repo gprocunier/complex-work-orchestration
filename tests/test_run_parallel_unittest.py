@@ -146,6 +146,13 @@ class Case(unittest.TestCase):
     def _assert_discovery_failures(self) -> None:
         sources = {
             "import-error": "raise RuntimeError('EXAMPLE discovery failure')\n",
+            "loader-errors-with-suite": ("import unittest\nclass Case(unittest.TestCase):\n"
+                                         "    def test_one(self): pass\n"
+                                         "def load_tests(loader, suite, pattern):\n"
+                                         "    loader.errors.append('EXAMPLE loader error')\n"
+                                         "    return suite\n"),
+            "empty-suite": ("import unittest\ndef load_tests(loader, suite, pattern):\n"
+                            "    return unittest.TestSuite()\n"),
             "duplicate-id": ("import unittest\nclass Case(unittest.TestCase):\n"
                              "    def test_one(self): pass\n"
                              "def load_tests(loader, suite, pattern):\n"
@@ -157,7 +164,8 @@ class Case(unittest.TestCase):
                     root = Path(temporary)
                     (root / "tests").mkdir()
                     (root / "tests/test_registered_finite_tool_wiring.py").write_text(source)
-                    result = subprocess.run([sys.executable, str(SCRIPT)], cwd=root,
+                    result = subprocess.run([sys.executable, str(SCRIPT), "--workers", "2",
+                                             "--shard-index", "1", "--shard-count", "2"], cwd=root,
                                             text=True, capture_output=True, check=False)
                     self.assertEqual(result.returncode, 2,
                                      json.dumps({"stdout": result.stdout, "stderr": result.stderr}))
@@ -492,6 +500,143 @@ class Case(unittest.TestCase):
             self.assertLessEqual(intervals[0][1], intervals[1][0], "serial fixtures overlapped")
             self.assertIn("parallel_files=0 serial_files=2", result.stdout)
             self.assertIn("serial unittest: PASS workers=1 tests=2", result.stdout)
+
+    def test_hosted_partition_covers_all_workunits_and_serial_families_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            serial_paths = [root / name for name in sorted(parallel_unittest.SERIAL_TEST_FILES)]
+            paths = [root / f"test_example_{index}.py" for index in range(8)]
+            method_path = root / "test_registered_finite_tool_wiring.py"
+            for path in [*serial_paths, *paths, method_path]:
+                path.write_text("# EXAMPLE partition source\n", encoding="utf-8")
+            methods = [f"tests.{method_path.stem}.Case.test_{index}" for index in range(12)]
+            units = parallel_unittest.build_work_units(
+                paths + [method_path], 8, {method_path: methods},
+                {"case_seconds": {}, "fixture_seconds": {}},
+            )
+            units += [parallel_unittest.Shard(len(units) + index, [path],
+                                             parallel_unittest._estimated_bytes(path), serial=True)
+                      for index, path in enumerate(serial_paths)]
+            partitions = parallel_unittest.partition_work_units(units, 4)
+            self.assertEqual(partitions, parallel_unittest.partition_work_units(list(reversed(units)), 4))
+            assigned = [unit for partition in partitions for unit in partition]
+            self.assertCountEqual(assigned, units)
+            self.assertEqual(len({unit.index for unit in assigned}), len(units))
+            self.assertCountEqual([method for unit in assigned for method in unit.selectors or []], methods)
+            self.assertCountEqual([path for unit in assigned if unit.serial for path in unit.paths], serial_paths)
+            self.assertEqual(parallel_unittest.partition_work_units(units, 1), [units])
+            with self.assertRaisesRegex(ValueError, "positive"):
+                parallel_unittest.partition_work_units(units, 0)
+
+    def test_hosted_partition_balances_existing_cost_hints(self) -> None:
+        units = [parallel_unittest.Shard(index, [Path(f"test_{index}.py")], cost)
+                 for index, cost in enumerate((9, 8, 7, 6, 5, 4, 3, 2))]
+        partitions = parallel_unittest.partition_work_units(units, 4)
+        self.assertEqual([sum(unit.estimated_bytes for unit in group) for group in partitions], [11] * 4)
+
+    @staticmethod
+    def _run_hosted_fixture(root: Path, index: int, count: int = 4) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, str(SCRIPT), "--workers", "2", "--verbose",
+             "--shard-index", str(index), "--shard-count", str(count)],
+            cwd=root, env=dict(os.environ, CWO_EXAMPLE_EVENT_LOG=str(root / "events.jsonl")),
+            capture_output=True, text=True, check=False,
+        )
+
+    def _assert_hosted_serial_order(self, events: list[dict]) -> None:
+        active = set()
+        serial_started = False
+        for event in events:
+            if event["kind"] == "start":
+                serial = "serial-worker" in event["tmp"]
+                if serial:
+                    self.assertFalse(active, "serial fixture overlapped another fixture")
+                    serial_started = True
+                else:
+                    self.assertFalse(serial_started, "parallel work followed serial work")
+                active.add(event["pid"])
+                self.assertLessEqual(len(active), 2)
+            elif event["kind"] == "finish":
+                active.remove(event["pid"])
+        self.assertFalse(active)
+
+    def test_each_hosted_shard_runs_its_partition_and_propagates_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tests = root / "tests"
+            tests.mkdir()
+            filenames = [*sorted(parallel_unittest.SERIAL_TEST_FILES),
+                         "test_example.py", "test_registered_finite_tool_wiring.py"]
+            for filename in filenames:
+                self._process_fixture(tests, filename, 5 if "finite" in filename else 1)
+            seen = []
+            for index in range(4):
+                with self.subTest(shard=index):
+                    events_file = root / "events.jsonl"
+                    events_file.write_text("")
+                    positive = self._run_hosted_fixture(root, index)
+                    self.assertEqual(positive.returncode, 0, positive.stdout + positive.stderr)
+                    progress = [line.split()[1].rstrip("]").split("/")
+                                for line in positive.stdout.splitlines() if line.startswith("[shard ")]
+                    for current, total in progress:
+                        self.assertLessEqual(int(current), int(total), "workunit progress exceeds its job total")
+                    events = [json.loads(line) for line in events_file.read_text().splitlines()]
+                    cases = [row["test_id"] for row in events if row["kind"] == "case"]
+                    self.assertTrue(cases, "hosted shard silently ran no tests")
+                    seen.extend(cases)
+                    self._assert_hosted_serial_order(events)
+                    source = tests / (cases[0].split(".")[-3] + ".py")
+                    original = source.read_text()
+                    source.write_text(original.replace("time.sleep(0.05)",
+                                                       "self.fail('EXAMPLE selected shard failure')"))
+                    negative = self._run_hosted_fixture(root, index)
+                    source.write_text(original)
+                    self.assertEqual(negative.returncode, 1, negative.stdout + negative.stderr)
+                    self.assertIn("EXAMPLE selected shard failure", negative.stderr)
+                    self.assertIn("fixed-width unittest: FAIL", negative.stdout)
+            expected = [f"tests.{Path(filename).stem}.Case.test_{index}"
+                        for filename in filenames for index in range(5 if "finite" in filename else 1)]
+            self.assertCountEqual(seen, expected)
+            self.assertEqual(len(seen), len(set(seen)))
+
+    def test_cli_ignores_ambient_hosted_shard_environment(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            tests = root / "tests"
+            tests.mkdir()
+            filenames = [f"test_example_{index}.py" for index in range(4)]
+            filenames.append("test_registered_finite_input.py")
+            for filename in filenames:
+                (tests / filename).write_text(
+                    "import unittest\nclass Case(unittest.TestCase):\n"
+                    "    def test_one(self): pass\n", encoding="utf-8",
+                )
+            with patch.dict(os.environ, CWO_TEST_SHARD_INDEX="3", CWO_TEST_SHARD_COUNT="4"):
+                result = self._run_fixture(root)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn("fixed-width unittest: PASS configured_workers=2 tests=5", result.stdout)
+
+    def test_cli_rejects_invalid_or_empty_hosted_shards(self) -> None:
+        invalid = ((-1, 4), (4, 4), (0, 0), (0, -1), (1, 1), ("one", 4), (0, "four"))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "tests").mkdir()
+            for index, count in invalid:
+                with self.subTest(index=index, count=count):
+                    result = self._run_hosted_fixture(root, index, count)
+                    self.assertEqual(result.returncode, 2)
+                    self.assertIn("--shard-", result.stderr)
+                    self.assertNotIn("no test files", result.stderr)
+            empty = self._run_hosted_fixture(root, 0)
+            self.assertEqual(empty.returncode, 2)
+            self.assertIn("no test files matched", empty.stderr)
+            (root / "tests/test_example.py").write_text(
+                "import unittest\nclass Case(unittest.TestCase):\n"
+                "    def test_one(self): pass\n", encoding="utf-8",
+            )
+            empty_shard = self._run_hosted_fixture(root, 3)
+            self.assertEqual(empty_shard.returncode, 2)
+            self.assertIn("no workunits assigned", empty_shard.stderr)
 
 
 if __name__ == "__main__":

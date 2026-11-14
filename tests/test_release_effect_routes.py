@@ -66,7 +66,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                  "primitive_coverage": {"schema": "bounded-primitives-v1", "hits": [], "exclusions": {}}}
         if compact:
             value = self.compact_example(value)
-        (root / R.INVENTORY).write_bytes(R.encoded(value) + b"\n")
+        (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
         index = R.write_trace(root, output)
         # A real harmless fixture method executes both its refusal and positive.
         result = subprocess.run([sys.executable, "-B", "-m", "unittest", "-v", test_id], cwd=root,
@@ -248,7 +248,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             with self.subTest(row=name):
                 changed = copy.deepcopy(value)
                 change(changed)
-                inventory.write_bytes(R.encoded(changed))
+                inventory.write_bytes(R.inventory_bytes(changed))
                 with self.assertRaises(R.Refused, msg=f"{name} invalid route admitted"):
                     R.trace(root)
         inventory.write_bytes(original)
@@ -262,7 +262,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                 invalid["points"]["gate"][1] = 99
             else:
                 invalid["points"]["manual-only"] = [0, "run", 1, "0" * 64]
-            (table_root / R.INVENTORY).write_bytes(R.encoded(invalid))
+            (table_root / R.INVENTORY).write_bytes(R.inventory_bytes(invalid))
             with self.assertRaises(R.Refused, msg="stale compact source point admitted"):
                 R.trace(table_root)
         real_read = R.read_file
@@ -358,23 +358,29 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     value["routes"][0].setdefault("effect_points", []).append(point)
                     selected = ["route", "EXAMPLE-send", point]
                 coverage["hits"].append([*hit, selected])
-        (root / R.INVENTORY).write_bytes(R.encoded(value))
+        (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
         return root, value, hits
 
     def test_inventory_headroom_is_bounded(self):
         root, _output, _review = self.example()
         path = root / R.INVENTORY
-        raw = path.read_bytes()
-        path.write_bytes(raw + b" " * (200001 - len(raw)))
+        value = json.loads(path.read_bytes())
+        value["capacity_example"] = ""
+        base = len(R.inventory_bytes(value))
+        value["capacity_example"] = "x" * (200001 - base)
+        path.write_bytes(R.inventory_bytes(value))
         try:
             loaded = R.inventory(root)[0]
         except R.Refused as error:
             self.fail(f"valid inventory over the former cap refused: {error}")
         self.assertEqual(loaded["schema"], "compact-release-routes-v1",
                          "valid inventory over the former cap must load")
-        path.write_bytes(raw + b" " * (524288 - len(raw)))
+        value["capacity_example"] = "x" * (524288 - base)
+        path.write_bytes(R.inventory_bytes(value))
+        self.assertEqual(path.stat().st_size, 524288)
         self.assertEqual(R.inventory(root)[0]["schema"], "compact-release-routes-v1")
-        path.write_bytes(raw + b" " * (524289 - len(raw)))
+        value["capacity_example"] += "x"
+        path.write_bytes(R.inventory_bytes(value))
         with self.assertRaisesRegex(R.Refused, "regular bounded file required"):
             R.inventory(root)
 
@@ -400,11 +406,11 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                                                    "conclusion": "no effect is executed"}
                     coverage["hits"].append([*hit, ["exclude", key]])
                 path = root / R.INVENTORY
-                path.write_bytes(R.encoded(value))
+                path.write_bytes(R.inventory_bytes(value))
                 expanded = R.trace(root)
                 original = copy.deepcopy(coverage)
                 self.compact_primitive_paths(value)
-                path.write_bytes(R.encoded(value))
+                path.write_bytes(R.inventory_bytes(value))
                 compact = R.trace(root)
                 self.assertEqual(compact["primitive_hits"], expanded["primitive_hits"])
                 self.assertEqual(compact["routes"], expanded["routes"])
@@ -416,17 +422,17 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                 coverage["paths"].reverse()
                 for row in coverage["hits"]:
                     row[0] = len(coverage["paths"]) - 1 - row[0]
-                path.write_bytes(R.encoded(value))
+                path.write_bytes(R.inventory_bytes(value))
                 self.assertEqual(R.trace(root)["primitive_coverage"], original)
                 coverage["hits"][0][0], coverage["hits"][1][0] = coverage["hits"][1][0], coverage["hits"][0][0]
-                path.write_bytes(R.encoded(value))
+                path.write_bytes(R.inventory_bytes(value))
                 with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
                     R.trace(root)
         # An empty table is the exact representation of no candidates.
         root, _output, _review = self.example()
         value = json.loads((root / R.INVENTORY).read_bytes())
         self.compact_primitive_paths(value)
-        (root / R.INVENTORY).write_bytes(R.encoded(value))
+        (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
         self.assertEqual(R.trace(root)["primitive_hits"], [])
 
     def test_compact_primitive_path_tables_and_indices_refuse_malformed_input(self):
@@ -453,7 +459,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             with self.subTest(invalid=name):
                 changed = copy.deepcopy(coverage)
                 change(changed)
-                (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes({**value, "primitive_coverage": changed}))
                 with self.assertRaisesRegex(R.Refused, message):
                     R.trace(root)
 
@@ -486,7 +492,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             with self.subTest(invalid=name):
                 changed = copy.deepcopy(coverage)
                 change(changed)
-                (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes({**value, "primitive_coverage": changed}))
                 with self.assertRaises(R.Refused, msg=f"invalid compact {name} admitted"):
                     R.trace(root)
 
@@ -504,7 +510,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             with self.subTest(invalid=name):
                 changed = copy.deepcopy(coverage)
                 change(changed)
-                (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes({**value, "primitive_coverage": changed}))
                 with self.assertRaises(R.Refused, msg=f"invalid compact {name} admitted"):
                     R.trace(root)
 
@@ -633,7 +639,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         self.assertEqual(hits[-1][4], len(code.splitlines()[5].encode()))
         self.assertEqual(R.trace(root)["primitive_hits"], hits)
         value["primitive_coverage"]["hits"].pop()
-        (root / R.INVENTORY).write_bytes(R.encoded(value) + b"\n")
+        (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
         with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
             R.trace(root)
 
@@ -676,7 +682,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     with self.subTest(invalid=name):
                         changed = copy.deepcopy(coverage)
                         change(changed)
-                        (root / R.INVENTORY).write_bytes(R.encoded({**value, "primitive_coverage": changed}))
+                        (root / R.INVENTORY).write_bytes(R.inventory_bytes({**value, "primitive_coverage": changed}))
                         with self.assertRaises(R.Refused, msg=f"{name} primitive disposition admitted"):
                             R.trace(root)
                 if disposition == "route":
@@ -686,7 +692,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     wrong_point = {"path": "scripts/primitive.py", "line": 1, "text": "import subprocess"}
                     wrong["routes"][0]["effect_points"] = [wrong_point]
                     wrong["primitive_coverage"]["hits"][0][-1][2] = wrong_point
-                    (root / R.INVENTORY).write_bytes(R.encoded(wrong))
+                    (root / R.INVENTORY).write_bytes(R.inventory_bytes(wrong))
                     with self.assertRaisesRegex(R.Refused, "primitive effect point must equal exact hit"):
                         R.trace(root)
                     # Exercise the actual compact table path with an assigned,
@@ -697,7 +703,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     valid["points"] = {"EXAMPLE-primitive": [0, point["line"], point["text"],
                                                              point["col"], point["end_line"], point["end_col"]]}
                     valid["primitive_coverage"]["hits"][0][-1][2] = "EXAMPLE-primitive"
-                    (root / R.INVENTORY).write_bytes(R.encoded(valid))
+                    (root / R.INVENTORY).write_bytes(R.inventory_bytes(valid))
                     self.assertEqual(R.trace(root)["primitive_hits"], hits)
                     for change in ("span-column", "span-end", "point-text", "point-not-selected"):
                         with self.subTest(compact_invalid=change):
@@ -710,7 +716,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                                 invalid["points"]["EXAMPLE-primitive"][2] = "unrelated"
                             else:
                                 invalid["routes"][0]["effect_points"] = []
-                            (root / R.INVENTORY).write_bytes(R.encoded(invalid))
+                            (root / R.INVENTORY).write_bytes(R.inventory_bytes(invalid))
                             with self.assertRaises(R.Refused):
                                 R.trace(root)
                 if disposition == "exclude":
@@ -720,7 +726,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     first, second = [row[-1][1] for row in pair["primitive_coverage"]["hits"]]
                     pair["primitive_coverage"]["hits"][1][-1][1] = first
                     pair["primitive_coverage"]["exclusions"].pop(second)
-                    (pair_root / R.INVENTORY).write_bytes(R.encoded(pair))
+                    (pair_root / R.INVENTORY).write_bytes(R.inventory_bytes(pair))
                     with self.assertRaisesRegex(R.Refused, "duplicate primitive exclusion"):
                         R.trace(pair_root)
                 # Change only excluded bytes and rebind all script identities. The
@@ -728,7 +734,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                 (root / "scripts/primitive.py").write_text(code.replace("true", "false"))
                 files, _contents = R.source(root)
                 value["source_bindings"].update({p: i for p, i in files.items() if p.startswith("scripts/")})
-                (root / R.INVENTORY).write_bytes(R.encoded(value))
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
                 with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
                     R.trace(root)
 
@@ -758,14 +764,14 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             R.trace(root)
         files, _contents = R.source(root)
         value["source_bindings"]["scripts/benign.py"] = files["scripts/benign.py"]
-        path.write_bytes(R.encoded(value))
+        path.write_bytes(R.inventory_bytes(value))
         self.assertEqual(R.trace(root)["primitive_hits"], [])
         (root / "scripts/benign.py").unlink()
         with self.assertRaisesRegex(R.Refused, "complete scripts binding set required"):
             R.trace(root)
         (root / "scripts/benign.py").write_text("# EXAMPLE no primitive\n")
         value["source_bindings"].pop("scripts/benign.py")
-        path.write_bytes(R.encoded(value))
+        path.write_bytes(R.inventory_bytes(value))
         with self.assertRaisesRegex(R.Refused, "complete scripts binding set required"):
             R.trace(root)
 
@@ -984,7 +990,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             value["points"]["gate"] = entry(gate)
             value["points"]["effect"] = entry(effects[0])
             value["contracts"]["EXAMPLE"]["effect_points"] = ["gate" if same_key else "effect"]
-        (root / R.INVENTORY).write_bytes(R.encoded(value))
+        (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
         return root
 
     def assert_gate_accepts(self, root):

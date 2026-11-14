@@ -13,6 +13,12 @@
 - Recorded the qualification target as Codex 0.163.0 with the `constrained-integrity` profile; confidential operation is unsupported.
 - Documented legacy transport limits and checked typed replies against the selected protocol schemas.
 - Made terminal projection tests deterministic while retaining lifecycle and accounting checks.
+- Made terminal projection test scheduling deterministic while preserving transport refusal checks.
+- Store the release inventory one record per line with canonical ordering so independent rebinds merge cleanly.
+- Run hosted unit tests in deterministic shards for faster CI while retaining the aggregate `test` check.
+- Add separate create-share authorization bound to conversation and content, with one-use execution admission and conservative aggregate accounting; live sharing remains unavailable.
+- Preserve the complete source, candidate, packet, screened request and observed conversation chain in private browser returns, verify it against the selected dispatch audit record during ingestion, and keep default intake output free of response content.
+- Bind browser Send admission to the frozen request, effective execution options and finite limits, refusing drift, replay and exhausted aggregate capacity before the next effect; live browser dispatch remains unavailable.
 
 ## 0.4.0 - 2026-11-14
 

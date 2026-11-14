@@ -4,6 +4,16 @@ Start with [AGENTS.md](AGENTS.md) for repository rules. Runtime helpers remain
 stdlib-only. Documentation or test dependencies must not become prerequisites
 for using the installed skill.
 
+## Release train
+
+Feature and fix PRs add their changelog entries under `## Unreleased` and leave
+`VERSION` unchanged. Merge these PRs when their required checks are green.
+
+A release PR moves the accumulated entries under a version and date heading
+(`## X.Y.Z - YYYY-MM-DD`) and sets `VERSION`. After its required checks pass,
+merge the release PR and create the annotated `vX.Y.Z` tag on its merge commit.
+GitHub release objects remain operator-owned.
+
 ## Optional commit checks
 
 Enable the repository's commit message hook for this clone from its root:
