@@ -676,7 +676,7 @@
 
 "p015e6ecbbba5":[8,"write_install_manifest",726,"8f21f11005f4682849ec64a1810d70c2399137ff1e28cab60f0839170145b1cc"],
 
-"p01752d0b":[98,"ReleaseEffectRoutesTests._git_pair",1230,"9ea51b3dd775b09c05711df0fc22507e51ad2470e896207c95ab8744467f27a5"],
+"p01752d0b":[98,"ReleaseEffectRoutesTests._git_pair",1232,"9ea51b3dd775b09c05711df0fc22507e51ad2470e896207c95ab8744467f27a5"],
 
 "p01dcd204":[54,"RegisteredN1Workflow.run",427,"45448ad91a7da5fe0cd7e06668d944c47d551745a84e7b6346d3ff2c2aa00aa5"],
 
@@ -922,7 +922,7 @@
 
 "p2a256283":[79,"F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control",128,"f68676bbc655efe6eb1b0208d7b3790cb4eb64c90ec207020a7e4b3c8e719bce"],
 
-"p2a29d004":[98,"ReleaseEffectRoutesTests._probe_listener_pair",1159,"a7331d6647368b4a62f7f058ce8d621d1fa2ee86b6054608c740195e344120f9"],
+"p2a29d004":[98,"ReleaseEffectRoutesTests._probe_listener_pair",1161,"a7331d6647368b4a62f7f058ce8d621d1fa2ee86b6054608c740195e344120f9"],
 
 "p2a57a279":[48,306,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
 
@@ -938,7 +938,7 @@
 
 "p2d12db44":[64,554,"if args.workers < 1:"],
 
-"p2d69877b":[98,"ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive",961,"1d976528617ee874bd94c8cbaeaec4510677b31d83365a468a054e8bda64818a"],
+"p2d69877b":[98,"ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive",963,"1d976528617ee874bd94c8cbaeaec4510677b31d83365a468a054e8bda64818a"],
 
 "p2e44270e46d6":[4,"PlaywrightChatGPTRunner._try_social_share_url",1539,"ec7b50226ea596c9422f9075bcfb08d4991dc4fe58918b28e6d37c356a51c98f"],
 
@@ -976,7 +976,7 @@
 
 "p3471333c":[46,46,"server = ThreadingHTTPServer((\"127.0.0.1\", args.port), partial(PagesHandler, directory=str(DOCS)))"],
 
-"p3537ff7a":[98,"ReleaseEffectRoutesTests._expert_pair",1300,"91b48bdf3f7cc2af1615b7e3d0a9034cd46855a890a69baf82a0d4692e9dacfb"],
+"p3537ff7a":[98,"ReleaseEffectRoutesTests._expert_pair",1302,"91b48bdf3f7cc2af1615b7e3d0a9034cd46855a890a69baf82a0d4692e9dacfb"],
 
 "p359392d8":[35,1700,"require_audited_local_execution(args)"],
 
@@ -1044,7 +1044,7 @@
 
 "p4307795d":[6,161,"server = AppServer(requested_model=requested_model,"],
 
-"p430f8963":[98,"ReleaseEffectRoutesTests._installer_pair",1202,"3de241f3f15ae7f3dcf2a96dfc30cf3038dcc60ba61e4a1981ff83e967ddaf0d"],
+"p430f8963":[98,"ReleaseEffectRoutesTests._installer_pair",1204,"3de241f3f15ae7f3dcf2a96dfc30cf3038dcc60ba61e4a1981ff83e967ddaf0d"],
 
 "p43103087":[8,744,"atomic_write_text(manifest_path, json.dumps(payload, indent=2, sort_keys=True) + \"\\n\")"],
 
@@ -1234,7 +1234,7 @@
 
 "p6a77bd58":[18,"add_dependency",347,"7ab5c75f5dbe3e70869ebe6ee81b9a6016c66495a6ff05f4f7ee5ddd5d292f16"],
 
-"p6b834bae":[98,"ReleaseEffectRoutesTests._driver_pair",1253,"fbdd7ea1d56e2f31eb9808b37bbb97066c2388e2164e39f339bbd64c1ad0eb90"],
+"p6b834bae":[98,"ReleaseEffectRoutesTests._driver_pair",1255,"fbdd7ea1d56e2f31eb9808b37bbb97066c2388e2164e39f339bbd64c1ad0eb90"],
 
 "p6bbbd6e1":[103,"ParallelUnittestTests._assert_process_method_units",70,"5a35c4a0afa66164fb127c5c8886a35094684b8b54d7c8c51c1cf44d79f1a8a9"],
 
@@ -1324,7 +1324,7 @@
 
 "p7c1edcfa":[66,"main",218,"1e3495074963e3740e8f42180a8d9805fe5bf64e0e2a285a974e3033c3620a23"],
 
-"p7c3b425f":[98,"ReleaseEffectRoutesTests._dns_pair",1278,"9860a61a6c1a512153a195f37700e90ba28b301be2874e4a11cea665062a2849"],
+"p7c3b425f":[98,"ReleaseEffectRoutesTests._dns_pair",1280,"9860a61a6c1a512153a195f37700e90ba28b301be2874e4a11cea665062a2849"],
 
 "p7d096ac3":[40,304,"printf 'Launched %s.service with CDP at http://127.0.0.1:%s\\n' \"$UNIT\" \"$PORT\""],
 
@@ -2022,7 +2022,7 @@
 
 "preview-update-metadata":[27,839,"_bd(\n            beads_directory,\n            \"update\",\n            \"--metadata\",\n            json.dumps(\n                {\"cwo_ready_set_admission\": metadata},\n                sort_keys=True,\n                separators=(\",\", \":\"),\n            ),\n            \"--json\",\n            \"--\",\n            issue_id,\n        )",8,851,9],
 
-"q0":[98,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1328,"699561c960a2189981cdd63a23de8a3ccff70ff2d0b1f99237d65a4cf60dfa04"],
+"q0":[98,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1330,"699561c960a2189981cdd63a23de8a3ccff70ff2d0b1f99237d65a4cf60dfa04"],
 
 "q1":[18,187,"completed = subprocess.run("],
 
@@ -4918,7 +4918,7 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"3ae0257013620e277846d9699953620967bfdd66388c842d86273af7625be8b1","size":125291},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"dee85b8e5f48c02ee31c78a8f3391d1a84cde127c8e74c728bea6612091e0514","size":125291},
 
 "tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"39a346be94280200fcd732c8f3a9a2113eb357fef8931575947e4334983d8be6","size":1797},
 
@@ -5008,7 +5008,7 @@
 
 "tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"65d759a58d9be3accd98b68a36aaab24d8e2d07222d84d16869a2bcd8172cedc","size":177528},
 
-"tests/test_release_effect_routes.py":{"mode":420,"sha256":"4ec308e7b47f0ac6c22ae94896787e2bdad4bb9156f2b738fbd8d0cfb2a95b4e","size":84617},
+"tests/test_release_effect_routes.py":{"mode":420,"sha256":"6ab2a0b96ee93c809701528424a8cc92a9803e0fa714fd05d95ea614e0bb573a","size":84786},
 
 "tests/test_release_filesystem.py":{"mode":420,"sha256":"5fcb7a33f91ad28f1041c1498a61d47f22a67d4b55027f786b5c1df64584e212","size":16860},
 

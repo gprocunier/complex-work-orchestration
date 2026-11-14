@@ -105,6 +105,7 @@ class RegisteredRequestsTests(unittest.TestCase):
             finally:
                 release.set()
                 done.wait(12)
+            family.finish_worker(self, factory.server.requests.threads[0], join_seconds=2)
             self.assertIsNone(factory.token)
             self.assertFalse(any(x.get('result') == {'decision': 'accept'} for x in process.replies))
             self.assertEqual(len(self.fixture.spawned), 1)

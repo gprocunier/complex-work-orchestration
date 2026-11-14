@@ -559,7 +559,7 @@
     "tests/test_registered_n1_workflow.py": "53d07d834e21e20fc431d9088f3d685370f41c77e8f2b51c3ea4afcbc620a025",
     "tests/test_registered_native_pool_host.py": "4fb66d804e142b7fdc2482c0171e045d943c9cec7e8e9333f416ee52a8f595ab",
     "tests/test_registered_native_pool_profiles.py": "ea490d1a4ab6c40343c023a56a82ce28e8340624fbe68e76c9342e92d14b609e",
-    "tests/test_registered_server_requests.py": "ba21e30399ae5157abd85ca12cb07490344a394c3dd1e9d4bd7ceac6ee42c96c",
+    "tests/test_registered_server_requests.py": "17efe88f4461182d0c9dde5df8265f6ebaffcf905171f6b573a7e955dcaea880",
     "tests/test_route_feasibility_preparation.py": "45b615f5e7ad013c166846ba499c34c525452011539ed5de4eecbab6c8a5416f",
     "tests/test_run_admitted_native_pool_transaction.py": "19407cedbb48a6c4405aefa0fb5cd3b1455ee58da115b52ff3e41f6d7dff0338",
     "tests/test_run_native_pool_live_canaries.py": "7913be64ddfe1067e70f8f2473227df846f61ceb98ebcc28ca9f24f07210e257",
@@ -2316,7 +2316,7 @@
   "registered_source_callers": {
     "references/registered-effect-contract.md": "87274ee9b26e2826a75dd021920f0efa584ebdeb098eaae3b27c0cb64d77751f",
     "tests/test_registered_n1_factory.py": "5a2a8f225a525773b488ffb1196c8c0b0b14947d70c498965b3b012029374f62",
-    "tests/test_registered_server_requests.py": "ba21e30399ae5157abd85ca12cb07490344a394c3dd1e9d4bd7ceac6ee42c96c"
+    "tests/test_registered_server_requests.py": "17efe88f4461182d0c9dde5df8265f6ebaffcf905171f6b573a7e955dcaea880"
   },
   "roots": [
     "scripts/check_codex_worker_surface.py",
