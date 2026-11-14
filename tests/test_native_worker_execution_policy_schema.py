@@ -222,8 +222,11 @@ class NativeWorkerExecutionPolicySchemaTests(unittest.TestCase):
                 self._check_bounded(str(deadline), _replace(self.document, path, deadline), True)
 
     def test_component_is_registered_and_test_mapping_is_restored(self):
-        self.assertEqual(len(ps.POLICY_SCHEMAS), 19)
+        self.assertEqual(len(ps.POLICY_SCHEMAS), 20)
         self.assertEqual(ps.POLICY_SCHEMAS[FILENAME], SCHEMA_NAME)
+        self.assertEqual(
+            ps.POLICY_SCHEMAS["qualification-target.yaml"], "qualification-target.schema.json"
+        )
         self.assertEqual(ps.POLICY_VALIDATION_BOUNDARIES[FILENAME][0], "schema")
         before = dict(ps.POLICY_SCHEMAS)
         before_directory = policy.POLICY_DIR
