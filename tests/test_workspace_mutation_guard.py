@@ -80,17 +80,24 @@ class WorkspaceMutationGuardTests(unittest.TestCase):
 
     def test_explicit_transition_reaches_cli_comparator(self) -> None:
         root = self.make_repo()
-        before = capture_tracked_workspace_state(root)
-        subprocess.run(["git", "config", "core.sshCommand", "approved"], cwd=root, check=True)
-        after = capture_tracked_workspace_state(root)
-        record = expected_transition_record(before, after)
         with tempfile.TemporaryDirectory() as tmpdir:
             before_path = Path(tmpdir) / "before.json"
             record_path = Path(tmpdir) / "expected.json"
-            before_path.write_text(json.dumps(before), encoding="utf-8")
-            record_path.write_text(json.dumps(record), encoding="utf-8")
             command = [sys.executable, str(ROOT / "scripts" / "workspace_mutation_guard.py"),
-                       "--workspace-root", str(root), "--compare", str(before_path)]
+                       "--workspace-root", str(root)]
+            snapshot = subprocess.run(command + ["--snapshot", "--output", str(before_path)],
+                                      check=True, capture_output=True, text=True)
+            self.assertEqual(snapshot.stdout, "")
+            before = json.loads(before_path.read_text(encoding="utf-8"))
+            self.assertTrue(before["baseline_complete"], before.get("incomplete_reasons"))
+            self.assertFalse(before["incomplete"])
+            self.assertIsNone(before.get("error"))
+            subprocess.run(["git", "config", "core.sshCommand", "approved"], cwd=root, check=True)
+            after = capture_tracked_workspace_state(root)
+            self.assertTrue(after["baseline_complete"], after.get("incomplete_reasons"))
+            record = expected_transition_record(before, after)
+            record_path.write_text(json.dumps(record), encoding="utf-8")
+            command += ["--compare", str(before_path)]
             ordinary = subprocess.run(command, check=True, capture_output=True, text=True)
             approved = subprocess.run(command + ["--expected-git-transition", str(record_path)],
                                       check=True, capture_output=True, text=True)
