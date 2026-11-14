@@ -20,14 +20,14 @@ from cwo_core.invocation_ledger import (
 )
 from cwo_core.prepared_outbound import PreparedOutbound
 from cwo_core.outbound_screen import OutboundRefused
+from browser_share_consent import (
+    BrowserActionRefused, ShareConsent, prepare_disclosure,
+    require_disclosure, require_observation, require_result,
+)
 
 
 DIMENSIONS = {"effect_calls", "payload_bytes", "output_bytes", "runtime_milliseconds"}
 ACTION_OBSERVATIONS = {"conversation_url", "model_observation", "document_id"}
-
-
-class BrowserActionRefused(ValueError):
-    """Safe static diagnostic; original packet, request and result stay private."""
 
 
 def _require(condition, message):
@@ -77,6 +77,11 @@ def _method(adapter, name):
 def _same_method(current, original):
     return (getattr(current, "__self__", None) is getattr(original, "__self__", None)
             and getattr(current, "__func__", current) is getattr(original, "__func__", original))
+
+
+def _share_observers(adapter):
+    return {name: getattr(adapter, name) for name in ("observe_share", "observe_share_result")
+            if callable(getattr(adapter, name, None))}
 
 
 def _safe_failure(failure):
@@ -189,6 +194,7 @@ class RegisteredBrowserParent:
                  "Browser aggregate requires applicable positive resource dimensions.")
         self._prepared, self._ledger, self._adapter = prepared, ledger, adapter
         self._methods = {name: _method(adapter, name) for name in ("snapshot", "send", "create_share")}
+        self._methods.update(_share_observers(adapter))
         self._context_bytes = self._snapshot()
         context = json.loads(self._context_bytes)
         _validate_context(context)
@@ -203,6 +209,7 @@ class RegisteredBrowserParent:
             "wire_transform": "browser-send-stamp-newline-v1/share-canonical-utf8-v1"}))
         self._observers = tuple(_observer(original) for original in observers)
         self._tickets, self._active, self._lock = {}, {}, threading.Lock()
+        self._consents, self._consent_tickets, self._share_tickets = {}, {}, {}
         self._validate_amounts()
 
     def _snapshot(self):
@@ -261,20 +268,90 @@ class RegisteredBrowserParent:
     def issue_send(self, *, expires_at):
         return self._issue("send", expires_at)
 
-    def authorize_create_share(self, *, purpose, expires_at):
+    def _share_observation(self, *, result=False):
+        self._current()
+        method = self._methods.get("observe_share_result" if result else "observe_share")
+        _require(method is not None, "Registered complete share observation is unavailable.")
+        try:
+            observation = json.loads(_canonical(method()))
+        except BaseException as failure:
+            _safe_failure(failure)
+        context = self._current()
+        _require(context["share"] is not None, "No whole conversation was selected for sharing.")
+        require_observation(observation, context, self._action_sha256("share"))
+        return context, observation
+
+    def consent_to_share(self, *, purpose, expires_at):
+        """Explicit fresh consent to the original parent's complete final disclosure."""
+        context, observation = self._share_observation()
+        _require(_text(purpose) and context["share"]["purpose"] == purpose,
+                 "Share consent purpose differs from the original selection.")
+        prepared = prepare_disclosure(context, json.loads(self._prepared_metadata), observation,
+                                      self._prepared.source.files)
+        now = self._ledger.current_time()
+        _require(type(expires_at) in (int, float) and now < expires_at <= MAX_TIME,
+                 "Share consent expiry must be finite and in the future.")
+        consent = ShareConsent()
+        with self._lock:
+            self._consents[consent] = (min(expires_at, now + context["limits"]["timeout_seconds"]), prepared)
+        return consent
+
+    def _check_consent(self, consent, *, result=False):
+        _require(type(consent) is ShareConsent, "Fresh original-parent share consent is required.")
+        with self._lock:
+            record = self._consents.get(consent)
+        _require(record is not None, "Unissued, copied or foreign share consent.")
+        context, observation = self._share_observation(result=result)
+        _require(self._ledger.current_time() < record[0], "Share consent has expired.")
+        require_disclosure(record[1], context, json.loads(self._prepared_metadata), observation)
+        return observation
+
+    def authorize_create_share(self, *, purpose, expires_at, consent=None):
         selection = self._current()["share"]
         _require(selection is not None and _text(purpose) and selection["purpose"] == purpose,
                  "Share authorization purpose differs from the original selection.")
-        return self._issue("share", expires_at)
+        self._check_consent(consent)
+        ticket = self._issue("share", expires_at)
+        self._check_consent(consent)
+        with self._lock:
+            _require(consent not in self._consent_tickets, "Share consent has already been assigned to an action.")
+            self._consent_tickets[consent] = ticket
+            self._share_tickets[ticket] = consent
+        return ticket
 
-    def _registered(self, ticket, kind):
+    def _check_share(self, ticket, *, result=False):
+        with self._lock:
+            consent = self._share_tickets.get(ticket)
+            _require(consent is not None and self._consent_tickets.get(consent) is ticket,
+                     "Share action lacks its original exact-object consent.")
+        return self._check_consent(consent, result=result)
+
+    def _share_expectation(self, ticket, action, admission):
+        observation = self._check_share(ticket)
+        prepared = prepare_disclosure(self._current(), json.loads(self._prepared_metadata), observation,
+                                      self._prepared.source.files)
+        _require(prepared.metadata() == self._share_preparation(ticket),
+                 "Final share preparation differs from the original consent.")
+        return {"observation": observation, "action_sha256": action,
+                "admission_sha256": admission}
+
+    def _share_preparation(self, ticket):
+        return self._consents[self._share_tickets[ticket]][1].metadata()
+
+    def _ticket_record(self, ticket, kind):
         expected = SendTicket if kind == "send" else ShareTicket
         _require(type(ticket) is expected, "An original parent-issued browser action ticket is required.")
         with self._lock:
             record = self._tickets.get(ticket)
         _require(record is not None and record[0] == kind,
                  "Unissued, copied or foreign browser action ticket.")
+        return record
+
+    def _registered(self, ticket, kind):
+        record = self._ticket_record(ticket, kind)
         self._current()
+        if kind == "share":
+            self._check_share(ticket)
         _require(self._ledger.current_time() < record[1], "Browser action ticket has expired.")
         return record[1]
 
@@ -286,14 +363,19 @@ class RegisteredBrowserParent:
             identity["selection"] = {key: value for key, value in context["share"].items() if key != "purpose"}
         return request_sha256(_canonical(identity))
 
+    def _admission(self, ticket, kind, action):
+        binding = {"action": action, "context": request_sha256(self._context_bytes),
+                   "prepared": request_sha256(self._prepared_metadata), "scope": self._scope_sha256}
+        if kind == "share":
+            binding["disclosure"] = self._share_preparation(ticket)
+        return request_sha256(_canonical(binding))
+
     def _reserve(self, ticket, kind):
         expiry = self._registered(ticket, kind)
         self._ledger.open_budget(self._aggregate_id, json.loads(self._limits_bytes),
                                  scope_sha256=self._scope_sha256)
         action = self._action_sha256(kind)
-        admission = request_sha256(_canonical({"action": action, "context": request_sha256(self._context_bytes),
-                                               "prepared": request_sha256(self._prepared_metadata),
-                                               "scope": self._scope_sha256}))
+        admission = self._admission(ticket, kind, action)
         return self._ledger.reserve(budget_id=self._aggregate_id, request_id="browser-action:" + action,
                                     request_sha256=request_sha256(self._wire(kind)), admission_sha256=admission,
                                     amount=self._amount(kind), expires_at=expiry, refuse_while_unresolved=True)
@@ -383,7 +465,15 @@ class _BrowserAction:
         _require(not summary["reconciliation_required"], "Browser aggregate requires reconciliation.")
         _require(self._elapsed() < self._limits["timeout_seconds"], "Browser action deadline expired.")
         # No user callback follows this persisted owner/request/intent check.
-        return self._handle.require_intent()
+        intent = self._handle.require_intent()
+        self._require_original_admission(intent)
+        return intent
+
+    def _require_original_admission(self, intent):
+        _require(intent["admission_sha256"] == self.admission_sha256
+                 and intent["request_id"] == "browser-action:" + self.action_sha256
+                 and intent["amount"] == self._parent._amount(self._kind),
+                 "Original browser execution admission or reservation changed.")
 
     def _require_original_guard(self):
         with self._parent._lock:
@@ -456,10 +546,14 @@ class _BrowserAction:
 
     def _create(self):
         _require(self._kind == "share" and self._state == "ready", "Share action is one use.")
-        raw = self._call(self._parent._methods["create_share"], self._parent._wire("share"))
+        expectation = self._parent._share_expectation(self._ticket, self.action_sha256, self.admission_sha256)
+        raw = self._call(self._parent._methods["create_share"], expectation)
         _require(type(raw) is bytes, "Offline share creation returned an invalid observation.")
         self._output_size, self._output_sha256 = len(raw), hashlib.sha256(raw).hexdigest()
         self._output_bounds()
+        observation = self._parent._check_share(self._ticket, result=True)
+        require_result(raw, observation, self.action_sha256)
+        self.check()
         self._state = "created"
 
     def __exit__(self, kind, failure, traceback):

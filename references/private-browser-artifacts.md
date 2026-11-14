@@ -42,8 +42,33 @@ identity. They do not authenticate the provider or protect against another
 process with the same user's access to both the artifacts and trusted audit
 store. Keep the independently selected references outside the returned artifact.
 
-Separate create-share authorization binds the selected conversation, ordered
-content, purpose and expiry. It consumes its own one-use execution admission;
-configuration alone cannot authorize sharing. Browser Send and sharing remain
-unavailable as live routes. Offline action checks do not restore them or qualify
-live browser behavior.
+Separate create-share authorization requires fresh consent from the original
+registered parent. Consent binds its frozen source, candidate or packet inputs,
+prepared request, intended purpose, document and conversation identity, complete
+ordered history including the generated response, and exact final disclosure
+bytes. Decoded conversation content and the final representation pass outbound
+screening at consent and again before creation. Unknown coverage refuses.
+
+Consent is an opaque, expiring object that can authorize only one original share
+ticket. Its lifetime cannot exceed the original action timeout; an earlier
+requested expiry still applies. Copies, foreign consent, replay and changed
+source, options, document, conversation or content refuse before the next effect.
+Sharing consumes a separate one-use execution admission within the original
+aggregate budget. Configuration alone cannot grant consent.
+
+Registered offline fixtures can declare complete coverage and exercise the
+separate consumer for explicit plaintext disclosures. Unrepresented media,
+attachments, embedded documents and rich markup refuse complete coverage.
+Plaintext wrappers permit only pre-wrap whitespace formatting; additional inline
+style properties refuse coverage.
+The supported fixture boundary pins the original document
+and its root, checks the current URL and exact disclosure, then clicks once in
+one synchronous browser operation. It validates a result URL against an observed
+document, conversation and action binding. A known stale result refuses before
+creation. A wrong result discovered after creation leaves an unknown outcome
+and conservative reservation accounting; it cannot undo that creation. No
+legacy share, social or clipboard fallback follows a refusal.
+
+Browser Send and sharing remain unavailable as live routes. Offline fixture
+coverage does not establish complete coverage of a live UI, restore routes or
+authorize live sharing.
