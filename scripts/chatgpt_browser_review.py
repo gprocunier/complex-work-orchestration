@@ -34,6 +34,7 @@ from cwo_core.audit import enforce_contracting_quota, record_audit_event, requir
 from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.packets import contractor_packet_language_metadata, find_residual_private_context
 from cwo_core.outbound_screen import require_clean, require_text_disclosure
+from cwo_core.prepared_outbound import PreparedSource
 from cwo_core.policy import load_policy
 from cwo_core.telemetry import safe_text_hash, telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
@@ -106,7 +107,11 @@ _SNAPSHOT_SCRIPT = r"""([markerSelector]) => {
 # from outside the page (see _submit_prompt), and each takes one primitive
 # argument, so no page-defined iterator or array method ever handles it.
 # Stamp the document with this submission's request id.
-_STAMP_SCRIPT = r"""(box, requestId) => { window.__cwoSubmission = requestId; return box.isConnected; }"""
+_STAMP_SCRIPT = r"""(box, requestId) => {
+  window.__cwoSubmission = requestId;
+  window.__cwoComposer = box;
+  return box.isConnected && box.ownerDocument === document;
+}"""
 # Insert the text into the composer the handle names.
 _FILL_SCRIPT = r"""(box, text) => {
   if (!box.isConnected) return false;
@@ -126,14 +131,27 @@ _FILL_SCRIPT = r"""(box, text) => {
 }"""
 # The send control of the same document as the composer.
 _SEND_BUTTON_SCRIPT = r"""(box, selector) => {
+  if (window.__cwoComposer !== box) return null;
   const all = box.ownerDocument.querySelectorAll(selector);
-  return all.length ? all[all.length - 1] : null;
+  const button = all.length ? all[all.length - 1] : null;
+  if (button) button.__cwoComposer = box;
+  return button;
 }"""
 # Press the send control from inside its document if it carries this
 # submission's stamp; "waiting" while the control is disabled.
-_SEND_SCRIPT = r"""(button, requestId) => {
-  if (window.__cwoSubmission !== requestId || !button.isConnected) return 'refused';
+_SEND_SCRIPT = r"""(button, submission) => {
+  const requestId = submission.slice(0, 32);
+  const text = submission.slice(33);
+  const box = button.__cwoComposer;
+  if (submission[32] !== '\n' || window.__cwoSubmission !== requestId || !box ||
+      box !== window.__cwoComposer ||
+      !box.isConnected || !button.isConnected || box.ownerDocument !== document ||
+      button.ownerDocument !== document) return 'refused';
+  const current = box instanceof HTMLTextAreaElement || box instanceof HTMLInputElement ? box.value : box.innerText;
+  if (current !== text) return 'refused';
   if (button.disabled || button.getAttribute('aria-disabled') === 'true') return 'waiting';
+  // Keep the request stamp for capture; consuming the composer prevents replay.
+  window.__cwoComposer = null;
   button.click();
   return 'pressed';
 }"""
@@ -306,11 +324,15 @@ def bound_request(prompt: str, request_id: str) -> str:
     return f"{prompt.rstrip()}\n\nCWO request id: {request_id}"
 
 
-def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]]:
+def load_prompt_from_args(args: argparse.Namespace, *, prepared_sources: list | None = None) -> tuple[str, dict[str, Any]]:
     if bool(args.packet) == bool(args.prompt_file):
         raise SystemExit("Provide exactly one of --packet or --prompt-file")
     if args.packet:
-        packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
+        from generate_manual_dispatch_prompt import load_packet_file
+        files: list = []
+        packet = load_packet_file(args.packet, captures=files)
+        source = {"packet": packet, "options": vars(args)}
+        capture = PreparedSource.capture(source, files)
         require_production_contractor_packet(
             packet, allow_degraded_packet=args.allow_degraded_packet, allow_unlinked_packet=args.allow_unlinked_packet
         )
@@ -318,7 +340,13 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
         if packet.get("executor") != EXECUTOR_KEY:
             raise SystemExit(f"packet executor must be {EXECUTOR_KEY}")
         profile = packet.get("expert_profile") if isinstance(packet.get("expert_profile"), dict) else {}
-        return render_packet_prompt(packet), {
+        captured = capture.value()
+        prompt = render_packet_prompt(captured["packet"])
+        capture.require_unchanged(captured)
+        capture.require_unchanged(source)
+        if prepared_sources is not None:
+            prepared_sources.append((capture, source))
+        return prompt, {
             "dispatch_id": packet.get("dispatch_id"),
             "bead_id": packet.get("bead_id"),
             "epic_id": packet.get("epic_id"),
@@ -338,7 +366,11 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
     if not getattr(args, "rehearsal", False):
         raise SystemExit("ChatGPT prompt-file dispatch is rehearsal-only; use --packet for live ChatGPT Pro review")
     prompt_path = assert_repo_safe_path(Path(args.prompt_file))
-    prompt = prompt_path.read_text(encoding="utf-8")
+    from generate_manual_dispatch_prompt import read_input_file
+    files = []
+    prompt = read_input_file(str(prompt_path), "prompt file", captures=files)
+    source = {"prompt": prompt, "options": vars(args)}
+    capture = PreparedSource.capture(source, files)
     if not args.dispatch_id or not args.bead or not args.packet_sha256:
         raise SystemExit("prompt-file dispatch requires --dispatch-id, --bead, and --packet-sha256")
     if not getattr(args, "allow_unlinked_packet", False):
@@ -353,6 +385,9 @@ def load_prompt_from_args(args: argparse.Namespace) -> tuple[str, dict[str, Any]
             "prompt-file dispatch contains residual private or secret-like context at: "
             + ", ".join(residual_hits)
         )
+    capture.require_unchanged(source)
+    if prepared_sources is not None:
+        prepared_sources.append((capture, source))
     return prompt, {
         "dispatch_id": args.dispatch_id or make_dispatch_id("chatgpt-browser"),
         "bead_id": args.bead,
@@ -414,6 +449,23 @@ class PlaywrightChatGPTRunner:
         # or "submitted". Set before the effect, so any failure after it, from
         # any instruction, can say the prompt may have gone out.
         self.send_state = "not-sent"
+        self.prepared_sources: tuple = ()
+
+    def _require_sources_unchanged(self) -> None:
+        for capture, source in self.prepared_sources:
+            capture.require_unchanged(source)
+
+    def _capture_submission_source(self, prompt: str):
+        source = {"prompt": prompt, "config": self.config,
+                  "inputs": [capture.sha256 for capture, _ in self.prepared_sources]}
+        files = tuple(file for cap, _ in self.prepared_sources for file in cap.files)
+        return source, PreparedSource.capture(source, files)
+
+    def _prepare_submission(self, prompt, prepared, source):
+        if prepared is None:
+            source, capture = self._capture_submission_source(prompt)
+            prepared = capture.bind(source, require_clean(prompt, surface="ChatGPT browser Send"))
+        return prepared, source
 
     def submission_note(self) -> str | None:
         """What a failure report must say about Send, or None if nothing was sent."""
@@ -495,6 +547,7 @@ class PlaywrightChatGPTRunner:
         if not BROWSER_DISPATCH_AVAILABLE:
             raise SystemExit(BROWSER_DISPATCH_UNAVAILABLE)
         prompt = require_text_disclosure(prompt, surface="ChatGPT browser Send")
+        source, capture = self._capture_submission_source(prompt)
         try:
             from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
             from playwright.sync_api import sync_playwright
@@ -545,8 +598,10 @@ class PlaywrightChatGPTRunner:
                     raise SystemExit("the page is not on a ChatGPT origin; the prompt was not sent")
                 if not before_messages.get("available"):
                     raise SystemExit("the conversation could not be read before submission; the prompt was not sent")
-                require_clean(submitted, surface="ChatGPT browser Send")
-                self._submit_prompt(page, submitted, timeout_ms, request_id)
+                screened = require_clean(submitted, surface="ChatGPT browser Send")
+                prepared = capture.bind(source, screened)
+                self._require_sources_unchanged()
+                self._submit_prompt(page, screened.text(), timeout_ms, request_id, prepared=prepared, source=source)
                 stage = "response-wait"
                 pinned = self._pin_conversation(page, request_id, before_url, timeout_ms)
                 response_text = self._wait_for_stable_response(
@@ -607,6 +662,7 @@ class PlaywrightChatGPTRunner:
             "conversation_text_sha256": artifact_hash(response_text),
             "request_id": request_id,
             "submitted_sha256": artifact_hash(submitted),
+            **prepared.metadata(),
             "capture_complete": captured.get("capture_complete") is True,
             "capture_checks": captured.get("checks", {}),
             "capture_incomplete_reasons": captured.get("incomplete_reasons", ["capture-checks-missing"]),
@@ -877,7 +933,7 @@ class PlaywrightChatGPTRunner:
         frame = handle.owner_frame()
         return approved_chatgpt_origin(str(frame.url)) if frame is not None else None
 
-    def _submit_prompt(self, page: Any, prompt: str, timeout_ms: int, request_id: str) -> str:
+    def _submit_prompt(self, page: Any, prompt: str, timeout_ms: int, request_id: str, *, prepared=None, source=None) -> str:
         """Insert ``prompt`` and press Send inside one document on a ChatGPT origin.
 
         The composer's frame origin is checked from outside the page before
@@ -889,6 +945,9 @@ class PlaywrightChatGPTRunner:
         anywhere else. There is no keyboard or mouse fallback: page-level input
         goes to whichever document is current when it arrives.
         """
+        prepared, source = self._prepare_submission(prompt, prepared, source)
+        prompt = prepared.require_unchanged(source, prompt).decode("utf-8")
+        submission = request_id + "\n" + prompt
         boxes = page.query_selector_all(self.selector("prompt_box", "textarea, [contenteditable='true']"))
         if not boxes:
             raise SystemExit("the prompt box was not found; the prompt was not sent")
@@ -899,6 +958,8 @@ class PlaywrightChatGPTRunner:
             raise SystemExit("the page changed before the prompt was inserted; the prompt was not sent") from exc
         if origin is None:
             raise SystemExit("the page is not on a ChatGPT origin; the prompt was not sent")
+        prepared.require_unchanged(source, prompt)
+        self._require_sources_unchanged()
         try:
             inserted = box.evaluate(_STAMP_SCRIPT, request_id) is True and box.evaluate(_FILL_SCRIPT, prompt) is True
         except Exception as exc:
@@ -919,9 +980,11 @@ class PlaywrightChatGPTRunner:
             except Exception as exc:
                 raise SystemExit("the page changed before Send was pressed; the prompt was not sent") from exc
             if state is None:
+                prepared.require_unchanged(source, prompt)
+                self._require_sources_unchanged()
                 self.send_state = "may-have-been-submitted"
                 try:
-                    state = button.evaluate(_SEND_SCRIPT, request_id)
+                    state = button.evaluate(_SEND_SCRIPT, submission)
                 except Exception as exc:
                     # The script presses Send before it answers, so a failure
                     # here does not show that nothing was submitted.
@@ -1581,7 +1644,8 @@ def main() -> None:
 
     config_path = resolve_config_path(args.config)
     config = load_browser_config(config_path)
-    prompt, metadata = load_prompt_from_args(args)
+    prepared_sources: list = []
+    prompt, metadata = load_prompt_from_args(args, prepared_sources=prepared_sources)
     enforce_prompt_size(prompt, config)
     require_confirmation_selectors(config)
     exit_message = ""
@@ -1625,6 +1689,7 @@ def main() -> None:
             # Fixed before anything is sent or written; see the handler below.
             planned_names = private_response_names(metadata)
             runner = PlaywrightChatGPTRunner(config)
+            runner.prepared_sources = tuple(prepared_sources)
             try:
                 browser_result = runner.run(prompt)
                 result = build_result(

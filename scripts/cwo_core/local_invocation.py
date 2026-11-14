@@ -53,6 +53,7 @@ from .invocation_ledger import (
     add_failure_note,
 )
 from .policy import load_contracting_controls
+from .prepared_outbound import PreparedSource
 
 ROUTE = "local-http"
 QUOTA_KEY = "local_worker_dispatches_per_epic"
@@ -235,6 +236,16 @@ class LocalHttpGate:
         self.preflight_to_post_ms: int | None = None
         self.sent: list[str] = []
         self.timed_out = False
+        self._source = (PreparedSource.capture(None), None)
+
+    def bind_source(self, capture: PreparedSource, source: Any) -> None:
+        """Keep mutable originals out of request serialization and check them after observers."""
+        capture.require_unchanged(source)
+        self._source = (capture, source)
+
+    def require_source_unchanged(self) -> None:
+        capture, source = self._source
+        capture.require_unchanged(source)
 
     def bind(self, opener: Any) -> LocalHttpGate:
         with self._lock:
@@ -319,6 +330,7 @@ class LocalHttpGate:
             except InvocationLedgerError as exc:
                 raise SystemExit(f"controlled local invocation refused: {exc}; nothing more is sent.") from exc
             # All callback and final ledger work precedes this pure deadline.
+            self.require_source_unchanged()
             self._check_preflight_deadline(kind)
             response = opener.open(frozen, timeout=timeout)
         except BaseException as exc:

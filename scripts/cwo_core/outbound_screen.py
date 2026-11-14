@@ -184,7 +184,7 @@ class Finding:
 class ScreenedPayload:
     """Bytes that passed screening, bound to their digest."""
 
-    data: bytes
+    data: bytes = field(repr=False)
     sha256: str
     surface: str
     findings: tuple[Finding, ...] = field(default_factory=tuple)
@@ -197,11 +197,12 @@ class ScreenedPayload:
         return self.data.decode("utf-8")
 
     def require_unchanged(self, data: bytes | str) -> bytes:
-        """Return ``data`` as bytes if it is exactly what was screened; refuse otherwise."""
-        raw = data.encode("utf-8") if isinstance(data, str) else data
-        if hashlib.sha256(raw).hexdigest() != self.sha256:
+        """Return the captured immutable bytes for a supported unchanged candidate."""
+        raw = _utf8_payload(data, surface=self.surface)
+        if (self.findings or type(self.data) is not bytes or raw != self.data
+                or hashlib.sha256(self.data).hexdigest() != self.sha256):
             raise OutboundRefused(f"outbound screening refused {self.surface}: the payload changed after it was screened")
-        return raw
+        return self.data
 
 
 # Header names never screened or bound: the request's own authentication,
@@ -241,6 +242,8 @@ class ScreenedRequest:
         if (method.upper() != self.method or url != self.url or _request_headers(headers) != self.headers
                 or _authentication_digest(headers) != self.authentication):
             raise OutboundRefused(f"outbound screening refused {self.surface}: the request changed after it was screened")
+        descriptor = f"{self.method} {self.url}\n" + "".join(f"{name}: {value}\n" for name, value in self.headers)
+        self.descriptor.require_unchanged(descriptor)
         self.body.require_unchanged(body or b"")
 
 
