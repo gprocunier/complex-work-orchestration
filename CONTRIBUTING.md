@@ -4,6 +4,26 @@ Start with [AGENTS.md](AGENTS.md) for repository rules. Runtime helpers remain
 stdlib-only. Documentation or test dependencies must not become prerequisites
 for using the installed skill.
 
+## Optional commit checks
+
+Enable the repository's commit message hook for this clone from its root:
+
+```bash
+git config --local core.hooksPath tools/hooks
+```
+
+This replaces any existing hooks path for the clone. The hook requires Git and
+Python 3 and stays outside the installed skill. It refuses attribution trailers,
+credit lines and internal tracking labels in commit subjects or bodies. Describe
+the change in public terms.
+
+Configure your own contributor identity with `git config --local user.name` and
+`git config --local user.email`, each followed by its value. Both must be present
+and nonempty. The hook compares them with Git's actual author and committer,
+including environment overrides and `git commit --author`; both identities must
+match. To remove the clone's override, run
+`git config --local --unset core.hooksPath` (or restore your previous setting).
+
 ## Content ownership
 
 | Reader task | Canonical human guide | Implementation truth |

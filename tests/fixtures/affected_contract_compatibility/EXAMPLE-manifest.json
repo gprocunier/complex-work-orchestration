@@ -292,7 +292,7 @@
     "policy/executor-registry.yaml": "c888f2164b5024c2f7480773c3ea9baa9683a927dfae1b65d6d5cd7c4e5e309b",
     "policy/expert-registry.yaml": "91161757dfda43cd2fef0218a58f6f28e54a1dc014b4890ebc08f65af58849e5",
     "policy/harness-registry.yaml": "c6f55fdb4d97d39e522c2aedf7c362c446c4f152eca796b669f42e011674da2c",
-    "policy/install-projection.yaml": "cb0b973e0cd87656a659042a40a1ce4883b7d95c58e57cee17c21f3028219f3f",
+    "policy/install-projection.yaml": "d17b014bffa51e2bd74465d0d5c91826f1b2f93eaa5633119ea5cca0d08d0cbe",
     "policy/model-identity-scope.yaml": "2ba4537116e3764e699dc4077652e03aea0d038e4494a6b31228e392a960f16d",
     "policy/model-profiles.yaml": "a2f176a1057a590aefd8683f5693e584d399e4cb23f870656ad47b28425d7ec4",
     "policy/native-worker-execution.yaml": "c6ded2ae0824270e949c5e2abca2145fc8754a6dba3b0ddbaebee2c460a4f359",
