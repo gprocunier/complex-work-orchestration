@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-14
+
 - Workspace inspection recognises authorized Git changes and reports them separately from unexplained changes.
 
 ## 0.2.1 - 2026-11-14

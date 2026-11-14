@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import nullcontext, redirect_stdout
+import contextvars
 import hashlib
 from io import StringIO
 import json
@@ -10,6 +11,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -494,7 +496,9 @@ class WriterChecks(unittest.TestCase):
                         'provider', 'model_family', 'model_id', 'reasoning_effort')}, 'dispatch_id': dispatch_id}}
         raw = (json.dumps(decision, indent=2) + '\n').encode()
         self.enterContext(patch.object(N.fixtures.host_fixtures, 'OUTPUT', raw))
-        case = fixture.case(provider='openai')
+        # Provenance is the assertion here; observe the original archive before
+        # the accelerated host poll ticks spend their finite close-step budget.
+        case = fixture.case(archive_schedule='settled', provider='openai')
         for bad in ({}, {**target, 'evaluation_sha256': 'not-a-digest'},
                     {**target, 'return_sha256': sha(b'unknown-return')},
                     {**target, 'dispatch_id': 'peer', 'return_sha256': sha(b'peer-return')}):
@@ -507,7 +511,39 @@ class WriterChecks(unittest.TestCase):
             factory.guard()
         self.assertFalse(fixture.spawned)
         factory.review_target = dict(target)
-        factory.run()
+        entered, release, outcome = threading.Event(), threading.Event(), []
+        original_result = N.RpcProcess.result
+        def result(process, method, params):
+            if process.case is case and method == 'thread/archive':
+                entered.set()
+                self.assertTrue(release.wait(8), 'original archive observation was not released')
+            return original_result(process, method, params)
+        def run():
+            try:
+                outcome.append(factory.run())
+            except BaseException as failure:
+                outcome.append(failure)
+        with patch.object(N.RpcProcess, 'result', result):
+            context = contextvars.copy_context()
+            worker = threading.Thread(target=context.run, args=(run,), daemon=True)
+            worker.start()
+            try:
+                N.wait_for_startup(self, entered, worker, outcome)
+                self.assertTrue(getattr(case, '_original_archive_settlement', False))
+                self.assertEqual(case.spec['max_steps'], 64)
+                archive = factory.adapter._staged_archive
+                self.assertTrue(archive._started)
+                self.assertFalse(archive._done.is_set())
+                self.assertFalse(factory.adapter.callback_latencies.get('close'))
+                self.assertEqual(outcome, [])
+            finally:
+                N.finish_worker(self, worker, release)
+        self.assertEqual(len(outcome), 1)
+        if isinstance(outcome[0], BaseException):
+            raise outcome[0]
+        self.assertTrue(archive._done.is_set())
+        self.assertIsNone(archive._error)
+        self.assertEqual(fixture.spawned[0].methods.count('thread/archive'), 1)
         observed = store.require_dispatch(factory.dispatch_id)
         self.assertEqual(observed['model_family'], 'gpt')
         self.assertEqual(observed['review_target'], target)

@@ -13,6 +13,7 @@ from tests import test_registered_n1_factory as family
 from tests.test_registered_finite_input import ToolLines
 import registered_finite_input as gate_module
 import registered_finite_tool_calls as finite_tools
+import run_native_pool_live_canaries as live
 
 
 class ReplyPublicationRow(NamedTuple):
@@ -2274,12 +2275,14 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
 
     def _terminal_projection_schedule(self, *, before_wait):
+        # This fixture owns the input and driver boundaries; the generic wire
+        # scheduler expects a command reply that this projection never emits.
         case = self.fixture.case(finite_tool_mode='captured-host-tools',
-                                 materialize_on_turn_start=True)
+                                 materialize_on_turn_start=True, no_fake_scheduler=True)
         case.command_prepared, case.command_release = threading.Event(), threading.Event()
         factory = self.fixture.factory(case)
         outcome, observed, result = [], threading.Event(), []
-        driver_release = threading.Event()
+        driver_held, driver_release = threading.Event(), threading.Event()
         self.addCleanup(driver_release.set)
         original_result = DynamicRpcProcess.result
         def projection(process, method, params):
@@ -2288,9 +2291,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 response['thread']['turns'] = [{
                     'id': case.scenario.turn_id, 'status': 'completed', 'items': []}]
             return response
-        def no_command_until_projection(process):
+        def no_command(process):
             case.command_prepared.set()
-            case.command_release.wait(5)
+            case.command_release.wait()
         def run():
             try:
                 outcome.append(factory.run())
@@ -2299,17 +2302,20 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         original_progress = family.runtime._RegisteredServer.await_finite_progress
         def held_progress(server, *args, **kwargs):
             if server is factory.server and threading.current_thread() is worker:
-                driver_release.wait(5)
+                driver_held.set()
+                driver_release.wait()
             return original_progress(server, *args, **kwargs)
         with patch.object(family, 'RpcProcess', DynamicRpcProcess), patch.object(
                 DynamicRpcProcess, 'result', projection), patch.object(
-                DynamicRpcProcess, 'approve', no_command_until_projection), patch.object(
+                DynamicRpcProcess, 'approve', no_command), patch.object(
                 family.runtime._RegisteredServer, 'await_finite_progress', held_progress):
             worker = threading.Thread(target=run, daemon=True)
             worker.start()
             self.addCleanup(family.finish_worker, self, worker, case.command_release, driver_release)
             self.addCleanup(case.command_release.set)
             self.assertTrue(self.wait_for_startup(case.command_prepared, worker, outcome))
+            case.command_release.set()
+            self.assertTrue(self.wait_for_startup(driver_held, worker, outcome))
             server = factory.server
             lifecycle = server.finite_input.lifecycle
             end = time.monotonic() + 3
@@ -2332,8 +2338,12 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     waiter = threading.Thread(target=host_wait, daemon=True)
                     waiter.start()
                     self.assertTrue(observed.wait(2))
+                # An elapsed provisional grace must not let the host race this
+                # fixture's original terminal read while its driver is held.
+                adapter = factory.adapter
+                adapter._projection_started_ns = adapter._monotonic_ns() - int(
+                    (live.PROVISIONAL_TERMINAL_GRACE_SECONDS + 1) * 1_000_000_000)
                 case.terminal_projection = True
-                case.command_release.set()
                 server.request('thread/read', {'threadId': case.scenario.thread_id}, timeout=3)
                 end = time.monotonic() + 2
                 while lifecycle.phase != 'terminal':
@@ -2345,7 +2355,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     waiter.join(2)
                     self.assertFalse(waiter.is_alive())
             self.assertEqual(result, [None])
-            case.command_release.set()
+            self.assertIsNone(server.transport_failure)
+            self.assertIsNone(adapter._staged_archive)
             driver_release.set()
             worker.join(12)
         self.assertEqual(len(outcome), 1)
