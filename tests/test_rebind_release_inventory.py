@@ -136,6 +136,7 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         for path in paths:
             del manifest["files"][path]
             del manifest["current_file_modes"][path]
+            manifest["registered_source_callers"].pop(path, None)
         (root / MANIFEST).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
         value["source_bindings"][MANIFEST] = R.read_file(root, MANIFEST)[1]
         (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
