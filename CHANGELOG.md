@@ -6,6 +6,7 @@
 - Added a release inventory rebind command that reports affected routes and refuses stale source spans.
 - Tightened parallel test-runner checks for missing results and method case counts, with regression coverage for failed workunit logs and serial fixture isolation.
 - Added a CI-parity release test environment covering checkout includes, relocated Python and four-CPU execution.
+- Added explicit host selection and transport dry runs to the release gate dispatcher.
 - Limited push-triggered CI to `main` and `v*` tags while preserving pull-request checks.
 
 ## 0.2.0 - 2026-11-11
