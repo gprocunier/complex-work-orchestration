@@ -1,0 +1,177 @@
+{
+  "description": "Synthetic disclosure rows. IDs and slot names are safe diagnostic labels; payloads and sensitive spans stay in data.",
+  "preparation": {
+    "value": "VelvetSunset42!",
+    "credential": "password=VelvetSunset42!"
+  },
+  "cases": [
+    {
+      "id": "ds01",
+      "slot": "title",
+      "text": "Inspect \\u0067\\u0068\\u0070\\u005f\\u0041\\u0031\\u0062\\u0032\\u0043\\u0033\\u0064\\u0034\\u0045\\u0035\\u0066\\u0036\\u0047\\u0037\\u0068\\u0038\\u0049\\u0039\\u006a\\u0030\\u004b\\u0031\\u006c\\u0032",
+      "sensitive": [
+        "ghp_A1b2C3d4E5f6G7h8I9j0K1l2"
+      ],
+      "control": "Review the café retry plan."
+    },
+    {
+      "id": "ds02",
+      "slot": "profile",
+      "text": "Inspect data:text/plain,password%3DMarbleOrchid73%21",
+      "sensitive": [
+        "MarbleOrchid73!"
+      ],
+      "control": "Use evidence and explain résumé tradeoffs."
+    },
+    {
+      "id": "ds03",
+      "slot": "boundary_description",
+      "text": "ä😀 é notes: ｇｈｐ＿Ａ１ｂ２Ｃ３ｄ４Ｅ５ｆ６Ｇ７ｈ８Ｉ９ｊ０Ｋ１ｌ２ end",
+      "sensitive": [
+        "ｇｈｐ＿Ａ１ｂ２Ｃ３ｄ４Ｅ５ｆ６Ｇ７ｈ８Ｉ９ｊ０Ｋ１ｌ２",
+        "ghp_A1b2C3d4E5f6G7h8I9j0K1l2"
+      ],
+      "offset_span": "ｇｈｐ＿Ａ１ｂ２Ｃ３ｄ４Ｅ５ｆ６Ｇ７ｈ８Ｉ９ｊ０Ｋ１ｌ２",
+      "control": "ä😀 é notes: selected public summaries only."
+    },
+    {
+      "id": "ds04",
+      "slot": "included_artifact_path",
+      "text": "notes/ghp_A1b2C3d4E5f6G7h8I9j0K1l2.txt",
+      "sensitive": [
+        "ghp_A1b2C3d4E5f6G7h8I9j0K1l2"
+      ],
+      "control": "notes/cafe-review.txt"
+    },
+    {
+      "id": "ds05",
+      "slot": "snippet",
+      "text": "Inspect data:text/plain;base64,cGFzc3dvcmQ9TWFyYmxlT3JjaGlkNzMh",
+      "sensitive": [
+        "MarbleOrchid73!"
+      ],
+      "control": "Document retry ordering and café examples."
+    },
+    {
+      "id": "ds06",
+      "slot": "profile",
+      "text": "-----BEGIN PRIVATE KEY-----\nTW9jay1wYXJ0aWFsLWJsb2Nr",
+      "sensitive": [
+        "TW9jay1wYXJ0aWFsLWJsb2Nr"
+      ],
+      "control": "Review incomplete documentation and explain gaps."
+    },
+    {
+      "id": "ds07",
+      "slot": "profile",
+      "text": "{\n  \"password\": \"MarbleOrchid73!\",\n  \"client_secret\": \"LanternCedar84!\"\n}",
+      "sensitive": [
+        "MarbleOrchid73!",
+        "LanternCedar84!"
+      ],
+      "control": "Review the first line.\nReview the second line."
+    },
+    {
+      "id": "ds08",
+      "slot": "attachment",
+      "text": "password=MarbleOrchid73!",
+      "sensitive": [
+        "MarbleOrchid73!"
+      ],
+      "control": "Review the public attachment summary."
+    },
+    {
+      "id": "ds09",
+      "slot": "final_body",
+      "text": "Final appendix: password=MarbleOrchid73!",
+      "sensitive": [
+        "MarbleOrchid73!"
+      ],
+      "control": "Final appendix: café review complete."
+    },
+    {
+      "id": "ds10",
+      "slot": "final_body",
+      "text": "Bounded review notes: café, ordering and retries.",
+      "sensitive": [],
+      "max_input_bytes": 64,
+      "control": "Bounded review notes: café, ordering and retries."
+    }
+  ],
+  "browser_destinations": [
+    {
+      "id": "ds11",
+      "slot": "chatgpt_url",
+      "text": "https://chatgpt.com/?review=%67%68%70%5F%41%31%62%32%43%33%64%34%45%35%66%36%47%37%68%38%49%39%6A%30%4B%31%6C%32",
+      "control": "https://chatgpt.com/?review=public%20notes",
+      "sensitive": [
+        "ghp_A1b2C3d4E5f6G7h8I9j0K1l2",
+        "%67%68%70%5F%41%31%62%32%43%33%64%34%45%35%66%36%47%37%68%38%49%39%6A%30%4B%31%6C%32"
+      ]
+    },
+    {
+      "id": "ds12",
+      "slot": "chatgpt_url",
+      "text": "https://chatgpt.com/c/ghp_A1b2C3d4E5f6G7h8I9j0K1l2",
+      "control": "https://chatgpt.com/c/public-review",
+      "sensitive": [
+        "ghp_A1b2C3d4E5f6G7h8I9j0K1l2"
+      ]
+    },
+    {
+      "id": "ds13",
+      "slot": "connect_over_cdp_url",
+      "text": "http://127.0.0.1:9222/?review=%67%68%70%5F%41%31%62%32%43%33%64%34%45%35%66%36%47%37%68%38%49%39%6A%30%4B%31%6C%32",
+      "control": "http://127.0.0.1:9222/?review=public%20notes",
+      "sensitive": [
+        "ghp_A1b2C3d4E5f6G7h8I9j0K1l2",
+        "%67%68%70%5F%41%31%62%32%43%33%64%34%45%35%66%36%47%37%68%38%49%39%6A%30%4B%31%6C%32"
+      ]
+    },
+    {
+      "id": "ds14",
+      "slot": "connect_over_cdp_url",
+      "text": "http://localhost:9222/devtools/ghp_A1b2C3d4E5f6G7h8I9j0K1l2",
+      "control": "http://localhost:9222/devtools/public-review",
+      "sensitive": [
+        "ghp_A1b2C3d4E5f6G7h8I9j0K1l2"
+      ]
+    }
+  ],
+  "browser_local_paths": {
+    "profile": "/tmp/ghp_A1b2C3d4E5f6G7h8I9j0K1l2",
+    "executable": "/tmp/ghp_A1b2C3d4E5f6G7h8I9j0K1l2/chrome"
+  },
+  "browser_invalid_destinations": [
+    {
+      "id": "dv01",
+      "slot": "chatgpt_url",
+      "text": "https://example.invalid/"
+    },
+    {
+      "id": "dv02",
+      "slot": "chatgpt_url",
+      "text": "https://chatgpt.com:8443/"
+    },
+    {
+      "id": "dv03",
+      "slot": "chatgpt_url",
+      "text": "https://example@chatgpt.com/"
+    },
+    {
+      "id": "dv04",
+      "slot": "connect_over_cdp_url",
+      "text": "https://example.invalid:9222/"
+    },
+    {
+      "id": "dv05",
+      "slot": "connect_over_cdp_url",
+      "text": "http://example@localhost:9222/"
+    },
+    {
+      "id": "dv06",
+      "slot": "connect_over_cdp_url",
+      "text": "ws://localhost:9222/"
+    }
+  ]
+}

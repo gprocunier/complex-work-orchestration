@@ -24,6 +24,7 @@ import test_registered_native_pool_host as P  # noqa: E402
 from cwo_core.errors import CWOPolicyError  # noqa: E402
 from cwo_core.host_records import HostRecordStore, using_test_store  # noqa: E402
 from cwo_core.host_return_intake import MAX_RETURN_BYTES, record_received_return, _record_capture  # noqa: E402
+from cwo_core.prepared_outbound import PreparedOutbound, PreparedSource  # noqa: E402
 
 
 def sha(raw):
@@ -82,12 +83,20 @@ class WriterChecks(unittest.TestCase):
             packet = helper.build(home, dispatch_id='packet-writer')
             path = helper.write(home, packet, 'packet.json')
             store = configured_store()
-            def export(_screened):
+            def export(screened, *, prepared, source):
                 observed = store.require_dispatch('packet-writer')
                 self.assertEqual(observed['packet_sha256'], packet['packet_sha256'])
                 self.assertEqual(observed['bead_id'], packet['bead_id'])
                 self.assertEqual(observed['executor'], packet['executor'])
                 self.assertTrue(observed['evaluation_metadata']['peer_review_required'])
+                self.assertIsInstance(prepared, PreparedOutbound)
+                self.assertTrue(prepared.payload is screened, 'export must use the frozen screened token')
+                prepared.require_unchanged(source, screened.data)
+                self.assertTrue(source['inputs']['packet'] == packet, 'prepared source must bind the validated packet')
+                self.assertTrue(prepared.source.files == ((str(path), path.read_bytes()),),
+                                'prepared source must capture the exact packet file')
+                for key, value in prepared.metadata().items():
+                    self.assertEqual(observed['evaluation_metadata'][key], value)
             with patch.object(sys, 'argv', ['dispatch_work.py', '--packet', str(path)]), \
                     patch.object(dispatch, 'write_export', side_effect=export) as write:
                 dispatch.main()
@@ -100,10 +109,20 @@ class WriterChecks(unittest.TestCase):
                 '--local-base-url', 'http://127.0.0.1:8000', '--local-max-tokens', '7',
                 '--dispatch-id', 'local', '--execute-local', '--json']
         requests = []
-        def scope(_envelope, post, _preflight, _qualified):
+        bindings = []
+        def scope(envelope, post, _preflight, _qualified):
             requests.append(post.data)
-            return nullcontext(None)
+            def bind_source(capture, source):
+                self.assertIsInstance(capture, PreparedSource)
+                capture.require_unchanged(source)
+                self.assertTrue(source['envelope'] is envelope, 'bound source must retain the routed envelope')
+                self.assertEqual(sha(json.dumps(source['payload']).encode('utf-8')), sha(post.data))
+                bindings.append((capture, source))
+            return nullcontext(SimpleNamespace(bind_source=bind_source))
         def effect(*_args, **_kwargs):
+            self.assertEqual(len(bindings), 1)
+            capture, source = bindings[0]
+            capture.require_unchanged(source)
             record = self.store.require_dispatch('local')
             self.assertIsNone(record['model_id'])
             self.assertEqual(record['request_sha256'], sha(requests[0]))

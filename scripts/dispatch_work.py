@@ -34,7 +34,8 @@ from cwo_core.errors import CWOError
 from cwo_core.adjudication import dispatch_provenance
 from cwo_core.local_invocation import reserved_local_invocation
 from cwo_core.host_records import configured_store
-from cwo_core.outbound_screen import ScreenedRequest, ScreeningArgumentParser, screen_request, withheld_diagnostics
+from cwo_core.prepared_outbound import PreparedSource
+from cwo_core.outbound_screen import ScreenedRequest, ScreeningArgumentParser, refuse_attachments, screen_request, withheld_diagnostics
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import classify_work
 from cwo_core.audit import (
@@ -1692,9 +1693,10 @@ def _local_review_result(result, qualified_review):
 
 
 def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str, Any], args: argparse.Namespace,
-                           *, qualified_review=None) -> dict[str, Any]:
+                           *, qualified_review=None, source_files=()) -> dict[str, Any]:
     if not LOCAL_INVOCATION_AVAILABLE:
         raise SystemExit(LOCAL_INVOCATION_UNAVAILABLE)
+    refuse_attachments(envelope, surface="local HTTP request")
     require_audited_local_execution(args)
     require_access_profile_online_for_execution(envelope, args)
     executor_key = str(envelope.get("executor_key") or "")
@@ -1752,6 +1754,8 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         "temperature": 0,
     }
     payload.update(request_options)
+    source = {"envelope": envelope, "executor": selected_executor, "transport": transport, "payload": payload}
+    capture = PreparedSource.capture(source, source_files)
     body = json.dumps(payload).encode("utf-8")
     request_payload_sha256 = artifact_hash(body.decode("utf-8"))
     request_options_sha256 = artifact_hash(
@@ -1779,6 +1783,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         else None
     )
     screened_request = screen_request("POST", endpoint, headers, body, surface="local HTTP request")
+    prepared = capture.bind(source, screened_request.body)
     # Both requests are built as they will be sent and checked against their
     # screens before resolution: Request normalizes a URL (it strips
     # surrounding spaces, for example), and a request that would be refused
@@ -1793,13 +1798,16 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     # registered observers come before resolution, the first network effect;
     # every request then goes through the reservation's gate (issue #41).
     with _local_review_scope(envelope, req, preflight, qualified_review) as gate:
+        gate.bind_source(capture, source)
         record_local_execution(envelope, selected_executor, request_payload_sha256, qualified_review=qualified_review)
+        prepared.require_unchanged(source, req.data)
         # Resolution comes after screening: a hostname is sent to a resolver, so
         # it must already have passed the screen.
         pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get("allow_private_dns")))
         started = time.monotonic()
         try:
             opener = gate.bind(_build_local_opener(str(base_url), transport, args, pinned_address))
+            prepared.require_unchanged(source, req.data)
             screened_request.require_unchanged(req.get_method(), req.full_url, req.header_items(), req.data)
             model_preflight = None
             if preflight_required:
@@ -2244,7 +2252,8 @@ def record_local_execution(envelope: dict[str, Any], selected: dict[str, Any], r
 
 def record_route_preparation(args: argparse.Namespace, route: dict[str, Any], task: str,
                              dispatch_id: str, manual_prompt: str | None,
-                             local_envelope: dict[str, Any] | None, *, manual_phase: bool = False) -> None:
+                             local_envelope: dict[str, Any] | None, *, manual_phase: bool = False,
+                             outbound_metadata: dict[str, Any] | None = None) -> None:
     if (not args.audit or getattr(args, 'rehearsal', False) or getattr(args, 'execute_local', False)
             or (manual_prompt is not None) != manual_phase):
         return
@@ -2261,6 +2270,7 @@ def record_route_preparation(args: argparse.Namespace, route: dict[str, Any], ta
             'dispatch_mode': route['selected_executor']['dispatch_mode'],
             'peer_review_required': route.get('peer_review_required', True),
             'provider_conflict_domains': route.get('provider_conflict_domains', []),
+            **(outbound_metadata or {}),
         },
     )
 
@@ -2383,13 +2393,19 @@ def _main() -> None:
         ],
     )
 
+    files: list = []
     if args.packet:
-        packet = load_packet_file(args.packet)
+        packet = load_packet_file(args.packet, captures=files)
+        inputs = {"packet": packet, "options": vars(args)}
+        input_capture = PreparedSource.capture(inputs, files)
         require_production_contractor_packet(
             packet, allow_degraded_packet=args.allow_degraded_packet, allow_unlinked_packet=args.allow_unlinked_packet
         )
         expected_language, expected_language_source = contractor_packet_language_metadata(packet)
-        manual_prompt = render_packet_prompt(packet)
+        captured = input_capture.value()
+        manual_prompt = render_packet_prompt(captured["packet"])
+        input_capture.require_unchanged(captured)
+        input_capture.require_unchanged(inputs)
         artifact = {
             "dispatch_id": packet.get("dispatch_id"),
             "bead_id": packet.get("bead_id"),
@@ -2417,9 +2433,13 @@ def _main() -> None:
             packet_sha256=packet.get("packet_sha256"),
         )
         artifact.update(quota_info)
+        input_capture.require_unchanged(inputs)
+        source = {"inputs": inputs, "artifact": artifact}
+        capture = PreparedSource.capture(source, files)
         screened_output = screen_export(
             json.dumps(artifact, indent=2, sort_keys=True) if args.json else artifact["manual_prompt"], as_json=args.json
         )
+        prepared = capture.bind(source, screened_output)
         if audited_dispatch(args):
             record_prepared_dispatch(
                 artifact["dispatch_id"], provider=artifact["provider_key"],
@@ -2432,8 +2452,10 @@ def _main() -> None:
                     "dispatch_mode": "manual_ui", "peer_review_required": True,
                     "expected_return_language": expected_language,
                     "expected_return_language_source": expected_language_source,
+                    **prepared.metadata(),
                 },
             )
+            prepared.require_unchanged(source, screened_output.data)
             profile = packet.get("expert_profile") if isinstance(packet.get("expert_profile"), dict) else {}
             transport = packet.get("executor_transport") if isinstance(packet.get("executor_transport"), dict) else {}
             record_audit_event(
@@ -2454,6 +2476,7 @@ def _main() -> None:
                     "disclosure_stage": artifact["disclosure_stage"],
                     "quota_remaining": quota_info.get("quota_remaining"),
                     "packet_sha256": artifact["packet_sha256"],
+                    **prepared.metadata(),
                     **waiver_audit_fields(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"]),
                     **telemetry_fields(
                         telemetry_kind="manual_dispatch",
@@ -2473,10 +2496,10 @@ def _main() -> None:
                     ),
                 }
             )
-        write_export(screened_output)
+        write_export(screened_output, prepared=prepared, source=source)
         return
 
-    task_segments = read_task_segments(" ".join(args.text).strip() or None, args.file)
+    task_segments = read_task_segments(" ".join(args.text).strip() or None, args.file, captures=files)
     task = "\n\n".join(task_segments)
     try:
         route = classify_work(
@@ -2503,7 +2526,12 @@ def _main() -> None:
     if args.allow_raw_manual_prompt:
         task = redact_text(task)
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead or "unassigned")
-    manual_prompt = render_prompt(task, route) if route["selected_executor"]["dispatch_mode"] == "manual_ui" else None
+    inputs = {"task": task, "segments": task_segments, "route": route, "options": vars(args)}
+    input_capture = PreparedSource.capture(inputs, files)
+    captured = input_capture.value()
+    manual_prompt = render_prompt(captured["task"], captured["route"]) if route["selected_executor"]["dispatch_mode"] == "manual_ui" else None
+    input_capture.require_unchanged(captured)
+    input_capture.require_unchanged(inputs)
     # Reads the audit log only; consumption is recorded by the audit event.
     quota_info = enforce_contracting_quota(
         args.epic,
@@ -2529,7 +2557,8 @@ def _main() -> None:
     if args.execute_local:
         if not local_envelope:
             raise SystemExit("--execute-local is only valid for local worker dispatch routes")
-        local_response = execute_local_envelope(local_envelope, route["selected_executor"], args)
+        input_capture.require_unchanged(inputs)
+        local_response = execute_local_envelope(local_envelope, route["selected_executor"], args, source_files=tuple(files))
 
     artifact = {
         "dispatch_id": dispatch_id,
@@ -2544,13 +2573,21 @@ def _main() -> None:
         **quota_info,
     }
     screened_output = None
+    prepared_metadata = {}
+    input_capture.require_unchanged(inputs)
+    source = {"inputs": inputs, "artifact": artifact}
+    capture = PreparedSource.capture(source, files)
     if manual_prompt is not None:
         # A manual export's exact output is screened before the audit event
         # that records the dispatch and before anything is printed.
         screened_output = screen_export(
             json.dumps(artifact, indent=2, sort_keys=True) if args.json else manual_prompt, as_json=args.json
         )
-        record_route_preparation(args, route, task, dispatch_id, manual_prompt, local_envelope, manual_phase=True)
+        prepared = capture.bind(source, screened_output)
+        prepared_metadata = prepared.metadata()
+        record_route_preparation(args, route, task, dispatch_id, manual_prompt, local_envelope,
+                                 manual_phase=True, outbound_metadata=prepared_metadata)
+        prepared.require_unchanged(source, screened_output.data)
     if audited_dispatch(args):
         selected_executor = route["selected_executor"]
         dispatch_mode = artifact["dispatch_mode"]
@@ -2612,6 +2649,7 @@ def _main() -> None:
                 "share_boundary": args.share_boundary,
                 "local_profile": args.local_profile,
                 "quota_remaining": quota_info.get("quota_remaining"),
+                **prepared_metadata,
                 **base_telemetry,
             }
         )
@@ -2629,7 +2667,7 @@ def _main() -> None:
             **quota_info,
         }
     if screened_output is not None:
-        write_export(screened_output)
+        write_export(screened_output, prepared=prepared, source=source)
     elif args.json:
         print(json.dumps(rendered_artifact, indent=2, sort_keys=True))
     else:
