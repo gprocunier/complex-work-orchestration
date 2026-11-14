@@ -1631,14 +1631,15 @@ class RunIdentityReport(unittest.TestCase):
                 checkpoint.verify_fixture_checkpoint(root=root)
             # Isolate an addition to a complete genuine roster. The missing
             # dependency refusal shows that the exact roster gate passed first.
-            self.assertEqual(len(list((ROOT / "policy").glob("*.yaml"))), 21)
+            self.assertEqual(len(list((ROOT / "policy").glob("*.yaml"))), 22)
+            self.assertIn("policy/qualification-target.yaml", manifest["registered_current_resources"])
             for name in manifest["registered_current_resources"]:
                 if name.startswith("policy/"):
                     source = ROOT / name
                     (root / name).write_bytes(source.read_bytes())
             with self.assertRaisesRegex(checkpoint.CompatibilityRefusal, "dependency/artifact missing"):
                 checkpoint.verify_fixture_checkpoint(root=root)
-            self.assertEqual(len(list((root / "policy").glob("*.yaml"))), 21)
+            self.assertEqual(len(list((root / "policy").glob("*.yaml"))), 22)
             (root / "policy/EXAMPLE-extra-policy.yaml").write_text("{}\n")
             with self.assertRaisesRegex(checkpoint.CompatibilityRefusal, "policy roster drift"):
                 checkpoint.verify_fixture_checkpoint(root=root)

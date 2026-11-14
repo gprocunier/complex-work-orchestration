@@ -1,0 +1,178 @@
+{
+  "version": 1,
+  "execution_authorized": false,
+  "selection": {
+    "id": "codex-0.163.0-constrained-integrity",
+    "pin_version": "0.163.0",
+    "executable_sha256": "399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215",
+    "package": {
+      "distribution": "standalone",
+      "version": "0.163.0",
+      "target": "x86_64-unknown-linux-musl",
+      "manifest": "codex-package.json",
+      "sha256": "5fa8533bde21972564cbb2c665c99c6d6d0e92b625fa6f4fdf1354ac5fb71a78",
+      "entrypoint": "bin/codex"
+    },
+    "profile": "constrained-integrity",
+    "configuration": {
+      "id": "native-worker-workspace-write-v1",
+      "thread_start": {
+        "sandbox": "workspace-write",
+        "approvalPolicy": "never"
+      },
+      "network_access": false,
+      "host": "bwrap",
+      "worker_write_scope": "own-workspace",
+      "protected_host_state": "outside-worker-write-scope",
+      "retry_and_escalation": "refuse-unless-separately-approved"
+    }
+  },
+  "profiles": {
+    "constrained-integrity": {
+      "status": "selected-unqualified",
+      "reason": "The worker may write its own workspace. Protecting host records, policy and receipts, refusing unapproved retries or escalation, and denying network remain qualification requirements."
+    },
+    "confidential": {
+      "status": "unsupported",
+      "reason": "Codex can read the full disk; CWO supplies no confidentiality sandbox of its own."
+    }
+  },
+  "observations": {
+    "observed_on": "2026-11-14",
+    "version_text": "codex-cli 0.163.0",
+    "executable_sha256": "399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215",
+    "package_json_sha256": "5fa8533bde21972564cbb2c665c99c6d6d0e92b625fa6f4fdf1354ac5fb71a78",
+    "commands": [
+      "\"$QUALIFICATION_CODEX\" --version",
+      "sha256sum \"$QUALIFICATION_CODEX\" \"$QUALIFICATION_PACKAGE/codex-package.json\"",
+      "codex app-server generate-json-schema --out <dir>",
+      "codex app-server generate-json-schema --experimental --out <dir>"
+    ],
+    "schema_generation_environment": "bwrap with --unshare-net, read-only host root, writable scratch directory, empty HOME and CODEX_HOME; no credentials supplied",
+    "bundles": {
+      "stable": {
+        "files": 318,
+        "digest": "89fe2000fd0efb67f607e6c5f619eea15e510fcace39ae247947b8343d3fff09"
+      },
+      "experimental": {
+        "files": 452,
+        "digest": "d25388c6858fee1fd231d22abd5ab4d08ef4f98e78e012503da9027101ccff47"
+      }
+    },
+    "model_calls": false,
+    "containment_tested": false
+  },
+  "properties": {
+    "executable-identity": {
+      "classification": "os-observed",
+      "finding": "The selected binary reported codex-cli 0.163.0; its bytes and standalone package manifest matched the existing pin. This observation establishes identity only.",
+      "evidence": [
+        "policy/codex-protocol-pins.yaml",
+        "references/codex-protocol-capability-matrix.md#selected-qualification-target"
+      ]
+    },
+    "schema-generation": {
+      "classification": "os-observed",
+      "finding": "Both schema bundles were regenerated without model work in a network namespace and matched the existing complete manifests. This does not exercise worker containment.",
+      "evidence": [
+        "policy/codex-protocol-pins.yaml",
+        "tests/fixtures/codex-protocol/0.163.0/manifest.json"
+      ]
+    },
+    "protocol-fields": {
+      "classification": "source-supported",
+      "finding": "Generated schemas establish approval envelopes, correlation fields and experimental capability opt-in; they do not establish runtime callback coverage.",
+      "evidence": [
+        "policy/codex-protocol-pins.yaml",
+        "tests/test_codex_protocol_pin.py"
+      ]
+    },
+    "selection-check": {
+      "classification": "fake-tested",
+      "finding": "Target resolution refuses a changed executable, package, profile or configuration; matching metadata grants no execution authority.",
+      "evidence": [
+        "tests/test_qualification_target.py"
+      ]
+    },
+    "worker-configuration-request": {
+      "classification": "source-supported",
+      "finding": "The mutable native transport requests workspace-write and approvalPolicy never; network denial and the bwrap host are selected requirements, not observed effective policy.",
+      "evidence": [
+        "scripts/cwo_core/supervision/transport/app_server.py",
+        "scripts/cwo_core/codex_tool_surface.py"
+      ]
+    },
+    "effective-configuration": {
+      "classification": "unknown",
+      "finding": "The selected worker effective policy, managed constraints, rule-loading paths, inherited grants, approval caches, hooks and helper-readable paths have not been inventoried for this target. Empty local rules do not establish empty effective policy.",
+      "evidence": [
+        "references/codex-protocol-capability-matrix.md"
+      ]
+    },
+    "workspace-write-enforcement": {
+      "classification": "unknown",
+      "finding": "Writing only the worker workspace and protecting host records, policy and receipts require current OS boundary tests; schema generation does not test them.",
+      "evidence": [
+        "references/codex-protocol-capability-matrix.md"
+      ]
+    },
+    "network-enforcement": {
+      "classification": "unknown",
+      "finding": "The selected configuration denies network. No current worker network enforcement test is claimed by these no-model identity observations.",
+      "evidence": [
+        "references/codex-protocol-capability-matrix.md"
+      ]
+    },
+    "retry-and-escalation": {
+      "classification": "unknown",
+      "finding": "Unapproved retry and escalation refusal, root-deny transformation and write widening remain unqualified for this selected runtime. Source citations and reason text do not authenticate retry classes or establish enforcement.",
+      "evidence": [
+        "references/codex-protocol-capability-matrix.md"
+      ]
+    },
+    "stdin-and-reviewer-routing": {
+      "classification": "unknown",
+      "finding": "Ordinary stdin may bypass approval; cited strictAutoReview behavior forces Guardian on nonempty turn grants. Neither a missing callback nor strict review establishes an independent input gate for this selected target. Exact source semantics and runtime behavior remain unverified.",
+      "evidence": [
+        "references/codex-protocol-capability-matrix.md"
+      ]
+    },
+    "named-permission-profile": {
+      "classification": "unknown",
+      "finding": "The experimental named selector is present in the pinned schema but is not selected by this legacy workspace-write configuration. Named profile compilation, effective roots and fallback behavior are unqualified.",
+      "evidence": [
+        "tests/fixtures/codex-protocol/0.163.0/experimental/v2/ThreadStartParams.json",
+        "references/codex-protocol-capability-matrix.md"
+      ]
+    },
+    "tool-runtime": {
+      "classification": "unknown",
+      "finding": "The permitted tool surface, permission hooks, stripped experimental fields and actual file-path event coverage need qualification against the selected effective configuration.",
+      "evidence": [
+        "references/codex-protocol-capability-matrix.md"
+      ]
+    },
+    "live-model-behavior": {
+      "classification": "unknown",
+      "finding": "No model turn or live route was exercised; selection does not change existing live holds.",
+      "evidence": [
+        "references/native-live-route-holds.md"
+      ]
+    },
+    "confidential-reads": {
+      "classification": "unsupported",
+      "finding": "Codex can read the full disk; CWO supplies no confidentiality sandbox of its own. This target makes no confidential-operation claim.",
+      "evidence": [
+        "references/claims-register.md"
+      ]
+    },
+    "hook-fail-closed-enforcement": {
+      "classification": "unsupported",
+      "finding": "Hook-based enforcement is unsupported for the pinned versions. The cited PreToolUse failure does not establish the fallback behavior of every other hook.",
+      "evidence": [
+        "scripts/cwo_core/codex_hook_enforcement.py",
+        "references/codex-protocol-capability-matrix.md"
+      ]
+    }
+  }
+}

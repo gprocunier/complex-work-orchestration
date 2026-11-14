@@ -1,0 +1,463 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Selected qualification target",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "execution_authorized",
+    "selection",
+    "profiles",
+    "observations",
+    "properties"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "execution_authorized": {
+      "const": false
+    },
+    "selection": {
+      "const": {
+        "id": "codex-0.163.0-constrained-integrity",
+        "pin_version": "0.163.0",
+        "executable_sha256": "399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215",
+        "package": {
+          "distribution": "standalone",
+          "version": "0.163.0",
+          "target": "x86_64-unknown-linux-musl",
+          "manifest": "codex-package.json",
+          "sha256": "5fa8533bde21972564cbb2c665c99c6d6d0e92b625fa6f4fdf1354ac5fb71a78",
+          "entrypoint": "bin/codex"
+        },
+        "profile": "constrained-integrity",
+        "configuration": {
+          "id": "native-worker-workspace-write-v1",
+          "thread_start": {
+            "sandbox": "workspace-write",
+            "approvalPolicy": "never"
+          },
+          "network_access": false,
+          "host": "bwrap",
+          "worker_write_scope": "own-workspace",
+          "protected_host_state": "outside-worker-write-scope",
+          "retry_and_escalation": "refuse-unless-separately-approved"
+        }
+      }
+    },
+    "profiles": {
+      "const": {
+        "constrained-integrity": {
+          "status": "selected-unqualified",
+          "reason": "The worker may write its own workspace. Protecting host records, policy and receipts, refusing unapproved retries or escalation, and denying network remain qualification requirements."
+        },
+        "confidential": {
+          "status": "unsupported",
+          "reason": "Codex can read the full disk; CWO supplies no confidentiality sandbox of its own."
+        }
+      }
+    },
+    "observations": {
+      "const": {
+        "observed_on": "2026-11-14",
+        "version_text": "codex-cli 0.163.0",
+        "executable_sha256": "399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215",
+        "package_json_sha256": "5fa8533bde21972564cbb2c665c99c6d6d0e92b625fa6f4fdf1354ac5fb71a78",
+        "commands": [
+          "\"$QUALIFICATION_CODEX\" --version",
+          "sha256sum \"$QUALIFICATION_CODEX\" \"$QUALIFICATION_PACKAGE/codex-package.json\"",
+          "codex app-server generate-json-schema --out <dir>",
+          "codex app-server generate-json-schema --experimental --out <dir>"
+        ],
+        "schema_generation_environment": "bwrap with --unshare-net, read-only host root, writable scratch directory, empty HOME and CODEX_HOME; no credentials supplied",
+        "bundles": {
+          "stable": {
+            "files": 318,
+            "digest": "89fe2000fd0efb67f607e6c5f619eea15e510fcace39ae247947b8343d3fff09"
+          },
+          "experimental": {
+            "files": 452,
+            "digest": "d25388c6858fee1fd231d22abd5ab4d08ef4f98e78e012503da9027101ccff47"
+          }
+        },
+        "model_calls": false,
+        "containment_tested": false
+      }
+    },
+    "properties": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executable-identity",
+        "schema-generation",
+        "protocol-fields",
+        "selection-check",
+        "worker-configuration-request",
+        "effective-configuration",
+        "workspace-write-enforcement",
+        "network-enforcement",
+        "retry-and-escalation",
+        "stdin-and-reviewer-routing",
+        "named-permission-profile",
+        "tool-runtime",
+        "live-model-behavior",
+        "confidential-reads",
+        "hook-fail-closed-enforcement"
+      ],
+      "properties": {
+        "executable-identity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "policy/codex-protocol-pins.yaml",
+                "references/codex-protocol-capability-matrix.md#selected-qualification-target"
+              ]
+            }
+          }
+        },
+        "schema-generation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "policy/codex-protocol-pins.yaml",
+                "tests/fixtures/codex-protocol/0.163.0/manifest.json"
+              ]
+            }
+          }
+        },
+        "protocol-fields": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "source-supported"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "policy/codex-protocol-pins.yaml",
+                "tests/test_codex_protocol_pin.py"
+              ]
+            }
+          }
+        },
+        "selection-check": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "fake-tested"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "tests/test_qualification_target.py"
+              ]
+            }
+          }
+        },
+        "worker-configuration-request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "source-supported"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/cwo_core/supervision/transport/app_server.py",
+                "scripts/cwo_core/codex_tool_surface.py"
+              ]
+            }
+          }
+        },
+        "effective-configuration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unknown"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
+        },
+        "workspace-write-enforcement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unknown"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
+        },
+        "network-enforcement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unknown"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
+        },
+        "retry-and-escalation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unknown"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
+        },
+        "stdin-and-reviewer-routing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unknown"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
+        },
+        "named-permission-profile": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unknown"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "tests/fixtures/codex-protocol/0.163.0/experimental/v2/ThreadStartParams.json",
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
+        },
+        "tool-runtime": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unknown"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
+        },
+        "live-model-behavior": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unknown"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "references/native-live-route-holds.md"
+              ]
+            }
+          }
+        },
+        "confidential-reads": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unsupported"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "references/claims-register.md"
+              ]
+            }
+          }
+        },
+        "hook-fail-closed-enforcement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unsupported"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/cwo_core/codex_hook_enforcement.py",
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

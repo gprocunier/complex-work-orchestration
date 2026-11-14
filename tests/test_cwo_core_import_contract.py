@@ -45,6 +45,7 @@ ALLOWED_IMPORTS = {
     "local_invocation": {"invocation_ledger", "policy"},
     "policy": {"errors", "paths", "policy_schema", "util"},
     "policy_schema": {"paths"},
+    "qualification_target": {"codex_protocol_pin", "policy", "policy_schema"},
     "model_identity_scope": {"policy", "policy_schema"},
     "routing": {"access_profiles", "errors", "native_containment", "operative_routing", "policy", "risk_features", "routing_signals", "synthesis", "types", "util"},
     "routing_signals": {"util"},

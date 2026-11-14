@@ -24,7 +24,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core import policy, return_common, return_risk  # noqa: E402
 
-SCHEMA_POLICIES = ('contracting-controls',
+SCHEMA_POLICIES = ('qualification-target', 'contracting-controls',
  'model-identity-scope',
  'outbound-screening',
  'peer-review-policy',

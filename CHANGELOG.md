@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-14
+
+- Recorded the qualification target as Codex 0.163.0 with the `constrained-integrity` profile; confidential operation is unsupported.
+- Documented legacy transport limits and checked typed replies against the selected protocol schemas.
+- Made terminal projection tests deterministic while retaining lifecycle and accounting checks.
+
 ## 0.2.1 - 2026-11-14
 
 - Added an optional repository hook to check commit messages and contributor identity.
