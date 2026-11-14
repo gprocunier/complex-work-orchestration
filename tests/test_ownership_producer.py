@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import copy
 import errno
 import os
 import signal
@@ -255,6 +256,203 @@ class OwnershipProducerTests(unittest.TestCase):
         self.assertIs(report["offline_only"], True)
         self.assertIs(report["production_authority"], False)
         self.assertEqual(report["default_cleanup_consumer"], "none")
+
+    def run_retained_cleanup(self, producer, capability, session, **overrides):
+        record = session.registration
+        options = dict(processes=[cleanup_module.ProcessInfo(record.pid, 0, 7200, "S", "worker", "worker", record.workspace)],
+            state_dir=Path("/EXAMPLE/state"), workspace_root=Path(record.workspace), stale_after_seconds=3600,
+            protected_pids=set(), terminate_owned=True, terminate_unowned_codex=False, prune_state=False,
+            dry_run=False, grace_seconds=0, owned_capabilities=(capability,), owned_controller=producer)
+        records = overrides.pop("records", [(1, {"pid": record.pid, "session_id": record.session_id})])
+        options.update(overrides)
+        with mock.patch.object(cleanup_module, "load_record_lines", return_value=records):
+            return cleanup_module.cleanup(**options)
+
+    def test_cleanup_consumes_controller_owned_lifetime(self):
+        table, producer, session = self.registered()
+        capability = producer.cleanup_capability(session)
+        self.assertIs(producer.owned_registration(session), session.registration)
+        result = self.run_retained_cleanup(producer, capability, session)
+        self.assertEqual(result["actions"][0]["action"], "termination-terminated")
+        self.assertEqual(result["termination"]["signals_sent"], 1)
+        self.assertEqual(table.waits, [(table.next_fd, 0)])
+        self.assertEqual(table.closes, [table.next_fd])
+        replay = self.run_retained_cleanup(producer, capability, session)
+        self.assertEqual(replay["termination"]["signals_sent"], 0)
+        self.assertEqual(table.send_signal.call_count, 1)
+
+    def test_cleanup_refuses_missing_or_foreign_receipt(self):
+        table, producer, session = self.registered()
+        foreign_table, foreign, foreign_session = self.registered()
+        for receipt in (None, {}, session.registration, copy.copy(session), foreign_session):
+            self.assertIsNone(producer.cleanup_capability(receipt))
+        capability = producer.cleanup_capability(session)
+        for invalid in (None, {}, session.registration, copy.copy(capability), object()):
+            result = self.run_retained_cleanup(producer, invalid, session)
+            self.assertEqual(result["termination"]["signals_sent"], 0)
+        table.send_signal.assert_not_called()
+        foreign_table.send_signal.assert_not_called()
+        foreign_capability = foreign.cleanup_capability(foreign_session)
+        self.assertEqual(self.run_retained_cleanup(producer, foreign_capability, session)["termination"]["signals_sent"], 0)
+        self.assertEqual(self.run_retained_cleanup(producer, capability, session)["termination"]["signals_sent"], 1)
+        self.assertEqual(self.run_retained_cleanup(foreign, foreign_capability, foreign_session)["termination"]["signals_sent"], 1)
+
+    def test_cleanup_rejects_malformed_collections_and_foreign_controller(self):
+        table, producer, session = self.registered()
+        capability = producer.cleanup_capability(session)
+        for values in (None, (), [], {}, "capability", iter((capability,)), (capability, None), (capability, capability)):
+            result = self.run_retained_cleanup(producer, capability, session, owned_capabilities=values)
+            self.assertEqual(result["termination"]["signals_sent"], 0)
+            self.assertFalse(result["termination"]["available"])
+        for controller in (None, {}, object()):
+            result = self.run_retained_cleanup(producer, capability, session, owned_controller=controller)
+            self.assertEqual(result["termination"]["signals_sent"], 0)
+        table.send_signal.assert_not_called()
+        self.assertEqual(self.run_retained_cleanup(producer, capability, session)["termination"]["signals_sent"], 1)
+
+    def test_cleanup_pins_original_methods_and_rejects_direct_token_construction(self):
+        from cwo_core.ownership_producer import CleanupCapability
+        table, producer, session = self.registered()
+        producer.owned_registration = mock.Mock(side_effect=AssertionError("instance callback is not authority"))
+        producer.terminate = mock.Mock(side_effect=AssertionError("instance callback is not authority"))
+        capability = producer.cleanup_capability(session)
+        invalid = self.run_retained_cleanup(producer, CleanupCapability(), session)
+        self.assertEqual(invalid["termination"]["signals_sent"], 0)
+        valid = self.run_retained_cleanup(producer, capability, session)
+        self.assertEqual(valid["termination"]["signals_sent"], 1)
+        producer.owned_registration.assert_not_called()
+        producer.terminate.assert_not_called()
+        self.assertEqual(table.send_signal.call_count, 1)
+
+    def test_cleanup_concurrent_capability_consumption_has_one_effect(self):
+        from concurrent.futures import ThreadPoolExecutor
+        import threading
+        from cwo_core import ownership_producer as ownership
+        table, producer, session = self.registered()
+        capability = producer.cleanup_capability(session)
+        barrier = threading.Barrier(2, timeout=2)
+        original = ownership.cleanup_registration
+        def observe(*args, **kwargs):
+            result = original(*args, **kwargs)
+            barrier.wait()
+            return result
+        options = dict(processes=[cleanup_module.ProcessInfo(TARGET, 0, 7200, "S", "worker", "worker", "/EXAMPLE/work")],
+            state_dir=Path("/EXAMPLE/state"), workspace_root=Path("/EXAMPLE/work"), stale_after_seconds=3600,
+            protected_pids=set(), terminate_owned=True, terminate_unowned_codex=False, prune_state=False,
+            dry_run=False, grace_seconds=0, owned_capabilities=(capability,), owned_controller=producer)
+        records = [(1, {"pid": TARGET, "session_id": session.registration.session_id})]
+        with mock.patch.object(cleanup_module, "load_record_lines", return_value=records), \
+                mock.patch.object(ownership, "cleanup_registration", side_effect=observe):
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                results = list(pool.map(lambda _item: cleanup_module.cleanup(**options), range(2)))
+        self.assertEqual(sum(result["termination"]["signals_sent"] for result in results), 1)
+        self.assertEqual(table.send_signal.call_count, 1)
+
+    def test_cleanup_protects_pid_session_and_exact_workspace_without_consuming(self):
+        table, producer, session = self.registered()
+        capability = producer.cleanup_capability(session)
+        cases = ({"protected_pids": {TARGET}}, {"workspace_root": Path("/EXAMPLE")},
+                 {"records": [(1, {"pid": TARGET, "session_id": "EXAMPLE-other"})]},
+                 {"records": [(1, {"pid": TARGET})]}, {"dry_run": True}, {"terminate_owned": False})
+        for options in cases:
+            result = self.run_retained_cleanup(producer, capability, session, **options)
+            self.assertEqual(result["termination"]["signals_sent"], 0)
+            self.assertIs(producer.owned_registration(session), session.registration)
+        table.send_signal.assert_not_called()
+        self.assertEqual(self.run_retained_cleanup(producer, capability, session)["termination"]["signals_sent"], 1)
+
+    def test_cleanup_altered_receipt_and_closed_issuer_send_nothing(self):
+        table, producer, session = self.registered()
+        capability = producer.cleanup_capability(session)
+        object.__setattr__(session.registration, "uid", True)
+        self.assertIsNone(producer.owned_registration(session))
+        self.assertIsNone(producer.cleanup_capability(session))
+        self.assertEqual(self.run_retained_cleanup(producer, capability, session)["termination"]["signals_sent"], 0)
+        table.send_signal.assert_not_called()
+        other_table, other, original = self.registered()
+        selected = other.cleanup_capability(original)
+        other.close()
+        self.assertIsNone(other.cleanup_capability(original))
+        self.assertEqual(self.run_retained_cleanup(other, selected, original)["termination"]["signals_sent"], 0)
+        other_table.send_signal.assert_not_called()
+
+    def test_cleanup_receipt_missing_fields_refuses_without_effects(self):
+        table, producer, session = self.registered()
+        capability = producer.cleanup_capability(session)
+        object.__delattr__(session.registration, "uid")
+        self.assertIsNone(producer.owned_registration(session))
+        self.assertIsNone(producer.cleanup_capability(session))
+        result = self.run_retained_cleanup(producer, capability, session)
+        self.assertEqual(result["termination"]["signals_sent"], 0)
+        table.send_signal.assert_not_called()
+
+    def test_cleanup_same_tick_replacement_before_first_signal_is_spared(self):
+        table, producer, session = self.registered()
+        capability = producer.cleanup_capability(session)
+        replacement = table.reuse(same_tick=True)
+        result = self.run_retained_cleanup(producer, capability, session, allow_kill_owned=True)
+        self.assertEqual(result["termination"]["signals_sent"], 0)
+        self.assertEqual(replacement.signals, [])
+        self.assertEqual(table.closes, [table.next_fd])
+
+    def test_cleanup_term_wait_and_explicit_kill_share_one_original_handle(self):
+        table, producer, session = self.registered()
+        capability = producer.cleanup_capability(session)
+        table.procs[TARGET].exits_on = {signal.SIGKILL}
+        invalid = self.run_retained_cleanup(producer, capability, session, allow_kill_owned=1)
+        self.assertEqual(invalid["termination"]["signals_sent"], 0)
+        self.assertIs(producer.owned_registration(session), session.registration)
+        result = self.run_retained_cleanup(producer, capability, session, allow_kill_owned=True, grace_seconds=0.25)
+        self.assertEqual(result["termination"]["outcomes"], {"killed": 1})
+        self.assertEqual(table.send_signal.call_args_list, [mock.call(table.next_fd, signal.SIGTERM), mock.call(table.next_fd, signal.SIGKILL)])
+        self.assertEqual(table.waits, [(table.next_fd, 0.25), (table.next_fd, 0.25)])
+        self.assertEqual(table.closes, [table.next_fd])
+
+    def test_cleanup_default_term_only_and_reuse_between_signals(self):
+        for allow_kill in (False, True):
+            table, producer, session = self.registered()
+            capability = producer.cleanup_capability(session)
+            original = table.procs[TARGET]
+            original.exits_on = set()
+            if allow_kill:
+                table.hooks["wait"] = lambda: table.reuse(same_tick=True)
+            result = self.run_retained_cleanup(producer, capability, session, allow_kill_owned=allow_kill)
+            self.assertEqual(result["termination"]["signals_sent"], 1)
+            self.assertEqual(original.signals, [signal.SIGTERM])
+            self.assertEqual(table.procs[TARGET].signals, [] if allow_kill else [signal.SIGTERM])
+            self.assertEqual(table.waits, [(table.next_fd, 0)])
+            self.assertEqual(table.closes, [table.next_fd])
+
+    def test_cleanup_current_identity_ancestry_and_observation_failures_refuse(self):
+        mutations = (lambda t: setattr(t.procs[TARGET], "uid", 123),
+                     lambda t: setattr(t.procs[TARGET], "cwd", "/EXAMPLE/work/child"),
+                     lambda t: setattr(t.procs[CONTROLLER], "ppid", TARGET),
+                     lambda t: t.read_errors.update({f"{TARGET}/status": PermissionError("EXAMPLE denied")}))
+        for mutate in mutations:
+            table, producer, session = self.registered()
+            capability = producer.cleanup_capability(session)
+            mutate(table)
+            result = self.run_retained_cleanup(producer, capability, session, allow_kill_owned=True)
+            self.assertEqual(result["termination"]["signals_sent"], 0)
+            table.send_signal.assert_not_called()
+            self.assertEqual(table.closes, [table.next_fd])
+
+    def test_cleanup_preserves_partial_signals_duplicate_and_write_failures(self):
+        table, producer, session = self.registered()
+        capability = producer.cleanup_capability(session)
+        table.procs[TARGET].exits_on = set()
+        table.wait_error = OSError("EXAMPLE wait denied")
+        records = [(1, {"pid": TARGET, "session_id": session.registration.session_id}),
+                   (2, {"pid": TARGET, "session_id": session.registration.session_id})]
+        with mock.patch.object(cleanup_module, "write_records", side_effect=PermissionError("EXAMPLE write denied")):
+            result = self.run_retained_cleanup(producer, capability, session, records=records,
+                prune_state=True, allow_kill_owned=True)
+        self.assertEqual(result["termination"]["signals_sent"], 1)
+        self.assertEqual(result["termination"]["attempts"], 1)
+        self.assertEqual(result["termination"]["outcomes"], {"wait-failed": 1})
+        self.assertEqual(result["state_persistence"]["status"], "failed")
+        self.assertEqual(result["summary"]["records_after"], 2)
+        self.assertEqual(result["actions"][1]["action"], "termination-duplicate-record")
 
     def test_positive_birth_registration_and_exact_same_handle_escalation(self):
         table, producer, session = self.registered()

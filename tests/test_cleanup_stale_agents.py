@@ -21,6 +21,21 @@ from cleanup_stale_agents import agent_process_match, cleanup, is_agent_process,
 
 
 class CleanupStaleAgentsTests(unittest.TestCase):
+    def test_flat_registration_never_authorizes_same_tick_replacement(self) -> None:
+        from tests.test_process_identity import FakeKernel, PID, TrustedSource, registration
+        from cwo_core.process_identity import PidfdTerminator
+        kernel = FakeKernel()
+        replacement = kernel.replace(same_tick=True)
+        with tempfile.TemporaryDirectory() as temporary, self.signal_spies():
+            state = Path(temporary) / "state"
+            self.write_registry(state, {"pid": PID, "session_id": "s-1"})
+            result = self.run_cleanup(state, [self.stale(PID, "codex", "codex", "/work/repo")],
+                workspace_root=Path("/work/repo"), terminate_owned=True,
+                ownership_source=TrustedSource([registration()]), terminator=PidfdTerminator(kernel))
+        self.assertEqual(result["termination"]["signals_sent"], 0)
+        self.assertEqual(replacement.signals, [])
+        self.assertEqual(kernel.opened, [])
+
     def test_parse_process_line_handles_args_with_spaces(self) -> None:
         process = parse_process_line("123 1 3600 Sl+ node node /home/user/.local/bin/codex --yolo")
         self.assertIsNotNone(process)

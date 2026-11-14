@@ -207,8 +207,18 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   campaign live routes; new worker-surface qualification; live native activation
   (`run_native_pool_activation_preview.py run --enable-tech-preview`);
   successful closure; risk narrowing (`--risk-scope` and `--risk-evidence-dir`
-  are refused); ordinary productive pool plans; and process termination by
-  `cleanup_stale_agents.py`, which only detects and prunes records.
+  are refused); and ordinary productive pool plans.
+- **Cleanup detects and prunes by default.** The CLI supplies no controller
+  capability, so termination requests report `termination-unavailable`.
+  Explicit in-process callers may supply the original controller's opaque
+  capability for owned termination. A retained pidfd identifies one process
+  lifetime; the controller capability supplies authority to use it. Registry
+  records, argv matches and copied or serialized receipt fields grant no
+  signalling authority. Writable records provide no hostile-writer protection,
+  and one pidfd does not contain descendants. Experimental atomic child
+  creation is qualified on Linux x86-64 with glibc 2.40+ and required kernel
+  support. Unsupported interfaces or lifecycle profiles refuse without a
+  fallback that opens a handle from the PID later.
 - **Records are evidence, not proof of origin.** Content digests and packet
   `attestation` values identify exact bytes; they do not authenticate who
   produced them. The configured host audit checks retained events, links, a

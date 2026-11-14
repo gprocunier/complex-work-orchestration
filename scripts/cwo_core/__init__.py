@@ -6,6 +6,7 @@ does not re-export symbols.
 
 __all__ = [
     "release_effect_routes",
+    "atomic_spawn",
     "ownership_producer",
     "maintenance_image",
     "maintenance_readiness",

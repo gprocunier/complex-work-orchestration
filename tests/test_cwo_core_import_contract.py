@@ -12,6 +12,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 ALLOWED_IMPORTS = {
     "release_effect_routes": set(),
+    "atomic_spawn": set(),
     "ownership_producer": {"process_identity"},
     "server_request_preparation": set(),
     "access_profiles": {"codex_hook_enforcement", "policy"},

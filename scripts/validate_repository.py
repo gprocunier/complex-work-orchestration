@@ -84,6 +84,7 @@ APPROVED_ACTION_PINS = {
 CWO_CORE_ALLOWED_IMPORTS = {
     "qualification_target": {"codex_protocol_pin", "policy", "policy_schema"},
     "release_effect_routes": set(),
+    "atomic_spawn": set(),
     "ownership_producer": {"process_identity"},
     "server_request_preparation": set(),
     "access_profiles": {"codex_hook_enforcement", "policy"},

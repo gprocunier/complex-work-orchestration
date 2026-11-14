@@ -57,10 +57,10 @@ python3 scripts/route_work.py "<task text>"
 python3 scripts/cleanup_stale_agents.py --json
 ```
 
-It prunes registry records with no live PID unless run with `--dry-run`. Use
-`--workspace-root <path>` when the shell is above the target repo. The registry
-is unauthenticated and argv matching is not ownership, so `--terminate-owned`
-and `--terminate-unowned-codex` report `termination-unavailable`.
+The CLI detects and prunes; termination flags report `termination-unavailable`. Use `--workspace-root <path>` above the repo.
+`--dry-run` or `--no-prune-state` skips pruning. In-process `cleanup()` needs the original `owned_controller` and opaque
+`owned_capabilities` from `cleanup_capability(receipt)`; KILL also needs `allow_kill_owned=True` and lifetime, context, age and ancestry checks.
+A pidfd identifies one lifetime; registry records, argv and serialized fields grant no authority. See [cleanup limits](README.md#limits).
 
 5. Check Beads and sync only when a Dolt remote exists:
 

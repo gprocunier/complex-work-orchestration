@@ -11,6 +11,7 @@ import math
 import signal
 from dataclasses import dataclass
 from typing import Any, Callable, Protocol
+from weakref import WeakKeyDictionary
 
 from .process_identity import (
     MAX_GRACE_SECONDS,
@@ -62,6 +63,77 @@ class OfflineSession:
     """An in-memory receipt; registration fields alone cannot replay it."""
 
     registration: TrustedRegistration
+
+
+class CleanupCapability:
+    """Opaque, in-process selection of one original producer receipt.
+
+    Constructing or copying this object supplies no authority. Only an entry
+    issued by the original implementation is admitted by the registry below.
+    """
+
+    __slots__ = ("__weakref__",)
+
+
+@dataclass(frozen=True)
+class _CleanupBinding:
+    issuer: Any
+    receipt: Any
+    registration: TrustedRegistration
+    registration_method: Callable
+    terminate_method: Callable
+
+
+_CLEANUP_BINDINGS: WeakKeyDictionary = WeakKeyDictionary()
+
+
+def _issue_cleanup_capability(issuer, receipt, registration_method, terminate_method):
+    """Trusted implementation hook; callbacks are original class definitions.
+
+    Public callers use the original producer/controller's factory. No public
+    input selects an issuer callback or creates a binding from record fields.
+    """
+    registration = registration_method(issuer, receipt)
+    if type(registration) is not TrustedRegistration:
+        return None
+    capability = CleanupCapability()
+    _CLEANUP_BINDINGS[capability] = _CleanupBinding(
+        issuer, receipt, registration, registration_method, terminate_method,
+    )
+    return capability
+
+
+def cleanup_registration(capability: object, *, issuer: object) -> TrustedRegistration | None:
+    """Return the issuer's retained in-memory registration projection.
+
+    This nonconsuming lookup is not fresh OS attestation. The original issuer
+    performs fresh identity, context and ancestry checks during termination.
+    """
+    if type(capability) is not CleanupCapability:
+        return None
+    binding = _CLEANUP_BINDINGS.get(capability)
+    if binding is None or binding.issuer is not issuer:
+        return None
+    registration = binding.registration_method(binding.issuer, binding.receipt)
+    return registration if registration is binding.registration else None
+
+
+def terminate_cleanup_capability(capability: object, *, issuer: object, pid: int, session_id: str,
+                                 workspace: str, grace_seconds: float,
+                                 min_age_seconds: float, allow_kill: bool) -> dict[str, Any]:
+    """Consume one valid selection and delegate through its original issuer."""
+    registration = cleanup_registration(capability, issuer=issuer)
+    if registration is None:
+        return {"outcome": "invalid-capability", "signals": []}
+    if (registration.pid, registration.session_id, registration.workspace) != (pid, session_id, workspace):
+        return {"outcome": "identity-mismatch", "reason": "cleanup-context-mismatch", "signals": []}
+    if not _duration(grace_seconds, MAX_GRACE_SECONDS) or not _duration(min_age_seconds, MAX_MIN_AGE_SECONDS) or type(allow_kill) is not bool:
+        return {"outcome": "invalid-request", "signals": []}
+    binding = _CLEANUP_BINDINGS.pop(capability, None)
+    if binding is None:
+        return {"outcome": "invalid-capability", "signals": []}
+    return binding.terminate_method(binding.issuer, binding.receipt, grace_seconds=grace_seconds,
+                                    min_age_seconds=min_age_seconds, allow_kill=allow_kill)
 
 
 @dataclass(frozen=True)
@@ -298,6 +370,21 @@ class _RetainedOwnershipProducer:
         if entry.session is not session or session.registration is not entry.registration:
             raise _Refusal("invalid-session", f"The {self._mode} receipt has been altered.")
         return entry
+
+    def owned_registration(self, receipt: object) -> TrustedRegistration | None:
+        """Observe an original receipt without probing, consuming or signalling."""
+        if self._state != "idle":
+            return None
+        try:
+            entry = _RetainedOwnershipProducer._lookup(self, receipt)
+            expected = _registration(entry.identity, entry.expected, self._name)
+            return entry.registration if _same_registration(entry.registration, expected) else None
+        except (_Refusal, AttributeError, TypeError, ValueError):
+            return None
+
+    def cleanup_capability(self, receipt: object) -> CleanupCapability | None:
+        return _issue_cleanup_capability(self, receipt, _RetainedOwnershipProducer.owned_registration,
+                                         _RetainedOwnershipProducer.terminate)
 
     def _consume(
         self, session: OfflineSession, grace: float, minimum: float, kill: bool, signals: list[str],

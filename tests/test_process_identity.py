@@ -28,6 +28,7 @@ from cwo_core.process_identity import (  # noqa: E402
     observe_identity,
     parse_proc_stat,
 )
+from cwo_core.ownership_producer import ExpectedSpawn, OfflineOwnershipProducer  # noqa: E402
 
 NS = "pid:[4026531836]"
 PID = 4242
@@ -569,7 +570,99 @@ class TrustedSource:
         return self.registrations
 
 
+class RetainedKernelFixture:
+    """Issue a fake birth receipt, then expose the original runtime faults.
+
+    Registration uses controlled birth facts; later observations and effects
+    use FakeKernel. No PID is opened to recover a lifetime during cleanup.
+    """
+
+    offline_only = True
+    controller_pid = PID + 10000
+
+    def __init__(self, kernel):
+        self.kernel = kernel
+        self.writer = None
+        self.births = {}
+        self.facts = {}
+        self.priming = True
+
+    def claim_writer(self, writer):
+        self.writer = writer
+        return True
+
+    def claim_spawn(self, pid, descriptor, writer):
+        return writer is self.writer and self.births.pop(descriptor, None) == pid
+
+    def spawn(self, record):
+        self.facts[record.pid] = record
+        self.kernel.next_fd += 1
+        descriptor = self.kernel.next_fd
+        self.kernel.handles[descriptor] = self.kernel.procs[record.pid]
+        self.births[descriptor] = record.pid
+        return record.pid, descriptor
+
+    def offline_supported(self):
+        if self.priming:
+            return True, "fake birth supported"
+        if self.kernel.open_error is not None:
+            return False, "retained-handle-unavailable: " + str(self.kernel.open_error)
+        return self.kernel.supported()
+
+    def own_pid_namespace(self):
+        return NS if self.priming else self.kernel.own_pid_namespace()
+
+    def pidfd_pid(self, descriptor):
+        return self.kernel.handles[descriptor].pid if self.priming else self.kernel.pidfd_pid(descriptor)
+
+    def read_text(self, relative):
+        if relative == f"{self.controller_pid}/stat":
+            return stat_line(self.controller_pid, "controller", 1, 0)
+        if not self.priming:
+            return self.kernel.read_text(relative)
+        if relative == "sys/kernel/random/boot_id":
+            return "boot-1\n"
+        pid, _, leaf = relative.partition("/")
+        record = self.facts[int(pid)]
+        return stat_line(record.pid, "codex", record.start_ticks) if leaf == "stat" else f"Uid:\t{record.uid}\n"
+
+    def readlink(self, relative):
+        if not self.priming:
+            return self.kernel.readlink(relative)
+        pid, _, leaf = relative.partition("/")
+        record = self.facts[int(pid)]
+        return {"ns/pid": record.pid_namespace, "exe": record.executable, "cwd": record.workspace}[leaf]
+
+    def uptime_seconds(self):
+        return self.kernel.uptime
+
+    def clock_ticks(self):
+        return self.kernel.clock_ticks()
+
+    def send_signal(self, descriptor, signum):
+        return self.kernel.send_signal(descriptor, signum)
+
+    def wait_exit(self, descriptor, timeout_seconds):
+        return self.kernel.wait_exit(descriptor, timeout_seconds)
+
+    def close(self, descriptor):
+        return self.kernel.close(descriptor)
+
+
 class CleanupWithTrustedSourceTests(unittest.TestCase):
+    def retained_options(self, kernel, records=None):
+        adapter = RetainedKernelFixture(kernel)
+        producer = OfflineOwnershipProducer(adapter, controller_pid=adapter.controller_pid, name="test-controller")
+        self.addCleanup(producer.close)
+        capabilities = []
+        for record in [registration()] if records is None else records:
+            specification = ExpectedSpawn(record.session_id, record.workspace, record.executable,
+                                          record.uid, record.boot_id, record.pid_namespace)
+            spawned = producer.register_from_spawn(specification, lambda _spec, r=record: adapter.spawn(r))
+            capabilities.append(producer.cleanup_capability(spawned["session"]))
+        adapter.priming = False
+        return {"owned_controller": producer, "owned_capabilities": tuple(capabilities), "allow_kill_owned": True}
+
     def run_cleanup(self, records: list[dict], kernel: FakeKernel, **overrides: object) -> dict:
         with tempfile.TemporaryDirectory() as tmpdir:
             state_dir = Path(tmpdir) / "state"
@@ -579,9 +672,10 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
             options = dict(
                 processes=[process], state_dir=state_dir, workspace_root=Path("/work/repo"), stale_after_seconds=3600,
                 protected_pids=set(), terminate_owned=True, terminate_unowned_codex=False, prune_state=True,
-                dry_run=False, grace_seconds=0, ownership_source=TrustedSource([registration()]),
-                terminator=PidfdTerminator(kernel),
+                dry_run=False, grace_seconds=0,
             )
+            source = overrides.pop("ownership_source", None)
+            options.update(self.retained_options(kernel, source.registrations if source is not None else None))
             options.update(overrides)
             return cleanup_stale_agents.cleanup(**options)
 
@@ -604,20 +698,20 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
         for records, source, reason in (
             ([{"pid": PID, "session_id": "old-session"}], TrustedSource([registration()]), "session-mismatch"),
             ([{"pid": PID}], TrustedSource([registration()]), "session-mismatch"),
-            ([{"pid": PID, "session_id": "s-1"}], TrustedSource([]), "not-in-trusted-registry"),
+            ([{"pid": PID, "session_id": "s-1"}], TrustedSource([]), cleanup_stale_agents.OWNED_UNAVAILABLE_REASON),
         ):
             with self.subTest(reason=reason, records=records):
                 kernel = FakeKernel()
                 result = self.run_cleanup(records, kernel, ownership_source=source)
                 self.assertEqual(result["actions"][0]["reason"], reason)
-                self.assertEqual(result["termination"]["refusals"], 1)
+                self.assertEqual(result["termination"]["refusals"], int(bool(source.registrations)))
                 self.assertEqual(kernel.opened, [])
 
     def test_duplicate_records_never_reopen_the_pid(self) -> None:
         kernel = FakeKernel()
         kernel.procs[PID].exits_on = set()  # survives both signals
         result = self.run_cleanup([{"pid": PID, "session_id": "s-1"}, {"pid": PID, "session_id": "s-1"}], kernel)
-        self.assertEqual(kernel.opened, [PID])
+        self.assertEqual(kernel.opened, [])
         self.assertEqual([a["action"] for a in result["actions"]], ["termination-still-running", "termination-duplicate-record"])
 
     def test_dry_run_and_unsupported_mechanism_report_honestly(self) -> None:
@@ -627,9 +721,9 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
         kernel = FakeKernel()
         kernel.is_supported = False
         unsupported = self.run_cleanup([{"pid": PID, "session_id": "s-1"}], kernel)
-        self.assertEqual(unsupported["termination"]["status"], "unavailable")
+        self.assertEqual(unsupported["termination"]["status"], "attempted")
         self.assertFalse(unsupported["termination"]["available"])
-        self.assertTrue(unsupported["termination"]["reasons"]["owned"].startswith("mechanism-unsupported"))
+        self.assertTrue(unsupported["termination"]["reasons"]["owned"].startswith("mechanism-unavailable-at-runtime"))
         self.assertEqual(kernel.opened, [])
 
     def test_runtime_unavailability_is_reported_in_both_modes(self) -> None:
@@ -638,12 +732,12 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
         result = self.run_cleanup([{"pid": PID, "session_id": "s-1"}], kernel)
         action = result["actions"][0]
         self.assertEqual(action["action"], "termination-unavailable")
-        self.assertTrue(action["reason"].startswith("pidfd-open-failed"))
+        self.assertTrue(action["reason"].startswith("retained-handle-unavailable"))
         termination = result["termination"]
         self.assertEqual((termination["status"], termination["available"], termination["refusals"]), ("attempted", False, 0))
         self.assertTrue(termination["reasons"]["owned"].startswith("mechanism-unavailable-at-runtime"))
         self.assertEqual(termination["outcomes"], {"unavailable": 1})
-        self.assertEqual(len(kernel.opened), 1)
+        self.assertEqual(kernel.opened, [])
         for mode in (["--json"], []):
             with self.subTest(mode=mode):
                 broken = FakeKernel()
@@ -651,7 +745,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
                 code, output = self.run_main(broken, [{"pid": PID, "session_id": "s-1"}], mode)
                 self.assertEqual(code, cleanup_stale_agents.TERMINATION_REFUSED_EXIT)
                 if not mode:
-                    self.assertIn("termination-unavailable (pidfd-open-failed", output)
+                    self.assertIn("termination-unavailable (retained-handle-unavailable", output)
                     self.assertIn("no process was signalled", output)
 
     def test_unavailable_signalling_syscall_is_reported_unavailable(self) -> None:
@@ -659,7 +753,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
         kernel.send_errors[signal.SIGTERM] = OSError(errno.ENOSYS, "not implemented")
         termination = self.run_cleanup([{"pid": PID, "session_id": "s-1"}], kernel)["termination"]
         self.assertFalse(termination["available"])
-        self.assertIn("pidfd-send-signal-unavailable", termination["reasons"]["owned"])
+        self.assertIn("not implemented", termination["reasons"]["owned"])
         self.assertEqual((termination["outcomes"], termination["signals_sent"]), ({"unavailable": 1}, 0))
 
     def test_invalid_registry_pids_never_abort_the_run(self) -> None:
@@ -674,8 +768,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
             result = cleanup_stale_agents.cleanup(
                 processes=[process], state_dir=state_dir, workspace_root=Path("/work/repo"), stale_after_seconds=3600,
                 protected_pids=set(), terminate_owned=True, terminate_unowned_codex=False, prune_state=True,
-                dry_run=False, grace_seconds=0, ownership_source=TrustedSource([registration()]),
-                terminator=PidfdTerminator(kernel),
+                dry_run=False, grace_seconds=0, **self.retained_options(kernel),
             )
         reasons = [a.get("reason") for a in result["actions"] if a["action"] == "prune-record"]
         self.assertEqual(result["actions"][0]["action"], "termination-terminated")
@@ -700,7 +793,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
             original = cleanup_stale_agents.cleanup
 
             def patched(**kwargs: object) -> dict:
-                kwargs.update(ownership_source=TrustedSource([registration()]), terminator=PidfdTerminator(FakeKernel()))
+                kwargs.update(workspace_root=Path("/work/repo"), **self.retained_options(FakeKernel()))
                 return original(**kwargs)
 
             output = io.StringIO()
@@ -736,7 +829,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
             original = cleanup_stale_agents.cleanup
 
             def patched(**kwargs: object) -> dict:
-                kwargs.update(ownership_source=TrustedSource([registration()]), terminator=PidfdTerminator(FakeKernel()))
+                kwargs.update(workspace_root=Path("/work/repo"), **self.retained_options(FakeKernel()))
                 return original(**kwargs)
 
             output = io.StringIO()
@@ -767,7 +860,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
 
             def supported(self) -> tuple[bool, str]:
                 self.probes += 1
-                return (True, "pidfd-available") if self.probes <= 2 else (False, "pidfd-probe-close-failed: Interrupted system call")
+                return (True, "pidfd-available") if self.probes < 2 else (False, "pidfd-probe-close-failed: Interrupted system call")
 
         kernel = FlakyProbe()
         second = Incarnation(PID + 1, start_ticks=100)
@@ -782,8 +875,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
                 processes=processes, state_dir=state_dir, workspace_root=Path("/work/repo"), stale_after_seconds=3600,
                 protected_pids=set(), terminate_owned=True, terminate_unowned_codex=False, prune_state=True,
                 dry_run=False, grace_seconds=0,
-                ownership_source=TrustedSource([registration(), registration(pid=PID + 1, session_id="s-2")]),
-                terminator=PidfdTerminator(kernel),
+                **self.retained_options(kernel, [registration(), registration(pid=PID + 1, session_id="s-2")]),
             )
         self.assertEqual([a["action"] for a in result["actions"]], ["termination-terminated", "termination-unavailable"])
         self.assertEqual(result["termination"]["signals_sent"], 1)
@@ -819,8 +911,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
             result = cleanup_stale_agents.cleanup(
                 processes=[process], state_dir=state_dir, workspace_root=Path("/work/repo"), stale_after_seconds=3600,
                 protected_pids=set(), terminate_owned=True, terminate_unowned_codex=False, prune_state=True,
-                dry_run=False, grace_seconds=0, ownership_source=TrustedSource([registration()]),
-                terminator=PidfdTerminator(kernel),
+                dry_run=False, grace_seconds=0, **self.retained_options(kernel),
             )
             kept = (state_dir / "sessions.jsonl").read_text(encoding="utf-8")
         self.assertEqual(result["actions"][0]["action"], "termination-identity-unavailable")
@@ -876,7 +967,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
             original = cleanup_stale_agents.cleanup
 
             def patched(**kwargs: object) -> dict:
-                kwargs.update(ownership_source=TrustedSource([registration()]), terminator=PidfdTerminator(kernel))
+                kwargs.update(workspace_root=Path("/work/repo"), **self.retained_options(kernel))
                 return original(**kwargs)
 
             output = io.StringIO()
@@ -897,7 +988,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
                 original = cleanup_stale_agents.cleanup
 
                 def patched(**kwargs: object) -> dict:
-                    kwargs.update(ownership_source=TrustedSource([registration()]), terminator=PidfdTerminator(kernel))
+                    kwargs.update(workspace_root=Path("/work/repo"), **self.retained_options(kernel))
                     return original(**kwargs)
 
                 with unittest.mock.patch.object(cleanup_stale_agents, "discover_processes", return_value=[process]), \
@@ -910,7 +1001,7 @@ class CleanupWithTrustedSourceTests(unittest.TestCase):
         self.assertEqual(main_with(FakeKernel(), [{"pid": PID, "session_id": "stale"}]), cleanup_stale_agents.TERMINATION_REFUSED_EXIT)
         unsupported = FakeKernel()
         unsupported.is_supported = False
-        self.assertEqual(main_with(unsupported, [{"pid": PID, "session_id": "s-1"}]), cleanup_stale_agents.TERMINATION_UNAVAILABLE_EXIT)
+        self.assertEqual(main_with(unsupported, [{"pid": PID, "session_id": "s-1"}]), cleanup_stale_agents.TERMINATION_REFUSED_EXIT)
 
 
 @unittest.skipUnless(hasattr(os, "pidfd_open") and hasattr(signal, "pidfd_send_signal"), "pidfd unsupported")

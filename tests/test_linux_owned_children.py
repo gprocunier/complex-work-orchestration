@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import copy
 import errno
+import json
 import os
 import signal
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -73,6 +75,22 @@ class FakeLinux(FakeTable, BACKEND):
 
     def controller_uid(self):
         return 43210
+
+    def _atomic_supported(self):
+        return True, "EXAMPLE fake atomic creation."
+
+    def _spawn_atomic(self, birth, argv, executable, workspace):
+        # Keep the existing fake kernel boundaries for lifecycle/refusal
+        # scheduling. Only RealOwnedChildTests qualify native atomic creation.
+        birth.child = self._popen(argv, executable, workspace)
+        birth.creation = "popen-returned"
+        self.births.append(birth)
+        birth.pid = birth.child.pid
+        self._require_lifecycle()
+        descriptor = self._open_pidfd(birth.pid)
+        birth.descriptor = descriptor
+        self._owned[descriptor] = birth
+        birth.reap_authorized = True
 
     def canonical(self, path, directory):
         self.fire("canonical")
@@ -1194,6 +1212,96 @@ class ControllerTests(unittest.TestCase):
 
 
 class RealOwnedChildTests(unittest.TestCase):
+    def test_cleanup_consumes_atomic_owned_child_for_term_and_explicit_kill(self):
+        import cleanup_stale_agents as cleanup
+
+        supported, reason = BACKEND().supported()
+        if not supported:
+            self.skipTest(reason)
+        executable = os.path.realpath(sys.executable)
+        for ignore_term in (False, True):
+            with self.subTest(ignore_term=ignore_term), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                controller = linux.LinuxOwnedChildController(executable)
+                backend = controller._backend
+                ready = root / "ready"
+                disposition = "SIG_IGN" if ignore_term else "SIG_DFL"
+                code = ("import pathlib,signal,time; signal.signal(signal.SIGTERM,signal." + disposition
+                        + "); pathlib.Path('ready').write_text('ready'); time.sleep(15)")
+                with mock.patch.object(backend, "pidfd_open", side_effect=AssertionError("No late PID open")), \
+                        mock.patch.object(backend, "send_signal", wraps=backend.send_signal) as sent, \
+                        mock.patch.object(backend, "wait_exit", wraps=backend.wait_exit) as waited, \
+                        mock.patch.object(backend, "_close_fd", wraps=backend._close_fd) as closed:
+                    report = controller.spawn_owned("EXAMPLE-cleanup-child",
+                        [executable, "-I", "-S", "-c", code], str(root))
+                    self.assertEqual(report["outcome"], "registered", report)
+                    receipt = report["receipt"]
+                    birth = backend.births[0]
+                    try:
+                        end = time.monotonic() + 5
+                        while not ready.exists():
+                            self.assertLess(time.monotonic(), end, "owned child did not acknowledge readiness")
+                            time.sleep(.001)
+                        state = root / "state"
+                        state.mkdir()
+                        (state / "sessions.jsonl").write_text(json.dumps({
+                            "pid": receipt.registration.pid, "session_id": "EXAMPLE-cleanup-child"}) + "\n")
+                        process = cleanup.ProcessInfo(receipt.registration.pid, os.getpid(), 7200,
+                                                      "S", "codex", "codex", str(root))
+                        options = dict(processes=[process], state_dir=state, workspace_root=root,
+                            stale_after_seconds=0, protected_pids=set(), terminate_owned=True,
+                            terminate_unowned_codex=False, prune_state=False, dry_run=False,
+                            grace_seconds=.05, owned_controller=controller)
+                        self.assertIsNone(controller.cleanup_capability(copy.copy(receipt)))
+                        foreign = linux.LinuxOwnedChildController(executable)
+                        self.assertIsNone(foreign.cleanup_capability(receipt))
+                        foreign.close()
+                        unavailable = cleanup.cleanup(**options, owned_capabilities=())
+                        self.assertEqual(unavailable["termination"]["signals_sent"], 0)
+                        capability = controller.cleanup_capability(receipt)
+                        protected = cleanup.cleanup(**{**options, "protected_pids": {process.pid}},
+                                                    owned_capabilities=(capability,))
+                        self.assertEqual(protected["termination"]["signals_sent"], 0)
+                        sent.assert_not_called()
+                        acted = cleanup.cleanup(**options, owned_capabilities=(capability,),
+                                                allow_kill_owned=ignore_term)
+                        expected = [signal.SIGTERM, signal.SIGKILL] if ignore_term else [signal.SIGTERM]
+                        self.assertEqual(sent.call_args_list,
+                                         [mock.call(birth.descriptor, signum) for signum in expected])
+                        self.assertTrue(all(call.args[0] == birth.descriptor for call in waited.call_args_list))
+                        self.assertEqual(acted["termination"]["signals_sent"], len(expected))
+                        self.assertTrue(birth.exit_confirmed and birth.reaped)
+                        closed.assert_called_once_with(birth.descriptor)
+                        self.assertEqual(birth.child.returncode, -expected[-1])
+                    finally:
+                        if backend.eligible(birth):
+                            controller.terminate(receipt, .1, allow_kill=True)
+                        controller.close()
+
+    def test_creation_never_opens_a_pidfd_after_an_outside_reaper(self):
+        supported, reason = BACKEND().supported()
+        if not supported:
+            self.skipTest(reason)
+        executable = os.path.realpath(sys.executable)
+        controller = linux.LinuxOwnedChildController(executable)
+        self.addCleanup(controller.close)
+        backend = controller._backend
+        late_opens = []
+
+        def outside_reap_before_open(pid):
+            # This is our own bounded child. Collecting it here demonstrates
+            # that the old numeric-PID open occurs after lifetime custody ends.
+            child = backend.births[-1].child
+            self.assertEqual(child.wait(timeout=5), 0)
+            late_opens.append(pid)
+            self.fail("a pidfd must arrive with creation, before an outside reaper")
+
+        with mock.patch.object(backend, "pidfd_open", side_effect=outside_reap_before_open):
+            report = controller.spawn_owned("EXAMPLE-atomic-birth",
+                [executable, "-I", "-S", "-c", "pass"], os.path.realpath(tempfile.gettempdir()))
+        self.assertEqual(late_opens, [])
+        self.assertNotIn(report["outcome"], ("invalid-request", "invalid-spawn"))
+
     def test_owned_child_term_and_close_use_only_the_original_handle(self):
         supported, reason = BACKEND().supported()
         if not supported:
@@ -1233,7 +1341,7 @@ class RealOwnedChildTests(unittest.TestCase):
                         controller.close()
                         backend.send_signal.assert_not_called()
                         self.assertEqual(child.returncode, 0)
-                    backend.pidfd_open.assert_called_once_with(child.pid)
+                    backend.pidfd_open.assert_not_called()
                     backend._close_fd.assert_called_once_with(descriptor)
                 finally:
                     for birth in backend.births:

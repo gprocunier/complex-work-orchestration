@@ -270,7 +270,30 @@ class _DeadlineInput:
             self._lock.release()
 
 
-class _PipeChild(owned._HandleChild):
+class _PipeChild:
+    """Protocol streams with status operations delegated to original custody."""
+
+    def __init__(self, child, streams, argv):
+        self._child = child
+        self.stdin, self.stdout, self.stderr = streams
+        self.args = argv
+
+    def _get_pid(self):
+        return self._child.pid
+
+    def _set_pid(self, value):
+        self._child.pid = value
+
+    pid = property(_get_pid, _set_pid)
+
+    def _get_returncode(self):
+        return self._child.returncode
+
+    def _set_returncode(self, value):
+        self._child.returncode = value
+
+    returncode = property(_get_returncode, _set_returncode)
+
     def poll(self):
         if self.returncode is not None:
             return self.returncode
@@ -284,6 +307,9 @@ class _PipeChild(owned._HandleChild):
             raise subprocess.TimeoutExpired(self.args, timeout)
         return self.poll()
 
+    def communicate(self, data, timeout):
+        return owned.atomic_spawn.communicate(self, data, timeout)
+
 
 class _PipeBackend(owned._LinuxBackend):
     """Retain the exact direct-child handle, with private protocol pipes."""
@@ -292,10 +318,13 @@ class _PipeBackend(owned._LinuxBackend):
         super().__init__()
         self.pass_fds = pass_fds
 
-    def _popen(self, argv, executable, workspace):
-        return _PipeChild(argv, executable=executable, cwd=workspace, env={},
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            close_fds=True, pass_fds=self.pass_fds, text=True, bufsize=1, umask=0o077)
+    def _spawn_atomic(self, birth, argv, executable, workspace):
+        def retain(child, streams):
+            self._retain_atomic(birth, child)
+            birth.child = _PipeChild(child, streams, argv)
+            birth.child._handle_backend, birth.child._handle_birth = self, birth
+        self._operation("Atomic protocol child creation", owned.atomic_spawn.spawn_piped,
+                        executable, argv, workspace, tuple(self.pass_fds), retain)
 
     def spawn(self, birth, argv, executable, workspace):
         result = super().spawn(birth, argv, executable, workspace)
