@@ -183,6 +183,7 @@
     "scripts/cwo_core/workgraph_markdown.py": 420,
     "scripts/cwo_core/workspace.py": 420,
     "scripts/cwo_core/workspace_capture.py": 420,
+    "scripts/cwo_core/workspace_transition.py": 420,
     "scripts/dispatch_work.py": 493,
     "scripts/evaluate_return.py": 493,
     "scripts/evidence_use.py": 420,
@@ -336,7 +337,7 @@
     "scripts/check_installed_skill.py": "a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",
     "scripts/cleanup_stale_agents.py": "b1efd8bfc45345a64fdc5e89ec11c972c56cb8ad0557ac88aa86ef285cffc1a8",
     "scripts/codex_tool_surface.py": "36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",
-    "scripts/cwo_core/__init__.py": "2fef6dc68ba15f9845d21ccc6b77ebb63d5d47c9229778aa9535aed5c75f189f",
+    "scripts/cwo_core/__init__.py": "ec8f42603e121bd1dbafb7bc6fce145f908351285e77b04192a3065818611e93",
     "scripts/cwo_core/access_profiles.py": "da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",
     "scripts/cwo_core/adjudication.py": "fa1661792c179819faf2a03382836326f04af919f8f95ebff6b9c70b2a18100d",
     "scripts/cwo_core/adjudication_binding.py": "422f973c806eee9a7aa6cee7b0f5ec651b332129024f298ce303b51a4c99d513",
@@ -449,8 +450,9 @@
     "scripts/cwo_core/waivers.py": "dd27ea554c45d372b8f5967b833bff3e2cf74cad9fc9767dd18683229c5cd106",
     "scripts/cwo_core/work_sizing.py": "bb388a4f9964f219504b3cd268464075e8d31a848d78a4918a4b8d48d411360d",
     "scripts/cwo_core/workgraph_markdown.py": "f135fb64e2e62747178a3521792d4cb934d2b4680a7560b9ecc20290b6404cb3",
-    "scripts/cwo_core/workspace.py": "54f952f45e28d31ccc364e003264770242e4099e1845d237e7685543aa196631",
+    "scripts/cwo_core/workspace.py": "9b7b23700b8a4538ef211ee461440bd6024230013e87c32abbce3d9440638bb9",
     "scripts/cwo_core/workspace_capture.py": "80273f8a536024990cf07159b18437511566bc01f1c90ddd171fa7d34dd87632",
+    "scripts/cwo_core/workspace_transition.py": "f7838c9d953e325d7221bdd8ed8761dfcb175f68710ea04e0bbe72c2c28cb14c",
     "scripts/dispatch_work.py": "952e89dec2a2148c55cdf2fd8f419395cf054ff7a998a7860b5c725a59a4fced",
     "scripts/evaluate_return.py": "0d26722a7c2628ed7abfcc8b10764bcb33e7c847e5b769af125c8240128584b8",
     "scripts/evidence_use.py": "60387077e995f67da609cba1fe7df8fb6a7b63f6fd5526078f8d707c1a52bfa4",
@@ -508,7 +510,7 @@
     "tests/historical_policy_fixtures.py": "5a809bd26a65b6e7f818b7e8b79c3c9bb0bd3dc3de5e4d855a39f8c2210436ce",
     "tests/native_precommit_fixtures.py": "28221028c68294b88337fe9d16173a85468e82575098dc6afe5e298e174403dd",
     "tests/real_beads_fixture.py": "2a511efad89d9ddb9a5c8dfea76e45eb440d9d5c5bf27405e228ca93c3a46275",
-    "tests/test_affected_contract_compatibility.py": "b0278b5930e0ea9ed75067c4b441cc51fea5ab0f785961f55429cbd117b14d0b",
+    "tests/test_affected_contract_compatibility.py": "126716fae90e972362d876a806bff0b2429d8ca0b5c548f5bf00971c026fa2be",
     "tests/test_beads_ready_set.py": "705503cb2a4811579bb4b018bcb23445d9b1551d07acae577be17d2191dde3c6",
     "tests/test_codex_tool_surface.py": "162b77a5b7c7885422b5ebeb0e0f0807e22304e2ef6bd5a365c8137e5cd1fb07",
     "tests/test_invocation_ledger.py": "3092382431535e3209c84fca3e881ead3ec68d81d2019c8e47bb845b575d5dbb",
@@ -538,7 +540,7 @@
     "tests/test_qualified_review_dispatch.py": "14ef451068e8ae221ec820666b57f8ac7c97280f63b968938288cbf7a1f1d1d5",
     "tests/test_registered_finite_input.py": "3b0c697289045cf27a36a67d69b47c79c69c8d6c932e4fdcdb7ba8c43cfab95d",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
-    "tests/test_registered_finite_tool_wiring.py": "4406af164b1cf5d1600f8abcf06adac0774543979be9ce1d4b84a7221200f95f",
+    "tests/test_registered_finite_tool_wiring.py": "c87cb42c9913208e3f705fc99b33b17a7547bab641ea6339d332db20a085df7a",
     "tests/test_registered_n1_factory.py": "dc2a163fed17f64e3c3a18bb48d3c097c52de442ed0a4939efec80941f2dfc23",
     "tests/test_registered_n1_workflow.py": "53d07d834e21e20fc431d9088f3d685370f41c77e8f2b51c3ea4afcbc620a025",
     "tests/test_registered_native_pool_host.py": "4fb66d804e142b7fdc2482c0171e045d943c9cec7e8e9333f416ee52a8f595ab",
@@ -1367,12 +1369,16 @@
       "scripts/cwo_core/path_contract.py",
       "scripts/cwo_core/paths.py",
       "scripts/cwo_core/util.py",
-      "scripts/cwo_core/workspace_capture.py"
+      "scripts/cwo_core/workspace_capture.py",
+      "scripts/cwo_core/workspace_transition.py"
     ],
     "scripts/cwo_core/workspace_capture.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/git_store.py",
       "scripts/cwo_core/path_contract.py"
+    ],
+    "scripts/cwo_core/workspace_transition.py": [
+      "scripts/cwo_core/__init__.py"
     ],
     "scripts/dispatch_work.py": [
       "scripts/cwo_core/__init__.py",
@@ -2060,6 +2066,7 @@
     "tests/test_registered_finite_tool_wiring.py": [
       "scripts/registered_finite_input.py",
       "scripts/registered_finite_tool_calls.py",
+      "scripts/run_native_pool_live_canaries.py",
       "tests/test_registered_finite_input.py",
       "tests/test_registered_n1_factory.py"
     ],

@@ -144,6 +144,12 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
         _assert_fixture_scope(self, observed)
         self.assertTrue(observed["current_dependency_bindings_verified"])
         self.assertIn("scripts/verify_affected_historical_contract.py", observed["loaded_python_files"]["loaded_local_paths"])
+        transition = "scripts/cwo_core/workspace_transition.py"
+        self.assertIn(transition, observed["loaded_python_files"]["loaded_local_paths"])
+        self.assertEqual(manifest["files"][transition], checkpoint.digest((ROOT / transition).read_bytes()))
+        self.assertEqual(manifest["current_file_modes"][transition], 0o644)
+        self.assertIn(transition, manifest["local_import_edges"]["scripts/cwo_core/workspace.py"])
+        self.assertEqual(manifest["local_import_edges"][transition], ["scripts/cwo_core/__init__.py"])
         self.assertEqual(observed["behavior_observations"]["registered_consumers"]["hostless_execution_refusal"],
                          "registered-pool-host-required")
         self.assertEqual(observed["dependency_count"], len(manifest["files"]))
@@ -165,6 +171,29 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
                      "scripts/cwo_core/supervision/transport/errors.py"):
             self.assertEqual(manifest["historical_files"][before][path],
                              manifest["historical_files"][after][path])
+
+    def test_omitted_transition_module_refuses_the_actual_loaded_consumer_closure(self):
+        transition = "scripts/cwo_core/workspace_transition.py"
+        manifest = json.loads((ROOT / checkpoint.MANIFEST).read_bytes())
+        self.assertTrue(transition in manifest["files"])
+        self.assertTrue(transition in manifest["current_file_modes"])
+        # Load the real positive consumer closure first, then omit this one
+        # loaded dependency from both explicit tables. The verifier stays real.
+        script = (
+            "import json\n"
+            "from tests.test_affected_contract_compatibility import _fixture_checkpoint_observation\n"
+            "import verify_affected_historical_contract as checkpoint\n"
+            "_fixture_checkpoint_observation()\n"
+            "manifest = json.loads((checkpoint.ROOT / checkpoint.MANIFEST).read_bytes())\n"
+            f"del manifest['files'][{transition!r}]\n"
+            f"del manifest['current_file_modes'][{transition!r}]\n"
+            "checkpoint.runtime_identity(manifest=manifest)\n"
+        )
+        child = subprocess.run([sys.executable, "-c", script], cwd=ROOT,
+                               capture_output=True, text=True, timeout=30)
+        self.assertNotEqual(child.returncode, 0)
+        self.assertEqual(child.stdout, "")
+        self.assertIn("loaded dependency missing/drifted: " + transition, child.stderr)
 
     def test_unknown_record_selected_revision_and_interpreter_refuse_before_git_or_import(self):
         with patch.object(checkpoint, "git_bytes", side_effect=AssertionError("must not read history")):

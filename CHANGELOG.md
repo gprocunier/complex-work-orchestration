@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-14
+
+- Workspace inspection recognises authorized Git changes and reports them separately from unexplained changes.
+
 ## 0.2.1 - 2026-11-14
 
 - Added an optional repository hook to check commit messages and contributor identity.
