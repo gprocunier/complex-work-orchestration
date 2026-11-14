@@ -324,6 +324,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         """Rebind every source identity; classifier failures cannot hide behind drift."""
         root, _output, _review = self.example()
         selected = root / path
+        selected.parent.mkdir(parents=True, exist_ok=True)
         prefix = selected.read_text() + "\n" if selected.exists() else ""
         selected.write_text(prefix + code)
         value = json.loads((root / R.INVENTORY).read_bytes())
@@ -388,6 +389,8 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             ("appserver", "RegisteredAppServer('EXAMPLE')\n"),
             ("appserver", "transport.send_request('EXAMPLE')\n"),
             ("beads", "run_bd(['close', 'EXAMPLE'])\n"),
+            ("beads", "run_bd_structured(['close', 'EXAMPLE'])\n"),
+            ("beads", "beads.run_bd_structured(['close', 'EXAMPLE'])\n"),
             ("beads", "create_bead('EXAMPLE')\n"),
             ("install-copy", "from shutil import copytree as copy_skill\ncopy_skill('EXAMPLE', 'skills')\n"),
             ("dynamic", "import importlib\nimportlib.import_module(module_name)\n"),
@@ -444,6 +447,59 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     root, _value, hits = self.primitive_example(code, disposition)
                     self.assertTrue(hits, "constructed primitive must have an exact disposition")
                     self.assertEqual(R.trace(root)["primitive_hits"], hits)
+
+    def test_module_local_beads_helpers_require_dispositions_after_rebinding(self):
+        helpers = {
+            "scripts/qualified_closure.py": "_bd",
+            "scripts/cwo_core/native_activation_preview.py": "_bd",
+            "scripts/continue_sprint.py": "bd_json",
+            "scripts/summarize_resume_state.py": "bd_json",
+        }
+        for path, helper in helpers.items():
+            for code in (f"{helper}(['close', 'EXAMPLE'])\n",
+                         f"invoke = {helper}\ninvoke(['close', 'EXAMPLE'])\n"):
+                with self.subTest(path=path, code=code):
+                    root, _value, hits = self.primitive_example(code, path=path)
+                    with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
+                        R.trace(root)
+                    self.assertEqual([hit[5] for hit in hits], ["beads"])
+                    root, _value, hits = self.primitive_example(code, "route", path)
+                    self.assertEqual(R.trace(root)["primitive_hits"], hits)
+        self.assertEqual(R.primitive_hits({"scripts/unrelated.py": b"_bd([])\nbd_json([])\n"}), [])
+
+    def test_shell_candidates_require_per_line_dispositions_after_rebinding(self):
+        cases = (("beads", '  bd close "$1"\n'),
+                 ("process", 'systemctl --user stop EXAMPLE\n'),
+                 ("network", 'curl --fail https://EXAMPLE.invalid\n'))
+        for path in ("scripts/primitive.sh", "scripts/nested/primitive.sh", "scripts/cwo-codex"):
+            for family, code in cases:
+                with self.subTest(path=path, code=code):
+                    root, _value, hits = self.primitive_example(code, path=path)
+                    with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
+                        R.trace(root)
+                    self.assertEqual([hit[5] for hit in hits], [family])
+                    self.assertEqual(hits[0][1:5], [1, 0, 1, len(code.rstrip().encode())])
+                    for disposition in ("route", "exclude"):
+                        root, _value, hits = self.primitive_example(code, disposition, path)
+                        self.assertEqual(R.trace(root)["primitive_hits"], hits)
+
+    def test_shell_lexical_candidates_include_text_and_bind_each_line(self):
+        code = ('# bd close EXAMPLE\n'
+                'printf "curl EXAMPLE"\n'
+                "cat <<'EXAMPLE'\n"
+                'systemctl stop EXAMPLE\n'
+                'EXAMPLE\n'
+                'printf "caf\u00e9"; bd version; bd --version; curl EXAMPLE\n'
+                'cwo-bd systemctl-helper curl_helper\n')
+        root, value, hits = self.primitive_example(code, "exclude", "scripts/primitive.sh")
+        self.assertEqual([(row[1], row[5]) for row in hits],
+                         [(1, "beads"), (2, "network"), (4, "process"), (6, "beads"), (6, "network")])
+        self.assertEqual(hits[-1][4], len(code.splitlines()[5].encode()))
+        self.assertEqual(R.trace(root)["primitive_hits"], hits)
+        value["primitive_coverage"]["hits"].pop()
+        (root / R.INVENTORY).write_bytes(R.encoded(value) + b"\n")
+        with self.assertRaisesRegex(R.Refused, "primitive hit coverage mismatch"):
+            R.trace(root)
 
     def test_effect_points_and_named_manual_exclusions_cover_each_hit(self):
         code = "import subprocess\nresult = subprocess.run(\n    ['true']\n)\n"

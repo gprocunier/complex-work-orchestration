@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Strengthened release checks for structured Beads helpers and shell command candidates.
+
 ## 0.2.1 - 2026-11-14
 
 - Added an optional repository hook to check commit messages and contributor identity.

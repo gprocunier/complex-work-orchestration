@@ -32,7 +32,11 @@ Every current `scripts/` file must appear in `source_bindings`, including benign
 files and the checker itself. Added, removed, changed or unbound scripts refuse.
 The bounded Python classifier covers process creation (`subprocess`, `os` exec/
 spawn), socket/HTTP constructors and requests, Playwright entry/method candidates,
-AppServer constructors/RPC candidates, Beads helpers, and `shutil` copy/move calls.
+AppServer constructors/RPC candidates, Beads helpers (including bare and qualified
+`run_bd_structured`), and `shutil` copy/move calls. The reviewed module-local
+`_bd` adapters in qualified closure and activation preview, and `bd_json` helpers
+in continuation and resume summaries, seed the same file-local alias unions.
+Unrelated functions with these local names do not inherit that classification.
 All copies are candidates; destination safety remains a manual decision. Imported
 aliases, simple assigned aliases, literal `importlib` and `getattr` expressions
 are resolved within these families. Alias unions preserve possible effects across
@@ -47,16 +51,22 @@ the existing eight alias passes and twelve expression levels. A chain
 that exceeds the alias budget refuses. Unknown imports/getattr targets and other
 unresolved dynamic call candidates require individual named exclusions. This
 finite classifier does not detect arbitrary reflection, generated code, arbitrary
-wrapper calls or shell command semantics. Shell lines remain lexical evidence for
-external review; their files still require complete byte/mode bindings.
+wrapper calls or shell command semantics. For every `.sh` file under `scripts/`
+and `scripts/cwo-codex`, lexical `bd`, `systemctl` and `curl` tokens create
+Beads, process and network candidates respectively. Each matching whole line
+requires a disposition for each family present, including help, comments, quoted
+strings and here-documents. These are candidates for manual review, not inferred
+command execution. Token boundaries exclude adjacent letters, digits, underscores
+and hyphens; expansions and generated command names remain outside this bounded
+scan. Shell files still require complete byte/mode bindings.
 
 `primitive_coverage` uses schema `bounded-primitives-v1`. Each `hits` row is
 `[path, line, col, end_line, end_col, family, sha256, disposition]`; its hash binds
-the exact UTF-8 call bytes. The observed and authored hit sets must match exactly,
+the exact UTF-8 call bytes, or whole shell line bytes without its newline. The observed and authored hit sets must match exactly,
 without duplicate, missing, stale or extra rows. A disposition is either
 `["route", route_id, point_key]`, selecting an exact effect point of that route,
 or `["exclude", exclusion_id]`. Expanded EXAMPLE routes may supply the effect
-point dict directly. Mapped points must equal the complete classified call span.
+point dict directly. Mapped points must equal the complete classified call or shell line span.
 Each exclusion is used once and supplies a nonempty `reason` and `conclusion`,
 optionally naming an existing route. Thus its name and decision bind one specific
 source span, never a file-wide exemption. Orphan/duplicate/unknown exclusions

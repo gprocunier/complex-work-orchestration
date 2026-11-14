@@ -419,7 +419,15 @@ NETWORK_CALLS = {"request", "get", "post", "put", "patch", "delete", "head", "op
 BROWSER_METHODS = {"launch", "launch_persistent_context", "connect", "connect_over_cdp",
                    "new_context", "new_page", "goto", "evaluate", "click", "fill", "press"}
 APPSERVER_METHODS = {"rpc", "request", "notify", "send_request", "_rpc", "send_notification"}
-BEADS_CALLS = {"run_bd", "create_bead", "add_dependency"}
+BEADS_CALLS = {"run_bd", "run_bd_structured", "create_bead", "add_dependency"}
+LOCAL_BEADS_HELPERS = {
+    "scripts/qualified_closure.py": ("_bd",),
+    "scripts/cwo_core/native_activation_preview.py": ("_bd",),
+    "scripts/continue_sprint.py": ("bd_json",),
+    "scripts/summarize_resume_state.py": ("bd_json",),
+}
+SHELL_PRIMITIVES = {b"bd": "beads", b"systemctl": "process", b"curl": "network"}
+SHELL_CANDIDATE = re.compile(rb"(?<![A-Za-z0-9_-])(bd|systemctl|curl)(?![A-Za-z0-9_-])")
 COPY_CALLS = {"copytree", "copy", "copy2", "copyfile", "move"}
 KNOWN_PRIMITIVE_MODULES = {"subprocess", "os", "socket", "urllib.request", "http.client", "http.server",
                            "socketserver", "requests", "httpx", "shutil", "playwright.sync_api", "playwright.async_api"}
@@ -516,8 +524,12 @@ def _alias_candidate(candidate):
         candidate.startswith(("@network", "@appserver", "@playwright", "?")) or bool(_family(candidate)))
 
 
-def _aliases(tree):
+def _aliases(tree, path=""):
     aliases, assignments = _alias_inputs(tree)
+    # These reviewed module-local adapters share the public Beads family. Seed
+    # the union before assignment propagation so their aliases stay candidates.
+    for helper in LOCAL_BEADS_HELPERS.get(path, ()):
+        aliases.setdefault(helper, set()).add("run_bd")
     # A chain beyond this finite budget must be reviewed as unresolved, not dropped.
     for _round in range(8):
         changed = False
@@ -585,21 +597,39 @@ def _span(data, node):
     return b"".join(selected)
 
 
+def _python_primitive_hits(path, data):
+    hits = []
+    tree = ast.parse(data)
+    aliases = _aliases(tree, path)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        for family in sorted(_call_families(node, aliases)):
+            hits.append([path, node.lineno, node.col_offset, node.end_lineno,
+                         node.end_col_offset, family, digest(_span(data, node))])
+    return hits
+
+
+def _shell_primitive_hits(path, data):
+    """Whole-line lexical candidates, including quoted/help/comment occurrences."""
+    hits = []
+    for line, text in enumerate(data.splitlines(), 1):
+        families = {SHELL_PRIMITIVES[match[1]] for match in SHELL_CANDIDATE.finditer(text)}
+        for family in sorted(families):
+            hits.append([path, line, 0, line, len(text), family, digest(text)])
+    return hits
+
+
 def primitive_hits(contents):
-    """Exact call spans for bounded direct, alias and dynamic candidate families."""
+    """Exact Python call spans and shell candidate lines; no shell execution guesses."""
     hits = []
     for path, data in sorted(contents.items()):
-        if not path.startswith("scripts/") or not path.endswith(".py"):
+        if not path.startswith("scripts/"):
             continue
-        tree = ast.parse(data)
-        aliases = _aliases(tree)
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            families = _call_families(node, aliases)
-            for family in sorted(families):
-                hits.append([path, node.lineno, node.col_offset, node.end_lineno,
-                             node.end_col_offset, family, digest(_span(data, node))])
+        if path.endswith(".py"):
+            hits.extend(_python_primitive_hits(path, data))
+        elif path.endswith(".sh") or path == "scripts/cwo-codex":
+            hits.extend(_shell_primitive_hits(path, data))
     return sorted(hits)
 
 
