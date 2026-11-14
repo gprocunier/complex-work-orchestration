@@ -97,9 +97,74 @@ from .policy import load_policy
 
 SCREEN_VERSION = 2
 
+# These labels can only narrow formats; no label exempts content from inspection.
+_TEXT_FORMATS = frozenset({"text/plain", "application/json"})
+_SURFACE_FORMATS = {
+    "manual export": _TEXT_FORMATS,
+    "ChatGPT browser Send": frozenset({"text/plain"}),
+    "local HTTP request": frozenset({"application/json"}),
+    "local HTTP model preflight": frozenset({"application/json"}),
+}
+_CONTENT_TYPE = re.compile(
+    r'(text/plain|application/json)(?:[ \t]*;[ \t]*charset[ \t]*=[ \t]*(?:utf-8|"utf-8"))?',
+    re.IGNORECASE,
+)
+_ATTACHMENT_FIELDS = frozenset({"attachments", "files", "uploads"})
+
 
 class OutboundRefused(SystemExit):
     """The payload must not leave the machine. The message never contains input text."""
+
+
+def _utf8_payload(payload: bytes | str, *, surface: str) -> bytes:
+    if isinstance(payload, bytes):
+        return payload
+    if not isinstance(payload, str):
+        raise OutboundRefused(f"outbound screening refused {surface}: unsupported payload representation")
+    try:
+        return payload.encode("utf-8")
+    except UnicodeEncodeError:
+        raise OutboundRefused(f"outbound screening refused {surface}: payload cannot be represented as UTF-8") from None
+
+
+def require_text_disclosure(payload: str, *, surface: str) -> str:
+    """Renderers accept text, never implicit stringification of files or rich content."""
+    if not isinstance(payload, str):
+        raise OutboundRefused(f"outbound screening refused {surface}: renderer requires text; attachments are unsupported")
+    _utf8_payload(payload, surface=surface)
+    return payload
+
+
+def refuse_attachments(document: dict[str, Any], *, surface: str) -> None:
+    """There is no file/upload adapter: reject attachment declarations instead of ignoring them."""
+    if isinstance(document, dict) and _ATTACHMENT_FIELDS.intersection(document):
+        raise OutboundRefused(f"outbound screening refused {surface}: attachments are unsupported")
+
+
+def _supported_content_type(content_type: str, *, surface: str) -> str:
+    """Only plain text and JSON, unencoded or explicitly UTF-8, have complete readers."""
+    match = _CONTENT_TYPE.fullmatch(content_type.strip(" \t")) if isinstance(content_type, str) else None
+    if match is None:
+        raise OutboundRefused(f"outbound screening refused {surface}: unsupported content type or charset")
+    media = match[1].lower()
+    if media not in _SURFACE_FORMATS.get(surface, _TEXT_FORMATS):
+        raise OutboundRefused(f"outbound screening refused {surface}: unsupported renderer format")
+    return media
+
+
+def _request_content_type(headers: tuple[tuple[str, str], ...], content_type: str, *, surface: str) -> str:
+    declared = _supported_content_type(content_type, surface=surface)
+    media_types = []
+    for name, value in headers:
+        if name == "content-type":
+            media_types.append(_supported_content_type(value, surface=surface))
+        elif name in {"content-encoding", "transfer-encoding"} and value.strip().lower() != "identity":
+            raise OutboundRefused(f"outbound screening refused {surface}: unsupported HTTP encoding")
+    if len(media_types) > 1 or any(media != declared for media in media_types):
+        raise OutboundRefused(f"outbound screening refused {surface}: ambiguous or contradictory HTTP content type")
+    if surface in {"local HTTP request", "local HTTP model preflight"} and not media_types:
+        raise OutboundRefused(f"outbound screening refused {surface}: HTTP content type is missing")
+    return declared
 
 
 @dataclass(frozen=True)
@@ -1992,8 +2057,9 @@ def screen_outbound(payload: bytes | str, *, surface: str, content_type: str = "
     Unsupported encodings, oversize payloads, unparsable declared JSON and JSON
     nested beyond the screening depth refuse: an incomplete scan never passes.
     """
+    content_type = _supported_content_type(content_type, surface=surface)
     rules = _rules()
-    data = payload.encode("utf-8") if isinstance(payload, str) else bytes(payload)
+    data = _utf8_payload(payload, surface=surface)
     digest = hashlib.sha256(data).hexdigest()
     limits = rules.get("limits", {})
     limit = int(limits.get("max_input_bytes", 8 * 1024 * 1024))
@@ -2122,9 +2188,11 @@ def screen_request(
     configured credential: they are bound by digest but not screened.
     """
     bound_headers = _request_headers(headers)
+    content_type = _request_content_type(bound_headers, content_type, surface=surface)
     descriptor_text = f"{method.upper()} {url}\n" + "".join(f"{name}: {value}\n" for name, value in bound_headers)
     descriptor = require_clean(descriptor_text, surface=f"{surface} line and headers")
-    screened_body = require_clean(body, surface=surface, content_type=content_type) if body else require_clean(b"", surface=surface)
+    screened_body = (require_clean(body, surface=surface, content_type=content_type) if body
+                     else require_clean(b"", surface=f"{surface} empty body"))
     return ScreenedRequest(method.upper(), url, bound_headers, _authentication_digest(headers), screened_body, descriptor, surface)
 
 
@@ -2253,7 +2321,9 @@ __all__ = [
     "ScreenedPayload",
     "ScreenedRequest",
     "ScreeningArgumentParser",
+    "refuse_attachments",
     "require_clean",
+    "require_text_disclosure",
     "screen_outbound",
     "screen_request",
     "withheld_diagnostics",

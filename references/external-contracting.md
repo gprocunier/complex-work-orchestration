@@ -117,6 +117,21 @@ changed after screening. The screen is a second, separately maintained check,
 not a promise to find every secret, and there is no exception mechanism yet:
 remove or reword flagged content.
 
+Supported disclosure formats are finite: manual export accepts plain text or
+JSON, the browser composer accepts plain text, and local HTTP requests accept
+JSON (or an empty model-preflight body). All use UTF-8; an explicit
+`charset=utf-8` is accepted. Other media types, charsets, multipart bodies and
+HTTP content or transfer encodings other than identity refuse before disclosure,
+including when the body is empty. HTTP Content-Type must agree with the screened
+format. Every emitted field is inspected in its decoded semantic view and in
+the final serialized text; unreadable or incomplete scans refuse.
+
+These renderers do not upload attachments. Packet or local-envelope declarations
+named `attachments`, `files` or `uploads` refuse, including empty declarations;
+structured file/image message content is unsupported. Included-artifact paths
+and digests, selected text snippets and expert-profile text are disclosed text,
+and pass through the same scans. Browser and local HTTP live routes remain held.
+
 Generated contractor packets include the matched Distinguished Engineer profile
 by default. That profile is part of the contract artifact and gives the outside
 model the operating lens for the assigned discipline. A packet generated without

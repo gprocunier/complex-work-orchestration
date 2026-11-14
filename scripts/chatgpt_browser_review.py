@@ -33,7 +33,7 @@ from cwo_core.util import (
 from cwo_core.audit import enforce_contracting_quota, record_audit_event, require_packet_build_audit
 from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.packets import contractor_packet_language_metadata, find_residual_private_context
-from cwo_core.outbound_screen import require_clean
+from cwo_core.outbound_screen import require_clean, require_text_disclosure
 from cwo_core.policy import load_policy
 from cwo_core.telemetry import safe_text_hash, telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
@@ -494,6 +494,7 @@ class PlaywrightChatGPTRunner:
     def _run(self, prompt: str) -> dict[str, Any]:
         if not BROWSER_DISPATCH_AVAILABLE:
             raise SystemExit(BROWSER_DISPATCH_UNAVAILABLE)
+        prompt = require_text_disclosure(prompt, surface="ChatGPT browser Send")
         try:
             from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
             from playwright.sync_api import sync_playwright

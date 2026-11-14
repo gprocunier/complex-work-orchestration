@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refuse unsupported disclosure formats, encodings and attachment declarations, and verify decoded fields and final serialized text before manual export, browser submission or local HTTP dispatch.
+
 ## 0.2.1 - 2026-11-14
 
 - Added an optional repository hook to check commit messages and contributor identity.

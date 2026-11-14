@@ -34,7 +34,7 @@ from cwo_core.errors import CWOError
 from cwo_core.adjudication import dispatch_provenance
 from cwo_core.local_invocation import reserved_local_invocation
 from cwo_core.host_records import configured_store
-from cwo_core.outbound_screen import ScreenedRequest, ScreeningArgumentParser, screen_request, withheld_diagnostics
+from cwo_core.outbound_screen import ScreenedRequest, ScreeningArgumentParser, refuse_attachments, screen_request, withheld_diagnostics
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import classify_work
 from cwo_core.audit import (
@@ -1695,6 +1695,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
                            *, qualified_review=None) -> dict[str, Any]:
     if not LOCAL_INVOCATION_AVAILABLE:
         raise SystemExit(LOCAL_INVOCATION_UNAVAILABLE)
+    refuse_attachments(envelope, surface="local HTTP request")
     require_audited_local_execution(args)
     require_access_profile_online_for_execution(envelope, args)
     executor_key = str(envelope.get("executor_key") or "")

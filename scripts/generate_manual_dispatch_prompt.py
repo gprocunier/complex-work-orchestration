@@ -10,7 +10,9 @@ from typing import Any
 from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.errors import CWOError
-from cwo_core.outbound_screen import ScreenedPayload, ScreeningArgumentParser, require_clean, withheld_diagnostics
+from cwo_core.outbound_screen import (
+    ScreenedPayload, ScreeningArgumentParser, refuse_attachments, require_clean, require_text_disclosure, withheld_diagnostics,
+)
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.packets import fenced_block, redact_text
@@ -124,6 +126,7 @@ Rules:
 
 
 def render_packet_prompt(packet: dict[str, Any]) -> str:
+    refuse_attachments(packet, surface="manual/browser packet")
     included_lines = "\n".join(
         f"- {item.get('type')}: {item.get('path', 'assignment')} sha256={item.get('sha256', 'n/a')}"
         for item in packet.get("included_artifacts", [])
@@ -279,6 +282,7 @@ def content_free_route(route: Any) -> Any:
 
 def screen_export(text: str, *, as_json: bool) -> ScreenedPayload:
     """Screen exactly the bytes a manual export will print (output plus newline)."""
+    text = require_text_disclosure(text, surface="manual export")
     return require_clean(text + "\n", surface="manual export", content_type="application/json" if as_json else "text/plain")
 
 
