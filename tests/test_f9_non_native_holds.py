@@ -145,7 +145,7 @@ class NonNativeHoldTests(unittest.TestCase):
                     else:
                         with self.assertRaisesRegex(RuntimeError, "positive packet read reached"):
                             dispatch._main()
-                        load.assert_called_once_with("packet.json")
+                        load.assert_called_once_with("packet.json", captures=[])
                     for effect in effects:
                         effect.assert_not_called()
 

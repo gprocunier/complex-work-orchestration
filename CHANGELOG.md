@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.3.0 - 2026-11-14
+
 - Refuse unsupported disclosure formats, encodings and attachment declarations, and verify decoded fields and final serialized text before manual export, browser submission or local HTTP dispatch.
 - Freeze screened outbound content and renderer inputs, refuse source or file drift before disclosure, and record exact manual export digests with dispatch decisions.
 - Screen and freeze browser navigation and local debugger URLs before startup, and refuse configuration drift before connecting, navigating or submitting.
