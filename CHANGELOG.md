@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Recorded the qualification target as Codex 0.163.0 with constrained integrity; confidential operation is unsupported.
+- Documented legacy transport limits and checked typed replies against the selected protocol schemas.
 
 ## 0.2.1 - 2026-11-14
 
