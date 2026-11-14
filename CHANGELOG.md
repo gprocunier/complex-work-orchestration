@@ -8,6 +8,8 @@
 - Freeze screened outbound content and renderer inputs, refuse source or file drift before disclosure, and record exact manual export digests with dispatch decisions.
 - Screen and freeze browser navigation and local debugger URLs before startup, and refuse configuration drift before connecting, navigating or submitting.
 
+- Strengthened release checks for structured Beads helpers and shell command candidates.
+
 ## 0.2.1 - 2026-11-14
 
 - Added an optional repository hook to check commit messages and contributor identity.
