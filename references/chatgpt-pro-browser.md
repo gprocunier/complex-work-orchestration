@@ -18,3 +18,7 @@ required review, substitute a model, relax confirmation or evidence checks, or
 resume a stopped attempt merely because its old documentation was withdrawn.
 Record the affected prerequisite and obtain the precise missing route or operator
 decision before dependent implementation.
+
+Verification of supported private return artifacts is described in
+[Private browser returns](private-browser-artifacts.md). That artifact path does
+not provide browser setup or restore submission or sharing.

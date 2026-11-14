@@ -1164,6 +1164,27 @@ def nonproduction_packet_errors(packet: dict[str, Any], *, allow_nonproduction: 
     ]
 
 
+def contractor_subject_errors(packet: dict[str, Any]) -> list[str]:
+    """Older packet consumers remain compatible; a present subject is concise and private safe."""
+    if "subject" not in packet:
+        return []
+    subject = packet["subject"]
+    if not isinstance(subject, dict):
+        return ["packet subject must be an object"]
+    kind = subject.get("kind")
+    fields = {"kind", "source_sha256"}
+    if kind == "candidate":
+        fields.add("candidate_sha256")
+        candidate = subject.get("candidate_sha256")
+        if not isinstance(candidate, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", candidate) is None:
+            return ["packet subject must use the formal candidate identity binding"]
+    digest = subject.get("source_sha256")
+    if (kind not in ("candidate", "packet-input") or set(subject) != fields
+            or not isinstance(digest, str) or re.fullmatch(r"[0-9a-f]{64}", digest) is None):
+        return ["packet subject has an invalid kind, source digest or private fields"]
+    return []
+
+
 def validate_contractor_packet(
     packet: dict[str, Any], *, allow_degraded_packet: bool = False, allow_nonproduction: bool = False
 ) -> list[str]:
@@ -1291,6 +1312,7 @@ def validate_contractor_packet(
     if packet.get("packet_sha256") != expected_hash:
         errors.append("packet_sha256 does not match packet payload")
     errors.extend(nonproduction_packet_errors(packet, allow_nonproduction=allow_nonproduction))
+    errors.extend(contractor_subject_errors(packet))
 
     forbidden_fields = set(boundary.get("forbidden_fields", [])) if boundary else set()
     forbidden_hits = find_forbidden_fields(packet, forbidden_fields)

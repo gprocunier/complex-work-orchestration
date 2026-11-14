@@ -4,22 +4,24 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import stat
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
-from cwo_core.chatgpt_urls import approved_chatgpt_origin, valid_chatgpt_share_url
+from cwo_core.chatgpt_urls import valid_chatgpt_share_url
+from cwo_core.browser_provenance import (
+    ACCESS_LIMIT, PRIVATE_RESPONSE_ARTIFACT_TYPE, PRIVATE_RESPONSE_VERSION,
+    PrivateCaptureExpectation, add_candidate_arguments, candidate_context,
+    provenance_errors, select_private_capture, validate_private_capture, verify_provenance_pin,
+)
 from cwo_core.paths import assert_safe_output_path
 from cwo_core.packets import fenced_block
 from cwo_core.private_artifact import PrivateArtifactError, PrivateDirectory, artifact_path, sha256_bytes
 from cwo_core.util import atomic_write_text, artifact_hash
 
 DEFAULT_EXECUTOR = "chatgpt_pro_browser_master_reviewer"
-PRIVATE_RESPONSE_ARTIFACT_TYPE = "chatgpt-browser-private-response"
 MAX_PROVENANCE_BYTES = 1024 * 1024
 
 
@@ -162,80 +164,46 @@ def extract_assistant_text(payload: dict[str, Any]) -> tuple[str, dict[str, Any]
     }
 
 
-HEX64 = re.compile(r"^[0-9a-f]{64}$")
-REQUEST_ID_RE = re.compile(r"^[0-9a-f]{32}$")
-CONVERSATION_PATH_RE = re.compile(r"/c/([A-Za-z0-9-]{8,})(?:/|$)")
-PRIVATE_RESPONSE_VERSION = 4
-CAPTURE_CHECKS = (
-    "request_turn",
-    "response_turn",
-    "completion_confirmed",
-    "content_stable",
-    "conversation_stable",
-    "assistant_extraction",
-)
-
-
 def _provenance_errors(provenance: dict[str, Any]) -> list[str]:
-    """Required identity and capture fields of a current private response."""
-    errors: list[str] = []
+    return provenance_errors(provenance)
 
-    def text(field: str) -> None:
-        if not isinstance(provenance.get(field), str) or not provenance[field].strip():
-            errors.append(f"{field} must be a non-empty string")
 
-    def digest(field: str, *, prefixed: bool = False) -> None:
-        value = provenance.get(field)
-        if prefixed and isinstance(value, str) and value.startswith("sha256:"):
-            value = value[len("sha256:"):]
-        if not isinstance(value, str) or not HEX64.match(value):
-            errors.append(f"{field} must be a SHA-256 digest")
+def _read_provenance(directory: PrivateDirectory, name: str) -> tuple[bytes, dict[str, Any]]:
+    try:
+        raw = directory.read(name, max_bytes=MAX_PROVENANCE_BYTES)
+        record = json.loads(raw.decode("utf-8"))
+    except (PrivateArtifactError, UnicodeError, ValueError):
+        raise SystemExit("private response provenance is unreadable") from None
+    if not isinstance(record, dict) or record.get("artifact_type") != PRIVATE_RESPONSE_ARTIFACT_TYPE:
+        raise SystemExit("private response provenance has an unexpected artifact type")
+    return raw, record
 
-    for field in ("dispatch_id", "conversation_id", "conversation_url", "captured_at", "response_file", "executor"):
-        text(field)
-    digest("packet_sha256")
-    digest("response_sha256")
-    digest("prompt_sha256", prefixed=True)
-    digest("submitted_sha256", prefixed=True)
-    if not isinstance(provenance.get("request_id"), str) or not REQUEST_ID_RE.match(provenance["request_id"]):
-        errors.append("request_id must be 32 lowercase hexadecimal characters")
-    if provenance.get("response_extraction") != "assistant-message":
-        errors.append("response_extraction must be assistant-message")
-    if not isinstance(provenance.get("assistant_message_id"), str) or not provenance["assistant_message_id"]:
-        errors.append("assistant_message_id must be a non-empty string")
-    if not isinstance(provenance.get("user_message_id"), str) or not provenance["user_message_id"]:
-        errors.append("user_message_id must be a non-empty string")
-    conversation_id, conversation_url = provenance.get("conversation_id"), provenance.get("conversation_url")
-    if isinstance(conversation_id, str) and isinstance(conversation_url, str):
-        match = CONVERSATION_PATH_RE.search(urlparse(conversation_url).path)
-        if match is None or match.group(1) != conversation_id:
-            errors.append("conversation_url does not name conversation_id")
-        if approved_chatgpt_origin(conversation_url) is None:
-            errors.append("conversation_url is not on a ChatGPT origin")
-    chars = provenance.get("response_chars")
-    if not isinstance(chars, int) or isinstance(chars, bool) or chars < 1:
-        errors.append("response_chars must be a positive integer")
-    checks = provenance.get("capture_checks")
-    if not isinstance(checks, dict) or any(checks.get(name) is not True for name in CAPTURE_CHECKS):
-        errors.append("capture_checks must all be true")
-    return errors
+
+def _check_private_record(record: dict[str, Any], identities: dict[str, str | None]) -> str:
+    if type(record.get("version")) is not int or record["version"] != PRIVATE_RESPONSE_VERSION:
+        raise SystemExit("private response provenance has an unsupported historical version")
+    if record.get("capture_complete") is not True:
+        raise SystemExit("private response capture is incomplete; it cannot be ingested as a complete return")
+    errors = _provenance_errors(record)
+    if errors:
+        raise SystemExit("private response provenance is incomplete: " + "; ".join(errors))
+    response_file = record["response_file"]
+    if "/" in response_file or response_file.startswith("."):
+        raise SystemExit("private response provenance names an unsafe response file")
+    for key, value in identities.items():
+        if value is not None and record.get(key) != value:
+            raise SystemExit(f"private response {key} does not match the requested {key}")
+    return response_file
 
 
 def load_private_response(
-    provenance_path: Path,
-    *,
-    packet_sha256: str | None,
-    dispatch_id: str | None,
-    bead_id: str | None,
+    provenance_path: Path, *, expected: PrivateCaptureExpectation | None = None,
+    packet_sha256: str | None = None, dispatch_id: str | None = None, bead_id: str | None = None,
 ) -> tuple[str, dict[str, Any], str]:
-    """Verify a private browser response artifact and return (text, provenance, provenance_sha256).
+    """Read pinned owner-only files and validate the independently selected current chain.
 
-    Both files are read through one pinned descriptor for the owner-only
-    artifact directory and must be owner-only regular files without symlinks or
-    extra hard links. The provenance must be a current-version record with
-    every capture check passed and complete packet, dispatch, prompt, request,
-    conversation and response identity; the response digest must match; and any
-    caller-supplied packet, dispatch or bead identity must equal the recorded one.
+    Same-user access to both artifacts and the audit store can rewrite both;
+    the API result's access_limit documents that authentication limitation.
     """
     try:
         absolute = artifact_path(provenance_path)
@@ -243,43 +211,37 @@ def load_private_response(
     except PrivateArtifactError as exc:
         raise SystemExit(f"private response directory is unusable: {exc}") from exc
     with directory:
-        try:
-            provenance_bytes = directory.read(absolute.name, max_bytes=MAX_PROVENANCE_BYTES)
-            provenance = json.loads(provenance_bytes.decode("utf-8"))
-        except (PrivateArtifactError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise SystemExit(f"private response provenance is unreadable: {exc}") from exc
-        if not isinstance(provenance, dict) or provenance.get("artifact_type") != PRIVATE_RESPONSE_ARTIFACT_TYPE:
-            raise SystemExit("private response provenance has an unexpected artifact type")
-        if provenance.get("version") != PRIVATE_RESPONSE_VERSION:
-            raise SystemExit("private response provenance has an unsupported version")
-        if provenance.get("capture_complete") is not True:
-            raise SystemExit("private response capture is incomplete; it cannot be ingested as a complete return")
-        errors = _provenance_errors(provenance)
-        if errors:
-            raise SystemExit("private response provenance is incomplete: " + "; ".join(errors))
-        response_file = provenance["response_file"]
-        if "/" in response_file or response_file.startswith("."):
-            raise SystemExit("private response provenance names an unsafe response file")
-        expected = {"packet_sha256": packet_sha256, "dispatch_id": dispatch_id, "bead_id": bead_id}
-        for field, value in expected.items():
-            if value is not None and provenance.get(field) != value:
-                raise SystemExit(f"private response {field} does not match the requested {field}")
+        raw, record = _read_provenance(directory, absolute.name)
+        verify_provenance_pin(raw, expected)
+        response_file = _check_private_record(record, {"packet_sha256": packet_sha256,
+                                                      "dispatch_id": dispatch_id, "bead_id": bead_id})
         try:
             response_bytes = directory.read(response_file)
         except PrivateArtifactError as exc:
             raise SystemExit(f"private response file is unreadable: {exc}") from exc
-    if sha256_bytes(response_bytes) != provenance["response_sha256"]:
-        raise SystemExit("private response digest does not match its provenance")
+    decoded = validate_private_capture(record, response_bytes, expected=expected, provenance_bytes=raw)
+    return decoded, {**record, "access_limit": ACCESS_LIMIT}, sha256_bytes(raw)
+
+
+def _private_expectation(args) -> PrivateCaptureExpectation:
+    if not args.packet or not args.packet_source_sha256 or not args.capture_event:
+        raise SystemExit("private intake requires --packet, --packet-source-sha256 and --capture-event")
     try:
-        decoded = response_bytes.decode("utf-8")
-    except UnicodeDecodeError as exc:
-        raise SystemExit("private response is not valid UTF-8") from exc
-    if len(decoded) != provenance["response_chars"]:
-        raise SystemExit("private response length does not match its provenance")
-    if not decoded.strip():
-        raise SystemExit("private response is empty")
-    # Returned exactly as captured: surrounding whitespace can be meaningful.
-    return decoded, provenance, sha256_bytes(provenance_bytes)
+        packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, ValueError):
+        raise SystemExit("current contractor packet is unreadable or malformed") from None
+    if not isinstance(packet, dict):
+        raise SystemExit("current contractor packet must be an object")
+    return select_private_capture(packet, packet_source_sha256=args.packet_source_sha256,
+                                  capture_event_hash=args.capture_event, **candidate_context(args))
+
+
+def _explicit_private_return(args, path: Path, text: str, provenance: dict[str, Any]) -> str:
+    return render_contractor_return(
+        text, source=str(path), reader=path, provenance=provenance, bead_id=args.bead,
+        dispatch_id=args.dispatch_id, share_boundary=args.share_boundary, job_description=args.job_description,
+        packet_sha256=args.packet_sha256, executor=args.executor, source_kind="private-artifact",
+    )
 
 
 def render_contractor_return(
@@ -379,6 +341,10 @@ Escalation needed: No by default. Escalate if the extracted text requests broade
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest a ChatGPT browser review return into the contractor return flow.")
+    add_candidate_arguments(parser)
+    parser.add_argument("--packet", help="Independently selected current production contractor packet.")
+    parser.add_argument("--packet-source-sha256", help="Original packet-load PreparedSource identity, not reconstructed options.")
+    parser.add_argument("--capture-event", help="Exact persisted chatgpt_browser_dispatch event_hash.")
     parser.add_argument("source", nargs="?", help="Legacy: ChatGPT share URL or locally saved share HTML.")
     parser.add_argument(
         "--private-artifact",
@@ -392,8 +358,8 @@ def main() -> None:
     parser.add_argument("--job-description", default="contract-jd-master-plan-review")
     parser.add_argument("--packet-sha256")
     parser.add_argument("--executor", default=DEFAULT_EXECUTOR)
-    parser.add_argument("--output", help="Write contractor return Markdown.")
-    parser.add_argument("--json", action="store_true", help="Print metadata JSON instead of return Markdown.")
+    parser.add_argument("--output", help="Explicitly render contractor return Markdown including response evidence.")
+    parser.add_argument("--json", action="store_true", help="Print metadata JSON (the default for private intake).")
     args = parser.parse_args()
 
     if bool(args.source) == bool(args.private_artifact):
@@ -402,27 +368,17 @@ def main() -> None:
         provenance_path = Path(args.private_artifact).expanduser()
         assistant_text, provenance, provenance_sha256 = load_private_response(
             provenance_path,
+            expected=_private_expectation(args),
             packet_sha256=args.packet_sha256,
             dispatch_id=args.dispatch_id,
             bead_id=args.bead,
-        )
-        rendered = render_contractor_return(
-            assistant_text,
-            source=str(provenance_path),
-            reader=provenance_path,
-            provenance=provenance,
-            bead_id=args.bead,
-            dispatch_id=args.dispatch_id,
-            share_boundary=args.share_boundary,
-            job_description=args.job_description,
-            packet_sha256=args.packet_sha256,
-            executor=args.executor,
-            source_kind="private-artifact",
         )
         metadata = {
             "ingest_result_type": "chatgpt-share-contractor-return",
             "version": 2,
             "source_kind": "private-artifact",
+            "access_limit": ACCESS_LIMIT,
+            "capture_event_hash": args.capture_event,
             "executor": args.executor,
             "bead_id": args.bead or provenance.get("bead_id"),
             "dispatch_id": args.dispatch_id or provenance.get("dispatch_id"),
@@ -433,14 +389,13 @@ def main() -> None:
             "response_sha256": provenance.get("response_sha256"),
             "conversation_id": provenance.get("conversation_id"),
             "assistant_text_sha256": artifact_hash(assistant_text),
-            "return_sha256": artifact_hash(rendered),
         }
         if args.output:
+            rendered = _explicit_private_return(args, provenance_path, assistant_text, provenance)
             atomic_write_text(assert_safe_output_path(Path(args.output)), rendered)
-        if args.json:
+            metadata["return_sha256"] = artifact_hash(rendered)
+        if args.json or not args.output:
             print(json.dumps(metadata, indent=2, sort_keys=True))
-        elif not args.output:
-            print(rendered)
         return
     if not is_chatgpt_share_source(args.source):
         raise SystemExit("source must be a ChatGPT share URL or a local HTML file")

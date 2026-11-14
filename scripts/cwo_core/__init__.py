@@ -35,6 +35,7 @@ __all__ = [
     "checked_command_sequence",
     "beads",
     "beads_ready_set",
+    "browser_provenance",
     "chatgpt_urls",
     "coach",
     "codex_hook_enforcement",

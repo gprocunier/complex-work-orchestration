@@ -207,7 +207,8 @@ class DisclosureSurfaceTests(helpers._OutboundHelpers, unittest.TestCase):
                         "_message_snapshot": {"available": True, "messages": [], "url": url},
                         "_pin_conversation": "0123abcd-4567", "_wait_for_stable_response": "reply",
                         "_capture_assistant_response": captured}
-        with patch.dict(sys.modules, helper._fake_playwright_modules()), patch.object(browser.secrets, "token_hex", return_value="0" * 32), contextlib.ExitStack() as stack:
+        from tests.browser_connected_fixture import admitted_runner
+        with admitted_runner(runner, prompt, lifecycle=True, timeout_ms=30000, model_observation={"status": "confirmed"}), patch.dict(sys.modules, helper._fake_playwright_modules()), patch.object(browser.secrets, "token_hex", return_value="0" * 32), contextlib.ExitStack() as stack:
             for name, value in replacements.items():
                 stack.enter_context(patch.object(runner, name, return_value=value))
             return runner.run(prompt)
@@ -335,7 +336,10 @@ class BrowserDestinationTests(unittest.TestCase):
                 else:
                     config[slot] = changed
 
-        page = SimpleNamespace(url="https://chatgpt.com/c/public-review")
+        from tests.browser_connected_fixture import Page as EdgePage
+        edge = EdgePage()
+        edge.url = "https://chatgpt.com/c/public-review"
+        page = SimpleNamespace(url=edge.url, query_selector_all=edge.query_selector_all)
 
         def navigate(url, **kwargs):
             disclosed["chatgpt_url"].append(url)
@@ -386,8 +390,17 @@ class BrowserDestinationTests(unittest.TestCase):
         modules = browser_tests.ChatGPTBrowserReviewTests()._fake_playwright_modules()
         modules["playwright.sync_api"].sync_playwright = factory
         output, stderr, failure = io.StringIO(), io.StringIO(), None
-        with patch.dict(sys.modules, modules), patch.object(runner, "_select_page", side_effect=select), \
-                patch.object(runner, "_submit_prompt", side_effect=lambda *a, **k: checkpoint("send")), \
+        from tests.browser_connected_fixture import admitted_runner
+        original_submit = runner._submit_prompt
+
+        def submit(*args, **kwargs):
+            checkpoint("send")
+            return original_submit(*args, **kwargs)
+
+        with admitted_runner(runner, "Review the public notes.", lifecycle=True, timeout_ms=30000,
+                             model_observation={"status": "confirmed"}, conversation_url=page.url), \
+                patch.object(browser.secrets, "token_hex", return_value="0" * 32), patch.dict(sys.modules, modules), patch.object(runner, "_select_page", side_effect=select), \
+                patch.object(runner, "_submit_prompt", side_effect=submit), \
                 patch.object(browser, "require_clean", side_effect=screen), \
                 contextlib.redirect_stdout(output), contextlib.redirect_stderr(stderr), contextlib.ExitStack() as stack:
             for name, value in replacements.items():

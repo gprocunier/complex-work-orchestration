@@ -6,6 +6,7 @@ are fake-engine controls, not provider latency, tokenization or billing facts.
 from __future__ import annotations
 
 import copy
+import contextlib
 import hashlib
 import json
 import os
@@ -26,9 +27,35 @@ import chatgpt_browser_review as browser  # noqa: E402
 import dispatch_work as dispatch  # noqa: E402
 import prepare_local_admission as admission  # noqa: E402
 from test_route_feasibility_preparation import bind, record  # noqa: E402
+from tests.browser_connected_fixture import Page, admitted_runner  # noqa: E402
 
 planner = admission.planner
 ledger_api = admission.ledger_api
+
+
+@contextlib.contextmanager
+def matrix_browser_admission(runner, page, entry, prompt, model_observation):
+    """Keep matrix controls while real Send consumes the registered admission."""
+    edge = Page(reply="reply")
+    edge.url = page.url
+    page.query_selector_all.side_effect = edge.query_selector_all
+    if entry == "confirm_model_only":
+        yield edge
+        return
+    with admitted_runner(runner, prompt, lifecycle=True, timeout_ms=30000,
+                         model_observation=model_observation, conversation_url=page.url), \
+            patch.object(browser.secrets, "token_hex", return_value="0" * 32):
+        yield edge
+
+
+def matrix_model_observation():
+    """Expected attestation from the real Pro/Extended confirmation controls."""
+    return {"required": True, "status": "confirmed", "labels": {
+        key: {"expected": label, "confirmation_text": label, "selector": selector,
+              "attribute": None, "attribute_value": None}
+        for key, label, selector in (("model_label", "Pro", "model-status"),
+                                     ("reasoning_label", "Extended", "reasoning-status"))
+    }}
 
 
 class ExampleClock:
@@ -309,6 +336,8 @@ class Issue41DispatchMatrixTests(unittest.TestCase):
                         "model_label_confirmation_selector": "model-status",
                         "reasoning_label_confirmation_selector": "reasoning-status"},
                 })
+                # Count Send calls while retaining the real active-guard path.
+                effects.send.side_effect = runner._submit_prompt
                 with patch.dict(sys.modules, {"playwright": ModuleType("playwright"),
                                              "playwright.sync_api": api}), \
                         patch.object(browser, "BROWSER_DISPATCH_AVAILABLE", True), \
@@ -319,7 +348,9 @@ class Issue41DispatchMatrixTests(unittest.TestCase):
                         patch.object(runner, "_wait_for_stable_response", return_value="reply"), \
                         patch.object(runner, "_capture_assistant_response", return_value={
                             "text": "reply", "extraction": "EXAMPLE", "message_id": "1",
-                            "conversation_url": page.url, "conversation_id": "EXAMPLE"}):
+                            "conversation_url": page.url, "conversation_id": "EXAMPLE"}), \
+                        matrix_browser_admission(runner, page, entry, "EXAMPLE review",
+                                                 matrix_model_observation()) as edge:
                     args = () if entry == "confirm_model_only" else ("EXAMPLE review",)
                     if refused:
                         # Effect assertion comes first so a bypass is attributed
@@ -330,10 +361,13 @@ class Issue41DispatchMatrixTests(unittest.TestCase):
                         except (SystemExit, browser.ChatGPTBrowserReviewError) as exc:
                             failure = exc
                         self.assertEqual(effects.send.call_count, 0)
+                        self.assertEqual((len(edge.filled), len(edge.sent)), (0, 0))
                         self.assertIsNotNone(failure)
                     else:
                         result = getattr(runner, entry)(*args)
                         self.assertEqual(effects.send.call_count, int(entry != "confirm_model_only"))
+                        self.assertEqual((len(edge.filled), len(edge.sent)),
+                                         (int(entry != "confirm_model_only"),) * 2)
                         self.assertEqual(result["model_attestation"]["status"], "confirmed")
                 api.sync_playwright.assert_called_once_with()
                 manager.start.assert_called_once_with()
@@ -365,6 +399,7 @@ class Issue41DispatchMatrixTests(unittest.TestCase):
         api = ModuleType("playwright.sync_api")
         api.TimeoutError = TimeoutError
         api.sync_playwright = effects.factory
+        effects.send.side_effect = runner._submit_prompt
         with patch.dict(sys.modules, {"playwright": ModuleType("playwright"), "playwright.sync_api": api}), \
                 patch.object(runner, "_select_page", return_value=page) as held_select_page, \
                 patch.object(runner, "_wait_for_prompt"), patch.object(runner, "_select_configured_labels"), \
@@ -376,12 +411,15 @@ class Issue41DispatchMatrixTests(unittest.TestCase):
                 patch.object(runner, "_capture_assistant_response", return_value={
                     "text": "reply", "extraction": "EXAMPLE", "message_id": "1",
                     "conversation_url": page.url, "conversation_id": "EXAMPLE",
-                }):
+                }), \
+                matrix_browser_admission(runner, page, entry, "EXAMPLE custom/manual prompt",
+                                         {"status": "confirmed"}) as edge:
             args = () if entry == "confirm_model_only" else ("EXAMPLE custom/manual prompt",)
             with self.assertRaises(SystemExit) as raised:
                 getattr(runner, entry)(*args)
             self.assertEqual(str(raised.exception), browser.BROWSER_DISPATCH_UNAVAILABLE)
-            self.assertEqual(effects.mock_calls, [], "held entry reached a browser effect")
+            self.assertEqual(len(effects.mock_calls), 0, "held entry reached a browser effect")
+            self.assertEqual((len(edge.filled), len(edge.sent)), (0, 0))
             held_select_page.assert_not_called()
             with patch.object(browser, "BROWSER_DISPATCH_AVAILABLE", True):
                 getattr(runner, entry)(*args)
@@ -391,6 +429,7 @@ class Issue41DispatchMatrixTests(unittest.TestCase):
             (effects.launch if mode == "cdp" else effects.connect).assert_not_called()
             page.goto.assert_called_once()
             self.assertEqual(effects.send.call_count, int(entry != "confirm_model_only"))
+            self.assertEqual((len(edge.filled), len(edge.sent)), (int(entry != "confirm_model_only"),) * 2)
 
     def test_chrome_launcher_dry_run_and_operator_actions_use_only_expected_effects(self):
         rows = (

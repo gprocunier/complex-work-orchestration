@@ -40,6 +40,10 @@ ALLOWED_IMPORTS = {
     "chatgpt_urls": set(),
     "path_contract": set(),
     "private_artifact": set(),
+    "browser_provenance": {
+        "audit", "candidate_identity", "chatgpt_urls", "outbound_screen",
+        "packet_provenance", "private_artifact", "util",
+    },
     "process_identity": set(),
     "invocation_ledger": {"paths", "process_identity"},
     "local_invocation": {"invocation_ledger", "policy", "prepared_outbound"},
