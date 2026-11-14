@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Recorded the qualification target as Codex 0.163.0 with constrained integrity; confidential operation is unsupported.
+
 ## 0.2.1 - 2026-11-14
 
 - Added an optional repository hook to check commit messages and contributor identity.

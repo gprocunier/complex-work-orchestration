@@ -10,7 +10,7 @@ from typing import Any
 
 import scaffold_workgraph
 from site_code import without_token_spans
-from cwo_core import epic_convergence, release_effect_routes
+from cwo_core import epic_convergence, qualification_target, release_effect_routes
 from cwo_core.packets import (
     CONTRACTOR_PACKET_REQUIRED_FIELDS,
     LOCAL_DISPATCH_REQUIRED_FIELDS,
@@ -78,6 +78,7 @@ APPROVED_ACTION_PINS = {
     "ludeeus/action-shellcheck": ("00cae500b08a931fb5698e11e79bfbd38e612a38", "2.0.0"),
 }
 CWO_CORE_ALLOWED_IMPORTS = {
+    "qualification_target": {"codex_protocol_pin", "policy", "policy_schema"},
     "release_effect_routes": set(),
     "ownership_producer": {"process_identity"},
     "server_request_preparation": set(),
@@ -779,6 +780,7 @@ def validate_release_effect_inventory(errors: list[str]) -> None:
 
 def validate_repository() -> list[str]:
     errors: list[str] = []
+    validate_qualification_target(errors)
     validate_release_effect_inventory(errors)
     validate_cwo_core_contract(errors)
     validate_native_pool_capacity_invariants(errors)
@@ -2080,6 +2082,14 @@ def validate_repository() -> list[str]:
     validate_ci_workflow(errors)
 
     return errors
+
+
+def validate_qualification_target(errors: list[str]) -> None:
+    """Resolve the selected target through the same boundary used by consumers."""
+    try:
+        qualification_target.selected_target()
+    except qualification_target.TargetError as exc:
+        errors.append(f"qualification-target: {exc}")
 
 
 def validate_policy_validation_boundaries(errors: list[str], policy_dir: Path = POLICY_DIR) -> None:
