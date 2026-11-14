@@ -262,10 +262,10 @@ class FrameLifecycleTests(unittest.TestCase):
                     active.append(process.process.alive)
                     record('active_complete', alive=process.process.alive)
                     return original_complete(process)
-                def unsupported(stream, value):
+                def unsupported(stream, value, **kwargs):
                     if kind == 'error' and type(value) is dict and value.get('method') == family.runtime.protocol.COMMAND:
                         value = dict(value, method='EXAMPLE/unsupported')
-                    return original_put(stream, value)
+                    return original_put(stream, value, **kwargs)
                 def run():
                     try:
                         outcomes.append(factory.run())

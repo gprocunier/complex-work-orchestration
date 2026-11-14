@@ -58,8 +58,10 @@ class Lines:
         self._lock = threading.Lock()
         self._eof = False
 
-    def put(self, value):
+    def put(self, value, *, process=None):
         with self._lock:
+            if process is not None and not process.alive:
+                return False
             if self.closed or self._eof:
                 raise ValueError('EXAMPLE stream is closed')
             self.lines.put(json.dumps(value) + '\n')
@@ -1217,15 +1219,16 @@ class FactoryTests(unittest.TestCase):
             servers.append(server)
             original_init(server, *args, **kwargs)
 
-        def flood(lines, value):
+        def flood(lines, value, **kwargs):
             nonlocal flooded
-            original_put(lines, value)
+            published = original_put(lines, value, **kwargs)
             if (not flooded and isinstance(value, dict)
                     and isinstance(value.get('result'), dict)
                     and value['result'].get('codexHome') == str(case.home)):
                 flooded = True
                 for _ in range(512):
                     lines.lines.put(json.dumps({'method': 'EXAMPLE/notification', 'params': {}}) + '\n')
+            return published
 
         with (patch.object(runtime._RegisteredServer, '__init__', retain_server),
               patch.object(Lines, 'put', flood)):
@@ -1280,14 +1283,14 @@ class FactoryTests(unittest.TestCase):
         case = self.case()
         original_put = Lines.put
 
-        def ambiguous(lines, value):
+        def ambiguous(lines, value, **kwargs):
             if isinstance(value, dict) and value.get('method') == runtime.protocol.COMMAND:
                 raw = json.dumps(value).replace(
                     '"params": {',
                     '"params": {"command": "EXAMPLE contradictory command",', 1)
                 lines.lines.put(raw + '\n')
             else:
-                original_put(lines, value)
+                return original_put(lines, value, **kwargs)
 
         factory = self.factory(case)
         with patch.object(Lines, 'put', ambiguous):
@@ -1302,10 +1305,10 @@ class FactoryTests(unittest.TestCase):
         case = self.case()
         original_put = Lines.put
 
-        def unsupported(lines, value):
+        def unsupported(lines, value, **kwargs):
             if isinstance(value, dict) and value.get('method') == runtime.protocol.COMMAND:
                 value = dict(value, method='EXAMPLE/unsupported')
-            original_put(lines, value)
+            return original_put(lines, value, **kwargs)
 
         factory = self.factory(case)
         with patch.object(Lines, 'put', unsupported):

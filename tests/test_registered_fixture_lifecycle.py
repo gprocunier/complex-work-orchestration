@@ -239,3 +239,53 @@ class FixtureLifecycleTests(unittest.TestCase):
                         self.assertEqual(attempt['charge'], attempt['amount'])
                 finally:
                     family.cleanup_helper(self, helper)
+
+    def test_poll_publication_rechecks_child_after_original_containment(self):
+        helper = finite.FiniteInputTests('runTest')
+        helper.setUp()
+        self.addCleanup(family.cleanup_helper, self, helper)
+        failures, attempted = [], []
+        entered, resume = threading.Event(), threading.Event()
+        self.addCleanup(resume.set)
+        with patch.object(threading, 'excepthook', lambda args: failures.append(args.exc_value)):
+            case, factory, _tool, _stream, _read, release, result = helper._active()
+            runner = helper.fixture.spawned[0]
+            original_put = runner.stdout.put
+
+            def put(frame, **kwargs):
+                params = frame.get('params', {})
+                if (params.get('item', {}).get('id') == 'EXAMPLE-poll-call'
+                        or params.get('callId') == 'EXAMPLE-poll-call'):
+                    attempted.append(frame)
+                if (frame.get('method') == 'item/started'
+                        and params.get('item', {}).get('id') == 'EXAMPLE-poll-call'):
+                    entered.set()
+                    self.assertTrue(resume.wait(15), 'EXAMPLE publication release missing')
+                return original_put(frame, **kwargs)
+
+            with patch.object(runner.stdout, 'put', put):
+                release.set()
+                self.assertTrue(entered.wait(5), 'EXAMPLE poll publication was not reached')
+                self.assertTrue(runner.process.alive)
+                self.assertFalse(runner.stdout.closed)
+                factory.server.finite_input.close()
+                self.assertTrue(case.result_done.wait(8))
+                self.assertEqual(len(result), 1)
+                self.assertIsInstance(result[0], BaseException)
+                primary = result[0]
+                self.assertFalse(runner.process.alive)
+                self.assertTrue(factory.server.lifetime.contained)
+                self.assertTrue(factory.server.lifetime.termination_recorded)
+                self.assertTrue(runner.stdout.closed)
+                queued = runner.stdout.lines.qsize()
+                resume.set()
+                runner.stdin.stream.reader.join(1)
+                self.assertFalse(runner.stdin.stream.reader.is_alive())
+                self.assertEqual(runner.stdout.lines.qsize(), queued)
+                self.assertIs(result[0], primary)
+                self.assertIsNone(factory.token)
+                attempt = helper.fixture.attempt(case)
+                self.assertEqual(attempt['outcome'], 'unknown')
+                self.assertEqual(attempt['charge'], attempt['amount'])
+                self.assertEqual(failures, [])
+                self.assertEqual(len(attempted), 1)
