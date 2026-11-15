@@ -40,6 +40,7 @@ class OfflineAdapter:
         self.failure = None
         self.on_effect = None
         self.on_snapshot = None
+        self.share_receipt = None
 
     def snapshot(self):
         if self.on_snapshot:
@@ -54,13 +55,29 @@ class OfflineAdapter:
             raise self.failure
         return self.states.pop(0)
 
-    def create_share(self, selection, *, timeout_seconds, max_output_bytes):
+    def observe_share(self):
+        selection = copy.deepcopy(self.context["share"])
+        return {"document_id": "EXAMPLE-document", "conversation_url": selection["origin"] + "/c/" + selection["conversation_id"],
+                "selection": selection, "coverage": "complete", "existing_share": copy.deepcopy(self.share_receipt),
+                "representation": json.dumps(selection, ensure_ascii=False, sort_keys=True, separators=(",", ":"))}
+
+    def observe_share_result(self):
+        return self.observe_share()
+
+    def create_share(self, expectation, *, timeout_seconds, max_output_bytes):
+        observed = self.observe_share()
+        if observed != expectation["observation"]:
+            raise actions.BrowserActionRefused("Offline disclosure changed before creation.")
+        selection = json.dumps(observed["selection"], ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
         self.effects.append(("share", selection, timeout_seconds, max_output_bytes))
         if self.on_effect:
             self.on_effect()
         if self.failure:
             raise self.failure
-        return b"EXAMPLE-private-offline-creation-receipt"
+        url = "https://chatgpt.com/share/EXAMPLE-private-offline-creation-receipt"
+        self.share_receipt = {"url": url, "document_id": observed["document_id"],
+                              "conversation_url": observed["conversation_url"], "action_sha256": expectation["action_sha256"]}
+        return url.encode("utf-8")
 
 
 class BrowserActionTests(unittest.TestCase):
@@ -107,9 +124,12 @@ class BrowserActionTests(unittest.TestCase):
             self.assertEqual(guard.press("EXAMPLE-button"), "pressed")
         return guard.result
 
-    def share_ticket(self):
-        return self.parent.authorize_create_share(
-            purpose=self.context["share"]["purpose"], expires_at=self.clock.now + 100)
+    def share_ticket(self, parent=None, *, expires_at=None):
+        parent = self.parent if parent is None else parent
+        expiry = self.clock.now + 100 if expires_at is None else expires_at
+        consent = parent.consent_to_share(purpose=self.context["share"]["purpose"], expires_at=expiry)
+        return parent.authorize_create_share(
+            purpose=self.context["share"]["purpose"], expires_at=expiry, consent=consent)
 
     def attempts(self):
         return list(json.loads((self.ledger.root / "ledger.json").read_bytes())["attempts"].values())
@@ -195,8 +215,7 @@ class BrowserActionTests(unittest.TestCase):
 
     def test_share_flags_and_forged_copied_foreign_authority_refuse(self):
         ticket = self.share_ticket()
-        foreign = self.make_parent().authorize_create_share(
-            purpose=self.context["share"]["purpose"], expires_at=self.clock.now + 100)
+        foreign = self.share_ticket(self.make_parent())
         for bad in (None, {"create_share": True}, actions.ShareTicket(), copy.copy(ticket), foreign):
             with self.assertRaises(actions.BrowserActionRefused):
                 self.parent.create_share(bad)
@@ -313,7 +332,7 @@ class BrowserActionTests(unittest.TestCase):
         self.context["request"]["request_id"] = "e" * 32
         self.context["share"]["purpose"] = "EXAMPLE new purpose"
         restarted = self.make_parent()
-        ticket = restarted.authorize_create_share(purpose="EXAMPLE new purpose", expires_at=self.clock.now + 200)
+        ticket = self.share_ticket(restarted, expires_at=self.clock.now + 200)
         with self.assertRaises(InvocationLedgerError):
             restarted.create_share(ticket)
         self.assertEqual(len(self.adapter.effects), 1)
@@ -624,8 +643,7 @@ class BrowserActionTests(unittest.TestCase):
                 self.context["share"]["messages"][0]["content"] = "EXAMPLE changed whole disclosure"
 
         parent = self.make_parent(observers=(observer,))
-        ticket = parent.authorize_create_share(purpose=self.context["share"]["purpose"],
-                                               expires_at=self.clock.now + 100)
+        ticket = self.share_ticket(parent)
         with self.assertRaises(actions.BrowserActionRefused):
             parent.create_share(ticket)
         self.assertEqual(self.adapter.effects, [])

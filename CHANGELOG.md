@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Require fresh consent for the complete final conversation disclosure, re-screen decoded content and final bytes, and refuse content, document or conversation drift before sharing; live browser submission and sharing remain unavailable.
+- Preserve exact multiline text when filling a contenteditable browser composer, while retaining the exact-text check before Send.
+
 ## 0.6.0 - 2026-11-14
 
 - Native supervision preserves incomplete inspection refusals and rejects unexplained Git metadata or reference changes.

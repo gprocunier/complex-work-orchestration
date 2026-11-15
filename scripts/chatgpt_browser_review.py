@@ -45,6 +45,7 @@ from cwo_core.policy import load_policy
 from cwo_core.telemetry import safe_text_hash, telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 from browser_action_dispatch import BrowserActionRefused, RegisteredBrowserParent
+from browser_share_consent import OfflineDOMShareBoundary as OfflineDOMShareBoundary
 from cwo_core.invocation_ledger import InvocationLedgerError
 
 EXECUTOR_KEY = "chatgpt_pro_browser_master_reviewer"
@@ -126,12 +127,11 @@ _FILL_SCRIPT = r"""(box, text) => {
     Object.getOwnPropertyDescriptor(Object.getPrototypeOf(box), 'value').set.call(box, text);
     box.dispatchEvent(new Event('input', {bubbles: true}));
   } else {
-    const range = document.createRange();
-    range.selectNodeContents(box);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-    document.execCommand('insertText', false, text);
+    // Native rich-text insertion can turn blank lines into extra block breaks.
+    // Store the exact text and notify the editor with the same exact input.
+    // The separate Send primitive still refuses any editor-altered text.
+    box.textContent = text;
+    box.dispatchEvent(new InputEvent('input', {bubbles: true, inputType: 'insertText', data: text}));
   }
   return true;
 }"""
@@ -453,18 +453,25 @@ class BrowserRunnerAdapter:
     Constructing an adapter does not issue authority. The registered parent owns
     its immutable execution contract and tickets; CLI/config never creates one.
     """
-    def __init__(self, runner, *, create_share=None):
+    def __init__(self, runner, *, create_share=None, share_boundary=None):
         self.runner = runner
         self._registered_runner = runner
         self._create_effect = create_share
         self._registered_create_effect = create_share
+        self._register_share_boundary(share_boundary)
         self.parent = None
         self.ticket = None
+
+    def _register_share_boundary(self, boundary):
+        self._share_boundary = self._registered_share_boundary = boundary
+        self._share_methods = {} if boundary is None else {
+            name: getattr(boundary, name, None) for name in ("observe", "create", "result")}
 
     def snapshot(self):
         runner = self.runner
         if runner is not self._registered_runner or self._create_effect is not self._registered_create_effect:
             raise BrowserActionRefused("browser action adapter changed")
+        self._require_share_boundary()
         if self.parent is not None and runner._action_parent is not self.parent:
             raise BrowserActionRefused("browser action parent changed")
         if self.ticket is not None and runner._send_ticket is not self.ticket:
@@ -500,10 +507,30 @@ class BrowserRunnerAdapter:
         runner.send_state = "submitted" if state == "pressed" else "not-sent"
         return state
 
-    def create_share(self, selection, *, timeout_seconds, max_output_bytes):
-        if self._create_effect is None:
-            raise BrowserActionRefused("offline share creation adapter is unavailable")
-        return self._create_effect(selection, timeout_seconds=timeout_seconds, max_output_bytes=max_output_bytes)
+    def _require_share_boundary(self):
+        if self._share_boundary is not self._registered_share_boundary:
+            raise BrowserActionRefused("registered share boundary changed")
+        for name, original in self._share_methods.items():
+            current = getattr(self._share_boundary, name, None)
+            if not callable(original) or (getattr(current, "__self__", None) is not getattr(original, "__self__", None)
+                    or getattr(current, "__func__", current) is not getattr(original, "__func__", original)):
+                raise BrowserActionRefused("registered share boundary method changed")
+
+    def _share_method(self, name):
+        self._require_share_boundary()
+        if name not in self._share_methods:
+            raise BrowserActionRefused("registered complete offline share boundary is unavailable")
+        return self._share_methods[name]
+
+    def observe_share(self):
+        return self._share_method("observe")()
+
+    def observe_share_result(self):
+        return self._share_method("result")()
+
+    def create_share(self, expectation, *, timeout_seconds, max_output_bytes):
+        return self._share_method("create")(expectation, timeout_seconds=timeout_seconds,
+                                            max_output_bytes=max_output_bytes)
 
 
 class PlaywrightChatGPTRunner:

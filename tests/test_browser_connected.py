@@ -7,12 +7,74 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import chatgpt_browser_review as browser
 from tests.browser_connected_fixture import Page, REPLY, admitted_runner, packet_input, runtime_modules
 from cwo_core import audit
+
+
+class ConnectedShareBoundary:
+    """Complete scripted sharing edge for the connected, non-DOM fixtures."""
+
+    def __init__(self, selection, effect):
+        self.selection, self.effect, self.receipt = selection, effect, None
+
+    def observe(self):
+        selection = json.loads(json.dumps(self.selection))
+        return {"document_id": "connected-document", "conversation_url": selection["origin"] + "/c/" + selection["conversation_id"],
+                "selection": selection, "coverage": "complete", "existing_share": self.receipt,
+                "representation": json.dumps(selection, ensure_ascii=False, sort_keys=True, separators=(",", ":"))}
+
+    def create(self, expectation, **limits):
+        from browser_action_dispatch import BrowserActionRefused
+        observed = self.observe()
+        if observed != expectation["observation"]:
+            raise BrowserActionRefused("Connected disclosure changed before creation.")
+        raw = self.effect(observed["representation"].encode("utf-8"), **limits)
+        self.receipt = {"url": raw.decode("utf-8"), "document_id": observed["document_id"],
+                        "conversation_url": observed["conversation_url"], "action_sha256": expectation["action_sha256"]}
+        return raw
+
+    def result(self):
+        return self.observe()
+
+
+@contextlib.contextmanager
+def admitted_share_runner(runner, prompt, *, share, create_share, capacity=None):
+    """Register original prepared bytes and fresh-consent boundary at bootstrap."""
+    from browser_action_dispatch import RegisteredBrowserParent
+    from cwo_core.invocation_ledger import InvocationLedger
+    from cwo_core.outbound_screen import require_clean
+    from tests.test_invocation_ledger import FakeClock, FakeOwners
+
+    with tempfile.TemporaryDirectory() as tmp:
+        clock = FakeClock()
+        ledger = InvocationLedger(Path(tmp) / "ledger", clock=clock, owner_probe=FakeOwners())
+        runner.packet_metadata = {"packet_sha256": "a" * 64, "dispatch_id": "direct-send",
+                                  "subject": {"kind": "packet-input", "source_sha256": "b" * 64}}
+        source, capture = runner._capture_submission_source(prompt)
+        prepared = capture.bind(source, require_clean(prompt, surface="ChatGPT browser Send"))
+        runner._action_submission = prepared, source, prompt, "0" * 32, 1000
+        runner._action_limits = {"timeout_seconds": 3600, "max_output_bytes": 4 * 1024 * 1024, "max_send_probes": 4}
+        runner._share_selection = share
+        boundary = ConnectedShareBoundary(share, create_share)
+        adapter = browser.BrowserRunnerAdapter(runner, create_share=create_share, share_boundary=boundary)
+        parent = RegisteredBrowserParent(prepared, ledger=ledger, adapter=adapter,
+            aggregate_scope={"aggregate_id": "offline-connected", "purpose": "browser-review"},
+            aggregate_limits=capacity or {"effect_calls": 8, "payload_bytes": 100_000_000,
+                                         "output_bytes": 100_000_000, "runtime_milliseconds": 100_000_000})
+        runner._action_parent = adapter.parent = parent
+        runner._send_ticket = adapter.ticket = parent.issue_send(expires_at=clock() + 10000)
+        yield SimpleNamespace(parent=parent, adapter=adapter, ledger=ledger, clock=clock)
+
+
+def share_ticket(admission):
+    consent = admission.parent.consent_to_share(purpose="peer review", expires_at=admission.clock() + 100)
+    return admission.parent.authorize_create_share(purpose="peer review", expires_at=admission.clock() + 100,
+                                                    consent=consent)
 
 
 class ConnectedBrowserTests(unittest.TestCase):
@@ -37,15 +99,16 @@ class ConnectedBrowserTests(unittest.TestCase):
         from cwo_core.invocation_ledger import InvocationLedgerError
         calls = []
         selection = {"origin": "https://chatgpt.com", "conversation_id": "0123abcd-4567", "purpose": "peer review",
-                     "messages": [{"message_id": "user-1", "role": "user", "content": "Review café."}]}
+                     "messages": [{"message_id": "user-1", "role": "user", "content": "Review café."},
+                                  {"message_id": "assistant-1", "role": "assistant", "content": REPLY}]}
 
         def fail(*args, **kwargs):
             calls.append(1)
             raise RuntimeError(REPLY)
 
         runner = browser.PlaywrightChatGPTRunner({"selectors": {}})
-        with admitted_runner(runner, "Review café.", share=selection, create_share=fail) as admission:
-            ticket = admission.parent.authorize_create_share(purpose="peer review", expires_at=admission.clock() + 100)
+        with admitted_share_runner(runner, "Review café.", share=selection, create_share=fail) as admission:
+            ticket = share_ticket(admission)
             with self.assertRaises(BrowserActionRefused) as caught:
                 runner.create_share(ticket)
             self.assertNotIn(REPLY, str(caught.exception))
@@ -133,10 +196,11 @@ class ConnectedBrowserTests(unittest.TestCase):
         from browser_action_dispatch import BrowserActionRefused
         calls = []
         selection = {"origin": "https://chatgpt.com", "conversation_id": "0123abcd-4567", "purpose": "peer review",
-                     "messages": [{"message_id": "user-1", "role": "user", "content": "Review café."}]}
+                     "messages": [{"message_id": "user-1", "role": "user", "content": "Review café."},
+                                  {"message_id": "assistant-1", "role": "assistant", "content": REPLY}]}
         runner = browser.PlaywrightChatGPTRunner({"selectors": {}})
-        with admitted_runner(runner, "Review café.", share=selection, create_share=lambda *a, **k: b"created") as admission:
-            ticket = admission.parent.authorize_create_share(purpose="peer review", expires_at=admission.clock() + 100)
+        with admitted_share_runner(runner, "Review café.", share=selection, create_share=lambda *a, **k: b"created") as admission:
+            ticket = share_ticket(admission)
             admission.adapter._create_effect = lambda *a, **k: calls.append(a) or b"changed"
             with self.assertRaises(BrowserActionRefused):
                 runner.create_share(ticket)
@@ -146,13 +210,14 @@ class ConnectedBrowserTests(unittest.TestCase):
         from cwo_core.invocation_ledger import InvocationLedgerError
         calls, page = [], Page()
         selection = {"origin": "https://chatgpt.com", "conversation_id": "0123abcd-4567", "purpose": "peer review",
-                     "messages": [{"message_id": "user-1", "role": "user", "content": "Review café."}]}
+                     "messages": [{"message_id": "user-1", "role": "user", "content": "Review café."},
+                                  {"message_id": "assistant-1", "role": "assistant", "content": REPLY}]}
         runner = browser.PlaywrightChatGPTRunner({"selectors": {}})
         capacity = {"effect_calls": 4, "payload_bytes": 100_000_000, "output_bytes": 100_000_000, "runtime_milliseconds": 100_000_000}
-        with admitted_runner(runner, "Review café.", share=selection, create_share=lambda *a, **k: calls.append(a) or b"created",
+        with admitted_share_runner(runner, "Review café.", share=selection, create_share=lambda *a, **k: calls.append(a) or b"https://chatgpt.com/share/connected-result",
                              capacity=capacity) as admission:
             runner._submit_prompt(page, "Review café.", 1000, "0" * 32)
-            ticket = admission.parent.authorize_create_share(purpose="peer review", expires_at=admission.clock() + 100)
+            ticket = share_ticket(admission)
             with self.assertRaises(InvocationLedgerError):
                 runner.create_share(ticket)
             attempts = list(json.loads((admission.ledger.root / "ledger.json").read_bytes())["attempts"].values())
@@ -174,9 +239,9 @@ class ConnectedBrowserTests(unittest.TestCase):
 
         def create(raw, **limits):
             calls.append(raw)
-            return b"offline-creation-observed"
+            return b"https://chatgpt.com/share/connected-result"
 
-        with admitted_runner(runner, prompt, share=selection, create_share=create) as admission:
+        with admitted_share_runner(runner, prompt, share=selection, create_share=create) as admission:
             runner._submit_prompt(page, prompt, 1000, "0" * 32)
             observed = page.evaluate(browser._SNAPSHOT_SCRIPT)
             runner._share_selection["messages"] = [{"message_id": m["id"], "role": m["role"], "content": m["text"]}
@@ -185,7 +250,7 @@ class ConnectedBrowserTests(unittest.TestCase):
                     patch.object(runner, "_try_social_share_url", side_effect=AssertionError("social helper reached")):
                 with self.assertRaises(BrowserActionRefused):
                     runner.create_share(None)
-                ticket = admission.parent.authorize_create_share(purpose="peer review", expires_at=admission.clock() + 100)
+                ticket = share_ticket(admission)
                 result = runner.create_share(ticket)
                 with self.assertRaises((BrowserActionRefused, InvocationLedgerError)):
                     runner.create_share(ticket)
@@ -201,11 +266,12 @@ class ConnectedBrowserTests(unittest.TestCase):
                 import copy
                 calls = []
                 selection = {"origin": "https://chatgpt.com", "conversation_id": "0123abcd-4567", "purpose": "peer review",
-                             "messages": [{"message_id": "user-1", "role": "user", "content": "Review café."}]}
+                             "messages": [{"message_id": "user-1", "role": "user", "content": "Review café."},
+                                  {"message_id": "assistant-1", "role": "assistant", "content": REPLY}]}
                 runner = browser.PlaywrightChatGPTRunner({"selectors": {}})
-                with admitted_runner(runner, "Review café.", share=selection,
-                                     create_share=lambda *a, **k: calls.append(a) or b"created") as admission:
-                    ticket = admission.parent.authorize_create_share(purpose="peer review", expires_at=admission.clock() + 100)
+                with admitted_share_runner(runner, "Review café.", share=selection,
+                                     create_share=lambda *a, **k: calls.append(a) or b"https://chatgpt.com/share/connected-result") as admission:
+                    ticket = share_ticket(admission)
                     if drift == "content":
                         selection["messages"][0]["content"] += " changed"
                     elif drift == "conversation":

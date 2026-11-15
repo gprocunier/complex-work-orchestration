@@ -25,6 +25,7 @@ from chatgpt_browser_review import (  # noqa: E402
     _SNAPSHOT_SCRIPT,
     bound_request,
 )
+from tests.browser_connected_fixture import admitted_runner  # noqa: E402
 
 CHROMIUM = next((found for found in map(shutil.which, ("chromium-browser", "chromium", "google-chrome")) if found), None)
 AVAILABLE = importlib.util.find_spec("playwright") is not None and CHROMIUM is not None
@@ -58,6 +59,7 @@ class SnapshotScriptTests(unittest.TestCase):
     def setUp(self) -> None:
         self.page = self.browser.new_page()
         self.addCleanup(self.page.close)
+        self.page.route("**/*", lambda route: route.abort())
 
     def snapshot(self, body: str) -> dict:
         self.page.set_content(f"<!doctype html><html><body><nav></nav><main>{body}</main></body></html>")
@@ -179,7 +181,9 @@ HOSTILE = """<script>
 </script>"""
 REPLY = turn("assistant", "a1", "Findings: add a key.", marker=True)
 TEXTAREA = '<textarea id="composer"></textarea>'
-EDITABLE = '<div id="composer" contenteditable="true"></div>'
+# Native preformatted editing preserves multiline input exactly for the real
+# Send comparison; a div editor inserts another visual block newline.
+EDITABLE = '<pre id="composer" contenteditable="true"></pre>'
 
 
 @unittest.skipUnless(AVAILABLE, "Playwright and a Chromium executable are required")
@@ -203,6 +207,7 @@ class OfflineSubmissionTests(unittest.TestCase):
     def setUp(self) -> None:
         self.page = self.browser.new_page()
         self.addCleanup(self.page.close)
+        self.page.route("**/*", lambda route: route.abort())
         before = turn("user", "u0", "Earlier question") + turn("assistant", "a0", "Earlier answer", marker=True)
         self.composer = TEXTAREA
         self.page.route("https://chatgpt.com/**", lambda route: route.fulfill(
@@ -214,6 +219,14 @@ class OfflineSubmissionTests(unittest.TestCase):
         self.runner = PlaywrightChatGPTRunner({"selectors": {"prompt_box": "#composer"}})
         self.submitted = bound_request("Review this plan.", self.REQUEST_ID)
 
+    def submit(self, timeout_ms: int) -> str:
+        # Bind the same request to the original registered parent. Its real
+        # guard still invokes _SEND_SCRIPT against the actual browser handle.
+        with admitted_runner(self.runner, "Review this plan.", request_id=self.REQUEST_ID,
+                             lifecycle=True, timeout_ms=timeout_ms) as admission:
+            return self.runner._submit_prompt(self.page, self.submitted, timeout_ms, self.REQUEST_ID,
+                                              prepared=admission.prepared, source=admission.source)
+
     def open(self, url: str, *, reply: str | None = REPLY) -> dict:
         self.page.goto(url)
         if reply is not None:
@@ -222,7 +235,7 @@ class OfflineSubmissionTests(unittest.TestCase):
 
     def submit_and_capture(self, url: str, *, reply: str | None = REPLY) -> dict:
         before = self.open(url, reply=reply)
-        self.runner._submit_prompt(self.page, self.submitted, 5000, self.REQUEST_ID)
+        self.submit(5000)
         pinned = self.runner._pin_conversation(self.page, self.REQUEST_ID, before["url"], 5000)
         self.page.wait_for_timeout(500)
         return self.runner._capture_assistant_response(self.page, "", "", before_messages=before, prompt=self.submitted,
@@ -244,7 +257,7 @@ class OfflineSubmissionTests(unittest.TestCase):
     def test_nothing_is_typed_or_sent_on_another_origin(self) -> None:
         self.open("https://chatgpt.com.example/")
         with self.assertRaises(SystemExit) as raised:
-            self.runner._submit_prompt(self.page, self.submitted, 2000, self.REQUEST_ID)
+            self.submit(2000)
         self.assertIn("not on a ChatGPT origin", str(raised.exception))
         self.assertEqual(self.page.evaluate("window.__events"), [])
         self.assertEqual(self.page.evaluate("document.getElementById('composer').innerText"), "")
@@ -252,7 +265,7 @@ class OfflineSubmissionTests(unittest.TestCase):
     def test_hostile_page_script_never_sees_the_prompt(self) -> None:
         self.open("https://hostile.example/")
         with self.assertRaises(SystemExit) as raised:
-            self.runner._submit_prompt(self.page, self.submitted, 2000, self.REQUEST_ID)
+            self.submit(2000)
         self.assertIn("not on a ChatGPT origin", str(raised.exception))
         captured = self.page.evaluate("JSON.parse(JSON.stringify({values: window.__captured})).values")
         self.assertFalse([value for value in captured if "Review this plan" in value or self.REQUEST_ID in value], captured[-5:])
@@ -266,7 +279,7 @@ class OfflineSubmissionTests(unittest.TestCase):
         self.open(CONVERSATION_URL)
         self.page.evaluate("() => { window.__navigateOnInput = 'https://chatgpt.com.example/'; }")
         with self.assertRaises(SystemExit) as raised:
-            self.runner._submit_prompt(self.page, self.submitted, 3000, self.REQUEST_ID)
+            self.submit(3000)
         self.assertIn("the prompt was not sent", str(raised.exception))
         self.page.wait_for_url("https://chatgpt.com.example/**")
         self.page.wait_for_timeout(500)
@@ -275,13 +288,24 @@ class OfflineSubmissionTests(unittest.TestCase):
     def test_contenteditable_composer_receives_the_text_in_its_own_document(self) -> None:
         self.composer = EDITABLE
         self.open(CONVERSATION_URL)
-        self.runner._submit_prompt(self.page, self.submitted, 5000, self.REQUEST_ID)
+        self.submit(5000)
         events = self.page.evaluate("window.__events")
         self.assertEqual((events[-1], events.count("click")), ("click", 1))
         self.assertIn("input", events)
         sent = self.page.evaluate("document.querySelector('[data-message-id=u1]').innerText")
         # The editor's own line handling decides the exact whitespace; the words arrive intact.
         self.assertEqual(sent.split(), self.submitted.split())
+
+    def test_div_editor_preserves_the_exact_multiline_request(self) -> None:
+        # This separate regression exercises the rich-block shape that added
+        # an extra newline with native execCommand insertion. The original
+        # contenteditable case above retains its existing assertions.
+        self.composer = '<div id="composer" contenteditable="true" style="white-space: pre-wrap"></div>'
+        self.open(CONVERSATION_URL)
+        self.submit(5000)
+        sent = self.page.evaluate("document.querySelector('[data-message-id=u1]').innerText")
+        self.assertTrue(sent == self.submitted, "the editor changed the exact multiline request")
+        self.assertEqual(self.page.evaluate("window.__events"), ["input", "click"])
 
     def test_reply_still_generating_is_incomplete(self) -> None:
         captured = self.submit_and_capture(
@@ -296,7 +320,7 @@ class OfflineSubmissionTests(unittest.TestCase):
 
     def test_reply_in_a_replaced_document_is_incomplete(self) -> None:
         before = self.open(CONVERSATION_URL)
-        self.runner._submit_prompt(self.page, self.submitted, 5000, self.REQUEST_ID)
+        self.submit(5000)
         pinned = self.runner._pin_conversation(self.page, self.REQUEST_ID, before["url"], 5000)
         # A full reload of the same conversation drops the submission stamp.
         self.page.goto(CONVERSATION_URL)
