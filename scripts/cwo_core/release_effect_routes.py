@@ -70,7 +70,33 @@ def _inventory_sections(value):
 
 def inventory_bytes(value):
     """Sorted keys, authored array order, compact rows with blank separators."""
-    return _inventory_sections(value) + b"\n"
+    return _inventory_sections(_source_binding_layout(value, compact=True)) + b"\n"
+
+
+def _source_binding_identity(row, columns):
+    """Column rows retain the complete identity; no field is inferred or omitted."""
+    if type(row) is list:
+        need(len(row) == len(columns), "source binding row width refused")
+        row = dict(zip(columns, row))
+    need(type(row) is dict and set(row) == set(columns), "source binding identity fields refused")
+    need(type(row["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", row["sha256"]) is not None,
+         "source binding digest refused")
+    need(type(row["mode"]) is int and 0 <= row["mode"] <= 0o7777
+         and type(row["size"]) is int and row["size"] >= 0, "source binding mode or size refused")
+    return row
+
+
+def _source_binding_layout(value, *, compact):
+    if "source_binding_columns" not in value:
+        return value
+    columns = value["source_binding_columns"]
+    need(columns == ["sha256", "mode", "size"], "source binding columns refused")
+    need(type(value["source_bindings"]) is dict, "source binding mapping required")
+    bindings = {}
+    for path, row in value["source_bindings"].items():
+        identity = _source_binding_identity(row, columns)
+        bindings[path] = [identity[key] for key in columns] if compact else dict(identity)
+    return {**value, "source_bindings": bindings}
 
 
 def mark(value):
@@ -1161,7 +1187,7 @@ def inventory(root):
     ids = [route["id"] for route in value["routes"]]
     need(ids and len(ids) == len(set(ids)), "missing or duplicate routes")
     need(data == inventory_bytes(value), "canonical inventory layout required")
-    return value, digest(data)
+    return _source_binding_layout(value, compact=False), digest(data)
 
 
 def _table_point(value, key):

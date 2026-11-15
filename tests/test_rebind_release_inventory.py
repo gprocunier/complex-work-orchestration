@@ -129,6 +129,49 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         self.assertTrue(all(not line.startswith(b" ") for line in original.splitlines()))
         R.trace(root)
 
+    def test_compact_source_bindings_preserve_identity_and_rebind_noop(self):
+        root, value, _manifest = self.fixture()
+        legacy = R.inventory_bytes(value)
+        expected = json.loads(json.dumps(value['source_bindings']))
+        value['source_binding_columns'] = ['sha256', 'mode', 'size']
+        compact = R.inventory_bytes(value)
+        row = json.loads(compact)['source_bindings']['scripts/example.py']
+        self.assertEqual(row, [expected['scripts/example.py'][key] for key in value['source_binding_columns']])
+        self.assertLess(len(compact), len(legacy))
+        (root / R.INVENTORY).write_bytes(compact)
+        self.assertEqual(R.inventory(root)[0]['source_bindings'], expected)
+        source = root / 'scripts/example.py'
+        source.write_bytes(source.read_bytes() + b'\n# EXAMPLE binding layout control\n')
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rebound = R.inventory(root)[0]
+        files, _contents = R.source(root)
+        self.assertEqual(rebound['source_bindings'], {path: files[path] for path in expected})
+        before = self.bindings_snapshot(root)
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, 'No bindings changed.\n')
+        self.assertEqual(self.bindings_snapshot(root), before)
+        R.trace(root)
+
+    def test_compact_source_binding_columns_and_rows_refuse_malformed_identity(self):
+        root, value, _manifest = self.fixture()
+        columns = ['sha256', 'mode', 'size']
+        row = value['source_bindings']['scripts/example.py']
+        valid = [row[key] for key in columns]
+        for declared, changed in ((None, valid), (list(reversed(columns)), valid),
+                (columns, valid[:2]), (columns, valid + [0]),
+                (columns, ['invalid', *valid[1:]]), (columns, [valid[0], True, valid[2]]),
+                (columns, [*valid[:2], False]), (columns, [*valid[:2], -1])):
+            with self.subTest(columns=declared, row=changed):
+                bad = json.loads(json.dumps(value))
+                bad['source_binding_columns'] = declared
+                bad['source_bindings']['scripts/example.py'] = changed
+                (root / R.INVENTORY).write_bytes(R._inventory_sections(bad) + b'\n')
+                with self.assertRaisesRegex(R.Refused, 'source binding'):
+                    R.inventory(root)
+                self.assert_refuses_untouched(root, 'source binding')
+
     def test_independent_script_rebinds_merge_in_git_and_validate(self):
         root, value, manifest = self.fixture()
         # These scripts are independently bound, outside the checkpoint roster.
