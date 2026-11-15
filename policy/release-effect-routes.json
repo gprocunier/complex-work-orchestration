@@ -5250,7 +5250,7 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"cec9bd84234a3b4f90482442642df1dfc5e008fde7aea8948e46f33e06e48dfb","size":127256},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"b69149c3825dac2f5464d83618239a8f59159a9ac5bee05d4c185c1260135642","size":127256},
 
 "tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"eaacebfb44bcb28e0a3e98974c3db9b39ab75baaba9b6bd682a919f98b2bf11f","size":1939},
 
