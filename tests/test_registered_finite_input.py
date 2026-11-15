@@ -55,10 +55,11 @@ class FiniteInputTests(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(family.cleanup_helper, self, self.fixture)
 
-    def _active(self, *, hold_admission=False):
+    def _active(self, *, hold_admission=False, no_fake_scheduler=False):
         from tests.test_registered_finite_tool_wiring import DynamicRpcProcess
         fixture = self.fixture
-        case = fixture.case(finite_tool_mode='captured-host-tools', complete_after_refusal=True)
+        case = fixture.case(finite_tool_mode='captured-host-tools', complete_after_refusal=True,
+                            no_fake_scheduler=no_fake_scheduler)
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
         if hold_admission:
             # A poll fault otherwise releases the host's Condition scheduler
@@ -80,15 +81,18 @@ class FiniteInputTests(unittest.TestCase):
                 case.result_done.set()
 
         thread = threading.Thread(target=run, daemon=True)
-        thread.start()
         self.addCleanup(family.finish_worker, self, thread, case.poll_release)
         self.addCleanup(case.poll_release.set)
+        thread.start()
         self.assertTrue(family.wait_for_startup(self, case.poll_prepared, thread, result),
                         'selected original command reply was not consumed')
         self.assertTrue(fixture.spawned[0].replies[0]['result']['success'])
         self.assertTrue(self._wait(lambda: (case.scenario.thread_id, case.scenario.turn_id,
                                            'EXAMPLE-command-call')
-                                   in factory.server.requests.completed_items, 2),
+                                   in factory.server.requests.completed_items
+                                   and (not no_fake_scheduler
+                                        or factory.server.finite_input.lifecycle.phase
+                                        == 'command-completed'), 2),
                         'the original reader must observe command completion before item mutation')
         gate = factory.server.finite_input
         tool = factory.server.finite_tools.lifetime
@@ -2181,12 +2185,87 @@ class FiniteLifecycleTests(unittest.TestCase):
 
         machine.condition.wait = observed_wait
         thread = threading.Thread(target=lambda: finished.append(machine.wait()))
+
+        def finish_waiter():
+            machine.finish('terminal', turn=self.TURN)
+            if thread.ident is not None:
+                thread.join(1)
+            self.assertFalse(thread.is_alive())
+
+        self.addCleanup(finish_waiter)
         thread.start()
         self.assertTrue(waiting.wait(1))
         self.assertTrue(machine.finish('terminal', turn=self.TURN))
         thread.join(1)
         self.assertFalse(thread.is_alive())
         self.assertEqual(finished, [False])
+        self.assertEqual(now[0], 0)
+
+    def test_lifecycle_waiter_is_drained_after_observation_failure(self):
+        nested = FiniteLifecycleTests(
+            'test_ready_before_wait_and_notification_during_wait')
+        machines, workers, joins, wait_results = [], [], [], []
+        release = threading.Event()
+        original_machine = nested.machine
+        original_thread = threading.Thread
+
+        def record_machine():
+            machine, now = original_machine()
+            machines.append((machine, now))
+            return machine, now
+
+        def delayed_thread(*args, **kwargs):
+            machine, now = machines[-1]
+            original_wait = machine.wait
+
+            def delayed_wait():
+                release.wait()
+                result = original_wait()
+                wait_results.append(result)
+                return result
+
+            machine.wait = delayed_wait
+            thread = original_thread(*args, **kwargs)
+            original_join = thread.join
+
+            def release_at_join(timeout=None):
+                joins.append((thread, timeout, machine.phase))
+                release.set()
+                return original_join(timeout)
+
+            def drain():
+                try:
+                    machine.finish('closed')
+                finally:
+                    release.set()
+                    if thread.ident is not None:
+                        original_join(1)
+                    self.assertFalse(thread.is_alive())
+
+            # Own the expected-red tail before the nested case starts it.
+            self.addCleanup(drain)
+            thread.join = release_at_join
+            workers.append((thread, machine, now, machine.edge_deadline))
+            return thread
+
+        result = unittest.TestResult()
+        with patch.object(nested, 'machine', record_machine), patch.object(
+                threading, 'Thread', delayed_thread):
+            nested.run(result)
+        self.assertEqual(result.testsRun, 1)
+        self.assertEqual(result.errors, [])
+        self.assertEqual(len(result.failures), 1)
+        self.assertIs(result.failures[0][0], nested)
+        self.assertIn('self.assertTrue(waiting.wait(1))', result.failures[0][1])
+        self.assertEqual(len(workers), 1)
+        thread, machine, now, deadline = workers[0]
+        self.assertFalse(thread.daemon)
+        self.assertFalse(thread.is_alive(),
+                         'original frozen-clock waiter survived nested test cleanup')
+        self.assertEqual(joins, [(thread, 1, 'terminal')])
+        self.assertEqual(machine.phase, 'terminal')
+        self.assertEqual(wait_results, [False])
+        self.assertEqual(deadline, 15.0)
         self.assertEqual(now[0], 0)
 
     def test_host_control_loss_while_queued_or_deciding_cannot_start_tool(self):

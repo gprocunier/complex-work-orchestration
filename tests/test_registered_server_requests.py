@@ -842,14 +842,15 @@ class RegisteredRequestsTests(unittest.TestCase):
         self.wire_refusal(reordered)
 
     def test_turn_completion_before_actual_turn_response_refuses_later_approval(self):
-        original = family.RpcProcess.receive
-        def receive(process, message):
-            if message.get('method') == 'turn/start':
+        original = family.RpcProcess.result
+        def result(process, method, params):
+            value = original(process, method, params)
+            if method == 'turn/start':
                 process.stdout.put({'method': 'turn/completed', 'params': {
                     'threadId': process.case.scenario.thread_id,
                     'turn': {'id': process.case.scenario.turn_id, 'status': 'completed'}}})
-            return original(process, message)
-        with patch.object(family.RpcProcess, 'receive', receive):
+            return value
+        with patch.object(family.RpcProcess, 'result', result):
             case = self.pipe_case()
             factory = self.fixture.factory(case)
             with self.assertRaises((ValueError, runtime.AppServerError)):
@@ -860,13 +861,16 @@ class RegisteredRequestsTests(unittest.TestCase):
             self.assertTrue(factory.server.lifetime.contained)
 
     def early_thread_terminal_refusal(self, method):
-        original = family.RpcProcess.receive
-        def receive(process, message):
-            if message.get('method') == 'turn/start':
+        original = family.RpcProcess.result
+        def result(process, rpc_method, params):
+            # Prepare and check the real intent before publishing the terminal;
+            # original receive still publishes the actual turn response later.
+            value = original(process, rpc_method, params)
+            if rpc_method == 'turn/start':
                 process.stdout.put({'method': method, 'params': {
                     'threadId': process.case.scenario.thread_id}})
-            return original(process, message)
-        with patch.object(family.RpcProcess, 'receive', receive):
+            return value
+        with patch.object(family.RpcProcess, 'result', result):
             case = self.pipe_case()
             factory = self.fixture.factory(case)
             with self.assertRaises((ValueError, runtime.AppServerError)):
@@ -880,6 +884,78 @@ class RegisteredRequestsTests(unittest.TestCase):
 
     def test_thread_archived_before_turn_response_refuses_later_approval(self):
         self.early_thread_terminal_refusal('thread/archived')
+
+    def delayed_terminal_intent_refusal(self, method, selector):
+        terminal, saved = threading.Event(), threading.Event()
+        order = []
+        original_result = family.RpcProcess.result
+        original_put = PipeLines.put
+        original_sync = runtime.native._sync
+        state = self.fixture.repositories.root / 'EXAMPLE-host'
+
+        def result(process, rpc_method, params):
+            if rpc_method != 'turn/start':
+                return original_result(process, rpc_method, params)
+            order.append('intent-entered')
+            if terminal.is_set():
+                # Reproduce a slow original producer after an early terminal:
+                # release only after the original host durably saves its receipt.
+                family.wait_for_release(self, saved, 8)
+            value = original_result(process, rpc_method, params)
+            order.append('intent-prepared')
+            return value
+
+        def put(stream, value):
+            if type(value) is dict and value.get('method') == method:
+                order.append('terminal')
+                terminal.set()
+            if type(value) is dict and 'turn' in value.get('result', {}):
+                order.append('turn-response')
+            return original_put(stream, value)
+
+        def sync(path):
+            value = original_sync(path)
+            if path == state and (state / 'operation.json').exists():
+                operation = family.json.loads((state / 'operation.json').read_bytes())
+                if operation['receipt'] is not None:
+                    order.append('receipt-saved')
+                    saved.set()
+            return value
+
+        self.enterContext(patch.object(family.RpcProcess, 'result', result))
+        self.enterContext(patch.object(PipeLines, 'put', put))
+        self.enterContext(patch.object(runtime.native, '_sync', sync))
+        # Own release and original factory/input drains before starting anything.
+        self.addCleanup(saved.set)
+        try:
+            getattr(self, selector)()
+        finally:
+            saved.set()
+        process = self.fixture.spawned[0]
+        producer = process.stdin.stream
+        family.finish_worker(self, producer.reader, saved, join_seconds=1)
+        self.assertIsNone(producer.failure, 'Original intent callback failed')
+        self.assertLess(order.index('intent-prepared'), order.index('terminal'))
+        self.assertTrue(all(index > order.index('terminal') for index, event in enumerate(order)
+                            if event == 'turn-response'), order)
+        expected = ('registered-terminal-before-bound-turn' if method == 'turn/completed'
+                    else 'registered-thread-terminal-before-bound-turn')
+        self.assertEqual(str(process.case.factory.server.transport_failure), expected)
+        self.assertTrue(process.case.factory.server.lifetime.contained)
+        self.assertEqual(self.fixture.attempt(process.case)['charge'],
+                         self.fixture.attempt(process.case)['amount'])
+
+    def test_archived_terminal_waits_for_original_intent_preparation(self):
+        self.delayed_terminal_intent_refusal('thread/archived',
+            'test_thread_archived_before_turn_response_refuses_later_approval')
+
+    def test_closed_terminal_waits_for_original_intent_preparation(self):
+        self.delayed_terminal_intent_refusal('thread/closed',
+            'test_thread_closed_before_turn_response_refuses_later_approval')
+
+    def test_turn_terminal_waits_for_original_intent_preparation(self):
+        self.delayed_terminal_intent_refusal('turn/completed',
+            'test_turn_completion_before_actual_turn_response_refuses_later_approval')
 
     def test_terminal_turn_start_response_refuses_later_approval(self):
         original = family.RpcProcess.result

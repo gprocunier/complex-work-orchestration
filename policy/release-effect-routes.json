@@ -638,7 +638,7 @@
 
 "archive-frame-helper":[134,"_archive_frame",15,"f1d92efb4c95190f2cbe4c6fde08a4fdd20886514b978091c52bc853e9245455"],
 
-"archive-original-rejection":[133,"FiniteInputTests.test_selected_original_output_rejection_is_failed_and_fully_charged",1922,"6b8024f7080517f1f847acacc3ddecf25fdcfd959a4d4f826dbd2dfcf0477172"],
+"archive-original-rejection":[133,"FiniteInputTests.test_selected_original_output_rejection_is_failed_and_fully_charged",1926,"6b8024f7080517f1f847acacc3ddecf25fdcfd959a4d4f826dbd2dfcf0477172"],
 
 "archive-primary-control":[134,"ControlledOutputScheduleTests.test_partial_construction_cleanup_preserves_primary_and_owned_workers",60,"8efc41baeae179dc60b726aadfe0056c766f5c72bfefc3ee40ec14d770ee3111"],
 
@@ -788,25 +788,25 @@
 
 "finite-input-cleanup-publication":[51,"RegisteredFiniteInput._publish_cleanup_observation",1584,"651db3ee5f962a20679e71e3c7388591952f434350e69692d254060840044a88"],
 
-"finite-input-denied-publication-body":[133,"FiniteInputTests.test_denied_read_result_precedes_original_cleanup_publication",1564,"b24c36ba885b316c883a080c63d49a2eb87a998177cd9a71705893360a9ad8a9"],
+"finite-input-denied-publication-body":[133,"FiniteInputTests.test_denied_read_result_precedes_original_cleanup_publication",1568,"b24c36ba885b316c883a080c63d49a2eb87a998177cd9a71705893360a9ad8a9"],
 
-"finite-input-denied-schedule":[133,"FiniteInputTests._denied_physical_read_schedule",412,"3de8fb1c511c7d8d9e9f77cc449eef825ccb3ef0bb9a401d391ecf9ebc5a97b4"],
+"finite-input-denied-schedule":[133,"FiniteInputTests._denied_physical_read_schedule",416,"3de8fb1c511c7d8d9e9f77cc449eef825ccb3ef0bb9a401d391ecf9ebc5a97b4"],
 
-"finite-input-direct-owner-body":[133,"FiniteInputTests.test_direct_termination_owner_is_observed_by_off_reader_gate_close",1339,"6b240a0e3146746bcd673401b75be98ebf1755d067e4d95a4a3bef86316f1383"],
+"finite-input-direct-owner-body":[133,"FiniteInputTests.test_direct_termination_owner_is_observed_by_off_reader_gate_close",1343,"6b240a0e3146746bcd673401b75be98ebf1755d067e4d95a4a3bef86316f1383"],
 
-"finite-input-direct-publication-body":[133,"FiniteInputTests.test_direct_owner_peer_wait_includes_original_observer_publication",1408,"80fc3a2d7af2929451f3c82f87d436488fb45c4e24d045557cc863ab020c0757"],
+"finite-input-direct-publication-body":[133,"FiniteInputTests.test_direct_owner_peer_wait_includes_original_observer_publication",1412,"80fc3a2d7af2929451f3c82f87d436488fb45c4e24d045557cc863ab020c0757"],
 
-"finite-input-owner-publication-body":[133,"FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication",1228,"49da7fb33d9669e453cbff026f3f5a7039e27888af3ad234c7c554fa07ccb85a"],
+"finite-input-owner-publication-body":[133,"FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication",1232,"49da7fb33d9669e453cbff026f3f5a7039e27888af3ad234c7c554fa07ccb85a"],
 
-"finite-input-peer-closer-helper":[133,"FiniteInputTests._gate_owned_concurrent_closer",1133,"5343f40c1fee9d12a1706c0436c0d34a51d27cf3eb35b993db60ba463a2a1efb"],
+"finite-input-peer-closer-helper":[133,"FiniteInputTests._gate_owned_concurrent_closer",1137,"5343f40c1fee9d12a1706c0436c0d34a51d27cf3eb35b993db60ba463a2a1efb"],
 
-"finite-input-peer-contained-body":[133,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_joins_one_owner",1222,"5468ed0c611a1d06c77cae9a8c4a42aa80ed604773424d8538469965aa0e4cdc"],
+"finite-input-peer-contained-body":[133,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_joins_one_owner",1226,"5468ed0c611a1d06c77cae9a8c4a42aa80ed604773424d8538469965aa0e4cdc"],
 
-"finite-input-peer-timeout-body":[133,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_times_out_before_owner_release",1225,"3b6be899c8d612e03b52b6223d2a3326a1725be42e7923029af618e1359c9ab9"],
+"finite-input-peer-timeout-body":[133,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_times_out_before_owner_release",1229,"3b6be899c8d612e03b52b6223d2a3326a1725be42e7923029af618e1359c9ab9"],
 
-"finite-input-publication-wait-helper":[133,"FiniteInputTests._await_cleanup_publication",1123,"ab6f3fd5daf99f6324e26bf8b2f5a8765c56aba604f8e5de998b4021c6261794"],
+"finite-input-publication-wait-helper":[133,"FiniteInputTests._await_cleanup_publication",1127,"ab6f3fd5daf99f6324e26bf8b2f5a8765c56aba604f8e5de998b4021c6261794"],
 
-"finite-input-two-closer-body":[133,"FiniteInputTests.test_two_finite_tool_closers_observe_one_inflight_owner",1270,"691ac855a05c3354245554524cfff5e93481d31dd4698ba8a35e1ebdc705cb16"],
+"finite-input-two-closer-body":[133,"FiniteInputTests.test_two_finite_tool_closers_observe_one_inflight_owner",1274,"691ac855a05c3354245554524cfff5e93481d31dd4698ba8a35e1ebdc705cb16"],
 
 "host-actual-replace":[43,547,"os.replace(self.state / \"operation.next\", self.state / \"operation.json\")",8,547,80],
 
@@ -2026,7 +2026,7 @@
 
 "pe5a2f2f7":[49,"RegisteredReviewHost.dispatch",227,"f52b608fbfbf5fa2b8dcd957ec3494093145da05dbf930b86981f552a38dbf9b"],
 
-"pe5a51117":[97,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",314,"99cc7956cef56b6f6f3eaf05f025fb18cab8ced1c5c3831c06f01e7d3eeb9a85"],
+"pe5a51117":[97,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",380,"99cc7956cef56b6f6f3eaf05f025fb18cab8ced1c5c3831c06f01e7d3eeb9a85"],
 
 "pe5b1afbde03a":[63,7467,"campaign_live_route=True,"],
 
@@ -2060,7 +2060,7 @@
 
 "pea688137":[34,"WorktreeCapture._git",1542,"957bbafc0ae3a4261e504991fcbd97b3bade28080c0065c3e78da2eba25e419c"],
 
-"peb04be82":[97,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2022,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
+"peb04be82":[97,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2150,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
 
 "peb0ab97bc960":[24,"MaintenanceAuthorityVerifier.__init__",344,"03802d0590db57d2c1f457a056a7a56ee8a0e0ffce20be5e4abbad96ece2eb34"],
 
@@ -2234,11 +2234,11 @@
 
 "registered-final-effect-check":[53,503,"self.factory.require_effect()",8,503,37],
 
-"registered-independent-cleanup-body":[128,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",899,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
+"registered-independent-cleanup-body":[128,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",914,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
 
 "registered-launcher-argv":[53,"_launcher_argv",95,"4ff15ecc165a978267d922a86efc1d2cf0b142dfa04f4aa339d7d361a31f8e01"],
 
-"registered-monitor-cleanup-support":[128,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",881,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
+"registered-monitor-cleanup-support":[128,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",896,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
 
 "registered-mount-options":[53,"_Containment._command",434,"bddb496316a7f11343589b9ecd7e200757c972084981a5c37f9c4ca23e629dfc"],
 
@@ -2248,9 +2248,9 @@
 
 "registered-namespace-info-bytes":[53,"_namespace_info_bytes",100,"51fe1fcadca2c30566207ec6ac4b43fd1824b7332c76f5948104133b2ba9cad4"],
 
-"registered-post-setup-control-body":[128,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",864,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
+"registered-post-setup-control-body":[128,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",879,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
 
-"registered-post-setup-refusal-body":[128,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",874,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
+"registered-post-setup-refusal-body":[128,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",889,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
 
 "registered-post-setup-release":[53,"_Containment._release_command",493,"1ec10424b6585e378c8aac5b774bcdc8749c83b19f19eb0c0231695d7a641669"],
 
@@ -2300,19 +2300,19 @@
 
 "share-tests":[116,"ShareConsentTests",140,"856b0ba17280a32f78af37a6c37edfb30e42b19f2f547f0c5817e8f176e27006"],
 
-"shutdown-cleanup-metadata-body":[97,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",1616,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
+"shutdown-cleanup-metadata-body":[97,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",1730,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
 
-"shutdown-final-snapshot-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",1552,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
+"shutdown-final-snapshot-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",1666,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
 
-"shutdown-late-cleanup-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",1527,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
+"shutdown-late-cleanup-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",1641,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
 
-"shutdown-original-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",1464,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
+"shutdown-original-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",1578,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
 
-"shutdown-pending-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1490,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
+"shutdown-pending-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1604,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
 
-"shutdown-poll-schedule":[97,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1380,"601a1f74372f9b5a93482beb73991ede2529aac46d6676075511b69a66ec1466"],
+"shutdown-poll-schedule":[97,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1471,"e4b826d3f010d430fbd5f70a9ecbad5e225df1e4d4a8ffbf0b4142c6bd946e7e"],
 
-"shutdown-record-hook":[97,"RegisteredFiniteToolWiringTests.install_poll_record_hook",1455,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
+"shutdown-record-hook":[97,"RegisteredFiniteToolWiringTests.install_poll_record_hook",1569,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
 
 "transport-chunk-method-guard":[33,486,"_require_native_rpc(method)",16,486,43],
 
@@ -5250,7 +5250,7 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"cac2ffc439d78723434e6c7ffb3b0035ce532d65a628d8f2ceb50117042932e5","size":127256},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"b4a2a1fcee4cd0f69b939b22c9e487d5185422ce3f68adabed96dd0b5980df77","size":127256},
 
 "tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"eaacebfb44bcb28e0a3e98974c3db9b39ab75baaba9b6bd682a919f98b2bf11f","size":1939},
 
@@ -5344,11 +5344,11 @@
 
 "tests/test_registered_controlled_output_schedule.py":{"mode":420,"sha256":"2cdd3d39ead6c089a9aa1aa594f8817c62fadda752e5ef60da614ca034d7139d","size":7844},
 
-"tests/test_registered_finite_input.py":{"mode":420,"sha256":"17daaad42944ffae00c75e91315afae6ea20e62eb70ed6416fa3fcc8144c63e3","size":124379},
+"tests/test_registered_finite_input.py":{"mode":420,"sha256":"b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684","size":127597},
 
-"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"7583b9c1f0e00c07faae16d741977df428a7a4a17683ccd10271bf3997154c62","size":188923},
+"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"cba3ea131f557ffc2938cdb8c8ec4367857f66a36dde7d28023a6fe30d44aa1a","size":218762},
 
-"tests/test_registered_n1_factory.py":{"mode":420,"sha256":"ec25cccfec5bff19b7623a08c1bae2727044f31dddca0bcfcdd9bda74d1ed17a","size":104846},
+"tests/test_registered_n1_factory.py":{"mode":420,"sha256":"ac70f74e2c5982ead451b97b1762c7d829afd39e8b7731b647cacd7750654591","size":122995},
 
 "tests/test_release_effect_routes.py":{"mode":420,"sha256":"88051a406760c06f4d1641bf7eee8465bab5159d6db05b19ab255fbfcbd0d42c","size":84850},
 

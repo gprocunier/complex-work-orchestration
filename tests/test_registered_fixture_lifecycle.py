@@ -3,6 +3,7 @@ import json
 import os
 import signal
 import threading
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -319,6 +320,41 @@ class FixtureLifecycleTests(unittest.TestCase):
             process.receive({'method': 'thread/read', 'params': {}, 'id': 3})
         self.assertIs(caught.exception, primary)
 
+    def _refuse_after_lifecycle_action(self, case, factory, runner, action):
+        """Observe a real stale call after revocation before the held producer resumes."""
+        observed = threading.Event()
+        original = family.runtime._RegisteredServer._publish_transport_failure
+
+        def publish(server, failure):
+            value = original(server, failure)
+            if server is factory.server:
+                observed.set()
+            return value
+
+        deadline = time.monotonic() + 8
+        with patch.object(family.runtime._RegisteredServer, '_publish_transport_failure', publish):
+            # The real host cannot spend checks on an obsolete nonterminal
+            # observation while the reader/worker adjudicates this actual call.
+            with factory.adapter._boundary_lock:
+                # Command publication has settled before this scope. Prevent
+                # the original waiter observing an intermediate close while
+                # the same owner completes its actual containment transition.
+                with factory.server.finite_input.lifecycle.condition:
+                    if action == 'cancel':
+                        factory.server.requests.cancel_turn(case.scenario.thread_id,
+                                                            case.scenario.turn_id)
+                    else:
+                        factory.server.finite_input.close()
+                        self.assertEqual(factory.server.finite_input.cleanup_phase(), 'contained')
+                    runner._send_tool('EXAMPLE-post-close-poll', 'finite_poll',
+                        {'commandCallId': 'EXAMPLE-command-call', 'chars': ''}, case.scenario)
+                self.assertTrue(observed.wait(max(0, deadline - time.monotonic())))
+                failure = factory.server.transport_failure
+                self.assertIs(type(failure), wiring.finite_tools.FiniteToolError)
+                self.assertEqual(str(failure), 'Stale, repeated or mismatched tool call.')
+            self.assertTrue(case.result_done.wait(max(0, deadline - time.monotonic())))
+        return failure
+
     def test_held_poll_cannot_emit_after_original_child_containment(self):
         for action in ('cancel', 'close'):
             with self.subTest(action=action):
@@ -331,14 +367,10 @@ class FixtureLifecycleTests(unittest.TestCase):
                     original_hook(args)
                 try:
                     with patch.object(threading, 'excepthook', hook):
-                        case, factory, _tool, _stream, _read, release, result = helper._active()
+                        case, factory, _tool, _stream, _read, release, result = helper._active(
+                            no_fake_scheduler=True)
                         runner = helper.fixture.spawned[0]
-                        if action == 'cancel':
-                            factory.server.requests.cancel_turn(case.scenario.thread_id,
-                                                                case.scenario.turn_id)
-                        else:
-                            factory.server.finite_input.close()
-                        self.assertTrue(case.result_done.wait(8))
+                        failure = self._refuse_after_lifecycle_action(case, factory, runner, action)
                         self.assertEqual(len(result), 1)
                         primary = result[0]
                         self.assertIsInstance(primary, BaseException)
@@ -353,6 +385,11 @@ class FixtureLifecycleTests(unittest.TestCase):
                         self.assertEqual(runner.stdout.lines.qsize(), queued)
                         self.assertEqual(failures, [])
                         self.assertIs(result[0], primary)
+                        self.assertIs(factory.server.transport_failure, failure)
+                        refused = [row for row in runner.replies
+                                   if row.get('id') == 'EXAMPLE-request-EXAMPLE-post-close-poll']
+                        self.assertEqual(len(refused), 1)
+                        self.assertIn('error', refused[0])
                         self.assertIsNone(factory.token)
                         attempt = helper.fixture.attempt(case)
                         self.assertEqual(attempt['outcome'], 'unknown')
@@ -368,7 +405,8 @@ class FixtureLifecycleTests(unittest.TestCase):
         entered, resume = threading.Event(), threading.Event()
         self.addCleanup(resume.set)
         with patch.object(threading, 'excepthook', lambda args: failures.append(args.exc_value)):
-            case, factory, _tool, _stream, _read, release, result = helper._active()
+            case, factory, _tool, _stream, _read, release, result = helper._active(
+                no_fake_scheduler=True)
             runner = helper.fixture.spawned[0]
             original_put = runner.stdout.put
 
@@ -388,8 +426,7 @@ class FixtureLifecycleTests(unittest.TestCase):
                 self.assertTrue(entered.wait(5), 'EXAMPLE poll publication was not reached')
                 self.assertTrue(runner.process.alive)
                 self.assertFalse(runner.stdout.closed)
-                factory.server.finite_input.close()
-                self.assertTrue(case.result_done.wait(8))
+                failure = self._refuse_after_lifecycle_action(case, factory, runner, 'close')
                 self.assertEqual(len(result), 1)
                 self.assertIsInstance(result[0], BaseException)
                 primary = result[0]
@@ -403,6 +440,11 @@ class FixtureLifecycleTests(unittest.TestCase):
                 self.assertFalse(runner.stdin.stream.reader.is_alive())
                 self.assertEqual(runner.stdout.lines.qsize(), queued)
                 self.assertIs(result[0], primary)
+                self.assertIs(factory.server.transport_failure, failure)
+                refused = [row for row in runner.replies
+                           if row.get('id') == 'EXAMPLE-request-EXAMPLE-post-close-poll']
+                self.assertEqual(len(refused), 1)
+                self.assertIn('error', refused[0])
                 self.assertIsNone(factory.token)
                 attempt = helper.fixture.attempt(case)
                 self.assertEqual(attempt['outcome'], 'unknown')

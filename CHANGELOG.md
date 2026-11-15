@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Acknowledge original host waits, reply reconciliation, poll consumption and terminal publication in selected finite success fixtures.
+- Acknowledge original finite-tool preparation and archive settlement, and verify real post-close refusals before checking delayed fixture publication.
+
+- Prepare original durable intent before early terminal fixture notifications, retaining notification-before-response refusal checks.
+- Let selected finite success fixtures advance through real host waits before consuming command replies.
+- Release the typed request-ID fixture launch after acknowledging the original lifecycle wait, preserving its runtime budget.
+
+- Drain diagnostic producers and lifecycle waiters before releasing fixture resources, reporting unresolved cleanup.
+- Acknowledge original lifecycle waits, termination locks and reply fences before advancing fixture assertions.
+
 - Wait for the original archive acknowledgment in the controlled output rejection fixture so driver steps cannot replace the selected validation failure.
 
 - Retain registered transport workers through bounded shutdown and archive checks, refusing unresolved cleanup and preserving original failure details.
