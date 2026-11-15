@@ -37,6 +37,11 @@ class Authority:
     decision: bytes
     delivery_context: bytes
 
+    def require_observation(self, digest: str) -> None:
+        context = json.loads(self.decision).get("source_context")
+        if type(context) is not dict or context.get("observation_sha256") != digest:
+            raise ValueError("final review does not bind the exact complete observations")
+
     def check(self, database: str) -> dict[str, Any]:
         identity = self.store.require_database_identity(Path(database))
         if _snapshot(identity) != self.database_identity:

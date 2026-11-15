@@ -329,7 +329,7 @@ with qualified_closure.production_custody(
     acceptance_record=acceptance_id,
     return_sha256=return_digest, evaluation_sha256=evaluation_digest,
 ) as host:
-    qualified_closure.observe(host)
+    qualified_closure.observe(host, observation=observation)
     qualified_closure.bind(host)
     preview = execute_qualified_completed(host, dry_run=True)
     result = execute_qualified_completed(host)
@@ -346,6 +346,15 @@ The embedding host establishes these inputs independently of returned text:
   candidate reference in the task. Baselines contain obligations, never results.
 - Capture the exact current delivered candidate with `candidate_identity`; its
   baseline binding, content, modes and repository identity must remain current.
+- Before final review, retain one original issued `Observation` from
+  `prepare_delivery_closure.observe` (validator only) or `observe_mixed`
+  (artifact and optional validator requirements). Add
+  `final_review_basis(observation)` as the text of exactly one original request
+  source with ID `cwo-delivery-observations`. It includes the recorded obligations,
+  complete observed results and their exact digest. Pass the same issued handle
+  to `WorkflowSource(..., delivery_observation=observation)` so the host verifies
+  that the submitted final review actually saw those observations. Native
+  observations also retain their original validation report and selected policy.
 - Before submitting the source request, set `ExpectedContext.scope` to the
   resolved baseline digest and `ExpectedContext.candidate` to the candidate
   digest. Both are full `sha256:` digests. `WorkflowSource` verifies that the
@@ -371,6 +380,15 @@ or a handwritten summary cannot substitute for them. Custody, source, candidate,
 task, acceptance and database are rechecked at consumption boundaries. Revoking
 the source flag after registration prevents even the original Beads adapter call.
 
+Binding and consumption require the exact original observations reviewed by the
+accepted source. A different passing validator receipt cannot replace the reviewed
+one. Candidate acceptance without this final observation
+binding remains readable historical evidence and cannot complete delivery. An
+adopted native observation holds the same prerequisite ownership locks through
+the final checks and both Beads effects. Native evidence consumers recheck the
+retained delivery binding before effects and after evidence consumption; removing
+the retained handle cannot turn a submitted delivery review into generic evidence.
+
 A preview performs necessary inspection reads and makes no comment/close writes.
 Successful consumption writes one derived summary and closes the intended task
 once. A registration is single use. A refusal after persistence preserves the
@@ -379,3 +397,22 @@ retries; inspect `host.report` before operator recovery. Ordinary refusals may
 read the contract, candidate, policy and host records, but make no relevant
 state writes. Host records are integrity-only: an unrestricted same-user process
 able to rewrite and rehash the entire history remains outside this boundary.
+
+The maintained acceptance witnesses cover these boundaries:
+
+| Contract | Existing tests |
+| --- | --- |
+| Stable obligations, references and add-only amendment continuity | `tests/test_requirement_baseline.py`, `tests/test_run_readiness_plan.py` |
+| Exact tree, dirty and untracked content | `tests/test_candidate_identity.py` |
+| Complete original results, unresolved blockers and final review freshness | `tests/test_offline_delivery_closure.py`, `tests/test_mixed_delivery_closure.py` |
+| Incomplete rename, omitted named outcome and an active recreating service | `tests/test_artifact_acceptance_preparation.py`, `tests/test_retirement_delivery_closure.py`, `tests/test_production_closure.py` |
+| Original final review through host acceptance and the closure consumer | `tests/test_acceptance_product_flow.py`, `tests/test_production_closure.py` |
+| Content before final checks, with acyclic dependencies | `tests/test_scaffold.py` |
+
+These are offline witnesses. Additive amendments are supported; removing or
+changing an obligation and migrating legacy narratives into verified acceptance
+remain unsupported. Live resource observations remain outside the bounded local
+candidate contract. Planning may name substantive `review-gate` criteria; successful
+delivery with such a required criterion remains unavailable until a qualified
+observation for that named outcome exists. Final approval never supplies its own
+missing named criterion.

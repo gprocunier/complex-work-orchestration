@@ -353,6 +353,7 @@ class _DeadlineOpener:
         _require(http._opener_configuration(self.opener) == self.configuration,
                  "Original opener configuration changed during observer callbacks.")
         remaining = self.handle.deadline - self.handle.scope.host._ledger.current_time()
+        _require(remaining > 0, "The admitted review deadline expired before HTTP transport.")
         try:
             return self.opener.open(req, timeout=min(timeout, remaining))
         except TimeoutError as exc:

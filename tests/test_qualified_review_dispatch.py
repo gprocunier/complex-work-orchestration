@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
@@ -127,6 +128,60 @@ class QualifiedReviewTest(unittest.TestCase):
 
     def run_ticket(self, ticket=None, **kwargs):
         return self.host.dispatch(self.ticket() if ticket is None else ticket, **kwargs)
+
+    @contextmanager
+    def delayed_final_transport_configuration(self, cutoff, remaining):
+        self.ledger = ledger_api.InvocationLedger(
+            Path(self.directory.name) / f"EXAMPLE-final-transport-{cutoff}-{remaining}",
+            clock=self.clock, owner_probe=self.owners)
+        self.host = self.make_host()
+        self.http.calls.clear()
+        ticket = self.ticket(expires=self.clock.now + (10 if cutoff == "admission" else 1000))
+        deadline = min(ticket.prepared.expires_at,
+                       self.clock.now + json.loads(ticket.prepared.amounts_bytes)["runtime_seconds"])
+        original = review.http._opener_configuration
+        reads = []
+
+        def delayed(opener):
+            configuration = original(opener)
+            if opener is self.http:
+                reads.append("configuration")
+                # The first read freezes the opener at binding; the second is
+                # the actual final check immediately before its HTTP effect.
+                if len(reads) == 2:
+                    self.clock.now = deadline - remaining
+            return configuration
+
+        with patch.object(review.http, "_opener_configuration", side_effect=delayed):
+            yield ticket
+        self.assertEqual(reads, ["configuration", "configuration"])
+
+    def test_final_transport_delay_refuses_expired_admission_or_runtime_without_http(self):
+        for cutoff in ("admission", "runtime"):
+            for remaining in (0, -1):
+                with self.subTest(cutoff=cutoff, remaining=remaining):
+                    with self.delayed_final_transport_configuration(cutoff, remaining) as ticket:
+                        with self.assertRaisesRegex(admission.AdmissionError, "deadline expired before HTTP transport"):
+                            self.run_ticket(ticket)
+                    self.assertEqual(self.http.calls, [])
+                    attempt = next(iter(self.document()["attempts"].values()))
+                    self.assertEqual(attempt["outcome"], "unknown")
+                    self.assertEqual(attempt["charge"], attempt["amount"])
+                    self.assertIsNone(attempt["observed_usage"])
+                    with self.assertRaises((admission.AdmissionError, ledger_api.InvocationLedgerError)):
+                        self.run_ticket(self.ticket("review"), node_attempts={"plan": attempt["attempt_id"]})
+                    self.assertEqual(self.http.calls, [])
+                    self.assertEqual(len(self.document()["budgets"]), 1)
+
+    def test_final_transport_delay_passes_exact_remaining_admission_or_runtime(self):
+        for cutoff in ("admission", "runtime"):
+            with self.subTest(cutoff=cutoff):
+                with self.delayed_final_transport_configuration(cutoff, 1) as ticket:
+                    result = self.run_ticket(ticket)
+                self.assertEqual(len(self.http.calls), 1)
+                self.assertEqual(self.http.calls[0][1], 1)
+                self.assertEqual(result["attempt"]["outcome"], "completed")
+                self.assertEqual(result["attempt"]["charge"], result["attempt"]["amount"])
 
     def test_original_consumer_produces_useful_review_with_exact_bound_arguments(self):
         ticket = self.ticket()

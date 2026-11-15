@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -109,6 +110,16 @@ class ProductionAuthorityTests(unittest.TestCase):
             "acceptance_record_sha256": "1" * 64, "return_sha256": "2" * 64,
             "evaluation_sha256": "3" * 64,
             "database_identity": json.loads(self.captured.database_identity)})
+
+    def test_final_review_requires_the_exact_original_observation_digest(self):
+        digest = 'sha256:' + '6' * 64
+        bound = replace(self.captured, decision=authority._snapshot({**self.decision,
+            'source_context': {**self.context, 'observation_sha256': digest}}))
+        bound.require_observation(digest)
+        for selected, observed in ((self.captured, digest), (bound, 'sha256:' + '7' * 64)):
+            with self.subTest(observed=observed), self.assertRaisesRegex(ValueError, 'exact complete observations'):
+                selected.require_observation(observed)
+        self.store.record_audit_event.assert_not_called()
 
     def test_production_guard_requires_registered_authority_with_positive_control(self):
         """S4 issued state: no production bridge can operate without host authority."""

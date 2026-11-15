@@ -82,7 +82,8 @@ def observe_boundary_policy(metadata_bytes):
     if metadata.get('share_boundary') is None:
         return b''
     raw = (binding.policy.POLICY_DIR / 'share-boundaries.yaml').read_bytes()
-    if binding._parse(raw) != binding._policy_call(binding.policy.load_policy, 'share-boundaries'):
+    if binding._json(binding._parse(raw)) != binding._json(
+            binding._policy_call(binding.policy.load_policy, 'share-boundaries')):
         raise ValueError('share-boundary policy cache/bytes mismatch')
     return raw
 

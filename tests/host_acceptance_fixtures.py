@@ -7,13 +7,15 @@ from cwo_core.host_acceptance import HostAcceptancePipeline, HostAdjudicationDec
 from cwo_core.host_records import using_test_store
 
 
-def provision_acceptance(store, *, bead_id, database_identity, delivery_context=None):
+def provision_acceptance(store, *, bead_id, database_identity, delivery_context=None, observation_sha256=None):
     root = Path(__file__).resolve().parents[1]
     text = (root / "examples/sample-contractor-return.md").read_text(encoding="utf-8")
     dispatch_id = "EXAMPLE_ACCEPTANCE_" + uuid.uuid4().hex
     metadata = {} if delivery_context is None else {'source_context': {
         **delivery_context, 'dispatch_id': dispatch_id, 'packet_sha256': '1' * 64,
         'executor': 'codex_architecture_critic'}}
+    if observation_sha256 is not None:
+        metadata['source_context']['observation_sha256'] = observation_sha256
     store.write_dispatch(dispatch_id=dispatch_id, dispatch_role="executor", provider="openai",
         model_family="gpt", model_id="gpt-6.1-sol", reasoning_effort="xhigh",
         session_id="EXAMPLE_EXECUTOR_SESSION", packet_sha256="1" * 64,

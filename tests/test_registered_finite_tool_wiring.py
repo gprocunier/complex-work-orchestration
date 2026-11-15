@@ -6,6 +6,7 @@ import os
 import threading
 import time
 from typing import Callable, NamedTuple
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -1341,7 +1342,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
     def test_poll_pipe_swap_revokes_and_contains_original_tool(self):
         self._bad_tool_pipe('tool_swap_after_command')
 
-    def _poll_wait_schedule(self, action):
+    def _poll_wait_schedule(self, action, *, record_hook=None):
         case = self.fixture.case(archive_schedule='concurrent', finite_tool_mode='captured-host-tools')
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
         factory = self.fixture.factory(case)
@@ -1357,6 +1358,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             self.addCleanup(family.finish_worker, self, thread, case.poll_release)
             self.addCleanup(case.poll_release.set)
             self.assertTrue(self.wait_for_startup(case.poll_prepared, thread, result))
+            self.install_poll_record_hook(factory, record_hook)
             entered, release = threading.Event(), threading.Event()
             self.addCleanup(release.set)
             original = gate_module.select.select
@@ -1413,9 +1415,182 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             self.assertTrue(gate.closed_lifetime.contained)
             with self.assertRaises(BlockingIOError):
                 os.read(case.tool_read, 1)
+        return factory, result[0]
+
+    def install_poll_record_hook(self, factory, hook):
+        if hook is not None:
+            original = factory.record
+            self.enterContext(patch.object(factory, 'record',
+                lambda stage, observation: hook(original, stage, observation)))
 
     def test_exceptional_projection_during_poll_pipe_wait(self):
         self._poll_wait_schedule('exceptional')
+
+    def test_exceptional_poll_shutdown_joins_the_original_record_writer(self):
+        entered, release, joining = threading.Event(), threading.Event(), threading.Event()
+        writers = []
+        original_join = threading.Thread.join
+        def record(original_record, stage, observation):
+            if stage == 'finite-tool-refusal':
+                writers.append(threading.current_thread())
+                entered.set()
+                self.assertTrue(release.wait(10), 'original poll record writer was not released')
+            return original_record(stage, observation)
+        def join(worker, *args, **options):
+            if entered.wait(3) and worker in writers:
+                joining.set()
+                release.set()
+            return original_join(worker, *args, **options)
+        try:
+            with patch.object(threading.Thread, 'join', join):
+                self._poll_wait_schedule('exceptional', record_hook=record)
+                self.assertTrue(entered.is_set(), 'original poll refusal record was not observed')
+                self.assertTrue(joining.is_set(), 'factory shutdown did not join its original poll record writer')
+                self.assertTrue(all(not worker.is_alive() for worker in writers))
+        finally:
+            release.set()
+            for worker in writers:
+                original_join(worker, 10)
+
+    def test_exceptional_poll_pending_writer_reports_unresolved_then_drains(self):
+        release, entered = threading.Event(), threading.Event()
+        observing, failures = [], []
+        def record(original, stage, observation):
+            if not observing:
+                server = original.__self__.server
+                close = server.close
+                def observe_close():
+                    try:
+                        return close()
+                    except BaseException as failure:
+                        failures.append(failure)
+                        raise
+                self.enterContext(patch.object(server, 'close', observe_close))
+                observing.append(True)
+            if stage == 'finite-tool-refusal':
+                entered.set()
+                self.assertTrue(release.wait(10), 'pending original writer was not released')
+            return original(stage, observation)
+        try:
+            factory, _failure = self._poll_wait_schedule('exceptional', record_hook=record)
+            self.assertTrue(entered.wait(5), 'original pending writer did not reach its refusal record')
+            self.assertTrue(any(failure.app_server_cleanup['resources_closed'] is False
+                                for failure in failures if hasattr(failure, 'app_server_cleanup')))
+            self.assertTrue(any(worker.is_alive() for worker, _ in factory.server._worker_snapshot()))
+        finally:
+            release.set()
+        self.fixture.drain_factory_workers(factory)
+        self.assertTrue(all(not worker.is_alive() for worker, _ in factory.server._worker_snapshot()))
+
+    def worker_server(self):
+        server = object.__new__(family.runtime._RegisteredServer)
+        server._worker_lock, server._workers, server._workers_closed = threading.Lock(), [], False
+        server.requests = SimpleNamespace(lock=threading.Lock(), threads=[])
+        server._reader_threads = []
+        return server
+
+    def test_shutdown_drains_cleanup_registered_by_a_joined_worker(self):
+        server = self.worker_server()
+        parent_release, cleanup_release = threading.Event(), threading.Event()
+        joined = []
+        original_join = threading.Thread.join
+        def cleanup():
+            self.assertTrue(cleanup_release.wait(3))
+        def parent():
+            self.assertTrue(parent_release.wait(3))
+            server._start_worker(cleanup, 'EXAMPLE-owned-cleanup', cleanup=True)
+        def join(worker, *args, **options):
+            joined.append(worker.name)
+            (parent_release if worker.name == 'EXAMPLE-owned-parent' else cleanup_release).set()
+            return original_join(worker, *args, **options)
+        server._start_worker(parent, 'EXAMPLE-owned-parent')
+        try:
+            with patch.object(threading.Thread, 'join', join):
+                server._join_readers()
+            self.assertIn('EXAMPLE-owned-cleanup', joined)
+            self.assertTrue(all(not worker.is_alive() for worker, _ in server._worker_snapshot()))
+        finally:
+            parent_release.set()
+            cleanup_release.set()
+            server._join_readers(timeout=3)
+
+    def test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot(self):
+        server = self.worker_server()
+        parent_release, cleanup_release = threading.Event(), threading.Event()
+        def parent():
+            self.assertTrue(parent_release.wait(3))
+            server._start_worker(lambda: cleanup_release.wait(3), 'EXAMPLE-late-cleanup', cleanup=True)
+        server._start_worker(parent, 'EXAMPLE-final-snapshot-parent')
+        worker = server._workers[0][0]
+        original_snapshot = server._worker_snapshot
+        snapshots = []
+        def snapshot():
+            observed = original_snapshot()
+            snapshots.append(observed)
+            if len(snapshots) == 2:
+                parent_release.set()
+                worker.join(3)
+                self.assertFalse(worker.is_alive())
+            return observed
+        try:
+            with patch.object(server, '_worker_snapshot', snapshot), \
+                    self.assertRaisesRegex(ValueError, 'workers did not stop'):
+                server._join_readers(timeout=0)
+        finally:
+            parent_release.set()
+            cleanup_release.set()
+            server._join_readers(timeout=3)
+
+    def test_shutdown_refuses_pending_start_and_fresh_worker_after_close(self):
+        server = self.worker_server()
+        for timeout in (None, True, float('inf'), float('nan'), -1, 13):
+            with self.subTest(timeout=timeout), self.assertRaisesRegex(ValueError, 'bounded worker-drain'):
+                server._join_readers(timeout=timeout)
+        worker = threading.Thread(target=lambda: None)
+        ready = threading.Event()
+        server._workers.append((worker, ready))
+        with self.assertRaisesRegex(ValueError, 'workers did not stop'):
+            server._join_readers(timeout=0)
+        ready.set()
+        server._join_readers()
+        called = []
+        with self.assertRaisesRegex(ValueError, 'startup after close'):
+            server._start_worker(lambda: called.append(True), 'EXAMPLE-forbidden-worker')
+        self.assertEqual(called, [])
+
+    def test_shutdown_never_joins_its_current_worker(self):
+        server = self.worker_server()
+        observed = []
+        def worker():
+            try:
+                server._join_readers()
+            except ValueError as failure:
+                observed.append(str(failure))
+        server._start_worker(worker, 'EXAMPLE-self-worker')
+        server._join_readers()
+        self.assertEqual(observed, ['Registered transport workers did not stop.'])
+
+    def test_failed_worker_start_remains_bounded_and_joinable(self):
+        server = self.worker_server()
+        with patch.object(threading.Thread, 'start', side_effect=RuntimeError('EXAMPLE thread start failed')), \
+                self.assertRaisesRegex(RuntimeError, 'thread start failed'):
+            server._start_worker(lambda: None, 'EXAMPLE-unstarted-worker')
+        server._join_readers(timeout=0)
+        self.assertTrue(all(started.is_set() and not worker.is_alive() for worker, started in server._workers))
+
+    def test_worker_shutdown_preserves_original_cleanup_failure_and_metadata(self):
+        server = self.worker_server()
+        server.lifetime = SimpleNamespace(contained=False)
+        primary = RuntimeError('EXAMPLE original containment failure')
+        primary.app_server_cleanup = {'all_contained': False, 'resources_closed': False,
+            'errors': ['EXAMPLE original error'], 'uncertainty': 'EXAMPLE retained uncertainty'}
+        with patch.object(server, '_close_transport', side_effect=primary), \
+                patch.object(server, '_join_readers', side_effect=ValueError('EXAMPLE pending worker')), \
+                self.assertRaises(RuntimeError) as caught:
+            server.close()
+        self.assertIs(caught.exception, primary)
+        self.assertEqual(primary.app_server_cleanup, {'all_contained': False, 'resources_closed': False,
+            'errors': ['EXAMPLE original error', 'ValueError'], 'uncertainty': 'EXAMPLE retained uncertainty'})
 
     def test_terminal_during_poll_wait_revokes_before_reply(self):
         self._poll_wait_schedule('terminal')

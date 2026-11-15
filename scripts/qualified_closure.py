@@ -552,14 +552,42 @@ def _task(state: _State, expected: dict[str, Any]) -> None:
           "authoritative task projection changed or belongs to another task")
 
 
-def observe(host: Host, *, native: dict[str, Any] | None = None) -> Any:
+def _adopt_observation(observation: Any, value: dict[str, Any], native: Any) -> Any:
+    _need(native is None, "an original observation already retains its native validation")
+    data = original._observed(observation)
+    original._current(data)
+    context = original._read(data.context)
+    _need(all(context[key] == value[field] for key, field in (
+        ("root", "root"), ("baseline", "initial"), ("amendments", "amendments"),
+        ("candidate", "candidate"), ("bead", "bead"))),
+        "original reviewed observation belongs to another closure contract")
+    _need({row["criterion_id"]: row["spec"] for row in context["validator_evidence"]} == value["commands"],
+          "original reviewed observations must retain every declared command")
+    return observation
+
+
+def _hold_reviewed_native(state: _State, observation: Any) -> None:
+    native = original._observed(observation).native
+    if native is None:
+        return
+    declared = original._declared(native.policy)
+    selected = {"host": declared.host, "policy": native.policy,
+                "report": json.loads(native.report), "expected_target": json.loads(native.target)}
+    _hold_native(state, selected)
+    _native_join(state, observation, selected)
+
+
+def observe(host: Host, *, native: dict[str, Any] | None = None, observation: Any = None) -> Any:
     """Run the original result producer against the custodied independent contract."""
     with _operation(host) as state:
         _need(state.observation is None, "result production is single use")
         value = _guard(state)
         _task(state, value["bead"])
         arguments = {key: value[key] for key in ("root", "initial", "candidate", "bead", "commands", "amendments")}
-        if native is None:
+        if observation is not None:
+            result = _adopt_observation(observation, value, native)
+            _hold_reviewed_native(state, result)
+        elif native is None:
             chain = original.rb.resolve_chain(value["initial"], value["amendments"])
             mixed = any(item["evidence_kind"] == "artifact" and item["applicability"] == "required"
                         for item in chain["baseline"]["criteria"])
@@ -583,6 +611,7 @@ def bind(host: Host) -> None:
         _need(state.observation is not None and state.bound is None, "one original observation and no prior binding are required")
         if type(state.bridge) is _ProductionBeadsBridge:
             original._current(original._observed(state.observation))
+            _authority_call(state.authority.require_observation, original.observation_digest(state.observation))
             state.bound = state.authority
             _guard(state)
             _task(state, value["bead"])
@@ -605,6 +634,7 @@ def _validate(state: _State, expected: dict[str, Any]) -> dict[str, Any]:
         _need(state.bound is state.authority, "the registered host acceptance binding is required")
         observed = original._observed(state.observation)
         original._current(observed)
+        _authority_call(state.authority.require_observation, original.observation_digest(state.observation))
         context = original._read(observed.context)
     else:
         context = original._consume(original._bound(state.bound))

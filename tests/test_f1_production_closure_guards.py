@@ -173,7 +173,7 @@ class F1ProductionClosureGuardTests(unittest.TestCase):
         case = self.builders.compact()
         for drift in (False, True):
             with self.subTest(drift=drift), self.fixture.registered(case) as (host, process, custody):
-                qualified.observe(host)
+                qualified.observe(host, observation=case.review_observation)
                 current = original._current
 
                 def current_and_drift(*args, current=current, drift=drift, process=process, **kwargs):

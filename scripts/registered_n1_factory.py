@@ -851,6 +851,9 @@ class _RegisteredServer(RegisteredAppServer):
         self._tool_queue = None
         self._tool_cleanup_lock = threading.Lock()
         self._tool_cleanup_scheduled = False
+        self._worker_lock = threading.Lock()
+        self._workers = []
+        self._workers_closed = False
         if factory.spec.get('finite_tool_mode') == 'captured-host-tools':
             producer = importlib.import_module('registered_finite_tool_calls')
             self.finite_tools = producer.RegisteredFiniteToolCalls(self)
@@ -1060,7 +1063,30 @@ class _RegisteredServer(RegisteredAppServer):
                 self.finite_input.close(failure)
             except BaseException as secondary:
                 self._latch_transport_failure(secondary)
-        threading.Thread(target=cleanup, name='cwo-registered-tool-cleanup', daemon=True).start()
+        self._start_worker(cleanup, 'cwo-registered-tool-cleanup', cleanup=True)
+
+    def _start_worker(self, target, name, *, cleanup=False):
+        worker = threading.Thread(target=target, name=name, daemon=True)
+        started = threading.Event()
+        with self._worker_lock:
+            _need(cleanup or not self._workers_closed, 'Registered worker startup after close is refused.')
+            self._workers.append((worker, started))
+        try:
+            worker.start()
+        finally:
+            started.set()
+
+    def _begin_worker_shutdown(self):
+        with self._worker_lock:
+            self._workers_closed = True
+
+    def _worker_snapshot(self):
+        with self._worker_lock:
+            workers = list(self._workers)
+        with self.requests.lock:
+            workers.extend((worker, None) for worker in self.requests.threads)
+        workers.extend((worker, None) for worker in self._reader_threads)
+        return workers
 
     def _require_healthy(self):
         if self.transport_failure is not None:
@@ -1192,7 +1218,7 @@ class _RegisteredServer(RegisteredAppServer):
         if self.finite_tools is not None:
             producer = importlib.import_module('registered_finite_tool_calls')
             self.finite_tools.register(params, response, producer.read_fake_server_capture(self))
-            threading.Thread(target=self._tool_loop, name='cwo-registered-tools', daemon=True).start()
+            self._start_worker(self._tool_loop, 'cwo-registered-tools')
         return response
 
     def _tool_loop(self):
@@ -1266,6 +1292,7 @@ class _RegisteredServer(RegisteredAppServer):
         return super().interrupt_turn(thread_id, turn_id, timeout=timeout)
 
     def archive_thread(self, thread_id):
+        self._begin_worker_shutdown()
         if self.finite_tools is None:
             if self._wire_turn is not None:
                 self.requests.cancel_turn(*self._wire_turn[:2])
@@ -1287,12 +1314,78 @@ class _RegisteredServer(RegisteredAppServer):
         self.archived = True
         return latency
 
-    def _join_readers(self):
-        for reader in self._reader_threads:
-            reader.join(timeout=1)
-        _need(not any(reader.is_alive() for reader in self._reader_threads), "Transport reader did not stop.")
+    def _join_readers(self, timeout=1):
+        _need(type(timeout) in (int, float) and 0 <= timeout <= 12,
+              'A bounded worker-drain timeout is required.')
+        self._begin_worker_shutdown()
+        deadline = time.monotonic() + timeout
+        current = threading.current_thread()
+        while True:
+            for worker, started in self._worker_snapshot():
+                self._join_worker(worker, started, current, deadline)
+            pending, unchanged = self._pending_workers()
+            if not pending and unchanged:
+                return
+            _need(time.monotonic() < deadline and current not in pending,
+                  'Registered transport workers did not stop.')
+
+    def _pending_workers(self):
+        with self._worker_lock:
+            registered = len(self._workers)
+        pending = [worker for worker, started in self._worker_snapshot()
+                   if self._worker_pending(worker, started)]
+        # A creator may register cleanup after the snapshot and exit before
+        # is_alive is read. Its dead status alone cannot retire that new owner.
+        with self._worker_lock:
+            unchanged = registered == len(self._workers)
+        return pending, unchanged
+
+    @staticmethod
+    def _join_worker(worker, started, current, deadline):
+        if worker is current:
+            return
+        if started is not None and not started.wait(max(0, deadline - time.monotonic())):
+            return
+        if worker.ident is not None:
+            worker.join(max(0, deadline - time.monotonic()))
+
+    @staticmethod
+    def _worker_pending(worker, started):
+        return worker.is_alive() or (started is not None and not started.is_set())
 
     def close(self):
+        self._begin_worker_shutdown()
+        primary = None
+        try:
+            self._close_transport()
+        except BaseException as failure:
+            primary = failure
+            raise
+        finally:
+            try:
+                self._join_readers()
+            except BaseException as failure:
+                target = failure if primary is None else primary
+                self._record_worker_shutdown_failure(target, failure)
+                if primary is None:
+                    raise
+                admission.ledger_api.add_failure_note(primary, 'Transport workers remain unresolved: '
+                                                       + type(failure).__name__)
+        if self.process is not None:
+            for name in ('stdin', 'stdout', 'stderr'):
+                getattr(self.process, name).close()
+        self._require_healthy()
+        return {'all_contained': True, 'resources_closed': True, 'errors': []}
+
+    def _record_worker_shutdown_failure(self, target, failure):
+        previous = target.__dict__.get('app_server_cleanup')
+        report = (previous.copy() if type(previous) is dict else
+                  {'all_contained': self.lifetime.contained, 'errors': []})
+        report['resources_closed'] = False
+        report['errors'] = [*report.get('errors', []), type(failure).__name__]
+        target.app_server_cleanup = report
+
+    def _close_transport(self):
         if self.finite_tools is None:
             self.requests.close()
         else:
@@ -1308,16 +1401,10 @@ class _RegisteredServer(RegisteredAppServer):
                 self.lifetime.settle_termination()
             _need(self.lifetime.contained and self.lifetime.termination_recorded,
                   "The registered transport containment or record remains unresolved.")
-            self._join_readers()
         except BaseException as failure:
             failure.app_server_cleanup = {'all_contained': self.lifetime.contained,
                 'resources_closed': False, 'errors': [type(failure).__name__]}
             raise
-        if self.process is not None:
-            for name in ('stdin', 'stdout', 'stderr'):
-                getattr(self.process, name).close()
-        self._require_healthy()
-        return {'all_contained': True, 'resources_closed': True, 'errors': []}
 
 
 def _check_response(factory, params, response):

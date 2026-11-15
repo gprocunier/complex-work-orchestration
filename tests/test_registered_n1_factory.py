@@ -32,6 +32,7 @@ from test_route_feasibility_preparation import bind  # noqa: E402
 # These are the existing initialize, thread/start and turn/start RPC bounds.
 # Observing the first fixture boundary includes their whole startup envelope.
 STARTUP_OBSERVATION_SECONDS = 10 + 10 + 30
+_ORIGINAL_REGISTERED_SERVER = runtime._RegisteredServer
 
 
 def wait_for_startup(test, event, worker, outcome):
@@ -871,7 +872,22 @@ class FactoryTests(unittest.TestCase):
             route=case.route, node_id=case.node_id, ledger=case.ledger, host=case.host, policy=case.policy,
             **options)
         case.factory = factory
+        self.addCleanup(self.drain_factory_workers, factory)
         return factory
+
+    def drain_factory_workers(self, factory):
+        if type(factory.server) is _ORIGINAL_REGISTERED_SERVER:
+            factory.server._join_readers(timeout=12)
+
+    def test_fixture_worker_drain_preserves_original_server_failure_during_class_patch(self):
+        server = object.__new__(_ORIGINAL_REGISTERED_SERVER)
+        failure = RuntimeError('EXAMPLE original worker remains unresolved')
+        with patch.object(runtime, '_RegisteredServer', SimpleNamespace), \
+                patch.object(server, '_join_readers', side_effect=failure) as drain, \
+                self.assertRaises(RuntimeError) as caught:
+            self.drain_factory_workers(SimpleNamespace(server=server))
+        self.assertIs(caught.exception, failure)
+        drain.assert_called_once_with(timeout=12)
 
     def attempt(self, case):
         path = case.ledger.root / runtime.admission.ledger_api.LEDGER_FILE

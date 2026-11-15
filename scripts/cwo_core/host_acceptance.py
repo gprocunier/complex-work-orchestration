@@ -9,6 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import re
 from typing import Any, Callable
 
 from .errors import CWOPolicyError
@@ -138,7 +139,12 @@ def _source_context(dispatch):
     if context is None:
         return None
     fields = {"task", "scope", "candidate", "dispatch_id", "packet_sha256", "executor"}
-    _need(type(context) is dict and set(context) == fields, "accepted source context is malformed")
+    _need(type(context) is dict and set(context) in (fields, fields | {"observation_sha256"}),
+          "accepted source context is malformed")
+    if "observation_sha256" in context:
+        _need(type(context["observation_sha256"]) is str
+              and re.fullmatch(r"sha256:[0-9a-f]{64}", context["observation_sha256"]) is not None,
+              "accepted final observation review digest is malformed")
     exact = dict(task=dispatch.get("bead_id"), dispatch_id=dispatch["dispatch_id"],
                  packet_sha256=dispatch.get("packet_sha256"), executor=dispatch.get("executor"))
     _context(context, exact)

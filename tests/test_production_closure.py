@@ -15,6 +15,8 @@ from unittest.mock import patch
 
 from tests import test_qualified_closure as fixtures
 from tests import test_mixed_delivery_closure as mixed_cases
+from tests import test_artifact_acceptance_preparation as artifact_cases
+from tests import test_retirement_delivery_closure as retirement_cases
 from tests.real_beads_fixture import initialize_real_beads, run_fixture_subprocess
 from tests.host_acceptance_fixtures import provision_acceptance
 from cwo_core import host_records
@@ -74,6 +76,16 @@ class ProductionClosureTests(unittest.TestCase):
         self.builders = fixtures.QualifiedClosureTests(methodName="runTest")
         self.addCleanup(self.builders.doCleanups)
 
+    def original_observation(self, case, contract):
+        arguments = {name: contract[name] for name in ('root', 'candidate', 'bead', 'commands', 'amendments')}
+        arguments['initial'] = contract['initial']
+        if hasattr(case, 'host'):
+            return original.observe_native_mixed(**arguments, host=case.host, policy=case.policy,
+                report=case.report, expected_target=case.expected_target)
+        mixed = any(row['evidence_kind'] == 'artifact' and row['applicability'] == 'required'
+                    for row in case.chain['baseline']['criteria'])
+        return (original.observe_mixed if mixed else original.observe)(**arguments)
+
     @contextlib.contextmanager
     def provisioned(self, case, *, directory_database=False):
         with tempfile.TemporaryDirectory(prefix="EXAMPLE-production-supervisor-") as temporary:
@@ -95,13 +107,16 @@ class ProductionClosureTests(unittest.TestCase):
             contract["bead"]["revision"] = "EXAMPLE-before-revision"
             self.builders.write(custody, "contract.json", original._freeze(contract))
             process = ExampleProcess(contract["bead"], db)
+            case.review_observation = self.original_observation(case, contract)
+            observed = case.review_observation.combined
+            reviewed = original.observation_digest(case.review_observation) if observed['combined_observations_complete'] else None
             store = host_records.HostRecordStore.for_tests(
                 parent / "host-state", worker_writable_roots=(Path(contract["root"]), custody))
             identity = store.setup_database_identity(db)
             process.store = store
             process.authority = provision_acceptance(
                 store, bead_id=contract["bead"]["id"], database_identity=identity,
-                delivery_context=qualified._delivery_context(contract))
+                delivery_context=qualified._delivery_context(contract), observation_sha256=reviewed)
             with host_records.using_test_store(store), \
                     patch.object(subprocess, "run", side_effect=process), \
                     patch.object(shutil, "which", side_effect=process.lookup):
@@ -116,13 +131,118 @@ class ProductionClosureTests(unittest.TestCase):
             yield host, process, custody
 
     def reviewed(self, case, host, custody, *, native=False):
-        options = {}
-        if native:
-            options["native"] = {"host": case.host, "policy": case.policy,
-                                 "report": case.report, "expected_target": case.expected_target}
-        observed = qualified.observe(host, **options)
+        observed = qualified.observe(host, observation=case.review_observation)
         qualified.bind(host)
         return observed
+
+    def test_candidate_acceptance_without_final_observation_review_cannot_complete(self):
+        case = self.builders.compact()
+        with self.provisioned(case) as (process, custody, database):
+            process.authority = provision_acceptance(process.store, bead_id=case.bead['id'],
+                database_identity=process.store.require_database_identity(database),
+                delivery_context=qualified._delivery_context(json.loads((custody / 'contract.json').read_bytes())))
+            before = {path: path.read_bytes() for path in process.store.state_root.rglob('*') if path.is_file()}
+            with patch.object(qualified, 'PRODUCTION_CLOSURE_AVAILABLE', True), \
+                    qualified.production_custody(str(custody), database=str(database),
+                        actor='EXAMPLE-supervisor', **process.authority) as host:
+                qualified.observe(host, observation=case.review_observation)
+                with self.assertRaisesRegex(original.ClosureError, 'final.*observation|observation.*review'):
+                    qualified.bind(host)
+                    closure.execute_qualified_completed(host)
+            self.assertEqual(process.effects, [])
+            self.assertEqual(before, {path: path.read_bytes() for path in process.store.state_root.rglob('*')
+                                      if path.is_file()})
+
+    def test_rerunning_passing_validators_cannot_replace_the_reviewed_receipts(self):
+        case = mixed_cases.MixedDeliveryClosureTests('runTest')
+        self.addCleanup(case.doCleanups)
+        case.begin(source="import sys, time\nprint('EXAMPLE reliability checked bytes')\n"
+                          "print('EXAMPLE observed ' + str(time.monotonic_ns()), file=sys.stderr)\n")
+        with self.registered(case) as (host, process, custody):
+            observed = qualified.observe(host)
+            self.assertTrue(observed.combined['combined_observations_complete'])
+            self.assertNotEqual(original.observation_digest(observed),
+                                original.observation_digest(case.review_observation))
+            with self.assertRaisesRegex(original.ClosureError, 'exact complete observations'):
+                qualified.bind(host)
+            self.assertEqual(process.effects, [])
+
+    def rename_case(self, *, incomplete=False, missing_named=False):
+        case = artifact_cases.ArtifactPreparationTests('runTest')
+        case.setUp()
+        self.addCleanup(case.doCleanups)
+        named = artifact_cases.criterion('EXAMPLE-named-requirement', {
+            'op': 'regular-file-sha256', 'path': 'src/EXAMPLE-named.txt', 'sha256': artifact_cases.SHA})
+        def deliver_named():
+            if not missing_named:
+                (case.repo / 'src/EXAMPLE-named.txt').write_bytes(artifact_cases.NEW)
+        case.begin(artifact_cases.baseline(named), incomplete=incomplete, change=deliver_named)
+        case.bead = {**case.projection, 'status': 'open'}
+        case.commands = {}
+        return case
+
+    def test_incomplete_rename_and_missing_named_requirement_refuse_the_same_consumer(self):
+        for fault in ('none', 'incomplete-rename', 'missing-named'):
+            with self.subTest(fault=fault):
+                case = self.rename_case(incomplete=fault == 'incomplete-rename', missing_named=fault == 'missing-named')
+                with self.registered(case) as (host, process, custody):
+                    if fault != 'none':
+                        with self.assertRaises(original.ClosureError):
+                            self.reviewed(case, host, custody)
+                        with self.assertRaises(original.ClosureError):
+                            closure.execute_qualified_completed(host)
+                        self.assertEqual(process.effects, [])
+                        continue
+                    observed = self.reviewed(case, host, custody)
+                    self.assertEqual(observed.combined['snapshot']['criterion_inventory'], case.initial['criteria'])
+                    self.assertTrue(closure.execute_qualified_completed(host)['completed'])
+                    self.assertEqual([row[0] for row in process.effects], ['comment', 'close'])
+
+    def test_active_recreating_service_and_retired_outcome_reach_the_same_consumer(self):
+        for service in ('active', 'disabled', 'removed'):
+            with self.subTest(service=service):
+                case = retirement_cases.RetirementDeliveryClosureTests('runTest')
+                self.addCleanup(case.doCleanups)
+                case.begin(service=service)
+                case.amendments = []
+                with self.registered(case) as (host, process, custody):
+                    if service == 'active':
+                        with self.assertRaises(original.ClosureError):
+                            self.reviewed(case, host, custody)
+                        self.assertEqual(process.effects, [])
+                        continue
+                    self.reviewed(case, host, custody)
+                    self.assertTrue(closure.execute_qualified_completed(host)['completed'])
+                    self.assertEqual([row[0] for row in process.effects], ['comment', 'close'])
+
+    def test_adopted_native_observation_holds_prerequisites_through_both_effects(self):
+        case = self.builders.native()
+        checked = []
+        with self.registered(case) as (host, process, custody):
+            self.reviewed(case, host, custody, native=True)
+            basis = json.loads(original.final_review_basis(case.review_observation))
+            self.assertEqual(json.loads(basis['native_validation']['report']), case.report)
+            self.assertEqual(json.loads(basis['native_validation']['policy']), case.policy.report)
+            self.assertEqual(basis['bead_projection'], case.review_observation.context['bead'])
+            def inspect(command):
+                for name in ('target', 'state'):
+                    descriptor = os.open(getattr(case.host, name), os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        with self.assertRaises(BlockingIOError):
+                            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                        checked.append((name, command[0]))
+                    finally:
+                        os.close(descriptor)
+            process.before = inspect
+            self.assertTrue(closure.execute_qualified_completed(host)['completed'])
+            for name in ('target', 'state'):
+                self.assertTrue({(name, action) for action in ('show', 'comment', 'close')} <= set(checked))
+        for name in ('target', 'state'):
+            descriptor = os.open(getattr(case.host, name), os.O_RDONLY | os.O_DIRECTORY)
+            try:
+                fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            finally:
+                os.close(descriptor)
 
     def test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls(self):
         """S4 exact authority: each refusal is paired with fake-bd completed control."""
@@ -302,10 +422,12 @@ class ProductionClosureTests(unittest.TestCase):
                 self.builders.write(custody, "contract.json", original._freeze(contract))
                 store = host_records.HostRecordStore.for_tests(
                     parent / "host-state", worker_writable_roots=(Path(contract["root"]), custody))
+                case.review_observation = self.original_observation(case, contract)
                 authority = provision_acceptance(
                     store, bead_id=case.bead["id"],
                     database_identity=store.setup_database_identity(database),
-                    delivery_context=qualified._delivery_context(contract))
+                    delivery_context=qualified._delivery_context(contract),
+                    observation_sha256=original.observation_digest(case.review_observation))
                 with host_records.using_test_store(store), \
                         patch.object(qualified, "PRODUCTION_CLOSURE_AVAILABLE", True), \
                         qualified.production_custody(str(custody), database=str(database), actor=actor,
@@ -347,9 +469,12 @@ class ProductionClosureTests(unittest.TestCase):
                 with self.registered(case, directory_database=mode == "directory") as (host, process, custody):
                     self.reviewed(case, host, custody, native=mode == "native")
                     before = sorted(p.name for p in custody.iterdir())
+                    audit_before = {path: path.read_bytes() for path in process.store.state_root.rglob('*') if path.is_file()}
                     self.assertEqual(closure.execute_qualified_completed(host, dry_run=True)["state"], "VALIDATED")
                     self.assertEqual(process.effects, [])
                     self.assertEqual(sorted(p.name for p in custody.iterdir()), before)
+                    self.assertEqual(audit_before, {path: path.read_bytes() for path in process.store.state_root.rglob('*')
+                                                   if path.is_file()})
                     result = closure.execute_qualified_completed(host)
                     self.assertEqual(result["state"], "COMPLETED")
                     self.assertTrue(result["completed"])
