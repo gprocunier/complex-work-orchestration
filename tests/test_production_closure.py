@@ -699,6 +699,13 @@ class ProductionClosureTests(unittest.TestCase):
                 before = json.loads(bd('show', '--json', '--include-comments', '--', case.bead['id']))[0]
                 contract['bead'] = before
                 self.builders.write(custody, 'contract.json', original._freeze(contract))
+                # Closing prerequisites changes the task projection reviewed for closure.
+                case.review_observation = self.original_observation(case, contract)
+                authority = provision_acceptance(
+                    store, bead_id=case.bead["id"],
+                    database_identity=store.require_database_identity(database),
+                    delivery_context=qualified._delivery_context(contract),
+                    observation_sha256=original.observation_digest(case.review_observation))
                 with host_records.using_test_store(store), \
                         conflicting_example_database(parent, case.bead['id'], env), \
                         patch.object(qualified, "PRODUCTION_CLOSURE_AVAILABLE", True), \

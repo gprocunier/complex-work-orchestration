@@ -10,7 +10,7 @@
 
 "B3":{"admission":"guarded-effect","authority":"Operator selects disposition: pending-acceptance/deferred stay open; rejected/abandoned/superseded/split may close.","effect":"Operator non-completion comment/optional close; successful closure refused","effect_points":["pa4eb5a68"],"gate_chains":[{"calls":[{"call":"p8f76ac08","direction":"return","target":"p6ee951dd"}],"effect":"pa4eb5a68","gate":"p6141a0f3"},{"calls":[{"call":"p8f76ac08","direction":"return","target":"p6ee951dd"}],"effect":"pa4eb5a68","gate":"p66fb6571"}],"gates":["p6141a0f3","p66fb6571","pd3663248","pa996df88"],"limits":"Zero Beads calls for successful aliases/open outcomes with close. Superseded/split/rejected/abandoned positive comments then closes; pending/deferred may comment only. Close failure after comment is partial persistence.","manual_decisions":["M02"],"ordering":"checked_disposition then narrative/memory checks before comment; dry return; optional close after persisted comment.","trace_files":["scripts/close_bead_with_summary.py"],"witnesses":["w61ae78f5a19c:zero-effect-refusal:wc5061f401cf4","wc5061f401cf4:matched-positive"]},
 
-"B4":{"admission":"guarded-effect","authority":"Opaque supervisor registration, exact baseline/candidate joined to original host-dispatch source context, independently verified acceptance, original observations and setup database identity.","effect":"Host-qualified successful closure production Beads effects","effect_points":["p2724d549"],"gates":["p2a57a279","p0d43f0cb","pd5914a49","p8725844d"],"limits":"Production verified closure ships enabled; the source flag remains a kill switch. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. Shipped-on and patched-off kill-switch witness covers registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage. Acceptance consumption is checked at capture and before every Beads call. The existing exclusive host audit lock joins the replay check to its intent append before any Beads write; the receipt belongs only to that in-flight attempt, whose full acceptance is still reverified. Failed writes and readback do not release consumption. Closing acceptance records host-selected adjudicator identity and rechecks existing provider/family/model/dispatch/session separation; control ID and effort alone are insufficient. Explicit original-adapter queries require closed blocking dependencies and reverse parent-child edges before writes and again before close. Policy source drift refuses consumption.","manual_decisions":["M02","M03","M04"],"ordering":"Gate at registration/consume/_production_guard/_bd; validate repeatedly before each write; atomically claim acceptance with durable consumption intent before the first Beads write; revalidate the in-flight authority through close and readback.","trace_files":["scripts/close_bead_with_summary.py","scripts/qualified_closure.py","scripts/production_closure_authority.py","scripts/cwo_core/host_acceptance.py","scripts/cwo_core/host_records.py","scripts/qualified_workflow_adjudication.py","scripts/prepare_delivery_closure.py"],"witnesses":["closure-kill-switch","closure-consumer-adapter","closure-lifecycle-inspection","w2d147d34f1f4:matched-positive","closure-source-candidate","closure-source-candidate-only","closure-source-origin","closure-store-separation","closure-capture-context","closure-acceptance-replay","closure-consumption-intent","closure-adjudicator","closure-open-graph","closure-policy-source","closure-peer-policy-source","closure-final-observation"]},
+"B4":{"admission":"guarded-effect","authority":"Opaque supervisor registration, exact baseline/candidate joined to original host-dispatch source context, independently verified acceptance, original observations and setup database identity.","effect":"Host-qualified successful closure production Beads effects","effect_points":["p2724d549"],"gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p2a57a279","p0d43f0cb","pd5914a49","p8725844d"],"limits":"Production verified closure ships enabled; the source flag remains a kill switch. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. The EXAMPLE-only bridge branch has its own custody contract, not production authority. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review. Shipped-on and patched-off kill-switch witness covers registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage. Acceptance consumption is checked at capture and before every Beads call. The existing exclusive host audit lock joins the replay check to its intent append before any Beads write; the receipt belongs only to that in-flight attempt, whose full acceptance is still reverified. Failed writes and readback do not release consumption. Closing acceptance records host-selected adjudicator identity and rechecks existing provider/family/model/dispatch/session separation; control ID and effort alone are insufficient. Explicit original-adapter queries require closed blocking dependencies and reverse parent-child edges before writes and again before close. Policy source drift refuses consumption.","manual_decisions":["M02","M03","M04"],"ordering":"Gate at registration/consume/_production_guard/_bd; validate repeatedly before each write; atomically claim acceptance with durable consumption intent before the first Beads write; revalidate the in-flight authority through close and readback.","trace_files":["scripts/close_bead_with_summary.py","scripts/qualified_closure.py","scripts/production_closure_authority.py","scripts/cwo_core/host_acceptance.py","scripts/cwo_core/host_records.py","scripts/qualified_workflow_adjudication.py","scripts/prepare_delivery_closure.py"],"witnesses":["closure-kill-switch","closure-consumer-adapter","closure-lifecycle-inspection","w2d147d34f1f4:matched-positive","closure-source-candidate","closure-source-candidate-only","closure-source-origin","closure-store-separation","closure-capture-context","closure-acceptance-replay","closure-consumption-intent","closure-adjudicator","closure-open-graph","closure-policy-source","closure-peer-policy-source","closure-final-observation"]},
 
 "B5":{"admission":"guarded-effect","authority":"Explicit directory/database/actor and original default-bound structured runner; owned prestate not qualified completion.","effect":"Exact-prestate claim and owned close","limits":"Exact-show reads precede refusal. Zero additional update/close, not zero earlier successful claim. Explicit DB/actor and definition-bound runner; timeout/error reconciled by exact post-show without retry. Injected runner is trusted.","manual_decisions":["M02","M05"],"ordering":"Show exact prestate; refuse stale/preowned; at most one update/close; show exact poststate including timeout/error reconciliation.","trace_files":["scripts/cwo_core/native_pool_admission.py"],"witnesses":["w299907088a2a:zero-effect-refusal:wdbadf8483000"]},
 
@@ -668,61 +668,61 @@
 
 "browser-share-decl":[106,"RegisteredBrowserParent.create_share",386,"32d7aed8d52fb0abd936a81b86d573f0476f4dd6510dea33031d5828c7bed2c8"],
 
-"closure-acceptance-replay-body":[92,"ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes",276,"c81bbc65c0bbacd968e02609183740f1db4917a6ec12057d9b3bf377cc5c3df4"],
+"closure-acceptance-replay-body":[92,"ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes",397,"c81bbc65c0bbacd968e02609183740f1db4917a6ec12057d9b3bf377cc5c3df4"],
 
-"closure-adapter-close":[48,722,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,722,67],
+"closure-adapter-close":[48,745,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,745,67],
 
-"closure-adapter-comment":[48,714,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,714,58],
+"closure-adapter-comment":[48,737,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,737,58],
 
 "closure-adjudicator-body":[119,"HostAcceptanceTests.test_closing_acceptance_requires_host_selected_separated_adjudicator",74,"ab37eb5a7b21f3263a74839879a552dbdfa5bb067095ce9d1da0b1fd79e64d74"],
 
-"closure-adjudicator-check":[120,209,"_need(type(identity) is dict and set(identity) == IDENTITY_FIELDS | {\"session_id\"},"],
+"closure-adjudicator-check":[120,215,"_need(type(identity) is dict and set(identity) == IDENTITY_FIELDS | {\"session_id\"},"],
 
-"closure-capture-context-body":[123,"ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access",74,"519cc665aef5e1a53cb4b88f5da35a5a64ea4c5b57dcf015534149dec4077436"],
+"closure-capture-context-body":[123,"ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access",78,"519cc665aef5e1a53cb4b88f5da35a5a64ea4c5b57dcf015534149dec4077436"],
 
 "closure-capture-context-check":[124,22,"if type(value) is not dict or set(value) != {\"task\", \"scope\", \"candidate\"}:"],
 
-"closure-consumption-intent-body":[92,"ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures",320,"0f017301d6df5203bc850e7f709512e3f273b48c231d61c60469af0ddfdd046c"],
+"closure-consumption-intent-body":[92,"ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures",441,"0f017301d6df5203bc850e7f709512e3f273b48c231d61c60469af0ddfdd046c"],
 
-"closure-delivery-context-check":[120,210,"_need(type(source_context) is dict"],
+"closure-delivery-context-check":[120,228,"_need(type(source_context) is dict"],
 
-"closure-final-observation-body":[92,"ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete",138,"a4824faccdc1e1178eb512e4c63038df1338f12753f83ef9177cbf3e6632014e"],
+"closure-final-observation-body":[92,"ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete",165,"a4824faccdc1e1178eb512e4c63038df1338f12753f83ef9177cbf3e6632014e"],
 
-"closure-flow-custody":[118,"AcceptanceProductFlowTests.closure",152,"bedff8651cadcf04e802bb57026387ada057df920dc9ec7efbe6e612576b5341"],
+"closure-flow-custody":[118,"AcceptanceProductFlowTests.closure",153,"bedff8651cadcf04e802bb57026387ada057df920dc9ec7efbe6e612576b5341"],
 
-"closure-flow-provision":[118,"AcceptanceProductFlowTests.provision",127,"0835e3bd7770d1aab7ef4753517314aae4d22bf26e53542b232f47acc409a795"],
+"closure-flow-provision":[118,"AcceptanceProductFlowTests.provision",127,"1f652e3d6dee025cbc686e95cc63120f49df2f86efa7b43d885a1e30e8e0e919"],
 
 "closure-graph-check":[48,568,"_need(row.get(\"status\") == \"closed\", \"nonclosed blocker or child prevents production closure\")"],
 
-"closure-host-fixture":[122,"provision_acceptance",10,"297d571bfbe6fd24d2acd8bcf869759814165b502c5bd696cc9f70f2cfd0d6c4"],
+"closure-host-fixture":[122,"provision_acceptance",10,"ab5c6556f9c0b7d7a22562623dfe68170cb7dd37afde3f0ee5b8432488a21f90"],
 
-"closure-open-graph-body":[92,"ProductionClosureTests.test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes",176,"a94c03843daa5c744d7f8534425279e15adabd453b092d1b8cb80369a80897c4"],
+"closure-open-graph-body":[92,"ProductionClosureTests.test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes",297,"a94c03843daa5c744d7f8534425279e15adabd453b092d1b8cb80369a80897c4"],
 
-"closure-original-acceptance-positive":[118,"AcceptanceProductFlowTests.test_completed_adjudication_persists_once_then_real_closure_requires_every_phase",224,"36150b55d1e3a7590baf36fa90f5fc1991c87ad6def47a56a3324d0f7a189a6a"],
+"closure-original-acceptance-positive":[118,"AcceptanceProductFlowTests.test_completed_adjudication_persists_once_then_real_closure_requires_every_phase",225,"3bcc75dcaca609b7a9b5eb534ccee47545f8ea4a003cf84560da5bb023c89aab"],
 
-"closure-peer-policy-source-body":[92,"ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write",246,"ba2d652391e08397ab99703be200ec33ffc06c9ed9c5afc1579087bafded4264"],
+"closure-peer-policy-source-body":[92,"ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write",367,"ba2d652391e08397ab99703be200ec33ffc06c9ed9c5afc1579087bafded4264"],
 
-"closure-policy-source-body":[92,"ProductionClosureTests.test_policy_source_drift_after_bind_or_comment_refuses_next_write",218,"0c81ef734f356170f7d1abe5b87d015f8aa11dda7f4ffa23e31ac3fc144c3e5a"],
+"closure-policy-source-body":[92,"ProductionClosureTests.test_policy_source_drift_after_bind_or_comment_refuses_next_write",339,"0c81ef734f356170f7d1abe5b87d015f8aa11dda7f4ffa23e31ac3fc144c3e5a"],
 
 "closure-prerequisite-query":[48,560,"_bd(state, [\"dep\", \"list\", \"--json\", \"--type\", kind,\n                          \"--direction\", direction, \"--\", bead_id])",14,561,67],
 
 "closure-prerequisite-query-body":[48,"_closed_prerequisites",557,"c7a7c8baa94a4943b62e4ac4c22c65d4c43d401ddc02accd467688b25a04663e"],
 
-"closure-source-candidate-body":[118,"AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance",171,"192607830fac0710f577e5d39a88e3a2825d61af5372805aae27fe6e8721406f"],
+"closure-source-candidate-body":[118,"AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance",172,"192607830fac0710f577e5d39a88e3a2825d61af5372805aae27fe6e8721406f"],
 
-"closure-source-candidate-only-body":[118,"AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads",196,"ec214736db90d65094b6a72837a096009db5794bba628e694a0a03ae5f9338df"],
+"closure-source-candidate-only-body":[118,"AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads",197,"ec214736db90d65094b6a72837a096009db5794bba628e694a0a03ae5f9338df"],
 
 "closure-source-evidence":[121,"delivery_evidence",21,"c10b5984d7c6d5455e5520deb66ffa25770a2634c64c21803f67f3db6e59acd0"],
 
 "closure-source-origin-body":[119,"HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest",45,"e60f60bff14fc83c6ab85e1cf6e25a344dc768508aee9e8aad810e15b689bbd8"],
 
-"closure-source-origin-check":[120,208,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
+"closure-source-origin-check":[120,226,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
 
-"closure-source-request":[121,"WorkflowAdjudicationTests.source",103,"0115093ba74d5260e9ada99ffbe1a4483cc713812b053c89ebd4d1bbfaba922f"],
+"closure-source-request":[121,"WorkflowAdjudicationTests.source",111,"0115093ba74d5260e9ada99ffbe1a4483cc713812b053c89ebd4d1bbfaba922f"],
 
-"closure-source-route":[121,"route_with_basis",27,"c7f6347c1e1b0e40262abd5c785a70e871a5dd6632afa2f171c455a502dcdb39"],
+"closure-source-route":[121,"route_with_basis",27,"a023d7e1b96edd14cccef52af00b270c97e4c9b247dab5d6fdbef925e1438d21"],
 
-"closure-store-separation-body":[92,"ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage",333,"c7bb04fd359aa9a620e2d667b90d929a2d3f7edaaba58b21915038a633c8458b"],
+"closure-store-separation-body":[92,"ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage",583,"c7bb04fd359aa9a620e2d667b90d929a2d3f7edaaba58b21915038a633c8458b"],
 
 "continue-list":[14,196,"_parent_query(parent_id, ready=False)",32,196,69],
 
@@ -926,7 +926,7 @@
 
 "p0d41aecf":[11,619,"signalled = termination[\"signals_sent\"]"],
 
-"p0d43f0cb":[48,695,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
+"p0d43f0cb":[48,717,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
 
 "p0d60d614":[104,"ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency",320,"59248bfeb067522d57bb963af737496fcbbf4434ce83ac3855536f41fffd82ce"],
 
@@ -1274,7 +1274,7 @@
 
 "p4b716405":[14,"main",650,"379848b66d032d2eff2f38c41ad2411b43dd86a32c6d4252d607d879777410e7"],
 
-"p4cb99d4f":[92,"ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls",247,"5db507d1e659df0c6598bd512b62fb2ccca06104099843e071183d3eff4bbd96"],
+"p4cb99d4f":[92,"ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls",497,"5db507d1e659df0c6598bd512b62fb2ccca06104099843e071183d3eff4bbd96"],
 
 "p4d0788a3":[89,"NativePoolAdmissionTests.test_timeout_reconciliation_uses_exact_show_not_command_output",417,"0a810be1461f0235ffa97acd4748e9c20c8a8af068f6e79cda9ff103feb00ecc"],
 
@@ -1310,7 +1310,7 @@
 
 "p547bc64d":[8,868,"if args.write_manifest and target_dir.exists():"],
 
-"p54fa2aba":[48,694,"if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:"],
+"p54fa2aba":[48,716,"if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:"],
 
 "p55357f50":[18,361,"run_bd([\"dep\", \"add\", \"--type\", normalized, \"--\", bead_id_operand(blocked), bead_id_operand(blocker)])"],
 
@@ -1938,7 +1938,7 @@
 
 "pd1be65dc":[63,5161,"pre_allocation_check()"],
 
-"pd1d4f390":[48,"consume",684,"19bafcf3e50422729361b6b5ff0394e51ee22444b8423eaf881804ed08f6d497"],
+"pd1d4f390":[48,"consume",706,"fe5417f6e0cb00188ea30f1968f50174330043a4fd014fb75a2bf1606f47578d"],
 
 "pd2604569":[95,"R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path",23,"3af0244810dba1ab6f2e969d1b33a8cd990309e950b42941be7039dfd9e5cca2"],
 
@@ -2092,7 +2092,7 @@
 
 "peb88bfb7":[41,831,"def spawn_owned(self, session_id: str, argv: list[str] | tuple[str, ...], workspace: str) -> dict[str, Any]:"],
 
-"pebe865d4":[92,"ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io",313,"ba0db16bbdf1579fd493d49ef7904adb7d559231c36d81ebf7e3a18c76068491"],
+"pebe865d4":[92,"ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io",563,"ba0db16bbdf1579fd493d49ef7904adb7d559231c36d81ebf7e3a18c76068491"],
 
 "pec63dd95619c":[23,"LocalHttpGate.open",302,"816bd09695147531d1068f9548be21901202c23756f979c3bea455b6628a84e5"],
 
@@ -4019,11 +4019,11 @@
 
 [64,542,10,542,84,"beads","5739bb06c1e78a8e2ddc382ccffc0dbe66631fdab5877e886b60d8c3cb9b9607",["exclude","guard-scope-96050b233982b6"]],
 
-[64,714,8,714,58,"beads","688891c9f68a9e40644af047711eec5bbdb389e08bbb0dbc1c8273f39cfd5a26",["route","B4.3","closure-adapter-comment"]],
-
-[64,722,8,722,67,"beads","fd19af61b6001cf3f329c9c333570c4c9cdc418fe87ec22363593b7653f57f57",["route","B4.3","closure-adapter-close"]],
-
 [64,560,14,561,67,"beads","b359f72ed679a565eeaa761e82b8f514b39363f6b91b0ef22596218b6f5aae39",["route","B10.6","closure-prerequisite-query"]],
+
+[64,737,8,737,58,"beads","688891c9f68a9e40644af047711eec5bbdb389e08bbb0dbc1c8273f39cfd5a26",["route","B4.3","closure-adapter-comment"]],
+
+[64,745,8,745,67,"beads","fd19af61b6001cf3f329c9c333570c4c9cdc418fe87ec22363593b7653f57f57",["route","B4.3","closure-adapter-close"]],
 
 [65,134,14,134,48,"dynamic","bd6ebc2cc403a20668ccf6cbfccc0d44411109d9ad69b362640948b5361ed3f4",["exclude","XR341-archive-identity"]],
 
@@ -4450,11 +4450,11 @@
 
 {"contract":"B3","effect_points":["pa4eb5a68","R1A-a634298c375a7d","R1A-95d53aab5d9f3f"],"entrypoint":"pb0cdc929","id":"B3.2"},
 
-{"contract":"B4","entrypoint":"p9c633dfa","gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p8725844d"],"id":"B4.1","review_gates":["p2a57a279","p0d43f0cb","pd5914a49","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check","closure-adjudicator-check","closure-graph-check"]},
+{"contract":"B4","entrypoint":"p9c633dfa","gates":["p8725844d"],"id":"B4.1","review_gates":["p2a57a279","p0d43f0cb","pd5914a49","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check","closure-adjudicator-check","closure-graph-check"]},
 
-{"contract":"B4","entrypoint":"p9f57bc43","gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p8725844d"],"id":"B4.2","review_gates":["p2a57a279","p0d43f0cb","pd5914a49","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check","closure-adjudicator-check","closure-graph-check"]},
+{"contract":"B4","entrypoint":"p9f57bc43","gates":["p8725844d"],"id":"B4.2","review_gates":["p2a57a279","p0d43f0cb","pd5914a49","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check","closure-adjudicator-check","closure-graph-check"]},
 
-{"contract":"B4","effect_points":["p2724d549","closure-adapter-comment","closure-adapter-close"],"entrypoint":"pd1d4f390","gate_limits":"Custody creation and the stored production callback require lifecycle review; consume and adapter checks bind their own calls. Production-only consume admission is selected by the outer registered-bridge condition; EXAMPLE bridges retain their separate contract. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p8725844d","p54fa2aba"],"id":"B4.3","limits":"Production verified closure ships enabled; the source flag remains a kill switch. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. The EXAMPLE-only bridge branch has its own custody contract, not production authority. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review. Shipped-on and patched-off kill-switch witness covers registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage. Acceptance consumption is checked at capture and before every Beads call. The existing exclusive host audit lock joins the replay check to its intent append before any Beads write; the receipt belongs only to that in-flight attempt, whose full acceptance is still reverified. Failed writes and readback do not release consumption. Closing acceptance records host-selected adjudicator identity and rechecks existing provider/family/model/dispatch/session separation; control ID and effort alone are insufficient. Explicit original-adapter queries require closed blocking dependencies and reverse parent-child edges before writes and again before close. Policy source drift refuses consumption.","review_gates":["p2a57a279","pd5914a49","p0d43f0cb","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check","closure-adjudicator-check","closure-graph-check"]},
+{"contract":"B4","effect_points":["p2724d549","closure-adapter-comment","closure-adapter-close"],"entrypoint":"pd1d4f390","gate_limits":"Custody creation and the stored production callback require lifecycle review; consume and adapter checks bind their own calls. Production-only consume admission is selected by the outer registered-bridge condition; EXAMPLE bridges retain their separate contract. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p8725844d","p54fa2aba"],"id":"B4.3","review_gates":["p2a57a279","pd5914a49","p0d43f0cb","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check","closure-adjudicator-check","closure-graph-check"]},
 
 {"contract":"B5","effect_points":["p6f997d27"],"entrypoint":"p0ad089cc","gate_limits":"Expected pre-hash is optional; the nested mismatch check is conditional on a supplied digest. The close-owned check belongs to the sibling method. Neither is an unconditional claim gate.","gates":["pdc3ba9c7"],"id":"B5.1","review_gates":["pc464495b","p000d59cf"],"selector":"claim zero-update witness"},
 
@@ -4852,7 +4852,7 @@
 
 "scripts/cwo_core/harness.py":{"mode":420,"sha256":"5667221137c5909d3aa5cc1407f7e723dfb521384a94e5fbfca4fe0a6aa8b815","size":27083},
 
-"scripts/cwo_core/host_acceptance.py":{"mode":420,"sha256":"10a374fd68e7573596f6f6ea37286c9dbc544914119d2ab934ddce332beb3a30","size":17894},
+"scripts/cwo_core/host_acceptance.py":{"mode":420,"sha256":"5a1e86cebd0a90b9a3fd3e777a7f9271a2b1ad69f4049325278c70eacd67dde4","size":19192},
 
 "scripts/cwo_core/host_record_inventory.py":{"mode":420,"sha256":"f278c0b50c2d931f3378769af398fdfc2fa93040b4af325aef13620c2b415f1c","size":1659},
 
@@ -5132,7 +5132,7 @@
 
 "scripts/prepare_combined_review_binding.py":{"mode":420,"sha256":"16c1fd2b3f41d568c0ee067b5f08aaa01005d55951e4e56245b971c938308c65","size":22323},
 
-"scripts/prepare_delivery_closure.py":{"mode":420,"sha256":"a1e49820709e5d831d02e10785e3a7a33947e160593c68fb4244b4f84125a89c","size":32514},
+"scripts/prepare_delivery_closure.py":{"mode":420,"sha256":"6dc38096ce1e5297dc1c4d0299320047a8075b9fbfd43d5491c2969856604c77","size":32512},
 
 "scripts/prepare_final_review_binding.py":{"mode":420,"sha256":"ecfa7761649ddd7ebef371891f7b3842dbf7774906ab33f2d7d5497c31ba3ef3","size":14738},
 
@@ -5158,13 +5158,13 @@
 
 "scripts/produce_validator_evidence.py":{"mode":420,"sha256":"72f93d3bbb8b0ac98567ec351f4607aeb129db431e0649fd45cf6dfe78f8efec","size":17526},
 
-"scripts/production_closure_authority.py":{"mode":420,"sha256":"7529924177b148b83bea5bc806d16aacfbea258dfee0d430444dd545c80be8e1","size":3633},
+"scripts/production_closure_authority.py":{"mode":420,"sha256":"8854b741f58ad9091567a563b91aefd0c0921fe1201526e9cce509bcd51f80c2","size":5207},
 
 "scripts/profile_preparation_diagnostics.py":{"mode":420,"sha256":"6db6813abc257892d4e22e1994127e0f6969dfe9aaa0a00297384899a15fe6ae","size":12961},
 
 "scripts/qualified_adjudication.py":{"mode":420,"sha256":"8baf42740aefce84f1dee388ffe5543712937942b736bd734876d8c02d3bc339","size":16909},
 
-"scripts/qualified_closure.py":{"mode":420,"sha256":"96dc3db6e3e328558dc52f082960ae7efc1f8b469e47146b9630d582a020e923","size":36894},
+"scripts/qualified_closure.py":{"mode":420,"sha256":"d495173d934c68c97f6eec78cfadc35d4f77e79edcf2fadb82335ac7bbd6a1bf","size":38129},
 
 "scripts/qualified_n1_host.py":{"mode":420,"sha256":"8e810722ef1ab5c642c8e6984d2350ae0de135efa968b0cac42815376f4196a9","size":12500},
 
@@ -5172,7 +5172,7 @@
 
 "scripts/qualified_risk_use.py":{"mode":420,"sha256":"f89225010b9e0b35842c3cb21e6d5ec17f0a6c0055adbaf80751e6af0839dd54","size":13133},
 
-"scripts/qualified_workflow_adjudication.py":{"mode":420,"sha256":"c8199f147b6330bcf20fccba2434572620eb4203c9099c54ec53f3bb1cedd936","size":30714},
+"scripts/qualified_workflow_adjudication.py":{"mode":420,"sha256":"bbfca24d750b1acfc108cf464dbb1b457eac2950733abc6ad0b65958f7f81d71","size":31699},
 
 "scripts/record_audit_event.py":{"mode":493,"sha256":"ae8100e6d066b55b61cc9dedba20b92172b0775d5ca95d1174e09c76a190e8e1","size":5255},
 
@@ -5276,9 +5276,9 @@
 
 "tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"e1e4c4df7d69315bda256850e00ea6bbfddf24b937f75e912ef526add7c88137","size":127256},
 
-"tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"eaacebfb44bcb28e0a3e98974c3db9b39ab75baaba9b6bd682a919f98b2bf11f","size":1939},
+"tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"87a26b47c505e5834a98369efe916b51ca9af2e00e1df2b9e2139a28a4908171","size":2340},
 
-"tests/test_acceptance_product_flow.py":{"mode":420,"sha256":"3a6818b9521fb9217552bb6edc884a363841ed8df459ffac0437d1ef6a863d3b","size":28505},
+"tests/test_acceptance_product_flow.py":{"mode":420,"sha256":"05a6b7becd2638e3540b0068eb396a2462062d9fd1961a7462756fe9b33ae405","size":28833},
 
 "tests/test_atomic_spawn.py":{"mode":420,"sha256":"7e8ee59a4968ce4c55f845f1d4dcf510b3fe19a4971340edd62ca7f0aea6220b","size":18152},
 
@@ -5318,7 +5318,7 @@
 
 "tests/test_documentation_tools.py":{"mode":420,"sha256":"d2013052619fc930ff6567c9f1b3843452a409a91d19af329aac52a47dc505c2","size":6569},
 
-"tests/test_f1_production_closure_guards.py":{"mode":420,"sha256":"7b1db301c63270a7ac4aef07b9be91739ccb27b3083fd8224b32e3593c5f291d","size":14408},
+"tests/test_f1_production_closure_guards.py":{"mode":420,"sha256":"a9b3d8d2d96380160a41b220cff7d1f6185a91f4b70d7a059d79730fef4c7512","size":14498},
 
 "tests/test_f5_native_live_holds.py":{"mode":420,"sha256":"4c6eaa5ea20de8a047b28dc851dff966341d827713d87b555f61925a308d6f89","size":27564},
 
@@ -5354,9 +5354,9 @@
 
 "tests/test_ownership_producer.py":{"mode":420,"sha256":"14d7a0ec68767275fd1e96daca77e524bf0dee174e108fe033c0dcb8f8c81c60","size":57956},
 
-"tests/test_production_closure.py":{"mode":420,"sha256":"50ca1df5b2d882c7351a790cba409572d579a98d70ec39190db224f130e20237","size":41834},
+"tests/test_production_closure.py":{"mode":420,"sha256":"a98a6e9a4f72127c5f4f852575f0860b1585a3dd192fa3fdad162566a9588a49","size":61523},
 
-"tests/test_production_closure_authority.py":{"mode":420,"sha256":"39ff236574d3c25dd0bf98e36c153debca3178456a51d3e77ba6916fd99c36d4","size":10638},
+"tests/test_production_closure_authority.py":{"mode":420,"sha256":"f5cbcc2e57d48ebadca7991a7313e832b9e2c836fc837cc9a5cf3470effefccb","size":14313},
 
 "tests/test_qualified_review_dispatch.py":{"mode":420,"sha256":"51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c","size":24949},
 
@@ -5396,7 +5396,7 @@
 
 "tests/test_w20_affected_contract_w13.py":{"mode":420,"sha256":"2b667088928f442b6322017ea4cded5d4701d14f01fc5a2e409344565d638d4d","size":90632},
 
-"tests/test_workflow_adjudication.py":{"mode":420,"sha256":"43d1617e2670b625ffdc3c4194d41a44d271de34f3078370a00d43ba94b730d0","size":37914},
+"tests/test_workflow_adjudication.py":{"mode":420,"sha256":"d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5","size":38470},
 
 "tests/test_workspace_inert_inspection.py":{"mode":420,"sha256":"e4431b1a69b387499980c5b275eb66872bb7c01f88c86f79e87802c041bc41c9","size":288978}
 },
