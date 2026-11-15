@@ -1629,6 +1629,7 @@
       "scripts/prepare_validator_receipts.py"
     ],
     "scripts/production_closure_authority.py": [
+      "scripts/cwo_core/audit.py",
       "scripts/cwo_core/host_acceptance.py",
       "scripts/cwo_core/host_records.py"
     ],

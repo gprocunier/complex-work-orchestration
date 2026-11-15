@@ -29,6 +29,8 @@
 - Correct contained launcher arguments and mount ordering, inspect effective mounts behind a trusted startup gate, and retain verified namespace handles for cleanup.
 - Increase the finite release inventory limit from 540 to 580 KiB to retain the integrated diagnostic, startup and cleanup bindings without dropping routes.
 
+- Make verified closure acceptances single use across registrations and reopened tasks, recording consumption intent before any task write, including failed close attempts.
+
 - Made finite-tool fixture publication reliable during concurrent child containment while retaining live-child errors and accounting checks.
 
 - Cleanup validates original controller-owned retained lifetimes before explicit owned termination; the CLI remains detection-only with registry pruning.

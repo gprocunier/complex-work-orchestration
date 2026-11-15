@@ -681,6 +681,12 @@ def _production_summary(state: _State) -> str:
         follow_up=["Integration and parent acceptance remain independently adjudicated."])
 
 
+def _consume_production_acceptance(state: _State) -> None:
+    if type(state.bridge) is _ProductionBeadsBridge:
+        state.authority = _authority_call(state.authority.record_closure)
+        state.bound = state.authority
+
+
 def consume(host: Host, *, dry_run: bool = False) -> dict[str, Any]:
     """Revalidate under held ownership, then comment and close through the original adapter.
 
@@ -709,6 +715,7 @@ def consume(host: Host, *, dry_run: bool = False) -> dict[str, Any]:
             return host.report
         state.attempted = True
         _validate(state, bead)
+        _consume_production_acceptance(state)
         state.report["comment_attempted"] = True
         state.report["persistence_known"] = False
         _bd(state, ["comment", "--", bead["id"], summary])
@@ -729,7 +736,6 @@ def consume(host: Host, *, dry_run: bool = False) -> dict[str, Any]:
         production = type(state.bridge) is _ProductionBeadsBridge
         if production:
             _production_guard(state)
-            _authority_call(state.authority.record_closure)
             state.report["database_identity"] = json.loads(state.authority.database_identity)
             state.report["acceptance_record_sha256"] = state.authority.acceptance_record
         completed = "COMPLETED" if production else "FAKE_COMPLETED"

@@ -244,6 +244,106 @@ class ProductionClosureTests(unittest.TestCase):
             finally:
                 os.close(descriptor)
 
+    def test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes(self):
+        case = self.builders.compact()
+        with self.provisioned(case) as (process, custody, database), \
+                patch.object(qualified, "PRODUCTION_CLOSURE_AVAILABLE", True):
+            with qualified.production_custody(str(custody), database=str(database),
+                    actor="EXAMPLE-supervisor", **process.authority) as host:
+                self.reviewed(case, host, custody)
+                self.assertTrue(closure.execute_qualified_completed(host)["completed"])
+            # The operator reopens the same delivery, retaining its earlier summary.
+            process.bead.update(status="open", updated_at="EXAMPLE-reopened",
+                                revision="EXAMPLE-reopened-revision")
+            for field in ("closed_at", "close_reason"):
+                process.bead.pop(field, None)
+            contract = json.loads((custody / "contract.json").read_bytes())
+            contract["bead"] = copy.deepcopy(process.bead)
+            self.builders.write(custody, "contract.json", original._freeze(contract))
+            process.calls.clear()
+            process.effects.clear()
+            before = {p.relative_to(custody.parent): p.read_bytes()
+                      for p in custody.parent.rglob("*") if p.is_file()}
+            with self.assertRaisesRegex(original.ClosureError, "already been consumed"):
+                with qualified.production_custody(str(custody), database=str(database),
+                        actor="EXAMPLE-supervisor", **process.authority) as replay:
+                    self.reviewed(case, replay, custody)
+                    closure.execute_qualified_completed(replay)
+            self.assertEqual(process.calls, [])
+            self.assertEqual(process.effects, [])
+            self.assertEqual(before, {p.relative_to(custody.parent): p.read_bytes()
+                                     for p in custody.parent.rglob("*") if p.is_file()})
+
+    def test_consumption_after_bind_refuses_before_any_beads_call_or_write(self):
+        case = self.builders.compact()
+        with self.registered(case) as (host, process, custody):
+            self.reviewed(case, host, custody)
+            process.store.record_audit_event({"event_type": "production_closure_consumed",
+                "acceptance_record_sha256": process.authority["acceptance_record"]})
+            before_calls = list(process.calls)
+            before_audit = process.store.audit_events()
+            with self.assertRaisesRegex(original.ClosureError, "already been consumed"):
+                closure.execute_qualified_completed(host)
+            self.assertEqual(process.calls, before_calls)
+            self.assertEqual(process.effects, [])
+            self.assertEqual(process.store.audit_events(), before_audit)
+
+    def test_consumption_intent_precedes_writes_and_survives_close_failures(self):
+        for failure in (None, "comment", "close", "readback", "post-close-guard"):
+            with self.subTest(failure=failure):
+                case = self.builders.compact()
+                with self.provisioned(case) as (process, custody, database), \
+                        patch.object(qualified, "PRODUCTION_CLOSURE_AVAILABLE", True):
+                    with qualified.production_custody(str(custody), database=str(database),
+                            actor="EXAMPLE-supervisor", **process.authority) as host:
+                        self.reviewed(case, host, custody)
+                        checked = []
+                        def before(action):
+                            if action[0] in ("comment", "close"):
+                                consumed = [e for e in process.store.audit_events()
+                                            if e.get("event_type") == "production_closure_consumed"]
+                                self.assertEqual(len(consumed), 1)
+                                self.assertEqual(consumed[0]["acceptance_record_sha256"],
+                                                 process.authority["acceptance_record"])
+                                checked.append(action[0])
+                                if action[0] == failure:
+                                    raise subprocess.TimeoutExpired(["bd"], 1)
+                            if action[0] == "show" and process.bead["status"] == "closed" \
+                                    and failure == "readback":
+                                raise subprocess.TimeoutExpired(["bd"], 1)
+                        def after(action):
+                            if action[0] == "close" and failure == "post-close-guard":
+                                path = custody / "contract.json"
+                                path.write_bytes(path.read_bytes() + b" ")
+                        process.before, process.after = before, after
+                        if failure is None:
+                            self.assertTrue(closure.execute_qualified_completed(host)["completed"])
+                        else:
+                            error = original.ClosureError if failure == "post-close-guard" else SystemExit
+                            with self.assertRaises(error):
+                                closure.execute_qualified_completed(host)
+                        self.assertEqual(checked, ["comment"] if failure == "comment" else ["comment", "close"])
+                        self.assertEqual(len([e for e in process.store.audit_events()
+                            if e.get("event_type") == "production_closure_consumed"]), 1)
+                    before_calls = list(process.calls)
+                    before_effects = list(process.effects)
+                    with self.assertRaisesRegex(original.ClosureError, "already been consumed"):
+                        with qualified.production_custody(str(custody), database=process.database,
+                                actor="EXAMPLE-supervisor", **process.authority):
+                            self.fail("consumed acceptance registered again")
+                    self.assertEqual(process.calls, before_calls)
+                    self.assertEqual(process.effects, before_effects)
+
+    def test_failed_consumption_audit_refuses_before_any_beads_write(self):
+        from cwo_core import audit
+        case = self.builders.compact()
+        with self.registered(case) as (host, process, custody):
+            self.reviewed(case, host, custody)
+            with patch.object(audit, "_append_private_audit", side_effect=OSError("EXAMPLE audit failure")):
+                with self.assertRaises(original.ClosureError):
+                    closure.execute_qualified_completed(host)
+            self.assertEqual(process.effects, [])
+
     def test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls(self):
         """S4 exact authority: each refusal is paired with fake-bd completed control."""
         faults = ("missing", "bead", "return", "evaluation", "tamper", "chain",
