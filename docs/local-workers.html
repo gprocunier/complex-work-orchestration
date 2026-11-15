@@ -259,7 +259,7 @@
           <section id="dispatch-envelope">
             <h2>Prepare the request without calling the model</h2>
             <p>By default, dispatch writes a <strong>local envelope</strong>: a request record containing the selected profile, environment-variable names and bounded prompt. It contains neither API-key values nor endpoint URLs. No endpoint call occurs without <code>--execute-local</code>.</p>
-            <p><strong>Currently unavailable:</strong> <code>--execute-local</code> refuses before any quota check, audit event, name resolution or request, because CWO cannot yet size the exact request and reserve its share of an aggregate budget before the call (issue #41). Writing the local envelope and manual export still work.</p>
+            <p><strong>Currently unavailable:</strong> <code>--execute-local</code> refuses before any quota check, audit event, name resolution or request. General local execution does not yet consume complete workload admission at its effect boundary. Finite offline tests cover sizing, admission, reservations and selected HTTP and browser consumers; that coverage does not restore the general route or establish whole-route browser model feasibility, provider billing or remote cancellation. See the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/local-inference.md">maintained admission reference</a> for exact coverage and limits. Writing the local envelope and manual export still work.</p>
             <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_BASE_URL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"https://vllm.example.internal"</span></span>
 <span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_MODEL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"vllm-local"</span></span>
 <span class="line"></span>
@@ -381,11 +381,15 @@
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --workspace-mutation-report</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> local-return-bundle.json</span></span></code></pre>
             <p>
-              Evaluate the return against the acceptance policy. Pass
+              Inspect the return in nonproduction advisory mode. Local dispatch
+              artifacts have no reviewed production producer contract; this mode
+              retains an implementation hold and cannot clear a finding or qualify
+              local execution. Pass
               <code>--peer-review-required</code> only if route policy or
               provider-conflict flags require it:
             </p>
             <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/evaluate_return.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --advisory</span><span class="shiki-style-ab138001542cb31f"> --no-audit</span><span class="shiki-style-ab138001542cb31f"> --waiver-reason</span><span class="shiki-style-fccf53bf0d08ec6a"> "nonproduction diagnostic"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$TASK_ID</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift_ai_vllm_worker</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --local-dispatch-result</span><span class="shiki-style-fccf53bf0d08ec6a"> local-dispatch-result.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>

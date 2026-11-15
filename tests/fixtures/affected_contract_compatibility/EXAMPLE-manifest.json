@@ -349,7 +349,7 @@
     "scripts/build_contractor_packet.py": "2cbb3c9d5eba1ea2ef2cfd7aedf32ae5cdf4bee4e7a6baaba5c7a626a093b431",
     "scripts/check_codex_worker_surface.py": "6874a3e21680b3bac6575c858ddef873ccdc30a3a6ff72fa329f8299720918cd",
     "scripts/check_installed_skill.py": "a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",
-    "scripts/cleanup_stale_agents.py": "a7d14dc3770647a92882d467a38fa1f56c9cc4dc7274fcb67860761256360a2a",
+    "scripts/cleanup_stale_agents.py": "923e38988513324f5b5b69961816d49d5f0968b24b124ea5cf8d06f5704afc98",
     "scripts/codex_tool_surface.py": "36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",
     "scripts/cwo_core/__init__.py": "67e11ebca7a7a3dfa255b63af69d4852556e774196a62e55a2b7779c3763209d",
     "scripts/cwo_core/access_profiles.py": "da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",

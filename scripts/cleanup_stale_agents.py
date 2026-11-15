@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Detect stale local agent sessions and prune stale records from the registry.
 
-No process is signalled. Unless run with ``--dry-run`` or
-``--no-prune-state``, cleanup rewrites the session registry and drops records
+The standalone CLI signals no process. Unless run with ``--dry-run`` or
+``--no-prune-state``, the CLI rewrites the session registry and drops records
 whose PID is missing, invalid or no longer running.
 
 Recognition is not ownership. The session registry (``sessions.jsonl``) is an
@@ -10,13 +10,13 @@ unauthenticated file that any same-user process can write, and argv matching
 recognizes any process with an agent name among its arguments. Neither one
 identifies a process this harness started, so neither one authorizes a signal.
 
-The callable cleanup API can consume an opaque retained-lifetime capability
-issued by the original controller. The CLI receives no such capability, so
-termination requests remain unavailable and no process is signalled.
+The callable cleanup API can attempt owned-process termination using an opaque
+retained-lifetime capability issued by the original controller. The CLI receives
+no such capability, so its termination requests remain unavailable.
 
-Detection does not terminate anything, but a non-dry-run invocation still
-rewrites the registry to prune records whose processes have exited. Use
-``--dry-run`` or ``--no-prune-state`` to leave it untouched.
+A non-dry-run CLI invocation still rewrites the registry to prune records
+whose processes have exited. Use ``--dry-run`` or ``--no-prune-state`` to leave
+it untouched.
 """
 from __future__ import annotations
 

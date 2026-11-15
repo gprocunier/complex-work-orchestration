@@ -190,10 +190,6 @@ a matched positive control and restored source; hashes or printed fault names
 are not fault catches. Full traces, fault logs and release decisions stay outside
 the product. Gate records do not enable held effects.
 
-Milestone assessment: M1a has 62 met, 17 partial, 2 held and 0 unverified clauses;
-M1a is incomplete. M2 applies and is incomplete. This inventory does not change
-those results.
-
 From the source checkout, generate evidence outside the product:
 
 ```sh

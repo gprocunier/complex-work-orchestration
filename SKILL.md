@@ -200,8 +200,11 @@ python3 scripts/render_run_projection.py <plan.json> --projection run-sheet
 python3 scripts/render_execution_status_report.py <inputs>
 ```
 
-Before closing meaningful Beads, add a compact closure-memory comment. The narrative CLI refuses success dispositions: record delivered work as `pending-acceptance`, which leaves the Bead open for the operator.
-The verified library can close a Bead with an embedding host's single-use acceptance bound to the original dispatch, exact baseline/candidate, current policy and setup database identity, a separated adjudicator, every required clearance and no open blockers or children; its shipped review-host producer remains held.
+Before closing meaningful Beads, add a compact closure-memory comment. The narrative CLI below refuses all success dispositions, even with verified acceptance.
+
+Verified completion uses the enabled `qualified_closure.py` library consumer described in [run readiness](references/run-readiness.md). It requires an embedding host's single-use acceptance bound to the original dispatch, exact requirement baseline and candidate, exact original observations seen by the accepted final review, current policy and setup database identity, an adjudicator separated from the executor, every required clearance and no open blockers or children. It records consumption intent in the host audit before the first Beads write; a failed write or reopening the task does not permit reuse. The shipped review-host producer and activation remain separately held. Caller JSON or a narrative summary cannot grant acceptance.
+
+Record delivered work with the narrative helper as `pending-acceptance`, which leaves the Bead open for the operator:
 
 ```bash
 python3 scripts/close_bead_with_summary.py --bead <id> --disposition pending-acceptance --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful

@@ -8,6 +8,9 @@
 - Preserve the original registered transport failure as the cause of a failed workflow, and settle fixture replies before inspecting terminal publication or post-refusal records.
 - Observe pending-birth cleanup while its original owner is paused, retaining timeout and containment checks when a peer finishes first.
 - Report the measured private PID cursor prerequisite refusal on hosts that deny it; complete original cleanup remains required and supported hosts still execute the controls.
+- Align the practice walkthrough with pending acceptance and the operator-resolved validator prerequisite before dependent CLI work.
+- Distinguish capability-backed callable cleanup from the detection-only CLI, and clarify finite admission coverage and advisory local-return evaluation without restoring held execution.
+- Remove obsolete assessment totals from the release mechanism reference.
 
 ## 0.8.0 - 2026-11-15
 

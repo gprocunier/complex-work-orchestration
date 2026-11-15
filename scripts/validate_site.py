@@ -32,6 +32,7 @@ SOURCE_BLOB_LINK_ALLOWLIST.update(
     f"{REPO_URL}/blob/main/{name}" for name in (
         "CONTRIBUTING.md", "SKILL.md", "SECURITY.md", "CHANGELOG.md",
         "references/cwo-system-prompt.md",
+        "references/local-inference.md",
         "references/execution-environments.md", "references/native-pool-capacity-migration.md",
         "references/run-readiness.md", "references/security-threat-model.md",
         "references/frozen-protocol-lock.md", "references/pre-dispatch-readiness.md",
