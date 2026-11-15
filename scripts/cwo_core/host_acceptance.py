@@ -15,7 +15,8 @@ from typing import Any, Callable
 from .errors import CWOPolicyError
 from .host_records import configured_store
 from .peer_review import PEER_REVIEW_HOLDS, pending_evaluation_sha256
-from .peer_review_identity import _recorded_dispatch, _registered_model, validate_separation
+from .peer_review_identity import (_recorded_dispatch, _registered_model, validate_separation,
+                                   review_identity, identity_token, separation_level, IDENTITY_FIELDS)
 from .returns import make_acceptance_decision
 from . import policy
 from .policy import load_policy
@@ -33,7 +34,7 @@ def _copy(value: Any) -> Any:
 
 def _policy_sha256() -> str:
     names = ("acceptance-policy", "contracting-controls", "provider-registry", "executor-registry",
-             "return-tripwires", "synthesis-policy", "share-boundaries")
+             "return-tripwires", "synthesis-policy", "share-boundaries", "peer-review-policy")
     return pending_evaluation_sha256({name: _current_policy(name) for name in names})
 
 
@@ -60,9 +61,10 @@ class HostAdjudicationDecision:
 class HostAcceptancePipeline:
     """Evaluate and adjudicate a received return; no effect is enabled here."""
 
-    def __init__(self, control: Callable, *, store=None):
+    def __init__(self, control: Callable, *, store=None, adjudication_identity: dict | None = None):
         _need(callable(control), "the host must pin its autonomous adjudication adapter")
         self._control = control
+        self._adjudication_identity = _copy(adjudication_identity)
         self._store = configured_store() if store is None else store
 
     def accept(self, text: str, *, bead_id: str, dispatch_id: str,
@@ -92,7 +94,8 @@ class HostAcceptancePipeline:
         _need(type(decision.rationale) is str and 0 < len(decision.rationale.strip()) <= 2048,
               "adjudication rationale is missing or over bound")
         _need(type(decision.control_id) is str and 0 < len(decision.control_id) <= 128,
-              "host adjudication identity is missing or over bound")
+              "host adjudication control id is missing or over bound")
+        _adjudication_separation(dispatch, self._adjudication_identity, _source_context(dispatch) is not None)
         _need(policy_sha == _policy_sha256(), "evaluation policy changed during adjudication")
         _need(dispatch == store.require_dispatch(dispatch_id)
               and receipt == store.require_return(dispatch_id, returned), "dispatch or receipt changed")
@@ -108,7 +111,8 @@ class HostAcceptancePipeline:
             pending_evaluation=pending, return_text=text, policy_sha256=policy_sha,
             dispatch_record_sha256=dispatch["_record_sha256"], return_record_sha256=receipt["_record_sha256"])
         adjudication_record = store.write_record("adjudication", **context, decision="accepted",
-            rationale=decision.rationale, control_id=decision.control_id, evaluation_record=evaluation_record)
+            rationale=decision.rationale, control_id=decision.control_id, evaluation_record=evaluation_record,
+            adjudication_identity=self._adjudication_identity)
         cleared = {}
         for hold in required:
             cleared[hold] = store.write_record("hold-clearance", **context, hold=hold,
@@ -189,6 +193,8 @@ def require_acceptance(store, acceptance_record: str, *, bead_id: str, return_sh
     _context(adjudication, expected)
     _need(adjudication.get("decision") == "accepted"
           and adjudication.get("evaluation_record") == recorded["_record_sha256"], "adjudication does not accept evaluation")
+    _adjudication_separation(store.require_dispatch(expected["dispatch_id"]),
+        adjudication.get("adjudication_identity"), expected["source_context"] is not None or delivery_context is not None)
     required, clearances = _required_clearances(accepted, pending)
     for hold in required:
         clearance = store.get(clearances[hold], record_type="hold-clearance")
@@ -200,6 +206,18 @@ def require_acceptance(store, acceptance_record: str, *, bead_id: str, return_sh
         adjudication_record_sha256=accepted["adjudication_record"], host_control_id=adjudication["control_id"],
         **{key: value for key, value in expected.items() if key != "source_context"})
     return accepted
+
+
+def _adjudication_separation(dispatch, identity, required):
+    """Bootstrap selects identity; the immutable host adjudication preserves it."""
+    if identity is None and not required:
+        return
+    _need(type(identity) is dict and set(identity) == IDENTITY_FIELDS | {"session_id"},
+          "closing acceptance requires host-selected adjudication identity")
+    reviewer = review_identity({name: identity[name] for name in IDENTITY_FIELDS})
+    executor = review_identity({name: dispatch.get(name) for name in IDENTITY_FIELDS})
+    separation_level(executor, reviewer, identity_token(dispatch.get("session_id")),
+                     identity_token(identity["session_id"]))
 
 
 def _require_source_context(store, accepted, expected, delivery_context):

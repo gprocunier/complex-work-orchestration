@@ -1,6 +1,6 @@
 """Custody adapters for the original closure client.
 
-Production closure remains disabled. Its authority is the host acceptance
+Production closure requires independently verified host acceptance. Its authority is the host acceptance
 pipeline and verified database identity; the EXAMPLE path stays a simulation.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ from cwo_core.errors import CWOPolicyError
 import production_closure_authority as production_authority
 
 PUBLIC_ACTIVATION = False
-PRODUCTION_CLOSURE_AVAILABLE = False
+PRODUCTION_CLOSURE_AVAILABLE = True
 MAX_CONTROL = original.combined.MAX_DOCUMENT
 
 
@@ -304,7 +304,7 @@ def production_custody(directory: str, *, database: str, actor: str,
     rechecks that identity and the verified acceptance and its hold evidence.
     """
     _need(PRODUCTION_CLOSURE_AVAILABLE is True,
-          "production closure is unavailable pending the production closure restoration decision")
+          "production closure is unavailable: its source kill switch is off")
     custody, db = Path(directory), Path(database)
     _need(type(actor) is str and bool(actor.strip()) and actor == actor.strip(),
           "a supervisor-selected explicit Beads actor is required")
@@ -413,7 +413,7 @@ def _authority_call(call: Any, *args: Any, **kwargs: Any) -> Any:
 def _production_guard(state: _State) -> None:
     if type(state.bridge) is _ProductionBeadsBridge:
         _need(PRODUCTION_CLOSURE_AVAILABLE is True,
-              "production closure is unavailable pending the production closure restoration decision")
+              "production closure is unavailable: its source kill switch is off")
         _need(state.authority is not None, "verified host acceptance authority is required")
         _authority_call(state.authority.check, state.bridge.database)
 
@@ -483,7 +483,7 @@ def _bd(state: _State, args: list[str]) -> str:
     # Fixed original adapter boundary. There is no caller-selected callback or route.
     if type(state.bridge) is _ProductionBeadsBridge:
         _need(PRODUCTION_CLOSURE_AVAILABLE is True,
-              "production closure is unavailable pending the production closure restoration decision")
+              "production closure is unavailable: its source kill switch is off")
         _need(not state.retired and type(state.bridge).__call__ is _PRODUCTION_CALL
               and state.bridge.call is _BEADS_CALL,
               "the captured original production Beads adapter is required")
@@ -550,6 +550,22 @@ def _task(state: _State, expected: dict[str, Any]) -> None:
         result = _production_projection(result, expected, state)
     _need(original._freeze(result) == original._freeze(expected),
           "authoritative task projection changed or belongs to another task")
+    if type(state.bridge) is _ProductionBeadsBridge:
+        _closed_prerequisites(state, expected["id"])
+
+
+def _closed_prerequisites(state: _State, bead_id: str) -> None:
+    """Query complete directed edges; show omits reverse children by default."""
+    for kind, direction in (("blocks", "down"), ("parent-child", "up")):
+        raw = _bd(state, ["dep", "list", "--json", "--type", kind,
+                          "--direction", direction, "--", bead_id]).encode()
+        _need(len(raw) <= MAX_CONTROL, "prerequisite projection exceeds the control bound")
+        rows = original._read(b'{"relationships":' + raw + b'}')["relationships"]
+        _need(type(rows) is list, "authoritative prerequisite list is required")
+        for row in rows:
+            _need(type(row) is dict and type(row.get("id")) is str and bool(row["id"])
+                  and row.get("dependency_type") == kind, "authoritative prerequisite identity/type is required")
+            _need(row.get("status") == "closed", "nonclosed blocker or child prevents production closure")
 
 
 def _adopt_observation(observation: Any, value: dict[str, Any], native: Any) -> Any:
@@ -666,7 +682,7 @@ def _summary(state: _State) -> str:
 def _production_summary(state: _State) -> str:
     context = state.observation.context
     return closure.render_closure_summary(
-        bead=context["bead"]["id"], disposition="completed", why="Bound delivery accepted",
+        bead=context["bead"]["id"], disposition="closing", why="Acceptance verified; close not yet confirmed",
         who_involved=[state.bridge.actor], what_changed=["The registered candidate satisfies its recorded contract."],
         how_validated=["Original observations pass; the verified autonomous acceptance clears every required hold."],
         when_closed=["Registration " + state.registration_id], where_executed=[context["root"]],
@@ -699,7 +715,7 @@ def consume(host: Host, *, dry_run: bool = False) -> dict[str, Any]:
         registered = _registry.get(host) if type(host) is Host else None
     if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:
         _need(PRODUCTION_CLOSURE_AVAILABLE is True,
-              "production closure is unavailable pending the production closure restoration decision")
+              "production closure is unavailable: its source kill switch is off")
     _need(type(dry_run) is bool, "dry_run must be an exact Boolean")
     with _operation(host) as state:
         _need(not state.attempted, "this bound approval has already been consumed")

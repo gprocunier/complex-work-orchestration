@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Enable verified successful closure for embedding hosts under the operator decision of 2026-11-15: single-use acceptance, an adjudicator separated from the executor, no open blockers or children, and current original dispatch, baseline, candidate, policy and database checks. The narrative CLI still records `pending-acceptance`; other live routes remain held.
+- Record a truthful closing intent before the close call, so a failed close cannot leave a completed disposition on an open task.
+- Make verified closure acceptances single use across registrations and reopened tasks, recording consumption intent before any task write, including failed close attempts.
+
 ## 0.7.0 - 2026-11-15
 
 - Wait for the fake child's original reply consumer before inspecting prequeued-poll refusal records, preserving the existing completion bound.
@@ -28,8 +32,6 @@
 - Recheck target state and retained file identities immediately before offline publication, and refuse replaced host claim locks before persistence or artifact capture.
 - Correct contained launcher arguments and mount ordering, inspect effective mounts behind a trusted startup gate, and retain verified namespace handles for cleanup.
 - Increase the finite release inventory limit from 540 to 580 KiB to retain the integrated diagnostic, startup and cleanup bindings without dropping routes.
-
-- Make verified closure acceptances single use across registrations and reopened tasks, recording consumption intent before any task write, including failed close attempts.
 
 - Made finite-tool fixture publication reliable during concurrent child containment while retaining live-child errors and accounting checks.
 

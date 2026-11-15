@@ -24,7 +24,7 @@ def delivery_evidence(case):
     return binding._parse(workflow.delivery.final_review_basis(case.review_observation))
 
 
-def route_with_basis(identity, basis=None, basis_id="cwo-bound-review-basis", *, evidence=None):
+def route_with_basis(identity, basis=None, basis_id="cwo-bound-review-basis", *, evidence=None, model=None):
     route = original.workflow()
     route["run_id"] = "EXAMPLE-" + identity
     route["aggregate_id"] = "EXAMPLE-budget-" + identity
@@ -35,6 +35,9 @@ def route_with_basis(identity, basis=None, basis_id="cwo-bound-review-basis", *,
             row["id"] = identity + "-" + row["id"]
             row["depends_on"] = [identity + "-" + item for item in row["depends_on"]]
     for node in route["nodes"]:
+        if model is not None:
+            node['execution']['model'] = model
+            node['estimate_source']['requested_model'] = model
         if identity != "source":
             node["id"] = identity + "-" + node["id"]
             node["depends_on"] = [identity + "-" + item for item in node["depends_on"]]
@@ -96,9 +99,14 @@ class WorkflowAdjudicationTests(unittest.TestCase):
         self.assertLessEqual(
             len(self.http.content.split()), json.loads(req.data)["max_tokens"]
         )
-        return original.ExampleResponse(
-            usable=self.http.usable, content=self.http.content
-        )
+        response = original.ExampleResponse(usable=self.http.usable, content=self.http.content)
+        raw = response.read
+        def read(cap):
+            value = json.loads(raw(cap))
+            value['model'] = json.loads(req.data)['model']
+            return json.dumps(value).encode()[:cap]
+        response.read = read
+        return response
 
     def source(self, *, task=False, clean=False, closure_case=None):
         expected = binding.ExpectedContext(
@@ -179,12 +187,13 @@ class WorkflowAdjudicationTests(unittest.TestCase):
         path = policy.POLICY_DIR / 'provider-registry.yaml'
         document = json.loads(path.read_text())
         document['review_models']['local-openai-compatible'] = {
-            'EXAMPLE-review-model': {'model_family': 'EXAMPLE-local', 'stronger_than': []}}
+            'EXAMPLE-review-model': {'model_family': 'EXAMPLE-local', 'stronger_than': []},
+            'EXAMPLE-adjudicator-model': {'model_family': 'EXAMPLE-review', 'stronger_than': []}}
         path.write_text(json.dumps(document))
         policy.clear_policy_cache()
         producer, _, _ = self.source(clean=True)
         self.assertEqual(binding._parse(producer.evaluation.result_bytes)['hold_reasons'], [])
-        control, _, _, _ = self.designated(producer, support_override=())
+        control, _, _, _ = self.designated(producer, support_override=(), model='EXAMPLE-adjudicator-model')
         store = configured_store()
         database = self.home / 'EXAMPLE-ACCEPTANCE-DB'
         database.mkdir(mode=0o700)
@@ -241,12 +250,13 @@ class WorkflowAdjudicationTests(unittest.TestCase):
         extra=None,
         identity="adjudication",
         support_override=None,
+        model=None,
     ):
         support = self.support(producer, all_findings=all_findings) if support_override is None else support_override
         basis = workflow.adjudication_basis(
             producer, support, "EXAMPLE-designated-reviewer"
         )
-        host = self.make_host(route_with_basis(identity, basis))
+        host = self.make_host(route_with_basis(identity, basis, model=model))
         ticket = host.issue(
             identity + "-plan", now=self.clock.now, expires_at=self.clock.now + 1000
         )

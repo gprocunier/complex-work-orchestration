@@ -101,8 +101,13 @@ call. An otherwise valid acceptance for the same task cannot authorize another
 baseline or candidate. Legacy acceptances without that source context cannot
 authorize production completion. Caller-written production
 approval files are retired. Human confirmation and signing are not part of the
-pipeline. The production source gate stays false and is checked before any
-validation, I/O or effect.
+pipeline. The production source gate ships true following the operator decision
+of 2026-11-15; setting it false refuses before validation, I/O or effect.
+The host-selected adjudicator's provider, family, model, dispatch and session
+must satisfy the existing peer-review separation rules against the executor.
+Same model at another effort, same session and same dispatch refuse; same-family
+escalation requires a registered stronger model. Policy-required peer review is
+still required independently. An arbitrary control ID is not identity.
 
 The supported library sequence is `qualified_closure.production_custody` →
 `qualified_closure.observe` → `qualified_closure.bind` →
@@ -110,11 +115,23 @@ The supported library sequence is `qualified_closure.production_custody` →
 [contract and availability](run-readiness.md#verified-closure-library) are
 documented separately from narrative dispositions. Original issued observations
 must cover every required criterion. A serialized success field grants nothing.
-The source hold refuses before setup or inspection reads; other refusals may
+The source kill switch refuses before setup or inspection reads; other refusals may
 need read-only custody, candidate, policy and host-record inspection. No comment,
 close or acceptance write is made by those closure refusals. After a comment has
 persisted, a later refusal retains a sticky partial-persistence report and never
 automatically retries.
+The captured original Beads adapter queries authoritative blockers and children
+in the setup-selected database before writes and again before close; any
+nonclosed blocker or child refuses. Consumption intent is atomically reserved
+in the existing host audit before the first Beads write. The acceptance cannot
+be reused after a reopen or partial failure.
+
+The activation preview has a separate accepted-child close route based on pool
+receipts. It is held independently by `LIVE_ACTIVATION_AVAILABLE` and its selected
+N1/pool holds, not constrained by production verified acceptance today. Those
+receipts supply no closure-eligible host acceptance or independent custody
+contract. Enabling the verified library does not enable activation; a future
+activation restoration must resolve that separate closure contract.
 
 Sandboxed workers cannot write the configured store; a separate test exercises
 that boundary through the offline N1 host. A same-user process can alter records
@@ -122,6 +139,11 @@ but a changed retained record digest or broken chain is detected and refused.
 This is tamper-evident, not tamper-proof: no immutable or external trust anchor
 prevents an unrestricted same-user process from replacing and rehashing the
 complete history. Missing records or chain events refuse rather than authorize.
+An embedding host selects the adjudication callable and records its identity.
+The boundary does not authenticate that callable or the truth of its metadata
+against a same-user writer who can mint coherent records. The shipped original
+review-host producer remains held by `LOCAL_INVOCATION_AVAILABLE`; the narrative
+CLI continues to record `pending-acceptance` and refuses success dispositions.
 
 Default audit history lives beside the package under
 `../.cwo-host-state/<package-name>/`. [Segment seals and automatic recovery](host-audit-history.md)

@@ -1,4 +1,4 @@
-"""Host-record authority for the disabled production closure adapter.
+"""Host-record authority for the verified production closure adapter.
 
 No caller-written approval file is an authority source. The store and audit log
 come from host configuration, independently of the worker and custody roots.

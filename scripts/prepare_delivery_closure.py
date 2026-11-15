@@ -1,4 +1,4 @@
-"""Offline delivery closure with a cooperative memory target and held production authority."""
+"""Offline delivery closure with a cooperative memory target and no production authority."""
 from __future__ import annotations
 
 import contextlib

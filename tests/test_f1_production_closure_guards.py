@@ -21,16 +21,17 @@ class F1ProductionClosureGuardTests(unittest.TestCase):
         self.builders = self.fixture.builders
 
     def test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control(self):
-        self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, False)
+        self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, True)
         case = self.builders.compact()
         with self.fixture.provisioned(case) as (process, custody, db), \
                 patch.object(qualified, "_directory", wraps=qualified._directory) as directory, \
                 patch.object(qualified, "_read_at", wraps=qualified._read_at) as read, \
                 patch.object(qualified, "_BEADS_CALL", wraps=qualified._BEADS_CALL) as run_bd:
-            with self.assertRaisesRegex(original.ClosureError, "production closure is unavailable"), \
+            with patch.object(qualified, "PRODUCTION_CLOSURE_AVAILABLE", False), \
+                    self.assertRaisesRegex(original.ClosureError, "production closure is unavailable"), \
                     qualified.production_custody(str(custody), database=str(db), actor="EXAMPLE-supervisor",
                                                  **process.authority):
-                self.fail("Production registration ignored its default-off gate")
+                self.fail("Production registration ignored its patched-off kill switch")
             run_bd.assert_not_called()
             directory.assert_not_called()
             read.assert_not_called()
@@ -45,7 +46,7 @@ class F1ProductionClosureGuardTests(unittest.TestCase):
                 self.assertGreater(read.call_count, 0)
                 self.assertGreater(run_bd.call_count, 0)
                 self.assertEqual([command[0] for command in process.effects], ["comment", "close"])
-        self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, False)
+        self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, True)
 
     def test_F1_M029_M030_bd_gate_refuses_each_action_after_registration_with_positive_control(self):
         case = self.builders.compact()
@@ -104,7 +105,7 @@ class F1ProductionClosureGuardTests(unittest.TestCase):
                             self.assertGreater(reached.call_count, 0)
                             self.assertGreater(run_bd.call_count, 0)
                             self.assertEqual([command[0] for command in process.effects], ["comment", "close"])
-        self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, False)
+        self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, True)
 
     def test_F1_M024_example_scope_is_required_independently_of_example_task_id(self):
         case = self.builders.compact()

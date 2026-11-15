@@ -26,6 +26,27 @@ import fcntl
 closure, original, qualified = fixtures.closure, fixtures.original, fixtures.qualified
 
 
+@contextlib.contextmanager
+def conflicting_example_database(parent, bead_id, env):
+    """The real consumer must ignore both ambient database selectors."""
+    root = parent / 'EXAMPLE-conflicting-workspace'
+    root.mkdir(mode=0o700)
+    foreign_env = {**env, 'BEADS_DIR': str(root / '.beads')}
+    run_fixture_subprocess(['git', 'init', '-q'], cwd=root, env=foreign_env, check=True, capture_output=True)
+    configure_git_fixture(root, env=foreign_env)
+    initialize_real_beads(['bd', 'init', '--non-interactive', '--skip-agents', '--skip-hooks', '-p', 'EXAMPLE'],
+        cwd=root, env=foreign_env, check=True, capture_output=True)
+    def foreign(*args):
+        return run_fixture_subprocess(['bd', '--db', str(root / '.beads'), *args],
+            cwd=root, env=foreign_env, check=True, capture_output=True, text=True).stdout
+    foreign('create', 'EXAMPLE foreign task', '--id', bead_id, '--silent')
+    before = foreign('show', '--json', '--include-comments', '--', bead_id)
+    with patch.dict(os.environ, foreign_env, clear=True), contextlib.chdir(root):
+        yield
+    if foreign('show', '--json', '--include-comments', '--', bead_id) != before:
+        raise AssertionError('EXAMPLE ambient database was changed by verified closure')
+
+
 class ExampleProcess:
     """Only fake the bd process and executable lookup; validators run normally."""
 
@@ -38,6 +59,8 @@ class ExampleProcess:
         self.before = lambda command: None
         self.after = lambda command: None
         self.show_projection = lambda: [self.bead]
+        self.blockers = []
+        self.children = []
         self.run = subprocess.run
         self.which = shutil.which
 
@@ -54,6 +77,9 @@ class ExampleProcess:
         self.before(action)
         if action == ["show", "--json", "--include-comments", "--", self.bead["id"]]:
             return subprocess.CompletedProcess(command, 0, json.dumps(self.show_projection()), "")
+        for kind, direction, rows in (('blocks', 'down', self.blockers), ('parent-child', 'up', self.children)):
+            if action == ['dep', 'list', '--json', '--type', kind, '--direction', direction, '--', self.bead['id']]:
+                return subprocess.CompletedProcess(command, 0, json.dumps(rows), '')
         if len(action) == 4 and action[:3] == ["comment", "--", self.bead["id"]]:
             self.effects.append(tuple(action))
             self.bead["comments"].append({"text": action[3], "author": "EXAMPLE-supervisor",
@@ -87,7 +113,7 @@ class ProductionClosureTests(unittest.TestCase):
         return (original.observe_mixed if mixed else original.observe)(**arguments)
 
     @contextlib.contextmanager
-    def provisioned(self, case, *, directory_database=False):
+    def provisioned(self, case, *, directory_database=False, **acceptance_options):
         with tempfile.TemporaryDirectory(prefix="EXAMPLE-production-supervisor-") as temporary:
             parent = Path(temporary)
             custody, storage = parent / "custody", parent / "database"
@@ -116,7 +142,8 @@ class ProductionClosureTests(unittest.TestCase):
             process.store = store
             process.authority = provision_acceptance(
                 store, bead_id=contract["bead"]["id"], database_identity=identity,
-                delivery_context=qualified._delivery_context(contract), observation_sha256=reviewed)
+                delivery_context=qualified._delivery_context(contract), observation_sha256=reviewed,
+                **acceptance_options)
             with host_records.using_test_store(store), \
                     patch.object(subprocess, "run", side_effect=process), \
                     patch.object(shutil, "which", side_effect=process.lookup):
@@ -243,6 +270,129 @@ class ProductionClosureTests(unittest.TestCase):
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             finally:
                 os.close(descriptor)
+
+    def test_missing_or_same_adjudicator_refuses_registration_with_zero_calls_or_writes(self):
+        from cwo_core import host_acceptance
+        same = dict(provider='openai', model_family='gpt', model_id='gpt-6.1-sol',
+            reasoning_effort='low', dispatch_id='EXAMPLE_OTHER_DISPATCH', session_id='EXAMPLE_OTHER_SESSION')
+        for identity in (None, same):
+            with self.subTest(identity=identity):
+                case = self.builders.compact()
+                # Recreate an older host acceptance, including its genuine audit receipt.
+                bypass = patch.object(host_acceptance, '_adjudication_separation')
+                bypass.start()
+                self.addCleanup(bypass.stop)
+                with self.provisioned(case, adjudication_identity=identity) as (process, custody, db), \
+                        patch.object(qualified, 'PRODUCTION_CLOSURE_AVAILABLE', True):
+                    bypass.stop()
+                    before = process.store.audit_events()
+                    with self.assertRaises(original.ClosureError):
+                        with qualified.production_custody(str(custody), database=str(db),
+                                actor='EXAMPLE-supervisor', **process.authority):
+                            self.fail('invalid adjudicator registered')
+                    self.assertEqual(process.calls, [])
+                    self.assertEqual(process.effects, [])
+                    self.assertEqual(process.store.audit_events(), before)
+
+    def test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes(self):
+        for relation, kind in (('blockers', 'blocks'), ('children', 'parent-child')):
+            for status in ('open', 'in_progress', 'blocked', 'deferred', 'hooked'):
+                with self.subTest(relation=relation, status=status):
+                    case = self.builders.compact()
+                    with self.provisioned(case) as (process, custody, db), \
+                            patch.object(qualified, 'PRODUCTION_CLOSURE_AVAILABLE', True):
+                        rows = getattr(process, relation)
+                        rows.append(dict(id='EXAMPLE-prerequisite', status=status, dependency_type=kind))
+                        before = process.store.audit_events()
+                        with self.assertRaisesRegex(original.ClosureError, 'nonclosed blocker or child'):
+                            with qualified.production_custody(str(custody), database=str(db),
+                                    actor='EXAMPLE-supervisor', **process.authority):
+                                self.fail('open graph registered')
+                        self.assertEqual(process.effects, [])
+                        self.assertEqual(process.store.audit_events(), before)
+                        rows[0]['status'] = 'closed'
+                        with qualified.production_custody(str(custody), database=str(db),
+                                actor='EXAMPLE-supervisor', **process.authority) as host:
+                            self.reviewed(case, host, custody)
+                            self.assertTrue(closure.execute_qualified_completed(host)['completed'])
+
+    def test_graph_drift_after_bind_or_comment_refuses_next_write(self):
+        for relation, kind in (('blockers', 'blocks'), ('children', 'parent-child')):
+            for phase in ('bind', 'comment'):
+                with self.subTest(relation=relation, phase=phase):
+                    case = self.builders.compact()
+                    with self.registered(case) as (host, process, custody):
+                        self.reviewed(case, host, custody)
+                        row = dict(id='EXAMPLE-late', status='open', dependency_type=kind)
+                        if phase == 'bind':
+                            getattr(process, relation).append(row)
+                        else:
+                            def drift(action):
+                                if action[0] == 'comment':
+                                    getattr(process, relation).append(row)
+                            process.after = drift
+                        with self.assertRaisesRegex(original.ClosureError, 'nonclosed blocker or child'):
+                            closure.execute_qualified_completed(host)
+                        self.assertEqual([x[0] for x in process.effects], [] if phase == 'bind' else ['comment'])
+                        self.assertEqual(process.bead['status'], 'open')
+
+    def test_policy_source_drift_after_bind_or_comment_refuses_next_write(self):
+        from tests.test_policy_current_effects import current_policy
+        from cwo_core import policy
+        for phase in ('bind', 'comment'):
+            for refresh in (False, True):
+                with self.subTest(phase=phase, refresh=refresh), current_policy():
+                    case = self.builders.compact()
+                    with self.registered(case) as (host, process, custody):
+                        self.reviewed(case, host, custody)
+                        def drift():
+                            path = policy.POLICY_DIR / 'acceptance-policy.yaml'
+                            value = json.loads(path.read_bytes())
+                            value['score']['thresholds']['accept'] = 99
+                            path.write_text(json.dumps(value))
+                            if refresh:
+                                policy.clear_policy_cache()
+                        if phase == 'bind':
+                            drift()
+                        else:
+                            def after(action):
+                                if action[0] == 'comment':
+                                    drift()
+                            process.after = after
+                        with self.assertRaisesRegex(original.ClosureError, 'policy'):
+                            closure.execute_qualified_completed(host)
+                        self.assertEqual([x[0] for x in process.effects], [] if phase == 'bind' else ['comment'])
+                        self.assertEqual(process.bead['status'], 'open')
+
+    def test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write(self):
+        from tests.test_policy_current_effects import current_policy
+        from cwo_core import policy
+        for phase in ('bind', 'comment'):
+            for refresh in (False, True):
+                with self.subTest(phase=phase, refresh=refresh), current_policy():
+                    case = self.builders.compact()
+                    with self.registered(case) as (host, process, custody):
+                        self.reviewed(case, host, custody)
+                        self.assertIs(policy.load_policy('peer-review-policy')[
+                            'required_for_routes']['internal-worker'], False)
+                        def drift():
+                            path = policy.POLICY_DIR / 'peer-review-policy.yaml'
+                            value = json.loads(path.read_bytes())
+                            value['required_for_routes']['internal-worker'] = True
+                            path.write_text(json.dumps(value))
+                            if refresh:
+                                policy.clear_policy_cache()
+                        if phase == 'bind':
+                            drift()
+                        else:
+                            def after(action):
+                                if action[0] == 'comment':
+                                    drift()
+                            process.after = after
+                        with self.assertRaisesRegex(original.ClosureError, 'policy'):
+                            closure.execute_qualified_completed(host)
+                        self.assertEqual([x[0] for x in process.effects], [] if phase == 'bind' else ['comment'])
+                        self.assertEqual(process.bead['status'], 'open')
 
     def test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes(self):
         case = self.builders.compact()
@@ -513,6 +663,11 @@ class ProductionClosureTests(unittest.TestCase):
                 bd("create", case.bead["title"], "--id", case.bead["id"], "--silent")
                 for comment in case.bead["comments"]:
                     bd("comment", "--", case.bead["id"], comment["text"])
+                for name in ('blocker', 'child', 'dependent'):
+                    bd('create', 'EXAMPLE ' + name, '--id', 'EXAMPLE-' + name, '--silent')
+                bd('dep', 'add', case.bead['id'], 'EXAMPLE-blocker')
+                bd('dep', 'add', 'EXAMPLE-child', case.bead['id'], '--type', 'parent-child')
+                bd('dep', 'add', 'EXAMPLE-dependent', case.bead['id'])
                 before = json.loads(bd("show", "--json", "--include-comments", "--", case.bead["id"]))[0]
                 case.bead = before
                 self.builders.provision(case, custody)
@@ -529,6 +684,23 @@ class ProductionClosureTests(unittest.TestCase):
                     delivery_context=qualified._delivery_context(contract),
                     observation_sha256=original.observation_digest(case.review_observation))
                 with host_records.using_test_store(store), \
+                        patch.object(qualified, 'PRODUCTION_CLOSURE_AVAILABLE', True):
+                    for prerequisite in ('EXAMPLE-blocker', 'EXAMPLE-child'):
+                        before_graph = json.loads(bd('show', '--json', '--include-comments', '--', case.bead['id']))[0]
+                        contract['bead'] = before_graph
+                        self.builders.write(custody, 'contract.json', original._freeze(contract))
+                        with self.assertRaisesRegex(original.ClosureError, 'nonclosed blocker or child'):
+                            with qualified.production_custody(str(custody), database=str(database), actor=actor,
+                                    **authority):
+                                self.fail('real open prerequisite registered')
+                        self.assertEqual(json.loads(bd('show', '--json', '--include-comments', '--', case.bead['id']))[0],
+                                         before_graph)
+                        bd('close', '--reason', 'EXAMPLE fixture prerequisite complete', '--', prerequisite)
+                before = json.loads(bd('show', '--json', '--include-comments', '--', case.bead['id']))[0]
+                contract['bead'] = before
+                self.builders.write(custody, 'contract.json', original._freeze(contract))
+                with host_records.using_test_store(store), \
+                        conflicting_example_database(parent, case.bead['id'], env), \
                         patch.object(qualified, "PRODUCTION_CLOSURE_AVAILABLE", True), \
                         qualified.production_custody(str(custody), database=str(database), actor=actor,
                                                      **authority) as host:
@@ -581,7 +753,7 @@ class ProductionClosureTests(unittest.TestCase):
                     self.assertFalse(result["fake_completed"])
                     self.assertFalse(result["completion_unconfirmed"])
                     self.assertEqual([e[0] for e in process.effects], ["comment", "close"])
-                    self.assertIn("- Disposition: completed", result["summary"])
+                    self.assertIn("- Disposition: closing", result["summary"])
                     self.assertEqual(process.effects[0][2], case.bead["id"])
                     self.assertEqual(process.effects[1][-1], case.bead["id"])
                     with self.assertRaises(original.ClosureError):
@@ -698,6 +870,26 @@ class ProductionClosureTests(unittest.TestCase):
                 self.assertIs(outside.exception, first.exception)
                 self.assertFalse(host.report["registration_active"])
                 self.assertTrue(host.report["completion_unconfirmed"])
+
+    def test_failed_close_leaves_open_bead_with_closing_intent_not_completion_summary(self):
+        case = self.builders.compact()
+        with self.registered(case) as (host, process, custody):
+            self.reviewed(case, host, custody)
+            def fail(action):
+                if action[0] == 'close':
+                    raise subprocess.TimeoutExpired(['bd'], 1)
+            process.before = fail
+            with self.assertRaises(SystemExit):
+                closure.execute_qualified_completed(host)
+            self.assertEqual(process.bead['status'], 'open')
+            self.assertEqual([x[0] for x in process.effects], ['comment'])
+            self.assertTrue(host.report['partial_persistence'])
+            self.assertTrue(host.report['completion_unconfirmed'])
+            self.assertFalse(host.report['completed'])
+            summary = process.bead['comments'][-1]['text']
+            self.assertNotIn('Disposition: completed', summary)
+            self.assertIn('Disposition: closing', summary)
+            self.assertIn('close not yet confirmed', summary)
 
     def test_summary_author_and_task_metadata_are_required(self):
         for field in ("author", "issue_id"):

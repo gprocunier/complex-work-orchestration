@@ -200,8 +200,8 @@ python3 scripts/render_run_projection.py <plan.json> --projection run-sheet
 python3 scripts/render_execution_status_report.py <inputs>
 ```
 
-Before closing meaningful Beads, add a compact closure-memory comment. Success dispositions are refused until verified
-acceptance exists (issue #37): record delivered work as `pending-acceptance`, which leaves the Bead open for the operator:
+Before closing meaningful Beads, add a compact closure-memory comment. The narrative CLI refuses success dispositions: record delivered work as `pending-acceptance`, which leaves the Bead open for the operator.
+The verified library can close a Bead with an embedding host's single-use acceptance bound to the original dispatch, exact baseline/candidate, current policy and setup database identity, a separated adjudicator, every required clearance and no open blockers or children; its shipped review-host producer remains held.
 
 ```bash
 python3 scripts/close_bead_with_summary.py --bead <id> --disposition pending-acceptance --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful
