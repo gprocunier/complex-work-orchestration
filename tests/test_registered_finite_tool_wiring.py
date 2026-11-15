@@ -283,8 +283,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         return case, factory, result
 
     def _exit_between_command_read_and_reply(self, *, trailing, close_output=True,
-                                             command_output=None):
+                                             command_output=None, no_fake_scheduler=False):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools', natural_tool_exit=True,
+                                 no_fake_scheduler=no_fake_scheduler,
                                  **({} if command_output is None else {'command_output': command_output}))
         factory = self.fixture.factory(case)
         original = family.runtime._RegisteredServer._commit_tool_reply
@@ -340,7 +341,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
     def test_exit_between_initial_read_and_reply_drains_tail_atomically(self):
         case, factory, result = self._exit_between_command_read_and_reply(
-            trailing='EXAMPLE late tail\n')
+            trailing='EXAMPLE late tail\n', no_fake_scheduler=True)
         self.assertIsInstance(result, dict,
             (str(result), repr(factory.server.transport_failure),
              factory.server.finite_input.lifecycle.phase,
@@ -401,7 +402,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(attempt['charge'], attempt['amount'])
 
     def test_exit_between_poll_read_and_reply_carries_final_status_and_tail(self):
-        case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools')
+        case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
+                                 no_fake_scheduler=True)
         factory = self.fixture.factory(case)
         original = family.runtime._RegisteredServer._commit_tool_reply
         observed = []
@@ -913,7 +915,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(attempt['charge'], attempt['amount'])
 
     def test_clean_exit_after_command_reply_preserves_fresh_empty_poll(self):
-        case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools', tool_exit_before_poll=0)
+        case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
+                                 tool_exit_before_poll=0, no_fake_scheduler=True)
         factory = self.fixture.factory(case)
         with patch.object(family, 'RpcProcess', DynamicRpcProcess):
             result = factory.run()
@@ -925,7 +928,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
     def test_clean_exit_before_completed_item_still_allows_fresh_poll(self):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
-                                 tool_exit_before_completion=0)
+                                 tool_exit_before_completion=0, no_fake_scheduler=True)
         factory = self.fixture.factory(case)
         with patch.object(family, 'RpcProcess', DynamicRpcProcess):
             result = factory.run()
@@ -1263,16 +1266,34 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         case.tool_spawn_entered, case.tool_spawn_release = threading.Event(), threading.Event()
         factory = self.fixture.factory(case)
         outcome = []
+        wait_entered, host_waiting = threading.Event(), threading.Event()
+        original_wait = gate_module._FiniteLifecycle.wait
+
+        def wait(lifecycle, host_deadline=None):
+            actual_wait = lifecycle.condition.wait
+
+            def observe(timeout=None):
+                host_waiting.set()
+                wait_entered.set()
+                try:
+                    return actual_wait(timeout)
+                finally:
+                    host_waiting.clear()
+
+            with patch.object(lifecycle.condition, 'wait', observe):
+                return original_wait(lifecycle, host_deadline)
+
         def run():
             try:
                 outcome.append(factory.run())
             except BaseException as failure:
                 outcome.append(failure)
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess):
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
+                patch.object(gate_module._FiniteLifecycle, 'wait', wait):
             worker = threading.Thread(target=run, daemon=True)
-            worker.start()
             self.addCleanup(family.finish_worker, self, worker, case.tool_spawn_release, join_seconds=20)
             self.addCleanup(case.tool_spawn_release.set)
+            worker.start()
             self.assertTrue(self.wait_for_startup(case.tool_spawn_entered, worker, outcome),
                             f'host checks: {factory.adapter.check_count}; '
                             f'outcome: {type(outcome[0]).__name__ if outcome else "running"}; '
@@ -1281,9 +1302,14 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                             f'producer: {factory.server.finite_tools.state}; '
                             f'transport: {type(factory.server.transport_failure).__name__}: '
                             f'{factory.server.transport_failure}')
-            deadline = time.monotonic() + 8
-            while time.monotonic() < deadline and factory.adapter.check_count < 64:
-                time.sleep(.01)
+            self.assertTrue(wait_entered.wait(3), 'original host did not enter its lifecycle wait')
+            condition = factory.server.finite_input.lifecycle.condition
+            self.assertTrue(condition.acquire(timeout=3))
+            try:
+                self.assertTrue(host_waiting.is_set() and condition._waiters,
+                                'original host did not release its lifecycle wait lock')
+            finally:
+                condition.release()
             case.tool_spawn_release.set()
             worker.join(20)
         self.assertEqual(len(outcome), 1)

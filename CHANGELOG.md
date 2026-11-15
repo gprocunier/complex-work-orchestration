@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Let selected finite success fixtures advance through real host waits before consuming command replies.
+- Release the typed request-ID fixture launch after acknowledging the original lifecycle wait, preserving its runtime budget.
+
 - Drain diagnostic producers and lifecycle waiters before releasing fixture resources, reporting unresolved cleanup.
 - Acknowledge original lifecycle waits, termination locks and reply fences before advancing fixture assertions.
 
