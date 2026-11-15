@@ -105,36 +105,39 @@ class DynamicRpcProcess(family.RpcProcess):
                                 {'commandCallId': 'EXAMPLE-command-call', 'chars': ''}, scenario)
 
     def _send_tool(self, call, tool, arguments, scenario):
-        # A held synthetic callback can outlive the original host's child
-        # containment. It must not emit a new request after that actual exit.
-        # Live-child stream errors still propagate from the unchanged put.
+        # A held callback can outlive child containment. Recheck each frame
+        # under the stream's enqueue/close lock, retaining live-child errors.
         if not self.process.alive:
             return
         item = {'id': call, 'type': 'dynamicToolCall', 'status': 'inProgress',
                 'tool': tool, 'namespace': None, 'arguments': arguments}
-        self.stdout.put({'method': 'item/started', 'params': {
-            'threadId': scenario.thread_id, 'turnId': scenario.turn_id, 'item': item}})
+        if self.stdout.put({'method': 'item/started', 'params': {
+                'threadId': scenario.thread_id, 'turnId': scenario.turn_id, 'item': item}},
+                process=self.process) is False:
+            return
         request_id = (getattr(self.case, 'command_request_id', 'EXAMPLE-request-' + call)
                       if call == 'EXAMPLE-command-call' else 'EXAMPLE-request-' + call)
         if call == 'EXAMPLE-command-call' and (getattr(self.case, 'colliding_permission_before_command', False)
                                                or getattr(self.case, 'typed_distinct_request_ids', False)):
             permission_id = 7 if getattr(self.case, 'typed_distinct_request_ids', False) else request_id
-            self.stdout.put({'id': permission_id,
-                             'method': family.runtime.protocol.PERMISSIONS, 'params': {
-                'threadId': scenario.thread_id, 'turnId': scenario.turn_id, 'itemId': call,
-                'startedAtMs': 1000, 'cwd': 'EXAMPLE-cwd',
-                'permissions': {'network': {'enabled': True}}}})
-        self.stdout.put({'id': request_id, 'method': 'item/tool/call', 'params': {
-            'threadId': scenario.thread_id,
-            'turnId': ('EXAMPLE-wrong-turn' if call == 'EXAMPLE-poll-call'
-                       and getattr(self.case, 'poll_wrong_turn', False) else scenario.turn_id),
-            'callId': call, 'tool': tool, 'arguments': arguments}})
+            if self.stdout.put({'id': permission_id,
+                                    'method': family.runtime.protocol.PERMISSIONS, 'params': {
+                    'threadId': scenario.thread_id, 'turnId': scenario.turn_id, 'itemId': call,
+                    'startedAtMs': 1000, 'cwd': 'EXAMPLE-cwd',
+                    'permissions': {'network': {'enabled': True}}}}, process=self.process) is False:
+                return
+        if self.stdout.put({'id': request_id, 'method': 'item/tool/call', 'params': {
+                'threadId': scenario.thread_id,
+                'turnId': ('EXAMPLE-wrong-turn' if call == 'EXAMPLE-poll-call'
+                           and getattr(self.case, 'poll_wrong_turn', False) else scenario.turn_id),
+                'callId': call, 'tool': tool, 'arguments': arguments}}, process=self.process) is False:
+            return
         if call == 'EXAMPLE-command-call' and getattr(self.case, 'colliding_permission_after_command', False):
             self.stdout.put({'id': request_id,
                              'method': family.runtime.protocol.PERMISSIONS, 'params': {
                 'threadId': scenario.thread_id, 'turnId': scenario.turn_id, 'itemId': call,
                 'startedAtMs': 1000, 'cwd': 'EXAMPLE-cwd',
-                'permissions': {'network': {'enabled': True}}}})
+                'permissions': {'network': {'enabled': True}}}}, process=self.process)
 
     def receive(self, message):
         if self.is_tool or 'method' in message:

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Made finite-tool fixture publication reliable during concurrent child containment while retaining live-child errors and accounting checks.
+
 - Cleanup validates original controller-owned retained lifetimes before explicit owned termination; the CLI remains detection-only with registry pruning.
 - Release rebinding refreshes declared caller hashes and refuses caller entries outside the bound dependencies.
 - Increase the release inventory limit from 528 to 540 KiB for the 547,353-byte integrated inventory, retaining 5,607 bytes of headroom without removing routes or bindings.

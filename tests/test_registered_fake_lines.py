@@ -3,6 +3,7 @@ import json
 import os
 import queue
 import threading
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -10,6 +11,25 @@ from tests import test_registered_n1_factory as family
 
 
 class FakeLinesTests(unittest.TestCase):
+    def test_process_bound_publication_declines_exit_and_keeps_live_stream_errors(self):
+        stream = family.Lines()
+        process = SimpleNamespace(alive=True)
+        self.assertIsNone(stream.put({'EXAMPLE': 'manual injection'}))
+        self.assertIsNone(stream.put({'EXAMPLE': 'live child'}, process=process))
+        queued = stream.lines.qsize()
+        process.alive = False
+        self.assertFalse(stream.put({'EXAMPLE': 'exited child'}, process=process))
+        self.assertEqual(stream.lines.qsize(), queued)
+        stream.close()
+        queued = stream.lines.qsize()
+        self.assertFalse(stream.put({'EXAMPLE': 'contained child'}, process=process))
+        self.assertEqual(stream.lines.qsize(), queued)
+        with self.assertRaisesRegex(ValueError, '^EXAMPLE stream is closed$'):
+            stream.put({'EXAMPLE': 'manual closed-stream injection'})
+        process.alive = True
+        with self.assertRaisesRegex(ValueError, '^EXAMPLE stream is closed$'):
+            stream.put({'EXAMPLE': 'live closed-stream error'}, process=process)
+
     def reader(self, stream, action=None):
         result = []
         def read():
