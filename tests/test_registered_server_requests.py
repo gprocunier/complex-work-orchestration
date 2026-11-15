@@ -275,6 +275,16 @@ class RegisteredRequestsTests(unittest.TestCase):
             return frames
         self.wire_refusal(changed)
 
+    def retain_original_writer_store(self, fixture, factory, release):
+        storage, drain = fixture.repositories.temporary.cleanup, fixture.drain_factory_workers
+        retained = [entry for entry in fixture._cleanups
+                    if entry[0] == storage or (entry[0] == drain and entry[1] == (factory,))]
+        self.assertEqual(len(retained), 2)
+        for entry in retained:
+            fixture._cleanups.remove(entry)
+            self.addCleanup(entry[0], *entry[1], **entry[2])
+        self.addCleanup(release.set)
+
     def test_old_epoch_final_result_cannot_reach_fresh_registered_connection(self):
         entered, release = threading.Event(), threading.Event()
         old_fixture = self.fixture
@@ -295,7 +305,12 @@ class RegisteredRequestsTests(unittest.TestCase):
                 old_process.stdout.lines.put('')
                 self.assertTrue(done.wait(5))
                 old_epoch = old.server.connection_epoch_sha256
+                # Restore the old fake I/O patches for the fresh connection,
+                # while its blocked original writer still owns this storage.
+                self.retain_original_writer_store(old_fixture, old, release)
                 family.cleanup_helper(self, old_fixture)
+                self.assertTrue(directory.is_dir())
+                self.assertTrue(old.server.requests.threads[0].is_alive())
                 runtime.native._sync = original_sync
                 self.fixture = family.FactoryTests(methodName='runTest')
                 self.fixture.setUp()
@@ -309,6 +324,7 @@ class RegisteredRequestsTests(unittest.TestCase):
             finally:
                 release.set()
                 done.wait(12)
+                old_fixture.drain_factory_workers(old)
             self.assertTrue(until(lambda: not old.server.requests.threads[0].is_alive()))
             self.assertFalse(any(r.get('result') == {'decision': 'accept'} for r in old_process.replies))
             self.assertEqual(len(self.fixture.spawned[0].replies), 1)

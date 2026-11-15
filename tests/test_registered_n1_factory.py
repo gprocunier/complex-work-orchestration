@@ -871,7 +871,12 @@ class FactoryTests(unittest.TestCase):
             route=case.route, node_id=case.node_id, ledger=case.ledger, host=case.host, policy=case.policy,
             **options)
         case.factory = factory
+        self.addCleanup(self.drain_factory_workers, factory)
         return factory
+
+    def drain_factory_workers(self, factory):
+        if factory.server is not None:
+            factory.server._join_readers(timeout=12)
 
     def attempt(self, case):
         path = case.ledger.root / runtime.admission.ledger_api.LEDGER_FILE
