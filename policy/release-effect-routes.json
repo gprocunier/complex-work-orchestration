@@ -814,7 +814,7 @@
 
 "annotation-ruff-version-check":[7,46,"if initial.ruff_version() != RUFF:"],
 
-"annotation-version-test":[98,"ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive",952,"1d976528617ee874bd94c8cbaeaec4510677b31d83365a468a054e8bda64818a"],
+"annotation-version-test":[98,"ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive",954,"1d976528617ee874bd94c8cbaeaec4510677b31d83365a468a054e8bda64818a"],
 
 "beads-add-dependency-decl":[18,"add_dependency",347,"7ab5c75f5dbe3e70869ebe6ee81b9a6016c66495a6ff05f4f7ee5ddd5d292f16"],
 
@@ -1392,7 +1392,7 @@
 
 "p409fc36a6465":[56,355,"live_availability.require_pool_live()"],
 
-"p413e63f7b2ca":[98,"ReleaseEffectRoutesTests._dns_pair",1269,"9860a61a6c1a512153a195f37700e90ba28b301be2874e4a11cea665062a2849"],
+"p413e63f7b2ca":[98,"ReleaseEffectRoutesTests._dns_pair",1271,"9860a61a6c1a512153a195f37700e90ba28b301be2874e4a11cea665062a2849"],
 
 "p4256930bc441":[58,412,"count = os.write(writer.descriptor, frame)"],
 
@@ -1424,7 +1424,7 @@
 
 "p47fb20aa56be":[7,171,"runpy.run_path(str(paths[1]), run_name=\"__w21_measurement__\")"],
 
-"p482b14ba5196":[98,"ReleaseEffectRoutesTests._git_pair",1221,"9ea51b3dd775b09c05711df0fc22507e51ad2470e896207c95ab8744467f27a5"],
+"p482b14ba5196":[98,"ReleaseEffectRoutesTests._git_pair",1223,"9ea51b3dd775b09c05711df0fc22507e51ad2470e896207c95ab8744467f27a5"],
 
 "p489282383484":[33,677,"self.process.stdin.write(json.dumps(payload, separators=(\",\", \":\")) + \"\\n\")"],
 
@@ -1472,7 +1472,7 @@
 
 "p59f4cf3df434":[33,748,"_require_native_rpc(method)"],
 
-"p5a1aa39d6bc6":[98,"ReleaseEffectRoutesTests._driver_pair",1244,"fbdd7ea1d56e2f31eb9808b37bbb97066c2388e2164e39f339bbd64c1ad0eb90"],
+"p5a1aa39d6bc6":[98,"ReleaseEffectRoutesTests._driver_pair",1246,"fbdd7ea1d56e2f31eb9808b37bbb97066c2388e2164e39f339bbd64c1ad0eb90"],
 
 "p5a2dd0d97579":[59,"_load_runtime",34,"20b0a4030b1e7ba1ff80dcbba8641705bdae8947f82667f4003c095a6cd331a7"],
 
@@ -1544,7 +1544,7 @@
 
 "p7559a0cb6877":[15,"main",21,"793854c53e135dbbbc4ea74f2ba5a2d768740f9113b9236fae2a434fa06251b8"],
 
-"p756929d3a7fd":[98,"ReleaseEffectRoutesTests._expert_pair",1291,"91b48bdf3f7cc2af1615b7e3d0a9034cd46855a890a69baf82a0d4692e9dacfb"],
+"p756929d3a7fd":[98,"ReleaseEffectRoutesTests._expert_pair",1293,"91b48bdf3f7cc2af1615b7e3d0a9034cd46855a890a69baf82a0d4692e9dacfb"],
 
 "p764be604293f":[46,46,"server = ThreadingHTTPServer((\"127.0.0.1\", args.port), partial(PagesHandler, directory=str(DOCS)))"],
 
@@ -1734,7 +1734,7 @@
 
 "pb1bbf1658aa1":[25,429,"live_availability.require_n1_live()"],
 
-"pb1ea553b1fd1":[98,"ReleaseEffectRoutesTests._probe_listener_pair",1150,"a7331d6647368b4a62f7f058ce8d621d1fa2ee86b6054608c740195e344120f9"],
+"pb1ea553b1fd1":[98,"ReleaseEffectRoutesTests._probe_listener_pair",1152,"a7331d6647368b4a62f7f058ce8d621d1fa2ee86b6054608c740195e344120f9"],
 
 "pb1f4ea440bb2":[35,371,"self.sock = self._create_connection("],
 
@@ -1818,7 +1818,7 @@
 
 "pdf772940be3e":[25,783,"completed = subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,"],
 
-"pdf8e06293dfc":[98,"ReleaseEffectRoutesTests._installer_pair",1193,"3de241f3f15ae7f3dcf2a96dfc30cf3038dcc60ba61e4a1981ff83e967ddaf0d"],
+"pdf8e06293dfc":[98,"ReleaseEffectRoutesTests._installer_pair",1195,"3de241f3f15ae7f3dcf2a96dfc30cf3038dcc60ba61e4a1981ff83e967ddaf0d"],
 
 "pe0459714c462":[30,444,"result = self._run((\"update\", \"--claim\", \"--json\", \"--\", issue_id))"],
 
@@ -1938,7 +1938,7 @@
 
 "profile-existing-file-check":[42,73,"if path.exists():"],
 
-"q0":[98,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1319,"699561c960a2189981cdd63a23de8a3ccff70ff2d0b1f99237d65a4cf60dfa04"],
+"q0":[98,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1321,"699561c960a2189981cdd63a23de8a3ccff70ff2d0b1f99237d65a4cf60dfa04"],
 
 "q1":[18,187,"completed = subprocess.run("],
 
@@ -4542,7 +4542,7 @@
 
 "scripts/cwo_core/qualification_target.py":{"mode":420,"sha256":"2a458c41cb155f8d22e5144ca27227da84ede1d296ed52d6fc12d6e0d194100f","size":2936},
 
-"scripts/cwo_core/release_effect_routes.py":{"mode":420,"sha256":"999123088cbff657e47f77550bb02be67b812ca4e9561a739cb37e476ee0ba6b","size":61377},
+"scripts/cwo_core/release_effect_routes.py":{"mode":420,"sha256":"9f1087ce064f833fa06e0ed53051c84a49b169a7d3e510469ad1053812e93955","size":61380},
 
 "scripts/cwo_core/requirement_baseline.py":{"mode":420,"sha256":"135681130a0046db14dc84fcd7c73a8f61fd1c8001b7cc467828565fca693420","size":20496},
 
@@ -4898,7 +4898,7 @@
 
 "tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"65d759a58d9be3accd98b68a36aaab24d8e2d07222d84d16869a2bcd8172cedc","size":177528},
 
-"tests/test_release_effect_routes.py":{"mode":420,"sha256":"3af594f55440c472f30da5db7488e72a12fe06e9906ed74f2b8d80aa635d4116","size":84109},
+"tests/test_release_effect_routes.py":{"mode":420,"sha256":"a993527054db6db3c7ff2b270e3fbbbb3255fad25dde53b5cf191f37bbce4906","size":84278},
 
 "tests/test_release_filesystem.py":{"mode":420,"sha256":"5fcb7a33f91ad28f1041c1498a61d47f22a67d4b55027f786b5c1df64584e212","size":16860},
 

@@ -17,9 +17,9 @@ import stat
 
 INVENTORY = "policy/release-effect-routes.json"
 IGNORED = {".git", "__pycache__", ".ruff_cache"}
-# The merged canonical inventory measured 528,451 bytes. Allow 12,221 bytes
+# The integrated canonical inventory measured 547,353 bytes. Allow 5,607 bytes
 # of headroom; keep authored installed data finite and traces external.
-MAX_INVENTORY = 528 * 1024
+MAX_INVENTORY = 540 * 1024
 MAX_FILE = 2 * 1024 * 1024
 MAX_TOTAL = 128 * 1024 * 1024
 MAX_FILES = 12000
