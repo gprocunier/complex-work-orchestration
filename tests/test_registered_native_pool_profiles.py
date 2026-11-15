@@ -104,7 +104,9 @@ class PoolProfileTests(unittest.TestCase):
                             self.assertEqual(factory.server.finite_input.dynamic_command[:3],
                                              (case.scenario.thread_id, case.scenario.turn_id, 'EXAMPLE-command-call'))
                             replies = fixture.fixture.spawned[0].replies
-                            self.assertEqual([r['result']['success'] for r in replies], [True, chars == ''])
+                            self.assertEqual([r['result']['success'] for r in replies], [True, chars == ''],
+                                msg=[row['observation'] for row in observations
+                                     if row['stage'] == 'finite-tool-refusal'])
                             self.assertEqual(replies[0]['result']['contentItems'][0]['text'],
                                              'EXAMPLE finite command output\n')
                             if chars:
