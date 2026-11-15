@@ -1,7 +1,7 @@
 """Original registered caller through the selected finite fake-server tool route."""
 from __future__ import annotations
 
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager, nullcontext
 import json
 import os
 import threading
@@ -248,6 +248,51 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
     def wait_for_startup(self, event, worker, outcome):
         return family.wait_for_startup(self, event, worker, outcome)
 
+    @contextmanager
+    def _positive_finite_completion(self, case):
+        """Join the original poll consumer and accept its actual terminal records."""
+        command_consumed = threading.Event()
+        case._finite_success_consumed = threading.Event()
+        self.addCleanup(case._finite_success_consumed.set)
+        poll_success, settled = [], False
+        original_receive = DynamicRpcProcess.receive
+        original_progress = family.runtime._RegisteredServer.await_finite_progress
+
+        def receive(process, message):
+            value = original_receive(process, message)
+            if process.case is case and not process.is_tool and not process.validator:
+                if message.get('id') == 'EXAMPLE-request-EXAMPLE-command-call':
+                    command_consumed.set()
+                elif message.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call':
+                    poll_success.append(message.get('result', {}).get('success'))
+                    case._finite_success_consumed.set()
+            return value
+
+        def settle(server):
+            nonlocal settled
+            if server.factory is not case.factory or settled or not command_consumed.is_set():
+                return
+            family.wait_for_release(self, case._finite_success_consumed, 3)
+            self.assertEqual(poll_success, [True])
+            boundary = case.factory.adapter._capture_trusted_boundary(allow_pending=False)
+            self.assertEqual(boundary['terminal_event']['status'], 'completed')
+            thread, _latency = server.read_thread(case.scenario.thread_id)
+            self.assertEqual(thread['turns'][0]['status'], 'completed')
+            settled = True
+
+        def progress(server, **kwargs):
+            # A check can wake on any reducer edge. Once the command consumer
+            # returns, join the real poll consumer instead of spending further
+            # checks while its durable intent/publication is still in flight.
+            settle(server)
+            value = original_progress(server, **kwargs)
+            settle(server)
+            return value
+
+        with patch.object(DynamicRpcProcess, 'receive', receive), \
+                patch.object(family.runtime._RegisteredServer, 'await_finite_progress', progress):
+            yield
+
     def _run_tool_exit(self, *, output=True, status=0, pid_exited=True,
                        trailing='', close_output=True):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
@@ -304,7 +349,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 observed.append(True)
             return original(server, message, response, deadline, refusal=refusal)
 
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
+        progress = self._positive_finite_completion(case) if no_fake_scheduler else nullcontext()
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), progress, \
                 patch.object(family.runtime._RegisteredServer, '_commit_tool_reply', commit):
             try:
                 result = factory.run()
@@ -420,7 +466,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 observed.append(True)
             return original(server, message, response, deadline, refusal=refusal)
 
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self._positive_finite_completion(case), \
                 patch.object(family.runtime._RegisteredServer, '_commit_tool_reply', commit):
             result = factory.run()
         self.assertEqual(observed, [True])
@@ -919,7 +965,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
                                  tool_exit_before_poll=0, no_fake_scheduler=True)
         factory = self.fixture.factory(case)
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess):
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self._positive_finite_completion(case):
             result = factory.run()
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertEqual(factory.server.finite_input.terminal_code, 0)
@@ -931,7 +977,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
                                  tool_exit_before_completion=0, no_fake_scheduler=True)
         factory = self.fixture.factory(case)
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess):
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self._positive_finite_completion(case):
             result = factory.run()
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertEqual(factory.server.finite_input.terminal_code, 0)

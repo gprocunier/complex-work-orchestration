@@ -1,6 +1,9 @@
 """Selected finite fixtures acknowledge original host waits before releasing work."""
 from contextlib import ExitStack
 import queue
+import json
+import os
+from pathlib import Path
 import threading
 import time
 import unittest
@@ -44,14 +47,24 @@ class FiniteFixtureProgressTests(unittest.TestCase):
             'test_clean_exit_after_command_reply_preserves_fresh_empty_poll',
             'test_clean_exit_before_completed_item_still_allows_fresh_poll',
         )
+        self.success_consumers(methods)
+
+    def test_atomic_tail_joins_original_poll_publication(self):
+        self.success_consumers((
+            'test_exit_between_initial_read_and_reply_drains_tail_atomically',
+        ), hold_intent=True)
+
+    def success_consumers(self, methods, *, hold_intent=False):
         for method in methods:
             with self.subTest(method=method):
                 waits, acknowledged, held, faults = queue.Queue(), [], [], []
+                publication, publication_ack, intent_held, cases = queue.Queue(), [], [], []
                 host = []
                 original_turn = family.runtime._RegisteredServer.start_turn
                 original_wait = threading.Condition.wait
                 original_receive = wiring.DynamicRpcProcess.__mro__[1].receive
                 original_fault = family.runtime._RegisteredServer._fail_transport
+                original_fsync = os.fsync
 
                 def start_turn(server, *args, **kwargs):
                     value = original_turn(server, *args, **kwargs)
@@ -65,6 +78,10 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     active = [True]
                     if selected:
                         waits.put((condition, active))
+                    completion = getattr(cases[0], '_finite_success_consumed', None) if cases else None
+                    if (hold_intent and host and threading.get_ident() == host[0][1]
+                            and completion is not None and condition is completion._cond):
+                        publication.put((condition, active))
                     try:
                         return original_wait(condition, timeout)
                     finally:
@@ -76,6 +93,7 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                             and message.get('id') == 'EXAMPLE-request-EXAMPLE-command-call'
                             and message.get('result', {}).get('success') is True):
                         held.append(True)
+                        cases.append(process.case)
                         end = time.monotonic() + 12
                         while time.monotonic() < end:
                             entry = waits.get(timeout=max(.001, end - time.monotonic()))
@@ -92,10 +110,45 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                                 condition.release()
                     return value
 
+                def fsync(descriptor):
+                    value = original_fsync(descriptor)
+                    if not hold_intent or not cases or intent_held:
+                        return value
+                    path = Path(os.readlink('/proc/self/fd/' + str(descriptor)))
+                    if path.parent != cases[0].factory.records / 'transport-observations':
+                        return value
+                    if json.loads(path.read_bytes()).get('stage') != 'finite-poll-intent':
+                        return value
+                    intent_held.append(True)
+                    # The actual durable write has completed. Hold its return
+                    # until the host joins the original consumer, or let the
+                    # unchanged one-second ticket fence reject the old fixture.
+                    try:
+                        entry = publication.get(timeout=1.05)
+                    except queue.Empty:
+                        return value
+                    if entry is not None:
+                        condition, active = entry
+                        self.assertTrue(condition.acquire(timeout=3))
+                        try:
+                            self.assertTrue(active[0] and condition._waiters)
+                            publication_ack.append(True)
+                        finally:
+                            condition.release()
+                    return value
+
                 def fail_transport(server, failure):
                     faults.append(repr(failure))
                     waits.put(None)
+                    publication.put(None)
                     return original_fault(server, failure)
+
+                def release_publication():
+                    publication.put(None)
+                    if cases:
+                        completion = getattr(cases[0], '_finite_success_consumed', None)
+                        if completion is not None:
+                            completion.set()
 
                 with ExitStack() as patches:
                     patches.enter_context(patch.object(family.runtime._RegisteredServer,
@@ -105,11 +158,16 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                                                       'receive', receive))
                     patches.enter_context(patch.object(family.runtime._RegisteredServer,
                                                       '_fail_transport', fail_transport))
-                    result = self.run_owned_selector(method, [lambda: waits.put(None)])
+                    patches.enter_context(patch.object(os, 'fsync', fsync))
+                    result = self.run_owned_selector(method, [lambda: waits.put(None),
+                                                             release_publication])
                 self.assertTrue(result.wasSuccessful(), (result.failures, result.errors, faults))
                 self.assertEqual(held, [True])
                 self.assertEqual(len(acknowledged), 1, 'original post-start waiter was not acknowledged')
                 self.assertEqual(faults, [])
+                if hold_intent:
+                    self.assertEqual(intent_held, [True])
+                    self.assertEqual(publication_ack, [True])
 
     def test_typed_id_owner_does_not_poll_a_parked_host(self):
         owner_thread = threading.get_ident()
