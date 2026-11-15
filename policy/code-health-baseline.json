@@ -72,7 +72,7 @@
     "scripts/check_installed_skill.py::load_projection": 33,
     "scripts/check_installed_skill.py::main": 17,
     "scripts/check_native_worker_session.py::main": 16,
-    "scripts/cleanup_stale_agents.py::cleanup": 45,
+    "scripts/cleanup_stale_agents.py::cleanup": 40,
     "scripts/cleanup_stale_agents.py::main": 18,
     "scripts/cleanup_stale_agents.py::termination_status": 18,
     "scripts/close_bead_with_summary.py::execute": 17,

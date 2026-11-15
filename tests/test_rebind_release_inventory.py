@@ -47,6 +47,9 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         files, contents = R.source(root)
         manifest = {"files": {path: row["sha256"] for path, row in files.items()},
                     "current_file_modes": {path: row["mode"] for path, row in files.items()},
+                    "registered_source_callers": {
+                        path: files[path]["sha256"]
+                        for path in ("scripts/other.py", "references/example.txt")},
                     "historical_files": {"EXAMPLE-archived": {"archive.py": "0" * 64}}}
         path = root / MANIFEST
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -133,6 +136,7 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         for path in paths:
             del manifest["files"][path]
             del manifest["current_file_modes"][path]
+            manifest["registered_source_callers"].pop(path, None)
         (root / MANIFEST).write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
         value["source_bindings"][MANIFEST] = R.read_file(root, MANIFEST)[1]
         (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
@@ -254,6 +258,61 @@ class RebindReleaseInventoryTests(unittest.TestCase):
         self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
         self.assertEqual(second.stdout, "No bindings changed.\n")
         self.assertEqual(self.bindings_snapshot(root), before)
+
+    def test_refreshes_only_declared_registered_caller_hashes_then_noops(self):
+        root, _value, original = self.fixture()
+        caller = "scripts/other.py"
+        source = root / caller
+        source.write_text(source.read_text().replace("'other'", "'other edited'"))
+        unregistered = "scripts/trace_only.py"
+        (root / unregistered).write_text("value = 2\n")
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        manifest = json.loads((root / MANIFEST).read_bytes())
+        observed = R.read_file(root, caller)[1]["sha256"]
+        self.assertEqual(manifest["registered_source_callers"][caller], observed)
+        self.assertEqual(manifest["files"][caller], observed)
+        self.assertEqual(set(manifest["registered_source_callers"]),
+                         set(original["registered_source_callers"]))
+        self.assertNotIn(unregistered, manifest["registered_source_callers"])
+        self.assertEqual(set(manifest["files"]), set(original["files"]))
+        self.assertEqual(manifest["historical_files"], original["historical_files"])
+        self.assertIn("checkpoint registered_source_callers " + caller, result.stdout)
+        R.trace(root)
+        before = self.bindings_snapshot(root)
+        second = self.run_rebind(root)
+        self.assertEqual(second.returncode, 0, second.stdout + second.stderr)
+        self.assertEqual(second.stdout, "No bindings changed.\n")
+        self.assertEqual(self.bindings_snapshot(root), before)
+
+    def test_caller_outside_checkpoint_dependencies_refuses_without_writes(self):
+        root, _value, manifest = self.fixture()
+        caller = "scripts/other.py"
+        del manifest["files"][caller]
+        del manifest["current_file_modes"][caller]
+        (root / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n")
+        self.assertTrue((root / caller).is_file())
+        self.assert_refuses_untouched(
+            root, "checkpoint registered caller outside dependency roster: " + caller)
+
+    def test_registered_callers_require_a_mapping_without_writes(self):
+        for callers in (None, [], "EXAMPLE"):
+            with self.subTest(callers=callers):
+                root, _value, manifest = self.fixture()
+                manifest["registered_source_callers"] = callers
+                (root / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n")
+                self.assert_refuses_untouched(root, "checkpoint registered caller mapping required")
+
+    def test_absent_registered_caller_table_stays_absent(self):
+        root, _value, manifest = self.fixture()
+        del manifest["registered_source_callers"]
+        (root / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n")
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        after = json.loads((root / MANIFEST).read_bytes())
+        self.assertNotIn("registered_source_callers", after)
+        self.assertEqual(after, manifest)
+        R.trace(root)
 
     def test_moved_line_span_names_point_and_writes_neither_file(self):
         root, _value, _manifest = self.fixture()

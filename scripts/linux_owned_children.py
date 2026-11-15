@@ -12,12 +12,12 @@ import re
 import select
 import signal
 import stat
-import subprocess
 import sys
 import threading
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from cwo_core import atomic_spawn
 from cwo_core.ownership_producer import (
     MAX_MIN_AGE_SECONDS,
     PID_LIMIT,
@@ -27,6 +27,7 @@ from cwo_core.ownership_producer import (
     _duration,
     _integer,
     _validate_spec,
+    _issue_cleanup_capability,
 )
 from cwo_core.process_identity import (
     MAX_GRACE_SECONDS,
@@ -70,6 +71,7 @@ class _Birth:
     reaping: bool = False
     reap_authorized: bool = False
     receipt: OwnedChildReceipt | None = None
+    creation: str = "child-created"
 
 
 def _report(outcome: str, signals: list[str] | None = None, **detail: Any) -> dict[str, Any]:
@@ -188,16 +190,8 @@ def _sigchld_profile() -> tuple[bool, str]:
     return True, "The default child signal profile retains exit status."
 
 
-class _HandleChild(subprocess.Popen):
-    """Leave status collection to the retained handle, including on release."""
-
-    def __del__(self) -> None:
-        """Release Python state without a later PID wait or signal."""
-        pass
-
-
 class _LinuxBackend(ProcAdapter):
-    """Create children directly and retain each newly opened birth handle."""
+    """Create children with an atomic birth handle retained by this backend."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -229,7 +223,14 @@ class _LinuxBackend(ProcAdapter):
                 return False, "The proc view does not match the controller PID namespace."
         except (OSError, ValueError) as exc:
             return False, f"The controller proc view is unavailable: {exc}"
-        return _sigchld_profile()
+        return self._creation_profile()
+
+    def _creation_profile(self) -> tuple[bool, str]:
+        supported, reason = _sigchld_profile()
+        return self._atomic_supported() if supported else (supported, reason)
+
+    def _atomic_supported(self) -> tuple[bool, str]:
+        return atomic_spawn.supported()
 
     def _require_lifecycle(self) -> None:
         supported, reason = self.supported()
@@ -345,32 +346,37 @@ class _LinuxBackend(ProcAdapter):
             raise PermissionError("The selected executable is not executable.")
         return path
 
-    def _popen(self, argv: tuple[str, ...], executable: str, workspace: str) -> subprocess.Popen:
-        return _HandleChild(
-            argv, executable=executable, cwd=workspace, env={},
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            close_fds=True, shell=False,
-        )
-
-    def _open_pidfd(self, pid: int) -> int:
-        return self._operation("Child handle opening", self.pidfd_open, pid)
-
     def spawn(self, birth: _Birth, argv: tuple[str, ...], executable: str, workspace: str) -> tuple[int, int]:
         self._require_lifecycle()
-        birth.child = self._popen(argv, executable, workspace)
-        self.births.append(birth)
-        pid = birth.child.pid
-        if not _integer(pid, 1, PID_LIMIT):
-            raise _Refusal("invalid-spawn", "The created child has no bounded plain PID.")
-        birth.pid = pid
+        self._spawn_atomic(birth, argv, executable, workspace)
         self._require_lifecycle()
-        descriptor = self._open_pidfd(pid)
-        if not _integer(descriptor, 0, 2**31 - 1) or descriptor in self._owned:
-            raise _Refusal("invalid-spawn", "The created child has no distinct birth handle.")
-        birth.descriptor = descriptor
-        self._owned[descriptor] = birth
-        birth.reap_authorized = True
-        return pid, descriptor
+        return birth.pid, birth.descriptor
+
+    def _spawn_atomic(self, birth: _Birth, argv: tuple[str, ...], executable: str, workspace: str) -> None:
+        self._operation("Atomic child creation", atomic_spawn.spawn,
+                        executable, argv, workspace, lambda child: self._retain_atomic(birth, child))
+
+    def _retain_atomic(self, birth: _Birth, child: atomic_spawn.AtomicChild) -> None:
+        if type(child) is not atomic_spawn.AtomicChild:
+            raise _Refusal("invalid-spawn", "An original atomic child result is required.")
+        with self._lifecycle_lock:
+            # The helper still owns this original result until validation
+            # succeeds, so its refusal path closes an unclaimed handle once.
+            descriptor = child._descriptor
+            if not _integer(descriptor, 0, 2**31 - 1) or descriptor in self._owned:
+                raise _Refusal("invalid-spawn", "The created child has no distinct birth handle.")
+            descriptor = child.transfer_handle()
+            birth.child, birth.descriptor = child, descriptor
+            birth.creation = "atomic-spawn-returned"
+            self.births.append(birth)
+            self._owned[descriptor] = birth
+            birth.reap_authorized = True
+        pid = self.pidfd_pid(descriptor)
+        if pid == -1:
+            raise _Refusal("already-exited", "The atomically created child has exited.")
+        if not _integer(pid, 1, PID_LIMIT):
+            raise _Refusal("identity-unavailable", "The atomic child handle has no visible PID.")
+        birth.pid = child.pid = pid
 
     def claim_spawn(self, pid: int, descriptor: int, writer: object) -> bool:
         birth = self._owned.get(descriptor)
@@ -474,6 +480,7 @@ class _LinuxBackend(ProcAdapter):
         result = self._wait_child(birth, os.WEXITED | os.WNOHANG | os.WNOWAIT)
         if result is None:
             return
+        self._exit_pid(birth, result)
         self._exit_code(birth, result)
         birth.exit_confirmed = True
         result = self._wait_child(birth, os.WEXITED | os.WNOHANG)
@@ -482,6 +489,13 @@ class _LinuxBackend(ProcAdapter):
             raise ValueError("The retained child exit status was no longer available for collection.")
         birth.child.returncode = self._exit_code(birth, result)
         birth.reaped = True
+
+    @staticmethod
+    def _exit_pid(birth: _Birth, result: Any) -> None:
+        # An atomic child can exit before fdinfo exposes its PID. Only an
+        # observation from this already retained wait handle supplies it.
+        if birth.pid is None and _integer(result.si_pid, 1, PID_LIMIT):
+            birth.pid = birth.child.pid = result.si_pid
 
     def _finish_operation(self, birth: _Birth, primary: BaseException | None) -> None:
         with self._lifecycle_lock:
@@ -747,7 +761,7 @@ class LinuxOwnedChildController:
 
     def _facts(self, birth: _Birth) -> dict[str, Any]:
         return {
-            "child_creation": "popen-returned" if birth.child is not None else "not-observed",
+            "child_creation": birth.creation if birth.child is not None else "not-observed",
             "child_pid": birth.pid,
             "registration_committed": birth.registered,
             "child_exit_confirmed": birth.exit_confirmed,
@@ -835,6 +849,22 @@ class LinuxOwnedChildController:
         return self._run(lambda: self._engine.terminate(
             receipt, grace_seconds=grace_seconds, min_age_seconds=min_age_seconds, allow_kill=allow_kill,
         ), births)
+
+    def owned_registration(self, receipt: OwnedChildReceipt) -> TrustedRegistration | None:
+        """Observe an original live receipt without consuming lifecycle authority."""
+        with self._lock, self._backend._lifecycle_lock:
+            if self._busy:
+                return None
+            registration = self._engine.owned_registration(receipt)
+            birth = next((item for item in self._backend.births if item.receipt is receipt), None)
+            if birth is None or not self._backend.eligible(birth):
+                return None
+            return registration
+
+    def cleanup_capability(self, receipt: OwnedChildReceipt):
+        """Issue only from this original controller and opaque receipt."""
+        return _issue_cleanup_capability(self, receipt,
+            LinuxOwnedChildController.owned_registration, LinuxOwnedChildController.terminate)
 
     def close(self) -> dict[str, Any]:
         """Reap only through retained handles, then release them without signals."""

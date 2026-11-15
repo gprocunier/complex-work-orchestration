@@ -10,10 +10,9 @@ unauthenticated file that any same-user process can write, and argv matching
 recognizes any process with an agent name among its arguments. Neither one
 identifies a process this harness started, so neither one authorizes a signal.
 
-Termination needs a trusted ownership record written by a controller outside
-the lead's control, plus an identity-bound signal handle that cannot target a
-reused PID (``cwo_core.process_identity``). No such producer exists yet, so
-termination requests are reported as unavailable and no process is signalled.
+The callable cleanup API can consume an opaque retained-lifetime capability
+issued by the original controller. The CLI receives no such capability, so
+termination requests remain unavailable and no process is signalled.
 
 Detection does not terminate anything, but a non-dry-run invocation still
 rewrites the registry to prune records whose processes have exited. Use
@@ -33,7 +32,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from cwo_core.process_identity import NoTrustedOwnershipSource, OwnershipSource, PidfdTerminator
+from cwo_core.process_identity import OwnershipSource, PidfdTerminator
+from cwo_core.ownership_producer import cleanup_registration, terminate_cleanup_capability
 from cwo_core.util import atomic_write_text
 
 DEFAULT_WORKSPACE_ROOT = Path.cwd()
@@ -368,6 +368,22 @@ def termination_unavailable(scope: str, process: ProcessInfo, **extra: Any) -> d
     return action
 
 
+def _retained_targets(capabilities: object, controller: object) -> tuple[dict[int, tuple[Any, Any]], str | None]:
+    if capabilities is None or controller is None:
+        return {}, OWNED_UNAVAILABLE_REASON
+    if type(capabilities) not in (tuple, list):
+        return {}, "invalid-retained-ownership-capabilities"
+    if not capabilities:
+        return {}, OWNED_UNAVAILABLE_REASON
+    targets: dict[int, tuple[Any, Any]] = {}
+    for capability in capabilities:
+        registration = cleanup_registration(capability, issuer=controller)
+        if registration is None or registration.pid in targets:
+            return {}, "invalid-retained-ownership-capability"
+        targets[registration.pid] = (capability, registration)
+    return targets, None
+
+
 def cleanup(
     *,
     processes: list[ProcessInfo],
@@ -382,25 +398,17 @@ def cleanup(
     grace_seconds: float,
     ownership_source: OwnershipSource | None = None,
     terminator: PidfdTerminator | None = None,
+    owned_capabilities: object = None,
+    owned_controller: object = None,
+    allow_kill_owned: bool = False,
 ) -> dict[str, Any]:
     """Report stale sessions; ``terminate_*`` are requests, never authority.
 
-    Owned termination runs only for a stale process whose trusted registration
-    comes from ``ownership_source``. The default source has no trusted producer,
-    so every request is reported as unavailable and nothing is signalled.
+    Only an original controller's opaque retained capability can authorize an
+    owned attempt. Legacy source/terminator parameters grant no authority.
+    The CLI supplies no capability and remains detection-only.
     """
-    source = ownership_source or NoTrustedOwnershipSource()
-    registrations = source.trusted_registrations() if terminate_owned else None
-    trusted_by_pid = {registration.pid: registration for registration in registrations or []}
-    effective_terminator = terminator or PidfdTerminator()
-    owned_reason: str | None = None
-    if terminate_owned:
-        if registrations is None:
-            owned_reason = OWNED_UNAVAILABLE_REASON
-        else:
-            supported, support_reason = effective_terminator.supported()
-            if not supported:
-                owned_reason = f"mechanism-unsupported: {support_reason}"
+    targets, owned_reason = _retained_targets(owned_capabilities, owned_controller) if terminate_owned else ({}, None)
     owned_available = terminate_owned and owned_reason is None
     signals_sent = 0
     attempts = 0
@@ -448,18 +456,22 @@ def cleanup(
                 if first["keep"]:
                     kept_records.append(record)
                 continue
-            registration = trusted_by_pid.get(pid_int)
+            target = targets.get(pid_int)
+            registration = target[1] if target is not None else None
             if registration is None:
-                action = {**termination_unavailable("owned", process), "reason": "not-in-trusted-registry"}
+                action = {**termination_unavailable("owned", process), "reason": "not-in-retained-registry"}
             elif record.get("session_id") != registration.session_id:
                 action = {**termination_unavailable("owned", process), "reason": "session-mismatch"}
+            elif str(workspace_root) != registration.workspace:
+                action = {**termination_unavailable("owned", process), "reason": "workspace-mismatch"}
             elif dry_run:
                 action = {"action": "termination-dry-run", "scope": "owned", "pid": pid_int, "command": process.command_line}
             else:
                 # Age is re-derived from the verified incarnation, not from the
                 # discovery snapshot, so a reused PID cannot inherit an old age.
-                outcome = effective_terminator.terminate(
-                    registration, grace_seconds=grace_seconds, min_age_seconds=stale_after_seconds
+                outcome = terminate_cleanup_capability(
+                    target[0], issuer=owned_controller, pid=pid_int, session_id=record["session_id"], workspace=str(workspace_root),
+                    grace_seconds=grace_seconds, min_age_seconds=stale_after_seconds, allow_kill=allow_kill_owned,
                 )
                 attempts += 1
                 outcomes[outcome["outcome"]] = outcomes.get(outcome["outcome"], 0) + 1

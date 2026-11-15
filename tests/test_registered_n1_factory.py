@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -607,6 +608,20 @@ def settle_original_archive(fixture, case):
 
     fixture.enterContext(patch.object(archive_type, 'start', start))
     case._original_archive_settlement = True
+
+
+class PipeChildPropertiesTests(unittest.TestCase):
+    def test_properties_forward_the_original_child_lifetime_state(self):
+        original = SimpleNamespace(pid=321, returncode=None)
+        child = runtime._PipeChild(original, (None, None, None), ("EXAMPLE",))
+        self.assertEqual(child.pid, original.pid)
+        self.assertIsNone(child.returncode)
+        child.pid = 654
+        child.returncode = -15
+        self.assertEqual((original.pid, original.returncode), (654, -15))
+        original.pid, original.returncode = 987, 0
+        self.assertEqual((child.pid, child.returncode), (987, 0))
+        self.assertIs(child._child, original)
 
 
 class FactoryTests(unittest.TestCase):

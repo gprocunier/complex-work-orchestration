@@ -150,6 +150,16 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
         self.assertEqual(manifest["current_file_modes"][transition], 0o644)
         self.assertIn(transition, manifest["local_import_edges"]["scripts/cwo_core/workspace.py"])
         self.assertEqual(manifest["local_import_edges"][transition], ["scripts/cwo_core/__init__.py"])
+        atomic = "scripts/cwo_core/atomic_spawn.py"
+        self.assertIn(atomic, observed["loaded_python_files"]["loaded_local_paths"])
+        self.assertEqual(manifest["files"][atomic], checkpoint.digest((ROOT / atomic).read_bytes()))
+        self.assertEqual(manifest["current_file_modes"][atomic], 0o644)
+        self.assertEqual(manifest["local_import_edges"][atomic], ["scripts/cwo_core/__init__.py"])
+        self.assertIn(atomic, manifest["local_import_edges"]["scripts/linux_owned_children.py"])
+        self.assertIn("scripts/linux_owned_children.py",
+                      manifest["local_import_edges"]["scripts/registered_n1_factory.py"])
+        self.assertIn("scripts/cwo_core/ownership_producer.py",
+                      manifest["local_import_edges"]["scripts/cleanup_stale_agents.py"])
         self.assertEqual(observed["behavior_observations"]["registered_consumers"]["hostless_execution_refusal"],
                          "registered-pool-host-required")
         self.assertEqual(observed["dependency_count"], len(manifest["files"]))
@@ -173,27 +183,28 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
                              manifest["historical_files"][after][path])
 
     def test_omitted_transition_module_refuses_the_actual_loaded_consumer_closure(self):
-        transition = "scripts/cwo_core/workspace_transition.py"
         manifest = json.loads((ROOT / checkpoint.MANIFEST).read_bytes())
-        self.assertTrue(transition in manifest["files"])
-        self.assertTrue(transition in manifest["current_file_modes"])
-        # Load the real positive consumer closure first, then omit this one
-        # loaded dependency from both explicit tables. The verifier stays real.
-        script = (
-            "import json\n"
-            "from tests.test_affected_contract_compatibility import _fixture_checkpoint_observation\n"
-            "import verify_affected_historical_contract as checkpoint\n"
-            "_fixture_checkpoint_observation()\n"
-            "manifest = json.loads((checkpoint.ROOT / checkpoint.MANIFEST).read_bytes())\n"
-            f"del manifest['files'][{transition!r}]\n"
-            f"del manifest['current_file_modes'][{transition!r}]\n"
-            "checkpoint.runtime_identity(manifest=manifest)\n"
-        )
-        child = subprocess.run([sys.executable, "-c", script], cwd=ROOT,
-                               capture_output=True, text=True, timeout=30)
-        self.assertNotEqual(child.returncode, 0)
-        self.assertEqual(child.stdout, "")
-        self.assertIn("loaded dependency missing/drifted: " + transition, child.stderr)
+        for dependency in ("scripts/cwo_core/workspace_transition.py", "scripts/cwo_core/atomic_spawn.py"):
+            with self.subTest(dependency=dependency):
+                self.assertIn(dependency, manifest["files"])
+                self.assertIn(dependency, manifest["current_file_modes"])
+                # Load the real positive consumer closure first, then omit this
+                # loaded dependency from both tables. The verifier stays real.
+                script = (
+                    "import json\n"
+                    "from tests.test_affected_contract_compatibility import _fixture_checkpoint_observation\n"
+                    "import verify_affected_historical_contract as checkpoint\n"
+                    "_fixture_checkpoint_observation()\n"
+                    "manifest = json.loads((checkpoint.ROOT / checkpoint.MANIFEST).read_bytes())\n"
+                    f"del manifest['files'][{dependency!r}]\n"
+                    f"del manifest['current_file_modes'][{dependency!r}]\n"
+                    "checkpoint.runtime_identity(manifest=manifest)\n"
+                )
+                child = subprocess.run([sys.executable, "-c", script], cwd=ROOT,
+                                       capture_output=True, text=True, timeout=30)
+                self.assertNotEqual(child.returncode, 0)
+                self.assertEqual(child.stdout, "")
+                self.assertIn("loaded dependency missing/drifted: " + dependency, child.stderr)
 
     def test_unknown_record_selected_revision_and_interpreter_refuse_before_git_or_import(self):
         with patch.object(checkpoint, "git_bytes", side_effect=AssertionError("must not read history")):
