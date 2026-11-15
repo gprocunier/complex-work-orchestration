@@ -4950,7 +4950,7 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"5a29df9b51cbf31ea0ef2be0704bcc5016953e0803faf7f114732ba2b2b29dc3","size":125291},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"43f546a8a761beff5eb826c939c255d3311e8c8a853589f83ab44b76f6742913","size":125291},
 
 "tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"eaacebfb44bcb28e0a3e98974c3db9b39ab75baaba9b6bd682a919f98b2bf11f","size":1939},
 
