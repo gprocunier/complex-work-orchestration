@@ -95,6 +95,37 @@ class QualificationTargetTests(unittest.TestCase):
                     with self.assertRaises(target.TargetError):
                         target.selected_target()
 
+    def test_current_offline_findings_preserve_holds_and_original_history(self):
+        document = target.selected_target()
+        current = document['offline_diagnostics']
+        self.assertEqual(current['scope'], 'fixed-no-model-app-server-command-exec')
+        self.assertIs(current['execution_authorized'], False)
+        self.assertIs(current['accepted_output'], False)
+        self.assertIs(current['model_calls'], False)
+        self.assertIs(current['thread_or_turn_started'], False)
+        self.assertEqual(current['named_candidate']['status'], 'runtime-refused-unselected')
+        self.assertIn('native-model-tool-stdin', current['required_unperformed'])
+        self.assertIs(document['observations']['containment_tested'], False)
+        self.assertEqual(document['profiles']['constrained-integrity']['status'], 'selected-unqualified')
+
+    def test_scoped_observations_cannot_be_relabelled_as_full_qualification(self):
+        good = target.selected_target()
+        for mutate in (
+            lambda d: d['offline_diagnostics'].update(execution_authorized=True),
+            lambda d: d['offline_diagnostics'].update(model_calls=True),
+            lambda d: d['offline_diagnostics'].update(required_unperformed=[]),
+            lambda d: d['offline_diagnostics']['named_candidate'].update(selected=True),
+            lambda d: d['properties']['offline-owner-lifecycle'].update(classification='qualified'),
+            lambda d: d['properties']['offline-command-patch']['evidence'].append('unrelated.txt'),
+        ):
+            bad = copy.deepcopy(good)
+            mutate(bad)
+            with self.subTest(document=bad):
+                self.assertTrue(policy_document_errors('qualification-target.yaml', bad))
+                with mock.patch.object(target, 'load_policy', return_value=bad):
+                    with self.assertRaises(target.TargetError):
+                        target.selected_target()
+
     def test_pin_drift_invalidates_selection(self):
         for field in ("sha256", "package_json_sha256", "target"):
             pin = pins.pin_for("0.163.0")

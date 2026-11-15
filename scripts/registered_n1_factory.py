@@ -16,6 +16,7 @@ from pathlib import Path
 import queue
 import re
 import select
+import signal
 import stat
 import subprocess
 import threading
@@ -39,6 +40,7 @@ from cwo_core import native_live_availability as live_availability
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import record_received_return
 from cwo_core.policy import load_policy
+from cwo_core.process_identity import parse_proc_stat
 from cwo_core.supervision.transport.app_server import AppServerError
 from registered_app_server_transport import RegisteredAppServer
 from registered_host_root_boundary import require_private_roots
@@ -50,6 +52,11 @@ _LOCK = threading.RLock()
 _FALSE = dict.fromkeys(admitted.FALSE_FIELDS, False)
 # These are host packaging requirements, not a discovery search or worker input.
 _RUNTIME = ("/usr", "/lib", "/lib64")
+_READY = 'cwo-boundary-ready\n'
+_BOOTSTRAP = ("import os,select,sys; os.write(1,b'cwo-boundary-ready\\n'); "
+              "ready=select.select([0],[],[],10)[0]; "
+              "(ready and os.read(0,1)==b'1') or sys.exit(73); "
+              "os.execv(sys.argv[1],sys.argv[1:])")
 _VALIDATOR = """import json,sys
 sys.path.insert(0,'/cwo/scripts')
 import offline_artifact_validation as v
@@ -83,6 +90,37 @@ def _argument_file():
     if descriptor < 0:
         raise OSError(owned.ctypes.get_errno(), 'The registered argument-file mechanism failed.')
     return descriptor
+
+
+def _launcher_argv(launcher, arguments, command):
+    # Bubblewrap's argument file carries options; COMMAND must be real argv.
+    return [launcher, '--args', str(arguments), '--', *command]
+
+
+def _namespace_info_bytes(descriptor):
+    """Read the one closed startup-info stream under one total budget."""
+    deadline, raw = time.monotonic() + 5, bytearray()
+    while True:
+        remaining = deadline - time.monotonic()
+        _need(remaining > 0 and select.select([descriptor], [], [], remaining)[0],
+              "Namespace startup observation timed out.")
+        chunk = os.read(descriptor, 4097 - len(raw))
+        _need(time.monotonic() < deadline, "Namespace startup observation timed out.")
+        if not chunk:
+            _need(bool(raw), "Namespace startup report closed before a complete object.")
+            return bytes(raw)
+        raw.extend(chunk)
+        _need(len(raw) <= 4096, "Namespace startup report exceeds its bound.")
+
+
+def _namespace_info(descriptor):
+    raw = _namespace_info_bytes(descriptor)
+    try:
+        info = decode_protocol_frame(raw)
+    except (ValueError, RecursionError) as exc:
+        raise native.OfflineHostError("Namespace startup report is not one complete bounded JSON object.") from exc
+    _need(type(info) is dict, "Namespace startup report must be one JSON object.")
+    return info
 
 
 def implementation_sha256():
@@ -379,6 +417,7 @@ class _Containment:
         self.termination = None
         self.contained = False
         self.namespace_handle = None
+        self._namespace_pid = self._namespace_birth = None
         self._lock = threading.Lock()
         self._ending = False
         self._termination_owner = None
@@ -402,11 +441,14 @@ class _Containment:
                 '--cap-drop', 'ALL', '--clearenv', '--block-fd', str(block), '--info-fd', str(info)]
         for directory in _RUNTIME:
             argv += ['--ro-bind', directory, directory]
-        argv += ['--ro-bind', command[0], command[0]]
         argv += ['--symlink', 'usr/bin', '/bin', '--proc', '/proc', '--dev', '/dev',
                  '--tmpfs', '/tmp', '--tmpfs', '/home', '--dir', '/etc',
                  '--setenv', 'HOME', '/home/worker', '--setenv', 'LC_ALL', 'C.UTF-8',
                  '--setenv', 'PATH', '/usr/bin:/bin']
+        # Private overlays must precede the executable bind, including binaries
+        # installed below a home or temporary directory.
+        argv += ['--ro-bind', command[0], command[0]]
+        argv += ['--ro-bind', spec['validator'], spec['validator']]
         if self.validator:
             scripts = str(Path(__file__).resolve().parent)
             argv += ['--ro-bind', scripts, '/cwo/scripts', '--chdir', '/tmp']
@@ -420,7 +462,7 @@ class _Containment:
                 argv += ['--bind', str(home), str(home), '--setenv', 'CODEX_HOME', str(home)]
                 for name in self.factory.spec['configuration_files']:
                     argv += ['--ro-bind', str(home / name), str(home / name)]
-        argv += ['--remount-ro', '/', '--', *command]
+        argv += ['--remount-ro', '/']
         return argv
 
     def _release_gate(self, descriptor, tool_call, deadline):
@@ -431,7 +473,35 @@ class _Containment:
             self.factory.server.finite_input.dispatch_registered_gate(
                 descriptor, tool_call, deadline)
         else:
+            os.set_blocking(descriptor, False)
             os.write(descriptor, b'1')
+
+    def _bootstrap_command(self, command):
+        return [self.factory.spec['validator'], '-I', '-S', '-c', _BOOTSTRAP, *command]
+
+    def _confirm_mounts(self):
+        _need(select.select([self.process.stdout], [], [], 5)[0], "Trusted namespace bootstrap readiness timed out.")
+        _need(self.process.stdout.readline(64) == _READY, "Trusted namespace bootstrap readiness differs.")
+        self.controller._engine._verified(self.controller._engine._lookup(self.receipt))
+        _need(self._namespace_identity(self._namespace_pid) == self._namespace_birth,
+              "Namespace birth changed after filesystem setup.")
+        root = Path('/proc') / str(self._namespace_pid) / 'root'
+        for source in self.factory._protected_roots():
+            _not_exposed(root, source)
+        _need(not select.select([self.namespace_handle], [], [], 0)[0], "The inspected namespace has exited.")
+
+    def _release_command(self, write_gate, observation, tool_call, deadline):
+        # Bubblewrap's gate precedes filesystem setup. Only the fixed trusted
+        # bootstrap runs after it, and the original command remains gated.
+        os.write(write_gate, b'1')
+        self._confirm_mounts()
+        observation['filesystem_ready'] = True
+        self.factory.require_effect()
+        self.factory.record(self.role + '-contained', observation)
+        if self.role == 'tool':
+            self.factory.server.finite_input.lifecycle.move('gate-closed', call=tool_call['callId'])
+        self.factory.require_effect()
+        self._release_gate(self.process.stdin.fileno(), tool_call, deadline)
 
     def _preflight_tool_launch(self, tool_call, deadline, tool_decision):
         if self.role != 'tool':
@@ -475,7 +545,7 @@ class _Containment:
             result = self.controller.spawn_owned(
                 self.factory.operation_id + {'appserver': '-transport', 'tool': '-tool',
                                              'validator': '-validation'}[self.role],
-                [argv[0], '--args', str(arguments)], str(self.factory.host.worker))
+                _launcher_argv(argv[0], arguments, self._bootstrap_command(command)), str(self.factory.host.worker))
             self._retain(result)
             _need(result.get('outcome') == 'registered' and self.receipt is not None,
                   "Retained-child registration is required before startup.")
@@ -489,14 +559,9 @@ class _Containment:
                 self._fds.remove(descriptor)
             observation = self._observe(read_info)
             self.controller._engine._verified(self.controller._engine._lookup(self.receipt))
-            self.factory.require_effect()
-            self.factory.record(self.role + '-contained', observation)
-            if self.role == 'tool':
-                self.factory.server.finite_input.lifecycle.move(
-                    'gate-closed', call=tool_call['callId'])
             # This is the only gate release. A selected tool must still be the
             # current issued call when the one-byte, nonblocking gate opens.
-            self._release_gate(write_gate, tool_call, deadline)
+            self._release_command(write_gate, observation, tool_call, deadline)
             return self.process
         except BaseException as failure:
             self._retain(getattr(failure, 'ownership_report', None))
@@ -528,28 +593,64 @@ class _Containment:
                 self.receipt = receipt
 
     def _observe(self, descriptor):
-        _need(select.select([descriptor], [], [], 5)[0], "Namespace startup observation timed out.")
-        raw = os.read(descriptor, 4097)
-        _need(len(raw) <= 4096, "Namespace startup report exceeds its bound.")
-        info = json.loads(raw)
+        info = _namespace_info(descriptor)
         pid = info.get('child-pid')
         _need(type(pid) is int and pid > 1, "No independent namespace child identity was observed.")
-        self.namespace_handle = os.pidfd_open(pid, 0)
-        fdinfo = Path('/proc/self/fdinfo') / str(self.namespace_handle)
+        facts = self._retain_namespace(pid)
+        return {'child_pid': pid, 'namespaces': facts,
+                'scope': 'credentialless-validator' if self.validator else 'worker-only-' + self.role}
+
+    def _retain_namespace(self, pid):
+        before = self._namespace_identity(pid)
+        descriptor = os.pidfd_open(pid, 0)
+        try:
+            facts = self._check_namespace_handle(pid, descriptor, before)
+        except BaseException:
+            os.close(descriptor)
+            raise
+        # A cleanup handle is issued only after original-parent and birth checks.
+        self.namespace_handle = descriptor
+        self._namespace_pid, self._namespace_birth = pid, before
+        return facts
+
+    def _check_namespace_handle(self, pid, descriptor, before):
+        fdinfo = Path('/proc/self/fdinfo') / str(descriptor)
         _need('Pid:\t' + str(pid) in fdinfo.read_text().splitlines(), "The namespace birth handle is not bound to the observed child.")
+        _need(self._namespace_identity(pid) == before, "Namespace birth changed while retaining its handle.")
         child = Path('/proc') / str(pid)
         status = dict(line.split(':', 1) for line in (child / 'status').read_text().splitlines() if ':' in line)
         _need(status.get('NSpid', '').split()[-1:] == ['1'], "The retained namespace child is not its PID namespace init.")
         facts = {kind: os.readlink(child / 'ns' / kind) for kind in ('mnt', 'net', 'pid', 'user')}
         for kind, observed in facts.items():
             _need(observed != os.readlink(Path('/proc/self/ns') / kind), "Required namespace separation is absent.")
-        # Read the child's actual mount namespace, never worker-returned evidence.
-        root = child / 'root'
-        for source in self.factory._protected_roots():
-            _not_exposed(root, source)
         _need('Pid:\t' + str(pid) in fdinfo.read_text().splitlines(), "Namespace lifetime changed during observation.")
-        return {'child_pid': pid, 'namespaces': facts,
-                'scope': 'credentialless-validator' if self.validator else 'worker-only-' + self.role}
+        _need(not select.select([descriptor], [], [], 0)[0], "The blocked namespace has exited.")
+        return facts
+
+    def _namespace_identity(self, pid):
+        registration = self.controller.owned_registration(self.receipt)
+        _need(registration is not None, "The original namespace launcher is no longer retained.")
+        value = parse_proc_stat((Path('/proc') / str(pid) / 'stat').read_text())
+        _need(value.pid == pid and value.ppid == registration.pid,
+              "The namespace is not the original retained launcher's child.")
+        return value.pid, value.ppid, value.start_ticks
+
+    def _stop_namespace(self):
+        _need(self.namespace_handle is not None, "No retained original namespace handle is available.")
+        if not select.select([self.namespace_handle], [], [], .1)[0]:
+            self._signal_namespace()
+        _need(select.select([self.namespace_handle], [], [], 5)[0],
+              "The retained PID namespace init is not confirmed dead; capture is refused.")
+        os.close(self.namespace_handle)
+        self.namespace_handle = None
+
+    def _signal_namespace(self):
+        try:
+            signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)
+        except ProcessLookupError:
+            # Natural exit may win after the readiness check. Only the same
+            # retained handle's subsequent exit observation can confirm it.
+            pass
 
     def terminate(self):
         # This direct API cannot turn an uncertain prior attempt into a retry.
@@ -601,22 +702,42 @@ class _Containment:
         if self.role == 'appserver' and server is not None:
             server.finite_input.lifecycle.authority_revoke('closed')
 
+    def _terminate_monitor(self):
+        _need(self.receipt is not None, "No original owned-child receipt is available.")
+        try:
+            self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)
+        except BaseException as failure:
+            self.termination = getattr(failure, 'ownership_report', None)
+            raise
+        report = self.termination
+        _need(report.get('outcome') in {'terminated', 'killed', 'already-exited', 'exited-before-signal'}
+              and report.get('child_exit_confirmed') is True and report.get('child_reaped') is True,
+              "Controlled termination and same-handle reaping are required before capture.")
+        return report
+
+    def _stop_namespace_preserving(self, primary):
+        try:
+            if self.namespace_handle is not None:
+                self._stop_namespace()
+        except BaseException as secondary:
+            self._note_namespace_cleanup(primary, secondary)
+
+    @staticmethod
+    def _note_namespace_cleanup(primary, secondary):
+        try:
+            admission.ledger_api.add_failure_note(primary,
+                'Independent retained namespace cleanup failed: ' + validation._exception_text(secondary))
+        except BaseException:
+            pass
+
     def _terminate_claimed(self):
         try:
-            _need(self.receipt is not None, "No original owned-child receipt is available.")
             try:
-                self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)
-            except BaseException as failure:
-                self.termination = getattr(failure, 'ownership_report', None)
+                report = self._terminate_monitor()
+            except BaseException as primary:
+                self._stop_namespace_preserving(primary)
                 raise
-            report = self.termination
-            _need(report.get('outcome') in {'terminated', 'killed', 'already-exited', 'exited-before-signal'}
-                  and report.get('child_exit_confirmed') is True and report.get('child_reaped') is True,
-                  "Controlled termination and same-handle reaping are required before capture.")
-            _need(self.namespace_handle is not None and select.select([self.namespace_handle], [], [], 5)[0],
-                  "The retained PID namespace init is not confirmed dead; capture is refused.")
-            os.close(self.namespace_handle)
-            self.namespace_handle = None
+            self._stop_namespace()
             self.contained = True
             self.factory.record(self.role + '-terminated',
                                 {key: value for key, value in report.items() if key != 'receipt'})

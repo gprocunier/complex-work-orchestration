@@ -46,15 +46,17 @@
 
 "N1":{"admission":"guarded-effect","authority":"Explicit absolute executable and Codex home, or verified tool proof/capture binding; no ambient default.","effect":"Raw Codex app-server process launch","gates":["p2c103fd4"],"limits":"N1 entry/prelaunch. Explicit binary/home or verified binding; exact app-server --stdio/config argv, selected CODEX_HOME/PATH, other env inherited, PIPE+umask077. Fake-launch exception is intercepted boundary reach, not real launch or successful startup. Startup RPC10s/raw30s; no Popen startup timeout.","manual_decisions":["M08"],"ordering":"Entry N1 hold; model/effort/metadata and proof-vs-probe exclusivity; exact binary/home/config; N1 recheck immediately before Popen.","trace_files":["scripts/cwo_core/supervision/transport/app_server.py"],"witnesses":["wafcd16029810:zero-effect-refusal:w0f44bfa6ea75","w0f44bfa6ea75:matched-positive"]},
 
-"N10":{"admission":"guarded-effect","authority":"Trusted in-process raw client object over selected child; known model-start methods now require current N1. Higher methods retain exact tool/MCP/thread/turn-intent and reservation bindings; registered replies use current locked epoch/request/deadline/terminal/authority.","effect":"Already-constructed raw RPC and direct turn wire effects","effect_points":["q6"],"gates":["pbef022fe"],"limits":"Under the closed N1 hold only initialize, initialized, thread/read, turn/interrupt, thread/archive, thread/delete, model/list and mcpServerStatus/list remain available. Every other exact method requires current N1 at the existing entry/wire/post-callout checks. Unknown caller-selected protocol is trusted only with N1 open; no universal zero-model claim. notify retains its original lack of write timeout.","manual_decisions":["M08","M09","M12"],"ordering":"notify wire check; request entry and late wire check; guarded request before caller guard and after it; start_turn entry before intent and recheck just before its separate direct write. No constructor-only credit.","trace_files":["scripts/cwo_core/supervision/transport/app_server.py","scripts/registered_finite_input.py","scripts/registered_server_requests.py"],"witnesses":["wc27f1b2a825c:zero-effect-refusal:wc22edbe96b65"]},
+"N10":{"admission":"guarded-effect","authority":"Trusted in-process raw client object over selected child; known model-start methods now require current N1. Higher methods retain exact tool/MCP/thread/turn-intent and reservation bindings; registered replies use current locked epoch/request/deadline/terminal/authority.","effect":"Already-constructed raw RPC and direct turn wire effects","effect_points":["q6"],"gates":["pbef022fe"],"limits":"Under the closed N1 hold only initialize, initialized, thread/read, turn/interrupt, thread/archive, thread/delete, model/list and mcpServerStatus/list remain available. Every other exact method requires current N1 at the existing entry/wire/post-callout checks. Unknown caller-selected protocol is trusted only with N1 open; no universal zero-model claim. Owned real-pipe frames are capped at 1 MiB; request writes and responses share the caller deadline, and notify writes have a one-second deadline. Backpressure releases the reader condition; partial-write failure faults the connection without replay. In-memory historical fixture streams retain synchronous writes.","manual_decisions":["M08","M09","M12"],"ordering":"notify and request method/native checks precede their internal writer call; guarded request checks before the caller guard and again after it; turn-start checks before intent and again before its own internal writer call. These caller guards do not authorize direct private-helper invocation. No constructor-only credit. The internal real-pipe writer rechecks the actual method before every chunk after condition release; hold loss terminal-faults the same connection before further bytes.","trace_files":["scripts/cwo_core/supervision/transport/app_server.py","scripts/registered_finite_input.py","scripts/registered_server_requests.py"],"witnesses":["wc27f1b2a825c:zero-effect-refusal:wc22edbe96b65"]},
 
 "N11":{"admission":"manual-program","authority":"Explicit caller-selected binary/environment programme; no outer hook/expected-binary admission on this direct entry.","effect":"Intentional selected --version child programme","gates":[],"manual_decisions":["M12","M13"],"ordering":"Immediately execute selected --version child; only result interpretation follows.","trace_files":["scripts/configure_codex_beads_hooks.py","scripts/cwo_core/codex_tool_surface.py"]},
 
 "N12":{"admission":"manual-program","authority":"Explicit execution of extensionless scripts/cwo-codex by operator; shell resolves codex from operator PATH; cwd, HOME/CODEX_HOME and environment are operator controlled.","effect":"Operator Codex launcher","effect_points":["p3f91fd02"],"gates":[],"limits":"set -eu; exec codex --profile cwo-sol-operator-e \"$@\". Operator controls PATH/cwd/env/full forwarded argv including overrides. No intrinsic timeout/output/cost bound; downstream option precedence unproved.","manual_decisions":["M13"],"ordering":"set -eu followed by shell exec codex --profile cwo-sol-operator-e \"$@\". No source live/campaign/production hold or argv restriction. Exec lookup/permission failures are OS errors, not a native guard.","trace_files":["scripts/cwo-codex"],"witnesses":["w5df42bcc919c:operator-contract"]},
 
+"N13":{"admission":"manual-program","authority":"Explicit operator fixed offline diagnostics only; no native factory, maintenance, model-turn or accepted-artifact authority.","effect":"Disposable repository/listener setup, fixed command/config RPCs, trusted bootstrap/watchdog execution and retained-handle cleanup","gates":[],"limits":"No model/thread/turn, arbitrary command API, stdin delivery or accepted output. Original selected never configuration is unchanged. Diagnostic effects bypass no production hold and establish only enumerated observations; required omissions keep selected-unqualified/confidential unsupported. Private helpers retain trusted internal-caller prerequisites.","manual_decisions":["M25"],"ordering":"Exact package/fixed runtime and configuration; original atomic owner and verified namespace handle; setup gate; protected post-setup mounts and watchdog handle; final bootstrap gate; bounded fixed RPC/empty-poll observations; independent cleanup.","trace_files":["scripts/selected_native_containment.py","scripts/cwo_core/atomic_spawn.py","scripts/linux_owned_children.py","scripts/registered_n1_factory.py"],"witnesses":["diagnostic-no-authority","diagnostic-fixed-command","diagnostic-input-boundary"]},
+
 "N2":{"admission":"guarded-effect","authority":"Explicit probe CLI/model/home/catalog or opaque verified maintenance operation/context and qualification; not worker JSON.","effect":"Probe loopback listener; maintenance preparation/qualification native launch","gate_limits":"The other two checks belong to sibling entrypoints, not this constructor path. Each entry retains its own N1 refusal.","gates":["p7651e5e6"],"limits":"P listener pair proves zero construct/preparer/serve then fake construct/serve/close on admitted binding-drift path; not complete probe session. Maintenance positives in existing runtime families use opaque current operation/context/qualification. Observation mints are process-local capabilities, not external identity.","manual_decisions":["M03","M05","M06","M08"],"ordering":"N1 at each supported entry before proof/listener/output/prepare. Maintenance guard revalidates operation, task/worktree/config, session ledger and qualification before AppServer.","review_gates":["p61a54551","pb8aba18c"],"trace_files":["scripts/check_codex_worker_surface.py","scripts/cwo_core/maintenance_native_runtime.py","scripts/cwo_core/maintenance_qualification.py"],"witnesses":["wf5ff5ad57fbf:zero-effect-refusal:w67f8f2cc66d4","w67f8f2cc66d4:matched-positive"]},
 
-"N3":{"admission":"guarded-effect","authority":"Exact protected host/factory/capability/admission and immutable configuration/graph intent. Controller-selected executable/launcher/worker/home; registered factory identity checked before adoption.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["pf2ce57c6"],"gate_limits":"Workflow/factory run admission is an earlier lifecycle check. Constructed transports and containment objects require manual receiver/lifetime review; launch rechecks N1 at the selected spawn boundary.","gates":["p86f0d37c"],"limits":"Zero owned startup children/intent under hold. Positive two fake children via original registered factory. Exact protected configuration/admission/owned lifetime, finite role argv, held gate before child command release. Contained birth may precede later release refusal; arbitrary factories/subclasses are not registered authority.","manual_decisions":["M08","M09","M10"],"ordering":"Workflow/factory N1; containment N1 and require_effect; finite role argv before pipe/owned birth; birth identity/handle before one-byte gate; require_effect and tool lifetime authority before release.","review_gates":["p37abf329","pe8a54a36"],"trace_files":["scripts/cwo_core/atomic_spawn.py","scripts/cwo_core/ownership_producer.py","scripts/linux_owned_children.py","scripts/registered_n1_factory.py","scripts/registered_n1_workflow.py"],"witnesses":["w010714091933:zero-effect-refusal:w28ff57fa4866"]},
+"N3":{"admission":"guarded-effect","authority":"Exact protected host/factory/capability/admission and immutable configuration/graph intent. Controller-selected executable/launcher/worker/home; registered factory identity checked before adoption.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["pf2ce57c6"],"gate_limits":"Workflow/factory run admission is an earlier lifecycle check. Constructed transports and containment objects require manual receiver/lifetime review; launch rechecks N1 at the selected spawn boundary.","gates":["p86f0d37c"],"limits":"Zero owned startup children/intent under hold. Positive two fake children via original registered factory. Exact protected configuration/admission/owned lifetime, finite role argv, held gate before child command release. Contained birth may precede later release refusal; arbitrary factories/subclasses are not registered authority. Trusted setup/bootstrap is distinct from original command release. Actual post-setup observations and final current-admission checks replace pre-setup mount assumptions; no selected legacy qualification follows for the separate named untrusted/user registered profile.","manual_decisions":["M08","M09","M10","M26"],"ordering":"Current N1/factory admission and exact role argv before owned birth; options-only sealed FD plus real bootstrap argv; retained original-parent/birth namespace handle; setup-only byte; post-setup protected roots/current admission/record; final stdin byte with original tool fence. Independent verified namespace stop preserves unresolved monitor accounting.","review_gates":["p37abf329","pe8a54a36"],"trace_files":["scripts/cwo_core/atomic_spawn.py","scripts/cwo_core/ownership_producer.py","scripts/linux_owned_children.py","scripts/registered_n1_factory.py","scripts/registered_n1_workflow.py"],"witnesses":["w010714091933:zero-effect-refusal:w28ff57fa4866"]},
 
 "N4":{"admission":"guarded-effect","authority":"Base class is not an admitted launcher. Supported shipped subclass is _RegisteredServer from protected factory; arbitrary Python subclasses are external trusted code, not accepted registered factories.","effect":"Registered transport exact base refusal and supported override launch","effect_points":["p452980b5"],"gate_limits":"The abstract _launch_process body refuses unconditionally. Subclass overrides and constructed receiver identity remain manual dispatch limits; the base-type constructor guard precedes the named construction calls.","gates":["pf7ade8ba"],"limits":"Exact base has zero Popen/binary lookup; positive is the actual _RegisteredServer through N3, not an arbitrary subclass or base AppServer constructor. Do not append all subclasses.","manual_decisions":["M08","M09"],"ordering":"Exact base type refuses before proof/probe/home; base _launch_process also refuses. Virtual override resolves to N3 containment, never ordinary AppServer.__init__ Popen.","review_gates":["p08ac87d5"],"trace_files":["scripts/registered_app_server_transport.py"],"witnesses":["wf7e7a5642b54:zero-effect-refusal:w28ff57fa4866","w28ff57fa4866:matched-positive"]},
 
@@ -66,7 +68,11 @@
 
 "N8":{"admission":"guarded-effect","authority":"Campaign main/supplied-server pool entry requires all three holds, pinned auth/manifest/release/tree/claim/allocation/tool policy; controller prethread/preallocation callbacks are vetoes, not grants.","effect":"Campaign server/pool/late supplied-server turn","effect_points":["p8b2a4770"],"limits":"Campaign entry/server/pool and default campaign turn use three holds. Explicit noncampaign constructors and calibration retain their own admission; caller flags are not authentication. Admission-only controls stop at UUID/reservation; no completed campaign/native positive. Selected server/callback/reducer code remains external trust.","manual_decisions":["M08","M09","M11"],"ordering":"Three holds before UUID/setup; admitted existing control reaches UUID twice, not actual pool/native completion.","selector":"Actual build_pool_inputs campaign_live_route=True selects extra campaign/pool/N1 checks; generic adapter default false differs.","trace_files":["scripts/run_native_pool_live_canaries.py"],"witnesses":["BM-N8-pool-admission"]},
 
-"N9":{"admission":"guarded-effect","authority":"Captured exact dynamic catalog and args, current epoch/thread/turn/request/call, same original factory/intent/config/capture and command; tool decision is opaque single-use and source issued.","effect":"Registered finite tool command/validator owned birth and gate release","gates":["p58da18d8","p0321fa67","pdb7180bd"],"limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety.","manual_decisions":["M08","M10","M12"],"ordering":"Decision, command intent and live/capture/current checks before child; owned birth retained while gate closed; terminal/late faults abort before gate release. Validator output binding, admitted policy and N1 containment before validator child.","trace_files":["scripts/cwo_core/atomic_spawn.py","scripts/cwo_core/ownership_producer.py","scripts/linux_owned_children.py","scripts/registered_finite_tool_calls.py","scripts/registered_n1_factory.py"],"witnesses":["wc71368b084bd:zero-effect-refusal:we0204d7ef9b4","we0204d7ef9b4:matched-positive"]},
+"N9":{"admission":"guarded-effect","authority":"Captured exact dynamic catalog and args, current epoch/thread/turn/request/call, same original factory/intent/config/capture and command; tool decision is opaque single-use and source issued.","effect":"Registered finite tool command/validator owned birth and gate release","gates":["p58da18d8","p0321fa67","pdb7180bd"],"limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety.","manual_decisions":["M08","M10","M12","M26"],"ordering":"Decision, command intent and live/capture/current checks before child; owned birth retained while gate closed; terminal/late faults abort before gate release. Validator output binding, admitted policy and N1 containment before validator child. Trusted bootstrap setup is not tool-command release; post-setup custody and current factory checks precede the original finite-input final gate. Verified namespace cleanup is attempted independently on monitor failure without accepting unresolved output.","trace_files":["scripts/cwo_core/atomic_spawn.py","scripts/cwo_core/ownership_producer.py","scripts/linux_owned_children.py","scripts/registered_finite_tool_calls.py","scripts/registered_n1_factory.py"],"witnesses":["wc71368b084bd:zero-effect-refusal:we0204d7ef9b4","we0204d7ef9b4:matched-positive"]},
+
+"P1":{"admission":"manual-program","authority":"Trusted original embedding with issued validation, claimed maintenance scope and separately signed effect consent; constructor/paths grant none.","effect":"Guarded replacement of one validated output and recoverable publication records","gates":[],"limits":"Cooperative directory guard, not exclusion against arbitrary external writers. No all-files atomicity or rollback claim. Earlier effects and uncertain replacement remain explicit; no direct-helper authority.","manual_decisions":["M27"],"ordering":"Durable intent/old bytes before effects; retain descriptors/marks; policy+consent+retained payload checks; immediate revision/dirty/marks recheck; actual replace and conservative count; post-effect capture/checkpoint.","trace_files":["scripts/guarded_artifact_target.py","scripts/offline_artifact_validation.py","scripts/cwo_core/maintenance_authority.py"],"witnesses":["publication-late-drift"]},
+
+"P2":{"admission":"manual-program","authority":"Original cooperative single-worker lock and trusted adapter/controller; stored digests and status grant no execution or acceptance.","effect":"Durable intent/state replacement under original host lock identity","gates":[],"limits":"Replacement refuses before later capture/state overwrite; earlier intent and full charge retained. Lock checks do not exclude arbitrary same-account writers between checks and effects; no production admission or redispatch on unknown intent.","manual_decisions":["M27"],"ordering":"Acquire single regular NOFOLLOW lock; verify held/path inode and original state identity at claim entry/exit, before state writes/replace and around artifact collection.","trace_files":["scripts/offline_n1_host.py"],"witnesses":["host-lock-replacement"]},
 
 "SELF":{"admission":"guarded-effect","authority":"Explicit evidence directory and operator-selected independent review path+SHA; no held effect authority.","earlier_effects":"Bounded source and evidence reads; explicit generator may write trace/index outside product; no held effect.","effect":"Read-only release trace completion/stdout; explicit generation writes external evidence only","gates":["p404fdf75","p458529ce","p19f63d9d"],"limits":"Reads/stdout only in check. EXAMPLE positive does not approve actual source. f8_complete stays false; no installation/activation or arbitrary programme proof.","manual_decisions":["M22"],"ordering":"Fresh exact trace/source/inventory before selected review; exact independent role/source/decisions/raw tests before completion; custody re-read at end.","trace_files":["scripts/cwo_core/release_effect_routes.py","scripts/check_release_effect_routes.py"],"witnesses":["SELF-refusal","SELF-positive"]},
 
@@ -170,7 +176,13 @@
 
 "M23":{"conclusion":"Registered offline consent/Send/share controls preserve one-use admission and uncertainty; live route and reader holds remain.","evidence_contracts":["H4","H5"],"external_trust_limit":"Trusted same-process bootstrap, not a sandbox. Raw forwarders can invoke targets directly; H4.6 records that context without claiming a raw-method refusal. Remote tokens/cost stay unknown.","reason":"Original exact-object consent binds source/candidate/packet/prepared request, complete ordered generated conversation, purpose, document, coverage and exact screened disclosure. Effective freshness is bounded by original timeout. Recheck source/options/limits/callbacks/consent and persisted admission/action/amount after callbacks. Atomic document/root/URL/content check precedes native click; observed result binds URL/conversation/action. Unknown postcreate outcome retains full charge; no successor fallback.","review_evidence":"Current source and actual-consumer controls reviewed; live UI remains unqualified.","source":["browser-parent-decl","browser-guard-decl","browser-send-adapter-decl","browser-share-decl","share-dom"]},
 
-"M24":{"conclusion":"Private v5 intake requires current source/subject and independent persisted provenance pin before response read.","evidence_contracts":["H5","B10"],"external_trust_limit":"Hashes identify bytes; same-user access to artifacts and audit can rewrite both. Default metadata omits body; intentional --output/API rendering consumes it. Historical versions and unpinned legacy reader remain refused.","reason":"Packet hash includes the subject; candidates verify actual current bytes without closure history. PrivateDirectory publication/retention stays intact. Existing audit sanitizer persists chain digests; intake rereads the selected event/provenance and validates observations and response.","review_evidence":"Current helper/writer/sanitizer/intake source reviewed; lead review pending.","source":["browser-current-subject","browser-current-selection","browser-capture-build","browser-capture-audit","browser-intake-pin-decl","browser-capture-validate"]}
+"M24":{"conclusion":"Private v5 intake requires current source/subject and independent persisted provenance pin before response read.","evidence_contracts":["H5","B10"],"external_trust_limit":"Hashes identify bytes; same-user access to artifacts and audit can rewrite both. Default metadata omits body; intentional --output/API rendering consumes it. Historical versions and unpinned legacy reader remain refused.","reason":"Packet hash includes the subject; candidates verify actual current bytes without closure history. PrivateDirectory publication/retention stays intact. Existing audit sanitizer persists chain digests; intake rereads the selected event/provenance and validates observations and response.","review_evidence":"Bounded framing/storage, finite nonblocking writer deadlines and hold rechecks, typed required denials and never-policy accounting/source routes reviewed; no additional authority inferred.","source":["browser-current-subject","browser-current-selection","browser-capture-build","browser-capture-audit","browser-intake-pin-decl","browser-capture-validate"]},
+
+"M25":{"conclusion":"Fixed disposable diagnostics provide scoped OS observations and no factory, maintenance, artifact or model authority.","evidence_contracts":["N13"],"external_trust_limit":"Private helper callers and OS runtime are trusted. Native model tools, approvals, retries/escalation, grants/helpers, actual PID reuse and production recovery remain unperformed; profile stays selected-unqualified and confidential unsupported. Digests identify bytes, not custody.","reason":"Selected package identity and isolated workspace-write/never/no-network configuration precede fixed command/exec or outer controls. Only issued fixed Python programmes and initialize/config reads are sent; no thread/turn or accepted output. Synthetic listener/credential controls and trusted bootstrap/watchdog strings are explicit effects beyond bounded AST call resolution. The fixed watchdog argv is data selected for the original owned birth, not a separate static proof of runtime exec; its 8s timeout and bootstrap exec remain explicit trusted-programme effects. The only watchdog launch remains the fixed /usr/bin/timeout alias. Its canonical executable path and device/inode object are independently selected and rechecked before launch, then matched to the observed proc executable with original parent/birth/fdinfo/live checks. Basename matches, changed objects and unknown wrapper layouts refuse; this supplies no fallback or qualification authority.","review_evidence":"Fixed diagnostic programmes, exact-package observations, argv restrictions, gates and retained-handle source/scope reviewed; no native authority inferred.","selected_resources":["policy/qualification-target.yaml","schemas/qualification-target.schema.json"],"source":["diagnostic-launch","diagnostic-send","diagnostic-close","diagnostic-bootstrap-exec","diagnostic-request-policy","diagnostic-watchdog-argv","diagnostic-target-held","diagnostic-schema-held","diagnostic-watchdog-object","diagnostic-watchdog-retention"]},
+
+"M26":{"conclusion":"Trusted post-setup bootstrap and independently verified namespace cleanup preserve original admission and conservative accounting.","evidence_contracts":["N3","N9"],"external_trust_limit":"Setup byte releases trusted bootstrap only. Standalone helpers do not authenticate arbitrary callers or create native admission. Cleanup uses only retained verified pidfds, including monitor-failure/ESRCH branches; namespace exit never upgrades unresolved monitor status, charge or accepted output. No raw PID fallback or retry.","reason":"Sealed FD contains only bwrap options; actual argv carries pinned validator/bootstrap and exact role command. Private overlays precede executable binds. Original monitor parent/birth and pidfd/PID1/namespace checks precede handle retention. After setup, protected mounts and current factory state are checked before the final stdin gate; tool release still uses the original finite-input authority fence. Startup info reaches EOF under one total five-second deadline and a 4096-byte cap before strict plain-object decode; malformed, partial, oversized or late input refuses before namespace retention or final gate.","review_evidence":"Post-setup gates, complete bounded startup framing and independent monitor-failure cleanup source reviewed; no native authority inferred.","source":["registered-post-setup-release","registered-retain-namespace","registered-bootstrap-exec","registered-stop-namespace","registered-launcher-argv","registered-mount-options","registered-namespace-info-bytes","registered-namespace-info"]},
+
+"M27":{"conclusion":"Final publication rechecks and original host lock identity narrow cooperative races without creating effect authority.","evidence_contracts":["P1","P2"],"external_trust_limit":"Trusted embedding supplies original issued validation/maintenance capability and separate signed consent. Directory exclusion covers cooperating publishers, not arbitrary external writers. Earlier durable intent/staged bytes or confirmed replacements survive later refusal; unresolved effects stay conservative. Host records are owner-writable evidence, not independent authentication.","reason":"Publication retains source/target descriptors and file inode marks before policy/consent/payload callouts, then recaptures revision/dirty state and marks immediately before replace. Host state writes require the original held lock descriptor/path inode at entry and before rename; collection also rechecks it.","review_evidence":"Final publication and retained-lock guards plus late-drift/lock-substitution evidence reviewed with explicit cooperating-writer limits; no additional authority inferred.","source":["publication-apply","publication-replace","host-save","host-lock-check"]}
 },
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
@@ -424,7 +436,27 @@
 
 "tests/test_production_closure_authority.py",
 
-"scripts/production_closure_authority.py"
+"scripts/production_closure_authority.py",
+
+"scripts/selected_native_containment.py",
+
+"scripts/guarded_artifact_target.py",
+
+"tests/test_selected_native_containment.py",
+
+"tests/test_registered_n1_factory.py",
+
+"tests/test_offline_n1_host.py",
+
+"tests/test_guarded_artifact_target.py",
+
+"policy/qualification-target.yaml",
+
+"schemas/qualification-target.schema.json",
+
+"tests/test_registered_finite_input.py",
+
+"tests/test_registered_controlled_output_schedule.py"
 ],
 
 "points":{
@@ -444,7 +476,7 @@
 
 "R1A-1475e399e4a8ac":[4,736,"browser.new_context()",71,736,92],
 
-"R1A-149ca02028e393":[33,235,"subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,\n                stderr=subprocess.PIPE, text=True, bufsize=1, umask=0o077, env=environment)",27,236,91],
+"R1A-149ca02028e393":[33,262,"subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,\n                stderr=subprocess.PIPE, text=True, bufsize=1, umask=0o077, env=environment)",27,263,91],
 
 "R1A-1514d764137cd7":[14,29,"run_bd(args)",22,29,34],
 
@@ -506,9 +538,9 @@
 
 "R1A-821d57d5a51a57":[21,147,"subprocess.run(\n        [str(binary), \"--version\"],\n        check=False,\n        capture_output=True,\n        text=True,\n        timeout=10,\n        env=None if codex_home is None else dict(os.environ, CODEX_HOME=str(codex_home),\n                                                PATH=str(binary.parent) + os.pathsep + os.defpath),\n    )",16,155,5],
 
-"R1A-8783249dd2f418":[53,1210,"self.request('thread/start', params, timeout=10)",29,1210,77],
+"R1A-8783249dd2f418":[53,1331,"self.request('thread/start', params, timeout=10)",29,1331,77],
 
-"R1A-8a5537e96131f2":[33,268,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,279,13],
+"R1A-8a5537e96131f2":[33,297,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,308,13],
 
 "R1A-8bc5371d0e581a":[29,14420,"subprocess.run(\n                    [\"git\", \"worktree\", \"remove\", \"--force\", str(worktree)],\n                    cwd=root,\n                    check=False,\n                    capture_output=True,\n                )",16,14425,17],
 
@@ -566,7 +598,7 @@
 
 "R1A-e91e47ffa139e1":[4,683,"page.goto(self._destination_url(navigation, source), wait_until=\"domcontentloaded\", timeout=timeout_ms)",12,683,115],
 
-"R1A-ed09ceb424ae85":[33,289,"self.notify(\"initialized\", {})",12,289,42],
+"R1A-ed09ceb424ae85":[33,318,"self.notify(\"initialized\", {})",12,318,42],
 
 "R1A-f16d77afc9ca5c":[15,17,"shutil.copytree(source, destination, ignore=shutil.ignore_patterns(\"__pycache__\", \"*.pyc\"))",4,17,95],
 
@@ -590,13 +622,25 @@
 
 "R1A2-e340fb089e136b":[4,1057,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1057,72],
 
-"R1A2-e85ff2eaf97e87":[53,1105,"super().request(*args, **kwargs)",17,1105,49],
+"R1A2-e85ff2eaf97e87":[53,1226,"super().request(*args, **kwargs)",17,1226,49],
 
 "R1B-1e78d5cd01d836":[40,202,"systemctl --user stop \"${UNIT}.service\" || true"],
 
 "R1B-218dcc6ab3e2f5":[40,243,"systemctl --user stop \"${UNIT}.service\" || true"],
 
 "SHARD-DISCOVERY-process":[64,272,"subprocess.run(\n            [sys.executable, str(Path(__file__).resolve()), \"--list-test-methods\",\n             *map(str, paths), \"--discovery-output\", str(output)],\n            cwd=working_directory, env=_worker_environment(start_directory, Path(temporary)),\n            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,\n        )",17,277,9],
+
+"archive-ack-schedule-body":[134,"ControlledOutputScheduleTests.test_queued_archive_response_preserves_selected_original_rejection",85,"a2f923d77ea8a811750cc804e8709fca51c22c28bd45f4aaef39ffe6b2ff68c7"],
+
+"archive-bootstrap-control":[134,"ControlledOutputScheduleTests.test_archive_observer_preserves_bootstrap_phase_and_rpc_failures",45,"8d5be7c39bf83b573366cd7b98a8f5f0acad14fa50c114a8387b864ff06cfa9e"],
+
+"archive-cleanup-helper":[134,"_finish_archive_schedule",22,"21fd3e689e61e5c86dd241d361e09fac759e75aab1deb2c3aa1561fe85806c5c"],
+
+"archive-frame-helper":[134,"_archive_frame",15,"f1d92efb4c95190f2cbe4c6fde08a4fdd20886514b978091c52bc853e9245455"],
+
+"archive-original-rejection":[133,"FiniteInputTests.test_selected_original_output_rejection_is_failed_and_fully_charged",1922,"6b8024f7080517f1f847acacc3ddecf25fdcfd959a4d4f826dbd2dfcf0477172"],
+
+"archive-primary-control":[134,"ControlledOutputScheduleTests.test_partial_construction_cleanup_preserves_primary_and_owned_workers",60,"8efc41baeae179dc60b726aadfe0056c766f5c72bfefc3ee40ec14d770ee3111"],
 
 "atomic-pipe-entry":[111,"spawn_piped",339,"9c67ed04d1d827bd144a0cfb888800e9c3c3997f0fc4860a97d51e93245cc92d"],
 
@@ -672,6 +716,116 @@
 
 "d42a620d8225cd577":[32,"_review",1292,"097e6821a7f8cad0978ae4cb1092b91a2069918ab34c1ddb0b2a092f552239be"],
 
+"diagnostic-bootstrap-exec":[125,45,"os.execv(sys.argv[1],sys.argv[1:])",112,45,146],
+
+"diagnostic-close":[125,"SelectedNativeProbe.close",669,"7e5aa08069768ae985a98d0d666f000c84afb4d1533c972abaa66835c6f5c85d"],
+
+"diagnostic-command-gate":[125,319,"os.write(self.process.stdin.fileno(), b'1')",12,319,55],
+
+"diagnostic-command-rpc":[125,604,"self._rpc({'id': 4, 'method': 'command/exec', 'params': params})",20,604,84],
+
+"diagnostic-config-rpc":[125,581,"self._rpc({'id': number, 'method': method, 'params': params})",32,581,93],
+
+"diagnostic-control-connect":[125,412,"control.connect(endpoint)",16,412,41],
+
+"diagnostic-controller-death-helper":[127,"_controller_death",465,"b00ef1ee325d1491b0e2351ab0b1f89b3f69c4c91aeed57f237bd01a19f1cf61"],
+
+"diagnostic-fixed-command-body":[127,"SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec",556,"73b3f0431d8af57d27c78b9332ecda18df7a408f86808f1a94ba3fbf1f547b67"],
+
+"diagnostic-git-init":[125,178,"subprocess.run(['/usr/bin/git', '-c', 'init.defaultBranch=probe', 'init', '--quiet', str(self.worker)],\n                       env=environment, stdin=subprocess.DEVNULL, capture_output=True, timeout=5, check=True)",8,179,109],
+
+"diagnostic-independent-cleanup-body":[127,"DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error",197,"be864487f2e246c3afd7d154d7d7cbc2bf2959de9a70b828f12150d643d0a3ad"],
+
+"diagnostic-init":[125,"SelectedNativeProbe._initialize",154,"2b950d3ac8d55b694fdbc2ed2af776fe1f5d70d31f8e3a56980908f062c2a16f"],
+
+"diagnostic-input-boundary-body":[127,"SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output",576,"91cf80212cf4203cf39ac2e8a9ef5f5627d2128e64704f33ecf85e0fa8db0ac6"],
+
+"diagnostic-launch":[125,"SelectedNativeProbe._launch",284,"fb2650af24fb6774c11c3fe2bf25c3e9cfa9a1f4a195a9fd5e9d3c202bfb8449"],
+
+"diagnostic-listener-control":[125,410,"socket.socket(family, socket.SOCK_STREAM)",17,410,58],
+
+"diagnostic-listeners":[125,"SelectedNativeProbe._denial_program",390,"5847e90ddd6c2ba8490ea3208c6214368b925f3cdf52c8f7fb72a41ebf94a8fb"],
+
+"diagnostic-live-readiness-helper":[127,"_await_live_heartbeat",525,"f0e968f4b98aaaff12bc20c830fcd6bd5d59459b5b91979bd98e304df0f4b849"],
+
+"diagnostic-no-authority-body":[127,"SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority",102,"a15f8f76b3bf3692ddf6edbba83cecd8eb961eee51baa63e74118de2face51e6"],
+
+"diagnostic-owned-spawn":[125,379,"self.controller.spawn_owned('selected-offline-probe',\n                    [str(self.launcher), '--args', str(arguments), '--', *command], str(self.worker))",17,380,101],
+
+"diagnostic-readiness-budget-body":[127,"ControllerDeathReadinessTests.test_absent_or_static_heartbeat_cannot_restart_the_startup_budget",358,"fb30a3afde5019fc3c8ba05aeb0c1ac69be57f2a5dd165fe73d3145a4837e5d6"],
+
+"diagnostic-readiness-exit-body":[127,"ControllerDeathReadinessTests.test_early_controller_or_namespace_exit_cannot_supply_live_readiness",375,"40ea1432098780303837e1ce02a77e63f5023ba30774b3f1694e2ee3051ca0ea"],
+
+"diagnostic-readiness-order-body":[127,"ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death",316,"d325e3a7cf600bb4e5b2a01480c9eeb3b957d9058d03387998110902e1c9ecbb"],
+
+"diagnostic-request-policy":[125,"SelectedNativeProbe._validate_request",500,"bca58ec3260c05ad9675fc5449abf0fe6e178516fccaf02d5e813ee828695cbe"],
+
+"diagnostic-retained-signal":[125,661,"signal.pidfd_send_signal(descriptor, signal.SIGKILL)",16,661,68],
+
+"diagnostic-schema-held":[132,19,"\"execution_authorized\": {"],
+
+"diagnostic-send":[125,"SelectedNativeProbe._send",515,"d274c21f8434e818a21ed486c5809d2a91dea38b117c40e01d8683a38a1c4577"],
+
+"diagnostic-setup-gate":[125,317,"os.write(write_gate, b'1')",12,317,38],
+
+"diagnostic-spawn":[125,"SelectedNativeProbe._spawn",374,"15ecd91b567fdc014b3576cbf5b6bd02b79d35654730cc82afec95a52c0c6b83"],
+
+"diagnostic-target-held":[131,3,"\"execution_authorized\": false,"],
+
+"diagnostic-tcp-listener":[125,396,"socket.socket()",19,396,34],
+
+"diagnostic-unix-listener":[125,399,"socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)",15,399,64],
+
+"diagnostic-watchdog-argv":[125,293,"command = ['/usr/bin/timeout', '--signal=KILL', '8',\n                   '/usr/bin/python3', '-I', '-S', '-c', _BOOTSTRAP, *command]",8,294,78],
+
+"diagnostic-watchdog-object":[125,"_executable_object",110,"491f6bc9f4d6619c45cf1b8cf26dc5ca74455006b33eeda4f1c45693bd514bdc"],
+
+"diagnostic-watchdog-retention":[125,"SelectedNativeProbe._retain_watchdog",343,"c5ee24860e922e112c5569d8788f74057e31526361ed6ae6c9310f1845520784"],
+
+"diagnostic-wire-write":[125,527,"os.write(descriptor, pending)",28,527,57],
+
+"finite-input-cleanup-classification":[51,"RegisteredFiniteInput.cleanup_phase",698,"fc5f125f858f2cc459e847e5b525a3dff22406e6f97d5367a06ff176cda7852e"],
+
+"finite-input-cleanup-publication":[51,"RegisteredFiniteInput._publish_cleanup_observation",1584,"651db3ee5f962a20679e71e3c7388591952f434350e69692d254060840044a88"],
+
+"finite-input-denied-publication-body":[133,"FiniteInputTests.test_denied_read_result_precedes_original_cleanup_publication",1564,"b24c36ba885b316c883a080c63d49a2eb87a998177cd9a71705893360a9ad8a9"],
+
+"finite-input-denied-schedule":[133,"FiniteInputTests._denied_physical_read_schedule",412,"3de8fb1c511c7d8d9e9f77cc449eef825ccb3ef0bb9a401d391ecf9ebc5a97b4"],
+
+"finite-input-direct-owner-body":[133,"FiniteInputTests.test_direct_termination_owner_is_observed_by_off_reader_gate_close",1339,"6b240a0e3146746bcd673401b75be98ebf1755d067e4d95a4a3bef86316f1383"],
+
+"finite-input-direct-publication-body":[133,"FiniteInputTests.test_direct_owner_peer_wait_includes_original_observer_publication",1408,"80fc3a2d7af2929451f3c82f87d436488fb45c4e24d045557cc863ab020c0757"],
+
+"finite-input-owner-publication-body":[133,"FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication",1228,"49da7fb33d9669e453cbff026f3f5a7039e27888af3ad234c7c554fa07ccb85a"],
+
+"finite-input-peer-closer-helper":[133,"FiniteInputTests._gate_owned_concurrent_closer",1133,"5343f40c1fee9d12a1706c0436c0d34a51d27cf3eb35b993db60ba463a2a1efb"],
+
+"finite-input-peer-contained-body":[133,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_joins_one_owner",1222,"5468ed0c611a1d06c77cae9a8c4a42aa80ed604773424d8538469965aa0e4cdc"],
+
+"finite-input-peer-timeout-body":[133,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_times_out_before_owner_release",1225,"3b6be899c8d612e03b52b6223d2a3326a1725be42e7923029af618e1359c9ab9"],
+
+"finite-input-publication-wait-helper":[133,"FiniteInputTests._await_cleanup_publication",1123,"ab6f3fd5daf99f6324e26bf8b2f5a8765c56aba604f8e5de998b4021c6261794"],
+
+"finite-input-two-closer-body":[133,"FiniteInputTests.test_two_finite_tool_closers_observe_one_inflight_owner",1270,"691ac855a05c3354245554524cfff5e93481d31dd4698ba8a35e1ebdc705cb16"],
+
+"host-actual-replace":[43,547,"os.replace(self.state / \"operation.next\", self.state / \"operation.json\")",8,547,80],
+
+"host-lock-before-replace":[43,546,"self._require_lock()",8,546,28],
+
+"host-lock-before-save":[43,537,"self._require_lock()",8,537,28],
+
+"host-lock-check":[43,"OfflineN1Host._require_lock",515,"77b65d91bfc6b2da91dc6709c26eb5ac30d6129ce9ceaff4a92f66671c5db0ee"],
+
+"host-lock-identity":[43,520,"_identity(self.state) != self._state_identity\n                or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1\n                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)",12,522,81],
+
+"host-lock-present":[43,516,"self._lock_descriptor is None",11,516,40],
+
+"host-lock-replacement-body":[129,"OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent",470,"c85d27dc5727262a7c0951269eb16cd682ffd03bbcb31a6aacc978f3c238bdee"],
+
+"host-original-control":[129,"OfflineN1HostTests.test_missing_record_reaches_original_callbacks_after_durable_intent",284,"5bda946b502d7e81eb80d421aa2f2a8ac3ab0871c639c02d943a8a6b2e145f5c"],
+
+"host-save":[43,"OfflineN1Host._save",536,"6e7216e282650023d4bb4b4f7b16948829eea27c4efef01d4e7a4fc9154e6b88"],
+
 "native-delivery-before-refusal":[118,"AcceptanceProductFlowTests.test_native_consumer_refuses_changed_original_delivery_review_before_effects",82,"c07f00ff5764ff8662944df7e39f0625a93ddc25799448c2e91c65d8b00f15ee"],
 
 "native-delivery-downgrade-refusal":[118,"AcceptanceProductFlowTests.test_native_consumer_cannot_drop_the_delivery_handle_and_basis_to_downgrade",116,"fc57b80c40ae8849bb61ff4255a0d77f57c2a5121ca1693a89ccfcb6d836b853"],
@@ -696,11 +850,11 @@
 
 "p0218e9c73926":[25,"_Runtime.start_worker_session",587,"d29a898ef92223b919162508dd3bfea8f234b448eaa4b35f4819d96dc7c44268"],
 
-"p02708ef8":[33,2259,"self.request(\n            \"thread/delete\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2263,9],
+"p02708ef8":[33,2417,"self.request(\n            \"thread/delete\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2421,9],
 
 "p02d11d3c":[8,"main",846,"d0017093d8849ce4efedc6c4462bee8f1bcbdd348d8f24efcf40614272f997e6"],
 
-"p0321fa67":[53,449,"self.factory.require_effect()"],
+"p0321fa67":[53,519,"self.factory.require_effect()"],
 
 "p042f597a":[94,"R1ActivationPreviewHoldTests.test_r1_entry_holds_precede_reads_and_claims_with_all_on_fake_control",30,"0b005db3c775b82251dbf3a5046062b6106ed66e0d89e867b4097d1f5ad62ae7"],
 
@@ -728,7 +882,7 @@
 
 "p09392aeb":[62,"ActivationLedgerTransport.start_turn",203,"9b7975ac0b344f731b685ebeefa31d1e395e162049f0bc2d9f55cbc3d444e341"],
 
-"p09622b37":[33,775,"self.process.stdin.write("],
+"p09622b37":[33,944,"self._write_payload(payload, method=method, timeout=timeout)",27,944,87],
 
 "p096cbb28":[30,2038,"revalidate_reservation_live("],
 
@@ -788,7 +942,7 @@
 
 "p119cf32f":[31,1489,"require_recovery_authority(plan, runtime)"],
 
-"p12a588da":[33,"AppServer.start_turn",1926,"018abf8ea6e075c0da98f72256004aa0655aea2aeed4ee0cb74cdaed7b1b2eb7"],
+"p12a588da":[33,"AppServer.start_turn",2092,"b7f52dd99f5feb551898fe6d2c300a4e723cdbe955330f8de0d876e1c95aa445"],
 
 "p139bf019":[75,"ConfigureCodexBeadsHooksTests.test_cli_json_reports_unsupported_quiet_without_writing",163,"6089a748c614e927764b8826d8a5ebaf2254ca90ae274bd42733eb1daa515e9f"],
 
@@ -804,7 +958,7 @@
 
 "p14baea97":[114,"OwnershipProducerTests.test_cleanup_refuses_missing_or_foreign_receipt",284,"d22d89b6c43609fdff018a8c8cee9e0bae515130d27ce62cfbe1d6cfb470788e"],
 
-"p14da11de":[33,2217,"self.request(\n            \"turn/interrupt\",\n            {\"threadId\": thread_id, \"turnId\": turn_id},\n            timeout=timeout,\n        )",27,2221,9],
+"p14da11de":[33,2375,"self.request(\n            \"turn/interrupt\",\n            {\"threadId\": thread_id, \"turnId\": turn_id},\n            timeout=timeout,\n        )",27,2379,9],
 
 "p1680b9fd":[63,"run_pool_canary",7541,"fbef9e42927f0837bfd34712b2caba4408bc3b143578d4a27b6d9ef53e42e928"],
 
@@ -836,7 +990,7 @@
 
 "p1c5cc6cf":[93,"QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments",186,"32b00495d71f94381e4f8d4ca4ebc76fd51abd6c9443a3a4509c0640bc5c1d25"],
 
-"p1ca3866ff64a":[53,"_Containment.launch",447,"1ddcdbdfc9c5d6e9cf94d220639be50fa5ea96c3a5bc512f8979773cb56927fa"],
+"p1ca3866ff64a":[53,"_Containment.launch",517,"db32cf3bbca8c96613e01f86535eb2e4ec73dc2f96390ea9c6bb88aa32313833"],
 
 "p1ca63e70":[114,"OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared",389,"ba6ba5e3d23da891f8d3c7d03cfbd3bcc4d1526f1bacc1b9ccf6b359ada6177a"],
 
@@ -932,7 +1086,7 @@
 
 "p29e5e2e8":[34,"WorktreeCapture.run",2559,"e3b501ccdb7adfb214b6fc560a9251eeca3beea67481a70c2b676541018da6e9"],
 
-"p2a256283":[79,"F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control",128,"f68676bbc655efe6eb1b0208d7b3790cb4eb64c90ec207020a7e4b3c8e719bce"],
+"p2a256283":[79,"F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control",128,"a181c544f42868bb93496510806d768e0825dc5265ad02dc3e0c6efd67ee1468"],
 
 "p2a29d004":[98,"ReleaseEffectRoutesTests._probe_listener_pair",1161,"a7331d6647368b4a62f7f058ce8d621d1fa2ee86b6054608c740195e344120f9"],
 
@@ -944,9 +1098,9 @@
 
 "p2b7bb293":[42,164,"path.unlink()"],
 
-"p2c103fd4":[33,177,"live_availability.require_n1_live()"],
+"p2c103fd4":[33,204,"live_availability.require_n1_live()"],
 
-"p2c6b777e":[33,"AppServer.notify",672,"dbaf1aac17d42046e4d2a420e909b70037b97ed841d4de89fe23cfb7f0a7389e"],
+"p2c6b777e":[33,"AppServer.notify",842,"408696b5ab0f406bcd9293681faf5db9c1e8acb944c52bfc60c336dcf0c64db2"],
 
 "p2d12db44":[64,554,"if args.workers < 1:"],
 
@@ -956,7 +1110,7 @@
 
 "p2f0f9654":[34,"trusted_git_private",581,"06e76390df4df21ceaddd7930f1c72c4cd603dae22ff429bbea0700f159c7f83"],
 
-"p2f26af99":[33,677,"self.process.stdin.write(json.dumps(payload, separators=(\",\", \":\")) + \"\\n\")"],
+"p2f26af99":[33,848,"self._write_payload(payload, method=method, timeout=1)",12,848,66],
 
 "p2f606516":[63,7561,"live_availability.require_campaign_live()"],
 
@@ -1028,7 +1182,7 @@
 
 "p3ca85ea2":[4,698,"self._run(prompt)",19,698,36],
 
-"p3d44e8ff":[33,235,"self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,"],
+"p3d44e8ff":[33,262,"self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,"],
 
 "p3d647e4e":[19,334,"completed = subprocess.run(executable_argv, cwd=cwd, env=environment, input=spec[\"stdin\"], text=True, capture_output=True, timeout=spec[\"timeout_seconds\"], shell=False)"],
 
@@ -1066,7 +1220,7 @@
 
 "p44e4a180":[108,"connected_capture",161,"5adbeea47b1fb040709b7560a25562ae95521957707521a3a3080107c7f0dbbe"],
 
-"p4507b37c":[79,"F5NativeLiveHoldTests.test_f5_held_campaign_zero_launch_and_independent_patched_fake_control",218,"bc607df9ba4359c0b651eb3dc082d6a3f512d01caa76ee2d0042f89454f3828e"],
+"p4507b37c":[79,"F5NativeLiveHoldTests.test_f5_held_campaign_zero_launch_and_independent_patched_fake_control",219,"bc607df9ba4359c0b651eb3dc082d6a3f512d01caa76ee2d0042f89454f3828e"],
 
 "p452980b5":[50,130,"self.process = self._launch_process(command, environment)"],
 
@@ -1092,7 +1246,7 @@
 
 "p4ac21aba":[94,"R1ActivationPreviewHoldTests.test_r1_server_rechecks_dedicated_and_shared_holds_with_all_on_fake_control",62,"3b55b5c3dd5c4e4ce45cdf0219d638e21e7291685a00b6129dc674c6355e6ebd"],
 
-"p4b0206ad":[33,621,"self.request(\"mcpServerStatus/list\", params, timeout=15)",33,621,89],
+"p4b0206ad":[33,784,"self.request(\"mcpServerStatus/list\", params, timeout=15)",33,784,89],
 
 "p4b17f5e8":[4,"PlaywrightChatGPTRunner.run",693,"847324a0243fc6c8de9f9a7d55297a73d43650dc4a984859a88661bc9dfffb8f"],
 
@@ -1142,7 +1296,7 @@
 
 "p553eae90":[35,1806,"pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get(\"allow_private_dns\")))"],
 
-"p574a1da9924a":[53,"_RegisteredServer.request",1103,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
+"p574a1da9924a":[53,"_RegisteredServer.request",1224,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
 
 "p57a3498d":[106,538,"method(argument, submission, **options)",19,538,58],
 
@@ -1176,7 +1330,7 @@
 
 "p5da5d4ae":[70,"ChatGPTBrowserReviewTests._browser_result",1326,"a9058beb7012505459ffa69a75cc7039ed1546464c2942732822fd7a6a3fd485"],
 
-"p5daaf28e":[53,"RegisteredN1Factory._isolated_validation",1874,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
+"p5daaf28e":[53,"RegisteredN1Factory._isolated_validation",1995,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
 
 "p5e0245eb":[4,685,"self._select_configured_labels(page, timeout_ms, PlaywrightTimeoutError)",12,685,84],
 
@@ -1190,7 +1344,7 @@
 
 "p5f8f3f8e":[26,561,"server = AppServer(requested_model=scope[\"model\"], reasoning_effort=\"low\", tool_surface_proof=proof,"],
 
-"p60ef1f42":[33,2229,"self.request(\n            \"thread/archive\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2233,9],
+"p60ef1f42":[33,2387,"self.request(\n            \"thread/archive\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2391,9],
 
 "p6141a0f3":[12,205,"if disposition not in NON_COMPLETION_DISPOSITIONS:"],
 
@@ -1234,11 +1388,11 @@
 
 "p68479213":[65,1653,"relationships = validate_workgraph_plan(plan, for_creation=True)"],
 
-"p68b1dc16":[33,748,"_require_native_rpc(method)"],
+"p68b1dc16":[33,917,"_require_native_rpc(method)"],
 
 "p69071f78":[56,358,"workflow.run(controlled_failure=controlled)"],
 
-"p69caa0c0":[33,676,"_require_native_rpc(method)"],
+"p69caa0c0":[33,847,"_require_native_rpc(method)"],
 
 "p6a141757":[35,"validate_local_endpoint_base_url",782,"dab8178f1f002be6934db3cd25f7db906de4203f37718bd9a9541828f3d006f7"],
 
@@ -1258,7 +1412,7 @@
 
 "p6c9524a7":[67,"main",124,"2e46d7bc2ee34907314c70645acaef2afd6bea59db17e78375857894b08f101d"],
 
-"p6d223a55":[33,821,"self.request(\"model/list\", {\"includeHidden\": True})",26,821,77],
+"p6d223a55":[33,987,"self.request(\"model/list\", {\"includeHidden\": True})",26,987,77],
 
 "p6e187de055e1":[40,298,"quote_cmd \"${cmd[@]}\""],
 
@@ -1276,11 +1430,11 @@
 
 "p6f997d27":[30,444,"result = self._run((\"update\", \"--claim\", \"--json\", \"--\", issue_id))"],
 
-"p710f013f":[79,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",161,"9cb07ef63abb416ca4f820ef25ca157065bc40b1118b69f5b65a254df7a46959"],
+"p710f013f":[79,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",162,"9cb07ef63abb416ca4f820ef25ca157065bc40b1118b69f5b65a254df7a46959"],
 
 "p71b9fc79":[34,"trusted_git_completed",554,"adcb7ccb6ef4d12b2231b9ee79fa364d50360a4ab300fa645fdcdccf7b2d32b7"],
 
-"p71c99d4a":[79,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",349,"158da12a6eeece86aa04057cc5ec660eac3d62bcbaead55ebc74ea2f6948069a"],
+"p71c99d4a":[79,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",350,"158da12a6eeece86aa04057cc5ec660eac3d62bcbaead55ebc74ea2f6948069a"],
 
 "p720112fb":[18,74,"if not database_value:"],
 
@@ -1288,7 +1442,7 @@
 
 "p72e43af7":[108,"Page",55,"7acdc7d242e5183d8656d3c4b30eab8e27893a3407099ba6cf3bcb9e66675b08"],
 
-"p732a1944":[33,1046,"self.request(\n            \"thread/start\",\n            params,\n            timeout=30,\n        )",26,1050,9],
+"p732a1944":[33,1212,"self.request(\n            \"thread/start\",\n            params,\n            timeout=30,\n        )",26,1216,9],
 
 "p736d887b":[4,1162,"self._submit_guarded(page, prompt, request_id, timeout_ms, guard)",19,1162,84],
 
@@ -1332,7 +1486,7 @@
 
 "p7ba1f2d6":[30,1502,"if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:"],
 
-"p7c0fb269a27d":[53,"_RegisteredServer._launch_process",1133,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
+"p7c0fb269a27d":[53,"_RegisteredServer._launch_process",1254,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
 
 "p7c1edcfa":[66,"main",218,"1e3495074963e3740e8f42180a8d9805fe5bf64e0e2a285a974e3033c3620a23"],
 
@@ -1378,7 +1532,7 @@
 
 "p85e870a3":[63,"_run_calibration",5061,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
 
-"p86f0d37c":[53,448,"live_availability.require_n1_live()"],
+"p86f0d37c":[53,518,"live_availability.require_n1_live()"],
 
 "p86f23503":[34,"run_git",434,"a4c847ddddc2cb6048468384b4db20f15e19fad129dde27e905f1b292eaec9f8"],
 
@@ -1396,7 +1550,7 @@
 
 "p89782231":[104,"example_item",28,"00b747d2bee2cbd452d3dd5e519570b7b19dd33d12eb3d97f10a50b6a6daa59c"],
 
-"p8992c43facab":[33,"_require_native_rpc",134,"acc46ce989d08878eb7fd23a1fe805d06c104da49649f12f5e024b9df4c6b39d"],
+"p8992c43facab":[33,"_require_native_rpc",161,"acc46ce989d08878eb7fd23a1fe805d06c104da49649f12f5e024b9df4c6b39d"],
 
 "p89a0f1a6":[56,"RegisteredNativePoolHost.run",304,"334e655ee0dc4ff77e4a9a258c2b825b978c990c068097908ca5fadad677cf5e"],
 
@@ -1424,7 +1578,7 @@
 
 "p8eba12fd":[63,3693,"self._require_campaign_live_route()"],
 
-"p8ee004b4":[53,"RegisteredN1Factory.run",1888,"d54a3ed2f15229f3684be7e9553679eb4c0d0f45c1732ebd10fb8357a8d1b75e"],
+"p8ee004b4":[53,"RegisteredN1Factory.run",2009,"d54a3ed2f15229f3684be7e9553679eb4c0d0f45c1732ebd10fb8357a8d1b75e"],
 
 "p8ef10176":[79,"F5NativeLiveHoldTests.test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control",68,"f207bc2f8e9c15178d0dcbfdf180602184543c6047821684826e1ff49456edea"],
 
@@ -1528,7 +1682,7 @@
 
 "pa249dcee29e2":[34,"WorktreeCapture._resolve_dirs",1934,"759407e0fb8121a074f72d098a7827e410ecd9e99fc1ebc27a5f29ad4bcf5b0b"],
 
-"pa2c9777349f2":[53,"_RegisteredServer.__init__",838,"d8760189b45fabe2aa21148d847bcae021f696a6faabfe33885625e83247bda0"],
+"pa2c9777349f2":[53,"_RegisteredServer.__init__",959,"d8760189b45fabe2aa21148d847bcae021f696a6faabfe33885625e83247bda0"],
 
 "pa3166146":[23,329,"self._handle.require_intent()"],
 
@@ -1566,7 +1720,7 @@
 
 "pab714cdf":[4,839,"self._wait_for_stable_response(page, before_text, response_timeout, stable_wait, request_id=request_id)",32,839,135],
 
-"pab7a8e134803":[53,"_CoherentServerRequests",715,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
+"pab7a8e134803":[53,"_CoherentServerRequests",836,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
 
 "pabfe9eae":[63,"main",12820,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
 
@@ -1586,7 +1740,7 @@
 
 "paf9f0844":[41,660,"if supported is not True:"],
 
-"pafec85b4":[33,"AppServer.request_once_with_guard",738,"98a1793abd7b13b19fabcacb22c084c7a16a73d0460b4fad29ea2548d8168259"],
+"pafec85b4":[33,"AppServer.request_once_with_guard",907,"e9d2d11eade0f32405e8c8d527e6bf5835a0468afa06c59fa2f89e626877f02b"],
 
 "pb0cdc929":[12,"execute",323,"58a3653bb306aff1533993e25a8a9499fe94a579bab5278f856417488d612917"],
 
@@ -1596,7 +1750,7 @@
 
 "pb19a5dc7":[62,211,"_require_live_activation()"],
 
-"pb292449b":[33,"AppServer.__init__",159,"5eecd56995e98000564c72bcc803231ec9560477c5141392106af483ca6565e0"],
+"pb292449b":[33,"AppServer.__init__",186,"3a9b8650eda332a60b733f7a509f181b969c72949a3fe1390fde2dfb93acfa92"],
 
 "pb2b6523d":[19,327,"if not result[\"hash_match\"]:"],
 
@@ -1618,7 +1772,7 @@
 
 "pb44a2dcb":[70,"ChatGPTBrowserReviewTests.test_model_confirmation_requires_explicit_selectors",643,"3ce94d27af6566d059826cf336e6a8a0f6d70a809a1bd3b6d90040145298b196"],
 
-"pb59ce00d":[33,136,"if method not in {\"initialize\", \"initialized\", \"thread/read\", \"turn/interrupt\", \"thread/archive\",\n                      \"thread/delete\", \"model/list\", \"mcpServerStatus/list\"}:"],
+"pb59ce00d":[33,163,"if method not in {\"initialize\", \"initialized\", \"thread/read\", \"turn/interrupt\", \"thread/archive\",\n                      \"thread/delete\", \"model/list\", \"mcpServerStatus/list\"}:"],
 
 "pb5d1924b":[13,400,"validate_advisory_hook_configuration(existing, context=f\"existing hooks file {hooks_file}\")"],
 
@@ -1628,7 +1782,7 @@
 
 "pb6f436e7":[4,"PlaywrightChatGPTRunner._select_configured_labels",1024,"52063d01b2041e13eaed964fe091c506e43794d1536edb48c951258fd69c81dc"],
 
-"pb6fbe804":[33,2049,"self.process.stdin.write("],
+"pb6fbe804":[33,2215,"self._write_payload(payload, method=\"turn/start\", timeout=timeout)",27,2215,93],
 
 "pb722bc1d":[63,5078,"live_availability.require_n1_live()"],
 
@@ -1646,7 +1800,7 @@
 
 "pb9737351":[40,242,"if [[ \"$REPLACE\" -eq 1 && \"$DRY_RUN\" -eq 0 ]]; then"],
 
-"pb9eaa7e1":[53,1135,"self.lifetime.launch(command, self.factory.home)",18,1135,66],
+"pb9eaa7e1":[53,1256,"self.lifetime.launch(command, self.factory.home)",18,1256,66],
 
 "pba0c59f3":[0,34,"if args.expires_after_bead.strip() != args.bead.strip():"],
 
@@ -1664,13 +1818,13 @@
 
 "pbdadb3ae6646":[35,"PinnedHTTPSConnection.connect",385,"5b1495139c3e265020d03743ce299640eea81bc397d87db4c4d7dc2ec9c9e529"],
 
-"pbdeae676":[43,"OfflineN1Host.run_registered",547,"ebb1e30f25461867b31fd50d3a85c42d79b9e582d6ba98e457f97240c914ba63"],
+"pbdeae676":[43,"OfflineN1Host.run_registered",571,"ebb1e30f25461867b31fd50d3a85c42d79b9e582d6ba98e457f97240c914ba63"],
 
 "pbe253e8e":[4,837,"self._submit_prompt(page, submitted, timeout_ms, request_id, prepared=prepared, source=source, guard=guard)",16,837,123],
 
 "pbe929627":[89,"NativePoolAdmissionTests.test_close_owned_rejects_preclosed_or_ownership_drift_before_command",878,"dcf724842eda7dbcfbf72b4c4a5fcc0616f2abcfc4a49e01581b180466f20ad8"],
 
-"pbef022fe":[33,687,"_require_native_rpc(method)"],
+"pbef022fe":[33,857,"_require_native_rpc(method)"],
 
 "pc063913a":[71,"ChatGPTShareIngestTests.test_unpinned_reader_never_runs",444,"978feac45ad69ac3859cf737683204f53427b7956028b41070ee46b10f0d7f3d"],
 
@@ -1680,7 +1834,7 @@
 
 "pc24f1d0b":[21,552,"if expected_binary is not None and (not isinstance(expected_binary, (str, Path))"],
 
-"pc261a15f":[33,"AppServer.request",680,"556d8d15c9b0e5ab6dae6c6a9948bde6802dbd97f7f9a659e5a907c7d4bd78a2"],
+"pc261a15f":[33,"AppServer.request",850,"ad48d4890cb30db5183c9519abb63461527fb625acbf379fce63539efb893af9"],
 
 "pc2839c77":[30,527,"result = self._run("],
 
@@ -1690,7 +1844,7 @@
 
 "pc3ed0ccc":[21,545,"expected_binary: Path | str | None = None,"],
 
-"pc40ec8d9":[33,1136,"self.request(\n            \"thread/read\",\n            {\"threadId\": thread_id, \"includeTurns\": True},\n            timeout=timeout,\n        )",26,1140,9],
+"pc40ec8d9":[33,1302,"self.request(\n            \"thread/read\",\n            {\"threadId\": thread_id, \"includeTurns\": True},\n            timeout=timeout,\n        )",26,1306,9],
 
 "pc4140627":[13,"write_hooks",306,"d725780e0aa6e0a1f740c973031fdf2df1b5cad2424e776a2ec25ccfe568ccd9"],
 
@@ -1700,7 +1854,7 @@
 
 "pc542d046":[51,1544,"count = os.write(writer.descriptor, frame)"],
 
-"pc5ee36b3":[33,1936,"live_availability.require_n1_live()"],
+"pc5ee36b3":[33,2102,"live_availability.require_n1_live()"],
 
 "pc6d31d53":[49,358,"return self.opener.open(req, timeout=min(timeout, remaining))"],
 
@@ -1754,7 +1908,7 @@
 
 "pd0d904f8":[34,"run_git",434,"a4c847ddddc2cb6048468384b4db20f15e19fad129dde27e905f1b292eaec9f8"],
 
-"pd0e3cfb1":[79,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",267,"dcd7dedbf520a475e4c04940d933ef2cad5fc0e70cc0327a5a92add4a32a8cce"],
+"pd0e3cfb1":[79,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",268,"dcd7dedbf520a475e4c04940d933ef2cad5fc0e70cc0327a5a92add4a32a8cce"],
 
 "pd107a649":[20,"execute_checked_command_sequence",238,"775182ae626dfe95e145f6b1bc8a52f88c61580149d351ae66849a4dac328a1c"],
 
@@ -1786,7 +1940,7 @@
 
 "pd5914a49":[48,415,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
 
-"pd599b7a2":[53,1879,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,1879,99],
+"pd599b7a2":[53,2000,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2000,99],
 
 "pd6a0b04b":[4,"PlaywrightChatGPTRunner._confirm_configured_labels",1060,"9666536f0af93c03f3231794b1b6d31d1e89cbd0397eedb54cfa76598ebd490a"],
 
@@ -1794,7 +1948,7 @@
 
 "pd77e963f":[84,"Issue41DispatchMatrixTests.assert_browser_hold",383,"ab5aa1c29eade0eadc4d718bad81609b2cd380265e8cfdb613d92a31c4fa8968"],
 
-"pd7b0112b":[33,"AppServer.start_thread",985,"d70e0a54efc3c414d9642e4ee63616dbd169a624fe3da22cd0d7a06350abb0c1"],
+"pd7b0112b":[33,"AppServer.start_thread",1151,"d70e0a54efc3c414d9642e4ee63616dbd169a624fe3da22cd0d7a06350abb0c1"],
 
 "pd8325b44":[35,804,"_resolve_local_endpoint_addresses(parsed.hostname, port)",16,804,72],
 
@@ -1806,7 +1960,7 @@
 
 "pdb5772f3":[38,"require_trusted_reader",63,"f828bb72834204ed68b60974e8ed5412c9758892da1e60727c60bbe7916fd5c4"],
 
-"pdb7180bd":[53,454,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
+"pdb7180bd":[53,524,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
 
 "pdb7211eb":[59,52,"require_v8_live_routes(plan)"],
 
@@ -1832,7 +1986,7 @@
 
 "pe04218eb":[32,1332,"_review(directory, json.loads(review_raw), current, digest(raw))",14,1332,78],
 
-"pe0978dc5":[79,"F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds",230,"89ebf108c0fb7acd9a8f7d0216fec990df3e95a3463f04806adbb5dda8a63378"],
+"pe0978dc5":[79,"F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds",231,"89ebf108c0fb7acd9a8f7d0216fec990df3e95a3463f04806adbb5dda8a63378"],
 
 "pe09c754c":[114,"OwnershipProducerTests.run_retained_cleanup",260,"1e03de0bd7cb9434fb052702cf484418d7e320359f937e039fa51fef40d38817"],
 
@@ -1872,7 +2026,7 @@
 
 "pe5a2f2f7":[49,"RegisteredReviewHost.dispatch",227,"f52b608fbfbf5fa2b8dcd957ec3494093145da05dbf930b86981f552a38dbf9b"],
 
-"pe5a51117":[97,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",287,"99cc7956cef56b6f6f3eaf05f025fb18cab8ced1c5c3831c06f01e7d3eeb9a85"],
+"pe5a51117":[97,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",314,"99cc7956cef56b6f6f3eaf05f025fb18cab8ced1c5c3831c06f01e7d3eeb9a85"],
 
 "pe5b1afbde03a":[63,7467,"campaign_live_route=True,"],
 
@@ -1898,7 +2052,7 @@
 
 "pe8728229":[0,54,"if not all((payload[\"operator_approval_ref\"], payload[\"sol_breakfix_scope\"], payload[\"sol_breakfix_expiry\"])):"],
 
-"pe8a54a36":[53,1889,"live_availability.require_n1_live()"],
+"pe8a54a36":[53,2010,"live_availability.require_n1_live()"],
 
 "pe8c52a28":[18,"create_bead",231,"86b606298bf0b24b6e2416b45f7d92a832c408aea4f2ae0d10b3dbd65245b079"],
 
@@ -1906,7 +2060,7 @@
 
 "pea688137":[34,"WorktreeCapture._git",1542,"957bbafc0ae3a4261e504991fcbd97b3bade28080c0065c3e78da2eba25e419c"],
 
-"peb04be82":[97,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",1995,"87d2d1e7e9e8fe4dc70702ac561a0b9be21dd81919ffe96319bea529fb0a31b6"],
+"peb04be82":[97,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2022,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
 
 "peb0ab97bc960":[24,"MaintenanceAuthorityVerifier.__init__",344,"03802d0590db57d2c1f457a056a7a56ee8a0e0ffce20be5e4abbad96ece2eb34"],
 
@@ -1954,9 +2108,9 @@
 
 "pf20b3cab":[27,"_run",252,"043c67cecbd88fe946f19837214aba0a39406c62d7280a03e49f76226ca692af"],
 
-"pf2350a6cc75d":[53,"RegisteredN1Factory._effect",1765,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
+"pf2350a6cc75d":[53,"RegisteredN1Factory._effect",1886,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
 
-"pf2ce57c6":[53,475,"result = self.controller.spawn_owned("],
+"pf2ce57c6":[53,545,"result = self.controller.spawn_owned("],
 
 "pf367a867":[4,"PlaywrightChatGPTRunner._run",705,"53ffb8279fdfaf700dcccac5dbc58421ee59d3d34f0aef46dcf70c1882eddcad"],
 
@@ -2018,7 +2172,7 @@
 
 "pff30d65a":[70,"ChatGPTBrowserReviewTests.test_valid_packet_final_send_screen_refuses_encoded_context",1724,"68927a49b28f3ffc835512010682cf861326f3d01b2a3207174a2af5ee558c13"],
 
-"pff57c4ed":[79,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",248,"ba706b40afeee6ac4ff576265dc98871c107e013628d30489b3b89d014f57a68"],
+"pff57c4ed":[79,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",249,"ba706b40afeee6ac4ff576265dc98871c107e013628d30489b3b89d014f57a68"],
 
 "pff8f63d2":[4,"PlaywrightChatGPTRunner._press_until_ready",1206,"4e63443aa97b895a644770032b114ae337baa5b0c477c1efdc60fcbce9827e77"],
 
@@ -2033,6 +2187,22 @@
 "preview-show":[27,883,"_bd(\n            beads_directory,\n            \"show\",\n            \"--json\",\n            \"--\",\n            _bead_id(epic_id),\n            *map(_bead_id, issue_ids),\n        )",8,890,9],
 
 "preview-update-metadata":[27,839,"_bd(\n            beads_directory,\n            \"update\",\n            \"--metadata\",\n            json.dumps(\n                {\"cwo_ready_set_admission\": metadata},\n                sort_keys=True,\n                separators=(\",\", \":\"),\n            ),\n            \"--json\",\n            \"--\",\n            issue_id,\n        )",8,851,9],
+
+"publication-actual-replace":[126,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
+
+"publication-apply":[126,"GuardedArtifactTarget._apply_one",512,"c07187fb7e2924d59fbf75eaa6d939b49e3dd437d5bd591095fc706ea15a0710"],
+
+"publication-final-call":[126,521,"self._replace_current(source, target, index, path, marks, checkpoint, counts)",12,521,89],
+
+"publication-final-marks":[126,496,"self._replacement_marks(source, target, index, path) != marks",11,496,72],
+
+"publication-final-target":[126,494,"self._capture() != checkpoint[\"target\"]",11,494,50],
+
+"publication-late-drift-body":[130,"GuardedArtifactTargetTests.test_late_dirty_manifest_drift_preserves_concurrent_target_bytes",185,"a70a9b7d7995b42be34028420911dc7c4ee3c32b29166edb47623ef99c17102e"],
+
+"publication-original-control":[130,"GuardedArtifactTargetTests.test_original_bytes_publish_to_real_target_and_identical_replay",112,"c9b02a2b82863e58b2b7bf18dfd0cbb6b722012e912aa8bc1b11ad1253eb3b60"],
+
+"publication-replace":[126,"GuardedArtifactTarget._replace_current",490,"f36928c48ac5ef861548ec3426d199b69d3d978d5653a7551aab580730a50af4"],
 
 "q0":[98,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1330,"699561c960a2189981cdd63a23de8a3ccff70ff2d0b1f99237d65a4cf60dfa04"],
 
@@ -2050,13 +2220,47 @@
 
 "q5":[4,728,"playwright = manager.start()"],
 
-"q6":[33,700,"self.process.stdin.write(json.dumps(payload, separators=(\",\", \":\")) + \"\\n\")"],
+"q6":[33,871,"self._write_payload(payload, method=method, timeout=timeout)",23,871,83],
 
 "q7":[63,3694,"turn, _latency = self.server.start_turn(self.thread_id, message)"],
 
 "q8":[4,734,"browser = playwright.chromium.connect_over_cdp(self._destination_url(cdp, source))"],
 
 "q9":[80,"FirstProjectTests.test_starter_fails_and_reference_satisfies_contract",28,"e90b0d320704bd11cba2ec843ce469e4c6c01ed0c01755d50fa220d5486e74a7"],
+
+"registered-bootstrap-exec":[53,59,"os.execv(sys.argv[1],sys.argv[1:])",15,59,49],
+
+"registered-command-gate":[53,477,"os.write(descriptor, b'1')",12,477,38],
+
+"registered-final-effect-check":[53,503,"self.factory.require_effect()",8,503,37],
+
+"registered-independent-cleanup-body":[128,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",899,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
+
+"registered-launcher-argv":[53,"_launcher_argv",95,"4ff15ecc165a978267d922a86efc1d2cf0b142dfa04f4aa339d7d361a31f8e01"],
+
+"registered-monitor-cleanup-support":[128,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",881,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
+
+"registered-mount-options":[53,"_Containment._command",434,"bddb496316a7f11343589b9ecd7e200757c972084981a5c37f9c4ca23e629dfc"],
+
+"registered-namespace-handle":[53,605,"os.pidfd_open(pid, 0)",21,605,42],
+
+"registered-namespace-info":[53,"_namespace_info",116,"4bdd5337d0bd5be726aad740b60874887dcd4cda504fd993a8099cf78f0fc851"],
+
+"registered-namespace-info-bytes":[53,"_namespace_info_bytes",100,"51fe1fcadca2c30566207ec6ac4b43fd1824b7332c76f5948104133b2ba9cad4"],
+
+"registered-post-setup-control-body":[128,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",864,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
+
+"registered-post-setup-refusal-body":[128,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",874,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
+
+"registered-post-setup-release":[53,"_Containment._release_command",493,"1ec10424b6585e378c8aac5b774bcdc8749c83b19f19eb0c0231695d7a641669"],
+
+"registered-retain-namespace":[53,"_Containment._retain_namespace",603,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
+
+"registered-retained-signal":[53,649,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,649,75],
+
+"registered-setup-gate":[53,496,"os.write(write_gate, b'1')",8,496,34],
+
+"registered-stop-namespace":[53,"_Containment._terminate_claimed",733,"d74f6110cfbce2a2b218411b9c8f2e31b383bbe457a7f5f53ba6b2920f94d82d"],
 
 "resume-read-command":[67,165,"bd_json(command)",42,165,58],
 
@@ -2096,19 +2300,31 @@
 
 "share-tests":[116,"ShareConsentTests",140,"856b0ba17280a32f78af37a6c37edfb30e42b19f2f547f0c5817e8f176e27006"],
 
-"shutdown-cleanup-metadata-body":[97,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",1589,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
+"shutdown-cleanup-metadata-body":[97,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",1616,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
 
-"shutdown-final-snapshot-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",1525,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
+"shutdown-final-snapshot-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",1552,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
 
-"shutdown-late-cleanup-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",1500,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
+"shutdown-late-cleanup-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",1527,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
 
-"shutdown-original-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",1437,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
+"shutdown-original-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",1464,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
 
-"shutdown-pending-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1463,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
+"shutdown-pending-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1490,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
 
-"shutdown-poll-schedule":[97,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1353,"601a1f74372f9b5a93482beb73991ede2529aac46d6676075511b69a66ec1466"],
+"shutdown-poll-schedule":[97,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1380,"601a1f74372f9b5a93482beb73991ede2529aac46d6676075511b69a66ec1466"],
 
-"shutdown-record-hook":[97,"RegisteredFiniteToolWiringTests.install_poll_record_hook",1428,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"]
+"shutdown-record-hook":[97,"RegisteredFiniteToolWiringTests.install_poll_record_hook",1455,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
+
+"transport-chunk-method-guard":[33,486,"_require_native_rpc(method)",16,486,43],
+
+"transport-denial-write-effect":[33,560,"os.write(fd, frame)",19,560,38],
+
+"transport-deny-request":[33,"AppServer._refuse_server_request",534,"bb2818862adccdd0bf38c09a34c7bd398590f3a1ec76b9cd9de05d8c02ae7bb0"],
+
+"transport-memory-writer-effect":[33,520,"stream.write(frame.decode(\"utf-8\"))",12,520,47],
+
+"transport-write-bytes-effect":[33,490,"os.write(fd, frame[offset:])",24,490,52],
+
+"transport-write-payload":[33,"AppServer._write_payload",500,"2ecb9fe3779bc2c698f99c18c089e4662ac07c20e6357690b4a45c3fba6f1591"]
 },
 
 "primitive_coverage":{
@@ -2358,10 +2574,6 @@
 "XR178-server-state":{"conclusion":"Scope classification only; grants no execution authority.","reason":"AppServer._read_stdout: Reads concrete transport guard, model, proof or per-thread bookkeeping state for validation/cleanup. This lookup is not a wire send; raw RPC refusal gaps remain deferred finding 7."},
 
 "XR179-server-state":{"conclusion":"Scope classification only; grants no execution authority.","reason":"AppServer._read_stdout: Reads concrete transport guard, model, proof or per-thread bookkeeping state for validation/cleanup. This lookup is not a wire send; raw RPC refusal gaps remain deferred finding 7."},
-
-"XR180-server-state":{"conclusion":"Scope classification only; grants no execution authority.","reason":"AppServer._read_stdout: Reads concrete transport guard, model, proof or per-thread bookkeeping state for validation/cleanup. This lookup is not a wire send; raw RPC refusal gaps remain deferred finding 7."},
-
-"XR181-server-state":{"conclusion":"Scope classification only; grants no execution authority.","reason":"AppServer._read_stdout: Reads concrete transport guard, model, proof or per-thread bookkeeping state for validation/cleanup. This lookup is not a wire send; raw RPC refusal gaps remain deferred finding 7."},
 
 "XR182-server-state":{"conclusion":"Scope classification only; grants no execution authority.","reason":"AppServer._observe_mcp_notification: Reads concrete transport guard, model, proof or per-thread bookkeeping state for validation/cleanup. This lookup is not a wire send; raw RPC refusal gaps remain deferred finding 7."},
 
@@ -2685,7 +2897,7 @@
 
 "XR358-failure-metadata":{"conclusion":"Scope classification only; grants no execution authority.","reason":"_Containment.launch: Reads exception diagnostics, retained artifact, ownership or cleanup metadata for reporting; no target programme or RPC is selected by this lookup."},
 
-"XR359-failure-metadata":{"conclusion":"Scope classification only; grants no execution authority.","reason":"_Containment._terminate_claimed: Reads exception diagnostics, retained artifact, ownership or cleanup metadata for reporting; no target programme or RPC is selected by this lookup."},
+"XR359-failure-metadata":{"conclusion":"Scope classification only; grants no execution authority.","reason":"_Containment._terminate_monitor: Reads exception diagnostics, retained artifact, ownership or cleanup metadata for reporting; no target programme or RPC is selected by this lookup."},
 
 "XR360-registered-server-state":{"conclusion":"Scope classification only; grants no execution authority.","reason":"_Containment.cleanup_observation: Reads retained observation/finite-input/condition/thread state for the registered server; no callback or wire method is invoked by this lookup."},
 
@@ -2879,6 +3091,14 @@
 
 "cleanup-original-registration-call":{"conclusion":"Individual dynamic-candidate classification only; native ABI/implementation trust remains explicit and no signalling, native-route or production authority is granted.","reason":"Supported cleanup_capability factories pass original producer/controller class methods into the private issuance hook. This callback observes the original receipt registration. Raw private-hook callers remain trusted Python code, not an untrusted authority boundary."},
 
+"diagnostic-state-_regular-105-14":{"conclusion":"Concrete identity or cleanup metadata only; not execution or acceptance authority.","reason":"_regular: Reads the before stat observation for the fixed finite identity-field tuple; this lookup neither invokes a callable nor supplies execution, cleanup or admission authority."},
+
+"diagnostic-state-_regular-105-37":{"conclusion":"Concrete identity or cleanup metadata only; not execution or acceptance authority.","reason":"_regular: Reads the after stat observation for the fixed finite identity-field tuple; this lookup neither invokes a callable nor supplies execution, cleanup or admission authority."},
+
+"diagnostic-state-_resource_actions-672":{"conclusion":"Concrete identity or cleanup metadata only; not execution or acceptance authority.","reason":"SelectedNativeProbe._resource_actions: Reads bounded stat identity fields, retained handle slots or original cleanup exception metadata. The exact attribute lookup invokes no selected programme, opens no PID, grants no native admission and cannot turn unresolved ownership into containment."},
+
+"diagnostic-state-_terminate_owner-624":{"conclusion":"Concrete identity or cleanup metadata only; not execution or acceptance authority.","reason":"SelectedNativeProbe._terminate_owner: Reads bounded stat identity fields, retained handle slots or original cleanup exception metadata. The exact attribute lookup invokes no selected programme, opens no PID, grants no native admission and cannot turn unresolved ownership into containment."},
+
 "guard-scope-23e98ef81a80a3":{"conclusion":"Exact candidate retained for manual review; no independent pre-call refusal is credited. The named route binds its actual guarded boundary.","reason":"The EXAMPLE-only bridge branch has its own custody contract, not the production hold. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review.","route":"B4.3"},
 
 "guard-scope-2bf0ca7a748226":{"conclusion":"Exact candidate retained for manual review; no independent pre-call refusal is credited. The named route binds its actual guarded boundary.","reason":"The constructed lifetime.launch wrapper call precedes its callee N1 check. The actual owned spawn in containment.launch retains its direct N1 gate; receiver/lifetime identity is manual.","route":"N3.4"},
@@ -2941,7 +3161,23 @@
 
 "share-lookup-8":{"conclusion":"Identity/metadata inspection only; no execution authority.","reason":"Read fixed observe/create/result or bound-method identity fields from the registered boundary; lookup does not invoke the selected method.","route":"H5.5"},
 
-"share-lookup-9":{"conclusion":"Identity/metadata inspection only; no execution authority.","reason":"Read fixed observe/create/result or bound-method identity fields from the registered boundary; lookup does not invoke the selected method.","route":"H5.5"}
+"share-lookup-9":{"conclusion":"Identity/metadata inspection only; no execution authority.","reason":"Read fixed observe/create/result or bound-method identity fields from the registered boundary; lookup does not invoke the selected method.","route":"H5.5"},
+
+"transport-denial-partial-frame-state":{"conclusion":"Concrete transport state inspection only; no execution, native admission or server-request authority.","reason":"AppServer._refuse_server_request: Reads the same connection-local incomplete-frame flag to refuse rather than interleave a denial into an outbound request; this lookup cannot grant a server request.","route":"N10.10"},
+
+"transport-notification-byte-accounting":{"conclusion":"Concrete transport state inspection only; no execution, native admission or server-request authority.","reason":"AppServer._retain_notification: Reads the retained notification byte total to refuse overflow without discarding correlation history; it is bookkeeping, not a notification handler or grant.","route":"N10.9"},
+
+"transport-response-byte-accounting":{"conclusion":"Concrete transport state inspection only; no execution, native admission or server-request authority.","reason":"AppServer._reserve_response_storage: Reads the connection-local response-size table for finite retained-byte accounting; it neither sends a reply nor changes request identity or admission.","route":"N10.9"},
+
+"transport-response-byte-release":{"conclusion":"Concrete transport state inspection only; no execution, native admission or server-request authority.","reason":"AppServer._pop_response: Reads the existing response-size table only to release accounting for the same consumed response ID; this lookup grants no wire or execution authority.","route":"N10.9"},
+
+"transport-stderr-buffer":{"conclusion":"Concrete transport state inspection only; no execution, native admission or server-request authority.","reason":"AppServer._drain_stderr: Reads the concrete owned stderr buffer for bounded chunk draining and line-count diagnostics; it selects no callable or wire execution authority.","route":"N10.9"},
+
+"transport-stdout-buffer":{"conclusion":"Concrete transport state inspection only; no execution, native admission or server-request authority.","reason":"AppServer._bounded_protocol_lines: Reads the concrete owned stdout buffer to select byte-bounded framing; this lookup selects no callable, connection, executable or permission.","route":"N10.9"},
+
+"transport-writer-closing-state":{"conclusion":"Concrete transport state inspection only; no execution, native admission or server-request authority.","reason":"AppServer._write_wire_bytes: Reads the owned transport closing flag to stop a pending write; it does not select a process, callable, descriptor or permission.","route":"N10.9"},
+
+"transport-writer-serialization-state":{"conclusion":"Concrete transport state inspection only; no execution, native admission or server-request authority.","reason":"AppServer._write_payload: Reads the connection-local incomplete-frame flag to serialize writers while releasing the reader condition during backpressure; no caller or native authority follows from this flag.","route":"N10.9"}
 },
 
 "hits":[
@@ -3359,161 +3595,173 @@
 
 [39,185,48,185,88,"dynamic","5800565c8d6e81a2758a9f365a4219a7163c9f556d7c328ff9d0287941988967",["exclude","XR172-namespace"]],
 
-[40,235,27,236,91,"process","49f4f5236b30e7f6d3fa9f2fe1405cca3f6e86dc8941c5abccd6a0b0afed9a95",["route","N1.1","R1A-149ca02028e393"]],
+[40,262,27,263,91,"process","49f4f5236b30e7f6d3fa9f2fe1405cca3f6e86dc8941c5abccd6a0b0afed9a95",["route","N1.1","R1A-149ca02028e393"]],
 
-[40,268,24,279,13,"appserver","e715a5ecdef22632e43f8c4ca51f15a86871ebdefb303158e2a22af66871176f",["route","N1.1","R1A-8a5537e96131f2"]],
+[40,297,24,308,13,"appserver","e715a5ecdef22632e43f8c4ca51f15a86871ebdefb303158e2a22af66871176f",["route","N1.1","R1A-8a5537e96131f2"]],
 
-[40,289,12,289,42,"appserver","099399c8b3548789b4e86a787ded1d790b4e8d5e8c3b93297730bd9487556de1",["route","N1.1","R1A-ed09ceb424ae85"]],
+[40,318,12,318,42,"appserver","099399c8b3548789b4e86a787ded1d790b4e8d5e8c3b93297730bd9487556de1",["route","N1.1","R1A-ed09ceb424ae85"]],
 
-[40,296,26,296,74,"dynamic","9a8ef0fc9c066438cc93850603fbcac435ab4f544ad7a94f764b045e00867381",["exclude","XR176-failure-metadata"]],
+[40,325,26,325,74,"dynamic","9a8ef0fc9c066438cc93850603fbcac435ab4f544ad7a94f764b045e00867381",["exclude","XR176-failure-metadata"]],
 
-[40,414,34,416,25,"dynamic","d703705b0360a926f1ffb889733ace0ec8d0fd2ab807956b301d69268edbfd31",["exclude","XR177-server-state"]],
+[40,425,17,425,48,"dynamic","41fcde87cc1cec206e71528f12245217332f87a2b4545b521c559d0c85329297",["exclude","transport-stdout-buffer"]],
 
-[40,528,51,532,37,"dynamic","18fd177af39cdb32b20ec009454a3bbffe247a300bfa8f8c452599cbce04b1ea",["exclude","XR178-server-state"]],
+[40,442,16,442,52,"dynamic","a5b2d603ce594e14be79a832ba5360e68436912dd36f6eefa371ebcc5cef767c",["exclude","transport-response-byte-accounting"]],
 
-[40,540,49,544,37,"dynamic","4212744f5a8095deeef6fe657892f0f9af4b8dfa4ef2d8f999e0eec63be7fc91",["exclude","XR179-server-state"]],
+[40,449,8,449,44,"dynamic","a5b2d603ce594e14be79a832ba5360e68436912dd36f6eefa371ebcc5cef767c",["exclude","transport-response-byte-release"]],
 
-[40,568,32,572,33,"dynamic","e08edf01ed56eff906d27e5f75b8f0d18f6700b79addb4a05d54b890088479db",["exclude","XR180-server-state"]],
+[40,460,19,460,58,"dynamic","10b396f35ac3d78d02bdcb0ea4f5128150ebfbd62987c8a604a4787982270457",["exclude","transport-notification-byte-accounting"]],
 
-[40,573,32,577,33,"dynamic","aad8ba62da341aa01585552ca8e79ee690dfd2f8b1771be038d8310faeb0c7b3",["exclude","XR181-server-state"]],
+[40,480,15,480,47,"dynamic","1a2cb2d3cf37d576c4b2ae4add3eaebe9c97eaf467f233c72fc49235595426cd",["exclude","transport-writer-closing-state"]],
 
-[40,598,12,598,55,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR182-server-state"]],
+[40,506,14,506,51,"dynamic","9e9d61d2e9555dee37885ed92d4ee19f63c11c9531c2534c74b9531bc609b2ec",["exclude","transport-writer-serialization-state"]],
 
-[40,604,15,604,58,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR183-server-state"]],
+[40,536,11,536,48,"dynamic","9e9d61d2e9555dee37885ed92d4ee19f63c11c9531c2534c74b9531bc609b2ec",["exclude","transport-denial-partial-frame-state"]],
 
-[40,617,25,617,73,"dynamic","f3c1dd35f3d98195cbb6df179e37cd2b7b9f3a114eb1cd70769a51a83abbfa19",["exclude","XR184-server-state"]],
+[40,586,34,588,25,"dynamic","d703705b0360a926f1ffb889733ace0ec8d0fd2ab807956b301d69268edbfd31",["exclude","XR177-server-state"]],
 
-[40,621,33,621,89,"appserver","06180ac5000b45e0492ce40aa3277b2453f14607bce8e07d796a371fca102341",["exclude","guard-scope-33aef003e612bf"]],
+[40,700,51,704,37,"dynamic","18fd177af39cdb32b20ec009454a3bbffe247a300bfa8f8c452599cbce04b1ea",["exclude","XR178-server-state"]],
 
-[40,625,19,625,67,"dynamic","f3c1dd35f3d98195cbb6df179e37cd2b7b9f3a114eb1cd70769a51a83abbfa19",["exclude","XR186-server-state"]],
+[40,712,49,716,37,"dynamic","4212744f5a8095deeef6fe657892f0f9af4b8dfa4ef2d8f999e0eec63be7fc91",["exclude","XR179-server-state"]],
 
-[40,652,15,652,58,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR187-server-state"]],
+[40,761,12,761,55,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR182-server-state"]],
 
-[40,695,59,695,102,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR188-server-state"]],
+[40,767,15,767,58,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR183-server-state"]],
 
-[40,761,59,761,102,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR189-server-state"]],
+[40,780,25,780,73,"dynamic","f3c1dd35f3d98195cbb6df179e37cd2b7b9f3a114eb1cd70769a51a83abbfa19",["exclude","XR184-server-state"]],
 
-[40,821,26,821,77,"appserver","634d7b582ca1249137584565a5c3e2a511aceca913f890d4d38d73ac7eb07fc0",["exclude","guard-scope-8828a037e55681"]],
+[40,784,33,784,89,"appserver","06180ac5000b45e0492ce40aa3277b2453f14607bce8e07d796a371fca102341",["exclude","guard-scope-33aef003e612bf"]],
 
-[40,825,26,825,71,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR191-server-state"]],
+[40,788,19,788,67,"dynamic","f3c1dd35f3d98195cbb6df179e37cd2b7b9f3a114eb1cd70769a51a83abbfa19",["exclude","XR186-server-state"]],
 
-[40,839,16,839,58,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR192-server-state"]],
+[40,815,15,815,58,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR187-server-state"]],
 
-[40,840,26,840,71,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR193-server-state"]],
+[40,832,17,832,61,"dynamic","6810117c6aacb6d969f71565eddacddf80c32febc2f8cff178f208887cd1754f",["exclude","transport-stderr-buffer"]],
 
-[40,869,16,869,58,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR194-server-state"]],
+[40,866,59,866,102,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR188-server-state"]],
 
-[40,875,32,875,77,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR195-server-state"]],
+[40,930,59,930,102,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR189-server-state"]],
 
-[40,888,16,888,58,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR196-server-state"]],
+[40,987,26,987,77,"appserver","634d7b582ca1249137584565a5c3e2a511aceca913f890d4d38d73ac7eb07fc0",["exclude","guard-scope-8828a037e55681"]],
 
-[40,894,32,894,77,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR197-server-state"]],
+[40,991,26,991,71,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR191-server-state"]],
 
-[40,977,20,977,62,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR198-server-state"]],
+[40,1005,16,1005,58,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR192-server-state"]],
 
-[40,978,36,978,81,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR199-server-state"]],
+[40,1006,26,1006,71,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR193-server-state"]],
 
-[40,1006,34,1006,76,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR200-server-state"]],
+[40,1035,16,1035,58,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR194-server-state"]],
 
-[40,1030,21,1030,66,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR201-server-state"]],
+[40,1041,32,1041,77,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR195-server-state"]],
 
-[40,1046,26,1050,9,"appserver","1cf45275a3cd503f5bb360e68726b6960ba048f0f34e1eb1f37f599f5357e98d",["exclude","guard-scope-5929110daa092c"]],
+[40,1054,16,1054,58,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR196-server-state"]],
 
-[40,1056,8,1056,62,"dynamic","7d9cf9710d408622520ef7a9b875f04ec5739abe86fb0dc24ebd9744d5a65e90",["exclude","XR203-server-state"]],
+[40,1060,32,1060,77,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR197-server-state"]],
 
-[40,1060,8,1060,55,"dynamic","10ee933e483a435004d164f0606b3aac85718ab1b1e3ee11fd86eb391ee6c6cd",["exclude","XR204-server-state"]],
+[40,1143,20,1143,62,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR198-server-state"]],
 
-[40,1064,8,1064,54,"dynamic","0f20b2c88f25195510f7a99f6978618dbf0f7d4039a4d4604a8c34c31408c0cd",["exclude","XR205-server-state"]],
+[40,1144,36,1144,81,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR199-server-state"]],
 
-[40,1068,8,1068,61,"dynamic","6602766af1d9e5ac011dab6c5ccb067e6adb251fd1f5ac60f10ca02638ecba62",["exclude","XR206-server-state"]],
+[40,1172,34,1172,76,"dynamic","ae9ef33e1c0ee1a99e0c43ec13a8fcf43cd03e68dea5ea3e05842d44a32105d9",["exclude","XR200-server-state"]],
 
-[40,1088,34,1088,79,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR207-server-state"]],
+[40,1196,21,1196,66,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR201-server-state"]],
 
-[40,1091,27,1095,13,"dynamic","c2c395f5aedd4a1d047be673b30cae4ead529655ffe804cb6618f9fafc4221a6",["exclude","XR208-server-state"]],
+[40,1212,26,1216,9,"appserver","1cf45275a3cd503f5bb360e68726b6960ba048f0f34e1eb1f37f599f5357e98d",["exclude","guard-scope-5929110daa092c"]],
 
-[40,1118,19,1118,74,"dynamic","d12430b15b4875f5c7e5dee5cebae6a5e0c506af31158d79b8789058f7cd6ff4",["exclude","XR209-server-state"]],
+[40,1222,8,1222,62,"dynamic","7d9cf9710d408622520ef7a9b875f04ec5739abe86fb0dc24ebd9744d5a65e90",["exclude","XR203-server-state"]],
 
-[40,1126,11,1126,54,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR210-server-state"]],
+[40,1226,8,1226,55,"dynamic","10ee933e483a435004d164f0606b3aac85718ab1b1e3ee11fd86eb391ee6c6cd",["exclude","XR204-server-state"]],
 
-[40,1136,26,1140,9,"appserver","ee575de388967c2b24a43e75353526c0855bcf2e7fc4364c5992357e15063f17",["exclude","guard-scope-54d98db8fd63cd"]],
+[40,1230,8,1230,54,"dynamic","0f20b2c88f25195510f7a99f6978618dbf0f7d4039a4d4604a8c34c31408c0cd",["exclude","XR205-server-state"]],
 
-[40,1181,23,1181,80,"dynamic","c602b38179f6951e5267cf541df4875af1190faad8cb081189b6600b55d79312",["exclude","XR212-server-state"]],
+[40,1234,8,1234,61,"dynamic","6602766af1d9e5ac011dab6c5ccb067e6adb251fd1f5ac60f10ca02638ecba62",["exclude","XR206-server-state"]],
 
-[40,1205,12,1205,69,"dynamic","c602b38179f6951e5267cf541df4875af1190faad8cb081189b6600b55d79312",["exclude","XR213-server-state"]],
+[40,1254,34,1254,79,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR207-server-state"]],
 
-[40,1210,21,1214,9,"dynamic","68613689abc342ed8bec8fcf49fece11602292942be123c9c46d0d757ed84e8d",["exclude","XR214-server-state"]],
+[40,1257,27,1261,13,"dynamic","c2c395f5aedd4a1d047be673b30cae4ead529655ffe804cb6618f9fafc4221a6",["exclude","XR208-server-state"]],
 
-[40,1247,18,1247,63,"dynamic","0ded5f12b46d942756bc8ab3fe237bb684048d94bce18de1fc27a9b0572fa0cf",["exclude","XR215-server-state"]],
+[40,1284,19,1284,74,"dynamic","d12430b15b4875f5c7e5dee5cebae6a5e0c506af31158d79b8789058f7cd6ff4",["exclude","XR209-server-state"]],
 
-[40,1274,21,1274,64,"dynamic","7728a7b16389533f56de476f96703e50ab6bd866726f4ae7e43646b5ea96c590",["exclude","XR216-server-state"]],
+[40,1292,11,1292,54,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR210-server-state"]],
 
-[40,1338,23,1342,13,"dynamic","95e3ee79c968db432e0d2e54382d353356a568a67ce95549871efda4e8ef78ce",["exclude","XR217-server-state"]],
+[40,1302,26,1306,9,"appserver","ee575de388967c2b24a43e75353526c0855bcf2e7fc4364c5992357e15063f17",["exclude","guard-scope-54d98db8fd63cd"]],
 
-[40,1349,22,1351,13,"dynamic","37d2cc1022cccb72a7d51b1aa756f42427a8b3b52cf18fcf911ec78859346d67",["exclude","XR218-server-state"]],
+[40,1347,23,1347,80,"dynamic","c602b38179f6951e5267cf541df4875af1190faad8cb081189b6600b55d79312",["exclude","XR212-server-state"]],
 
-[40,1937,11,1937,54,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR219-server-state"]],
+[40,1371,12,1371,69,"dynamic","c602b38179f6951e5267cf541df4875af1190faad8cb081189b6600b55d79312",["exclude","XR213-server-state"]],
 
-[40,1941,8,1941,62,"dynamic","7d9cf9710d408622520ef7a9b875f04ec5739abe86fb0dc24ebd9744d5a65e90",["exclude","XR220-server-state"]],
+[40,1376,21,1380,9,"dynamic","68613689abc342ed8bec8fcf49fece11602292942be123c9c46d0d757ed84e8d",["exclude","XR214-server-state"]],
 
-[40,1945,8,1945,61,"dynamic","6602766af1d9e5ac011dab6c5ccb067e6adb251fd1f5ac60f10ca02638ecba62",["exclude","XR221-server-state"]],
+[40,1413,18,1413,63,"dynamic","0ded5f12b46d942756bc8ab3fe237bb684048d94bce18de1fc27a9b0572fa0cf",["exclude","XR215-server-state"]],
 
-[40,1964,21,1964,66,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR222-server-state"]],
+[40,1440,21,1440,64,"dynamic","7728a7b16389533f56de476f96703e50ab6bd866726f4ae7e43646b5ea96c590",["exclude","XR216-server-state"]],
 
-[40,1965,22,1965,62,"dynamic","a56b1ec9f283f59de8fae7cb7ad9f13830194484283fd16c5b7981b835a4afcc",["exclude","XR223-server-state"]],
+[40,1504,23,1508,13,"dynamic","95e3ee79c968db432e0d2e54382d353356a568a67ce95549871efda4e8ef78ce",["exclude","XR217-server-state"]],
 
-[40,1967,47,1967,88,"dynamic","4c55abc120a7ee45a393b742a206760ad76cfcf1638822e56c0cd95aec9e64f0",["exclude","XR224-server-state"]],
+[40,1515,22,1517,13,"dynamic","37d2cc1022cccb72a7d51b1aa756f42427a8b3b52cf18fcf911ec78859346d67",["exclude","XR218-server-state"]],
 
-[40,1994,20,1994,63,"dynamic","1997d4840af2672b1b2c824574137647efac5506373216812eeb53996c9f0a79",["exclude","XR225-server-state"]],
+[40,2103,11,2103,54,"dynamic","72ba33805b882c2753b5b90449f36ca83d686a2f4cb2852c9ec5f5712de88b54",["exclude","XR219-server-state"]],
 
-[40,2016,32,2018,13,"dynamic","acc509eb0bdcd3c9ab2be14ef20c52ec38c2caaeda2d9dd3971c2029ecb91b66",["exclude","XR226-server-state"]],
+[40,2107,8,2107,62,"dynamic","7d9cf9710d408622520ef7a9b875f04ec5739abe86fb0dc24ebd9744d5a65e90",["exclude","XR220-server-state"]],
 
-[40,2122,38,2126,17,"dynamic","4430929d4d33d778eef3d349f13a44ab9e2babad96673f8e9a4618c1aff72ad3",["exclude","XR227-server-state"]],
+[40,2111,8,2111,61,"dynamic","6602766af1d9e5ac011dab6c5ccb067e6adb251fd1f5ac60f10ca02638ecba62",["exclude","XR221-server-state"]],
 
-[40,2128,26,2130,17,"dynamic","29bc6ca40793f3339acd3a0ac0c81d91c58267eb8634a959210378f585a59d34",["exclude","XR228-server-state"]],
+[40,2130,21,2130,66,"dynamic","4b31797d8fc7317d72f34f57f50b1540b4e48167796636fabb5cdc4760d4071d",["exclude","XR222-server-state"]],
 
-[40,2217,27,2221,9,"appserver","0b05c8e8c7cce41c526456138204499c51c435fb9877cc645959587112c4e79e",["exclude","guard-scope-7b887edc672ea4"]],
+[40,2131,22,2131,62,"dynamic","a56b1ec9f283f59de8fae7cb7ad9f13830194484283fd16c5b7981b835a4afcc",["exclude","XR223-server-state"]],
 
-[40,2229,26,2233,9,"appserver","cfa6db33c4023f659f5b9c4e6ea67715b4609362857a3d51c817cb72a9d33973",["exclude","guard-scope-8b69ed2587a8d1"]],
+[40,2133,47,2133,88,"dynamic","4c55abc120a7ee45a393b742a206760ad76cfcf1638822e56c0cd95aec9e64f0",["exclude","XR224-server-state"]],
 
-[40,2234,25,2234,74,"dynamic","20bca80e3434919e75d7575950a71a9d7dc1022641277199893559b99e22e2c0",["exclude","XR231-server-state"]],
+[40,2160,20,2160,63,"dynamic","1997d4840af2672b1b2c824574137647efac5506373216812eeb53996c9f0a79",["exclude","XR225-server-state"]],
 
-[40,2259,26,2263,9,"appserver","1d953b37e0b32e0c4c5906cc187b70397f87ad0d73a88b31af28a94479b44776",["exclude","guard-scope-5bdf5819664888"]],
+[40,2182,32,2184,13,"dynamic","acc509eb0bdcd3c9ab2be14ef20c52ec38c2caaeda2d9dd3971c2029ecb91b66",["exclude","XR226-server-state"]],
 
-[40,2264,24,2264,72,"dynamic","8d38cf308cd79d01d7b923b7a91aad3561262cfb41adcbe23433e8bfa8a842ce",["exclude","XR233-server-state"]],
+[40,2280,38,2284,17,"dynamic","4430929d4d33d778eef3d349f13a44ab9e2babad96673f8e9a4618c1aff72ad3",["exclude","XR227-server-state"]],
 
-[40,2289,12,2293,13,"dynamic","94d1920476896ab8d1921e7e5e77ee73e05b6d3fde8f93b0193c94cb30446a24",["exclude","XR234-server-state"]],
+[40,2286,26,2288,17,"dynamic","29bc6ca40793f3339acd3a0ac0c81d91c58267eb8634a959210378f585a59d34",["exclude","XR228-server-state"]],
 
-[40,2320,15,2320,58,"dynamic","1997d4840af2672b1b2c824574137647efac5506373216812eeb53996c9f0a79",["exclude","XR235-server-state"]],
+[40,2375,27,2379,9,"appserver","0b05c8e8c7cce41c526456138204499c51c435fb9877cc645959587112c4e79e",["exclude","guard-scope-7b887edc672ea4"]],
 
-[40,2322,15,2322,58,"dynamic","7728a7b16389533f56de476f96703e50ab6bd866726f4ae7e43646b5ea96c590",["exclude","XR236-server-state"]],
+[40,2387,26,2391,9,"appserver","cfa6db33c4023f659f5b9c4e6ea67715b4609362857a3d51c817cb72a9d33973",["exclude","guard-scope-8b69ed2587a8d1"]],
 
-[40,2333,12,2337,13,"dynamic","b721e57f8119b40fdce4813de21a85a35e4267bd7267e40d0a1f11be2dc4924a",["exclude","XR237-server-state"]],
+[40,2392,25,2392,74,"dynamic","20bca80e3434919e75d7575950a71a9d7dc1022641277199893559b99e22e2c0",["exclude","XR231-server-state"]],
 
-[40,2365,23,2365,60,"dynamic","ab9993e1c876cdf8cb778ebc81288475d7fa5ab3dd25e0626066744989ffbd47",["exclude","XR238-server-state"]],
+[40,2417,26,2421,9,"appserver","1d953b37e0b32e0c4c5906cc187b70397f87ad0d73a88b31af28a94479b44776",["exclude","guard-scope-5bdf5819664888"]],
 
-[40,2374,19,2374,56,"dynamic","ab9993e1c876cdf8cb778ebc81288475d7fa5ab3dd25e0626066744989ffbd47",["exclude","XR239-server-state"]],
+[40,2422,24,2422,72,"dynamic","8d38cf308cd79d01d7b923b7a91aad3561262cfb41adcbe23433e8bfa8a842ce",["exclude","XR233-server-state"]],
 
-[40,2381,12,2385,13,"dynamic","24512c4852d4b9c7f5c7c53f91f87bf77d7d527135645db9adb2c1777573ac3e",["exclude","XR240-server-state"]],
+[40,2447,12,2451,13,"dynamic","94d1920476896ab8d1921e7e5e77ee73e05b6d3fde8f93b0193c94cb30446a24",["exclude","XR234-server-state"]],
 
-[40,2442,17,2442,72,"dynamic","ccafceae6adeb7d932508ad8b231f5eb9d9b3bb4cb495af0945de138212f1fb7",["exclude","XR241-server-state"]],
+[40,2478,15,2478,58,"dynamic","1997d4840af2672b1b2c824574137647efac5506373216812eeb53996c9f0a79",["exclude","XR235-server-state"]],
 
-[40,2457,26,2461,9,"dynamic","07fab676439ba7a909435b3f937559831002fa2589233c6ca288fd520f2a489b",["exclude","XR242-server-state"]],
+[40,2480,15,2480,58,"dynamic","7728a7b16389533f56de476f96703e50ab6bd866726f4ae7e43646b5ea96c590",["exclude","XR236-server-state"]],
 
-[40,2487,17,2487,72,"dynamic","ccafceae6adeb7d932508ad8b231f5eb9d9b3bb4cb495af0945de138212f1fb7",["exclude","XR243-server-state"]],
+[40,2491,12,2495,13,"dynamic","b721e57f8119b40fdce4813de21a85a35e4267bd7267e40d0a1f11be2dc4924a",["exclude","XR237-server-state"]],
 
-[40,2492,8,2492,62,"dynamic","7d9cf9710d408622520ef7a9b875f04ec5739abe86fb0dc24ebd9744d5a65e90",["exclude","XR244-server-state"]],
+[40,2523,23,2523,60,"dynamic","ab9993e1c876cdf8cb778ebc81288475d7fa5ab3dd25e0626066744989ffbd47",["exclude","XR238-server-state"]],
 
-[40,2506,26,2510,9,"dynamic","07fab676439ba7a909435b3f937559831002fa2589233c6ca288fd520f2a489b",["exclude","XR245-server-state"]],
+[40,2532,19,2532,56,"dynamic","ab9993e1c876cdf8cb778ebc81288475d7fa5ab3dd25e0626066744989ffbd47",["exclude","XR239-server-state"]],
 
-[40,2536,17,2536,72,"dynamic","ccafceae6adeb7d932508ad8b231f5eb9d9b3bb4cb495af0945de138212f1fb7",["exclude","XR246-server-state"]],
+[40,2539,12,2543,13,"dynamic","24512c4852d4b9c7f5c7c53f91f87bf77d7d527135645db9adb2c1777573ac3e",["exclude","XR240-server-state"]],
 
-[40,2541,8,2541,62,"dynamic","7d9cf9710d408622520ef7a9b875f04ec5739abe86fb0dc24ebd9744d5a65e90",["exclude","XR247-server-state"]],
+[40,2600,17,2600,72,"dynamic","ccafceae6adeb7d932508ad8b231f5eb9d9b3bb4cb495af0945de138212f1fb7",["exclude","XR241-server-state"]],
 
-[40,2551,20,2555,9,"dynamic","12d620556187a2327e45f92323efa4a7e579cc7831c1cd2f396bebac90be5f0a",["exclude","XR248-server-state"]],
+[40,2615,26,2619,9,"dynamic","07fab676439ba7a909435b3f937559831002fa2589233c6ca288fd520f2a489b",["exclude","XR242-server-state"]],
 
-[40,2665,29,2669,13,"dynamic","46c9f5877e6bb84981ed4ceb01f811db46a401b5e62e63f2a7c98959f042967a",["exclude","XR249-server-state"]],
+[40,2645,17,2645,72,"dynamic","ccafceae6adeb7d932508ad8b231f5eb9d9b3bb4cb495af0945de138212f1fb7",["exclude","XR243-server-state"]],
 
-[40,2770,41,2770,69,"dynamic","9373db0fb139f323fed4e0a008860562527e4bb75811c044cff934520435c518",["exclude","XR250-pipe-cleanup"]],
+[40,2650,8,2650,62,"dynamic","7d9cf9710d408622520ef7a9b875f04ec5739abe86fb0dc24ebd9744d5a65e90",["exclude","XR244-server-state"]],
+
+[40,2664,26,2668,9,"dynamic","07fab676439ba7a909435b3f937559831002fa2589233c6ca288fd520f2a489b",["exclude","XR245-server-state"]],
+
+[40,2694,17,2694,72,"dynamic","ccafceae6adeb7d932508ad8b231f5eb9d9b3bb4cb495af0945de138212f1fb7",["exclude","XR246-server-state"]],
+
+[40,2699,8,2699,62,"dynamic","7d9cf9710d408622520ef7a9b875f04ec5739abe86fb0dc24ebd9744d5a65e90",["exclude","XR247-server-state"]],
+
+[40,2709,20,2713,9,"dynamic","12d620556187a2327e45f92323efa4a7e579cc7831c1cd2f396bebac90be5f0a",["exclude","XR248-server-state"]],
+
+[40,2823,29,2827,13,"dynamic","46c9f5877e6bb84981ed4ceb01f811db46a401b5e62e63f2a7c98959f042967a",["exclude","XR249-server-state"]],
+
+[40,2928,41,2928,69,"dynamic","9373db0fb139f323fed4e0a008860562527e4bb75811c044cff934520435c518",["exclude","XR250-pipe-cleanup"]],
 
 [41,39,26,39,54,"dynamic","ecb5e1a3ea4ff0b8303015d151771c1c54c574af170c2551337af229e76d29b3",["exclude","XR429-os-flag"]],
 
@@ -3599,7 +3847,7 @@
 
 [47,106,19,106,51,"dynamic","87476ca0bb7528c8b10f98cf2fb72e1e184c5ec8025958dbb004bc6e1947af00",["exclude","XR286-pinned-identity"]],
 
-[47,582,51,582,80,"dynamic","dbeb10a3d73f073124d336d463689a717254c4af5d29816590b4bc365e0f3e17",["exclude","XR287-failure-metadata"]],
+[47,608,51,608,80,"dynamic","dbeb10a3d73f073124d336d463689a717254c4af5d29816590b4bc365e0f3e17",["exclude","XR287-failure-metadata"]],
 
 [48,61,51,61,85,"dynamic","e0bcebcdb70c6c99b53aac15616292c3aedb23b6420858f4fe13536a06e0c73d",["exclude","XR288-host-api-presence"]],
 
@@ -3691,9 +3939,9 @@
 
 [56,274,17,274,65,"dynamic","856eb75a19770aeb93045bde35aa09bcf1619058261664f62c504e27fa0a62e8",["exclude","XR438-literal-module"]],
 
-[56,549,21,549,69,"dynamic","856eb75a19770aeb93045bde35aa09bcf1619058261664f62c504e27fa0a62e8",["exclude","XR439-literal-module"]],
+[56,573,21,573,69,"dynamic","856eb75a19770aeb93045bde35aa09bcf1619058261664f62c504e27fa0a62e8",["exclude","XR439-literal-module"]],
 
-[56,615,12,615,60,"dynamic","856eb75a19770aeb93045bde35aa09bcf1619058261664f62c504e27fa0a62e8",["exclude","XR440-literal-module"]],
+[56,639,12,639,60,"dynamic","856eb75a19770aeb93045bde35aa09bcf1619058261664f62c504e27fa0a62e8",["exclude","XR440-literal-module"]],
 
 [57,36,32,36,53,"dynamic","e84f8ad946b634c11eaebe0107dea01b49ab67cb15c5c73710454306dbfc60b4",["exclude","XR316-pinned-identity"]],
 
@@ -3787,49 +4035,49 @@
 
 [68,615,22,617,61,"browser","d39ca2356bd7c0ee0bff23fe2688fb58023545c8242e0c9a3ec791566ad3f5b7",["route","N9.1","R1A-634b2819cec520"]],
 
-[69,78,13,78,51,"dynamic","634fa128c02d9c9ccbe9f792b9c0cec527c554c3b64f8f3f7218f32b4bc5985f",["exclude","XR357-argument-file-symbol"]],
+[69,85,13,85,51,"dynamic","634fa128c02d9c9ccbe9f792b9c0cec527c554c3b64f8f3f7218f32b4bc5985f",["exclude","XR357-argument-file-symbol"]],
 
-[69,502,25,502,67,"dynamic","19bfabff3498696136f4302e644093b014d4bf7c38207862a0538474473101e4",["exclude","XR358-failure-metadata"]],
+[69,567,25,567,67,"dynamic","19bfabff3498696136f4302e644093b014d4bf7c38207862a0538474473101e4",["exclude","XR358-failure-metadata"]],
 
-[69,610,35,610,77,"dynamic","19bfabff3498696136f4302e644093b014d4bf7c38207862a0538474473101e4",["exclude","XR359-failure-metadata"]],
+[69,710,31,710,73,"dynamic","19bfabff3498696136f4302e644093b014d4bf7c38207862a0538474473101e4",["exclude","XR359-failure-metadata"]],
 
-[69,691,12,691,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",["exclude","XR360-registered-server-state"]],
+[69,812,12,812,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",["exclude","XR360-registered-server-state"]],
 
-[69,749,15,749,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",["exclude","XR361-registered-server-state"]],
+[69,870,15,870,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",["exclude","XR361-registered-server-state"]],
 
-[69,858,23,858,78,"dynamic","c0bf19daa8fedf3ba2150c3e0e6eb3bf128be247d4142d8ae696e537d0e01d01",["exclude","XR443-literal-module"]],
+[69,979,23,979,78,"dynamic","c0bf19daa8fedf3ba2150c3e0e6eb3bf128be247d4142d8ae696e537d0e01d01",["exclude","XR443-literal-module"]],
 
-[69,1050,20,1050,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",["exclude","XR362-registered-server-state"]],
+[69,1171,20,1171,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",["exclude","XR362-registered-server-state"]],
 
-[69,1105,17,1105,49,"appserver","d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","R1A2-e85ff2eaf97e87"]],
+[69,1226,17,1226,49,"appserver","d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","R1A2-e85ff2eaf97e87"]],
 
-[69,1115,49,1115,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",["exclude","XR363-registered-server-state"]],
+[69,1236,49,1236,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",["exclude","XR363-registered-server-state"]],
 
-[69,1135,18,1135,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",["exclude","guard-scope-2bf0ca7a748226"]],
+[69,1256,18,1256,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",["exclude","guard-scope-2bf0ca7a748226"]],
 
-[69,1210,29,1210,77,"appserver","b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","R1A-8783249dd2f418"]],
+[69,1331,29,1331,77,"appserver","b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","R1A-8783249dd2f418"]],
 
-[69,1219,23,1219,78,"dynamic","c0bf19daa8fedf3ba2150c3e0e6eb3bf128be247d4142d8ae696e537d0e01d01",["exclude","XR444-literal-module"]],
+[69,1340,23,1340,78,"dynamic","c0bf19daa8fedf3ba2150c3e0e6eb3bf128be247d4142d8ae696e537d0e01d01",["exclude","XR444-literal-module"]],
 
-[69,1376,16,1376,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",["exclude","XR366-pipe-cleanup"]],
+[69,1497,16,1497,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",["exclude","XR366-pipe-cleanup"]],
 
-[69,1421,19,1421,74,"dynamic","c0bf19daa8fedf3ba2150c3e0e6eb3bf128be247d4142d8ae696e537d0e01d01",["exclude","XR445-literal-module"]],
+[69,1542,19,1542,74,"dynamic","c0bf19daa8fedf3ba2150c3e0e6eb3bf128be247d4142d8ae696e537d0e01d01",["exclude","XR445-literal-module"]],
 
-[69,1479,17,1479,39,"dynamic","73b3757eb128f67a8270bf4ba0dc53df6fe86f12b1194ee863de4b606c58f4e0",["exclude","XR367-pinned-identity"]],
+[69,1600,17,1600,39,"dynamic","73b3757eb128f67a8270bf4ba0dc53df6fe86f12b1194ee863de4b606c58f4e0",["exclude","XR367-pinned-identity"]],
 
-[69,1480,39,1480,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",["exclude","XR368-pinned-identity"]],
+[69,1601,39,1601,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",["exclude","XR368-pinned-identity"]],
 
-[69,1499,15,1499,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",["exclude","XR446-literal-module"]],
+[69,1620,15,1620,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",["exclude","XR446-literal-module"]],
 
-[69,1515,16,1515,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",["exclude","XR369-pinned-identity"]],
+[69,1636,16,1636,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",["exclude","XR369-pinned-identity"]],
 
-[69,1517,18,1517,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",["exclude","XR370-pinned-identity"]],
+[69,1638,18,1638,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",["exclude","XR370-pinned-identity"]],
 
-[69,1730,15,1730,70,"dynamic","c0bf19daa8fedf3ba2150c3e0e6eb3bf128be247d4142d8ae696e537d0e01d01",["exclude","XR447-literal-module"]],
+[69,1851,15,1851,70,"dynamic","c0bf19daa8fedf3ba2150c3e0e6eb3bf128be247d4142d8ae696e537d0e01d01",["exclude","XR447-literal-module"]],
 
-[69,1773,29,1773,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",["exclude","XR371-failure-metadata"]],
+[69,1894,29,1894,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",["exclude","XR371-failure-metadata"]],
 
-[69,1879,22,1879,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",["exclude","guard-scope-4a07b575ef79c3"]],
+[69,2000,22,2000,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",["exclude","guard-scope-4a07b575ef79c3"]],
 
 [70,38,7,38,42,"dynamic","f6934272bce56a1ce7cebbe4386aacc09a74f1141872418c5f0b7011111d7163",["exclude","XR373-pinned-identity"]],
 
@@ -3967,7 +4215,29 @@
 
 [83,371,17,371,37,"dynamic","2ace6731b7d7843145782d0751d63c73b90dd70cf4fcaab2018448c7758a2289",["exclude","atomic-stream-lookup"]],
 
-[84,234,15,234,56,"browser","73cfe637971840a22284b868ba45afd81287381995c5a0bc8e53047d18b2bbb1",["route","H5.7","share-eval"]]
+[84,234,15,234,56,"browser","73cfe637971840a22284b868ba45afd81287381995c5a0bc8e53047d18b2bbb1",["route","H5.7","share-eval"]],
+
+[85,105,14,105,33,"dynamic","f674475a5ca6278fd5816d3a55a3e7045597d712871610db4601fab703bcefa3",["exclude","diagnostic-state-_regular-105-14"]],
+
+[85,105,37,105,57,"dynamic","bbeb55e866fd8b831eebf8243ffa8429ebd76e06c9f36ae929a16bedd1b5d347",["exclude","diagnostic-state-_regular-105-37"]],
+
+[85,178,8,179,109,"process","76d84cf0cb2791d4148c88d3f1734b01e385ef19552810ddb47b129cf7ea150b",["route","N13.1","diagnostic-git-init"]],
+
+[85,396,19,396,34,"network","2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",["route","N13.2","diagnostic-tcp-listener"]],
+
+[85,399,15,399,64,"network","77092d9387eadc38a1771895f8133f5afa460db77c59d3b34e4f290874342681",["route","N13.2","diagnostic-unix-listener"]],
+
+[85,410,17,410,58,"network","e8dc6795e279df7340b3d9dac05d0df36945902b0a5f4621e2d04cbc1d253321",["route","N13.2","diagnostic-listener-control"]],
+
+[85,412,16,412,41,"browser","10754d068f2e2693feabd6bf843854a988f1ab60b4dd97736a463407811a7121",["route","N13.2","diagnostic-control-connect"]],
+
+[85,581,32,581,93,"appserver","7e1f4883cd035d8749df5e3b45e636c97a0a7e28ba1f32eca8eb1cd06e426d61",["route","N13.3","diagnostic-config-rpc"]],
+
+[85,604,20,604,84,"appserver","42b9115a22536a8707dd5cbcf66382727b823298e405515ee9611673dbba0661",["route","N13.3","diagnostic-command-rpc"]],
+
+[85,650,23,650,65,"dynamic","19bfabff3498696136f4302e644093b014d4bf7c38207862a0538474473101e4",["exclude","diagnostic-state-_terminate_owner-624"]],
+
+[85,698,25,698,44,"dynamic","7fbdb66bda3f6bb418283592016900ca0b5f3fdefcdfccd5e6f3b86e993618fc",["exclude","diagnostic-state-_resource_actions-672"]]
 ],
 
 "paths":[
@@ -4139,7 +4409,9 @@
 
 "scripts/cwo_core/atomic_spawn.py",
 
-"scripts/browser_share_consent.py"
+"scripts/browser_share_consent.py",
+
+"scripts/selected_native_containment.py"
 ],
 
 "schema":"bounded-primitives-v2"
@@ -4256,17 +4528,17 @@
 
 {"contract":"N8","effect_points":["q7"],"entrypoint":"pdeac217cc201","gate_limits":"Campaign-server admission belongs to a separate constructor. The helper campaign selector is conditional; actual action calls recheck it before the turn, with noncampaign False still an explicit manual selection limit.","gates":["p8702913c","p8eba12fd"],"id":"N8.7","ordering":"Campaign adapter omission defaults True: three holds before reservation and after callouts before supplied-server turn. Explicit noncampaign False constructors retain their own N1, preview, maintenance or offline admission contract.","review_gates":["p278c72ed","p1806c8d4"],"witnesses":["w7fa5c1b23787:zero-effect-refusal:w94802c6be994"]},
 
-{"contract":"N9","effect_points":["pf2ce57c6","R1A-634b2819cec520"],"entrypoint":"p284e30e2","id":"N9.1"},
+{"contract":"N9","effect_points":["pf2ce57c6","R1A-634b2819cec520"],"entrypoint":"p284e30e2","id":"N9.1","limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. Cleanup publication is separately observed: physical completion can precede the original immutable gate acknowledgement. The fixture spends the remainder of its original eight-second completion budget on that aggregate classification; timeout stays unknown with full charge. This inspection grants no command release, acceptance or native qualification. Physical-event, direct-close-event, two-closer-join and failed-result completion fences all share their original remaining eight-second budget and atomic gate-condition classification. Queued archive acknowledgement retains original output rejection/full charge. Only exact pre-bootstrap READY bypasses JSON parsing; late/malformed RPCs still fail, and cleanup preserves the primary plus owned workers.","trace_files":["scripts/cwo_core/atomic_spawn.py","scripts/cwo_core/ownership_producer.py","scripts/linux_owned_children.py","scripts/registered_finite_tool_calls.py","scripts/registered_n1_factory.py","scripts/registered_finite_input.py"],"witnesses":["wc71368b084bd:zero-effect-refusal:we0204d7ef9b4","we0204d7ef9b4:matched-positive","finite-input-owner-publication","registered-archive-ack"]},
 
 {"contract":"N9","effect_points":["pf2ce57c6"],"entrypoint":"p5daaf28e","gate_limits":"The finite command check belongs to the sibling command path. Isolated validation uses the actual containment launch N1 recheck before owned spawn; constructed factory/lifetime identity remains manual.","gates":["p86f0d37c"],"id":"N9.2","limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. The isolated validator invokes a constructed lifetime.launch before its internal admission. The selected containment launch binds the actual owned spawn; callback/lifetime identity and validator code remain manual trust.","review_gates":["p58da18d8","p0321fa67","pdb7180bd"]},
 
 {"contract":"N10","effect_points":["p2f26af99"],"entrypoint":"p2c6b777e","gate_limits":"RPC helper method selection, other RPC methods and wrapper admission are distinct entry/call paths. Only this path-local check establishes order; containment RPC allowlists and dynamic method dispatch remain manual limits.","gates":["p69caa0c0"],"id":"N10.1","review_gates":["pb59ce00d","p68b1dc16","pc5ee36b3"]},
 
-{"contract":"N10","entrypoint":"pc261a15f","gate_limits":"RPC helper method selection, other RPC methods and wrapper admission are distinct entry/call paths. Only this path-local check establishes order; containment RPC allowlists and dynamic method dispatch remain manual limits.","id":"N10.2","limits":"Under the closed N1 hold only initialize, initialized, thread/read, turn/interrupt, thread/archive, thread/delete, model/list and mcpServerStatus/list remain available. Every other exact method requires current N1 at the existing entry/wire/post-callout checks. Unknown caller-selected protocol is trusted only with N1 open; no universal zero-model claim. notify retains its original lack of write timeout. These exact containment/inspection request candidates invoke request before its method guard. They are not independent wire boundaries. The request wire write retains its direct _require_native_rpc check; allowed containment method selection and receiver identity remain manual.","review_gates":["pb59ce00d","pbef022fe","pc5ee36b3"]},
+{"contract":"N10","entrypoint":"pc261a15f","gate_limits":"RPC helper method selection, other RPC methods and wrapper admission are distinct entry/call paths. Only this path-local check establishes order; containment RPC allowlists and dynamic method dispatch remain manual limits.","id":"N10.2","limits":"Under the closed N1 hold only initialize, initialized, thread/read, turn/interrupt, thread/archive, thread/delete, model/list and mcpServerStatus/list remain available. Every other exact method requires current N1 at the existing entry/wire/post-callout checks. Unknown caller-selected protocol is trusted only with N1 open; no universal zero-model claim. Owned real-pipe frames are capped at 1 MiB; request writes and responses share the caller deadline, and notify writes have a one-second deadline. Backpressure releases the reader condition; partial-write failure faults the connection without replay. In-memory historical fixture streams retain synchronous writes. These exact containment/inspection request candidates invoke request before its method guard. They are not independent wire boundaries. The request wire write retains its direct _require_native_rpc check; allowed containment method selection and receiver identity remain manual.","review_gates":["pb59ce00d","pbef022fe","pc5ee36b3"]},
 
 {"contract":"N10","effect_points":["p09622b37"],"entrypoint":"pafec85b4","gate_limits":"RPC helper method selection, other RPC methods and wrapper admission are distinct entry/call paths. Only this path-local check establishes order; containment RPC allowlists and dynamic method dispatch remain manual limits.","gates":["p68b1dc16"],"id":"N10.3","review_gates":["pb59ce00d","pbef022fe","pc5ee36b3"]},
 
-{"contract":"N10","entrypoint":"pd7b0112b","gate_limits":"RPC helper method selection, other RPC methods and wrapper admission are distinct entry/call paths. Only this path-local check establishes order; containment RPC allowlists and dynamic method dispatch remain manual limits.","id":"N10.4","limits":"Under the closed N1 hold only initialize, initialized, thread/read, turn/interrupt, thread/archive, thread/delete, model/list and mcpServerStatus/list remain available. Every other exact method requires current N1 at the existing entry/wire/post-callout checks. Unknown caller-selected protocol is trusted only with N1 open; no universal zero-model claim. notify retains its original lack of write timeout. The thread wrapper invokes request before its internal method check; the actual request wire write is separately bound. Constructed receiver/method semantics remain manual.","review_gates":["pb59ce00d","p68b1dc16","pc5ee36b3"]},
+{"contract":"N10","entrypoint":"pd7b0112b","gate_limits":"RPC helper method selection, other RPC methods and wrapper admission are distinct entry/call paths. Only this path-local check establishes order; containment RPC allowlists and dynamic method dispatch remain manual limits.","id":"N10.4","limits":"Under the closed N1 hold only initialize, initialized, thread/read, turn/interrupt, thread/archive, thread/delete, model/list and mcpServerStatus/list remain available. Every other exact method requires current N1 at the existing entry/wire/post-callout checks. Unknown caller-selected protocol is trusted only with N1 open; no universal zero-model claim. Owned real-pipe frames are capped at 1 MiB; request writes and responses share the caller deadline, and notify writes have a one-second deadline. Backpressure releases the reader condition; partial-write failure faults the connection without replay. In-memory historical fixture streams retain synchronous writes. The thread wrapper invokes request before its internal method check; the actual request wire write is separately bound. Constructed receiver/method semantics remain manual.","review_gates":["pb59ce00d","p68b1dc16","pc5ee36b3"]},
 
 {"contract":"N10","effect_points":["pb6fbe804"],"entrypoint":"p12a588da","gate_limits":"RPC helper method selection, other RPC methods and wrapper admission are distinct entry/call paths. Only this path-local check establishes order; containment RPC allowlists and dynamic method dispatch remain manual limits.","gates":["pc5ee36b3"],"id":"N10.5","review_gates":["pb59ce00d","pbef022fe","p68b1dc16"]},
 
@@ -4408,7 +4680,29 @@
 
 {"admission":"manual-program","authority":"Trusted implementation caller selects executable, argv, workspace, stdio/inherited descriptors and original retention callback. This low-level helper grants no cleanup, native-route or production admission.","contract":"X2","effect":"One atomic native child birth and fixed same-PID pipe-bootstrap target exec","effect_points":["pb40beb11","p0e1dc309"],"entrypoint":"atomic-spawn-entry","gates":[],"id":"X2.3","limits":"Caller and selected libc/native ABI are trusted implementation boundaries, not an untrusted-code sandbox. Unsupported interfaces/kernel/lifecycle profiles refuse without Popen, late PID opening or PID-signal fallback. One retained handle identifies one lifetime; original controller supplies authority, not descendant containment. Symbol presence on old glibc is insufficient. Native creation and embedded exec are explicit effects; no static callback-chain proof or native admission is inferred. Fake native error schedules and separate bounded real child/pipe observations remain distinct.","manual_decisions":["M10","M12"],"ordering":"Qualify Linux x86-64/glibc2.40+ interface before native creation; configure child resources; obtain original pidfd atomically and transfer it to original custody. Pipe bootstrap uses fixed isolated source, child-only077/pass-fd setup and a bounded strict exec handshake.","trace_files":["scripts/cwo_core/atomic_spawn.py","scripts/linux_owned_children.py","scripts/registered_n1_factory.py"],"witnesses":["atomic-platform-refusal","atomic-native-failure","atomic-pipe-contract","atomic-no-late-open"]},
 
-{"authority":"Explicit in-process request plus opaque capability issued for the exact original controller/receipt. Registry fields, argv recognition, copied/serialized receipts and termination flags grant no authority.","contract":"X2","effect":"Consume one original retained-lifetime cleanup capability and invoke its pinned controller termination method","effect_points":["retained-cleanup-dispatch"],"entrypoint":"retained-cleanup-entry","gates":["p1faa10e0","p35e65a0f","p45a1cac0","p8427b928"],"id":"X2.4","limits":"Local guard proof covers original method dispatch; cleanup selection and controller/lifecycle internals remain source-bound reviewed calls. Registry is writable cooperative evidence with no hostile-writer protection. Missing/copied/foreign/protected or replaced target identities receive no signals; incomplete observations fail closed. Default/CLI receives no capability and remains signal-free. Replacement schedules use fake tables; bounded actual owned-child TERM/KILL and same-handle behavior are separately observed. No native admission, production availability or descendant containment is granted.","manual_decisions":["M10","M12"],"ordering":"Validate original capability/issuer, session/workspace context, finite request bounds and one-use binding before original termination dispatch. Original controller rechecks identity/age/ancestry and retains one descriptor for TERM/wait/explicit authorized KILL.","trace_files":["scripts/cleanup_stale_agents.py","scripts/cwo_core/ownership_producer.py","scripts/linux_owned_children.py","scripts/cwo_core/atomic_spawn.py"],"witnesses":["cleanup-retained-refusal","cleanup-retained-positive","cleanup-retained-escalation","cleanup-retained-replacement","cleanup-retained-real-child"]}
+{"authority":"Explicit in-process request plus opaque capability issued for the exact original controller/receipt. Registry fields, argv recognition, copied/serialized receipts and termination flags grant no authority.","contract":"X2","effect":"Consume one original retained-lifetime cleanup capability and invoke its pinned controller termination method","effect_points":["retained-cleanup-dispatch"],"entrypoint":"retained-cleanup-entry","gates":["p1faa10e0","p35e65a0f","p45a1cac0","p8427b928"],"id":"X2.4","limits":"Local guard proof covers original method dispatch; cleanup selection and controller/lifecycle internals remain source-bound reviewed calls. Registry is writable cooperative evidence with no hostile-writer protection. Missing/copied/foreign/protected or replaced target identities receive no signals; incomplete observations fail closed. Default/CLI receives no capability and remains signal-free. Replacement schedules use fake tables; bounded actual owned-child TERM/KILL and same-handle behavior are separately observed. No native admission, production availability or descendant containment is granted.","manual_decisions":["M10","M12"],"ordering":"Validate original capability/issuer, session/workspace context, finite request bounds and one-use binding before original termination dispatch. Original controller rechecks identity/age/ancestry and retains one descriptor for TERM/wait/explicit authorized KILL.","trace_files":["scripts/cleanup_stale_agents.py","scripts/cwo_core/ownership_producer.py","scripts/linux_owned_children.py","scripts/cwo_core/atomic_spawn.py"],"witnesses":["cleanup-retained-refusal","cleanup-retained-positive","cleanup-retained-escalation","cleanup-retained-replacement","cleanup-retained-real-child"]},
+
+{"admission":"manual-program","contract":"N10","effect_points":["transport-write-bytes-effect","transport-memory-writer-effect"],"entrypoint":"transport-write-payload","gate_limits":"The chunk method check is contextual: the trusted internal caller supplies the actual payload, method and owned descriptor. It confers no independent authentication or native admission for direct private-helper calls.","gates":[],"id":"N10.9","limits":"Trusted internal caller prerequisite: the original request, guarded request, notify or turn-start caller must hold the same transport condition and complete its current method/native checks before invoking this helper. The helper itself confers no native admission or standalone caller authority. It serializes one frame on the same owned stdin descriptor, caps encoded frames at 1 MiB, and uses the caller deadline for both write and response; notify has a one-second write deadline. EAGAIN releases the reader condition. Partial-write timeout/failure faults and terminates this connection; it never reconnects, resends or substitutes a request ID. In-memory historical writer fixtures have no real descriptor and retain their synchronous write/flush path; this is not a bounded-I/O claim for arbitrary injected Python streams. Before each real-pipe chunk, the actual method is rechecked against the current native hold. Hold loss after a partial prefix faults and terminates the same connection; ambiguous turn intent remains charged and unreplayed.","proof_applicability":"Manual review of the trusted internal caller and same-connection descriptor is required. Existing shared inspection witness supplies no independent effect authority for direct helper calls.","review_gates":["transport-chunk-method-guard"],"witnesses":["wc22edbe96b65:inspection-only"]},
+
+{"admission":"manual-program","contract":"N10","effect_points":["transport-denial-write-effect"],"entrypoint":"transport-deny-request","gates":[],"id":"N10.10","limits":"Trusted internal caller prerequisite: the sole raw stdout parser owns the same connection condition and parsed request. Known command/file requests receive decline; permission requests receive empty permissions; unsupported requests receive -32601 and malformed envelopes receive -32600. Replies preserve the integer/string ID when valid, grant no permissions and immediately fault/terminate the connection. The helper performs at most one atomic nonblocking write within PIPE_BUF and 4096 bytes. Full pipe, oversized reply or an incomplete outbound frame refuses without interleaving or waiting. It never activates approval execution, changes the never policy, reconnects, or authorizes an arbitrary caller/descriptor.","proof_applicability":"Manual refusal-only wire review, not native admission or selected-binary callback qualification. Calling this private helper independently does not confer authority.","witnesses":["wc22edbe96b65:inspection-only"]},
+
+{"contract":"N13","effect_points":["diagnostic-git-init","diagnostic-owned-spawn"],"entrypoint":"diagnostic-init","gates":[],"id":"N13.1","limits":"Only fixed disposable git init and original retained bwrap birth. Native diagnostic and outer-control identities remain separate; underlying exact argv/runtime is reviewed, not inferred from the constructor."},
+
+{"contract":"N13","effect_points":["diagnostic-tcp-listener","diagnostic-unix-listener","diagnostic-listener-control","diagnostic-control-connect"],"entrypoint":"diagnostic-listeners","gates":[],"id":"N13.2","limits":"Loopback TCP/Unix listeners and successful parent connections are synthetic positive controls. Embedded denial programme socket/process/file probes are source-bound fixed effects in the disposable namespace; no external endpoint or secret is supplied."},
+
+{"contract":"N13","effect_points":["diagnostic-config-rpc","diagnostic-command-rpc","diagnostic-wire-write"],"entrypoint":"diagnostic-send","gates":[],"id":"N13.3","limits":"Same epoch and issued fixed programmes; method/field/cwd/timeout/output/stdin checks before bounded nonblocking write. Full pipe closes without replay. Fixed config reads and command/exec are not model-tool qualification."},
+
+{"contract":"N13","effect_points":["diagnostic-bootstrap-exec","diagnostic-setup-gate","diagnostic-command-gate"],"entrypoint":"diagnostic-launch","gates":[],"id":"N13.4","limits":"Setup gate releases only fixed trusted Python bootstrap below fixed8s timeout; post-setup custody/birth/watchdog inspection precedes final byte and exact selected app-server/sandbox exec. Private direct code/argv callers are trusted, not independently admitted."},
+
+{"contract":"N13","effect_points":["diagnostic-retained-signal"],"entrypoint":"diagnostic-close","gates":[],"id":"N13.5","limits":"Original monitor termination and independently retained namespace/watchdog attempts all run despite failures. Exact-handle exit confirmation follows ESRCH; unresolved owner remains unresolved. Release all resources and preserve primary/secondary diagnostics; no raw PID lookup, accepted output or recovery authority. Readiness before controller kill shares one total eight-second spawn/handoff/live-heartbeat budget; original five-second death and stable-heartbeat checks remain. Mock ordering controls grant no OS credit; actual outer/native callers remain distinct and add no qualification.","witnesses":["diagnostic-no-authority","diagnostic-independent-cleanup","diagnostic-readiness-order"]},
+
+{"admission":"manual-program","contract":"N3","effect_points":["registered-setup-gate","registered-command-gate","registered-bootstrap-exec"],"entrypoint":"registered-post-setup-release","gate_limits":"Current factory checks are contextual original-caller prerequisites; direct private helper calls gain no native admission. Tool final release is governed by its existing finite-input fence, not this contextual point.","gates":[],"id":"N3.5","limits":"Exact role command was checked before owned birth. Options-only sealed FD and pinned validator bootstrap precede post-setup protected-root/birth checks; current factory admission before and after custody record precedes final stdin byte. Namespace setup may occur before later refusal; command stays gated.","manual_decisions":["M26"],"review_gates":["registered-final-effect-check"],"witnesses":["registered-post-setup-control","registered-post-setup-refusal"]},
+
+{"admission":"manual-program","contract":"N3","effect_points":["registered-namespace-handle","registered-retained-signal"],"entrypoint":"registered-stop-namespace","gates":[],"id":"N3.6","limits":"Only original-live-monitor PPid/start_ticks/fdinfo/PID1/namespace checks issue retained handle. Independently stop that namespace on monitor exception/unresolved status, preserve primary and full charge; only exact-handle exit observation resolves ESRCH. Namespace cleanup never upgrades monitor to contained/recorded; no raw PID fallback or native admission.","manual_decisions":["M26"],"witnesses":["registered-independent-cleanup"]},
+
+{"contract":"P1","effect_points":["publication-final-call","publication-actual-replace"],"entrypoint":"publication-apply","gate_limits":"Final current-target and retained-entry predicates are checked at the actual replace helper. Original authorization and callout ordering remain the trusted embedding prerequisite; direct helper arguments are not independently authenticated.","id":"P1.1","review_gates":["publication-final-target","publication-final-marks"]},
+
+{"contract":"P2","effect_points":["host-actual-replace"],"entrypoint":"host-save","gate_limits":"Original lock verification is a trusted local caller contract. Contextual points bind checks at actual state mutation sites without conferring external-writer exclusion or native authority.","id":"P2.1","review_gates":["host-lock-present","host-lock-identity"]}
 ],
 
 "schema":"compact-release-routes-v1",
@@ -4416,11 +4710,15 @@
 "scope":"Explicit supported routes plus exact bounded primitive dispositions and all-script bindings; not whole-program resolution or complete effect-trace closure.",
 
 "source_bindings":{
+"policy/qualification-target.yaml":{"mode":420,"sha256":"f4df9cd4ac628f8697973038d641f530b934a12b0fd443ca75b0e8cf1565344a","size":15591},
+
 "references/claims-register.md":{"mode":420,"sha256":"a8b585586aab88ac7b3c3f241edb4ab9cf2bbdcf2aa4aa454931e28a5e1ebb2d","size":5583},
 
 "references/cwo-system-prompt.md":{"mode":420,"sha256":"ea1aff306808c7c2a390011ad35e35d5eb7f65e31e568cd746dbd89704fd60dc","size":4391},
 
-"references/release-effect-routes.md":{"mode":420,"sha256":"68eb7c05051843aabf8894303203aabe3cc0a402345495ae16077a60d43c34e0","size":17073},
+"references/release-effect-routes.md":{"mode":420,"sha256":"f6329886944b2bd828db9f85027010ff2286e84a45cce46514732bd014422f99","size":17073},
+
+"schemas/qualification-target.schema.json":{"mode":420,"sha256":"51ec7692a44f579eccc51e12baf2aadad02b3c02657d3fd627ee8290315ad7a9","size":21333},
 
 "scripts/authorize_sol_breakfix.py":{"mode":420,"sha256":"cf4658fcd44f7adfd72bca8e59f1aca4c6156456b98f0bd8d322c5e8fed55077","size":3165},
 
@@ -4680,7 +4978,7 @@
 
 "scripts/cwo_core/qualification_target.py":{"mode":420,"sha256":"2a458c41cb155f8d22e5144ca27227da84ede1d296ed52d6fc12d6e0d194100f","size":2936},
 
-"scripts/cwo_core/release_effect_routes.py":{"mode":420,"sha256":"9f1087ce064f833fa06e0ed53051c84a49b169a7d3e510469ad1053812e93955","size":61380},
+"scripts/cwo_core/release_effect_routes.py":{"mode":420,"sha256":"9007f8feb95a0da02d47cfc4d01f7f746f0120bbb770b1aed9ea6aa79a8a4cbe","size":61365},
 
 "scripts/cwo_core/requirement_baseline.py":{"mode":420,"sha256":"135681130a0046db14dc84fcd7c73a8f61fd1c8001b7cc467828565fca693420","size":20496},
 
@@ -4718,7 +5016,7 @@
 
 "scripts/cwo_core/supervision/transport/__init__.py":{"mode":420,"sha256":"a65e521ee9e997c481559de0e91962f8a0c19d6ba434c8525b3ee8ee8a97190d","size":445},
 
-"scripts/cwo_core/supervision/transport/app_server.py":{"mode":420,"sha256":"264522cef555c0682227edf927ec1ab57dbee8776d8e360722c3d2e8fd874566","size":126084},
+"scripts/cwo_core/supervision/transport/app_server.py":{"mode":420,"sha256":"489f33ed56769df517616e1919288494f38fe7a3ce20e481e7065d7e15b79c6c","size":133148},
 
 "scripts/cwo_core/supervision/transport/errors.py":{"mode":420,"sha256":"066b654ae6e7e8257801dd0f6e3957410671a207c54009a9a885523a8ebd75b9","size":1946},
 
@@ -4770,7 +5068,7 @@
 
 "scripts/generate_site.py":{"mode":493,"sha256":"fc0d9241f96332ef06bac3dc36f6fee473557cf9d91daa47b8b84e05b2b77fae","size":8424},
 
-"scripts/guarded_artifact_target.py":{"mode":420,"sha256":"51418e0d9dcf9e5ab2a7ae6e3c7fee1820e73bd6bdd4935e507ba132e8483802","size":31183},
+"scripts/guarded_artifact_target.py":{"mode":420,"sha256":"7780fc04a6eae8ffc437681ed1de877491ec901d2500b94df0c92a3725699e1d","size":32627},
 
 "scripts/guide_diagrams.py":{"mode":420,"sha256":"d5f1240f7d3347b9c81437878002df10cd6801569a2cc852a4f267bc361af21a","size":18037},
 
@@ -4800,7 +5098,7 @@
 
 "scripts/offline_fake_artifact_promotion.py":{"mode":420,"sha256":"cb211328fb54cd56054422dfe1fdafca446277665354ebef2669fcef36b1351c","size":38543},
 
-"scripts/offline_n1_host.py":{"mode":420,"sha256":"a288e99caf280ed414126d32dc88f063b92726e9b85fa1b21292b61d5691fb24","size":32972},
+"scripts/offline_n1_host.py":{"mode":420,"sha256":"bd7f9bc36eb453bdfa56c5dd2969b8f084a7d0b83ba2476faf00935d287769c0","size":33978},
 
 "scripts/offline_native_adjudication.py":{"mode":420,"sha256":"261f83c85996dfa831a2842e75ffecef2b0d831eadf7bc143f1203bbeda6caaa","size":25338},
 
@@ -4864,7 +5162,7 @@
 
 "scripts/registered_host_root_boundary.py":{"mode":420,"sha256":"615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836","size":1303},
 
-"scripts/registered_n1_factory.py":{"mode":420,"sha256":"cb43f1f1c7acca6411eb106e339b436978a57ae7c1c1c7f233ff9929a6aaa4b6","size":99721},
+"scripts/registered_n1_factory.py":{"mode":420,"sha256":"b8fdc3c7c7d1a861ff26daf648ae1c1b11d4fdf687666cc274be7f1cc7cef1a1","size":105259},
 
 "scripts/registered_n1_workflow.py":{"mode":420,"sha256":"79edef49aa76cd2108ad57e56f07b57d2bb923f468d7d6c1ec2dab91bf3b72a5","size":29921},
 
@@ -4905,6 +5203,8 @@
 "scripts/run_parallel_unittest.py":{"mode":493,"sha256":"380ef9e2527494c9ba38e6505fb5e423fe425803ed8c920d90a709c6f4b13ef5","size":27111},
 
 "scripts/scaffold_workgraph.py":{"mode":493,"sha256":"7236cba0c029355d39db7eec48bb550eed3474c2f26a09114e9fee1db727ecee","size":77572},
+
+"scripts/selected_native_containment.py":{"mode":420,"sha256":"d8a7509f45696d5808eaef82660a6c6d58b4797e355b780a8e0d61d36ff24c44","size":39579},
 
 "scripts/setup_workspace_database.py":{"mode":420,"sha256":"f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd","size":725},
 
@@ -4950,7 +5250,7 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"43f546a8a761beff5eb826c939c255d3311e8c8a853589f83ab44b76f6742913","size":125291},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"cac2ffc439d78723434e6c7ffb3b0035ce532d65a628d8f2ceb50117042932e5","size":127256},
 
 "tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"eaacebfb44bcb28e0a3e98974c3db9b39ab75baaba9b6bd682a919f98b2bf11f","size":1939},
 
@@ -4996,9 +5296,11 @@
 
 "tests/test_f1_production_closure_guards.py":{"mode":420,"sha256":"7b1db301c63270a7ac4aef07b9be91739ccb27b3083fd8224b32e3593c5f291d","size":14408},
 
-"tests/test_f5_native_live_holds.py":{"mode":420,"sha256":"f47fbdf0897349fb6ae7705a749b82106b82380bf580c278d830cb77e12060e4","size":27494},
+"tests/test_f5_native_live_holds.py":{"mode":420,"sha256":"4c6eaa5ea20de8a047b28dc851dff966341d827713d87b555f61925a308d6f89","size":27564},
 
 "tests/test_first_project.py":{"mode":420,"sha256":"8c834f22ee213349cd540aa2bb6ad388aacf415789555313d8ebb5c47b734913","size":2675},
+
+"tests/test_guarded_artifact_target.py":{"mode":420,"sha256":"985237fad5af446ac0f58960b2e290a9794857b086724158d8dab5a873e23a9f","size":53539},
 
 "tests/test_host_acceptance.py":{"mode":420,"sha256":"22f206f9e2abcce08b4b51017a3a10728aecd6efb9473f6342c3a3f457555d20","size":21891},
 
@@ -5022,6 +5324,8 @@
 
 "tests/test_native_pool_transaction.py":{"mode":420,"sha256":"9bf9e8ae4ec10d184320392fbc2810e784353fdffa33bebfb72a99994f26f11a","size":89635},
 
+"tests/test_offline_n1_host.py":{"mode":420,"sha256":"64a4f905653e22682ec732aa76ad6bf0c0159ea893e8e0c27fd7c662f40794b3","size":34521},
+
 "tests/test_offline_profile_input.py":{"mode":420,"sha256":"c87cb4b7ad0e04b0547636e50e80e482ccbeb787e23bac597b9b5412ba5968ed","size":34065},
 
 "tests/test_ownership_producer.py":{"mode":420,"sha256":"14d7a0ec68767275fd1e96daca77e524bf0dee174e108fe033c0dcb8f8c81c60","size":57956},
@@ -5038,9 +5342,15 @@
 
 "tests/test_registered_app_server_transport_f2.py":{"mode":420,"sha256":"ff436963e4d601a4276d0bc0acf44386b05f347745876099cff17b06e8b3e851","size":13049},
 
-"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"634f8ca37806218017e542add9c8af2b9c7c580757789fdf3cbccee653393ca8","size":187550},
+"tests/test_registered_controlled_output_schedule.py":{"mode":420,"sha256":"2cdd3d39ead6c089a9aa1aa594f8817c62fadda752e5ef60da614ca034d7139d","size":7844},
 
-"tests/test_release_effect_routes.py":{"mode":420,"sha256":"6ab2a0b96ee93c809701528424a8cc92a9803e0fa714fd05d95ea614e0bb573a","size":84786},
+"tests/test_registered_finite_input.py":{"mode":420,"sha256":"17daaad42944ffae00c75e91315afae6ea20e62eb70ed6416fa3fcc8144c63e3","size":124379},
+
+"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"7583b9c1f0e00c07faae16d741977df428a7a4a17683ccd10271bf3997154c62","size":188923},
+
+"tests/test_registered_n1_factory.py":{"mode":420,"sha256":"ec25cccfec5bff19b7623a08c1bae2727044f31dddca0bcfcdd9bda74d1ed17a","size":104846},
+
+"tests/test_release_effect_routes.py":{"mode":420,"sha256":"88051a406760c06f4d1641bf7eee8465bab5159d6db05b19ab255fbfcbd0d42c","size":84850},
 
 "tests/test_release_filesystem.py":{"mode":420,"sha256":"5fcb7a33f91ad28f1041c1498a61d47f22a67d4b55027f786b5c1df64584e212","size":16860},
 
@@ -5054,11 +5364,13 @@
 
 "tests/test_scaffold_dependency_validation.py":{"mode":420,"sha256":"56f647152b9bd65acfcbb014a04263203a1dd350082e61a35af9b0650c4e36dd","size":32651},
 
+"tests/test_selected_native_containment.py":{"mode":420,"sha256":"2503146117839a651eb5611bd478fb39102f9fd3efbdb79b1066ff069c405c50","size":31358},
+
 "tests/test_turn_observations.py":{"mode":420,"sha256":"fcbf803eb912648bf787ef485d1a147b867a46849940561a3f960fda04186d2e","size":17380},
 
 "tests/test_validate_repository.py":{"mode":420,"sha256":"c690c6028c23e2709d92c473cbe369ae6cecee2ff81edd9caf98652921d296ea","size":30182},
 
-"tests/test_w20_affected_contract_w13.py":{"mode":420,"sha256":"e9b183ca86eeb6388898ed971a5a5d07c877e42728dd7816b5e3dc8a4efc41c7","size":86525},
+"tests/test_w20_affected_contract_w13.py":{"mode":420,"sha256":"2b667088928f442b6322017ea4cded5d4701d14f01fc5a2e409344565d638d4d","size":90632},
 
 "tests/test_workflow_adjudication.py":{"mode":420,"sha256":"43d1617e2670b625ffdc3c4194d41a44d271de34f3078370a00d43ba94b730d0","size":37914},
 
@@ -5152,7 +5464,31 @@
 
 "closure-store-separation":{"assertion":"self.assertEqual(process.calls, [])","body":"closure-store-separation-body","kind":"zero-effect-refusal","positive":"self.assertTrue(closure.execute_qualified_completed(host)['completed'])","support":["closure-host-fixture"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage"},
 
+"diagnostic-fixed-command":{"assertion":"self.assertFalse(report['accepted_output'])","body":"diagnostic-fixed-command-body","kind":"operator-contract","positive":"self.assertEqual(report['observed']['command'], 'command-ok')","support":[],"test_id":"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec"},
+
+"diagnostic-independent-cleanup":{"assertion":"self.assertIs(caught.exception, primary)","body":"diagnostic-independent-cleanup-body","kind":"operator-contract","positive":"self.assertTrue(probe._cleanup['namespace_exited'])","support":[],"test_id":"tests.test_selected_native_containment.DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error"},
+
+"diagnostic-input-boundary":{"assertion":"probe.poll('injected input')","body":"diagnostic-input-boundary-body","kind":"operator-contract","positive":"self.assertIn('poll-ok', result['stdout'])","support":[],"test_id":"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output"},
+
+"diagnostic-no-authority":{"assertion":"self.assertFalse(result['execution_authorized'])","body":"diagnostic-no-authority-body","kind":"operator-contract","positive":"self.assertEqual(result['profile_status'], 'selected-unqualified')","support":[],"test_id":"tests.test_selected_native_containment.SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority"},
+
+"diagnostic-readiness-order":{"assertion":"process.kill.assert_not_called()","body":"diagnostic-readiness-order-body","kind":"inspection-only","positive":"self.assertGreaterEqual(state['kill_sizes'][0], 2)","support":["diagnostic-readiness-budget-body","diagnostic-readiness-exit-body","diagnostic-controller-death-helper","diagnostic-live-readiness-helper"],"test_id":"tests.test_selected_native_containment.ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death"},
+
+"finite-input-owner-publication":{"assertion":"self.assertEqual(pending, ['cleanup-pending'])","body":"finite-input-owner-publication-body","kind":"inspection-only","positive":"self.assertEqual(gate.cleanup_phase(), 'unknown' if time_out else 'contained')","support":["finite-input-peer-closer-helper","finite-input-publication-wait-helper","finite-input-peer-contained-body","finite-input-peer-timeout-body","finite-input-cleanup-classification","finite-input-cleanup-publication","finite-input-direct-publication-body","finite-input-direct-owner-body","finite-input-two-closer-body","finite-input-denied-publication-body","finite-input-denied-schedule"],"test_id":"tests.test_registered_finite_input.FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication"},
+
+"host-lock-replacement":{"assertion":"self.assertFalse((host.state / \"artifact\").exists())","body":"host-lock-replacement-body","kind":"operator-contract","positive":"self.assertEqual(report[\"status\"], \"artifact-ready\", report[\"error\"])","support":["host-original-control"],"test_id":"tests.test_offline_n1_host.OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent"},
+
 "native-current-delivery":{"assertion":"self.assertEqual(native.fixture.spawned, [])","body":"native-delivery-during-refusal","kind":"zero-effect-refusal","positive":"self.assertTrue(result['execution_complete'])","support":["native-delivery-before-refusal","native-delivery-downgrade-refusal","native-delivery-positive","native-delivery-helper","p8ef10176"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_native_consumer_refuses_delivery_edit_during_original_evidence_consumption"},
+
+"publication-late-drift":{"assertion":"self.assert_late_drift_refused(lambda: destination.write_bytes(concurrent))","body":"publication-late-drift-body","kind":"operator-contract","positive":"self.assertEqual(result[\"new_invocation\"][\"replacements\"], 1)","support":["publication-original-control"],"test_id":"tests.test_guarded_artifact_target.GuardedArtifactTargetTests.test_late_dirty_manifest_drift_preserves_concurrent_target_bytes"},
+
+"registered-archive-ack":{"assertion":"self.assertEqual(self.fixture.attempt(case)['outcome'], 'failed')","body":"archive-ack-schedule-body","kind":"inspection-only","positive":"self.assertIn('blocking-archive-observation', observations)","support":["archive-frame-helper","archive-cleanup-helper","archive-bootstrap-control","archive-primary-control","archive-original-rejection"],"test_id":"tests.test_registered_controlled_output_schedule.ControlledOutputScheduleTests.test_queued_archive_response_preserves_selected_original_rejection"},
+
+"registered-independent-cleanup":{"assertion":"self.assert_real_namespace_stopped_after_monitor_failure(raises=True)","body":"registered-independent-cleanup-body","kind":"operator-contract","positive":"self.assertFalse(lifetime.contained or lifetime.termination_recorded)","support":["registered-monitor-cleanup-support"],"test_id":"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises"},
+
+"registered-post-setup-control":{"assertion":"self.assertTrue(lifetime.contained and lifetime.termination_recorded)","body":"registered-post-setup-control-body","kind":"operator-contract","positive":"self.assertEqual((lifetime.factory.host.worker / 'result.txt').read_bytes(), b'useful')","support":[],"test_id":"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command"},
+
+"registered-post-setup-refusal":{"assertion":"self.assertFalse((lifetime.factory.host.worker / 'result.txt').exists())","body":"registered-post-setup-refusal-body","kind":"operator-contract","positive":"self.assertTrue(lifetime.contained and lifetime.termination_recorded)","support":[],"test_id":"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command"},
 
 "registered-worker-shutdown":{"assertion":"self.assertTrue(any(worker.is_alive() for worker, _ in factory.server._worker_snapshot()))","body":"shutdown-pending-writer-body","kind":"inspection-only","positive":"self.assertTrue(all(not worker.is_alive() for worker, _ in factory.server._worker_snapshot()))","support":["shutdown-original-writer-body","shutdown-poll-schedule","shutdown-record-hook","shutdown-late-cleanup-body","shutdown-final-snapshot-body","shutdown-cleanup-metadata-body"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains"},
 

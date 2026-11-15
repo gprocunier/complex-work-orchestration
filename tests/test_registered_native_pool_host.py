@@ -20,11 +20,43 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tests')]
 import registered_native_pool_host as P  # noqa: E402
-import test_registered_n1_workflow as F  # noqa: E402
-import test_registered_n1_factory as N  # noqa: E402
+from tests import test_registered_n1_workflow as F  # noqa: E402
+from tests import test_registered_n1_factory as N  # noqa: E402
 import run_admitted_native_pool_transaction as CLI  # noqa: E402
 import test_native_pool_transaction as T  # noqa: E402
 from test_run_admitted_native_pool_transaction import write_adapter  # noqa: E402
+
+
+class PoolFixtureIdentityTests(unittest.TestCase):
+    def test_pool_deferred_boundary_targets_the_actual_workflow_factory_class(self):
+        self.assertIs(N, F.F)
+        self.assertIs(N.FactoryTests, F.F.FactoryTests)
+
+    def test_profile_retry_and_guard_consumers_share_the_same_producers(self):
+        from tests import test_f4_factory_pool_guards as guards
+        from tests import test_registered_native_pool_host as canonical
+        from tests import test_registered_native_pool_profiles as profiles
+        from tests import test_registered_native_pool_retry as retry
+        self.assertIs(guards.N, N)
+        self.assertIs(guards.pools, canonical)
+        self.assertIs(profiles.F, canonical)
+        self.assertIs(profiles.tools.family, N)
+        self.assertIs(retry.F, canonical)
+        self.assertIs(retry._PIPE_BACKEND, N._PIPE_BACKEND)
+
+    def test_canonical_cohort_defers_every_actual_workflow_boundary(self):
+        cohort = PoolTests('runTest')
+        cohort._outcome = self._outcome
+        self.addCleanup(N.cleanup_helper, self, cohort)
+        cohort.cohort(2, archive_schedule='settled', shared_source=True)
+        for member in cohort.fixtures:
+            self.assertIs(type(member.fixture), N.FactoryTests)
+            self.assertFalse(hasattr(member.fixture, 'spawned'))
+            N.assert_no_native_births(self, member.fixture)
+            self.assertIsNone(member.workflow.factory)
+        report = cohort.host.run(cohort.config.request('validate-only'))
+        self.assertIs(report['authority_validated'], True)
+        self.assertFalse((cohort.ledger.root / P.R.admission.ledger_api.LEDGER_FILE).exists())
 
 
 class PoolTests(unittest.TestCase):
@@ -72,7 +104,7 @@ class PoolTests(unittest.TestCase):
             fixture.workflow = workflow
         active = set()
         original = P.R._Containment.launch
-        backend = P.R._PipeBackend
+        backend = N._PIPE_BACKEND
         def launch(lifetime, *args, **kwargs):
             fixture = next(f for f in self.fixtures if f.case.host is lifetime.factory.host)
             if id(fixture) not in active:
@@ -170,6 +202,7 @@ class PoolTests(unittest.TestCase):
         self.assertEqual(P.W.V.consume_validated(*artifact), (('result.txt', N.fixtures.host_fixtures.OUTPUT),))
         self.assertFalse(first.case.host.target.joinpath('result.txt').exists())
         self.assertFalse(hasattr(self.fixtures[2].fixture, 'spawned'))
+        N.assert_no_native_births(self, self.fixtures[2].fixture)
         before = copy.deepcopy(self.attempts())
         with self.assertRaisesRegex(ValueError, 'never redispatch'):
             self.host.run(self.config.request('execute'))
@@ -235,6 +268,7 @@ class PoolTests(unittest.TestCase):
         self.assertEqual(self.host.result['states'], ['validated', 'failed', 'held'])
         self.assertEqual(len(self.fixtures[0].fixture.spawned), 2)
         self.assertFalse(hasattr(self.fixtures[1].fixture, 'spawned'))
+        N.assert_no_native_births(self, self.fixtures[1].fixture)
         self.assert_accounting(1)
         # Drift refuses authenticated status; custody already issued to worker 0
         # remains independently verifiable, never erased to repair the pool.
@@ -269,6 +303,8 @@ class PoolTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.host.run(self.config.request('execute'))
         self.assertFalse(any(hasattr(f.fixture, 'spawned') for f in self.fixtures))
+        for fixture in self.fixtures:
+            N.assert_no_native_births(self, fixture.fixture)
         self.assertTrue(self.host.status()['reconciliation_required'])
         self.assertEqual(len(self.attempts()), 1)
 
@@ -303,6 +339,7 @@ class PoolTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'never redispatch'):
             P.RegisteredNativePoolHost(self.config).run(self.config.request('execute'))
         self.assertFalse(hasattr(self.fixtures[0].fixture, 'spawned'))
+        N.assert_no_native_births(self, self.fixtures[0].fixture)
 
     def test_r4_first_and_last_validation_failures_preserve_other_lifecycle_evidence(self):
         """Uncovered failure positions; middle is the original partial join above."""
@@ -321,6 +358,7 @@ class PoolTests(unittest.TestCase):
                     self.assertTrue(P.W.V.consume_validated(*factory.issued_artifact()))
                 for sibling in self.fixtures[index + 1:]:
                     self.assertFalse(hasattr(sibling.fixture, 'spawned'))
+                    N.assert_no_native_births(self, sibling.fixture)
                 failed = self.fixtures[index]
                 self.assertTrue(failed.workflow.factory.server.lifetime.termination['child_reaped'])
                 self.assertIsNone(failed.workflow.factory.token)
@@ -343,6 +381,8 @@ class PoolTests(unittest.TestCase):
                     self.execute()
                 self.assertEqual(peer.read_bytes(), before)
                 self.assertFalse(any(hasattr(f.fixture, 'spawned') for f in self.fixtures))
+                for fixture in self.fixtures:
+                    N.assert_no_native_births(self, fixture.fixture)
                 self.assertFalse(self.ledger.root.exists())
                 self.assertFalse(list(self.state.iterdir()))
                 self.assertTrue(all(not f.settings['state_store'].read_state()['operations'] for f in self.fixtures))
@@ -367,6 +407,8 @@ class PoolTests(unittest.TestCase):
                 self.assertFalse(self.ledger.root.exists())
                 self.assertFalse(list(self.state.iterdir()))
                 self.assertFalse(any(hasattr(f.fixture, 'spawned') for f in self.fixtures))
+                for fixture in self.fixtures:
+                    N.assert_no_native_births(self, fixture.fixture)
                 self.doCleanups()
 
     def test_review_v1_git_ref_grammar_preserves_original_n1_positive_path(self):

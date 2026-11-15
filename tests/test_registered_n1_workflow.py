@@ -19,7 +19,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tests')]
 import registered_n1_workflow as W  # noqa: E402
-import test_registered_n1_factory as F  # noqa: E402
+from tests import test_registered_n1_factory as F  # noqa: E402
 import tests.test_workflow_adjudication as E  # noqa: E402
 import tests.test_registered_finite_tool_wiring as tools  # noqa: E402
 
@@ -796,7 +796,10 @@ class WorkflowTests(unittest.TestCase):
         with patch.object(W.R.os, 'write', wraps=W.R.os.write) as writes:
             with self.assertRaises(W.boundary.HostRootBoundaryError):
                 self.workflow.run()
-        self.assertNotIn(b'1', [call.args[1] for call in writes.call_args_list])
+        # Filesystem setup may release the fixed trusted bootstrap. The
+        # original worker command's separate stdin gate must remain closed.
+        self.assertEqual([call.args[1] for call in writes.call_args_list].count(b'1'), 1)
+        self.assertFalse(self.fixture.spawned[0].bootstrap_released.is_set())
         self.assertNotIn('turn/start', self.fixture.spawned[0].methods)
         self.assertIsNone(self.workflow.factory.token)
         self.assertFalse((self.case.host.state / 'artifact').exists())

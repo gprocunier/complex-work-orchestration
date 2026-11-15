@@ -33,9 +33,9 @@ The selected configuration is the native worker's `workspace-write` sandbox,
 that the worker writes only its workspace, cannot change host records, policy
 or receipts, and cannot retry or escalate without separate approval. These are
 requirements for the selected target; effective configuration and enforcement
-remain **unknown**. The profile is selected and unqualified. **Confidential**
-operation is **unsupported**: Codex can read the full disk, and CWO supplies no
-confidentiality sandbox of its own.
+remain **unknown** for the full native worker route. The profile is selected
+and unqualified. **Confidential** operation is **unsupported**: diagnostic read
+denials do not establish a fully qualified native worker confidentiality boundary.
 
 On 2026-11-14, no-model local observations confirmed the executable version,
 executable hash and package-manifest hash. Stable and experimental schema
@@ -58,6 +58,52 @@ hash and selected configuration descriptor. A different hash, profile or
 configuration refuses. Repository validation uses the same resolver. These
 checks return metadata and grant no execution authority; existing live holds
 remain in force. Historical pins and their default lookup behavior are retained.
+
+## Offline boundary diagnostics
+
+`scripts/selected_native_containment.py` exercises a fixed catalogue through the
+selected executable's app-server `command/exec` API. It creates an independent
+disposable repository, reads the effective configuration, and omits per-command
+`sandboxPolicy` and `permissionProfile` overrides. It starts no thread, model
+turn or live route, accepts no worker output and cannot promote an artifact.
+
+With the exact selected package supplied, current tests observe a useful shell
+command and `git apply`, followed by prohibited effects through that same runner.
+The app-server reports `workspace-write`, `never`, network off, an isolated user
+configuration, an empty system configuration layer and no managed requirements.
+Server diagnostic output during admission refuses the diagnostic. Empty staged
+rules and these readbacks do not prove every runtime grant, cache, hook or helper
+path absent.
+
+| Property | Disposition and scope |
+| --- | --- |
+| Filesystem and custody | Enforced in the fixed diagnostic and observed through real commands: controller records, host imports, policy and adapter paths are outside the worker mount view; executable, configuration, rules and independent Git metadata resist writes. A trusted gate checks effective mounts after filesystem setup and before the native command starts. Identity digests establish identity only. |
+| Network and process access | The same command cannot reach matched live host TCP/Unix listeners, read host process memory, signal host processes or debug them. PID, user, mount and network namespace separation is observed independently. |
+| Inherited access | A synthetic credential environment value and an inheritable descriptor are excluded. Host control sockets remain inaccessible. These bounded controls do not inventory every possible helper or credential source. |
+| Finite input | The fixed command uses `streamStdin: false`. Nonempty polling refuses before RPC delivery; an empty poll observes useful output for the original connection-scoped process. Native model-tool `write_stdin` remains unknown. |
+| Lifecycle | Original launcher and verified namespace pidfds bind each epoch. Actual controller death, detached descendants, watchdog death and deadline expiry stop the tested namespace. Restart uses a fresh owner; a stale receipt cannot terminate its successor. Forced kernel PID reuse and production recovery remain unperformed. |
+| Instructions | No prompt instruction establishes any diagnostic denial or custody property. Model compliance is not used as enforcement evidence. |
+| Required unknowns | Model-turn builtin tools, their stdin and callbacks, ordinary retry versus approved escalation, complete effective grants/rules/helpers, forced PID reuse, full dependency admission and production recovery keep the selected profile unqualified. |
+| Unsupported operation | Confidential workloads remain unsupported. The original named root-deny candidate is a different, unselected configuration and fails configuration parsing as described below. |
+
+The original named candidate was assessed separately with `untrusted` approvals,
+the `user` reviewer, root deny, minimal runtime reads, isolated workspace writes
+and network off. The selected executable rejected `approval_policy="untrusted"`
+before profile compilation. No root-deny transformation, fallback behavior or
+named enforcement follows from that refusal. A different approval setting would
+be another configuration identity; it is not substituted for either candidate.
+
+Supply the standalone package explicitly to run the fixed diagnostics:
+
+```sh
+python scripts/selected_native_containment.py --package "$QUALIFICATION_PACKAGE"
+CWO_QUALIFICATION_PACKAGE="$QUALIFICATION_PACKAGE" python -m unittest tests.test_selected_native_containment -q
+```
+
+Tests without that package still exercise the actual outer OS mechanisms, but
+give those controls no selected-executable credit. The machine-readable target
+policy separates the original dated identity/schema observations from these
+scoped diagnostics. Both retain `execution_authorized: false`.
 
 ## Classification
 

@@ -41,6 +41,9 @@ class PipeLines:
     def readline(self, size=-1):
         return self.reader.readline(size)
 
+    def fileno(self):
+        return self.reader.fileno()
+
     def close(self):
         self.writer.close()
         self.reader.close()
@@ -58,6 +61,7 @@ class RegisteredRequestsTests(unittest.TestCase):
         case = fixture.case(**changes)
         def attach():
             stream = PipeLines()
+            stream.put(runtime._READY)
             fixture.spawned[0].stdout = stream
             self.addCleanup(stream.close)
         case.on_startup = attach

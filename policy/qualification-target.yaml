@@ -34,7 +34,7 @@
     },
     "confidential": {
       "status": "unsupported",
-      "reason": "Codex can read the full disk; CWO supplies no confidentiality sandbox of its own."
+      "reason": "No fully qualified native worker confidentiality boundary is available. Diagnostic read denials do not authorize confidential workloads."
     }
   },
   "observations": {
@@ -104,21 +104,21 @@
     },
     "effective-configuration": {
       "classification": "unknown",
-      "finding": "The selected worker effective policy, managed constraints, rule-loading paths, inherited grants, approval caches, hooks and helper-readable paths have not been inventoried for this target. Empty local rules do not establish empty effective policy.",
+      "finding": "Fixed isolated configuration reads and null managed requirements are recorded separately. Full native worker effective rules, grants, caches, hooks and helper-readable paths remain uninventoried; staged empty rules do not prove their runtime absence.",
       "evidence": [
         "references/codex-protocol-capability-matrix.md"
       ]
     },
     "workspace-write-enforcement": {
       "classification": "unknown",
-      "finding": "Writing only the worker workspace and protecting host records, policy and receipts require current OS boundary tests; schema generation does not test them.",
+      "finding": "Fixed no-model command/exec filesystem denials are recorded separately. Full native model-tool workspace confinement, control-plane custody and artifact validation/promotion remain unqualified.",
       "evidence": [
         "references/codex-protocol-capability-matrix.md"
       ]
     },
     "network-enforcement": {
       "classification": "unknown",
-      "finding": "The selected configuration denies network. No current worker network enforcement test is claimed by these no-model identity observations.",
+      "finding": "Fixed no-model command/exec denied access to live host listeners under the observed outer boundary. Full native model-tool and retry/escalation network restrictions remain unqualified.",
       "evidence": [
         "references/codex-protocol-capability-matrix.md"
       ]
@@ -139,7 +139,7 @@
     },
     "named-permission-profile": {
       "classification": "unknown",
-      "finding": "The experimental named selector is present in the pinned schema but is not selected by this legacy workspace-write configuration. Named profile compilation, effective roots and fallback behavior are unqualified.",
+      "finding": "The named selector exists in the schema and is not selected by legacy workspace-write. The original distinct untrusted/user candidate is runtime-refused as recorded separately; named compilation with another approval policy, effective roots and fallback behavior are unqualified.",
       "evidence": [
         "tests/fixtures/codex-protocol/0.163.0/experimental/v2/ThreadStartParams.json",
         "references/codex-protocol-capability-matrix.md"
@@ -161,7 +161,7 @@
     },
     "confidential-reads": {
       "classification": "unsupported",
-      "finding": "Codex can read the full disk; CWO supplies no confidentiality sandbox of its own. This target makes no confidential-operation claim.",
+      "finding": "Confidential workloads are unsupported. The fixed disposable diagnostics deny selected host-path reads, but do not qualify a complete native worker confidentiality boundary or authorize handling secrets.",
       "evidence": [
         "references/claims-register.md"
       ]
@@ -173,6 +173,113 @@
         "scripts/cwo_core/codex_hook_enforcement.py",
         "references/codex-protocol-capability-matrix.md"
       ]
+    },
+    "offline-command-patch": {
+      "classification": "os-observed",
+      "finding": "The exact selected app-server completed a useful shell command and git apply in one independent disposable repository through command/exec, after configuration reads. sandboxPolicy and permissionProfile overrides were omitted; no thread or model turn was created.",
+      "evidence": [
+        "scripts/selected_native_containment.py",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec"
+      ]
+    },
+    "offline-config-admission": {
+      "classification": "os-observed",
+      "finding": "initialize, config/read and configRequirements/read observed workspace-write, never approvals, network off, the isolated user config, an empty system layer and null managed requirements. The diagnostic rejects server stderr during admission. This does not prove absence of every runtime hook, grant, cache or helper path.",
+      "evidence": [
+        "scripts/selected_native_containment.py",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_appserver_config_reads_without_a_thread_or_model_turn"
+      ]
+    },
+    "offline-filesystem-custody": {
+      "classification": "os-observed",
+      "finding": "The post-setup trusted gate independently checked namespace mount roots before native execution. Actual command/exec denied access to synthetic controller records, host imports, adapter and policy paths, inherited file descriptors, outside writes, read-only executable/configuration/rules and Git metadata. Credential environment and host control sockets were excluded. These are scoped denials, not digest-based authentication or a confidential profile.",
+      "evidence": [
+        "scripts/selected_native_containment.py",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_native_denials_and_inherited_descriptor_control"
+      ]
+    },
+    "offline-network-process": {
+      "classification": "os-observed",
+      "finding": "The same actual command/exec denied access to live host TCP and Unix listeners, host process memory, signals and debugger reads. Parent-side listeners were live positive controls; isolated PID, user, mount and network namespaces were observed through procfs. Arbitrary native model-tool effects remain unperformed.",
+      "evidence": [
+        "scripts/selected_native_containment.py",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_native_denials_and_inherited_descriptor_control"
+      ]
+    },
+    "offline-empty-poll-input": {
+      "classification": "os-observed",
+      "finding": "The fixed diagnostic command/exec process had streamStdin false. The host rejected nonempty polling before any RPC delivery and decoded useful empty-poll output for the same connection-scoped process. Native model-tool write_stdin and reviewer routing remain unqualified.",
+      "evidence": [
+        "scripts/selected_native_containment.py",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output"
+      ]
+    },
+    "offline-owner-lifecycle": {
+      "classification": "os-observed",
+      "finding": "An atomic launcher receipt, verified descendant namespace pidfd and fixed watchdog bound each disposable epoch. Actual selected-runner host SIGKILL, double-fork/setsid descendants, watchdog death, deadline expiry and fresh-owner restart stopped the original namespace and withheld accepted output. Stale receipts refused another owner. Actual kernel PID reuse, production recovery and conservative host accounting remain unperformed.",
+      "evidence": [
+        "scripts/selected_native_containment.py",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_selected_controller_death_stops_detached_descendants",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_selected_watchdog_failure_stops_the_namespace",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_selected_watchdog_deadline_stops_stalled_controller",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_stopped_epoch_refuses_poll_and_restart_uses_a_fresh_owner"
+      ]
+    },
+    "original-named-candidate": {
+      "classification": "unsupported",
+      "finding": "An offline compile/admission attempt for the separate named root-deny/minimal-read/workspace-write candidate with untrusted approvals and user reviewer failed in configuration parsing before profile compilation or useful execution: untrusted approval_policy is no longer supported. No selector or approval-policy substitution was made; it is unselected and supplies no legacy-target enforcement evidence.",
+      "evidence": [
+        "policy/qualification-target.yaml#offline_diagnostics.named_candidate",
+        "references/codex-protocol-capability-matrix.md"
+      ]
     }
+  },
+  "offline_diagnostics": {
+    "observed_on": "2026-11-14",
+    "scope": "fixed-no-model-app-server-command-exec",
+    "runner": "scripts/selected_native_containment.py",
+    "target_id": "codex-0.163.0-constrained-integrity",
+    "configuration_id": "native-worker-workspace-write-v1",
+    "execution_authorized": false,
+    "accepted_output": false,
+    "model_calls": false,
+    "thread_or_turn_started": false,
+    "effective_configuration": {
+      "sandbox_mode": "workspace-write",
+      "approval_policy": "never",
+      "network_access": false,
+      "layers": [
+        "isolated-user-config",
+        "empty-system-config"
+      ],
+      "managed_requirements": null,
+      "staged_rules": "empty",
+      "runtime_grants_and_hooks": "not-proved-absent"
+    },
+    "required_unperformed": [
+      "model-turn-builtin-tools",
+      "native-model-tool-stdin",
+      "native-ordinary-retry",
+      "native-approved-escalation",
+      "managed-runtime-grants",
+      "actual-kernel-pid-reuse",
+      "production-lifecycle-recovery"
+    ],
+    "named_candidate": {
+      "selected": false,
+      "status": "runtime-refused-unselected",
+      "selector": "sandbox --permission-profile root_deny",
+      "approval_policy": "untrusted",
+      "approvals_reviewer": "user",
+      "filesystem": "root-deny-with-minimal-runtime-reads-and-isolated-workspace-write",
+      "network_access": false,
+      "exit_code": 1,
+      "compiler_error": "approval_policy = \"untrusted\" is no longer supported; remove this setting"
+    },
+    "commands": [
+      "CWO_QUALIFICATION_PACKAGE=\"$QUALIFICATION_PACKAGE\" python -m unittest tests.test_selected_native_containment -q",
+      "python scripts/selected_native_containment.py --package \"$QUALIFICATION_PACKAGE\""
+    ],
+    "limitations": "Fixed disposable command/exec diagnostics observe scoped OS effects. They do not qualify model-turn builtins, approvals, retries, grants, full dependencies, confidential operation, production admission, or artifact promotion. Package identity digests are not custody enforcement."
   }
 }

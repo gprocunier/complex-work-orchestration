@@ -19,8 +19,8 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts'), str(ROOT / 'tests')]
 import registered_native_pool_retry as A  # noqa: E402
-import test_registered_native_pool_host as F  # noqa: E402
-_PIPE_BACKEND = A.R._PipeBackend
+from tests import test_registered_native_pool_host as F  # noqa: E402
+_PIPE_BACKEND = F.N._PIPE_BACKEND
 
 
 class RetryRefusalRow(NamedTuple):

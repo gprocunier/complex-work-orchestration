@@ -15,8 +15,8 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tests')]
-import test_registered_native_pool_host as F  # noqa: E402
-import test_registered_finite_tool_wiring as tools  # noqa: E402
+from tests import test_registered_native_pool_host as F  # noqa: E402
+from tests import test_registered_finite_tool_wiring as tools  # noqa: E402
 
 
 class PoolProfileTests(unittest.TestCase):
@@ -144,6 +144,7 @@ class PoolProfileTests(unittest.TestCase):
             self.assertFalse(fixture.case.ledger.root.exists())
             self.assertFalse(fixture.case.host.worker.joinpath('result.txt').exists())
             self.assertFalse(hasattr(fixture.fixture, 'spawned'))
+            F.N.assert_no_native_births(self, fixture.fixture)
 
 
     def test_r2_each_finite_profile_refuses_unproved_retry_and_stdin(self):
@@ -211,6 +212,7 @@ class PoolProfileTests(unittest.TestCase):
                          (('result.txt', F.N.fixtures.host_fixtures.OUTPUT),))
         self.assertFalse(failed.case.host.worker.joinpath('result.txt').exists())
         self.assertFalse(hasattr(held.fixture, 'spawned'))
+        F.N.assert_no_native_births(self, held.fixture)
         before = copy.deepcopy(self.attempts())
         with self.assertRaisesRegex(ValueError, 'never redispatch'):
             self.host.run(self.config.request('execute'))

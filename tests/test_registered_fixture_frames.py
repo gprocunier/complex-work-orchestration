@@ -98,16 +98,22 @@ class FrameLifecycleTests(unittest.TestCase):
             if callback_error is not None:
                 raise callback_error
         if stream is None:
-            process = SimpleNamespace(receive=receive, case=SimpleNamespace(test=self))
+            process = SimpleNamespace(receive=receive, case=SimpleNamespace(test=self),
+                                      bootstrap_released=threading.Event())
             stream = family.Input(process)
         else:
             stream.process.receive = receive
+        stream.process.bootstrap_released.clear()
         read, write = os.pipe()
+        # The trusted bootstrap owns one byte; JSON failure evidence starts
+        # after that byte and must retain the original unmodified frame.
+        self.assertEqual(os.write(write, b'1'), 1)
         self.assertEqual(os.write(write, raw), len(raw))
         os.close(write)
         expected = type(callback_error) if callback_error is not None else json.JSONDecodeError
         with self.assertRaises(expected) as caught:
             stream.consume(read)
+        self.assertTrue(stream.process.bootstrap_released.is_set())
         return stream, caught.exception
 
     def test_acknowledgement_requires_existing_exact_decoder_error_and_keeps_evidence(self):

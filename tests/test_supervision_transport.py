@@ -15,6 +15,7 @@ import hashlib
 import importlib
 import importlib.util
 import inspect
+import io
 import json
 import os
 import re
@@ -23,8 +24,11 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import textwrap
+import threading
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 
@@ -490,24 +494,83 @@ class CoreContractCoversSubpackagesTests(unittest.TestCase):
 
 FAKE_APP_SERVER = textwrap.dedent(
     """
-    import json, os, sys
+    import json, os, sys, time
 
     mode = os.environ["CWO_FAKE_APP_SERVER_MODE"]
     log = open(os.environ["CWO_FAKE_APP_SERVER_LOG"], "a", encoding="utf-8")
 
     def send(message):
-        sys.stdout.write(json.dumps(message) + "\\n")
+        sys.stdout.write(json.dumps(message, ensure_ascii=False) + "\\n")
         sys.stdout.flush()
 
     for raw in sys.stdin:
         log.write(raw)
         log.flush()
         message = json.loads(raw)
+        if message.get("method") == "initialized":
+            with open(log.name + ".initialized-consumed", "x"):
+                pass
+        if message.get("method") == "initialized" and mode in {"unread-stdin", "request-during-write"}:
+            time.sleep(0.05)
+            if mode == "request-during-write":
+                send({"id": "900", "method": "item/commandExecution/requestApproval", "params": {}})
+            else:
+                send({"method": "progress", "params": {"threadId": "thread-1", "value": 1}})
+            time.sleep(30)
         if "id" not in message or "method" not in message:
             continue  # notifications and client responses get no answer
         request_id = message["id"]
         if message.get("method") == "initialize":
             send({"id": request_id, "result": {"codexHome": os.environ["CODEX_HOME"]}})
+            if os.environ["CWO_FAKE_APP_SERVER_DELAY_INITIALIZED"] == "1":
+                with open(log.name + ".initialized-waiting", "x"):
+                    pass
+                deadline = time.monotonic() + 5
+                while not os.path.exists(log.name + ".release-initialized"):
+                    if time.monotonic() >= deadline:
+                        sys.exit(4)
+                    time.sleep(0.005)
+        elif mode.startswith("oversized"):
+            text = "é" * 600 if mode == "oversized-multibyte" else "x" * 1100
+            raw = json.dumps({"method": "progress", "params": {"text": text}}, ensure_ascii=False)
+            sys.stdout.write(raw + ("" if mode == "oversized-unterminated" else "\\n"))
+            sys.stdout.flush()
+            if mode == "oversized-unterminated":
+                time.sleep(30)
+            send({"id": request_id, "result": {"echo": message["method"]}})
+        elif mode in {"response-count", "response-bytes", "notification-count", "notification-bytes", "ordinary-events"}:
+            count = 40 if mode.endswith("count") else 5
+            for index in range(count):
+                params = {"threadId": "thread-1", "turnId": "turn-1", "value": index}
+                if mode.endswith("bytes"):
+                    params["text"] = "é" * 440
+                if mode.startswith("response"):
+                    send({"id": 900 + index, "result": params})
+                else:
+                    send({"method": "progress", "params": params})
+            send({"id": request_id, "result": {"echo": message["method"]}})
+        elif mode.startswith("required-"):
+            methods = {
+                "command": "item/commandExecution/requestApproval",
+                "file": "item/fileChange/requestApproval",
+                "permissions": "item/permissions/requestApproval",
+                "unknown": "future/required",
+            }
+            kind = mode.removeprefix("required-")
+            send({"id": "900" if kind in {"file", "unknown"} else 900,
+                  "method": methods[kind],
+                  "params": {"threadId": "thread-1", "turnId": "turn-1", "itemId": "item-1"}})
+            send({"id": request_id, "result": {"echo": message["method"]}})
+        elif mode == "partial-eof":
+            sys.stdout.write('{"method":"progress"')
+            sys.stdout.flush()
+            sys.exit(0)
+        elif mode == "timeout":
+            continue
+        elif mode == "duplicate-key":
+            sys.stdout.write('{"id":900,"id":"900","method":"future/required","params":{}}\\n')
+            sys.stdout.flush()
+            send({"id": request_id, "result": {"echo": message["method"]}})
         elif mode == "ok":
             send({"id": request_id, "result": {"echo": message["method"], "params": message["params"]}})
         elif mode == "server-request":
@@ -571,14 +634,31 @@ class FakeAppServerTransportTests(unittest.TestCase):
             paths.append(("core", exc))  # type: ignore[arg-type]
         return paths
 
-    def run_mode(self, mode: str, check) -> None:
+    def run_mode(self, mode: str, check, *, delay_initialized: bool = False) -> None:
         for label, server_class in self.import_paths():
             with self.subTest(import_path=label, mode=mode):
                 if isinstance(server_class, Exception):
                     raise server_class
-                self.exercise(label, server_class, mode, check)
+                self.exercise(label, server_class, mode, check, delay_initialized=delay_initialized)
 
-    def exercise(self, label: str, server_class: type, mode: str, check) -> None:
+    def _wait_for_child_marker(self, server, path: Path) -> None:
+        deadline = time.monotonic() + 5
+        while not path.exists():
+            self.assertIsNone(server.process.poll(), "fake child exited before initialized consumption")
+            self.assertLess(time.monotonic(), deadline, "fake child initialization barrier timed out")
+            time.sleep(0.005)
+
+    def _await_initialized_consumption(self, server, log: Path, delayed: bool) -> None:
+        if delayed:
+            self._wait_for_child_marker(server, Path(str(log) + ".initialized-waiting"))
+            received = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual([message["method"] for message in received], ["initialize"])
+            Path(str(log) + ".release-initialized").touch()
+        self._wait_for_child_marker(server, Path(str(log) + ".initialized-consumed"))
+        received = [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()]
+        self.assertEqual(received[1], {"method": "initialized", "params": {}})
+
+    def exercise(self, label: str, server_class: type, mode: str, check, *, delay_initialized: bool = False) -> None:
         """Bind both launch paths to this disposable fake executable and home."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
@@ -594,6 +674,7 @@ class FakeAppServerTransportTests(unittest.TestCase):
                 "CODEX_HOME": str(home),
                 "CWO_FAKE_APP_SERVER_MODE": mode,
                 "CWO_FAKE_APP_SERVER_LOG": str(log),
+                "CWO_FAKE_APP_SERVER_DELAY_INITIALIZED": "1" if delay_initialized else "0",
                 "PATH": str(empty_path),
             }
             defining = sys.modules[server_class.__module__]
@@ -606,7 +687,16 @@ class FakeAppServerTransportTests(unittest.TestCase):
                 pipe = RecordingPipe(server.process.stdin)
                 server.process.stdin = pipe
                 cleanup_error = None
+                raw_write = os.write
+                def record_write(fd, data):
+                    count = raw_write(fd, data)
+                    if fd == pipe.fileno():
+                        pipe.written.append(data[:count].decode("utf-8"))
+                    return count
+                recorder = mock.patch.object(defining.os, "write", side_effect=record_write)
+                recorder.start()
                 try:
+                    self._await_initialized_consumption(server, log, delay_initialized)
                     self.assertEqual(server.launched_executable, str(fake))
                     self.assertEqual(server.codex_home, home)
                     check(server, defining)
@@ -616,9 +706,10 @@ class FakeAppServerTransportTests(unittest.TestCase):
                     except defining.AppServerError as exc:
                         cleanup_error = exc
                         cleanup = getattr(exc, "app_server_cleanup", None)
+                    recorder.stop()
                     transcript = {
                         "received": [json.loads(line) for line in log.read_text(encoding="utf-8").splitlines()],
-                        "written": [json.loads(line) for chunk in pipe.written for line in chunk.splitlines()],
+                        "written": [json.loads(line) for line in "".join(pipe.written).splitlines(keepends=True) if line.endswith("\n")],
                     }
             # Observation has finished only after a clean close: close() returned,
             # every resource is closed and contained, and cleanup reported no error.
@@ -684,28 +775,252 @@ class FakeAppServerTransportTests(unittest.TestCase):
 
         self.run_mode("exit", check)
 
-    def test_server_request_is_still_queued_without_a_reply(self) -> None:
-        """Queued server requests remain unanswered in this transport fixture.
+    def assert_bounded_refusal(self, server, defining, reason: str) -> None:
+        epoch = server.connection_epoch_sha256
+        started = time.monotonic()
+        with self.assertRaisesRegex(defining.AppServerError, "^" + reason + "$"):
+            server.request("fake/echo", {}, timeout=2)
+        self.assertLess(time.monotonic() - started, 1)
+        self.assertEqual(server.connection_epoch_sha256, epoch)
+        with self.assertRaisesRegex(defining.AppServerError, "^" + reason + "$"):
+            server.request("fake/after-fault", {}, timeout=2)
+        cleanup = server.close()
+        self.assertLess(time.monotonic() - started, 3)
+        self.assertTrue(cleanup["all_contained"])
+        self.assertFalse(any(reader.is_alive() for reader in server._reader_threads))
 
-        A message with both ``id`` and ``method`` is stored with notifications and
-        never answered. This fixture pins notification queuing independently of
-        the registered request/reply transport.
-        """
+    def bounded_modes(self, modes, reason: str) -> None:
+        defining = transport("app_server")
+        with mock.patch.multiple(defining, create=True, MAX_FRAME_BYTES=1024,
+                                 MAX_RESPONSES=32, MAX_RESPONSE_BYTES=4096,
+                                 MAX_NOTIFICATIONS=32, MAX_NOTIFICATION_BYTES=4096):
+            for mode in modes:
+                self.run_mode(mode, lambda server, module: self.assert_bounded_refusal(server, module, reason))
 
+    def test_raw_frame_byte_limit_refuses_newline_and_unterminated_input(self) -> None:
+        self.bounded_modes(["oversized", "oversized-unterminated", "oversized-multibyte"],
+                           "app-server-frame-size-limit")
+
+    def test_response_storage_count_and_byte_limits(self) -> None:
+        self.bounded_modes(["response-count", "response-bytes"], "app-server-response-storage-limit")
+        for transcript in self.transcripts.values():
+            self.assertFalse(any(message.get("method") == "fake/after-fault" for message in transcript["written"]))
+
+    def test_notification_storage_count_and_byte_limits(self) -> None:
+        self.bounded_modes(["notification-count", "notification-bytes"], "app-server-notification-storage-limit")
+
+    def test_ordinary_notifications_preserve_sequence_epoch_and_correlated_result(self) -> None:
         def check(server, defining) -> None:
-            server.request("fake/echo", {}, timeout=10)
-            queued = server.notifications("thread-1")
-            self.assertEqual([message.get("id") for message in queued], [900])
-            self.assertEqual(queued[0]["method"], "item/commandExecution/requestApproval")
+            epoch = server.connection_epoch_sha256
+            result, _latency = server.request("fake/echo", {}, timeout=2)
+            self.assertEqual(result, {"echo": "fake/echo"})
+            self.assertEqual(server.notification_cursor(), 5)
+            self.assertEqual(len(server.notifications("thread-1", "progress")), 5)
+            events = server.notification_events("thread-1", "turn-1", after_sequence=2)
+            self.assertEqual([event["sequence"] for event in events], [3, 4, 5])
+            self.assertEqual({event["connection_epoch_sha256"] for event in events}, {epoch})
+            self.assertEqual([event["params"]["value"] for event in events], [2, 3, 4])
 
-        self.run_mode("server-request", check)
-        self.assertEqual(sorted(self.transcripts), ["core", "runner"])
-        for label, transcript in self.transcripts.items():
-            with self.subTest(import_path=label):
-                # Controller side: everything the client wrote after the handshake,
-                # up to and including close(), is the one echo request.
-                self.assertEqual(transcript["written"], [{"id": 2, "method": "fake/echo", "params": {}}])
-                self.assertEqual([m for m in transcript["received"] if m.get("id") == 900], [])
+        self.run_mode("ordinary-events", check)
+
+    def test_unexpected_required_requests_reply_without_grants_then_refuse(self) -> None:
+        expectations = {
+            "command": {"id": 900, "result": {"decision": "decline"}},
+            "file": {"id": "900", "result": {"decision": "decline"}},
+            "permissions": {"id": 900, "result": {"permissions": {}}},
+            "unknown": {"id": "900", "error": {"code": -32601, "message": "Unsupported server request"}},
+        }
+        for kind, expected in expectations.items():
+            with self.subTest(kind=kind):
+                writes = []
+                real_write = os.write
+                def record_write(fd, data):
+                    count = real_write(fd, data)
+                    writes.append(data[:count])
+                    return count
+                with mock.patch.object(transport("app_server").os, "write", side_effect=record_write):
+                    self.run_mode("required-" + kind, lambda server, module: self.assert_bounded_refusal(
+                        server, module, "app-server-unexpected-server-request"))
+                replies = [json.loads(raw) for raw in writes if raw.startswith(b'{"id":') and "method" not in json.loads(raw)]
+                self.assertEqual(replies, [expected, expected])
+
+    def test_partial_eof_and_duplicate_keys_are_latched(self) -> None:
+        self.bounded_modes(["partial-eof"], "app-server-partial-frame")
+        self.bounded_modes(["duplicate-key"], "app-server-duplicate-json-key")
+
+    def test_stderr_drain_bounds_unterminated_bytes_and_counts_lines(self) -> None:
+        class ChunkedStderr:
+            def __init__(self, data):
+                self.buffer = io.BytesIO(data)
+            def __iter__(self):
+                raise AssertionError("unbounded stderr iteration")
+        for data, count in ((b"ordinary\nsecond\n", 2), (b"x" * 100000, 1),
+                            (b"x" * 100000 + b"\nlast", 2)):
+            with self.subTest(bytes=len(data)):
+                server = object.__new__(runner.AppServer)
+                server.process = SimpleNamespace(stderr=ChunkedStderr(data))
+                server._stderr_line_count = 0
+                server._drain_stderr()
+                self.assertEqual(server._stderr_line_count, count)
+
+    def test_unread_outbound_pipe_keeps_reader_responsive_and_refuses(self) -> None:
+        def check(server, defining) -> None:
+            failures = []
+            def call():
+                try:
+                    server.request("fake/echo", {"text": "x" * 512000}, timeout=0.2)
+                except BaseException as exc:
+                    failures.append(exc)
+            sender = threading.Thread(target=call, daemon=True)
+            sender.start()
+            sender.join(timeout=0.6)
+            self.assertFalse(sender.is_alive(), "outbound write held the request past its deadline")
+            self.assertEqual([str(exc) for exc in failures], ["app-server-request-write-timeout:fake/echo"])
+            self.assertEqual(len(server._notifications), 1, "reader was held behind the outbound pipe")
+            self.assertEqual(server._reader_error, "app-server-request-write-timeout:fake/echo")
+        self.run_mode("unread-stdin", check)
+
+    def test_required_request_cannot_insert_reply_into_partial_outbound_frame(self) -> None:
+        def check(server, defining) -> None:
+            started = time.monotonic()
+            with self.assertRaisesRegex(defining.AppServerError, "^app-server-server-request-reply-blocked$"):
+                server.request("fake/echo", {"text": "x" * 512000}, timeout=1)
+            self.assertLess(time.monotonic() - started, 0.5)
+            self.assertNotIn("decline", "".join(server.process.stdin.written))
+            self.assertEqual(server._reader_error, "app-server-server-request-reply-blocked")
+            self.assertFalse(server._wire_writing)
+        self.run_mode("request-during-write", check)
+
+    def test_concurrent_multichunk_requests_keep_frames_ids_and_storage_accounting(self) -> None:
+        def check(server, defining) -> None:
+            results, failures = {}, []
+            ready = threading.Barrier(3)
+            def call(name):
+                ready.wait(timeout=2)
+                try:
+                    results[name] = server.request("fake/" + name, {"text": name * 16000}, timeout=2)[0]
+                except BaseException as exc:
+                    failures.append(exc)
+            senders = [threading.Thread(target=call, args=(name,), daemon=True) for name in ("one", "two")]
+            for sender in senders:
+                sender.start()
+            ready.wait(timeout=2)
+            for sender in senders:
+                sender.join(timeout=3)
+                self.assertFalse(sender.is_alive())
+            self.assertEqual(failures, [])
+            self.assertEqual(results, {name: {"echo": "fake/" + name, "params": {"text": name * 16000}}
+                                       for name in ("one", "two")})
+            self.assertEqual(server._responses, {})
+            self.assertEqual(server._response_sizes, {})
+        self.run_mode("ok", check)
+        for transcript in self.transcripts.values():
+            self.assertEqual({message["id"] for message in transcript["written"]}, {2, 3})
+
+    def test_hold_recheck_after_partial_notify_refuses_without_completed_frame(self) -> None:
+        def check(server, defining) -> None:
+            write = os.write
+            def revoke(fd, data):
+                count = write(fd, data)
+                defining.live_availability.N1_LIVE_AVAILABLE = False
+                return count
+            with mock.patch.object(defining.live_availability, "N1_LIVE_AVAILABLE", True), mock.patch.object(
+                defining.os, "write", side_effect=revoke
+            ):
+                with self.assertRaisesRegex(defining.AppServerError, "^native-n1-live-unavailable$"):
+                    server.notify("fake/launch", {"text": "x" * 512000})
+            self.assertEqual(server._reader_error, "native-n1-live-unavailable")
+            self.assertNotIn("\n", "".join(server.process.stdin.written))
+            self.assertFalse(server._wire_writing)
+        self.run_mode("unread-stdin", check)
+
+    def test_partial_notify_waits_for_delayed_initialized_consumption(self) -> None:
+        run = self.run_mode
+        def delayed(mode, check):
+            run(mode, check, delay_initialized=True)
+        with mock.patch.object(self, "run_mode", side_effect=delayed):
+            self.test_hold_recheck_after_partial_notify_refuses_without_completed_frame()
+
+    def test_hold_recheck_after_partial_turn_write_retains_ambiguous_intent(self) -> None:
+        from tests.test_run_native_pool_live_canaries import AmbiguousTurnDispatchTests
+        fixture = AmbiguousTurnDispatchTests()
+        self.addCleanup(fixture.doCleanups)
+        with tempfile.TemporaryDirectory() as temporary:
+            server, ledger, _state, _writer, thread_id, _turns = fixture.server(Path(temporary), "absent")
+            read_fd, write_fd = os.pipe()
+            self.addCleanup(os.close, read_fd)
+            stream = os.fdopen(write_fd, "w")
+            self.addCleanup(stream.close)
+            server.process.stdin = stream
+            write, prefixes = os.write, []
+            def revoke(fd, data):
+                count = write(fd, data)
+                if fd == write_fd:
+                    prefixes.append(data[:count])
+                    transport("app_server").live_availability.N1_LIVE_AVAILABLE = False
+                return count
+            with mock.patch.object(transport("app_server").live_availability, "N1_LIVE_AVAILABLE", True), mock.patch.object(
+                os, "write", side_effect=revoke
+            ):
+                with self.assertRaises(runner.AmbiguousTurnStartError) as caught:
+                    server.start_turn(thread_id, "x" * 512000, timeout=0.03, ambiguity_timeout=0)
+            self.assertEqual(server._reader_error, "native-n1-live-unavailable")
+            record = caught.exception.record
+            self.assertEqual((record["status"], record["ledger_resolution"], record["wire_write_attempt_count"]),
+                             ("failed-ambiguous", "pending", 1))
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
+            self.assertEqual(len(prefixes), 1)
+            self.assertNotIn(b"\n", prefixes[0])
+            server.process.terminate.assert_called_once()
+
+    def test_faulted_turn_keeps_charge_without_waiting_for_dead_reader(self) -> None:
+        from tests.test_run_native_pool_live_canaries import AmbiguousTurnDispatchTests
+        fixture = AmbiguousTurnDispatchTests()
+        self.addCleanup(fixture.doCleanups)
+        with tempfile.TemporaryDirectory() as temporary:
+            server, ledger, _state, writer, thread_id, _turns = fixture.server(Path(temporary), "absent")
+            write = writer.write
+            def fault(raw):
+                result = write(raw)
+                server._reader_error = "app-server-frame-size-limit"
+                return result
+            writer.write = fault
+            started = time.monotonic()
+            with self.assertRaises(runner.AmbiguousTurnStartError) as caught:
+                server.start_turn(thread_id, "bounded", timeout=1, ambiguity_timeout=0.4)
+            self.assertLess(time.monotonic() - started, 0.2)
+            self.assertEqual(caught.exception.record["status"], "failed-ambiguous")
+            self.assertEqual(caught.exception.record["ledger_resolution"], "pending")
+            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
+            self.assertEqual(len(writer.payloads), 1)
+
+    def test_required_request_reply_refuses_pipe_backpressure_without_blocking(self) -> None:
+        read_fd, write_fd = os.pipe()
+        self.addCleanup(os.close, read_fd)
+        stream = os.fdopen(write_fd, "w")
+        self.addCleanup(stream.close)
+        os.set_blocking(write_fd, False)
+        try:
+            while True:
+                os.write(write_fd, b"x" * 4096)
+        except BlockingIOError:
+            pass
+        os.set_blocking(write_fd, True)
+        server = object.__new__(runner.AppServer)
+        server.process = SimpleNamespace(stdin=stream)
+        started = time.monotonic()
+        with self.assertRaisesRegex(runner.AppServerError, "^app-server-server-request-reply-blocked$"):
+            server._refuse_server_request({"id": "900", "method": "future/required"})
+        self.assertLess(time.monotonic() - started, 0.1)
+        self.assertTrue(os.get_blocking(write_fd))
+
+    def test_timeout_still_terminates_cleanly(self) -> None:
+        def check(server, defining) -> None:
+            started = time.monotonic()
+            with self.assertRaisesRegex(defining.AppServerError, "^app-server-request-timeout:fake/echo$"):
+                server.request("fake/echo", {}, timeout=0.05)
+            self.assertLess(time.monotonic() - started, 1)
+        self.run_mode("timeout", check)
 
 
 if __name__ == "__main__":

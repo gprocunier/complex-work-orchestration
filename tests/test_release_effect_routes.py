@@ -376,7 +376,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         value = json.loads(path.read_bytes())
         value["capacity_example"] = ""
         base = len(R.inventory_bytes(value))
-        for size in (200001, 528 * 1024 + 1):
+        for size in (200001, 528 * 1024 + 1, 540 * 1024 + 1, 564 * 1024 + 1, 568 * 1024 + 1, 576 * 1024 + 1):
             with self.subTest(previous_limit_positive=size):
                 value["capacity_example"] = "x" * (size - base)
                 path.write_bytes(R.inventory_bytes(value))
