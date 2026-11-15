@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.8.0 - 2026-11-15
+
 - Make manual-export corpus packets deterministic while retaining real hashes, provenance checks and every sensitive-content assertion.
 - Release the atomic poll-intent fixture hold after acknowledging a current original host wait.
 
