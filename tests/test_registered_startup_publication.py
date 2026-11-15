@@ -73,9 +73,15 @@ class StartupPublicationTests(unittest.TestCase):
     def test_explicit_absent_telemetry_still_refuses_before_poll(self):
         case = self.helper.fixture.case(finite_tool_mode='captured-host-tools', no_fake_scheduler=True,
                                        materialize_on_turn_start=False)
+        case.command_prepared, case.command_release = threading.Event(), threading.Event()
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
         factory = self.helper.fixture.factory(case)
-        result = []
+        result, producers = [], []
+        original_start = threading.Thread.start
+
+        def start(worker):
+            producers.append(worker)
+            return original_start(worker)
 
         def run():
             try:
@@ -83,15 +89,27 @@ class StartupPublicationTests(unittest.TestCase):
             except BaseException as failure:
                 result.append(failure)
 
-        with patch.object(family, 'RpcProcess', wiring.DynamicRpcProcess):
+        with patch.object(family, 'RpcProcess', wiring.DynamicRpcProcess), \
+                patch.object(threading.Thread, 'start', start):
             worker = threading.Thread(target=run, daemon=True)
             worker.start()
             try:
+                # Keep the original command/reply/completion producer held until
+                # the observer has refused the deliberately absent session.
+                self.assertFalse(case.scenario.path.exists())
                 with self.assertRaisesRegex(ValueError, 'trusted session file is missing'):
                     family.wait_for_startup(self, case.poll_prepared, worker, result)
             finally:
-                family.finish_worker(self, worker, case.poll_release)
+                case.command_release.set()
+                case.poll_release.set()
+                worker.join(12)
+                for producer in producers:
+                    if producer is not worker and producer.ident is not None:
+                        producer.join(2)
+                self.assertFalse(any(producer.is_alive() for producer in producers),
+                                 'original producer survived fixture cleanup')
         self.assertFalse(case.poll_prepared.is_set())
+        self.assertFalse(case.scenario.path.exists())
         self.assertIsNone(factory.token)
         attempt = self.helper.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown')
