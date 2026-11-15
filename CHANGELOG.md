@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Wait for the original archive acknowledgment in the controlled output rejection fixture so driver steps cannot replace the selected validation failure.
+
 - Retain registered transport workers through bounded shutdown and archive checks, refusing unresolved cleanup and preserving original failure details.
 - Bind verified delivery closure and native evidence consumption to the exact complete observations reviewed by the accepted source, refusing missing or changed review evidence while preserving native ownership.
 - Refuse finite advisory HTTP submission when final transport checks exhaust its admitted runtime or lifetime, retaining conservative aggregate charges.

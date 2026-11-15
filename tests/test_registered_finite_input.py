@@ -1694,11 +1694,12 @@ class FiniteInputTests(unittest.TestCase):
 
 
     def test_selected_original_output_rejection_is_failed_and_fully_charged(self):
-        case = self.fixture.case(bad_output=True)
+        case = self.fixture.case(archive_schedule='settled', bad_output=True)
         factory = self.fixture.factory(case)
         factory.select_controlled_failure()
         with self.assertRaises(family.runtime.validation.ValidationError) as caught:
             factory.run()
+        self.assertIs(type(caught.exception), family.runtime.validation.ValidationError)
         self.assertEqual(self.fixture.attempt(case)['outcome'], 'failed')
         self.assertEqual(self.fixture.attempt(case)['charge'], self.fixture.attempt(case)['amount'])
         evidence = factory.controlled_failure(caught.exception)
@@ -1706,6 +1707,9 @@ class FiniteInputTests(unittest.TestCase):
         self.assertEqual(evidence, factory.controlled_failure())
         with self.assertRaises(ValueError):
             factory.controlled_failure(ValueError('EXAMPLE foreign error'))
+        self.assertIsNone(factory.token)
+        with self.assertRaises(ValueError):
+            factory.issued_artifact()
 
     def test_reducer_reject_raise_and_wake_failure_cannot_publish_healthy_cleanup(self):
         for behavior in ('reject', 'raise', 'wake'):
