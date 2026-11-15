@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Acknowledge original finite-tool preparation and archive settlement, and verify real post-close refusals before checking delayed fixture publication.
+
 - Prepare original durable intent before early terminal fixture notifications, retaining notification-before-response refusal checks.
 - Let selected finite success fixtures advance through real host waits before consuming command replies.
 - Release the typed request-ID fixture launch after acknowledging the original lifecycle wait, preserving its runtime budget.

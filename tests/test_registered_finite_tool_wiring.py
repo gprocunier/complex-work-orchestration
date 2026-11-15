@@ -1,6 +1,7 @@
 """Original registered caller through the selected finite fake-server tool route."""
 from __future__ import annotations
 
+from contextlib import ExitStack
 import json
 import os
 import threading
@@ -1413,29 +1414,46 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 result.append(factory.run())
             except BaseException as failure:
                 result.append(failure)
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess):
+        entered, release, prepared = threading.Event(), threading.Event(), threading.Event()
+        self.addCleanup(release.set)
+        original = gate_module.select.select
+        original_poll = finite_tools.RegisteredFiniteToolCalls._poll
+        charged = []
+        def prepare_poll(producer, *args, **kwargs):
+            if producer.factory is factory:
+                # Admission requires the original bound factory methods.
+                # This callback runs after admission, before poll persistence
+                # and the selected refusal record that the hook observes.
+                self.install_poll_record_hook(factory, record_hook)
+                prepared.set()
+            return original_poll(producer, *args, **kwargs)
+
+        def paused(reads, writes, errors, timeout=None):
+            server = factory.server
+            gate = None if server is None else server.finite_input
+            if (gate is not None and gate.output_stat is not None and len(reads) == 1
+                    and type(reads[0]) is int and reads[0] != gate.output_fd
+                    and os.fstat(reads[0]).st_ino == gate.output_stat[1]):
+                charged.append(gate.output_bytes_seen)
+                entered.set()
+                family.wait_for_release(self, release, 3)
+                return [], [], []
+            return original(reads, writes, errors, timeout)
+
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
+                patch.object(gate_module.select, 'select', paused), \
+                patch.object(finite_tools.RegisteredFiniteToolCalls, '_poll', prepare_poll):
             thread = threading.Thread(target=run, daemon=True)
-            thread.start()
-            self.addCleanup(family.finish_worker, self, thread, case.poll_release)
+            self.addCleanup(family.finish_worker, self, thread, case.poll_release, release)
             self.addCleanup(case.poll_release.set)
-            self.assertTrue(self.wait_for_startup(case.poll_prepared, thread, result))
-            self.install_poll_record_hook(factory, record_hook)
-            entered, release = threading.Event(), threading.Event()
-            self.addCleanup(release.set)
-            original = gate_module.select.select
-            gate = factory.server.finite_input
-            charged_before = gate.output_bytes_seen
-            def paused(reads, writes, errors, timeout=None):
-                if (len(reads) == 1 and type(reads[0]) is int
-                        and reads[0] != gate.output_fd
-                        and os.fstat(reads[0]).st_ino == gate.output_stat[1]):
-                    entered.set()
-                    family.wait_for_release(self, release, 3)
-                    return [], [], []
-                return original(reads, writes, errors, timeout)
-            with patch.object(gate_module.select, 'select', paused):
-                case.poll_release.set()
+            case.poll_release.set()
+            thread.start()
+            try:
+                self.assertTrue(self.wait_for_startup(prepared, thread, result))
+                self.assertTrue(case.poll_prepared.is_set())
                 self.assertTrue(entered.wait(5))
+                gate = factory.server.finite_input
+                charged_before = charged[0]
                 if action in {'terminal', 'exceptional'}:
                     if action == 'exceptional':
                         with self.assertRaisesRegex(family.runtime.protocol.PreparationError,
@@ -1456,12 +1474,18 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 else:
                     closed = threading.Event()
                     closer = threading.Thread(target=lambda: (gate.close(), closed.set()), daemon=True)
+                    self.addCleanup(family.finish_worker, self, closer, release,
+                                    case.poll_release, join_seconds=3)
                     closer.start()
                     self.assertTrue(closed.wait(3), 'close blocked on pipe wait')
                     closer.join(3)
                 time.sleep(1.1)
                 release.set()
+            finally:
+                case.poll_release.set()
+                release.set()
                 thread.join(10)
+                self.assertFalse(thread.is_alive(), 'original poll worker did not drain')
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], BaseException)
         attempt = self.fixture.attempt(case)
@@ -1692,12 +1716,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 result.append(failure)
         with patch.object(family, 'RpcProcess', DynamicRpcProcess):
             thread = threading.Thread(target=run, daemon=True)
-            thread.start()
-            self.addCleanup(family.finish_worker, self, thread, case.command_release)
             self.addCleanup(case.command_release.set)
-            self.assertTrue(self.wait_for_startup(case.command_prepared, thread, result))
-            entered, release = threading.Event(), threading.Event()
+            entered, release, prepared = threading.Event(), threading.Event(), threading.Event()
             self.addCleanup(release.set)
+            self.addCleanup(family.finish_worker, self, thread, case.command_release, release)
             original_record = factory.record
             original_launch = family.runtime._Containment.launch
             def blocked_record(name, observation):
@@ -1713,6 +1735,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     family.wait_for_release(self, release, 5)
                 return value
             def blocked_launch(lifetime, command, home, **kwargs):
+                if lifetime.role == 'tool':
+                    prepared.set()
                 process = original_launch(lifetime, command, home, **kwargs)
                 if lifetime.role == 'tool':
                     entered.set()
@@ -1720,27 +1744,41 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 return process
             patcher = (patch.object(factory, 'record', blocked_record) if stage in {'before-intent', 'during-intent', 'intent', 'gate'}
                        else patch.object(family.runtime._Containment, 'launch', blocked_launch))
-            with patcher:
-                case.command_release.set()
-                self.assertTrue(entered.wait(5))
-                if exceptional:
-                    with self.assertRaisesRegex(family.runtime.protocol.PreparationError,
-                                                'registered-terminal-before-bound-turn'):
-                        factory.server.requests.observe_response({'result': {'thread': {
-                            'id': case.scenario.thread_id, 'turns': [
-                                {'id': case.scenario.turn_id, 'status': 'completed', 'items': []},
-                                {'id': 'EXAMPLE-unrelated-turn', 'status': 'completed', 'items': []}]}}})
-                    self.assertEqual(factory.server.finite_input.lifecycle.phase, 'fault')
-                else:
-                    self.fixture.spawned[0].stdout.put({'method': 'turn/completed', 'params': {
-                        'threadId': case.scenario.thread_id,
-                        'turn': {'id': case.scenario.turn_id, 'status': 'completed'}}})
-                deadline = time.monotonic() + 3
-                while (case.scenario.thread_id, case.scenario.turn_id) not in factory.server.requests.terminals:
-                    self.assertLess(time.monotonic(), deadline, 'reader blocked during command callout')
-                    time.sleep(.01)
-                release.set()
-                thread.join(10)
+            with ExitStack() as stage_hooks:
+                if stage == 'launch':
+                    stage_hooks.enter_context(patcher)
+                    case.command_release.set()
+                thread.start()
+                try:
+                    self.assertTrue(self.wait_for_startup(
+                        prepared if stage == 'launch' else case.command_prepared, thread, result))
+                    self.assertTrue(case.command_prepared.is_set())
+                    if stage != 'launch':
+                        stage_hooks.enter_context(patcher)
+                    case.command_release.set()
+                    self.assertTrue(entered.wait(5))
+                    if exceptional:
+                        with self.assertRaisesRegex(family.runtime.protocol.PreparationError,
+                                                    'registered-terminal-before-bound-turn'):
+                            factory.server.requests.observe_response({'result': {'thread': {
+                                'id': case.scenario.thread_id, 'turns': [
+                                    {'id': case.scenario.turn_id, 'status': 'completed', 'items': []},
+                                    {'id': 'EXAMPLE-unrelated-turn', 'status': 'completed', 'items': []}]}}})
+                        self.assertEqual(factory.server.finite_input.lifecycle.phase, 'fault')
+                    else:
+                        self.fixture.spawned[0].stdout.put({'method': 'turn/completed', 'params': {
+                            'threadId': case.scenario.thread_id,
+                            'turn': {'id': case.scenario.turn_id, 'status': 'completed'}}})
+                    deadline = time.monotonic() + 3
+                    while (case.scenario.thread_id, case.scenario.turn_id) not in factory.server.requests.terminals:
+                        self.assertLess(time.monotonic(), deadline, 'reader blocked during command callout')
+                        time.sleep(.01)
+                    release.set()
+                finally:
+                    case.command_release.set()
+                    release.set()
+                    thread.join(10)
+                    self.assertFalse(thread.is_alive(), 'original command worker did not drain')
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], BaseException)
         attempt = self.fixture.attempt(case)
@@ -2341,7 +2379,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(attempt['charge'], attempt['amount'])
 
     def test_capture_changed_after_command_output_refuses_before_reply(self):
-        case = self.fixture.case(finite_tool_mode='captured-host-tools')
+        case = self.fixture.case(finite_tool_mode='captured-host-tools', no_fake_scheduler=True)
         factory = self.fixture.factory(case)
         original = family.runtime._RegisteredServer._commit_tool_reply
         def change_before_reply(server, message, response, deadline, *, refusal=False):
@@ -2356,6 +2394,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 self.assertRaises(ValueError):
             factory.run()
         self.fixture.spawned[0].stdin.stream.require_healthy()
+        self.assertIs(type(factory.server.transport_failure), finite_tools.FiniteToolError)
+        self.assertEqual(str(factory.server.transport_failure),
+                         'Captured fake-server catalog changed after registration.')
         self.assertEqual(len(self.fixture.spawned), 2)
         self.assertEqual(len(self.fixture.spawned[0].replies), 1)
         self.assertIn('error', self.fixture.spawned[0].replies[0])

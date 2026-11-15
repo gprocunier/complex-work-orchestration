@@ -18,7 +18,8 @@ class StartupPublicationTests(unittest.TestCase):
         self.addCleanup(family.cleanup_helper, self, self.helper)
 
     def test_session_precedes_turn_response_and_completion_preserves_identity(self):
-        case = self.helper.fixture.case(finite_tool_mode='captured-host-tools', no_fake_scheduler=True)
+        case = self.helper.fixture.case(archive_schedule='settled',
+            finite_tool_mode='captured-host-tools', no_fake_scheduler=True)
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
         factory = self.helper.fixture.factory(case)
         result, published = [], []
@@ -40,8 +41,8 @@ class StartupPublicationTests(unittest.TestCase):
 
         with patch.object(family, 'RpcProcess', wiring.DynamicRpcProcess), patch.object(family.Lines, 'put', put):
             worker = threading.Thread(target=run, daemon=True)
-            worker.start()
             self.addCleanup(family.finish_worker, self, worker, case.poll_release)
+            worker.start()
             try:
                 family.wait_for_startup(self, acknowledged, worker, result)
                 self.assertEqual(len(published), 1)
@@ -151,6 +152,7 @@ class StartupPublicationTests(unittest.TestCase):
         with patch.object(wiring.DynamicRpcProcess, 'receive', receive), patch.object(
                 family.Input, 'require_healthy', drain):
             worker = threading.Thread(target=run, daemon=True)
+            self.addCleanup(family.finish_worker, self, worker, release)
             worker.start()
             try:
                 family.wait_for_startup(self, entered, worker, result)

@@ -55,10 +55,11 @@ class FiniteInputTests(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(family.cleanup_helper, self, self.fixture)
 
-    def _active(self, *, hold_admission=False):
+    def _active(self, *, hold_admission=False, no_fake_scheduler=False):
         from tests.test_registered_finite_tool_wiring import DynamicRpcProcess
         fixture = self.fixture
-        case = fixture.case(finite_tool_mode='captured-host-tools', complete_after_refusal=True)
+        case = fixture.case(finite_tool_mode='captured-host-tools', complete_after_refusal=True,
+                            no_fake_scheduler=no_fake_scheduler)
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
         if hold_admission:
             # A poll fault otherwise releases the host's Condition scheduler
@@ -80,15 +81,18 @@ class FiniteInputTests(unittest.TestCase):
                 case.result_done.set()
 
         thread = threading.Thread(target=run, daemon=True)
-        thread.start()
         self.addCleanup(family.finish_worker, self, thread, case.poll_release)
         self.addCleanup(case.poll_release.set)
+        thread.start()
         self.assertTrue(family.wait_for_startup(self, case.poll_prepared, thread, result),
                         'selected original command reply was not consumed')
         self.assertTrue(fixture.spawned[0].replies[0]['result']['success'])
         self.assertTrue(self._wait(lambda: (case.scenario.thread_id, case.scenario.turn_id,
                                            'EXAMPLE-command-call')
-                                   in factory.server.requests.completed_items, 2),
+                                   in factory.server.requests.completed_items
+                                   and (not no_fake_scheduler
+                                        or factory.server.finite_input.lifecycle.phase
+                                        == 'command-completed'), 2),
                         'the original reader must observe command completion before item mutation')
         gate = factory.server.finite_input
         tool = factory.server.finite_tools.lifetime
