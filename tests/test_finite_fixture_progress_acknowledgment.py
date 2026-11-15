@@ -54,6 +54,11 @@ class FiniteFixtureProgressTests(unittest.TestCase):
             'test_exit_between_initial_read_and_reply_drains_tail_atomically',
         ), hold_intent=True)
 
+    def test_atomic_intent_acknowledges_wait_before_command_consumer_returns(self):
+        self.success_consumers((
+            'test_exit_between_initial_read_and_reply_drains_tail_atomically',
+        ), hold_intent=True, hold_consumer_return=True)
+
     def test_poll_consumers_wait_for_original_reply_reconciliation(self):
         self.success_consumers((
             'test_exit_between_initial_read_and_reply_drains_tail_atomically',
@@ -61,13 +66,18 @@ class FiniteFixtureProgressTests(unittest.TestCase):
             'test_clean_exit_after_command_reply_preserves_fresh_empty_poll',
         ), hold_reply=True)
 
-    def success_consumers(self, methods, *, hold_intent=False, hold_reply=False):
+    def success_consumers(self, methods, *, hold_intent=False, hold_reply=False,
+                          hold_consumer_return=False):
         for method in methods:
             with self.subTest(method=method):
                 waits, acknowledged, held, faults = queue.Queue(), [], [], []
                 publication, publication_ack, intent_held, cases = queue.Queue(), [], [], []
+                publication_kinds = []
                 reconciliation, reply_ack, reply_held, early_terminals = queue.Queue(), [], [], []
                 host_joined, consumers = [], []
+                intent_returned, consumer_held = threading.Event(), []
+                consumer_returned = threading.Event()
+                poll_refusals = []
                 host = []
                 original_turn = family.runtime._RegisteredServer.start_turn
                 original_wait = threading.Condition.wait
@@ -77,6 +87,8 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                 original_write = wiring.gate_module.RegisteredFiniteInput._write_reply_frame
                 original_terminal = family.runtime._CoherentServerRequests.observe_trusted_terminal
                 original_commit = family.runtime._RegisteredServer._commit_tool_reply
+                original_send = wiring.DynamicRpcProcess._send_tool
+                original_refusal = wiring.finite_tools.RegisteredFiniteToolCalls._cleanup_failed_call
 
                 def start_turn(server, *args, **kwargs):
                     value = original_turn(server, *args, **kwargs)
@@ -90,6 +102,8 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     active = [True]
                     if selected:
                         waits.put((condition, active))
+                        if hold_intent:
+                            publication.put((condition, active))
                     completion = getattr(cases[0], '_finite_success_consumed', None) if cases else None
                     if ((hold_intent or hold_reply) and host and threading.get_ident() == host[0][1]
                             and completion is not None and condition is completion._cond):
@@ -125,6 +139,23 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                                     break
                             finally:
                                 condition.release()
+                    return value
+
+                def refused(producer, tool, failure):
+                    if (hold_intent and cases and tool == 'finite_poll'
+                            and producer is cases[0].factory.server.finite_tools):
+                        poll_refusals.append(failure)
+                    return original_refusal(producer, tool, failure)
+
+                def send(process, call, tool, arguments, scenario):
+                    value = original_send(process, call, tool, arguments, scenario)
+                    if hold_consumer_return and call == 'EXAMPLE-poll-call':
+                        self.assertEqual(threading.get_ident(), consumers[0])
+                        consumer_held.append(True)
+                        try:
+                            family.wait_for_release(self, intent_returned, 3)
+                        finally:
+                            consumer_returned.set()
                     return value
 
                 def commit(server, message, response, deadline, *, refusal=False):
@@ -196,21 +227,38 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     if json.loads(path.read_bytes()).get('stage') != 'finite-poll-intent':
                         return value
                     intent_held.append(True)
-                    # The actual durable write has completed. Hold its return
-                    # until the host joins the original consumer, or let the
-                    # unchanged one-second ticket fence reject the old fixture.
+                    # The host may already be in an original RPC/lifecycle
+                    # wait before the command consumer returns. A completion
+                    # join is not the only genuine progress acknowledgment.
+                    end = time.monotonic() + 1.05
                     try:
-                        entry = publication.get(timeout=1.05)
-                    except queue.Empty:
-                        return value
-                    if entry is not None:
-                        condition, active = entry
-                        self.assertTrue(condition.acquire(timeout=3))
-                        try:
-                            self.assertTrue(active[0] and condition._waiters)
-                            publication_ack.append(True)
-                        finally:
-                            condition.release()
+                        while (remaining := end - time.monotonic()) > 0:
+                            try:
+                                entry = publication.get(timeout=remaining)
+                            except queue.Empty:
+                                break
+                            if entry is None:
+                                break
+                            condition, active = entry
+                            remaining = end - time.monotonic()
+                            if remaining <= 0 or not condition.acquire(timeout=min(3, remaining)):
+                                break
+                            try:
+                                if not active[0] or not condition._waiters:
+                                    continue
+                                kind = ('rpc' if condition is host[0][0]._condition else
+                                        'lifecycle' if condition is host[0][0].finite_input.lifecycle.condition
+                                        else 'consumer')
+                                if hold_consumer_return:
+                                    self.assertFalse(consumer_returned.is_set())
+                                    self.assertIn(kind, {'rpc', 'lifecycle'})
+                                publication_ack.append(True)
+                                publication_kinds.append(kind)
+                                break
+                            finally:
+                                condition.release()
+                    finally:
+                        intent_returned.set()
                     return value
 
                 def fail_transport(server, failure):
@@ -221,6 +269,7 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     return original_fault(server, failure)
 
                 def release_publication():
+                    intent_returned.set()
                     publication.put(None)
                     reconciliation.put(None)
                     if cases:
@@ -243,9 +292,19 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                                                       'observe_trusted_terminal', terminal))
                     patches.enter_context(patch.object(family.runtime._RegisteredServer,
                                                       '_commit_tool_reply', commit))
+                    patches.enter_context(patch.object(wiring.DynamicRpcProcess, '_send_tool', send))
+                    patches.enter_context(patch.object(wiring.finite_tools.RegisteredFiniteToolCalls,
+                                                      '_cleanup_failed_call', refused))
                     result = self.run_owned_selector(method, [lambda: waits.put(None),
                                                              release_publication])
                 try:
+                    if hold_consumer_return and not result.wasSuccessful():
+                        self.assertEqual(len(poll_refusals), 1, (poll_refusals, faults))
+                        self.assertIs(type(poll_refusals[0]), wiring.gate_module.FiniteInputError)
+                        self.assertEqual(str(poll_refusals[0]),
+                                         'The reserved poll ended during intent persistence.')
+                        self.assertTrue(faults and faults[0].startswith(
+                            "AssertionError('Lists differ: [False] != [True]"), faults)
                     if hold_reply and not result.wasSuccessful():
                         self.assertTrue(early_terminals,
                                         ('original terminal did not cross the held reply',
@@ -257,6 +316,8 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                 except self.failureException as failure:
                     replies = [case.test.spawned[0].replies for case in cases if case.test.spawned]
                     failure.add_note(f'Original tool reply frames: {replies!r}')
+                    if hold_intent:
+                        failure.add_note(f'Original finite-poll refusals: {poll_refusals!r}')
                     raise
                 self.assertEqual(held, [True])
                 self.assertEqual(len(acknowledged), 1, 'original post-start waiter was not acknowledged')
@@ -264,6 +325,12 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                 if hold_intent:
                     self.assertEqual(intent_held, [True])
                     self.assertEqual(publication_ack, [True])
+                    self.assertEqual(poll_refusals, [])
+                if hold_consumer_return:
+                    self.assertEqual(consumer_held, [True])
+                    self.assertTrue(consumer_returned.is_set())
+                    self.assertEqual(len(publication_kinds), 1)
+                    self.assertIn(publication_kinds[0], {'rpc', 'lifecycle'})
                 if hold_reply:
                     self.assertEqual(host_joined, [True])
                     self.assertEqual(reply_held, [True])
