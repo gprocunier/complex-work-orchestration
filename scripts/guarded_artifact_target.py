@@ -475,24 +475,50 @@ class GuardedArtifactTarget:
         except BaseException as recording:
             self._failures.append("Failure persistence unconfirmed: " + V._exception_text(recording))
 
-    def _apply_one(self, index, outputs, checkpoint, counts, token, report, action, directive):
-        path, data = outputs[index]
-        self._check()
+    @staticmethod
+    def _entry_mark(parent, name):
+        try:
+            info = os.stat(name, dir_fd=parent, follow_symlinks=False)
+        except FileNotFoundError:
+            return None
+        return H._file_mark(info) + (info.st_nlink, info.st_uid, info.st_gid)
+
+    def _replacement_marks(self, source, target, index, path):
+        return (H._file_mark(os.fstat(source))[:3], H._file_mark(os.fstat(target))[:3],
+                self._entry_mark(source, f"new-{index:04d}"), self._entry_mark(target, path))
+
+    def _replace_current(self, source, target, index, path, marks, checkpoint, counts):
+        # The directory guard excludes cooperating publishers. Recheck after
+        # every policy/consent/payload callout, using the retained descriptors;
+        # this does not confer exclusion against arbitrary external writers.
         if self._capture() != checkpoint["target"]:
-            raise ValueError("Target changed immediately before publication.")
+            raise ValueError("Target changed after publication pre-effect checks.")
+        if self._replacement_marks(source, target, index, path) != marks:
+            raise ValueError("Retained publication directory or file identity changed.")
+        confirmed = counts["replacements"]
+        counts["replace_attempts"] += 1
+        counts["replacements"] = None
+        os.replace(f"new-{index:04d}", path, src_dir_fd=source, dst_dir_fd=target)
+        counts["replacements"] = confirmed + 1
+
+    def _pre_replace(self, index, outputs, token, report, action, directive):
         self._validated(token, report)
         self._consent(action, directive)
         intent = self._load("intent.json")
         if intent["action"] != action:
             raise ValueError("The persisted publication binding changed.")
         self._retained_files(intent, outputs, index)
+
+    def _apply_one(self, index, outputs, checkpoint, counts, token, report, action, directive):
+        path, data = outputs[index]
+        self._check()
+        if self._capture() != checkpoint["target"]:
+            raise ValueError("Target changed immediately before publication.")
         # Intent and old bytes are durable before this actual filesystem boundary.
         with self._directory(self.state) as source, self._directory(self.host.target) as target:
-            confirmed = counts["replacements"]
-            counts["replace_attempts"] += 1
-            counts["replacements"] = None
-            os.replace(f"new-{index:04d}", path, src_dir_fd=source, dst_dir_fd=target)
-            counts["replacements"] = confirmed + 1
+            marks = self._replacement_marks(source, target, index, path)
+            self._pre_replace(index, outputs, token, report, action, directive)
+            self._replace_current(source, target, index, path, marks, checkpoint, counts)
         after = self._capture()
         if (_strip_outputs(after, {path}) != _strip_outputs(checkpoint["target"], {path})
                 or self._file_bytes(self.host.target, path, H.MAX_FILE_BYTES, modes={0o644, 0o755}, owned=True) != data):

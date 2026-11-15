@@ -467,6 +467,25 @@ class OfflineN1HostTests(unittest.TestCase):
             self.assertEqual(future.result(timeout=20)["status"], "artifact-ready")
         self.assertEqual(server.sends, 1)
 
+    def test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent(self):
+        case = self.case()
+        host, _adapter, server, _control = case
+
+        def replace_lock():
+            lock = host.state / "host.lock"
+            lock.rename(host.state / "FAKE-original-host.lock")
+            lock.write_bytes(b"")
+
+        server.on_send = replace_lock
+        with self.assertRaisesRegex(HOST.OfflineHostError, "lock.*changed|lock.*replaced"):
+            self.run_case(case)
+        record = json.loads((host.state / "operation.json").read_bytes())
+        self.assertEqual(record, server.intent_observed)
+        self.assertEqual(record["status"], "reconciliation-required")
+        self.assertIsNone(record["artifact"])
+        self.assertFalse((host.state / "artifact").exists())
+        self.assertEqual(server.sends, 1)
+
     def test_restart_never_redispatches_unknown_intent(self):
         case = self.case(mode="crash")
         host, adapter, server, control = case

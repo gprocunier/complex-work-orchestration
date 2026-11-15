@@ -139,6 +139,7 @@ class F5NativeLiveHoldTests(unittest.TestCase):
                 fixture.host.run(request)
         self.assertEqual(list(fixture.state.iterdir()), [])
         self.assertIsNone(fixture.config.workflows[0].factory)
+        NF.assert_no_native_births(self, fixture.fixtures[0].fixture)
         self.assertFalse((fixture.ledger.root / N.admission.ledger_api.LEDGER_FILE).exists())
         with mock.patch.object(A, 'POOL_LIVE_AVAILABLE', True):
             report = fixture.host.run(request)

@@ -4,7 +4,10 @@ Real validators, legacy import paths, entry-point holds and tamper refusals are
 exercised with neutral disposable Git objects. The fixture digest projection is
 distinct from archived provenance. No model/provider or network calls are made;
 Git and disposable fixture processes are used.
-Golden semantic outcomes must remain unchanged when fixture identities change.
+Retained neutral-input verdicts remain checked against the original golden.
+The pinned pre-repair transport supplies historical source lineage separately
+from the repaired current transport. Neither projection establishes archived
+semantic acceptance or equality between historical and current behavior.
 """
 
 from __future__ import annotations
@@ -57,6 +60,9 @@ def tearDownModule() -> None:
 
 
 GOLDEN = ROOT / "tests" / "fixtures" / "w20_affected_contract_w13" / "golden-b8f6251.json"
+LEGACY_TRANSPORT_SOURCE = ROOT / "tests/fixtures/affected_contract_compatibility/legacy-transport-before-bounds.txt"
+LEGACY_TRANSPORT_MODULE_SHA256 = "264522cef555c0682227edf927ec1ab57dbee8776d8e360722c3d2e8fd874566"
+LEGACY_TRANSPORT_CLASS_SHA256 = "543715d9bee197b8674ea832c9f2b38bd74b19a6b07b7eafdaa453bf195f1591"
 from tests.historical_policy_fixtures import contract_evidence, portable_repository
 
 FIXTURE = portable_repository()
@@ -1150,6 +1156,33 @@ def _r5_surface_source_identity(expected: str, current_pin: str) -> str:
     return _sha256(source)
 
 
+def _historical_transport_fixture():
+    """Pinned pre-repair bytes; never execute or select this historical source."""
+    raw = LEGACY_TRANSPORT_SOURCE.read_bytes()
+    if _sha256(raw) != LEGACY_TRANSPORT_MODULE_SHA256:
+        raise AssertionError("pre-repair-transport-module-binding-drift")
+    lines = raw.decode("utf-8").splitlines(keepends=True)
+    node = next(node for node in ast.parse(raw).body if isinstance(node, ast.ClassDef) and node.name == "AppServer")
+    source = "".join(lines[node.lineno - 1:node.end_lineno])
+    if _sha256(source) != LEGACY_TRANSPORT_CLASS_SHA256:
+        raise AssertionError("pre-repair-transport-class-binding-drift")
+    methods = {child.name: "".join(lines[child.lineno - 1:child.end_lineno])
+               for child in node.body if isinstance(child, ast.FunctionDef)}
+    return source, methods
+
+
+def _current_transport_source(manifest):
+    source = inspect.getsource(LIVE.AppServer)
+    transport = Path(inspect.getfile(LIVE.AppServer)).read_bytes()
+    if _sha256(transport) != manifest["files"]["scripts/cwo_core/supervision/transport/app_server.py"]:
+        raise AssertionError("current-transport-source-binding-drift")
+    lines = transport.decode("utf-8").splitlines(keepends=True)
+    node = next(node for node in ast.parse(transport).body if isinstance(node, ast.ClassDef) and node.name == "AppServer")
+    if source != "".join(lines[node.lineno - 1:node.end_lineno]):
+        raise AssertionError("current-transport-class-binding-drift")
+    return source
+
+
 def load_golden() -> dict:
     """Bind public fixture digests, retained semantic outcomes and current sources."""
     historical = GOLDEN.read_bytes()
@@ -1165,9 +1198,9 @@ def load_golden() -> dict:
         if document["sections"][section]["validator_source_sha256"] != pin["fixture"]:
             raise AssertionError("public-fixture-source-pin-mismatch")
         document["sections"][section]["validator_source_sha256"] = pin["current"]
-    # Native availability adds exactly two constructor holds to the transport.
-    # Prove that removing those additions reproduces the previously bound
-    # source; keep all historical golden/source-pin resources unchanged.
+    # Current module/class bindings cover the repaired transport. Historical
+    # lineage is independently reconstructed only from the pinned pre-repair
+    # fixture. No stripping of current limits or historical semantic claim.
     manifest = ROOT / "tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json"
     manifest_value = json.loads(manifest.read_bytes())
     current_app_server = manifest_value["current_app_server_source_sha256"]
@@ -1177,22 +1210,18 @@ def load_golden() -> dict:
     # The full-module reversal above verifies the former validator bytes too.
     document["sections"]["tool_surface"]["validator_source_sha256"]["require_capture_binding"] = (
         _source_sha256(SURFACE.require_capture_binding))
-    source = inspect.getsource(LIVE.AppServer)
-    transport = Path(inspect.getfile(LIVE.AppServer)).read_bytes()
-    if _sha256(transport) != manifest_value["files"]["scripts/cwo_core/supervision/transport/app_server.py"]:
-        raise AssertionError("current-transport-source-binding-drift")
-    # 7a adds entry/wire N1 checks, including the separate turn writer. Reverse
-    # only those exact additions in their named methods, then retain the full
-    # original launch/hold lineage checks below. No historical pins/outcomes change.
-    historical_source = source
+    source = _current_transport_source(manifest_value)
+    # Apply the retained exact hold/launch reversals to historical fixture
+    # methods only; the repaired current implementation is checked separately.
+    historical_source, historical_methods = _historical_transport_fixture()
     for name, count in (("notify", 1), ("request", 2), ("request_once_with_guard", 2)):
-        current = inspect.getsource(getattr(LIVE.AppServer, name))
+        current = historical_methods[name]
         gate = "_require_native_rpc(method)\n"
         if current.count(gate) != count:
             raise AssertionError("native RPC gate occurrence count changed: " + name)
         previous = "".join(line for line in current.splitlines(keepends=True) if line.strip() != gate.strip())
         historical_source = historical_source.replace(current, previous)
-    current = inspect.getsource(LIVE.AppServer.start_turn)
+    current = historical_methods["start_turn"]
     entry = "        live_availability.require_n1_live()\n"
     wire = "            live_availability.require_n1_live()\n"
     if current.count("live_availability.require_n1_live()") != 2:
@@ -1399,6 +1428,47 @@ class GoldenVerdictTests(unittest.TestCase):
 
     def test_f5_held_route_identities_keep_historical_lineage_with_explicit_gates(self) -> None:
         self.check("identities")
+
+
+class TransportLineageBindingTests(unittest.TestCase):
+    """Historical source lineage and current fixture outcomes are distinct."""
+
+    def test_pinned_historical_fixture_is_distinct_from_current_transport(self) -> None:
+        historical, methods = _historical_transport_fixture()
+        self.assertEqual(_sha256(historical), LEGACY_TRANSPORT_CLASS_SHA256)
+        self.assertIn("for raw in self.process.stdout:", methods["_read_stdout"])
+        self.assertNotEqual(_sha256(inspect.getsource(LIVE.AppServer)), LEGACY_TRANSPORT_CLASS_SHA256)
+        observed = load_golden()["sections"]["identities"]["source_sha256"]["AppServer"]
+        self.assertEqual(observed, _source_sha256(LIVE.AppServer))
+
+    def test_historical_module_and_class_tampering_are_refused(self) -> None:
+        module = sys.modules[__name__]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "historical.txt"
+            path.write_bytes(LEGACY_TRANSPORT_SOURCE.read_bytes() + b"\n# changed\n")
+            with mock.patch.object(module, "LEGACY_TRANSPORT_SOURCE", path):
+                with self.assertRaisesRegex(AssertionError, "^pre-repair-transport-module-binding-drift$"):
+                    _historical_transport_fixture()
+        with mock.patch.object(module, "LEGACY_TRANSPORT_CLASS_SHA256", "0" * 64):
+            with self.assertRaisesRegex(AssertionError, "^pre-repair-transport-class-binding-drift$"):
+                _historical_transport_fixture()
+
+    def test_current_module_and_loaded_class_tampering_are_refused(self) -> None:
+        read = Path.read_bytes
+        transport = Path(inspect.getfile(LIVE.AppServer))
+        def changed(path):
+            raw = read(path)
+            return raw + b"\n# changed\n" if path == transport else raw
+        with mock.patch.object(Path, "read_bytes", changed):
+            with self.assertRaisesRegex(AssertionError, "^current-transport-source-binding-drift$"):
+                load_golden()
+        source = inspect.getsource
+        def changed_class(value):
+            text = source(value)
+            return text + "\n# changed\n" if value is LIVE.AppServer else text
+        with mock.patch.object(inspect, "getsource", changed_class):
+            with self.assertRaisesRegex(AssertionError, "^current-transport-class-binding-drift$"):
+                load_golden()
 
 
 class ConsumerCompatibilityTests(unittest.TestCase):

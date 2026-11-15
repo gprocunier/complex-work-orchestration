@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import copy
 import builtins
+from contextlib import contextmanager
 import hashlib
 import io
 import json
@@ -10,13 +11,15 @@ import os
 from pathlib import Path
 import queue
 import shutil
+import signal
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tests')]
@@ -33,6 +36,23 @@ from test_route_feasibility_preparation import bind  # noqa: E402
 # Observing the first fixture boundary includes their whole startup envelope.
 STARTUP_OBSERVATION_SECONDS = 10 + 10 + 30
 _ORIGINAL_REGISTERED_SERVER = runtime._RegisteredServer
+_PIPE_BACKEND = runtime._PipeBackend
+
+
+def assert_no_native_births(test, fixture):
+    test.assertEqual(getattr(fixture, 'spawned', []), [])
+    for backend in getattr(fixture, 'tables', ()):
+        test.assertEqual(backend.births, [])
+        test.assertEqual(backend.spawn_calls, [])
+
+
+def runtime_validator():
+    """Select the explicit system helper inside the declared readonly runtime."""
+    path = Path('/usr/bin/python3').resolve(strict=True)
+    if not any(Path(root) in path.parents for root in runtime._RUNTIME):
+        raise ValueError('The fixed test validator is outside the declared runtime mounts.')
+    runtime._file(path)
+    return str(path)
 
 
 def wait_for_startup(test, event, worker, outcome):
@@ -139,6 +159,8 @@ class Input:
         failed_frame = None
         try:
             with os.fdopen(descriptor, "r", encoding="utf-8") as stream:
+                self.process.case.test.assertEqual(stream.read(1), '1')
+                self.process.bootstrap_released.set()
                 for line in stream:
                     try:
                         message = json.loads(line)
@@ -168,6 +190,7 @@ class Input:
         self.acknowledged_failure = failure
 
     def write(self, value):
+        self.process.case.test.assertTrue(self.process.bootstrap_released.wait(5))
         self.process.receive(json.loads(value))
         return len(value)
 
@@ -267,6 +290,8 @@ class RpcProcess(children.FakeChild):
         super().__init__(process)
         self.case, self.validator = case, validator
         self.stdin, self.stdout, self.stderr = Input(self), Lines(), Lines()
+        self.bootstrap_released = threading.Event()
+        self.stdout.lines.put(runtime._READY)
         case.test.addCleanup(self.stdin.require_healthy)
         # Even a failed owner cleanup must release fake blocking readers before
         # the composed fixture finishes its bounded cleanup callbacks.
@@ -622,6 +647,358 @@ def settle_original_archive(fixture, case):
     case._original_archive_settlement = True
 
 
+class NamespaceInfoFramingTests(unittest.TestCase):
+    @contextmanager
+    def frames(self, chunks, *, clocks=None, readiness=None):
+        descriptor, events = 73, []
+        lifetime = runtime._Containment(SimpleNamespace(server=None))
+        stream = iter(chunks)
+
+        def read(fd, cap):
+            self.assertEqual(fd, descriptor)
+            chunk = next(stream)
+            self.assertLessEqual(len(chunk), cap)
+            events.append(('read', chunk))
+            return chunk
+
+        def retain(pid):
+            self.assertEqual(events[-1], ('read', b''), 'namespace retained before startup-report EOF')
+            events.append(('retained', pid))
+            return {'EXAMPLE': 'original namespace checks follow framing'}
+
+        ready = (lambda reads, *_args: (reads, [], [])) if readiness is None else readiness
+        with patch.object(runtime.os, 'read', side_effect=read) as reads, patch.object(
+                runtime.select, 'select', side_effect=ready) as waits, patch.object(
+                lifetime, '_retain_namespace', side_effect=retain) as retained, patch.object(
+                lifetime, '_release_command') as release:
+            if clocks is None:
+                yield SimpleNamespace(lifetime=lifetime, fd=descriptor, reads=reads,
+                                      waits=waits, retained=retained, release=release, events=events)
+            else:
+                with patch.object(runtime.time, 'monotonic', side_effect=clocks):
+                    yield SimpleNamespace(lifetime=lifetime, fd=descriptor, reads=reads,
+                                          waits=waits, retained=retained, release=release, events=events)
+
+    def assert_unretained(self, case):
+        case.retained.assert_not_called()
+        case.release.assert_not_called()
+        self.assertIsNone(case.lifetime.namespace_handle)
+
+    def test_fragmented_report_and_ordinary_report_retain_only_after_complete_eof(self):
+        report = b'{\n  "child-pid": 17\n}\n'
+        for chunks in ([report, b''], [report[:8], report[8:18], report[18:], b'']):
+            with self.subTest(chunks=len(chunks)), self.frames(chunks) as case:
+                observed = case.lifetime._observe(case.fd)
+                self.assertEqual(observed['child_pid'], 17)
+                case.retained.assert_called_once_with(17)
+                self.assertEqual(case.events[-1], ('retained', 17))
+
+    def test_exact_info_cap_accepts_and_one_byte_over_refuses_before_retention(self):
+        report = b'{"child-pid":17}'
+        bounded = report + b' ' * (4096 - len(report))
+        with self.frames([bounded, b'']) as case:
+            self.assertEqual(case.lifetime._observe(case.fd)['child_pid'], 17)
+            self.assertEqual([call.args[1] for call in case.reads.call_args_list], [4097, 1])
+        with self.frames([bounded + b' ']) as case:
+            with self.assertRaisesRegex(runtime.native.OfflineHostError, 'bound'):
+                case.lifetime._observe(case.fd)
+            self.assert_unretained(case)
+
+    def test_incomplete_malformed_duplicate_and_extra_reports_never_retain_or_release(self):
+        reports = (b'', b'{"child-pid":', b'{"child-pid":17,}', b'\xff', b'[]',
+                   b'{"child-pid":17,"child-pid":18}',
+                   b'{"child-pid":17}\n{"child-pid":18}\n')
+        for report in reports:
+            chunks = [report, b''] if report else [b'']
+            with self.subTest(report=report), self.frames(chunks) as case:
+                with self.assertRaises(runtime.native.OfflineHostError):
+                    case.lifetime._observe(case.fd)
+                self.assert_unretained(case)
+
+    def test_extra_report_in_later_chunk_is_not_admitted_as_first_object(self):
+        with self.frames([b'{"child-pid":17}', b'\n{"child-pid":18}', b'']) as case:
+            with self.assertRaises(runtime.native.OfflineHostError):
+                case.lifetime._observe(case.fd)
+            self.assert_unretained(case)
+
+    def test_all_fragments_share_the_original_five_second_deadline(self):
+        calls = []
+
+        def ready(reads, _writes, _errors, timeout):
+            calls.append(timeout)
+            return (reads, [], []) if len(calls) < 3 else ([], [], [])
+
+        with self.frames([b'{"child-pid":', b'17}'], clocks=[0, 0, 2, 2, 4.9, 4.9], readiness=ready) as case:
+            with self.assertRaisesRegex(runtime.native.OfflineHostError, 'timed out'):
+                case.lifetime._observe(case.fd)
+            self.assertEqual(len(calls), 3)
+            self.assertAlmostEqual(calls[0], 5)
+            self.assertAlmostEqual(calls[1], 3)
+            self.assertAlmostEqual(calls[2], .1)
+            self.assert_unretained(case)
+
+    def test_read_finishing_after_total_deadline_cannot_retain_complete_bytes(self):
+        with self.frames([b'{"child-pid":17}'], clocks=[0, 0, 5]) as case:
+            with self.assertRaisesRegex(runtime.native.OfflineHostError, 'timed out'):
+                case.lifetime._observe(case.fd)
+            self.assert_unretained(case)
+
+
+class RealLauncherArgumentsTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.launcher = '/usr/bin/bwrap'
+        if not Path(cls.launcher).is_file():
+            raise unittest.SkipTest('The actual bubblewrap executable is unavailable.')
+        supported, reason = runtime.owned.atomic_spawn.supported()
+        if not supported:
+            raise unittest.SkipTest(reason)
+
+    def launch_command(self, *, sealed):
+        with tempfile.TemporaryDirectory(prefix='cwo-bwrap-', dir='/tmp') as temporary:
+            root = Path(temporary).resolve()
+            worker, home = root / 'worker', root / 'home'
+            (worker / '.git').mkdir(parents=True)
+            home.mkdir()
+            executable = root / 'command'
+            executable.write_text('#!/bin/sh\nprintf "EXAMPLE actual isolated command\\n"\n')
+            executable.chmod(0o700)
+            factory = SimpleNamespace(spec={'launcher': self.launcher, 'configuration_files': {},
+                                           'validator': runtime_validator()},
+                host=SimpleNamespace(worker=worker),
+                host_records=SimpleNamespace(assert_worker_roots_excluded=lambda roots: None))
+            lifetime = runtime._Containment(factory)
+            command = [str(executable), 'app-server', '--stdio']
+            read_gate, write_gate = os.pipe()
+            read_info, write_info = os.pipe()
+            descriptors = [read_gate, write_gate, read_info, write_info]
+            try:
+                os.write(write_gate, b'1')
+                options = lifetime._command(command, home, read_gate, write_info)
+                if sealed:
+                    arguments = runtime._argument_file()
+                    descriptors.append(arguments)
+                    os.write(arguments, b'\0'.join(part.encode() for part in options[1:]) + b'\0')
+                    os.lseek(arguments, 0, os.SEEK_SET)
+                    runtime.fcntl.fcntl(arguments, 1033, 15)
+                    argv = runtime._launcher_argv(options[0], arguments, command)
+                else:
+                    # Isolate mount order from the old command-in-options bug.
+                    if options[-len(command) - 1:] == ['--', *command]:
+                        options = options[:-len(command) - 1]
+                    argv = [*options, '--', *command]
+                return subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True,
+                    pass_fds=tuple(descriptors), timeout=5, check=False)
+            finally:
+                for descriptor in descriptors:
+                    os.close(descriptor)
+
+    def test_real_mount_order_keeps_private_temporary_executable_visible(self):
+        result = self.launch_command(sealed=False)
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+        self.assertEqual(result.stdout, b'EXAMPLE actual isolated command\n')
+
+    def test_real_sealed_options_keep_command_in_actual_argv(self):
+        result = self.launch_command(sealed=True)
+        self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
+        self.assertEqual(result.stdout, b'EXAMPLE actual isolated command\n')
+
+    def test_real_gate_uses_explicit_runtime_helper_despite_test_runner_prefix(self):
+        with patch.object(sys, 'executable', '/opt/EXAMPLE-toolcache/bin/python'):
+            lifetime, _home, _command = self.real_lifetime()
+        self.assertEqual(lifetime.factory.spec['validator'], str(Path('/usr/bin/python3').resolve()))
+
+    def real_lifetime(self, *, revoke_at_observation=False):
+        supported, reason = runtime.owned.atomic_spawn.supported()
+        if not supported:
+            self.skipTest(reason)
+        temporary = tempfile.TemporaryDirectory(prefix='cwo-registered-', dir='/tmp')
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name).resolve()
+        worker, home = root / 'worker', root / 'home'
+        (worker / '.git').mkdir(parents=True)
+        home.mkdir()
+        protected = root / 'controller-record'
+        protected.write_bytes(b'EXAMPLE controller custody\n')
+        executable = root / 'command'
+        executable.write_text('#!/bin/sh\nprintf useful > result.txt\nprintf "EXAMPLE launched\\n"\nexec /usr/bin/sleep 25\n')
+        executable.chmod(0o700)
+        factory = SimpleNamespace(spec={'launcher': self.launcher, 'configuration_files': {},
+            'executable': str(executable), 'validator': runtime_validator()},
+            operation_id='EXAMPLE-real-contained', host=SimpleNamespace(worker=worker), server=None,
+            host_records=SimpleNamespace(assert_worker_roots_excluded=lambda roots: None), revoked=False,
+            _protected_roots=lambda: (protected,))
+
+        def require_effect():
+            if factory.revoked:
+                raise runtime.native.OfflineHostError('EXAMPLE admission revoked before command release')
+
+        def record(stage, observation):
+            if stage == 'appserver-contained':
+                self.assertFalse((worker / 'result.txt').exists())
+                self.assertTrue(observation['filesystem_ready'])
+                factory.revoked = revoke_at_observation
+
+        factory.require_effect, factory.record = require_effect, record
+        self.enterContext(patch.object(runtime.live_availability, 'N1_LIVE_AVAILABLE', True))
+        lifetime = runtime._Containment(factory)
+        self.addCleanup(self.close_real_lifetime, lifetime)
+        return lifetime, home, [str(executable), 'app-server', '--stdio']
+
+    @staticmethod
+    def close_real_lifetime(lifetime):
+        if lifetime.receipt is not None and not lifetime._ending:
+            lifetime.terminate()
+        if lifetime.namespace_handle is not None:
+            if not runtime.select.select([lifetime.namespace_handle], [], [], 0)[0]:
+                signal.pidfd_send_signal(lifetime.namespace_handle, signal.SIGKILL)
+                runtime.select.select([lifetime.namespace_handle], [], [], 5)
+            os.close(lifetime.namespace_handle)
+            lifetime.namespace_handle = None
+        if lifetime.controller is not None:
+            lifetime.controller.close()
+        if lifetime.process is not None:
+            for stream in (lifetime.process.stdin, lifetime.process.stdout, lifetime.process.stderr):
+                stream.close()
+
+    def test_real_registered_gate_observes_completed_mounts_before_useful_command(self):
+        lifetime, home, command = self.real_lifetime()
+        process = lifetime.launch(command, home)
+        self.assertTrue(runtime.select.select([process.stdout], [], [], 5)[0])
+        self.assertEqual(process.stdout.readline(), 'EXAMPLE launched\n')
+        self.assertEqual((lifetime.factory.host.worker / 'result.txt').read_bytes(), b'useful')
+        report = lifetime.terminate()
+        self.assertTrue(report['child_exit_confirmed'] and report['child_reaped'])
+        self.assertTrue(lifetime.contained and lifetime.termination_recorded)
+
+    def test_real_registered_revocation_after_mount_observation_never_executes_command(self):
+        lifetime, home, command = self.real_lifetime(revoke_at_observation=True)
+        with self.assertRaisesRegex(runtime.native.OfflineHostError, 'admission revoked'):
+            lifetime.launch(command, home)
+        self.assertFalse((lifetime.factory.host.worker / 'result.txt').exists())
+        self.assertTrue(lifetime.contained and lifetime.termination_recorded)
+
+    def assert_real_namespace_stopped_after_monitor_failure(self, *, raises):
+        lifetime, home, command = self.real_lifetime()
+        lifetime.launch(command, home)
+        original = lifetime.controller.terminate
+        self.addCleanup(original, lifetime.receipt, .1, allow_kill=True)
+        primary = OSError('EXAMPLE unresolved actual monitor cleanup')
+        unresolved = {'outcome': 'wait-failed', 'child_exit_confirmed': False, 'child_reaped': False}
+        with patch.object(lifetime.controller, 'terminate', side_effect=primary if raises else None,
+                          return_value=unresolved):
+            with self.assertRaises((OSError, runtime.native.OfflineHostError)) as caught:
+                lifetime.terminate()
+        if raises:
+            self.assertIs(caught.exception, primary)
+        else:
+            self.assertIs(lifetime.termination, unresolved)
+        self.assertIsNone(lifetime.namespace_handle)
+        self.assertFalse(lifetime.contained or lifetime.termination_recorded)
+
+    def test_real_namespace_stops_even_when_original_monitor_cleanup_raises(self):
+        self.assert_real_namespace_stopped_after_monitor_failure(raises=True)
+
+    def test_real_namespace_stops_even_when_original_monitor_cleanup_is_unresolved(self):
+        self.assert_real_namespace_stopped_after_monitor_failure(raises=False)
+
+
+class RuntimeValidatorLayoutTests(unittest.TestCase):
+    def test_unmounted_helper_alias_refuses_before_file_observation_or_native_effects(self):
+        with patch.object(Path, 'resolve', return_value=Path('/opt/EXAMPLE-toolcache/bin/python')), patch.object(
+                runtime, '_file') as file_observation:
+            with self.assertRaisesRegex(ValueError, 'outside the declared runtime mounts'):
+                runtime_validator()
+        file_observation.assert_not_called()
+
+
+class NamespaceCleanupIndependenceTests(unittest.TestCase):
+    def lifetime(self):
+        # Control-flow fixtures only: no fake handle is signalled or treated as
+        # physical enforcement evidence by these monitor-failure observations.
+        lifetime = runtime._Containment(SimpleNamespace(server=None, record=Mock()))
+        lifetime.receipt, lifetime.namespace_handle = object(), object()
+        lifetime.controller = SimpleNamespace(terminate=Mock())
+        return lifetime
+
+    def assert_unresolved_monitor_stops_namespace(self, *, raises):
+        lifetime = self.lifetime()
+        primary = OSError('EXAMPLE monitor observation failed')
+        unresolved = {'outcome': 'wait-failed', 'child_exit_confirmed': False, 'child_reaped': False}
+        lifetime.controller.terminate.side_effect = primary if raises else None
+        lifetime.controller.terminate.return_value = unresolved
+        with patch.object(lifetime, '_stop_namespace') as stop:
+            with self.assertRaises((OSError, runtime.native.OfflineHostError)) as caught:
+                lifetime.terminate()
+        stop.assert_called_once_with()
+        if raises:
+            self.assertIs(caught.exception, primary)
+        else:
+            self.assertIs(lifetime.termination, unresolved)
+        self.assertIs(lifetime._termination_error, caught.exception)
+        self.assertTrue(lifetime._ending and lifetime._termination_finished.is_set())
+        self.assertFalse(lifetime.contained or lifetime.termination_recorded)
+        lifetime.factory.record.assert_not_called()
+
+    def test_raising_monitor_cleanup_still_stops_verified_namespace(self):
+        self.assert_unresolved_monitor_stops_namespace(raises=True)
+
+    def test_unresolved_monitor_cleanup_still_stops_verified_namespace(self):
+        self.assert_unresolved_monitor_stops_namespace(raises=False)
+
+    def test_independent_namespace_failure_keeps_monitor_primary(self):
+        lifetime = self.lifetime()
+        primary = KeyboardInterrupt('EXAMPLE primary monitor interruption')
+        lifetime.controller.terminate.side_effect = primary
+        with patch.object(lifetime, '_stop_namespace', side_effect=OSError('EXAMPLE namespace cleanup failed')) as stop:
+            with self.assertRaises(KeyboardInterrupt) as caught:
+                lifetime.terminate()
+        self.assertIs(caught.exception, primary)
+        stop.assert_called_once_with()
+        self.assertIn('namespace cleanup failed', '\n'.join(getattr(primary, '__notes__', ())))
+        self.assertFalse(lifetime.contained or lifetime.termination_recorded)
+
+    def test_namespace_failure_note_cannot_replace_monitor_primary(self):
+        lifetime = self.lifetime()
+        primary = OSError('EXAMPLE original monitor failure')
+        lifetime.controller.terminate.side_effect = primary
+        with patch.object(lifetime, '_stop_namespace', side_effect=OSError('EXAMPLE namespace failure')), patch.object(
+                runtime.admission.ledger_api, 'add_failure_note', side_effect=KeyboardInterrupt('EXAMPLE note failure')):
+            with self.assertRaises(OSError) as caught:
+                lifetime.terminate()
+        self.assertIs(caught.exception, primary)
+        self.assertIs(lifetime._termination_error, primary)
+        self.assertFalse(lifetime.contained or lifetime.termination_recorded)
+
+    def test_namespace_natural_exit_race_requires_exact_handle_confirmation(self):
+        lifetime = self.lifetime()
+        read, write = os.pipe()
+        lifetime.namespace_handle = read
+
+        def naturally_exited(descriptor, signum):
+            self.assertEqual((descriptor, signum), (read, signal.SIGKILL))
+            os.close(write)
+            raise ProcessLookupError('EXAMPLE namespace exited before signal')
+
+        try:
+            with patch.object(runtime.signal, 'pidfd_send_signal', side_effect=naturally_exited):
+                lifetime._stop_namespace()
+            self.assertIsNone(lifetime.namespace_handle)
+        finally:
+            if lifetime.namespace_handle is not None:
+                os.close(read)
+
+    def test_namespace_esrch_without_exit_confirmation_keeps_cleanup_unresolved(self):
+        lifetime = self.lifetime()
+        descriptor = lifetime.namespace_handle
+        with patch.object(runtime.select, 'select', return_value=([], [], [])), patch.object(
+                runtime.signal, 'pidfd_send_signal', side_effect=ProcessLookupError('EXAMPLE unconfirmed exit')):
+            with self.assertRaises(runtime.native.OfflineHostError):
+                lifetime._stop_namespace()
+        self.assertIs(lifetime.namespace_handle, descriptor)
+        self.assertFalse(lifetime.contained or lifetime.termination_recorded)
+
+
 class PipeChildPropertiesTests(unittest.TestCase):
     def test_properties_forward_the_original_child_lifetime_state(self):
         original = SimpleNamespace(pid=321, returncode=None)
@@ -757,6 +1134,17 @@ class FactoryTests(unittest.TestCase):
         case.capability.claim()
         case.verifier = a.verifier
 
+    def namespace_text(self, original_text, path, *args, **kwargs):
+        if path.parent == Path('/proc/self/fdinfo') and int(path.name) in self.namespace_handles:
+            return 'Pid:\t' + str(self.namespace_handles[int(path.name)]) + '\n'
+        if path.parent.name.isdigit() and int(path.parent.name) in self.namespace_children:
+            if path.name == 'status':
+                return 'NSpid:\t' + path.parent.name + '\t1\n'
+            if path.name == 'stat':
+                index = int(path.parent.name) - 2147000001
+                return path.parent.name + ' (bwrap) S ' + str(self.spawned[index].pid) + ' ' + '0 ' * 17 + '1\n'
+        return original_text(path, *args, **kwargs)
+
     def _boundaries(self, case):
         # Held-route fixtures replace OS/process effects, then explicitly
         # patch the installed hold for this test's lifetime only.
@@ -767,8 +1155,8 @@ class FactoryTests(unittest.TestCase):
         subprocess.Popen.side_effect = self.original_popen
         self.tables, self.spawned = [], []
         test = self
-        class FakeBackend(children.FakeLinux, runtime._PipeBackend):
-            spawn = runtime._PipeBackend.spawn
+        class FakeBackend(children.FakeLinux, _PIPE_BACKEND):
+            spawn = _PIPE_BACKEND.spawn
             def __init__(self, pass_fds):
                 children.FakeLinux.__init__(self)
                 self.pass_fds = pass_fds
@@ -779,7 +1167,10 @@ class FactoryTests(unittest.TestCase):
                 test.assertEqual(argv[1], '--args')
                 args_fd = int(argv[2])
                 raw = os.pread(args_fd, 32768, 0)
-                argv = [argv[0], *raw.decode().rstrip('\0').split('\0')]
+                options = raw.decode().rstrip('\0').split('\0')
+                test.assertNotIn('--', options)
+                test.assertEqual(argv[3], '--')
+                argv = [argv[0], *options, *argv[3:]]
                 test.assertIn('--block-fd', argv)
                 test.held.add(int(argv[argv.index('--block-fd') + 1]))
                 test.assertIn('--unshare-all', argv)
@@ -832,11 +1223,7 @@ class FactoryTests(unittest.TestCase):
         self.enterContext(patch.object(os, 'pidfd_open', namespace_pidfd))
         original_text = Path.read_text
         def proc_text(path, *args, **kwargs):
-            if path.parent == Path('/proc/self/fdinfo') and int(path.name) in self.namespace_handles:
-                return 'Pid:\t' + str(self.namespace_handles[int(path.name)]) + '\n'
-            if path.name == 'status' and path.parent.name.isdigit() and int(path.parent.name) in self.namespace_children:
-                return 'NSpid:\t' + path.parent.name + '\t1\n'
-            return original_text(path, *args, **kwargs)
+            return self.namespace_text(original_text, path, *args, **kwargs)
         self.enterContext(patch.object(Path, 'read_text', proc_text))
         original_readlink = os.readlink
         def readlink(path, *args, **kwargs):
@@ -902,6 +1289,42 @@ class FactoryTests(unittest.TestCase):
     def attempt(self, case):
         path = case.ledger.root / runtime.admission.ledger_api.LEDGER_FILE
         return next(iter(json.loads(path.read_bytes())['attempts'].values()))
+
+    def test_nested_fixture_boundaries_use_original_backend_without_native_birth(self):
+        self.case()
+        outer = runtime._PipeBackend
+        nested = FactoryTests('runTest')
+        nested.setUp()
+        self.addCleanup(cleanup_helper, self, nested)
+        nested.case()
+        self.assertIsNot(runtime._PipeBackend, outer)
+        self.assertEqual(self.spawned, [])
+        self.assertEqual(nested.spawned, [])
+        self.assertEqual(self.tables, [])
+        self.assertEqual(nested.tables, [])
+
+    def test_incomplete_namespace_info_keeps_charge_without_retention_or_command_release(self):
+        case = self.case()
+        factory = self.factory(case)
+        original = os.write
+
+        def truncated_report(descriptor, data):
+            if type(data) is bytes and data.startswith(b'{"child-pid":'):
+                return original(descriptor, b'{"child-pid":')
+            return original(descriptor, data)
+
+        with patch.object(os, 'write', side_effect=truncated_report), patch.object(
+                runtime._Containment, '_release_command') as release:
+            with self.assertRaisesRegex(runtime.native.OfflineHostError, 'complete bounded JSON object'):
+                factory.run()
+        release.assert_not_called()
+        self.assertEqual(len(self.spawned), 1)
+        self.assertFalse(self.spawned[0].bootstrap_released.is_set())
+        self.assertEqual(self.namespace_handles, {})
+        self.assertIsNone(factory.token)
+        self.assertFalse((case.host.state / 'artifact').exists())
+        self.assertEqual(self.attempt(case)['outcome'], 'unknown')
+        self.assertEqual(self.attempt(case)['charge'], self.attempt(case)['amount'])
 
     def test_original_rpc_useful_capture_validation_and_no_redispatch(self):
         case = self.case(archive_schedule='settled')
@@ -1096,6 +1519,41 @@ class FactoryTests(unittest.TestCase):
         self.assertNotIn(b'1', [call.args[1] for call in writes.call_args_list])
         self.assertEqual(self.spawned[0].methods, [])
         self.assertEqual(self.attempt(case)['charge'], self.attempt(case)['amount'])
+
+    def assert_namespace_rebinding_refused(self, field):
+        case = self.case()
+        factory = self.factory(case)
+        original_open, original_text = os.pidfd_open, self.namespace_text
+        opened = []
+
+        def open_handle(pid, flags):
+            descriptor = original_open(pid, flags)
+            opened.append(descriptor)
+            return descriptor
+
+        def changed_text(original, path, *args, **kwargs):
+            raw = original_text(original, path, *args, **kwargs)
+            if opened and path.name == 'stat' and path.parent.name.isdigit():
+                prefix, fields = raw.split(') ', 1)
+                values = fields.split()
+                index = 1 if field == 'parent' else 19
+                values[index] = str(int(values[index]) + 1)
+                return prefix + ') ' + ' '.join(values)
+            return raw
+
+        with patch.object(os, 'pidfd_open', side_effect=open_handle), patch.object(self, 'namespace_text', changed_text):
+            with self.assertRaisesRegex(ValueError, 'namespace|Namespace'):
+                factory.run()
+        self.assertEqual(len(opened), 1)
+        self.assertNotIn(opened[0], self.namespace_handles)
+        self.assertFalse((case.host.state / 'artifact').exists())
+        self.assertEqual(self.attempt(case)['charge'], self.attempt(case)['amount'])
+
+    def test_namespace_pid_reuse_during_handle_acquisition_cannot_supply_cleanup_authority(self):
+        self.assert_namespace_rebinding_refused('start')
+
+    def test_namespace_parent_substitution_cannot_supply_cleanup_authority(self):
+        self.assert_namespace_rebinding_refused('parent')
 
     def test_projected_import_and_productive_path_do_not_import_test_modules(self):
         case = self.case(archive_schedule='settled')

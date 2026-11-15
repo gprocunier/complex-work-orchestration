@@ -12,6 +12,116 @@ from tests import test_registered_finite_tool_wiring as wiring
 from tests import test_registered_finite_input as finite
 
 
+class ToolPipePublicationTests(unittest.TestCase):
+    def pair(self, *, output=None):
+        self.spawned = []
+        owner = self
+        tools, workers = [], []
+        class Case:
+            test = owner
+            scenario = SimpleNamespace(thread_id='EXAMPLE-thread', turn_id='EXAMPLE-turn')
+            def stop(self):
+                tool = tools[0]
+                tool.process.alive = False
+                tool.stdout.put('')
+                return 'EXAMPLE late tool output\n'
+            @property
+            def poll_output(self):
+                return self.stop() if output == 'poll' else 'EXAMPLE poll output\n'
+            @property
+            def command_output(self):
+                return self.stop() if output == 'bootstrap' else 'EXAMPLE command output\n'
+        case = Case()
+        transport = wiring.DynamicRpcProcess(family.children.FakeProcess(991), case)
+        self.spawned.append(transport)
+        original_thread = threading.Thread
+        def retain(*args, **kwargs):
+            worker = original_thread(*args, **kwargs)
+            workers.append(worker)
+            return worker
+        with patch.object(wiring.threading, 'Thread', side_effect=retain):
+            tool = wiring.DynamicRpcProcess(family.children.FakeProcess(992), case)
+        tools.append(tool)
+        self.spawned.append(tool)
+        self.addCleanup(setattr, tool.process, 'alive', False)
+        self.assertEqual(tool.stdout.readline(), family.runtime._READY)
+        return case, transport, tool, workers[0]
+
+    def test_poll_reply_stopped_after_liveness_check_cannot_write_to_closed_tool_pipe(self):
+        _case, transport, tool, _worker = self.pair(output='poll')
+        sent = []
+        transport._send_tool = lambda *args: sent.append(args)
+        read, write = os.pipe()
+        with os.fdopen(write, 'w') as stream:
+            stream.write('1' + json.dumps({'id': 'EXAMPLE-request-EXAMPLE-command-call',
+                                          'result': {'success': True}}) + '\n')
+        transport.stdin.consume(read)
+        transport.stdin.require_healthy()
+        self.assertFalse(tool.process.alive)
+        self.assertEqual(tool.stdout.reader.read(), b'')
+        self.assertEqual(sent, [])
+        self.assertIsNone(transport.stdin.failure)
+
+    def test_bootstrap_stopped_after_gate_read_cannot_emit_useful_output(self):
+        failures = []
+        with patch.object(threading, 'excepthook', lambda args: failures.append(args.exc_value)):
+            _case, _transport, tool, worker = self.pair(output='bootstrap')
+            os.write(tool.stdin.fileno(), b'1')
+            worker.join(1)
+        self.assertFalse(worker.is_alive())
+        self.assertTrue(tool.bootstrap_released.is_set())
+        self.assertFalse(tool.process.alive)
+        self.assertEqual(tool.stdout.reader.read(), b'')
+        self.assertEqual(failures, [])
+
+    def test_inflight_tool_write_completes_before_containment_closes_its_pipe(self):
+        _case, _transport, tool, _bootstrap = self.pair()
+        entered, resume, attempted, closed = (threading.Event() for _ in range(4))
+        failures = []
+        original = tool.stdout.writer
+        def write(data):
+            entered.set()
+            self.assertTrue(resume.wait(2))
+            return original.write(data)
+        tool.stdout.writer = SimpleNamespace(write=write, close=original.close, closed=False)
+        def publish():
+            try:
+                tool.stdout.put('EXAMPLE prior publication\n')
+            except BaseException as error:
+                failures.append(error)
+        def contain():
+            attempted.set()
+            tool.process.alive = False
+            tool.stdout.put('')
+            closed.set()
+        publisher = threading.Thread(target=publish, daemon=True)
+        closer = threading.Thread(target=contain, daemon=True)
+        try:
+            publisher.start()
+            self.assertTrue(entered.wait(1))
+            closer.start()
+            self.assertTrue(attempted.wait(1))
+            self.assertFalse(closed.wait(.05), 'Containment bypassed the in-flight publication guard')
+        finally:
+            resume.set()
+            publisher.join(1)
+            closer.join(1)
+            tool.stdout.writer = original
+        self.assertFalse(publisher.is_alive() or closer.is_alive())
+        self.assertEqual(failures, [])
+        self.assertTrue(closed.is_set())
+        self.assertEqual(tool.stdout.reader.read(), b'EXAMPLE prior publication\n')
+
+    def test_live_tool_closed_writer_still_raises_before_dead_child_drop(self):
+        _case, _transport, tool, _bootstrap = self.pair()
+        tool.stdout.put('')
+        with self.assertRaises(ValueError):
+            tool.stdout.put('EXAMPLE live-child failure\n')
+        tool.process.alive = False
+        self.assertIs(tool.stdout.put('EXAMPLE contained child output\n'), False)
+
+
+
 class FixtureLifecycleTests(unittest.TestCase):
     def test_startup_observer_preserves_worker_failure_and_has_bounded_expiry(self):
         fixture = wiring.RegisteredFiniteToolWiringTests(methodName='runTest')
@@ -49,14 +159,17 @@ class FixtureLifecycleTests(unittest.TestCase):
         primary = RuntimeError('EXAMPLE original producer error')
         def receive(_message):
             raise primary
-        process = SimpleNamespace(receive=receive, case=SimpleNamespace(test=self))
+        process = SimpleNamespace(receive=receive, case=SimpleNamespace(test=self),
+                                  bootstrap_released=threading.Event())
         stream = family.Input(process)
         read, write = os.pipe()
         with os.fdopen(write, 'w') as output:
-            output.write('{}\n')
+            output.write('1{}\n')
         with self.assertRaises(RuntimeError) as caught:
             stream.consume(read)
         self.assertIs(caught.exception, primary)
+        self.assertTrue(process.bootstrap_released.is_set())
+        self.assertIsNone(stream.failed_input_frame)
         self.assertIs(stream.failure, primary)
         with self.assertRaises(RuntimeError) as cleanup:
             stream.require_healthy()
@@ -140,6 +253,13 @@ class FixtureLifecycleTests(unittest.TestCase):
         self.spawned = []
         process = wiring.DynamicRpcProcess(SimpleNamespace(pid=991, alive=True),
                                            SimpleNamespace(test=self))
+        self.assertEqual(process.stdout.readline(), family.runtime._READY)
+        self.assertFalse(process.bootstrap_released.is_set())
+        read, write = os.pipe()
+        with os.fdopen(write, 'wb') as gate:
+            gate.write(b'1')
+        process.stdin.consume(read)
+        self.assertTrue(process.bootstrap_released.is_set())
         scenario = SimpleNamespace(thread_id='EXAMPLE-thread', turn_id='EXAMPLE-turn')
         arguments = {'commandCallId': 'EXAMPLE-command-call', 'chars': ''}
         process._send_tool('EXAMPLE-poll-call', 'finite_poll', arguments, scenario)

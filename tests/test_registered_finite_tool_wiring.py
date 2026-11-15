@@ -32,10 +32,8 @@ class DynamicRpcProcess(family.RpcProcess):
         super().__init__(process, case, validator=validator)
         self.is_tool = not validator and bool(case.test.spawned)
         if self.is_tool:
-            self.stdout = ToolLines()
-            self.stdout.put('' if getattr(case, 'command_eof', False)
-                            or getattr(case, 'command_no_output', False)
-                            else getattr(case, 'command_output', 'EXAMPLE finite command output\n'))
+            self.stdout = ToolLines(process=self.process)
+            self.stdout.put(family.runtime._READY)
             read, write = os.pipe()
             os.set_blocking(read, False)
             self.stdin = os.fdopen(write, 'wb', buffering=0)
@@ -43,6 +41,24 @@ class DynamicRpcProcess(family.RpcProcess):
             case.test.addCleanup(self.stdout.close)
             case.test.addCleanup(os.close, read)
             case.test.addCleanup(self.stdin.close)
+            bootstrap = threading.Thread(target=self._tool_bootstrap, args=(read,), daemon=True)
+            bootstrap.start()
+            case.test.addCleanup(family.finish_worker, case.test, bootstrap, join_seconds=2)
+
+    def _tool_bootstrap(self, descriptor):
+        deadline = time.monotonic() + 5
+        while self.process.alive and time.monotonic() < deadline:
+            if not family.runtime.select.select([descriptor], [], [], .05)[0]:
+                continue
+            gate = os.read(descriptor, 1)
+            if not gate:
+                return
+            self.case.test.assertEqual(gate, b'1')
+            self.bootstrap_released.set()
+            self.stdout.put('' if getattr(self.case, 'command_eof', False)
+                            or getattr(self.case, 'command_no_output', False)
+                            else getattr(self.case, 'command_output', 'EXAMPLE finite command output\n'))
+            return
 
     def result(self, method, params):
         response = super().result(method, params)
@@ -185,8 +201,9 @@ class DynamicRpcProcess(family.RpcProcess):
             elif not (getattr(self.case, 'natural_tool_exit', False)
                       or getattr(self.case, 'poll_empty_running', False)
                       or getattr(self.case, 'tool_exit_before_completion', None) is not None):
-                self.case.tool_stream.put(getattr(self.case, 'poll_output',
-                                                  'EXAMPLE finite poll output\n'))
+                if self.case.tool_stream.put(getattr(self.case, 'poll_output',
+                                                     'EXAMPLE finite poll output\n')) is False:
+                    return
             if hasattr(self.case, 'poll_prepared'):
                 self.case.poll_prepared.set()
                 family.wait_for_release(self.case.test, self.case.poll_release, 15)
@@ -216,6 +233,12 @@ class DynamicRpcProcess(family.RpcProcess):
 
 
 class RegisteredFiniteToolWiringTests(unittest.TestCase):
+    def is_tool_execution_gate(self, descriptor, data):
+        if data != b'1' or len(self.fixture.spawned) < 2:
+            return False
+        stream = self.fixture.spawned[1].stdin
+        return not stream.closed and descriptor == stream.fileno()
+
     def setUp(self):
         self.fixture = family.FactoryTests(methodName='runTest')
         self.fixture.setUp()
@@ -237,12 +260,16 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             if (len(self.fixture.spawned) >= 2 and not observed
                     and descriptor == case.tool_stream.fileno()):
                 tool = self.fixture.spawned[1]
-                tool.returncode = status
-                tool.process.alive = not pid_exited
-                if trailing:
-                    case.tool_stream.put(trailing)
-                if close_output and not case.tool_stream.writer.closed:
-                    case.tool_stream.put('')
+                # These bytes were produced before the modeled clean exit.
+                # Keep publication and the exit transition on the same guard.
+                with case.tool_stream._lock:
+                    if trailing:
+                        self.assertTrue(tool.process.alive)
+                        self.assertIsNot(case.tool_stream.put(trailing), False)
+                    tool.returncode = status
+                    if close_output and not case.tool_stream.writer.closed:
+                        case.tool_stream.put('')
+                    tool.process.alive = not pid_exited
                 observed.append(data)
             return data
 
@@ -1960,7 +1987,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         original_write = os.write
 
         def denied(fd, data):
-            if data == b'1':
+            if self.is_tool_execution_gate(fd, data):
                 raise BlockingIOError('EXAMPLE gate backpressure')
             return original_write(fd, data)
 
@@ -1997,7 +2024,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         original_write = os.write
 
         def counted(fd, data):
-            if data == b'1' and len(self.fixture.spawned) > 1:
+            if self.is_tool_execution_gate(fd, data):
                 writes.append(fd)
             return original_write(fd, data)
 
@@ -3432,7 +3459,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         original_write = os.write
 
         def written_then_held(fd, data):
-            if data == b'1' and len(self.fixture.spawned) > 1:
+            if self.is_tool_execution_gate(fd, data):
                 count = original_write(fd, data)
                 gate_writes.append(count)
                 entered.set()

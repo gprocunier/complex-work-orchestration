@@ -9,7 +9,8 @@
     "selection",
     "profiles",
     "observations",
-    "properties"
+    "properties",
+    "offline_diagnostics"
   ],
   "properties": {
     "version": {
@@ -54,7 +55,7 @@
         },
         "confidential": {
           "status": "unsupported",
-          "reason": "Codex can read the full disk; CWO supplies no confidentiality sandbox of its own."
+          "reason": "No fully qualified native worker confidentiality boundary is available. Diagnostic read denials do not authorize confidential workloads."
         }
       }
     },
@@ -103,7 +104,14 @@
         "tool-runtime",
         "live-model-behavior",
         "confidential-reads",
-        "hook-fail-closed-enforcement"
+        "hook-fail-closed-enforcement",
+        "offline-command-patch",
+        "offline-config-admission",
+        "offline-filesystem-custody",
+        "offline-network-process",
+        "offline-empty-poll-input",
+        "offline-owner-lifecycle",
+        "original-named-candidate"
       ],
       "properties": {
         "executable-identity": {
@@ -456,7 +464,228 @@
               ]
             }
           }
+        },
+        "offline-command-patch": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/selected_native_containment.py",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec"
+              ]
+            }
+          }
+        },
+        "offline-config-admission": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/selected_native_containment.py",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_appserver_config_reads_without_a_thread_or_model_turn"
+              ]
+            }
+          }
+        },
+        "offline-filesystem-custody": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/selected_native_containment.py",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_native_denials_and_inherited_descriptor_control"
+              ]
+            }
+          }
+        },
+        "offline-network-process": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/selected_native_containment.py",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_native_denials_and_inherited_descriptor_control"
+              ]
+            }
+          }
+        },
+        "offline-empty-poll-input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/selected_native_containment.py",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output"
+              ]
+            }
+          }
+        },
+        "offline-owner-lifecycle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/selected_native_containment.py",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_selected_controller_death_stops_detached_descendants",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_selected_watchdog_failure_stops_the_namespace",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_selected_watchdog_deadline_stops_stalled_controller",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_stopped_epoch_refuses_poll_and_restart_uses_a_fresh_owner"
+              ]
+            }
+          }
+        },
+        "original-named-candidate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unsupported"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "policy/qualification-target.yaml#offline_diagnostics.named_candidate",
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
         }
+      }
+    },
+    "offline_diagnostics": {
+      "const": {
+        "observed_on": "2026-11-14",
+        "scope": "fixed-no-model-app-server-command-exec",
+        "runner": "scripts/selected_native_containment.py",
+        "target_id": "codex-0.163.0-constrained-integrity",
+        "configuration_id": "native-worker-workspace-write-v1",
+        "execution_authorized": false,
+        "accepted_output": false,
+        "model_calls": false,
+        "thread_or_turn_started": false,
+        "effective_configuration": {
+          "sandbox_mode": "workspace-write",
+          "approval_policy": "never",
+          "network_access": false,
+          "layers": [
+            "isolated-user-config",
+            "empty-system-config"
+          ],
+          "managed_requirements": null,
+          "staged_rules": "empty",
+          "runtime_grants_and_hooks": "not-proved-absent"
+        },
+        "required_unperformed": [
+          "model-turn-builtin-tools",
+          "native-model-tool-stdin",
+          "native-ordinary-retry",
+          "native-approved-escalation",
+          "managed-runtime-grants",
+          "actual-kernel-pid-reuse",
+          "production-lifecycle-recovery"
+        ],
+        "named_candidate": {
+          "selected": false,
+          "status": "runtime-refused-unselected",
+          "selector": "sandbox --permission-profile root_deny",
+          "approval_policy": "untrusted",
+          "approvals_reviewer": "user",
+          "filesystem": "root-deny-with-minimal-runtime-reads-and-isolated-workspace-write",
+          "network_access": false,
+          "exit_code": 1,
+          "compiler_error": "approval_policy = \"untrusted\" is no longer supported; remove this setting"
+        },
+        "commands": [
+          "CWO_QUALIFICATION_PACKAGE=\"$QUALIFICATION_PACKAGE\" python -m unittest tests.test_selected_native_containment -q",
+          "python scripts/selected_native_containment.py --package \"$QUALIFICATION_PACKAGE\""
+        ],
+        "limitations": "Fixed disposable command/exec diagnostics observe scoped OS effects. They do not qualify model-turn builtins, approvals, retries, grants, full dependencies, confidential operation, production admission, or artifact promotion. Package identity digests are not custody enforcement."
       }
     }
   }

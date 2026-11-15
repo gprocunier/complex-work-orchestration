@@ -466,6 +466,7 @@ class OfflineN1Host:
             if any(_within(root, other) or _within(other, root) for other in roots[index + 1:]):
                 raise OfflineHostError("Host state, target and worker roots must be separate and disjoint.")
         self._state_identity = _identity(self.state)
+        self._lock_descriptor = None
         self._initial = self._observe()
         if self._initial["worker_identity"]["head_commit"] != self._initial["target_identity"]["head_commit"]:
             raise OfflineHostError("The independent worker clone must start at the target commit.")
@@ -496,9 +497,30 @@ class OfflineN1Host:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:
                 raise OfflineHostError("The single worker claim is busy.") from exc
-            yield
+            with self._claimed(descriptor):
+                yield
         finally:
             os.close(descriptor)
+
+    @contextmanager
+    def _claimed(self, descriptor):
+        self._lock_descriptor = descriptor
+        try:
+            self._require_lock()
+            yield
+            self._require_lock()
+        finally:
+            self._lock_descriptor = None
+
+    def _require_lock(self):
+        if self._lock_descriptor is None:
+            raise OfflineHostError("An original held host lock is required.")
+        held = os.fstat(self._lock_descriptor)
+        current = os.stat(self.state / "host.lock", follow_symlinks=False)
+        if (_identity(self.state) != self._state_identity
+                or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1
+                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)):
+            raise OfflineHostError("The held host lock path changed or was replaced.")
 
     def _load(self):
         try:
@@ -512,6 +534,7 @@ class OfflineN1Host:
         return _validate_record(json.loads(data))
 
     def _save(self, record):
+        self._require_lock()
         if _identity(self.state) != self._state_identity:
             raise OfflineHostError("The host state directory changed identity.")
         body = {key: value for key, value in record.items() if key != "record_sha256"}
@@ -520,6 +543,7 @@ class OfflineN1Host:
         if len(data) > MAX_RECORD_BYTES:
             raise OfflineHostError("Stored state exceeds its durable size bound.")
         _write_new(self.state / "operation.next", data)
+        self._require_lock()
         os.replace(self.state / "operation.next", self.state / "operation.json")
         _sync(self.state)
         return _freeze(record)
@@ -618,6 +642,7 @@ class OfflineN1Host:
         return self._save(record)
 
     def _unchanged(self):
+        self._require_lock()
         if self._observe() != self._initial:
             raise OfflineHostError("Worker identity or target state changed around artifact collection.")
 

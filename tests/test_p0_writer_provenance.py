@@ -579,7 +579,11 @@ class WriterChecks(unittest.TestCase):
         audit_before = self.store.audit_file.read_bytes()
         worker, home = self.root / 'worker', self.root / 'spool'
         worker.mkdir(); (worker / '.git').mkdir(); home.mkdir()
-        factory = SimpleNamespace(spec={'launcher': '/usr/bin/bwrap', 'configuration_files': {}},
+        # Select the fixed system interpreter independently of the test runner;
+        # its library prefix belongs to the declared read-only /usr runtime.
+        interpreter = str(Path('/usr/bin/python3').resolve(strict=True))
+        factory = SimpleNamespace(spec={'launcher': '/usr/bin/bwrap', 'validator': interpreter,
+                                        'configuration_files': {}},
                                   host=SimpleNamespace(worker=worker), host_records=self.store)
         code = ('import json,pathlib; results={}; '
                 'paths=' + repr([str(marker), str(new_record), str(self.store.audit_file)]) + '\n'
@@ -591,11 +595,9 @@ class WriterChecks(unittest.TestCase):
         read_info, write_info = os.pipe()
         try:
             os.write(write_gate, b'1')
-            # The sandbox binds the system runtime and the interpreter binary only, so a
-            # relocated interpreter (one whose libpython lives in its own prefix) cannot load.
-            interpreter = str(Path('/usr/bin/python3' if os.path.exists('/usr/bin/python3') else sys.executable).resolve())
-            argv = native._Containment(factory)._command(
-                [interpreter, '-I', '-S', '-c', code], home, read_gate, write_info)
+            command = [interpreter, '-I', '-S', '-c', code]
+            options = native._Containment(factory)._command(command, home, read_gate, write_info)
+            argv = [*options, '--', *command]
             result = subprocess.run(argv, pass_fds=(read_gate, write_info), capture_output=True, text=True, timeout=15)
         finally:
             for descriptor in (read_gate, write_gate, read_info, write_info):

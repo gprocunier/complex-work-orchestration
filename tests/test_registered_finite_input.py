@@ -17,7 +17,9 @@ import registered_finite_input as finite
 class ToolLines:
     """Actual kernel output pipe on the original fake retained child."""
 
-    def __init__(self):
+    def __init__(self, *, process=None):
+        self._lock = threading.RLock()
+        self._process = process
         read, write = os.pipe()
         self.reader = os.fdopen(read, 'rb', buffering=0)
         self.writer = os.fdopen(write, 'wb', buffering=0)
@@ -26,16 +28,25 @@ class ToolLines:
     def fileno(self):
         return self.reader.fileno()
 
+    def readline(self, size=-1):
+        return self.reader.readline(size).decode('utf-8')
+
     def put(self, value):
-        if value == '':
-            self.writer.close()
-        else:
-            self.writer.write(value.encode())
+        # Match Lines' publication/close guard for this exact fake child. EOF
+        # remains a containment action; live-child writer errors still escape.
+        with self._lock:
+            if value == '':
+                self.writer.close()
+            elif self._process is not None and not self._process.alive:
+                return False
+            else:
+                self.writer.write(value.encode())
 
     def close(self):
-        self.reader.close()
-        if not self.writer.closed:
-            self.writer.close()
+        with self._lock:
+            self.reader.close()
+            if not self.writer.closed:
+                self.writer.close()
 
 
 class FiniteInputTests(unittest.TestCase):
@@ -268,7 +279,10 @@ class FiniteInputTests(unittest.TestCase):
         with patch.object(tool, 'cleanup_failure', lambda _failure: None):
             factory.server._fail_transport(RuntimeError('EXAMPLE original cleanup uncertainty'))
             self.assertTrue(self._wait(lambda: gate.cleanup_phase() == 'unknown', 8))
-            self.assertFalse(tool.contained)
+            # A separate closer may physically finish while this observer is
+            # unconfirmed. Its invalid result must keep qualification unknown.
+            self.assertIn('invalid-observation', [row.kind for row in gate.cleanup_observations])
+            self.assertTrue(gate.cleanup_unresolved)
             with self.assertRaises(family.runtime.AppServerError):
                 factory.server._require_healthy()
         release_turn.set()
@@ -507,9 +521,14 @@ class FiniteInputTests(unittest.TestCase):
                              for reply in self.fixture.spawned[0].replies), before_success, event)
         with self.assertRaises(BlockingIOError):
             os.read(read, 1)
+        completion_deadline = time.monotonic() + 8
         self.assertTrue(self._wait(lambda: bool(result), 8), event)
         self.assertTrue(tool.contained, event)
-        self.assertEqual(gate.cleanup_phase(), 'contained', event)
+        # A preserved primary may return after a failed server drain. Observe
+        # the original gate acknowledgement within that same completion bound.
+        with gate._cleanup_condition:
+            self.assertTrue(self._await_cleanup_publication(gate, completion_deadline), event)
+            self.assertEqual(gate.cleanup_phase(), 'contained', event)
         attempt = self.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown', event)
         self.assertEqual(attempt['charge'], attempt['amount'], event)
@@ -983,6 +1002,37 @@ class FiniteInputTests(unittest.TestCase):
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])
 
+    def _late_owner_wait(self, original_wait, observer_entered, release_owner, *, gate_owner, observer):
+        def observed_timeout(timeout=None):
+            if timeout == 10 and threading.current_thread() is observer and not observer_entered.is_set():
+                observer_entered.set()
+                # Preserve the real ten-second edge and existing completion
+                # budget; only the designated closer should drive this hook.
+                if gate_owner:
+                    self.assertFalse(original_wait(timeout))
+                release_owner.set()
+                self.assertTrue(original_wait(8))
+                return False
+            return original_wait(timeout)
+        return observed_timeout
+
+    def test_late_owner_timeout_edge_belongs_to_explicit_observer(self):
+        original_wait = family.Mock(return_value=True)
+        entered, release = threading.Event(), threading.Event()
+        observed = []
+        observer = threading.Thread(target=lambda: observed.append(wait(10)), daemon=True)
+        wait = self._late_owner_wait(original_wait, entered, release, gate_owner=False, observer=observer)
+        self.assertTrue(wait(10), 'an unrelated waiter stole the intended timeout edge')
+        original_wait.assert_called_once_with(10)
+        self.assertFalse(entered.is_set() or release.is_set())
+        original_wait.reset_mock()
+        observer.start()
+        observer.join(2)
+        self.assertFalse(observer.is_alive())
+        self.assertEqual(observed, [False])
+        self.assertTrue(entered.is_set() and release.is_set())
+        original_wait.assert_called_once_with(8)
+
     def _late_owner_observation(self, *, gate_owner):
         case, factory, tool, _stream, read, release_turn, result = self._active()
         gate = factory.server.finite_input
@@ -1001,18 +1051,6 @@ class FiniteInputTests(unittest.TestCase):
                 raise AssertionError('EXAMPLE owner release was missing')
             return original_effect(*args, **kwargs)
 
-        def observed_timeout(timeout=None):
-            if timeout == 10 and not observer_entered.is_set():
-                observer_entered.set()
-                # The gate-owner case uses the real ten-second Event.wait edge.
-                # The direct-owner case fixes the same result with a barrier.
-                if gate_owner:
-                    self.assertFalse(original_wait(timeout))
-                release_owner.set()
-                self.assertTrue(original_wait(8))
-                return False
-            return original_wait(timeout)
-
         def direct_owner():
             try:
                 tool.terminate()
@@ -1029,6 +1067,9 @@ class FiniteInputTests(unittest.TestCase):
 
         self.addCleanup(release_owner.set)
         self.addCleanup(release_turn.set)
+        closer = threading.Thread(target=observing_close, daemon=True)
+        observed_timeout = self._late_owner_wait(original_wait, observer_entered, release_owner,
+                                                 gate_owner=gate_owner, observer=closer)
         with patch.object(tool.controller, 'terminate', paused_effect), patch.object(
                 tool._termination_finished, 'wait', observed_timeout):
             if gate_owner:
@@ -1038,7 +1079,6 @@ class FiniteInputTests(unittest.TestCase):
                 owner.start()
             try:
                 self.assertTrue(owner_entered.wait(5))
-                closer = threading.Thread(target=observing_close, daemon=True)
                 closer.start()
                 self.assertTrue(observer_entered.wait(5))
                 self.assertTrue(observer_done.wait(16))
@@ -1079,6 +1119,16 @@ class FiniteInputTests(unittest.TestCase):
         attempt = self.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])
+
+    @staticmethod
+    def _await_cleanup_publication(gate, deadline):
+        with gate._cleanup_condition:
+            while gate.cleanup_phase() == 'cleanup-pending':
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return False
+                gate._cleanup_condition.wait(remaining)
+            return True
 
     def _gate_owned_concurrent_closer(self, *, time_out):
         case, factory, tool, _stream, read, release_turn, result = self._active()
@@ -1141,11 +1191,18 @@ class FiniteInputTests(unittest.TestCase):
             closer.join(2)
         self.assertFalse(closer.is_alive())
         self.assertEqual(secondary, [])
+        completion_deadline = time.monotonic() + 8
         self.assertTrue(tool._termination_finished.wait(8))
         self.assertEqual(len(calls), 1)
         self.assertTrue(tool.contained)
         self.assertTrue(tool.termination_recorded)
-        self.assertEqual(gate.cleanup_phase(), 'unknown' if time_out else 'contained')
+        # Physical completion precedes both the owner's immutable observation
+        # and its gate acknowledgement. Spend the same eight-second budget on
+        # that publication; a failed observation still remains unknown.
+        with gate._cleanup_condition:
+            self.assertTrue(self._await_cleanup_publication(gate, completion_deadline),
+                            'original cleanup publication did not finish within the completion bound')
+            self.assertEqual(gate.cleanup_phase(), 'unknown' if time_out else 'contained')
         self.assertIn('timeout' if time_out else 'completed',
                       [observation.kind for observation in gate.cleanup_observations])
         self.assertIs(factory.server.transport_failure, primary)
@@ -1167,6 +1224,48 @@ class FiniteInputTests(unittest.TestCase):
 
     def test_gate_owned_transport_fault_second_closer_times_out_before_owner_release(self):
         self._gate_owned_concurrent_closer(time_out=True)
+
+    def test_gate_owned_peer_wait_includes_original_owner_publication(self):
+        active = self._active()
+        _case, factory, tool, *_rest = active
+        gate = factory.server.finite_input
+        publication_entered, release_publication = threading.Event(), threading.Event()
+        caller, pending = threading.current_thread(), []
+        original_publish = gate._publish_cleanup_observation
+        original_phase, original_wait = gate.cleanup_phase, tool._termination_finished.wait
+
+        def publish(lifetime, observation, prior):
+            if threading.get_ident() == tool._termination_owner:
+                publication_entered.set()
+                self.assertTrue(release_publication.wait(8), 'original owner publication was not released')
+            return original_publish(lifetime, observation, prior)
+
+        def finished(timeout=None):
+            deadline = time.monotonic() + timeout if timeout is not None else None
+            completed = original_wait(timeout)
+            if threading.current_thread() is caller and timeout == 8 and completed:
+                self.assertTrue(publication_entered.wait(max(0, deadline - time.monotonic())))
+            return completed
+
+        def phase():
+            observed = original_phase()
+            if (threading.current_thread() is caller and publication_entered.is_set()
+                    and not release_publication.is_set()):
+                self.assertTrue(tool._termination_finished.is_set())
+                self.assertTrue(tool.contained and tool.termination_recorded)
+                self.assertGreater(gate._cleanup_inflight, 0)
+                pending.append(observed)
+                release_publication.set()
+            return observed
+
+        with patch.object(self, '_active', return_value=active), patch.object(
+                gate, '_publish_cleanup_observation', publish), patch.object(
+                gate, 'cleanup_phase', phase), patch.object(tool._termination_finished, 'wait', finished):
+            try:
+                self._gate_owned_concurrent_closer(time_out=False)
+            finally:
+                release_publication.set()
+        self.assertEqual(pending, ['cleanup-pending'])
 
     def test_two_finite_tool_closers_observe_one_inflight_owner(self):
         case, factory, tool, _stream, read, release_turn, result = self._active()
@@ -1215,6 +1314,7 @@ class FiniteInputTests(unittest.TestCase):
                 release_owner.set()
                 release_turn.set()
             first.join(8)
+            completion_deadline = time.monotonic() + 8
             second.join(8)
         self.assertFalse(first.is_alive())
         self.assertFalse(second.is_alive())
@@ -1224,7 +1324,10 @@ class FiniteInputTests(unittest.TestCase):
         self.assertEqual(errors, [])
         self.assertTrue(tool.contained)
         self.assertTrue(tool.termination_recorded)
-        self.assertEqual(gate.cleanup_phase(), 'contained')
+        with gate._cleanup_condition:
+            self.assertTrue(self._await_cleanup_publication(gate, completion_deadline),
+                            'original cleanup publication did not finish within the completion bound')
+            self.assertEqual(gate.cleanup_phase(), 'contained')
         with self.assertRaises(BlockingIOError):
             os.read(read, 1)
         self.assertTrue(case.result_done.wait(8))
@@ -1282,13 +1385,17 @@ class FiniteInputTests(unittest.TestCase):
                 release_owner.set()
                 release_turn.set()
             owner.join(8)
+            completion_deadline = time.monotonic() + 8
             self.assertTrue(cleanup_done.wait(8))
         self.assertFalse(owner.is_alive())
         self.assertEqual(owner_errors, [])
         self.assertEqual(calls, [1])
         self.assertTrue(tool.contained)
         self.assertTrue(tool.termination_recorded)
-        self.assertEqual(gate.cleanup_phase(), 'contained')
+        with gate._cleanup_condition:
+            self.assertTrue(self._await_cleanup_publication(gate, completion_deadline),
+                            'original cleanup publication did not finish within the completion bound')
+            self.assertEqual(gate.cleanup_phase(), 'contained')
         self.assertIs(factory.server.transport_failure, primary)
         with self.assertRaises(BlockingIOError):
             os.read(read, 1)
@@ -1297,6 +1404,58 @@ class FiniteInputTests(unittest.TestCase):
         attempt = self.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])
+
+    def test_direct_owner_peer_wait_includes_original_observer_publication(self):
+        active = self._active()
+        _case, factory, tool, *_rest = active
+        gate = factory.server.finite_input
+        entered, release = threading.Event(), threading.Event()
+        selection, caller = threading.Lock(), threading.current_thread()
+        publishers, peers, pending, errors = [], [], [], []
+        original_publish, original_phase = gate._publish_cleanup_observation, gate.cleanup_phase
+
+        def close():
+            try:
+                gate.close(factory.server.transport_failure)
+            except BaseException as error:
+                errors.append(error)
+
+        def publish(lifetime, observation, prior):
+            with selection:
+                first = not publishers
+                if first:
+                    publishers.append(threading.current_thread())
+            if first:
+                entered.set()
+                peer = threading.Thread(target=close, daemon=True)
+                peers.append(peer)
+                peer.start()
+                self.assertTrue(release.wait(8), 'original observer publication was not released')
+            return original_publish(lifetime, observation, prior)
+
+        def phase():
+            observed = original_phase()
+            if (threading.current_thread() is caller and entered.is_set()
+                    and not release.is_set()):
+                self.assertTrue(tool._termination_finished.is_set())
+                self.assertTrue(tool.contained and tool.termination_recorded)
+                self.assertGreater(gate._cleanup_inflight, 0)
+                pending.append(observed)
+                release.set()
+            return observed
+
+        with patch.object(self, '_active', return_value=active), patch.object(
+                gate, '_publish_cleanup_observation', publish), patch.object(gate, 'cleanup_phase', phase):
+            try:
+                self.test_direct_termination_owner_is_observed_by_off_reader_gate_close()
+            finally:
+                release.set()
+                for peer in peers:
+                    peer.join(2)
+        self.assertEqual(pending, ['cleanup-pending'])
+        self.assertEqual(len(publishers), 1)
+        self.assertTrue(peers and all(not peer.is_alive() for peer in peers))
+        self.assertEqual(errors, [])
 
     def test_termination_record_failure_keeps_physical_and_completion_facts_separate(self):
         case, factory, tool, _stream, read, release_turn, result = self._active()
@@ -1401,6 +1560,73 @@ class FiniteInputTests(unittest.TestCase):
                     fixture._denied_physical_read_schedule(event)
                 finally:
                     family.cleanup_helper(self, fixture)
+
+    def test_denied_read_result_precedes_original_cleanup_publication(self):
+        active = self._active()
+        _case, factory, tool, _stream, _read, _release_turn, result = active
+        gate, server = factory.server.finite_input, factory.server
+        entered, release = threading.Event(), threading.Event()
+        caller, publishers, pending, drain_failures = threading.current_thread(), [], [], []
+        close_failures = []
+        original_publish, original_phase = gate._publish_cleanup_observation, gate.cleanup_phase
+        original_join = server._join_readers
+
+        def publish(lifetime, observation, prior):
+            with server._worker_lock:
+                owner = next((worker for worker, _started in server._workers
+                              if worker.name == 'cwo-registered-tool-cleanup'), None)
+            if lifetime is tool and threading.current_thread() is owner:
+                publishers.append(owner)
+                entered.set()
+                self.assertTrue(release.wait(8), 'original denied-read publication was not released')
+            return original_publish(lifetime, observation, prior)
+
+        def join(*args, **kwargs):
+            try:
+                if entered.is_set() and not release.is_set():
+                    return original_join(timeout=0)
+                return original_join(*args, **kwargs)
+            except BaseException as failure:
+                drain_failures.append(failure)
+                raise
+
+        def close():
+            # A healthy ambiguity closer normally awaits publication itself.
+            # Exercise its exceptional callout before that wait, then let the
+            # original server drain adjudicate its still-retained publisher.
+            self.assertTrue(entered.wait(8))
+            failure = RuntimeError('EXAMPLE original producer close callout failed')
+            close_failures.append(failure)
+            raise failure
+
+        def phase():
+            observed = original_phase()
+            if (threading.current_thread() is caller and result and entered.is_set()
+                    and not release.is_set()):
+                self.assertIsInstance(result[0], BaseException)
+                self.assertTrue(tool.contained and tool.termination_recorded)
+                self.assertFalse(tool.observation_snapshot()[2])
+                self.assertGreater(gate._cleanup_inflight, 0)
+                self.assertTrue(drain_failures)
+                pending.append(observed)
+                release.set()
+            return observed
+
+        with patch.object(self, '_active', return_value=active), patch.object(
+                gate, '_publish_cleanup_observation', publish), patch.object(
+                server, '_join_readers', join), patch.object(
+                server.finite_tools, 'close', close), patch.object(gate, 'cleanup_phase', phase):
+            try:
+                self._denied_physical_read_schedule('fault')
+            finally:
+                release.set()
+        self.assertEqual(pending, ['cleanup-pending'])
+        self.assertEqual(len(publishers), 1)
+        self.assertTrue(all('workers did not stop' in str(failure) for failure in drain_failures))
+        self.assertTrue(close_failures)
+        self.assertTrue(any('Transport cleanup failed' in note for note in result[0].__notes__))
+        self.assertIsNone(factory.result)
+        self.assertIsNone(factory.token)
 
     def test_swapped_tool_pipe_refuses_and_contains_owned_child(self):
         case, factory, tool, _stream, read, release, result = self._active()

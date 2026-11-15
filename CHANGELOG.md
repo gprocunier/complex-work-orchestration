@@ -9,6 +9,11 @@
 - Refuse finite advisory HTTP submission when final transport checks exhaust its admitted runtime or lifetime, retaining conservative aggregate charges.
 - Reject Boolean/numeric policy drift before observed-source adjudication or qualified evidence use, and document supported consumer coverage and authority limits.
 - Publish finite-tool fixture sessions before turn startup, check fixture release and reply parsing order, and retain original refusal messages in diagnostics.
+- Bound legacy app-server frames, response storage and notification history; refuse unexpected required requests without granting approval, and keep pipe backpressure and cleanup finite.
+- Add fixed no-model diagnostics for the selected app-server's command and patch execution, filesystem/network/process denials, input polling and owned lifecycle. Required native worker gaps keep constrained-integrity unqualified; confidential operation remains unsupported.
+- Recheck target state and retained file identities immediately before offline publication, and refuse replaced host claim locks before persistence or artifact capture.
+- Correct contained launcher arguments and mount ordering, inspect effective mounts behind a trusted startup gate, and retain verified namespace handles for cleanup.
+- Increase the finite release inventory limit from 540 to 580 KiB to retain the integrated diagnostic, startup and cleanup bindings without dropping routes.
 
 - Made finite-tool fixture publication reliable during concurrent child containment while retaining live-child errors and accounting checks.
 

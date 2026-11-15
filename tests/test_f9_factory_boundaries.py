@@ -65,7 +65,8 @@ class F9FactoryBoundaries(unittest.TestCase):
             os.close(write)
             lifetime.namespace_handle = read
             try:
-                with patch.object(factory_api.select, 'select', return_value=([] if scenario == 'namespace-live' else [read], [], [])):
+                with patch.object(factory_api.select, 'select', return_value=([] if scenario == 'namespace-live' else [read], [], [])), \
+                        patch.object(factory_api.signal, 'pidfd_send_signal') as namespace_signal:
                     if scenario == 'completed':
                         self.assertEqual(lifetime._terminate_claimed(), report)
                         self.assertTrue(lifetime.contained and lifetime.termination_recorded)
@@ -75,6 +76,10 @@ class F9FactoryBoundaries(unittest.TestCase):
                             lifetime._terminate_claimed()
                         self.assertFalse(lifetime.contained or lifetime.termination_recorded)
                         factory.record.assert_not_called()
+                    if scenario == 'namespace-live':
+                        namespace_signal.assert_called_once_with(read, factory_api.signal.SIGKILL)
+                    else:
+                        namespace_signal.assert_not_called()
             finally:
                 if lifetime.namespace_handle is not None:
                     os.close(lifetime.namespace_handle)

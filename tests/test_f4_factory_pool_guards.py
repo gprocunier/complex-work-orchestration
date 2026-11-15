@@ -21,8 +21,8 @@ sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tests')]
 import registered_host_root_boundary as roots
 import registered_n1_factory as R
 import registered_native_pool_host as P
-import test_registered_n1_factory as N
-import test_registered_native_pool_host as pools
+from tests import test_registered_n1_factory as N
+from tests import test_registered_native_pool_host as pools
 
 
 class NextBoundary(Exception):

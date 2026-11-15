@@ -14,6 +14,7 @@ from __future__ import annotations
 import copy
 import fcntl
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -80,6 +81,32 @@ CONTROL_TURN_ID = "complex-work-orchestration-18w.6-live-canary-control-turn"
 THREAD_READ_TIMEOUT_SECONDS = 15.0
 AMBIGUOUS_TURN_DISCOVERY_TIMEOUT_SECONDS = 5.0
 AMBIGUOUS_TURN_DISCOVERY_POLL_SECONDS = 0.05
+# Limits cover one connection. Overflow refuses the connection instead of
+# dropping history that callers use for turn correlation and accounting.
+MAX_FRAME_BYTES = 1024 * 1024
+MAX_RESPONSES = 128
+MAX_RESPONSE_BYTES = 4 * 1024 * 1024
+MAX_NOTIFICATIONS = 4096
+MAX_NOTIFICATION_BYTES = 8 * 1024 * 1024
+
+
+def _unique_json_object(pairs):
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise AppServerError("app-server-duplicate-json-key")
+        value[key] = item
+    return value
+
+
+def _decode_stdout_frame(raw):
+    try:
+        message = json.loads(raw, object_pairs_hook=_unique_json_object)
+    except (ValueError, RecursionError) as exc:
+        raise AppServerError("app-server-non-json-output") from exc
+    if not isinstance(message, Mapping):
+        raise AppServerError("app-server-non-object-output")
+    return message
 
 
 def sha256_bytes(value: bytes) -> str:
@@ -239,6 +266,8 @@ class AppServer:
             self._condition = threading.Condition()
             self._responses: dict[int, dict[str, Any]] = {}
             self._notifications: list[tuple[int, dict[str, Any]]] = []
+            self._response_sizes: dict[int, int] = {}
+            self._notification_bytes = 0
             self._request_id = 0
             self._reader_error: str | None = None
             self._stderr_line_count = 0
@@ -390,27 +419,170 @@ class AppServer:
         self._turn_dispatch_records = recovered
         self.started_threads.update(recovered_threads)
 
+    def _bounded_protocol_lines(self):
+        """Read bytes before decoding, including an unterminated hostile frame."""
+        stdout = self.process.stdout
+        stream = getattr(stdout, "buffer", None)
+        # In-memory historical fixtures supply an iterator instead of a pipe.
+        source = iter(stdout) if stream is None else iter(lambda: stream.readline(MAX_FRAME_BYTES + 1), b"")
+        for raw in source:
+            data = raw.encode("utf-8") if isinstance(raw, str) else raw
+            if len(data) > MAX_FRAME_BYTES:
+                raise AppServerError("app-server-frame-size-limit")
+            if not data.endswith(b"\n"):
+                raise AppServerError("app-server-partial-frame")
+            try:
+                yield data.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise AppServerError("app-server-non-utf8-output") from exc
+
+    def _reserve_response_storage(self, response_id, size):
+        if response_id in self._responses:
+            raise AppServerError("app-server-duplicate-response-id")
+        sizes = getattr(self, "_response_sizes", {})
+        if len(self._responses) >= MAX_RESPONSES or sum(sizes.values()) + size > MAX_RESPONSE_BYTES:
+            raise AppServerError("app-server-response-storage-limit")
+        sizes[response_id] = size
+        self._response_sizes = sizes
+
+    def _pop_response(self, request_id):
+        getattr(self, "_response_sizes", {}).pop(request_id, None)
+        return self._responses.pop(request_id, None)
+
+    def _turn_start_response(self, request_id, ambiguity_reason):
+        if self._reader_error:
+            return "reader-error", None
+        if ambiguity_reason is not None:
+            return ambiguity_reason, None
+        return None, self._pop_response(request_id)
+
+    def _retain_notification(self, message, size):
+        retained = getattr(self, "_notification_bytes", 0)
+        if len(self._notifications) >= MAX_NOTIFICATIONS or retained + size > MAX_NOTIFICATION_BYTES:
+            raise AppServerError("app-server-notification-storage-limit")
+        self._observe_mcp_notification(message)
+        self._notifications.append((time.monotonic_ns(), dict(message)))
+        self._notification_bytes = retained + size
+
+    def _write_fault(self, reason):
+        self._reader_error = self._reader_error or reason
+        self._condition.notify_all()
+        try:
+            self.process.terminate()
+        except OSError:
+            pass
+        raise AppServerError(self._reader_error)
+
+    def _write_wire_bytes(self, fd, frame, deadline, method):
+        offset = 0
+        while offset < len(frame):
+            self._raise_reader_fault()
+            if getattr(self, "_closing", False):
+                raise AppServerError("app-server-closed-during-write")
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                self._write_fault("app-server-request-write-timeout:" + method)
+            try:
+                _require_native_rpc(method)
+            except live_availability.NativeLiveUnavailable as exc:
+                self._write_fault(str(exc))
+            try:
+                count = os.write(fd, frame[offset:])
+            except BlockingIOError:
+                self._condition.wait(timeout=min(remaining, 0.01))
+                continue
+            except OSError:
+                self._write_fault("app-server-request-write-failed:" + method)
+            if count <= 0:
+                self._write_fault("app-server-request-write-failed:" + method)
+            offset += count
+
+    def _write_payload(self, payload, *, method, timeout):
+        """Serialize frames while releasing the reader lock under backpressure."""
+        frame = (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8")
+        if len(frame) > MAX_FRAME_BYTES:
+            raise AppServerError("app-server-request-size-limit:" + method)
+        deadline = time.monotonic() + timeout
+        while getattr(self, "_wire_writing", False):
+            self._raise_reader_fault()
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise AppServerError("app-server-request-write-timeout:" + method)
+            self._condition.wait(timeout=remaining)
+        self._raise_reader_fault()
+        stream = self.process.stdin
+        # Historical in-memory writer fixtures have no file descriptor.
+        try:
+            fd = stream.fileno()
+        except (AttributeError, io.UnsupportedOperation):
+            fd = None
+        if type(fd) is not int:
+            stream.write(frame.decode("utf-8"))
+            stream.flush()
+            return deadline
+        self._wire_writing = True
+        blocking = os.get_blocking(fd)
+        try:
+            os.set_blocking(fd, False)
+            self._write_wire_bytes(fd, frame, deadline, method)
+        finally:
+            os.set_blocking(fd, blocking)
+            self._wire_writing = False
+            self._condition.notify_all()
+        return deadline
+
+    def _refuse_server_request(self, message):
+        """Never grant a required request or block the sole stdout reader."""
+        if getattr(self, "_wire_writing", False):
+            raise AppServerError("app-server-server-request-reply-blocked")
+        request_id = message.get("id")
+        valid = (type(request_id) in {int, str} and isinstance(message.get("method"), str)
+                 and isinstance(message.get("params", {}), dict)
+                 and "result" not in message and "error" not in message)
+        reply = {"id": request_id if type(request_id) in {int, str} else None}
+        method = message.get("method") if valid else None
+        if not valid:
+            reply["error"] = {"code": -32600, "message": "Invalid server request"}
+        elif method in {"item/commandExecution/requestApproval", "item/fileChange/requestApproval"}:
+            reply["result"] = {"decision": "decline"}
+        elif method == "item/permissions/requestApproval":
+            reply["result"] = {"permissions": {}}
+        else:
+            reply["error"] = {"code": -32601, "message": "Unsupported server request"}
+        frame = (json.dumps(reply, separators=(",", ":")) + "\n").encode("utf-8")
+        try:
+            fd = self.process.stdin.fileno()
+            if len(frame) > min(4096, os.fpathconf(fd, "PC_PIPE_BUF")):
+                raise AppServerError("app-server-server-request-reply-size-limit")
+            blocking = os.get_blocking(fd)
+            try:
+                os.set_blocking(fd, False)
+                if os.write(fd, frame) != len(frame):
+                    raise AppServerError("app-server-server-request-reply-incomplete")
+            finally:
+                os.set_blocking(fd, blocking)
+        except OSError as exc:
+            raise AppServerError("app-server-server-request-reply-blocked") from exc
+        raise AppServerError("app-server-unexpected-server-request")
+
+    def _raise_reader_fault(self):
+        if self._reader_error:
+            raise AppServerError(self._reader_error)
+
     def _read_stdout(self) -> None:
         assert self.process.stdout is not None
         try:
-            for raw in self.process.stdout:
-                try:
-                    message = json.loads(raw)
-                except json.JSONDecodeError:
-                    with self._condition:
-                        self._reader_error = "app-server-non-json-output"
-                        self._condition.notify_all()
-                    continue
-                if not isinstance(message, Mapping):
-                    with self._condition:
-                        self._reader_error = "app-server-non-object-output"
-                        self._condition.notify_all()
-                    continue
+            for raw in self._bounded_protocol_lines():
+                message = _decode_stdout_frame(raw)
+                size = len(raw.encode("utf-8"))
                 with self._condition:
+                    if "id" in message and "method" in message:
+                        self._refuse_server_request(message)
                     if type(message.get("id")) is int and (
                         "result" in message or "error" in message
                     ):
                         response_id = int(message["id"])
+                        self._reserve_response_storage(response_id, size)
                         pending = getattr(
                             self, "_pending_turn_start_response_observers", {}
                         ).pop(response_id, None)
@@ -562,37 +734,28 @@ class AppServer:
                                     ledger._discard_turn_negative_response_observer_capability(
                                         pending_capability
                                     )
-                        if response_id in self._responses:
-                            self._reader_error = "app-server-duplicate-response-id"
-                            if observed_capability is not None:
-                                getattr(
-                                    self,
-                                    "_negative_turn_response_capabilities",
-                                    {},
-                                ).pop(observed_capability, None)
-                                getattr(
-                                    self,
-                                    "_observed_negative_turn_response_capabilities_by_request",
-                                    {},
-                                ).pop(response_id, None)
-                                ledger = self.allocation_ledger
-                                if ledger is not None:
-                                    ledger._discard_turn_negative_response_observer_capability(
-                                        observed_capability
-                                    )
-                        else:
-                            self._responses[response_id] = dict(message)
+                        self._responses[response_id] = dict(message)
                     elif isinstance(message.get("method"), str):
-                        self._observe_mcp_notification(message)
-                        self._notifications.append(
-                            (time.monotonic_ns(), dict(message))
-                        )
+                        self._retain_notification(message, size)
                     self._condition.notify_all()
-        finally:
+        except AppServerError as exc:
             with self._condition:
-                if self.process.poll() is None:
-                    self._reader_error = "app-server-output-closed"
+                self._reader_error = self._reader_error or str(exc)
                 self._condition.notify_all()
+            # Termination is nonblocking; close() still owns reaping, bounded
+            # kill escalation and resource accounting.
+            try:
+                self.process.terminate()
+            except OSError:
+                pass
+        finally:
+            self._signal_stdout_closed()
+
+    def _signal_stdout_closed(self):
+        with self._condition:
+            if self.process.poll() is None:
+                self._reader_error = self._reader_error or "app-server-output-closed"
+            self._condition.notify_all()
 
     def _observe_mcp_notification(self, message: Mapping[str, Any]) -> None:
         if (getattr(self, "_mcp_guard_required", False)
@@ -666,16 +829,23 @@ class AppServer:
 
     def _drain_stderr(self) -> None:
         assert self.process.stderr is not None
-        for _line in self.process.stderr:
+        stream = getattr(self.process.stderr, "buffer", None)
+        chunks = iter(self.process.stderr) if stream is None else iter(lambda: stream.read1(4096), b"")
+        partial = False
+        for raw in chunks:
+            data = raw.encode("utf-8") if isinstance(raw, str) else raw
+            self._stderr_line_count += data.count(b"\n")
+            partial = not data.endswith(b"\n")
+        if partial:
             self._stderr_line_count += 1
 
     def notify(self, method: str, params: Mapping[str, Any]) -> None:
         payload = {"method": method, "params": dict(params)}
         assert self.process.stdin is not None
         with self._condition:
+            self._raise_reader_fault()
             _require_native_rpc(method)
-            self.process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
-            self.process.stdin.flush()
+            self._write_payload(payload, method=method, timeout=1)
 
     def request(
         self,
@@ -687,6 +857,7 @@ class AppServer:
         _require_native_rpc(method)
         assert self.process.stdin is not None
         with self._condition:
+            self._raise_reader_fault()
             self._request_id += 1
             request_id = self._request_id
             payload = {"id": request_id, "method": method, "params": dict(params)}
@@ -697,19 +868,17 @@ class AppServer:
                     raise AppServerError(self._mcp_endpoint_fault)
             started = time.monotonic_ns()
             _require_native_rpc(method)
-            self.process.stdin.write(json.dumps(payload, separators=(",", ":")) + "\n")
-            self.process.stdin.flush()
-            deadline = time.monotonic() + timeout
+            deadline = self._write_payload(payload, method=method, timeout=timeout)
             while request_id not in self._responses:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise AppServerError(f"app-server-request-timeout:{method}")
+                self._raise_reader_fault()
                 if self.process.poll() is not None:
                     raise AppServerError(f"app-server-exited:{method}:{self.process.returncode}")
-                if self._reader_error:
-                    raise AppServerError(self._reader_error)
                 self._condition.wait(timeout=remaining)
-            message = self._responses.pop(request_id)
+            self._raise_reader_fault()
+            message = self._pop_response(request_id)
         latency_ms = (time.monotonic_ns() - started) / 1_000_000
         self.rpc_latencies.setdefault(method, []).append(latency_ms)
         if type(message.get("id")) is not int or message.get("id") != request_id:
@@ -768,19 +937,15 @@ class AppServer:
                 payload, domain="app-server-single-wire-request"
             )
             started = time.monotonic_ns()
-            # There is deliberately one write and one flush.  This client has
-            # no reconnect, redirect, timeout retry, or implicit replay path.
+            # There is one wire frame. Partial writes never become a replay,
+            # reconnect, redirect or timeout retry.
             _require_native_rpc(method)
             try:
-                self.process.stdin.write(
-                    json.dumps(payload, separators=(",", ":")) + "\n"
-                )
-                self.process.stdin.flush()
-            except OSError as exc:
+                deadline = self._write_payload(payload, method=method, timeout=timeout)
+            except (OSError, AppServerError) as exc:
                 raise AppServerError(
                     f"app-server-guarded-request-dispatch-ambiguous:{method}"
                 ) from exc
-            deadline = time.monotonic() + timeout
             while request_id not in self._responses:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -794,7 +959,8 @@ class AppServer:
                 if self._reader_error:
                     raise AppServerError(self._reader_error)
                 self._condition.wait(timeout=remaining)
-            message = self._responses.pop(request_id)
+            self._raise_reader_fault()
+            message = self._pop_response(request_id)
         latency_ms = (time.monotonic_ns() - started) / 1_000_000
         self.rpc_latencies.setdefault(method, []).append(latency_ms)
         if type(message.get("id")) is not int or message.get("id") != request_id:
@@ -1332,7 +1498,7 @@ class AppServer:
 
         request_id = int(record["request_id"])
         with self._condition:
-            message = self._responses.pop(request_id, None)
+            message = self._pop_response(request_id)
             if message is None:
                 return None, None
             observed = getattr(
@@ -2046,15 +2212,11 @@ class AppServer:
             live_availability.require_n1_live()
             try:
                 assert self.process.stdin is not None
-                self.process.stdin.write(
-                    json.dumps(payload, separators=(",", ":")) + "\n"
-                )
-                self.process.stdin.flush()
-            except OSError:
+                deadline = self._write_payload(payload, method="turn/start", timeout=timeout)
+            except (OSError, AppServerError):
                 ambiguity_reason = "wire-write-error"
             else:
                 ambiguity_reason = None
-                deadline = time.monotonic() + timeout
                 while request_id not in self._responses:
                     remaining = deadline - time.monotonic()
                     if remaining <= 0:
@@ -2067,11 +2229,7 @@ class AppServer:
                         ambiguity_reason = "reader-error"
                         break
                     self._condition.wait(timeout=remaining)
-                message = (
-                    self._responses.pop(request_id)
-                    if ambiguity_reason is None
-                    else None
-                )
+                ambiguity_reason, message = self._turn_start_response(request_id, ambiguity_reason)
                 if ambiguity_reason is None:
                     candidate = pending_observers.pop(request_id, None)
                     if isinstance(candidate, Mapping):
@@ -2093,7 +2251,7 @@ class AppServer:
                 )
             )
             contained = self.contain_ambiguous_turn_dispatch(
-                thread_id, timeout=ambiguity_timeout
+                thread_id, timeout=0 if self._reader_error else ambiguity_timeout
             )
             raise AmbiguousTurnStartError(contained)
 

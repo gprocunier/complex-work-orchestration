@@ -164,6 +164,69 @@ class GuardedArtifactTargetTests(unittest.TestCase):
         self.assertEqual(caught.exception.report["new_invocation"]["replace_attempts"], 0)
         self.assertFalse((self.host.target / "result.txt").exists())
 
+    def assert_late_drift_refused(self, mutate):
+        original = self.target._retained_files
+        changed = []
+
+        def retained(*args):
+            result = original(*args)
+            if not changed and any(frame.name == "_apply_one" for frame in traceback.extract_stack()):
+                mutate()
+                changed.append(True)
+            return result
+
+        with patch.object(self.target, "_retained_files", side_effect=retained):
+            with self.assertRaises(G.PublicationError) as caught:
+                self.invoke()
+        self.assertEqual(changed, [True])
+        self.assertEqual(caught.exception.report["new_invocation"], {"replace_attempts": 0, "replacements": 0})
+        self.assertFalse(caught.exception.report["publication_complete"])
+
+    def test_late_dirty_manifest_drift_preserves_concurrent_target_bytes(self):
+        destination = self.host.target / "result.txt"
+        concurrent = b"EXAMPLE concurrent target bytes\n"
+        self.assert_late_drift_refused(lambda: destination.write_bytes(concurrent))
+        self.assertEqual(destination.read_bytes(), concurrent)
+
+    def test_late_revision_drift_refuses_before_replacement(self):
+        head = self.host.target / ".git" / "HEAD"
+        self.assert_late_drift_refused(lambda: head.write_text("ref: refs/heads/EXAMPLE-missing\n"))
+        self.assertFalse((self.host.target / "result.txt").exists())
+
+    def test_late_identical_candidate_inode_substitution_refuses(self):
+        staged = self.state / "new-0000"
+
+        def substitute():
+            data, mode = staged.read_bytes(), staged.stat().st_mode & 0o777
+            staged.unlink()
+            staged.write_bytes(data)
+            staged.chmod(mode)
+
+        self.assert_late_drift_refused(substitute)
+        self.assertFalse((self.host.target / "result.txt").exists())
+
+    def test_late_identical_destination_inode_substitution_refuses(self):
+        previous = b"EXAMPLE original dirty target bytes\n"
+        self.case(setup_target=lambda helper: (helper.target / "result.txt").write_bytes(previous))
+        destination = self.host.target / "result.txt"
+
+        def substitute():
+            destination.unlink()
+            destination.write_bytes(previous)
+
+        self.assert_late_drift_refused(substitute)
+        self.assertEqual(destination.read_bytes(), previous)
+
+    def test_late_publication_directory_substitution_refuses(self):
+        original = self.state.with_name("EXAMPLE_ORIGINAL_PUBLICATION")
+
+        def substitute():
+            self.state.rename(original)
+            shutil.copytree(original, self.state)
+
+        self.assert_late_drift_refused(substitute)
+        self.assertFalse((self.host.target / "result.txt").exists())
+
     def test_competing_state_instances_share_actual_target_guard(self):
         other_state = self.fixture.helper.root / "EXAMPLE_COMPETING_STATE"
         other_state.mkdir(mode=0o700)
