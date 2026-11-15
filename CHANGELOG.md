@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Wait for the fake child's original reply consumer before inspecting prequeued-poll refusal records, preserving the existing completion bound.
+
 - Acknowledge original host waits, reply reconciliation, poll consumption and terminal publication in selected finite success fixtures.
 - Acknowledge original finite-tool preparation and archive settlement, and verify real post-close refusals before checking delayed fixture publication.
 
