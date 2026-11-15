@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Acknowledge original host waits, poll consumption and terminal publication in selected finite success fixtures.
+- Acknowledge original host waits, reply reconciliation, poll consumption and terminal publication in selected finite success fixtures.
 - Acknowledge original finite-tool preparation and archive settlement, and verify real post-close refusals before checking delayed fixture publication.
 
 - Prepare original durable intent before early terminal fixture notifications, retaining notification-before-response refusal checks.

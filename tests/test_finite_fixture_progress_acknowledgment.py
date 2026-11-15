@@ -54,17 +54,29 @@ class FiniteFixtureProgressTests(unittest.TestCase):
             'test_exit_between_initial_read_and_reply_drains_tail_atomically',
         ), hold_intent=True)
 
-    def success_consumers(self, methods, *, hold_intent=False):
+    def test_poll_consumers_wait_for_original_reply_reconciliation(self):
+        self.success_consumers((
+            'test_exit_between_initial_read_and_reply_drains_tail_atomically',
+            'test_exit_between_poll_read_and_reply_carries_final_status_and_tail',
+            'test_clean_exit_after_command_reply_preserves_fresh_empty_poll',
+        ), hold_reply=True)
+
+    def success_consumers(self, methods, *, hold_intent=False, hold_reply=False):
         for method in methods:
             with self.subTest(method=method):
                 waits, acknowledged, held, faults = queue.Queue(), [], [], []
                 publication, publication_ack, intent_held, cases = queue.Queue(), [], [], []
+                reconciliation, reply_ack, reply_held, early_terminals = queue.Queue(), [], [], []
+                host_joined, consumers = [], []
                 host = []
                 original_turn = family.runtime._RegisteredServer.start_turn
                 original_wait = threading.Condition.wait
                 original_receive = wiring.DynamicRpcProcess.__mro__[1].receive
                 original_fault = family.runtime._RegisteredServer._fail_transport
                 original_fsync = os.fsync
+                original_write = wiring.gate_module.RegisteredFiniteInput._write_reply_frame
+                original_terminal = family.runtime._CoherentServerRequests.observe_trusted_terminal
+                original_commit = family.runtime._RegisteredServer._commit_tool_reply
 
                 def start_turn(server, *args, **kwargs):
                     value = original_turn(server, *args, **kwargs)
@@ -79,9 +91,13 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     if selected:
                         waits.put((condition, active))
                     completion = getattr(cases[0], '_finite_success_consumed', None) if cases else None
-                    if (hold_intent and host and threading.get_ident() == host[0][1]
+                    if ((hold_intent or hold_reply) and host and threading.get_ident() == host[0][1]
                             and completion is not None and condition is completion._cond):
                         publication.put((condition, active))
+                    if (hold_reply and reply_held and cases
+                            and condition is cases[0].factory.server.finite_input.lifecycle.condition
+                            and consumers and threading.get_ident() == consumers[0]):
+                        reconciliation.put((condition, active))
                     try:
                         return original_wait(condition, timeout)
                     finally:
@@ -94,6 +110,7 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                             and message.get('result', {}).get('success') is True):
                         held.append(True)
                         cases.append(process.case)
+                        consumers.append(threading.get_ident())
                         end = time.monotonic() + 12
                         while time.monotonic() < end:
                             entry = waits.get(timeout=max(.001, end - time.monotonic()))
@@ -108,6 +125,65 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                                     break
                             finally:
                                 condition.release()
+                    return value
+
+                def commit(server, message, response, deadline, *, refusal=False):
+                    if (hold_reply and not host_joined
+                            and message.get('params', {}).get('tool') == 'finite_poll'
+                            and response.get('result', {}).get('success') is True):
+                        # Prepare before the writer lock is acquired: the host
+                        # can finish any real thread/read before joining the
+                        # existing original-consumer completion observation.
+                        condition, active = publication.get(timeout=3)
+                        self.assertTrue(condition.acquire(timeout=3))
+                        try:
+                            self.assertTrue(active[0] and condition._waiters)
+                            host_joined.append(True)
+                        finally:
+                            condition.release()
+                    return original_commit(server, message, response, deadline, refusal=refusal)
+
+                def write_reply(writer, frame):
+                    if not hold_reply or reply_held:
+                        return original_write(writer, frame)
+                    message = json.loads(frame)
+                    selected = (message.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call'
+                                and message.get('result', {}).get('success') is True)
+                    if selected:
+                        reply_held.append(True)
+                    value = original_write(writer, frame)
+                    if selected:
+                        self.assertTrue(value)
+                        entry = reconciliation.get(timeout=3)
+                        if entry is not None:
+                            condition, active = entry
+                            self.assertTrue(condition.acquire(timeout=3))
+                            try:
+                                self.assertTrue(active[0] and condition._waiters)
+                                key = family.runtime.protocol._id_key(message['id'])
+                                self.assertIn(key, cases[0].factory.server.finite_input.lifecycle.pending)
+                                reply_ack.append(True)
+                            finally:
+                                condition.release()
+                    return value
+
+                def terminal(requests, thread_id, turn_id, boundary):
+                    if not hold_reply or not cases or requests is not cases[0].factory.server.requests:
+                        return original_terminal(requests, thread_id, turn_id, boundary)
+                    gate = requests.server.finite_input
+                    key = family.runtime.protocol._id_key('EXAMPLE-request-EXAMPLE-poll-call')
+                    with gate.lifecycle.condition:
+                        pending_before = key in gate.lifecycle.pending
+                    value = original_terminal(requests, thread_id, turn_id, boundary)
+                    if (hold_reply and reply_held and cases
+                            and requests is cases[0].factory.server.requests
+                            and pending_before
+                            and (thread_id, turn_id) in requests.trusted_terminals):
+                        # Original terminal publication clears pending. Retain
+                        # its pre-call fact, but release only after the actual
+                        # original revocation has finished.
+                        early_terminals.append(True)
+                        reconciliation.put(None)
                     return value
 
                 def fsync(descriptor):
@@ -141,10 +217,12 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     faults.append(repr(failure))
                     waits.put(None)
                     publication.put(None)
+                    reconciliation.put(None)
                     return original_fault(server, failure)
 
                 def release_publication():
                     publication.put(None)
+                    reconciliation.put(None)
                     if cases:
                         completion = getattr(cases[0], '_finite_success_consumed', None)
                         if completion is not None:
@@ -159,9 +237,22 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     patches.enter_context(patch.object(family.runtime._RegisteredServer,
                                                       '_fail_transport', fail_transport))
                     patches.enter_context(patch.object(os, 'fsync', fsync))
+                    patches.enter_context(patch.object(wiring.gate_module.RegisteredFiniteInput,
+                                                      '_write_reply_frame', staticmethod(write_reply)))
+                    patches.enter_context(patch.object(family.runtime._CoherentServerRequests,
+                                                      'observe_trusted_terminal', terminal))
+                    patches.enter_context(patch.object(family.runtime._RegisteredServer,
+                                                      '_commit_tool_reply', commit))
                     result = self.run_owned_selector(method, [lambda: waits.put(None),
                                                              release_publication])
                 try:
+                    if hold_reply and not result.wasSuccessful():
+                        self.assertTrue(early_terminals,
+                                        ('original terminal did not cross the held reply',
+                                         result.failures, result.errors, faults))
+                        self.assertEqual(faults[0] if faults else None,
+                                         "FiniteInputError('The prior-inflight tool reply is ambiguous.')",
+                                         'causal schedule missed the original prior-inflight guard')
                     self.assertTrue(result.wasSuccessful(), (result.failures, result.errors, faults))
                 except self.failureException as failure:
                     replies = [case.test.spawned[0].replies for case in cases if case.test.spawned]
@@ -173,6 +264,17 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                 if hold_intent:
                     self.assertEqual(intent_held, [True])
                     self.assertEqual(publication_ack, [True])
+                if hold_reply:
+                    self.assertEqual(host_joined, [True])
+                    self.assertEqual(reply_held, [True])
+                    self.assertEqual(reply_ack, [True])
+                    self.assertEqual(early_terminals, [])
+                    replies = cases[0].test.spawned[0].replies
+                    self.assertEqual([reply['id'] for reply in replies],
+                                     ['EXAMPLE-request-EXAMPLE-command-call',
+                                      'EXAMPLE-request-EXAMPLE-poll-call'])
+                    self.assertEqual([reply.get('result', {}).get('success') for reply in replies],
+                                     [True, True])
 
     def test_typed_id_owner_does_not_poll_a_parked_host(self):
         owner_thread = threading.get_ident()

@@ -259,8 +259,26 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         original_progress = family.runtime._RegisteredServer.await_finite_progress
 
         def receive(process, message):
+            selected = process.case is case and not process.is_tool and not process.validator
+            expected = {'EXAMPLE-request-EXAMPLE-command-call': 'command-replied',
+                        'EXAMPLE-request-EXAMPLE-poll-call': 'poll-replied'}
+            if (selected and message.get('id') in expected
+                    and message.get('result', {}).get('success') is True):
+                # Physical delivery precedes the writer's original authority
+                # reconciliation. Do not publish the next request or terminal
+                # records until that original reply bookkeeping is visible.
+                lifecycle = case.factory.server.finite_input.lifecycle
+                key = family.runtime.protocol._id_key(message['id'])
+                self.assertTrue(lifecycle.condition.acquire(timeout=3))
+                try:
+                    self.assertTrue(lifecycle.condition.wait_for(
+                        lambda: key not in lifecycle.pending, timeout=3))
+                    self.assertEqual(lifecycle.phase, expected[message['id']])
+                    self.assertIsNone(case.factory.server.transport_failure)
+                finally:
+                    lifecycle.condition.release()
             value = original_receive(process, message)
-            if process.case is case and not process.is_tool and not process.validator:
+            if selected:
                 if message.get('id') == 'EXAMPLE-request-EXAMPLE-command-call':
                     command_consumed.set()
                 elif message.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call':
