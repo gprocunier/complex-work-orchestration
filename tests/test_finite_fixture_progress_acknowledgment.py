@@ -161,7 +161,12 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     patches.enter_context(patch.object(os, 'fsync', fsync))
                     result = self.run_owned_selector(method, [lambda: waits.put(None),
                                                              release_publication])
-                self.assertTrue(result.wasSuccessful(), (result.failures, result.errors, faults))
+                try:
+                    self.assertTrue(result.wasSuccessful(), (result.failures, result.errors, faults))
+                except self.failureException as failure:
+                    replies = [case.test.spawned[0].replies for case in cases if case.test.spawned]
+                    failure.add_note(f'Original tool reply frames: {replies!r}')
+                    raise
                 self.assertEqual(held, [True])
                 self.assertEqual(len(acknowledged), 1, 'original post-start waiter was not acknowledged')
                 self.assertEqual(faults, [])
