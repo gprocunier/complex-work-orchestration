@@ -1473,7 +1473,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             return original(stage, observation)
         try:
             factory, _failure = self._poll_wait_schedule('exceptional', record_hook=record)
-            self.assertTrue(entered.is_set())
+            self.assertTrue(entered.wait(5), 'original pending writer did not reach its refusal record')
             self.assertTrue(any(failure.app_server_cleanup['resources_closed'] is False
                                 for failure in failures if hasattr(failure, 'app_server_cleanup')))
             self.assertTrue(any(worker.is_alive() for worker, _ in factory.server._worker_snapshot()))

@@ -2104,7 +2104,7 @@
 
 "shutdown-original-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",1429,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
 
-"shutdown-pending-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1455,"08c5717defb12b63068092d987135e5ab0cf2b5880e51d6561c63758c84fd695"],
+"shutdown-pending-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1455,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
 
 "shutdown-poll-schedule":[97,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1345,"ac30f1ccda30d7d699406c302bb16e5eb8194335c30bf82fed6620dff4c8c164"],
 
@@ -4950,7 +4950,7 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"73dab3bf7f992b63538c635244066238c41bbb15b340be9d25ad73d52f7355cd","size":125291},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"819bf0ada3b56fdacf8517de228c4f7ecee9768394efb85a0936d6e910b864ac","size":125291},
 
 "tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"eaacebfb44bcb28e0a3e98974c3db9b39ab75baaba9b6bd682a919f98b2bf11f","size":1939},
 
@@ -5038,7 +5038,7 @@
 
 "tests/test_registered_app_server_transport_f2.py":{"mode":420,"sha256":"ff436963e4d601a4276d0bc0acf44386b05f347745876099cff17b06e8b3e851","size":13049},
 
-"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"6d5eb360ea16d5365f1ce08f6b688be5729237d19009766ebf397b156c089678","size":186601},
+"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"d551304a135e46b0a2949c8907f846d3bf5c980ad38ce873086a20a5ba3d6bd7","size":186660},
 
 "tests/test_release_effect_routes.py":{"mode":420,"sha256":"6ab2a0b96ee93c809701528424a8cc92a9803e0fa714fd05d95ea614e0bb573a","size":84786},
 
