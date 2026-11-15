@@ -244,6 +244,22 @@ class RequirementBaselineContinuityTests(unittest.TestCase):
         self.assertEqual(payload["requirement_baseline"]["digest"], baseline_digest(self.baseline))
         self.assertEqual(payload["requirement_baseline"]["amendment_ids"], [])
 
+    def test_planning_future_evidence_leaves_beads_and_audit_state_absent(self) -> None:
+        plan = plan_following(self.baseline)
+        for row in plan['criterion_evidence_matrix']:
+            row['evidence'] = str(self.root / ('EXAMPLE-future-' + row['criterion'] + '.json'))
+        plan_path = self.write('plan.json', plan)
+        baseline_path = self.write('baseline.json', self.baseline)
+        before = {path.relative_to(self.root): path.read_bytes() for path in self.root.rglob('*') if path.is_file()}
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/validate_run_readiness_plan.py'),
+            plan_path, '--baseline', baseline_path, '--json'], cwd=self.root, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(json.loads(result.stdout)['valid'])
+        self.assertEqual(before, {path.relative_to(self.root): path.read_bytes()
+                                  for path in self.root.rglob('*') if path.is_file()})
+        self.assertFalse((self.root / '.beads').exists())
+        self.assertFalse((self.root / '.orchestration-audit').exists())
+
     def test_readiness_main_reports_utf8_domain_refusals(self) -> None:
         baseline_path, amendment_path, chain = self.utf8_chain_paths()
         plan = plan_following(chain["baseline"])

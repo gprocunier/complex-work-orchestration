@@ -112,6 +112,7 @@ class EvidenceInputs:
         _need(B.read_support(self.root, producer.return_path) == self._observed.raw_return
               and producer.metadata == self._observed.evaluation_metadata_bytes,
               'Original source return or evaluation metadata changed.')
+        producer.require_current_delivery()
         return self._observed
 
     def current(self):
@@ -150,6 +151,7 @@ class EvidenceInputs:
             self._completion_current(*completed)
         _need(B.read_support(self.root, self.path) == raw and self._policy_image() == self._policies,
               "Original designated adjudication changed during evidence consumption.")
+        producer.require_current_delivery()
         return {'context': asdict(self.context), 'receipt_sha256': hashlib.sha256(receipt.binding_bytes).hexdigest(),
                 'adjudication_sha256': hashlib.sha256(raw).hexdigest(), 'projection': result,
                 'review_policy_sha256': B._sha(B._json([(name, B._sha(data)) for name, data in self._policies]))}

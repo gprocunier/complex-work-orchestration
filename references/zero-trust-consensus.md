@@ -194,6 +194,40 @@ Role labels such as `architect_adjudicated` or
 `synthesis_use_authority: architect` are reported under
 `ignored_authority_claims` and grant nothing.
 
+## Observed source consumers
+
+The qualified excerpt path uses the host-pinned `QualifiedAdjudicationBroker`
+and `use_evidence`. They reread the designated return, dispatch, current policy,
+decision and observed supporting artifacts before rendering the exact approved
+excerpt. Current policy and its validated cache must agree in JSON types as well
+as values: the integer `1` cannot replace the boolean `true`. Return, candidate,
+scope, finding, decision or evidence drift retains the affected hold. A rejection
+can resolve that return's use-hold while unrelated established inputs continue.
+
+Cooperative source receipts and historical consensus remain readable evidence.
+Their `production_blockers` describe the receipt's lack of authority; they do not
+declare the acceptance or allowance contracts incomplete across the product.
+Provider `trust_tier` remains compatible access metadata. Generated output still
+requires evaluation and adjudication, regardless of permitted data access.
+
+The native `EvidenceInputs` consumer separately pins the original
+`CompletedAdjudicationControl`, its completed source and designated review. It
+rechecks those identities, their policies and exact scope before accepting the
+cooperative projection as evidence. Applicable offline acceptance and allowance
+contracts remain separate checks. Satisfying them supplies local engineering
+evidence; source/profile qualification and live readiness remain separate, and
+these receipts authorize neither invocation nor successful completion.
+
+The bounded offline regression mapping is:
+
+| Consumer requirement | Regression source |
+| --- | --- |
+| Exact observed dispatch, return, candidate and scope | `tests/test_adjudication_source.py`, `tests/test_workflow_adjudication.py` |
+| Named findings, rationale, actual support and designated authority | `tests/test_source_hold_clearance.py`, `tests/test_workflow_adjudication.py` |
+| Typed current policy identity before source observation and qualified use | `tests/test_adjudication_policy_aliases.py` |
+| Provider and broker identity, malformed dependencies, affected holds and unrelated work | `tests/test_return_adjudication.py` |
+| Current readiness and independently linked acceptance | `tests/test_workflow_adjudication.py`, `tests/test_host_acceptance.py`, `tests/test_acceptance_product_flow.py` |
+
 ## Malformed Records
 
 Every argument of `evaluate_synthesis_inputs` (the inputs, dispatch records,

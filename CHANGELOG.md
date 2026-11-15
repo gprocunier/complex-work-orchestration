@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Bind verified delivery closure and native evidence consumption to the exact complete observations reviewed by the accepted source, refusing missing or changed review evidence while preserving native ownership.
+- Refuse finite advisory HTTP submission when final transport checks exhaust its admitted runtime or lifetime, retaining conservative aggregate charges.
+- Reject Boolean/numeric policy drift before observed-source adjudication or qualified evidence use, and document supported consumer coverage and authority limits.
+
 - Made finite-tool fixture publication reliable during concurrent child containment while retaining live-child errors and accounting checks.
 
 - Cleanup validates original controller-owned retained lifetimes before explicit owned termination; the CLI remains detection-only with registry pruning.

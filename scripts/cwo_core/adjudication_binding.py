@@ -1,8 +1,9 @@
 """Experimental immutable adjudication binding preparation; NEVER production authority.
 
 Expected context/support observations come from a controlled fixture source, not
-from submitted JSON. No production-qualified source exists. These pure adapters
-cannot clear a production hold, authorize an effect or complete production closure or local invocation qualification.
+from submitted JSON. These cooperative receipts carry no qualified evidence-use
+permit, invocation authority or completion authority. These pure adapters cannot
+clear a production hold or complete production closure or local invocation qualification.
 """
 from __future__ import annotations
 
@@ -26,8 +27,8 @@ MAX_SUPPORT_FILES = 32
 MAX_JSON_DEPTH = 64
 POLICIES = ('contracting-controls', 'acceptance-policy', 'return-tripwires', 'synthesis-policy',
             'zero-trust-consensus-policy', 'provider-registry', 'executor-registry')
-MISSING_PRODUCTION = ('no-qualified-production-adjudication-source', 'full-W06-37-unmet',
-                      'full-W07-41-unmet', 'effect-restoration-held')
+MISSING_PRODUCTION = ('cooperative-source-has-no-production-authority',
+                      'no-invocation-or-completion-authority', 'effect-restoration-held')
 
 
 def _json(value: Any) -> bytes:
@@ -159,7 +160,7 @@ def _policies() -> bytes:
     for name in POLICIES:
         raw = (policy.POLICY_DIR / (name + '.yaml')).read_bytes()
         value = _parse(raw)
-        if value != _policy_call(policy.load_policy, name):
+        if _json(value) != _json(_policy_call(policy.load_policy, name)):
             raise ValueError('policy cache/bytes mismatch: ' + name)
         documents[name] = {'raw_sha256': _sha(raw), 'value': value}
     return _json(documents)
@@ -336,8 +337,8 @@ def prepare_adjudication(observation: EvaluationObservation, expected: ExpectedC
     """One common immutable state for inert consumers; no production clearance.
 
     A fabricated record without independent fixture support cannot pass even
-    inert preparation. Successful preparation still has no qualified production
-    source. Record/observation objects are cooperative input, not authenticated.
+    inert preparation. Successful preparation supplies no qualified evidence-use
+    permit. Record/observation objects are cooperative input, not authenticated.
     """
     holds = tuple(_parse(observation.result_bytes)['hold_reasons'])
     restrictive_decision, restrictions = None, ()

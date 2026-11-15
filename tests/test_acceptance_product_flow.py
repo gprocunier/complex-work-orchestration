@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from tests import test_workflow_adjudication as W
 from tests import test_production_closure as P
+from tests import test_registered_n1_workflow as N
 from cwo_core import host_records, policy
 import setup_workspace_database as setup
 
@@ -31,6 +32,98 @@ class AcceptanceProductFlowTests(unittest.TestCase):
     support = W.WorkflowAdjudicationTests.support
     designated = W.WorkflowAdjudicationTests.designated
 
+    def test_final_review_basis_requires_original_complete_observations_in_the_request(self):
+        producer, control, database, store = self.provision()
+        request = binding._parse(producer.observed.ticket.prepared.request_bytes)
+        before = {path: path.read_bytes() for path in store.state_root.rglob('*') if path.is_file()}
+        self.assertEqual(W.workflow._delivery_basis(producer.delivery_observation, producer.expected, request),
+                         producer.delivery_basis)
+        selected = next(row for row in request['sources'] if row['id'] == 'cwo-delivery-observations')
+        for change in ('missing', 'changed', 'duplicate'):
+            document = binding._parse(binding._json(request))
+            if change == 'missing':
+                document['sources'].remove(selected)
+            elif change == 'changed':
+                next(row for row in document['sources'] if row['id'] == selected['id'])['text'] += ' '
+            else:
+                document['sources'].append(dict(selected))
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, 'exact complete delivery observations'):
+                W.workflow._delivery_basis(producer.delivery_observation, producer.expected, document)
+        with self.assertRaisesRegex(P.original.ClosureError, 'issued immutable observation'):
+            W.workflow._delivery_basis(producer.delivery_observation.report, producer.expected, request)
+        self.assertIsNone(control.acceptance_record)
+        self.assertEqual(before, {path: path.read_bytes() for path in store.state_root.rglob('*') if path.is_file()})
+
+    def test_relevant_edit_invalidates_the_original_final_review_before_acceptance(self):
+        producer, control, database, store = self.provision()
+        (self.delivery_case.repo / 'src/item.txt').write_text('EXAMPLE after-final-review edit\n')
+        before = {path: path.read_bytes() for path in store.state_root.rglob('*') if path.is_file()}
+        with self.assertRaises(P.original.ClosureError):
+            control.current()
+        self.assertIsNone(control.acceptance_record)
+        self.assertEqual(before, {path: path.read_bytes() for path in store.state_root.rglob('*') if path.is_file()})
+
+    def native_delivery(self):
+        builders = P.fixtures.QualifiedClosureTests('runTest')
+        self.addCleanup(builders.doCleanups)
+        self.delivery_case = builders.compact(bead_id=self.route['parent_id'])
+        producer, _, _ = self.source(closure_case=self.delivery_case)
+        excerpt = 'Observed baseline ' + producer.expected.scope + ' and candidate ' + producer.expected.candidate + '.'
+        control, _, support, _ = self.designated(producer, all_findings=True, extra={'accepted_excerpt': excerpt})
+        path = self.home / 'EXAMPLE-native-adjudication.json'
+        path.write_bytes(control.current().record_bytes)
+        evidence = N.W.EvidenceInputs(self.home, producer.current(), producer.expected, path.name,
+                                     adjudication=control, observed_support=support)
+        native = N.WorkflowTests('runTest')
+        self.addCleanup(N.F.cleanup_helper, self, native)
+        native.setUp(source_evidence=(producer, evidence))
+        return native
+
+    def test_native_consumer_refuses_changed_original_delivery_review_before_effects(self):
+        native = self.native_delivery()
+        native.adopt()
+        (self.delivery_case.repo / 'src/item.txt').write_text('EXAMPLE delivery drift before native effect\n')
+        with self.assertRaisesRegex(P.original.ClosureError, 'current candidate'):
+            native.workflow.run()
+        self.assertEqual(native.fixture.spawned, [])
+        self.assertEqual(native.settings['state_store'].read_state()['operations'], {})
+        self.assertFalse((native.case.host.target / 'result.txt').exists())
+
+    def test_native_consumer_refuses_delivery_edit_during_original_evidence_consumption(self):
+        native = self.native_delivery()
+        native.adopt()
+        consume = N.W.S.consume_source
+        def change(*args, **options):
+            result = consume(*args, **options)
+            (self.delivery_case.repo / 'src/item.txt').write_text('EXAMPLE delivery drift during evidence use\n')
+            return result
+        with patch.object(N.W.S, 'consume_source', side_effect=change), \
+                self.assertRaisesRegex(P.original.ClosureError, 'current candidate'):
+            native.workflow.run()
+        self.assertEqual(native.fixture.spawned, [])
+        self.assertEqual(native.settings['state_store'].read_state()['operations'], {})
+        self.assertFalse((native.case.host.target / 'result.txt').exists())
+        (self.delivery_case.repo / 'src/item.txt').write_bytes(P.fixtures.fixtures.AFTER)
+        with self.assertRaisesRegex(ValueError, 'terminal'):
+            native.settings['evidence'].current()
+
+    def test_native_consumer_preserves_the_exact_original_delivery_review_positive(self):
+        native = self.native_delivery()
+        result = native.run_native(archive_schedule='settled')
+        self.assertTrue(result['execution_complete'])
+        self.assertTrue(result['validation_complete'])
+
+    def test_native_consumer_cannot_drop_the_delivery_handle_and_basis_to_downgrade(self):
+        native = self.native_delivery()
+        native.adopt()
+        producer = native.source_fixture
+        producer.delivery_observation = producer.delivery_basis = None
+        with self.assertRaisesRegex(ValueError, 'issued.*delivery observation'):
+            native.workflow.run()
+        self.assertEqual(native.fixture.spawned, [])
+        self.assertEqual(native.settings['state_store'].read_state()['operations'], {})
+        self.assertFalse((native.case.host.target / 'result.txt').exists())
+
     def provision(self, *, clean=True, initialize=True):
         path = policy.POLICY_DIR / 'provider-registry.yaml'
         document = json.loads(path.read_text())
@@ -41,6 +134,8 @@ class AcceptanceProductFlowTests(unittest.TestCase):
         builders = P.fixtures.QualifiedClosureTests('runTest')
         self.addCleanup(builders.doCleanups)
         self.delivery_case = builders.compact(bead_id=self.route['parent_id'])
+        self.delivery_case.bead.update(updated_at='EXAMPLE-before',
+            comment_count=len(self.delivery_case.bead['comments']), revision='EXAMPLE-before-revision')
         producer, _, _ = self.source(clean=clean, closure_case=self.delivery_case)
         control, _, _, _ = self.designated(producer, support_override=())
         storage = self.home / 'EXAMPLE-database-storage'
@@ -132,11 +227,12 @@ class AcceptanceProductFlowTests(unittest.TestCase):
         self.assertFalse(P.qualified.PRODUCTION_CLOSURE_AVAILABLE)
         request = binding._parse(producer.observed.ticket.prepared.request_bytes)
         evidence = [binding._parse(item['text'].encode()) for item in request['sources']
-                    if item['id'] == 'EXAMPLE-delivery-observations']
+                    if item['id'] == 'cwo-delivery-observations']
         self.assertEqual(len(evidence), 1)
-        self.assertEqual(evidence[0]['initial'], self.delivery_case.initial)
+        self.assertEqual(evidence[0]['resolved_baseline'], self.delivery_case.chain)
         self.assertEqual(evidence[0]['candidate'], self.delivery_case.candidate)
-        self.assertTrue(evidence[0]['observations']['observations_complete'])
+        self.assertEqual(evidence[0]['observation_sha256'],
+                         P.original.observation_digest(self.delivery_case.review_observation))
         self.assertIn(producer.expected.candidate, producer.raw.decode())
         self.assertIsNone(control.acceptance_record)
         self.assertFalse(store.find('acceptance-decision'))
@@ -190,7 +286,7 @@ class AcceptanceProductFlowTests(unittest.TestCase):
                     path.chmod(0o600)
             with patch.object(P.qualified, 'PRODUCTION_CLOSURE_AVAILABLE', True), \
                     P.qualified.production_custody(str(custody), **options) as host:
-                P.qualified.observe(host)
+                P.qualified.observe(host, observation=case.review_observation)
                 P.qualified.bind(host)
                 result = P.closure.execute_qualified_completed(host)
             self.assertTrue(result['completed'])

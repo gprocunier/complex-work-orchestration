@@ -16,6 +16,7 @@ import qualified_review_dispatch as review
 import qualified_risk_use as risk_use
 import prepare_risk_narrowing as narrowing
 import validate_run_readiness_plan as readiness
+import prepare_delivery_closure as delivery
 from cwo_core import adjudication_binding as binding
 from cwo_core import adjudication_source as source
 from prepare_hold_clearance import use_evidence
@@ -71,6 +72,21 @@ def source_basis(expected, task=None):
     return binding._json({'purpose': 'observed-evidence-source', 'context': context, 'task_scope': scope})
 
 
+def _delivery_basis(observation, expected, request):
+    if observation is None:
+        _need(not any(item['id'] == 'cwo-delivery-observations' for item in request['sources']),
+              'Original final review requires its issued original delivery observation.')
+        return None
+    basis = delivery.final_review_basis(observation)
+    context = dict(task=expected.task, scope=expected.scope, candidate=expected.candidate)
+    _need(binding._parse(basis)['context'] == context,
+          'Final delivery review must concern the independently declared baseline and candidate.')
+    required = {'id': 'cwo-delivery-observations', 'text': basis.decode('utf-8')}
+    _need(request['sources'].count(required) == 1,
+          'Original final review request must contain the exact complete delivery observations.')
+    return basis
+
+
 class WorkflowSource:
     """Publish one exact original completion under independently declared scope.
 
@@ -79,7 +95,8 @@ class WorkflowSource:
     Optional task scope is an original TaskExpectation, not submitted JSON.
     """
 
-    def __init__(self, root: Path, host, completion, expected, *, return_path, dispatch_path, task=None):
+    def __init__(self, root: Path, host, completion, expected, *, return_path, dispatch_path, task=None,
+                 delivery_observation=None):
         self.root, self.host, self.completion = root.absolute(), _host(host), completion
         self.expected = expected
         self.observed = host.observe_completion(completion)
@@ -96,6 +113,8 @@ class WorkflowSource:
         required = {'id': 'cwo-bound-source-context', 'text': source_basis(expected, task).decode()}
         _need(request['sources'].count(required) == 1,
               'Original submitted source request must bind the independently declared candidate/scope/task.')
+        self.delivery_observation = delivery_observation
+        self.delivery_basis = _delivery_basis(delivery_observation, expected, request)
         result = binding._parse(self.observed.result_bytes)
         self.raw = (result.get('normalized_return') or result['final_content']).encode('utf-8')
         _need(0 < len(self.raw) <= binding.MAX_SUPPORT_BYTES, 'Actual return is empty or exceeds the bound.')
@@ -138,9 +157,22 @@ class WorkflowSource:
         _need(self._refusal is None, 'Original source refusal is terminal: ' + str(self._refusal))
         self.host.require_active_completion(self.observed.ticket)
 
+    def require_current_delivery(self):
+        """Recheck retained delivery observations without evaluation or persistence."""
+        try:
+            self.require_active()
+            request = binding._parse(self.observed.ticket.prepared.request_bytes)
+            _need(_delivery_basis(self.delivery_observation, self.expected, request) == self.delivery_basis,
+                  'Original complete delivery observations changed after final review.')
+            self.require_active()
+        except Exception as failure:
+            self._refusal = self._refusal or str(failure)
+            raise
+
     def _current(self):
         _need(self.host.observe_completion(self.completion) == self.observed,
               'Original completed source changed.')
+        self.require_current_delivery()
         _need(binding.read_support(self.root, self.return_path) == self.raw,
               'Actual original return changed.')
         source._revalidate(self.observation, self.expected, self.root)
@@ -171,6 +203,8 @@ def _record_host_source(producer, store):
                 if key not in ('peer_review_status', 'peer_review_reviewer', 'peer_review_record')}
     metadata['expected_return_language_source'] = 'registered-adjudication-control'
     metadata['source_context'] = asdict(producer.expected)
+    if producer.delivery_basis is not None:
+        metadata['source_context']['observation_sha256'] = binding._parse(producer.delivery_basis)['observation_sha256']
     fields = dict(dispatch_id=producer.expected.dispatch_id, dispatch_role='executor',
         bead_id=producer.expected.task, executor=producer.expected.executor,
         provider_key=envelope['provider_key'], provider=provider,

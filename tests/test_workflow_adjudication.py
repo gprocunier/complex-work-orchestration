@@ -14,20 +14,14 @@ from tests.test_run_readiness_plan import sample_plan
 
 import qualified_workflow_adjudication as workflow
 from cwo_core import candidate_identity as ci
-from cwo_core import requirement_baseline as rb
 
 binding = workflow.binding
 
 
 def delivery_evidence(case):
     """A bounded review packet from original observations, without nested command source."""
-    observed = case.observe().production
-    return {'initial': case.initial, 'amendments': case.amendments, 'candidate': case.candidate,
-            'observation_digest': rb.record_digest(observed),
-            'observations': {'observations_complete': observed['observations_complete'],
-                'required_criterion_ids': observed['required_criterion_ids'],
-                'criteria': [{key: row[key] for key in ('id', 'state', 'expected_contract', 'observation')}
-                             for row in observed['consumer_diagnostic']['criteria']]}}
+    case.review_observation = case.observe()
+    return binding._parse(workflow.delivery.final_review_basis(case.review_observation))
 
 
 def route_with_basis(identity, basis=None, basis_id="cwo-bound-review-basis", *, evidence=None):
@@ -51,7 +45,7 @@ def route_with_basis(identity, basis=None, basis_id="cwo-bound-review-basis", *,
         node["execution"]["output_tokens_upper"] = 2048
         sources = [] if basis is None else [(basis_id, basis)]
         if evidence is not None:
-            sources.append(('EXAMPLE-delivery-observations', binding._json(evidence)))
+            sources.append(('cwo-delivery-observations', workflow.delivery._freeze(evidence)))
         for source_id, raw in sources:
             node["sources"].append({"id": source_id, "text": raw.decode()})
             node["estimate_source"]["context_manifest"].append(
@@ -173,6 +167,7 @@ class WorkflowAdjudicationTests(unittest.TestCase):
             return_path="EXAMPLE-return.md",
             dispatch_path="EXAMPLE-dispatch.json",
             task=declared,
+            delivery_observation=None if closure_case is None else closure_case.review_observation,
         )
         return producer, declared, result
 

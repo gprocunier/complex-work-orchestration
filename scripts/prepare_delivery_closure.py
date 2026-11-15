@@ -403,6 +403,46 @@ def _current(data: _Observed) -> None:
     _check_native(data)
 
 
+def _native_review_basis(native: _Native | None) -> dict[str, Any] | None:
+    if native is None:
+        return None
+    declared = _declared(native.policy)
+    # Preserve the independently bounded native JSON bytes, including its finite
+    # fractional limits, without broadening the integer-only combined schema.
+    return {"report": native.report.decode("utf-8"), "expected_target": native.target.decode("utf-8"),
+            "validated": native.validated.decode("utf-8"), "policy": declared.specification.decode("utf-8"),
+            "outputs": [{"path": path, "sha256": _digest(raw)} for path, raw in native.outputs]}
+
+
+def observation_digest(observation: Observation) -> str:
+    """Identify the exact issued complete combined observations, including full receipts."""
+    data = _observed(observation)
+    _current(data)
+    context = _read(data.context)
+    _candidate(context, context["bead"])
+    return _digest(_freeze({"observations": observation.report,
+                            "native_validation": _native_review_basis(data.native)}))
+
+
+def final_review_basis(observation: Observation) -> bytes:
+    """Render original obligations and complete results for a subsequent source review."""
+    data = _observed(observation)
+    digest = observation_digest(observation)
+    snapshot = _read(data.combined)["snapshot"]
+    context = _read(data.context)
+    return _freeze({
+        "record_type": "cwo-delivery-review-basis", "version": 1,
+        "context": {"task": context["bead"]["id"], "scope": snapshot["resolved_baseline"]["digest"],
+                    "candidate": ci.candidate_digest(context["candidate"])},
+        "observation_sha256": digest, "resolved_baseline": snapshot["resolved_baseline"],
+        "candidate": context["candidate"], "bead_projection": context["bead"],
+        "criteria": snapshot["criteria"], "native_validation": _native_review_basis(data.native),
+        "artifact_observations": snapshot["artifact_observation"]["snapshot"]["artifact_report"]["criteria"],
+        "validator_observations": [{"criterion_id": row["criterion_id"], "result": row["result"]}
+                                   for row in context["validator_evidence"]],
+    })
+
+
 def _approved(report: dict[str, Any]) -> None:
     _need(report["binding_consistent"] is True and not report["errors"]
           and report["combined_observations_complete"] is True

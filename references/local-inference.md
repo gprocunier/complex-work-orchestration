@@ -8,11 +8,10 @@ a request record (`local_envelope`) before any call; `--execute-local` makes the
 actual endpoint request.
 
 > **Currently unavailable:** `--execute-local` refuses before any quota check,
-> audit event, name resolution or request. CWO cannot yet bind workload-derived
-> sizing to the exact request and hold an atomic one-use reservation within an
-> aggregate budget before the call (issue #41). Writing the local envelope and
-> manual export still work. The commands below describe the route as it will
-> run once that admission exists.
+> audit event, name resolution or request. General local execution does not yet
+> consume complete workload admission at its effect boundary. Writing the local
+> envelope and manual export still work. The commands below describe the held
+> route; the finite offline consumer coverage below does not restore it.
  Evaluate the answer and record the lead's decision before
 using it in implementation. This route does not make an ordinary cloud Codex
 session offline.
@@ -20,6 +19,37 @@ session offline.
 Use the [local-model guide](../docs/local-workers.html) for the sequence, then
 this reference for endpoint variables, exact profiles, request limits and failure
 handling. Registered model names are configuration, not proof of availability.
+
+## Workload admission coverage and limits
+
+Size the complete assignment, including required review, synthesis and validation,
+before admitting any controlled submission. The original planning input retains
+the purpose, expected output, acceptance checks, selected source bytes, rendered
+prompt, text attachments, exact execution options, sizing rationale and bounded
+uncertainty. Every sibling, retry and fallback belongs to the same declared graph
+and aggregate. Rehashing a changed request or issuing a new ticket cannot reset
+the original ledger's scope, limits or spent attempts.
+
+The maintained offline witnesses cover these distinct boundaries:
+
+| Boundary | Checked behavior and witness files |
+| --- | --- |
+| Sizing and whole-route feasibility | Real unit estimates, complete rendered text and source selection, dependent roles, rationale/uncertainty, token and cost projections, and all four aggregate dimensions: [unit sizing](../tests/test_native_work_sizing.py), [route feasibility](../tests/test_route_feasibility_preparation.py). Unknown measurements or billing remain unassessable. |
+| Offline admission | Immutable original route, exact request/options/allowance, current policy, expiry, replay, races and declared dependency outcomes: [local admission](../tests/test_local_admission_preparation.py). Its supplied fake effect provides no production authority. |
+| Finite advisory HTTP composition | The original HTTP consumer receives the admitted prompt, wrappers, source and attachment text, model, effort, options and output limit. Its effective timeout cannot exceed remaining runtime or admission lifetime; a final configuration-check delay cannot send an expired request: [registered review consumer](../tests/test_qualified_review_dispatch.py). Tests replace DNS and HTTP effects. |
+| Durable invocation accounting | Intent and observer registration precede synchronous callbacks and effects. One-use claims, aggregate exhaustion, crashes, unknown usage and cancellation preserve conservative charges: [ledger](../tests/test_invocation_ledger.py), [HTTP reservation](../tests/test_local_invocation_reservation.py). |
+| Browser Send and sharing | Exact prepared source/payload, model/options, bounded probes, output/runtime, expiry, one-use dispatch and shared accounting: [browser action consumer](../tests/test_browser_action_dispatch.py). Sharing additionally requires the original parent's complete conversation consent. These local byte/time/action bounds do not establish whole-route model feasibility or actual provider billing; [live browser refusal](../tests/test_invocation_containment.py) remains in force. |
+| Native/process launch | Registered single-worker, pool, campaign, qualification and activation effects remain source-held: [native hold coverage](native-live-route-holds.md). A precommit packet-build receipt cannot authorize a process invocation or supply aggregate execution accounting. |
+| Manual preparation/export | [Outbound screening](../tests/test_outbound_screen.py) checks the exact emitted text. Export proves preparation/disclosure only; a packet or preparation receipt grants no remote invocation, billing or cancellation allowance. |
+
+For a one-use local invocation, racing consumers cannot both enter its registered
+effect. Browser probes may repeat only after a definite waiting observation that
+confirms no Send occurred. At-most-one local invocation does not establish
+exactly-once remote execution. An intent followed by a crash, local timeout or
+unknown remote result keeps its reservation charged. No terminal local record
+proves that remote work stopped, and no child or fallback starts a fresh aggregate
+to evade those charges. Independent planning remains available while execution
+routes are held.
 
 ## In-Codex Invocation
 
