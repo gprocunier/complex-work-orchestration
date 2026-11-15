@@ -70,8 +70,11 @@ class ReferenceSliceTests(unittest.TestCase):
         section=source.split('<section id="finish-check">',1)[1].split('</section>',1)[0]
         for command in ['cat HANDOFF.md','bd show VALIDATOR_TASK_ID --json','bd show CLI_TASK_ID --json','git diff cwo-tutorial-start']:
             self.assertIn(command,section)
-        self.assertIn('both tasks are accepted and closed',section)
-        self.assertIn('preserve the accepted validator task and its dependency',source)
+        self.assertIn('the validator’s acceptance decision is recorded',section)
+        self.assertIn('the CLI remains open as <code>pending-acceptance</code> with its validator dependency intact',section)
+        self.assertIn('Passing tests do not authorize successful closure through the narrative helper',section)
+        self.assertIn('you decide whether to accept and close the CLI task',section)
+        self.assertIn('preserve the validator evidence and dependency',source)
 
     def test_case_snapshot_and_actual_encoding_reproduction(self):
         import hashlib,json,subprocess

@@ -156,9 +156,12 @@ class ReaderOnboardingTests(unittest.TestCase):
         parser = CodeBlocks()
         parser.feed((ROOT / 'docs/continue-project.html').read_text())
         prompt = next(code for attrs, code in parser.blocks if attrs.get('class', '').startswith('prompt '))
-        for phrase in ('Identify the saved validation requirements', 'Verify the accepted validator tests before editing',
+        for phrase in ('Identify the saved validation requirements',
+                       'Verify the validator tests and the operator’s acceptance decision before editing',
+                       'If the validator task is still open or acceptance is missing, report the blocked prerequisite and stop',
                        'Preserve the validation contract', 'valid input (exit 0)', 'invalid configuration (exit 1)',
-                       'usage errors (exit 2)', 'preserve the accepted validator task and its dependency',
+                       'usage errors (exit 2)', 'preserve the validator evidence and dependency',
+                       'Record the delivered CLI work as pending-acceptance and leave its task open',
                        'No delegation, service-host contact', 'commits, pushes, publication'):
             self.assertIn(phrase, prompt)
 
