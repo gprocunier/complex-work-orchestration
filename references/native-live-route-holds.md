@@ -5,9 +5,11 @@ decisions, all shipped as `False`: `N1_LIVE_AVAILABLE`, `POOL_LIVE_AVAILABLE`,
 and `CAMPAIGN_LIVE_AVAILABLE`. They are not read from a plan, environment,
 constructor enable switch, approval file or CLI option. The activation preview
 also retains its own default-off `LIVE_ACTIVATION_AVAILABLE` decision in
-`run_native_pool_activation_preview.py`. The production closure gate and verified
-host acceptance/database identity requirements remain additional constraints;
-restoring N1/pool alone cannot restore the preview.
+`run_native_pool_activation_preview.py`. Its accepted-child close route uses pool
+receipts and is held independently by `LIVE_ACTIVATION_AVAILABLE` and the selected
+N1/pool holds. It is not constrained by production verified acceptance today;
+restoring N1/pool alone cannot restore the preview. Any future restoration must
+resolve that separate closure contract before claiming verified acceptance.
 No route is restored or live qualification claimed.
 
 | Route | Required source decisions | Enforcement before effects |

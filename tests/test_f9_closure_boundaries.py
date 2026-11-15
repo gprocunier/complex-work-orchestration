@@ -155,13 +155,17 @@ class F9ClosureBoundaries(unittest.TestCase):
             state = SimpleNamespace(bridge=bridge, retired=False, authority=SimpleNamespace(check=Mock()))
             self.assertEqual(qualified._bd(state, ['show']), 'EXAMPLE response')
             before = fake.call_count
+            with patch.object(qualified, 'PRODUCTION_CLOSURE_AVAILABLE', False), \
+                    self.assertRaisesRegex(original.ClosureError, 'production closure is unavailable'):
+                qualified._bd(state, ['close'])
+            self.assertEqual(fake.call_count, before)
             replacement = Mock(return_value='EXAMPLE wrong adapter')
             with patch.object(qualified._ProductionBeadsBridge, '__call__', replacement), \
                     self.assertRaisesRegex(original.ClosureError, 'original production Beads adapter'):
                 qualified._bd(state, ['close'])
             replacement.assert_not_called()
             self.assertEqual(fake.call_count, before)
-        self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, False)
+        self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, True)
 
     def test_F9_749efac02a0615e2_observation_is_single_use(self):
         fixture = self.builders()

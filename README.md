@@ -36,7 +36,9 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   as `pending-acceptance` through narrative summaries. The separate
   [verified closure library](references/run-readiness.md#verified-closure-library)
   joins the original accepted requirement baseline, exact candidate and current
-  evidence. Its production source availability remains held.
+  evidence. This enabled library route requires an embedding host's verified,
+  single-use acceptance, a separated adjudicator and no open blockers or children.
+  The narrative CLI still records `pending-acceptance`.
 
 The [Limits](#limits) section lists what CWO does not do.
 
@@ -206,8 +208,16 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   browser model confirmation; registered native single-worker, pool and
   campaign live routes; new worker-surface qualification; live native activation
   (`run_native_pool_activation_preview.py run --enable-tech-preview`);
-  successful closure; risk narrowing (`--risk-scope` and `--risk-evidence-dir`
+  risk narrowing (`--risk-scope` and `--risk-evidence-dir`
   are refused); and ordinary productive pool plans.
+- **Verified successful closure is a library route for embedding hosts.** It
+  requires the original dispatch, exact baseline and candidate, current policy,
+  setup database identity and single-use host acceptance from an adjudicator
+  separated from the executor, with all required clearances and no open blockers
+  or children. Host records provide integrity within the host trust boundary;
+  an unrestricted same-user writer can mint or replace them. The shipped review
+  host producer remains held by `LOCAL_INVOCATION_AVAILABLE`; the narrative CLI
+  still records `pending-acceptance`.
 - **Cleanup detects and prunes by default.** The CLI supplies no controller
   capability, so termination requests report `termination-unavailable`.
   Explicit in-process callers may supply the original controller's opaque

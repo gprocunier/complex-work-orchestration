@@ -10,7 +10,7 @@
 
 "B3":{"admission":"guarded-effect","authority":"Operator selects disposition: pending-acceptance/deferred stay open; rejected/abandoned/superseded/split may close.","effect":"Operator non-completion comment/optional close; successful closure refused","effect_points":["pa4eb5a68"],"gate_chains":[{"calls":[{"call":"p8f76ac08","direction":"return","target":"p6ee951dd"}],"effect":"pa4eb5a68","gate":"p6141a0f3"},{"calls":[{"call":"p8f76ac08","direction":"return","target":"p6ee951dd"}],"effect":"pa4eb5a68","gate":"p66fb6571"}],"gates":["p6141a0f3","p66fb6571","pd3663248","pa996df88"],"limits":"Zero Beads calls for successful aliases/open outcomes with close. Superseded/split/rejected/abandoned positive comments then closes; pending/deferred may comment only. Close failure after comment is partial persistence.","manual_decisions":["M02"],"ordering":"checked_disposition then narrative/memory checks before comment; dry return; optional close after persisted comment.","trace_files":["scripts/close_bead_with_summary.py"],"witnesses":["w61ae78f5a19c:zero-effect-refusal:wc5061f401cf4","wc5061f401cf4:matched-positive"]},
 
-"B4":{"admission":"guarded-effect","authority":"Opaque supervisor registration, exact baseline/candidate joined to original host-dispatch source context, independently verified acceptance, original observations and setup database identity.","effect":"Host-qualified successful closure production Beads effects","effect_points":["p2724d549"],"gates":["p2a57a279","p0d43f0cb","pd5914a49","p8725844d"],"limits":"Production is held. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. Default-off witness covers the shipped flag and registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage.","manual_decisions":["M02","M03","M04"],"ordering":"Gate at registration/consume/_production_guard/_bd; validate repeatedly before each write; audit after confirmed close.","trace_files":["scripts/close_bead_with_summary.py","scripts/qualified_closure.py","scripts/production_closure_authority.py","scripts/cwo_core/host_acceptance.py","scripts/cwo_core/host_records.py","scripts/qualified_workflow_adjudication.py","scripts/prepare_delivery_closure.py"],"witnesses":["closure-default-off","closure-consumer-adapter","closure-lifecycle-inspection","w2d147d34f1f4:matched-positive","closure-source-candidate","closure-source-candidate-only","closure-source-origin","closure-store-separation","closure-capture-context","closure-final-observation"]},
+"B4":{"admission":"guarded-effect","authority":"Opaque supervisor registration, exact baseline/candidate joined to original host-dispatch source context, independently verified acceptance, original observations and setup database identity.","effect":"Host-qualified successful closure production Beads effects","effect_points":["p2724d549"],"gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p2a57a279","p0d43f0cb","pd5914a49","p8725844d"],"limits":"Production verified closure ships enabled; the source flag remains a kill switch. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. The EXAMPLE-only bridge branch has its own custody contract, not production authority. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review. Shipped-on and patched-off kill-switch witness covers registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage. Acceptance consumption is checked at capture and before every Beads call. The existing exclusive host audit lock joins the replay check to its intent append before any Beads write; the receipt belongs only to that in-flight attempt, whose full acceptance is still reverified. Failed writes and readback do not release consumption. Closing acceptance records host-selected adjudicator identity and rechecks existing provider/family/model/dispatch/session separation; control ID and effort alone are insufficient. Explicit original-adapter queries require closed blocking dependencies and reverse parent-child edges before writes and again before close. Policy source drift refuses consumption.","manual_decisions":["M02","M03","M04"],"ordering":"Gate at registration/consume/_production_guard/_bd; validate repeatedly before each write; atomically claim acceptance with durable consumption intent before the first Beads write; revalidate the in-flight authority through close and readback.","trace_files":["scripts/close_bead_with_summary.py","scripts/qualified_closure.py","scripts/production_closure_authority.py","scripts/cwo_core/host_acceptance.py","scripts/cwo_core/host_records.py","scripts/qualified_workflow_adjudication.py","scripts/prepare_delivery_closure.py"],"witnesses":["closure-kill-switch","closure-consumer-adapter","closure-lifecycle-inspection","w2d147d34f1f4:matched-positive","closure-source-candidate","closure-source-candidate-only","closure-source-origin","closure-store-separation","closure-capture-context","closure-acceptance-replay","closure-consumption-intent","closure-adjudicator","closure-open-graph","closure-policy-source","closure-peer-policy-source","closure-final-observation"]},
 
 "B5":{"admission":"guarded-effect","authority":"Explicit directory/database/actor and original default-bound structured runner; owned prestate not qualified completion.","effect":"Exact-prestate claim and owned close","limits":"Exact-show reads precede refusal. Zero additional update/close, not zero earlier successful claim. Explicit DB/actor and definition-bound runner; timeout/error reconciled by exact post-show without retry. Injected runner is trusted.","manual_decisions":["M02","M05"],"ordering":"Show exact prestate; refuse stale/preowned; at most one update/close; show exact poststate including timeout/error reconciliation.","trace_files":["scripts/cwo_core/native_pool_admission.py"],"witnesses":["w299907088a2a:zero-effect-refusal:wdbadf8483000"]},
 
@@ -668,41 +668,61 @@
 
 "browser-share-decl":[106,"RegisteredBrowserParent.create_share",386,"32d7aed8d52fb0abd936a81b86d573f0476f4dd6510dea33031d5828c7bed2c8"],
 
-"closure-adapter-close":[48,722,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,722,67],
+"closure-acceptance-replay-body":[92,"ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes",397,"c81bbc65c0bbacd968e02609183740f1db4917a6ec12057d9b3bf377cc5c3df4"],
 
-"closure-adapter-comment":[48,714,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,714,58],
+"closure-adapter-close":[48,745,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,745,67],
 
-"closure-capture-context-body":[123,"ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access",74,"519cc665aef5e1a53cb4b88f5da35a5a64ea4c5b57dcf015534149dec4077436"],
+"closure-adapter-comment":[48,737,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,737,58],
+
+"closure-adjudicator-body":[119,"HostAcceptanceTests.test_closing_acceptance_requires_host_selected_separated_adjudicator",74,"ab37eb5a7b21f3263a74839879a552dbdfa5bb067095ce9d1da0b1fd79e64d74"],
+
+"closure-adjudicator-check":[120,215,"_need(type(identity) is dict and set(identity) == IDENTITY_FIELDS | {\"session_id\"},"],
+
+"closure-capture-context-body":[123,"ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access",78,"519cc665aef5e1a53cb4b88f5da35a5a64ea4c5b57dcf015534149dec4077436"],
 
 "closure-capture-context-check":[124,22,"if type(value) is not dict or set(value) != {\"task\", \"scope\", \"candidate\"}:"],
 
-"closure-delivery-context-check":[120,210,"_need(type(source_context) is dict"],
+"closure-consumption-intent-body":[92,"ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures",441,"0f017301d6df5203bc850e7f709512e3f273b48c231d61c60469af0ddfdd046c"],
 
-"closure-final-observation-body":[92,"ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete",138,"a4824faccdc1e1178eb512e4c63038df1338f12753f83ef9177cbf3e6632014e"],
+"closure-delivery-context-check":[120,228,"_need(type(source_context) is dict"],
 
-"closure-flow-custody":[118,"AcceptanceProductFlowTests.closure",152,"bedff8651cadcf04e802bb57026387ada057df920dc9ec7efbe6e612576b5341"],
+"closure-final-observation-body":[92,"ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete",165,"a4824faccdc1e1178eb512e4c63038df1338f12753f83ef9177cbf3e6632014e"],
 
-"closure-flow-provision":[118,"AcceptanceProductFlowTests.provision",127,"0835e3bd7770d1aab7ef4753517314aae4d22bf26e53542b232f47acc409a795"],
+"closure-flow-custody":[118,"AcceptanceProductFlowTests.closure",153,"bedff8651cadcf04e802bb57026387ada057df920dc9ec7efbe6e612576b5341"],
 
-"closure-host-fixture":[122,"provision_acceptance",10,"297d571bfbe6fd24d2acd8bcf869759814165b502c5bd696cc9f70f2cfd0d6c4"],
+"closure-flow-provision":[118,"AcceptanceProductFlowTests.provision",127,"1f652e3d6dee025cbc686e95cc63120f49df2f86efa7b43d885a1e30e8e0e919"],
 
-"closure-original-acceptance-positive":[118,"AcceptanceProductFlowTests.test_completed_adjudication_persists_once_then_real_closure_requires_every_phase",224,"36150b55d1e3a7590baf36fa90f5fc1991c87ad6def47a56a3324d0f7a189a6a"],
+"closure-graph-check":[48,568,"_need(row.get(\"status\") == \"closed\", \"nonclosed blocker or child prevents production closure\")"],
 
-"closure-source-candidate-body":[118,"AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance",171,"192607830fac0710f577e5d39a88e3a2825d61af5372805aae27fe6e8721406f"],
+"closure-host-fixture":[122,"provision_acceptance",10,"ab5c6556f9c0b7d7a22562623dfe68170cb7dd37afde3f0ee5b8432488a21f90"],
 
-"closure-source-candidate-only-body":[118,"AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads",196,"ec214736db90d65094b6a72837a096009db5794bba628e694a0a03ae5f9338df"],
+"closure-open-graph-body":[92,"ProductionClosureTests.test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes",297,"a94c03843daa5c744d7f8534425279e15adabd453b092d1b8cb80369a80897c4"],
+
+"closure-original-acceptance-positive":[118,"AcceptanceProductFlowTests.test_completed_adjudication_persists_once_then_real_closure_requires_every_phase",225,"3bcc75dcaca609b7a9b5eb534ccee47545f8ea4a003cf84560da5bb023c89aab"],
+
+"closure-peer-policy-source-body":[92,"ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write",367,"ba2d652391e08397ab99703be200ec33ffc06c9ed9c5afc1579087bafded4264"],
+
+"closure-policy-source-body":[92,"ProductionClosureTests.test_policy_source_drift_after_bind_or_comment_refuses_next_write",339,"0c81ef734f356170f7d1abe5b87d015f8aa11dda7f4ffa23e31ac3fc144c3e5a"],
+
+"closure-prerequisite-query":[48,560,"_bd(state, [\"dep\", \"list\", \"--json\", \"--type\", kind,\n                          \"--direction\", direction, \"--\", bead_id])",14,561,67],
+
+"closure-prerequisite-query-body":[48,"_closed_prerequisites",557,"c7a7c8baa94a4943b62e4ac4c22c65d4c43d401ddc02accd467688b25a04663e"],
+
+"closure-source-candidate-body":[118,"AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance",172,"192607830fac0710f577e5d39a88e3a2825d61af5372805aae27fe6e8721406f"],
+
+"closure-source-candidate-only-body":[118,"AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads",197,"ec214736db90d65094b6a72837a096009db5794bba628e694a0a03ae5f9338df"],
 
 "closure-source-evidence":[121,"delivery_evidence",21,"c10b5984d7c6d5455e5520deb66ffa25770a2634c64c21803f67f3db6e59acd0"],
 
 "closure-source-origin-body":[119,"HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest",45,"e60f60bff14fc83c6ab85e1cf6e25a344dc768508aee9e8aad810e15b689bbd8"],
 
-"closure-source-origin-check":[120,208,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
+"closure-source-origin-check":[120,226,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
 
-"closure-source-request":[121,"WorkflowAdjudicationTests.source",103,"0115093ba74d5260e9ada99ffbe1a4483cc713812b053c89ebd4d1bbfaba922f"],
+"closure-source-request":[121,"WorkflowAdjudicationTests.source",111,"0115093ba74d5260e9ada99ffbe1a4483cc713812b053c89ebd4d1bbfaba922f"],
 
-"closure-source-route":[121,"route_with_basis",27,"c7f6347c1e1b0e40262abd5c785a70e871a5dd6632afa2f171c455a502dcdb39"],
+"closure-source-route":[121,"route_with_basis",27,"a023d7e1b96edd14cccef52af00b270c97e4c9b247dab5d6fdbef925e1438d21"],
 
-"closure-store-separation-body":[92,"ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage",333,"c7bb04fd359aa9a620e2d667b90d929a2d3f7edaaba58b21915038a633c8458b"],
+"closure-store-separation-body":[92,"ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage",583,"c7bb04fd359aa9a620e2d667b90d929a2d3f7edaaba58b21915038a633c8458b"],
 
 "continue-list":[14,196,"_parent_query(parent_id, ready=False)",32,196,69],
 
@@ -712,9 +732,9 @@
 
 "continue-show":[14,208,"bd_json([\"show\", \"--json\", \"--\", *chunk])",40,208,81],
 
-"d0dc1507574a228d4":[32,"check",1322,"c0b76cf15f822757e30372ba5c4471de71c842c44af0f954d1eba0ceba17a16d"],
+"d0dc1507574a228d4":[32,"check",1348,"c0b76cf15f822757e30372ba5c4471de71c842c44af0f954d1eba0ceba17a16d"],
 
-"d42a620d8225cd577":[32,"_review",1292,"097e6821a7f8cad0978ae4cb1092b91a2069918ab34c1ddb0b2a092f552239be"],
+"d42a620d8225cd577":[32,"_review",1318,"097e6821a7f8cad0978ae4cb1092b91a2069918ab34c1ddb0b2a092f552239be"],
 
 "diagnostic-bootstrap-exec":[125,45,"os.execv(sys.argv[1],sys.argv[1:])",112,45,146],
 
@@ -864,7 +884,7 @@
 
 "p06212dfd":[39,364,"if ! python3 -B \"$CHECKER\" --source-dir \"$SOURCE_DIR\" --installed-dir \"$INSTALL_STAGE_DIR\" --write-manifest --check; then"],
 
-"p06242a8b":[32,1339,"return {\"contract_valid\": True, \"complete_effect_trace\": True, \"f8_complete\": False,"],
+"p06242a8b":[32,1365,"return {\"contract_valid\": True, \"complete_effect_trace\": True, \"f8_complete\": False,"],
 
 "p06913389":[63,7099,"live_availability.require_n1_live()"],
 
@@ -896,7 +916,7 @@
 
 "p0bbed192":[63,12439,"live_availability.require_campaign_live()"],
 
-"p0c090d1b":[32,"_review",1292,"097e6821a7f8cad0978ae4cb1092b91a2069918ab34c1ddb0b2a092f552239be"],
+"p0c090d1b":[32,"_review",1318,"097e6821a7f8cad0978ae4cb1092b91a2069918ab34c1ddb0b2a092f552239be"],
 
 "p0c9c97ab":[30,"consume_pool_admission",1970,"6dc87c4e4d6aceeece44d3f4ff0906bba9028efaa582953933d663fca1ecacc6"],
 
@@ -906,7 +926,7 @@
 
 "p0d41aecf":[11,619,"signalled = termination[\"signals_sent\"]"],
 
-"p0d43f0cb":[48,695,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
+"p0d43f0cb":[48,717,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
 
 "p0d60d614":[104,"ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency",320,"59248bfeb067522d57bb963af737496fcbbf4434ce83ac3855536f41fffd82ce"],
 
@@ -980,7 +1000,7 @@
 
 "p19e5dbb2":[110,"BrowserProvenanceTests.validate",85,"22c99aeacf997ebac2db6094d0847ac05cbb3f6e4227dea87f32b4872e05a1c0"],
 
-"p19f63d9d":[32,1293,"need(review[\"schema\"] == \"release-route-review-v1\" and review[\"role\"] == \"independent-reviewer\""],
+"p19f63d9d":[32,1319,"need(review[\"schema\"] == \"release-route-review-v1\" and review[\"role\"] == \"independent-reviewer\""],
 
 "p1a99a509":[62,217,"turn, latency = self.server.start_turn("],
 
@@ -1170,7 +1190,7 @@
 
 "p3999339d":[62,203,"def start_turn("],
 
-"p39fdfd04":[78,"F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control",70,"5e9119a96d7c542486ac60ccc955d0dea3ed2d9b3d0659f098ee757c2629a0d0"],
+"p39fdfd04":[78,"F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control",71,"9c17e9ba8b20c3b9b84feb3a5cb3ff9794b06f56eb5f6e8a145026f53cf08b8b"],
 
 "p3a1fccce":[21,"_codex_version",146,"506ac1d9a28db38139f352f709e0cee027b888f6072af08378fe58cf14a8355e"],
 
@@ -1198,7 +1218,7 @@
 
 "p3fa87cda":[4,896,"self._page_snapshot(page)",19,896,44],
 
-"p404fdf75":[32,1326,"need(raw == encoded(current) + b\"\\n\", \"stale or mismapped trace; generate a fresh evidence step\")"],
+"p404fdf75":[32,1352,"need(raw == encoded(current) + b\"\\n\", \"stale or mismapped trace; generate a fresh evidence step\")"],
 
 "p40bc8e8b":[30,2002,"if capability._state != \"available\":"],
 
@@ -1226,7 +1246,7 @@
 
 "p454aca56":[65,1642,"if not closure_pressure[\"allowed\"]:"],
 
-"p458529ce":[32,1329,"need(review_path is not None and review_sha256 is not None, \"explicit independent review path and digest required\")"],
+"p458529ce":[32,1355,"need(review_path is not None and review_sha256 is not None, \"explicit independent review path and digest required\")"],
 
 "p45a1cac0":[112,130,"if not _duration(grace_seconds, MAX_GRACE_SECONDS) or not _duration(min_age_seconds, MAX_MIN_AGE_SECONDS) or type(allow_kill) is not bool:"],
 
@@ -1254,7 +1274,7 @@
 
 "p4b716405":[14,"main",650,"379848b66d032d2eff2f38c41ad2411b43dd86a32c6d4252d607d879777410e7"],
 
-"p4cb99d4f":[92,"ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls",247,"5db507d1e659df0c6598bd512b62fb2ccca06104099843e071183d3eff4bbd96"],
+"p4cb99d4f":[92,"ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls",497,"5db507d1e659df0c6598bd512b62fb2ccca06104099843e071183d3eff4bbd96"],
 
 "p4d0788a3":[89,"NativePoolAdmissionTests.test_timeout_reconciliation_uses_exact_show_not_command_output",417,"0a810be1461f0235ffa97acd4748e9c20c8a8af068f6e79cda9ff103feb00ecc"],
 
@@ -1290,7 +1310,7 @@
 
 "p547bc64d":[8,868,"if args.write_manifest and target_dir.exists():"],
 
-"p54fa2aba":[48,694,"if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:"],
+"p54fa2aba":[48,716,"if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:"],
 
 "p55357f50":[18,361,"run_bd([\"dep\", \"add\", \"--type\", normalized, \"--\", bead_id_operand(blocked), bead_id_operand(blocker)])"],
 
@@ -1546,7 +1566,7 @@
 
 "p878d596c":[5,212,"result = subprocess.run("],
 
-"p880b7c3c":[78,"F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control",23,"9727d19265d9f55de993f49c9ecbefb20600b38a4cc88d7ee27b546cb05a38da"],
+"p880b7c3c":[78,"F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control",23,"a964e5f04fcbc03fbac182be07b32e546e384a72d1b701c2f492260562122eea"],
 
 "p89782231":[104,"example_item",28,"00b747d2bee2cbd452d3dd5e519570b7b19dd33d12eb3d97f10a50b6a6daa59c"],
 
@@ -1640,7 +1660,7 @@
 
 "p9c4d21b7":[34,462,"process = subprocess.Popen("],
 
-"p9c633dfa":[12,"execute_qualified_completed",57,"a661a0599cf28a451867dbe803ea4ac95840ac68ec17940d1645cdd1a49ed08f"],
+"p9c633dfa":[12,"execute_qualified_completed",57,"c677159e98811746ce1e6a65f3272f9398da67053e202624962fac5a60bf3590"],
 
 "p9d863893":[35,"_resolve_local_endpoint_addresses",746,"4c5ba9de3b38425f046bb4fb398153c0dc38ca72b8a6e63128823db92e4d6d45"],
 
@@ -1660,7 +1680,7 @@
 
 "p9ef03022":[13,421,"if args.apply:"],
 
-"p9f57bc43":[48,"production_custody",295,"38e881ac738c56eb3600687f6867644948ce16f7bea738528b1aef53a5d9b8b8"],
+"p9f57bc43":[48,"production_custody",295,"3b2aa681bedd66e73fee31a22391ef4b6e368bf663e8bc399dfa09a59e7e28eb"],
 
 "p9fb75d9d7b3b":[37,"main",189,"5d709ef39400e6bf0f9dcb41d08b235ef6193e291f2a59e1d2810a2bb86c134f"],
 
@@ -1918,7 +1938,7 @@
 
 "pd1be65dc":[63,5161,"pre_allocation_check()"],
 
-"pd1d4f390":[48,"consume",684,"19bafcf3e50422729361b6b5ff0394e51ee22444b8423eaf881804ed08f6d497"],
+"pd1d4f390":[48,"consume",706,"fe5417f6e0cb00188ea30f1968f50174330043a4fd014fb75a2bf1606f47578d"],
 
 "pd2604569":[95,"R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path",23,"3af0244810dba1ab6f2e969d1b33a8cd990309e950b42941be7039dfd9e5cca2"],
 
@@ -1984,7 +2004,7 @@
 
 "pe01ac263":[4,"PlaywrightChatGPTRunner._select_configured_labels",1024,"52063d01b2041e13eaed964fe091c506e43794d1536edb48c951258fd69c81dc"],
 
-"pe04218eb":[32,1332,"_review(directory, json.loads(review_raw), current, digest(raw))",14,1332,78],
+"pe04218eb":[32,1358,"_review(directory, json.loads(review_raw), current, digest(raw))",14,1358,78],
 
 "pe0978dc5":[79,"F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds",231,"89ebf108c0fb7acd9a8f7d0216fec990df3e95a3463f04806adbb5dda8a63378"],
 
@@ -2072,7 +2092,7 @@
 
 "peb88bfb7":[41,831,"def spawn_owned(self, session_id: str, argv: list[str] | tuple[str, ...], workspace: str) -> dict[str, Any]:"],
 
-"pebe865d4":[92,"ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io",313,"ba0db16bbdf1579fd493d49ef7904adb7d559231c36d81ebf7e3a18c76068491"],
+"pebe865d4":[92,"ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io",563,"ba0db16bbdf1579fd493d49ef7904adb7d559231c36d81ebf7e3a18c76068491"],
 
 "pec63dd95619c":[23,"LocalHttpGate.open",302,"816bd09695147531d1068f9548be21901202c23756f979c3bea455b6628a84e5"],
 
@@ -3999,9 +4019,11 @@
 
 [64,542,10,542,84,"beads","5739bb06c1e78a8e2ddc382ccffc0dbe66631fdab5877e886b60d8c3cb9b9607",["exclude","guard-scope-96050b233982b6"]],
 
-[64,714,8,714,58,"beads","688891c9f68a9e40644af047711eec5bbdb389e08bbb0dbc1c8273f39cfd5a26",["route","B4.3","closure-adapter-comment"]],
+[64,560,14,561,67,"beads","b359f72ed679a565eeaa761e82b8f514b39363f6b91b0ef22596218b6f5aae39",["route","B10.6","closure-prerequisite-query"]],
 
-[64,722,8,722,67,"beads","fd19af61b6001cf3f329c9c333570c4c9cdc418fe87ec22363593b7653f57f57",["route","B4.3","closure-adapter-close"]],
+[64,737,8,737,58,"beads","688891c9f68a9e40644af047711eec5bbdb389e08bbb0dbc1c8273f39cfd5a26",["route","B4.3","closure-adapter-comment"]],
+
+[64,745,8,745,67,"beads","fd19af61b6001cf3f329c9c333570c4c9cdc418fe87ec22363593b7653f57f57",["route","B4.3","closure-adapter-close"]],
 
 [65,134,14,134,48,"dynamic","bd6ebc2cc403a20668ccf6cbfccc0d44411109d9ad69b362640948b5361ed3f4",["exclude","XR341-archive-identity"]],
 
@@ -4428,11 +4450,11 @@
 
 {"contract":"B3","effect_points":["pa4eb5a68","R1A-a634298c375a7d","R1A-95d53aab5d9f3f"],"entrypoint":"pb0cdc929","id":"B3.2"},
 
-{"contract":"B4","entrypoint":"p9c633dfa","gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p8725844d"],"id":"B4.1","review_gates":["p2a57a279","p0d43f0cb","pd5914a49","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check"]},
+{"contract":"B4","entrypoint":"p9c633dfa","gates":["p8725844d"],"id":"B4.1","review_gates":["p2a57a279","p0d43f0cb","pd5914a49","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check","closure-adjudicator-check","closure-graph-check"]},
 
-{"contract":"B4","entrypoint":"p9f57bc43","gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p8725844d"],"id":"B4.2","review_gates":["p2a57a279","p0d43f0cb","pd5914a49","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check"]},
+{"contract":"B4","entrypoint":"p9f57bc43","gates":["p8725844d"],"id":"B4.2","review_gates":["p2a57a279","p0d43f0cb","pd5914a49","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check","closure-adjudicator-check","closure-graph-check"]},
 
-{"contract":"B4","effect_points":["p2724d549","closure-adapter-comment","closure-adapter-close"],"entrypoint":"pd1d4f390","gate_limits":"Custody creation and the stored production callback require lifecycle review; consume and adapter checks bind their own calls. Production-only consume admission is selected by the outer registered-bridge condition; EXAMPLE bridges retain their separate contract. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p8725844d","p54fa2aba"],"id":"B4.3","limits":"Production is held. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. The EXAMPLE-only bridge branch has its own custody contract, not the production hold. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review. Default-off witness covers the shipped flag and registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage.","review_gates":["p2a57a279","pd5914a49","p0d43f0cb","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check"]},
+{"contract":"B4","effect_points":["p2724d549","closure-adapter-comment","closure-adapter-close"],"entrypoint":"pd1d4f390","gate_limits":"Custody creation and the stored production callback require lifecycle review; consume and adapter checks bind their own calls. Production-only consume admission is selected by the outer registered-bridge condition; EXAMPLE bridges retain their separate contract. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p8725844d","p54fa2aba"],"id":"B4.3","review_gates":["p2a57a279","pd5914a49","p0d43f0cb","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check","closure-adjudicator-check","closure-graph-check"]},
 
 {"contract":"B5","effect_points":["p6f997d27"],"entrypoint":"p0ad089cc","gate_limits":"Expected pre-hash is optional; the nested mismatch check is conditional on a supplied digest. The close-owned check belongs to the sibling method. Neither is an unconditional claim gate.","gates":["pdc3ba9c7"],"id":"B5.1","review_gates":["pc464495b","p000d59cf"],"selector":"claim zero-update witness"},
 
@@ -4702,679 +4724,689 @@
 
 {"contract":"P1","effect_points":["publication-final-call","publication-actual-replace"],"entrypoint":"publication-apply","gate_limits":"Final current-target and retained-entry predicates are checked at the actual replace helper. Original authorization and callout ordering remain the trusted embedding prerequisite; direct helper arguments are not independently authenticated.","id":"P1.1","review_gates":["publication-final-target","publication-final-marks"]},
 
-{"contract":"P2","effect_points":["host-actual-replace"],"entrypoint":"host-save","gate_limits":"Original lock verification is a trusted local caller contract. Contextual points bind checks at actual state mutation sites without conferring external-writer exclusion or native authority.","id":"P2.1","review_gates":["host-lock-present","host-lock-identity"]}
+{"contract":"P2","effect_points":["host-actual-replace"],"entrypoint":"host-save","gate_limits":"Original lock verification is a trusted local caller contract. Contextual points bind checks at actual state mutation sites without conferring external-writer exclusion or native authority.","id":"P2.1","review_gates":["host-lock-present","host-lock-identity"]},
+
+{"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["closure-prerequisite-query"],"entrypoint":"closure-prerequisite-query-body","gates":[],"id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":["scripts/qualified_closure.py","scripts/cwo_core/beads.py"],"witnesses":["closure-open-graph"]}
 ],
 
 "schema":"compact-release-routes-v1",
 
 "scope":"Explicit supported routes plus exact bounded primitive dispositions and all-script bindings; not whole-program resolution or complete effect-trace closure.",
 
+"source_binding_columns":[
+"sha256",
+
+"mode",
+
+"size"
+],
+
 "source_bindings":{
-"policy/qualification-target.yaml":{"mode":420,"sha256":"f4df9cd4ac628f8697973038d641f530b934a12b0fd443ca75b0e8cf1565344a","size":15591},
+"policy/qualification-target.yaml":["f4df9cd4ac628f8697973038d641f530b934a12b0fd443ca75b0e8cf1565344a",420,15591],
 
-"references/claims-register.md":{"mode":420,"sha256":"a8b585586aab88ac7b3c3f241edb4ab9cf2bbdcf2aa4aa454931e28a5e1ebb2d","size":5583},
+"references/claims-register.md":["d9d1c48e3bbcf8e2069a3debeaeb4d69247d26ab3c30f7479c30b3499f8086e0",420,6800],
 
-"references/cwo-system-prompt.md":{"mode":420,"sha256":"ea1aff306808c7c2a390011ad35e35d5eb7f65e31e568cd746dbd89704fd60dc","size":4391},
+"references/cwo-system-prompt.md":["ea1aff306808c7c2a390011ad35e35d5eb7f65e31e568cd746dbd89704fd60dc",420,4391],
 
-"references/release-effect-routes.md":{"mode":420,"sha256":"f6329886944b2bd828db9f85027010ff2286e84a45cce46514732bd014422f99","size":17073},
+"references/release-effect-routes.md":["97e359491cb6afe9269858d857cd67c6f440df6ccfe702564e096e53e4090e98",420,17617],
 
-"schemas/qualification-target.schema.json":{"mode":420,"sha256":"51ec7692a44f579eccc51e12baf2aadad02b3c02657d3fd627ee8290315ad7a9","size":21333},
+"schemas/qualification-target.schema.json":["51ec7692a44f579eccc51e12baf2aadad02b3c02657d3fd627ee8290315ad7a9",420,21333],
 
-"scripts/authorize_sol_breakfix.py":{"mode":420,"sha256":"cf4658fcd44f7adfd72bca8e59f1aca4c6156456b98f0bd8d322c5e8fed55077","size":3165},
+"scripts/authorize_sol_breakfix.py":["cf4658fcd44f7adfd72bca8e59f1aca4c6156456b98f0bd8d322c5e8fed55077",420,3165],
 
-"scripts/browser_action_dispatch.py":{"mode":420,"sha256":"281f94926eeb69261a17fd0ffe65c12ffd8ad88e13aa4635db077e7020b4d953","size":27989},
+"scripts/browser_action_dispatch.py":["281f94926eeb69261a17fd0ffe65c12ffd8ad88e13aa4635db077e7020b4d953",420,27989],
 
-"scripts/browser_share_consent.py":{"mode":420,"sha256":"e100bac3b5adecb3f36aa6000127425dd844242a102cccc47685bb50f4771b0a","size":12122},
+"scripts/browser_share_consent.py":["e100bac3b5adecb3f36aa6000127425dd844242a102cccc47685bb50f4771b0a",420,12122],
 
-"scripts/build_beads_brief.py":{"mode":493,"sha256":"7432165b03c316021faa7ec851ec2a908fafa622ee472a8e940dd123cc529655","size":9665},
+"scripts/build_beads_brief.py":["7432165b03c316021faa7ec851ec2a908fafa622ee472a8e940dd123cc529655",493,9665],
 
-"scripts/build_contractor_packet.py":{"mode":493,"sha256":"2cbb3c9d5eba1ea2ef2cfd7aedf32ae5cdf4bee4e7a6baaba5c7a626a093b431","size":28295},
+"scripts/build_contractor_packet.py":["2cbb3c9d5eba1ea2ef2cfd7aedf32ae5cdf4bee4e7a6baaba5c7a626a093b431",493,28295],
 
-"scripts/calibrate_return_language.py":{"mode":420,"sha256":"efd17aaf8016f7825071299121af658f2d5c3ac8968229c1a60e501536de0598","size":171},
+"scripts/calibrate_return_language.py":["efd17aaf8016f7825071299121af658f2d5c3ac8968229c1a60e501536de0598",420,171],
 
-"scripts/candidate_identity.py":{"mode":420,"sha256":"ab7128c0a221d9d64da5ebd65bdd73f6ad76b2e2117b3a809c4300e7d6061bf3","size":7955},
+"scripts/candidate_identity.py":["ab7128c0a221d9d64da5ebd65bdd73f6ad76b2e2117b3a809c4300e7d6061bf3",420,7955],
 
-"scripts/chatgpt_browser_review.py":{"mode":493,"sha256":"674fa08bca596c32aec0567bbe1cb4aa060cf742aebd86789f3228ac41655aa8","size":100544},
+"scripts/chatgpt_browser_review.py":["674fa08bca596c32aec0567bbe1cb4aa060cf742aebd86789f3228ac41655aa8",493,100544],
 
-"scripts/check_code_health.py":{"mode":420,"sha256":"e5bce59bdf1a23049427bbae8c328662fea64925b4c91c748230dc9ac62ce6ec","size":49677},
+"scripts/check_code_health.py":["e5bce59bdf1a23049427bbae8c328662fea64925b4c91c748230dc9ac62ce6ec",420,49677],
 
-"scripts/check_codex_worker_surface.py":{"mode":420,"sha256":"6874a3e21680b3bac6575c858ddef873ccdc30a3a6ff72fa329f8299720918cd","size":17814},
+"scripts/check_codex_worker_surface.py":["6874a3e21680b3bac6575c858ddef873ccdc30a3a6ff72fa329f8299720918cd",420,17814],
 
-"scripts/check_documentation.py":{"mode":420,"sha256":"852c5c0236e80f25cd45accc3b9b1dcd245809097e6185c8915a44683d338238","size":3272},
+"scripts/check_documentation.py":["852c5c0236e80f25cd45accc3b9b1dcd245809097e6185c8915a44683d338238",420,3272],
 
-"scripts/check_extended_code_health.py":{"mode":420,"sha256":"86d683ea39463a8583f37d961ace0f1e404c1d4eca12f4d670cfbe7c505f76ca","size":17233},
+"scripts/check_extended_code_health.py":["86d683ea39463a8583f37d961ace0f1e404c1d4eca12f4d670cfbe7c505f76ca",420,17233],
 
-"scripts/check_installed_skill.py":{"mode":493,"sha256":"a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e","size":40224},
+"scripts/check_installed_skill.py":["a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",493,40224],
 
-"scripts/check_maintenance_qualification.py":{"mode":420,"sha256":"7af2a59e33e19d20a98087d18d696fc18fb992b8a19f10fff45f25e445da28b8","size":1219},
+"scripts/check_maintenance_qualification.py":["7af2a59e33e19d20a98087d18d696fc18fb992b8a19f10fff45f25e445da28b8",420,1219],
 
-"scripts/check_native_worker_session.py":{"mode":420,"sha256":"3a4720cad527cf64e3e4751820980f0aa0dc3783d714f9f421b508298a3fc4d7","size":8988},
+"scripts/check_native_worker_session.py":["3a4720cad527cf64e3e4751820980f0aa0dc3783d714f9f421b508298a3fc4d7",420,8988],
 
-"scripts/check_release_effect_routes.py":{"mode":493,"sha256":"5073978dcd371e8fc22b2fade37947f88b310827841df65753fe1a837c593574","size":1275},
+"scripts/check_release_effect_routes.py":["5073978dcd371e8fc22b2fade37947f88b310827841df65753fe1a837c593574",493,1275],
 
-"scripts/check_release_filesystem.py":{"mode":420,"sha256":"da8078b3926d2749330459ee24b6e0c9f6de470c891f1a78be8803894c5140e8","size":7899},
+"scripts/check_release_filesystem.py":["da8078b3926d2749330459ee24b6e0c9f6de470c891f1a78be8803894c5140e8",420,7899],
 
-"scripts/cleanup_stale_agents.py":{"mode":493,"sha256":"a7d14dc3770647a92882d467a38fa1f56c9cc4dc7274fcb67860761256360a2a","size":25709},
+"scripts/cleanup_stale_agents.py":["a7d14dc3770647a92882d467a38fa1f56c9cc4dc7274fcb67860761256360a2a",493,25709],
 
-"scripts/close_bead_with_summary.py":{"mode":420,"sha256":"70891f6625a07d15882eb2cb2e3f675aa84df4912288427ea7be86350392afd3","size":20936},
+"scripts/close_bead_with_summary.py":["6399bcb7bda5fe89a3edadea1004ad24575b9728794bc7cd983a21add3ec4bea",420,20938],
 
-"scripts/coach_prompt.py":{"mode":493,"sha256":"473fe93a87544e147b58694c095255a8daa5014300fc85616a33e028c26d318d","size":12744},
+"scripts/coach_prompt.py":["473fe93a87544e147b58694c095255a8daa5014300fc85616a33e028c26d318d",493,12744],
 
-"scripts/codex_tool_surface.py":{"mode":420,"sha256":"36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45","size":469},
+"scripts/codex_tool_surface.py":["36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",420,469],
 
-"scripts/comparative_evaluation.py":{"mode":420,"sha256":"69ee7b9dc5cee4587207f9f5d5edd55408e92b861569809fd2e0b5c3f54dabb2","size":6574},
+"scripts/comparative_evaluation.py":["69ee7b9dc5cee4587207f9f5d5edd55408e92b861569809fd2e0b5c3f54dabb2",420,6574],
 
-"scripts/configure_codex_beads_hooks.py":{"mode":493,"sha256":"011bb9c62ef4b33358a106cfebc6c31c10dee02841caccf1194f1e9eb7280f0f","size":17894},
+"scripts/configure_codex_beads_hooks.py":["011bb9c62ef4b33358a106cfebc6c31c10dee02841caccf1194f1e9eb7280f0f",493,17894],
 
-"scripts/continue_sprint.py":{"mode":420,"sha256":"a99614266846fad59cc1b29d9817ed1e2608830519092fd211a8e04c61f7476a","size":26818},
+"scripts/continue_sprint.py":["a99614266846fad59cc1b29d9817ed1e2608830519092fd211a8e04c61f7476a",420,26818],
 
-"scripts/create_first_project.py":{"mode":420,"sha256":"9555c6a19f449e888edf33b582d97468aaa115c3b2715476805e19e0004b1627","size":1174},
+"scripts/create_first_project.py":["9555c6a19f449e888edf33b582d97468aaa115c3b2715476805e19e0004b1627",420,1174],
 
-"scripts/cwo-codex":{"mode":493,"sha256":"d58a3925c9a3d3d6e333568ce48bb9c27b52978eab5824298ed72954d3c2fe18","size":72},
+"scripts/cwo-codex":["d58a3925c9a3d3d6e333568ce48bb9c27b52978eab5824298ed72954d3c2fe18",493,72],
 
-"scripts/cwo.py":{"mode":493,"sha256":"76b0c3a568e75b4bb966572a9dfaec6121ee1321c38c8080768223b1640a70c8","size":1848},
+"scripts/cwo.py":["76b0c3a568e75b4bb966572a9dfaec6121ee1321c38c8080768223b1640a70c8",493,1848],
 
-"scripts/cwo_core/__init__.py":{"mode":420,"sha256":"67e11ebca7a7a3dfa255b63af69d4852556e774196a62e55a2b7779c3763209d","size":3467},
+"scripts/cwo_core/__init__.py":["67e11ebca7a7a3dfa255b63af69d4852556e774196a62e55a2b7779c3763209d",420,3467],
 
-"scripts/cwo_core/access_profiles.py":{"mode":420,"sha256":"da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4","size":12119},
+"scripts/cwo_core/access_profiles.py":["da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",420,12119],
 
-"scripts/cwo_core/adjudication.py":{"mode":420,"sha256":"fa1661792c179819faf2a03382836326f04af919f8f95ebff6b9c70b2a18100d","size":24376},
+"scripts/cwo_core/adjudication.py":["fa1661792c179819faf2a03382836326f04af919f8f95ebff6b9c70b2a18100d",420,24376],
 
-"scripts/cwo_core/adjudication_binding.py":{"mode":420,"sha256":"187c16651357d8103bc018a5c521a8500a2ab77dbba598093f8002b057343fc3","size":18225},
+"scripts/cwo_core/adjudication_binding.py":["187c16651357d8103bc018a5c521a8500a2ab77dbba598093f8002b057343fc3",420,18225],
 
-"scripts/cwo_core/adjudication_source.py":{"mode":420,"sha256":"c42256b65f59c724fe4cadedfbff77e51d574b1a3847f926db5066c095be4d36","size":17075},
+"scripts/cwo_core/adjudication_source.py":["c42256b65f59c724fe4cadedfbff77e51d574b1a3847f926db5066c095be4d36",420,17075],
 
-"scripts/cwo_core/atomic_spawn.py":{"mode":420,"sha256":"7b02522b1567da3ab678aa9eec56005e7cc16a3dbb68fb889e7683b646f01d05","size":15853},
+"scripts/cwo_core/atomic_spawn.py":["7b02522b1567da3ab678aa9eec56005e7cc16a3dbb68fb889e7683b646f01d05",420,15853],
 
-"scripts/cwo_core/audit.py":{"mode":420,"sha256":"8cb86e5a036f5ce2fff3a5e6e43baa71c7ea0cdf4f702844688de9df23eafa1c","size":19326},
+"scripts/cwo_core/audit.py":["8cb86e5a036f5ce2fff3a5e6e43baa71c7ea0cdf4f702844688de9df23eafa1c",420,19326],
 
-"scripts/cwo_core/audit_segments.py":{"mode":420,"sha256":"378b9dd5ff015cbe380d4767abfae409fd56adf304255fa615d3d1d08d0ecb12","size":11965},
+"scripts/cwo_core/audit_segments.py":["378b9dd5ff015cbe380d4767abfae409fd56adf304255fa615d3d1d08d0ecb12",420,11965],
 
-"scripts/cwo_core/beads.py":{"mode":420,"sha256":"d69ec6cbc01d2c7286c62de517d342687e7224292e8cd0cd68f3ad6111bfbbf0","size":11195},
+"scripts/cwo_core/beads.py":["d69ec6cbc01d2c7286c62de517d342687e7224292e8cd0cd68f3ad6111bfbbf0",420,11195],
 
-"scripts/cwo_core/beads_ready_set.py":{"mode":420,"sha256":"14dfb42d41fb6508f56d2be418600b89d62838e0989bb228b027f38f8cb3da95","size":71898},
+"scripts/cwo_core/beads_ready_set.py":["14dfb42d41fb6508f56d2be418600b89d62838e0989bb228b027f38f8cb3da95",420,71898],
 
-"scripts/cwo_core/browser_provenance.py":{"mode":420,"sha256":"e3b6feb3de6eba537e86599d19e5935a2b2b35360be1b2c4e73e0d41529f0a39","size":18381},
+"scripts/cwo_core/browser_provenance.py":["e3b6feb3de6eba537e86599d19e5935a2b2b35360be1b2c4e73e0d41529f0a39",420,18381],
 
-"scripts/cwo_core/candidate_identity.py":{"mode":420,"sha256":"698564a974f5d85b803cb086a199f041f3ccacdd1a7e7a4d65a1c383ac7fc0ff","size":45976},
+"scripts/cwo_core/candidate_identity.py":["698564a974f5d85b803cb086a199f041f3ccacdd1a7e7a4d65a1c383ac7fc0ff",420,45976],
 
-"scripts/cwo_core/chatgpt_urls.py":{"mode":420,"sha256":"99f28a57df7fbbb84342be73d2ac19b1f10e7e22aa9a32c60c3d538d0fa3ecc2","size":1126},
+"scripts/cwo_core/chatgpt_urls.py":["99f28a57df7fbbb84342be73d2ac19b1f10e7e22aa9a32c60c3d538d0fa3ecc2",420,1126],
 
-"scripts/cwo_core/checked_command.py":{"mode":420,"sha256":"5a019dc810fc8a096cf422484c797515c35b745e474881d7dbda1beee41d6548","size":17782},
+"scripts/cwo_core/checked_command.py":["5a019dc810fc8a096cf422484c797515c35b745e474881d7dbda1beee41d6548",420,17782],
 
-"scripts/cwo_core/checked_command_sequence.py":{"mode":420,"sha256":"ba99b618d548ff236de1735127a4cbc5370f5f554d9ea21c696171841e0d6f3b","size":12564},
+"scripts/cwo_core/checked_command_sequence.py":["ba99b618d548ff236de1735127a4cbc5370f5f554d9ea21c696171841e0d6f3b",420,12564],
 
-"scripts/cwo_core/coach.py":{"mode":420,"sha256":"a2e975b1d5516e32c0374824a0dbb6db64165ad5a91ee9020b9fd500d3edcabc","size":115994},
+"scripts/cwo_core/coach.py":["a2e975b1d5516e32c0374824a0dbb6db64165ad5a91ee9020b9fd500d3edcabc",420,115994],
 
-"scripts/cwo_core/codex_hook_enforcement.py":{"mode":420,"sha256":"23719499877d0114354963ffe18ea50efd0f236b1165f2210b131ec74b77e2ce","size":9712},
+"scripts/cwo_core/codex_hook_enforcement.py":["23719499877d0114354963ffe18ea50efd0f236b1165f2210b131ec74b77e2ce",420,9712],
 
-"scripts/cwo_core/codex_protocol_pin.py":{"mode":420,"sha256":"5f65e2bfedc3ccbb1f5248c63fa17c4d7b60a6586bf93044741e157a35c94bbd","size":29437},
+"scripts/cwo_core/codex_protocol_pin.py":["5f65e2bfedc3ccbb1f5248c63fa17c4d7b60a6586bf93044741e157a35c94bbd",420,29437],
 
-"scripts/cwo_core/codex_tool_surface.py":{"mode":420,"sha256":"e315a29dc6a5667eab1fa89a00f231bbe9ca085b7e3743ea253edeb64ef4eb18","size":40785},
+"scripts/cwo_core/codex_tool_surface.py":["e315a29dc6a5667eab1fa89a00f231bbe9ca085b7e3743ea253edeb64ef4eb18",420,40785],
 
-"scripts/cwo_core/comparative_evaluation.py":{"mode":420,"sha256":"1397d7f2610a92a11c2c1aa91c32b3531767c5c3e2bc8127c6c1ca91aa9fdf00","size":107355},
+"scripts/cwo_core/comparative_evaluation.py":["1397d7f2610a92a11c2c1aa91c32b3531767c5c3e2bc8127c6c1ca91aa9fdf00",420,107355],
 
-"scripts/cwo_core/epic_convergence.py":{"mode":420,"sha256":"5646a96f5a39242e265e9cbf1dfdc29c4d67b3854eb94aa0d2370191c56193e5","size":11536},
+"scripts/cwo_core/epic_convergence.py":["5646a96f5a39242e265e9cbf1dfdc29c4d67b3854eb94aa0d2370191c56193e5",420,11536],
 
-"scripts/cwo_core/errors.py":{"mode":420,"sha256":"312e60e2cbdc320ad173bd7938d9bc89abac8699727d4c8b60fa0f6cb250faf2","size":963},
+"scripts/cwo_core/errors.py":["312e60e2cbdc320ad173bd7938d9bc89abac8699727d4c8b60fa0f6cb250faf2",420,963],
 
-"scripts/cwo_core/execution_enhancement_metrics.py":{"mode":420,"sha256":"37a4ca2849403e4948ae80bf94d798733817c808505b77cc274b867735908cbd","size":3891},
+"scripts/cwo_core/execution_enhancement_metrics.py":["37a4ca2849403e4948ae80bf94d798733817c808505b77cc274b867735908cbd",420,3891],
 
-"scripts/cwo_core/execution_status_report.py":{"mode":420,"sha256":"9b70917dcc856499bff8386182abf88cba271888cb53ac326a06567cf89c6988","size":115226},
+"scripts/cwo_core/execution_status_report.py":["9b70917dcc856499bff8386182abf88cba271888cb53ac326a06567cf89c6988",420,115226],
 
-"scripts/cwo_core/frozen_protocol.py":{"mode":420,"sha256":"b9dcda16865c200ad29727c0b13c89b167d1b39c9c836ad65e60e245a019a6f2","size":25676},
+"scripts/cwo_core/frozen_protocol.py":["b9dcda16865c200ad29727c0b13c89b167d1b39c9c836ad65e60e245a019a6f2",420,25676],
 
-"scripts/cwo_core/git_store.py":{"mode":420,"sha256":"2fa81b35cfdd97a859cb44ac773029735fe0cde1dbee38e599231eb59db87951","size":45093},
+"scripts/cwo_core/git_store.py":["2fa81b35cfdd97a859cb44ac773029735fe0cde1dbee38e599231eb59db87951",420,45093],
 
-"scripts/cwo_core/harness.py":{"mode":420,"sha256":"5667221137c5909d3aa5cc1407f7e723dfb521384a94e5fbfca4fe0a6aa8b815","size":27083},
+"scripts/cwo_core/harness.py":["5667221137c5909d3aa5cc1407f7e723dfb521384a94e5fbfca4fe0a6aa8b815",420,27083],
 
-"scripts/cwo_core/host_acceptance.py":{"mode":420,"sha256":"10a374fd68e7573596f6f6ea37286c9dbc544914119d2ab934ddce332beb3a30","size":17894},
+"scripts/cwo_core/host_acceptance.py":["5a1e86cebd0a90b9a3fd3e777a7f9271a2b1ad69f4049325278c70eacd67dde4",420,19192],
 
-"scripts/cwo_core/host_record_inventory.py":{"mode":420,"sha256":"f278c0b50c2d931f3378769af398fdfc2fa93040b4af325aef13620c2b415f1c","size":1659},
+"scripts/cwo_core/host_record_inventory.py":["f278c0b50c2d931f3378769af398fdfc2fa93040b4af325aef13620c2b415f1c",420,1659],
 
-"scripts/cwo_core/host_record_quarantine.py":{"mode":420,"sha256":"2f68e16621d10aa34c221811d291a057cb39d547f8db462885b529b7784955a7","size":24514},
+"scripts/cwo_core/host_record_quarantine.py":["2f68e16621d10aa34c221811d291a057cb39d547f8db462885b529b7784955a7",420,24514],
 
-"scripts/cwo_core/host_records.py":{"mode":420,"sha256":"4fd937a81095b34bb38904919f3537e9f94aa66c8038f7f9fa4af8fdff3660bd","size":41578},
+"scripts/cwo_core/host_records.py":["4fd937a81095b34bb38904919f3537e9f94aa66c8038f7f9fa4af8fdff3660bd",420,41578],
 
-"scripts/cwo_core/host_return_intake.py":{"mode":420,"sha256":"9288a318e9f1b5dcdf9a9535cfd8518976baf9ef421385ae45e03e5c3fe9fb60","size":3642},
+"scripts/cwo_core/host_return_intake.py":["9288a318e9f1b5dcdf9a9535cfd8518976baf9ef421385ae45e03e5c3fe9fb60",420,3642],
 
-"scripts/cwo_core/invocation_ledger.py":{"mode":420,"sha256":"97dbe00124b7b21064b5e1d131c966eb70e64f275a1f75ead71bb23dcddb6773","size":69670},
+"scripts/cwo_core/invocation_ledger.py":["97dbe00124b7b21064b5e1d131c966eb70e64f275a1f75ead71bb23dcddb6773",420,69670],
 
-"scripts/cwo_core/local_invocation.py":{"mode":420,"sha256":"4f12d5c1aa54a588f0f0e28af9aa9d3eb2f5a183464f18bbea890d35eb3fd9c3","size":21215},
+"scripts/cwo_core/local_invocation.py":["4f12d5c1aa54a588f0f0e28af9aa9d3eb2f5a183464f18bbea890d35eb3fd9c3",420,21215],
 
-"scripts/cwo_core/maintenance_authority.py":{"mode":420,"sha256":"6149f3cae3fc268a1e16dad46664323a893b76586f5ed74d2d4e4e30fcae77e4","size":32295},
+"scripts/cwo_core/maintenance_authority.py":["6149f3cae3fc268a1e16dad46664323a893b76586f5ed74d2d4e4e30fcae77e4",420,32295],
 
-"scripts/cwo_core/maintenance_image.py":{"mode":420,"sha256":"a0dec8f85ac3267eac07409ba860ce14d584998462df839114f7dcbf5267bf66","size":2922},
+"scripts/cwo_core/maintenance_image.py":["a0dec8f85ac3267eac07409ba860ce14d584998462df839114f7dcbf5267bf66",420,2922],
 
-"scripts/cwo_core/maintenance_native_runtime.py":{"mode":420,"sha256":"fef3a7a19d08d82d689ee9a8471e07c0d37dd59aa9841b2af93099fa3ccdb63f","size":56809},
+"scripts/cwo_core/maintenance_native_runtime.py":["fef3a7a19d08d82d689ee9a8471e07c0d37dd59aa9841b2af93099fa3ccdb63f",420,56809],
 
-"scripts/cwo_core/maintenance_qualification.py":{"mode":420,"sha256":"ac5c05274b12963c8d5415e549ace07e58039231763c787c9f58276cf1cbf0c6","size":55467},
+"scripts/cwo_core/maintenance_qualification.py":["ac5c05274b12963c8d5415e549ace07e58039231763c787c9f58276cf1cbf0c6",420,55467],
 
-"scripts/cwo_core/maintenance_readiness.py":{"mode":420,"sha256":"7811165d6440f333fd18b09ba195ce960a0a35bf5006defc77c84ee12617475f","size":5763},
+"scripts/cwo_core/maintenance_readiness.py":["7811165d6440f333fd18b09ba195ce960a0a35bf5006defc77c84ee12617475f",420,5763],
 
-"scripts/cwo_core/maintenance_release.py":{"mode":420,"sha256":"78d1b1f05f39f4000e85ee561c88696e76656d2bf94dbbdf8cd6f9cdd1c7c03c","size":11210},
+"scripts/cwo_core/maintenance_release.py":["78d1b1f05f39f4000e85ee561c88696e76656d2bf94dbbdf8cd6f9cdd1c7c03c",420,11210],
 
-"scripts/cwo_core/maintenance_runtime_support.py":{"mode":420,"sha256":"6b97d5eaecd1f4cac4ec859af6b659082d9ab1a5c650c824c152df782a01eed8","size":15199},
+"scripts/cwo_core/maintenance_runtime_support.py":["6b97d5eaecd1f4cac4ec859af6b659082d9ab1a5c650c824c152df782a01eed8",420,15199],
 
-"scripts/cwo_core/model_identities.py":{"mode":420,"sha256":"66363f891db3ded2bd9d3b02182ae86b2b176e5005e40ce4dbd2bdff338394b5","size":1388},
+"scripts/cwo_core/model_identities.py":["66363f891db3ded2bd9d3b02182ae86b2b176e5005e40ce4dbd2bdff338394b5",420,1388],
 
-"scripts/cwo_core/model_identity_scope.py":{"mode":420,"sha256":"f3cbaad94e2bb83b43d18fe59254515e3706f7e72e86c3cfea41001d2345a8a4","size":11570},
+"scripts/cwo_core/model_identity_scope.py":["f3cbaad94e2bb83b43d18fe59254515e3706f7e72e86c3cfea41001d2345a8a4",420,11570],
 
-"scripts/cwo_core/native_activation_ledger.py":{"mode":420,"sha256":"7a97c4edcdf0b5e3131581fe538fae848897c8271280cb1664ad8bf60eea7ab4","size":31286},
+"scripts/cwo_core/native_activation_ledger.py":["7a97c4edcdf0b5e3131581fe538fae848897c8271280cb1664ad8bf60eea7ab4",420,31286],
 
-"scripts/cwo_core/native_activation_preview.py":{"mode":420,"sha256":"64c2ab7fc12c841f666f40d02da37d9f3d3acdea77969179a586005795d42719","size":62750},
+"scripts/cwo_core/native_activation_preview.py":["64c2ab7fc12c841f666f40d02da37d9f3d3acdea77969179a586005795d42719",420,62750],
 
-"scripts/cwo_core/native_authority.py":{"mode":420,"sha256":"619c4fdd2819d46e9848d52668ef9fe38ded214bed4dfe5ae4cac123fabc0c54","size":83926},
+"scripts/cwo_core/native_authority.py":["619c4fdd2819d46e9848d52668ef9fe38ded214bed4dfe5ae4cac123fabc0c54",420,83926],
 
-"scripts/cwo_core/native_canary_contracts.py":{"mode":420,"sha256":"ef7bae37f985b06e5baa09fb1a7ebd449ddfe203adc942f6a8cdc49a14499070","size":88018},
+"scripts/cwo_core/native_canary_contracts.py":["ef7bae37f985b06e5baa09fb1a7ebd449ddfe203adc942f6a8cdc49a14499070",420,88018],
 
-"scripts/cwo_core/native_capability.py":{"mode":420,"sha256":"a906b4a71d86ee8d2d7ed151386a5cf61798d75324d6391a940ecb43148df8e1","size":26561},
+"scripts/cwo_core/native_capability.py":["a906b4a71d86ee8d2d7ed151386a5cf61798d75324d6391a940ecb43148df8e1",420,26561],
 
-"scripts/cwo_core/native_containment.py":{"mode":420,"sha256":"21928583920814a42e74bc7b6ba4e6d5e3cbfc9d189405d23656963585ff3071","size":7668},
+"scripts/cwo_core/native_containment.py":["21928583920814a42e74bc7b6ba4e6d5e3cbfc9d189405d23656963585ff3071",420,7668],
 
-"scripts/cwo_core/native_control.py":{"mode":420,"sha256":"292a6292ddc1e2c26c1c8c1ce1ec5075467a07c51a2e4463c50922b3c4859c95","size":24378},
+"scripts/cwo_core/native_control.py":["292a6292ddc1e2c26c1c8c1ce1ec5075467a07c51a2e4463c50922b3c4859c95",420,24378],
 
-"scripts/cwo_core/native_disposition.py":{"mode":420,"sha256":"e9d23c2d5afb74cec11e74a52e327867ac65ac6ddce9d33af82e87219782a012","size":7648},
+"scripts/cwo_core/native_disposition.py":["e9d23c2d5afb74cec11e74a52e327867ac65ac6ddce9d33af82e87219782a012",420,7648],
 
-"scripts/cwo_core/native_live_allocation_ledger.py":{"mode":420,"sha256":"503c274ff75ab385878d8663eb243e7e7c1d3c51d32555a9cf3bed0e4a39bef0","size":126315},
+"scripts/cwo_core/native_live_allocation_ledger.py":["503c274ff75ab385878d8663eb243e7e7c1d3c51d32555a9cf3bed0e4a39bef0",420,126315],
 
-"scripts/cwo_core/native_live_availability.py":{"mode":420,"sha256":"50ec2397f1590131f1d58cdd245622c2b41bc2d26b87c790314f6669ebe30ad0","size":1474},
+"scripts/cwo_core/native_live_availability.py":["50ec2397f1590131f1d58cdd245622c2b41bc2d26b87c790314f6669ebe30ad0",420,1474],
 
-"scripts/cwo_core/native_live_campaign_contracts.py":{"mode":420,"sha256":"8f168387bc992e9d92aad0b24966ad5325f7c800d14ed4472efa316fb437e3d8","size":596405},
+"scripts/cwo_core/native_live_campaign_contracts.py":["8f168387bc992e9d92aad0b24966ad5325f7c800d14ed4472efa316fb437e3d8",420,596405],
 
-"scripts/cwo_core/native_pool.py":{"mode":420,"sha256":"2cdd035c2484b390a0e2da6dbdf842df1459d3248b0a3d5728c012ad7471f3a6","size":113213},
+"scripts/cwo_core/native_pool.py":["2cdd035c2484b390a0e2da6dbdf842df1459d3248b0a3d5728c012ad7471f3a6",420,113213],
 
-"scripts/cwo_core/native_pool_admission.py":{"mode":420,"sha256":"3466da5cc42624199518f18bbcf0fd839db5307f511a2ac554090251f0b4bcac","size":80527},
+"scripts/cwo_core/native_pool_admission.py":["3466da5cc42624199518f18bbcf0fd839db5307f511a2ac554090251f0b4bcac",420,80527],
 
-"scripts/cwo_core/native_pool_admitted.py":{"mode":420,"sha256":"ecc33a44fe24ef8b82300f30ef4d4149bbc64664797e3042b472a39c4d144952","size":8145},
+"scripts/cwo_core/native_pool_admitted.py":["ecc33a44fe24ef8b82300f30ef4d4149bbc64664797e3042b472a39c4d144952",420,8145],
 
-"scripts/cwo_core/native_pool_capacity.py":{"mode":420,"sha256":"ba981b5f7c4b9653c72b697dbe58c81fe76120267d518c0f1944908599fb39d2","size":17739},
+"scripts/cwo_core/native_pool_capacity.py":["ba981b5f7c4b9653c72b697dbe58c81fe76120267d518c0f1944908599fb39d2",420,17739],
 
-"scripts/cwo_core/native_pool_capacity_compat.py":{"mode":420,"sha256":"7a2a7287deede1fc035f47ce6d863d90f392bb167962a1da2960cc48d48fa5be","size":1402},
+"scripts/cwo_core/native_pool_capacity_compat.py":["7a2a7287deede1fc035f47ce6d863d90f392bb167962a1da2960cc48d48fa5be",420,1402],
 
-"scripts/cwo_core/native_pool_config.py":{"mode":420,"sha256":"a6a498b3beb95552e11bc4af834ce0b467210d7ddcae315618ae568b44374d14","size":44141},
+"scripts/cwo_core/native_pool_config.py":["a6a498b3beb95552e11bc4af834ce0b467210d7ddcae315618ae568b44374d14",420,44141],
 
-"scripts/cwo_core/native_pool_contracts.py":{"mode":420,"sha256":"d428cec0cf58ff3f34ea428d0ba958a6d936a35f0eb29d2cb5d8ab2de9b0567d","size":124342},
+"scripts/cwo_core/native_pool_contracts.py":["d428cec0cf58ff3f34ea428d0ba958a6d936a35f0eb29d2cb5d8ab2de9b0567d",420,124342],
 
-"scripts/cwo_core/native_pool_leases.py":{"mode":420,"sha256":"1c64eb6ffcb2d8246283202fca654e8f135e34cacde7d135547dab4ffcac4d78","size":25634},
+"scripts/cwo_core/native_pool_leases.py":["1c64eb6ffcb2d8246283202fca654e8f135e34cacde7d135547dab4ffcac4d78",420,25634],
 
-"scripts/cwo_core/native_pool_preflight.py":{"mode":420,"sha256":"d16c3d26374e7ffb972d6aa7a3d31a6972bb1b0539e8d9c10795c784f5d3720e","size":78400},
+"scripts/cwo_core/native_pool_preflight.py":["d16c3d26374e7ffb972d6aa7a3d31a6972bb1b0539e8d9c10795c784f5d3720e",420,78400],
 
-"scripts/cwo_core/native_pool_proportionality.py":{"mode":420,"sha256":"3035ce06ccb508a38bf4b912b6cf337c1b988b20a8e385889ef061501c6dbda6","size":80954},
+"scripts/cwo_core/native_pool_proportionality.py":["3035ce06ccb508a38bf4b912b6cf337c1b988b20a8e385889ef061501c6dbda6",420,80954],
 
-"scripts/cwo_core/native_pool_reporting.py":{"mode":420,"sha256":"54771e211eac3e39cdc0fb887cb45a87ebc1f385cc6e9824965b454637c648bb","size":10077},
+"scripts/cwo_core/native_pool_reporting.py":["54771e211eac3e39cdc0fb887cb45a87ebc1f385cc6e9824965b454637c648bb",420,10077],
 
-"scripts/cwo_core/native_pool_schedulability.py":{"mode":420,"sha256":"fe801c2e7351a1b8812eb500064b4ed9b2650efaa974450662b66f7183f82894","size":6114},
+"scripts/cwo_core/native_pool_schedulability.py":["fe801c2e7351a1b8812eb500064b4ed9b2650efaa974450662b66f7183f82894",420,6114],
 
-"scripts/cwo_core/native_pool_scheduler.py":{"mode":420,"sha256":"41f049d4bbe22d497f18123ee51dc096fbe5be1a4c0f6ce24f8d1ecb90786a1b","size":14171},
+"scripts/cwo_core/native_pool_scheduler.py":["41f049d4bbe22d497f18123ee51dc096fbe5be1a4c0f6ce24f8d1ecb90786a1b",420,14171],
 
-"scripts/cwo_core/native_pool_transaction.py":{"mode":420,"sha256":"d70e391d8d536dc72a96e6b5c5f6f4e865a65c05b6dfc81fca0e46d1ca51ad44","size":92285},
+"scripts/cwo_core/native_pool_transaction.py":["d70e391d8d536dc72a96e6b5c5f6f4e865a65c05b6dfc81fca0e46d1ca51ad44",420,92285],
 
-"scripts/cwo_core/native_pool_workspace.py":{"mode":420,"sha256":"be4fbae62193ed510cccf9ffb2325f56048a94584579114f175d3cec02a07244","size":20745},
+"scripts/cwo_core/native_pool_workspace.py":["be4fbae62193ed510cccf9ffb2325f56048a94584579114f175d3cec02a07244",420,20745],
 
-"scripts/cwo_core/native_precommit.py":{"mode":420,"sha256":"d6f2c221d99e3249220b51745a60430a586a172ba4bc6ddf55ba391d6af3751a","size":94794},
+"scripts/cwo_core/native_precommit.py":["d6f2c221d99e3249220b51745a60430a586a172ba4bc6ddf55ba391d6af3751a",420,94794],
 
-"scripts/cwo_core/native_progress.py":{"mode":420,"sha256":"432ed0ccff31af69da3983c75c000b1411d9013eaa88b41313f4dc117ee7edfb","size":23681},
+"scripts/cwo_core/native_progress.py":["432ed0ccff31af69da3983c75c000b1411d9013eaa88b41313f4dc117ee7edfb",420,23681],
 
-"scripts/cwo_core/native_recovery.py":{"mode":420,"sha256":"24e291a982b68127e516b555b79e26cf107fa75408a4e0fea2b0a4d99079ddeb","size":8702},
+"scripts/cwo_core/native_recovery.py":["24e291a982b68127e516b555b79e26cf107fa75408a4e0fea2b0a4d99079ddeb",420,8702],
 
-"scripts/cwo_core/native_recovery_authority.py":{"mode":420,"sha256":"040ba0acc5bc91ace93742c8b681c320a8d3bc4c108d4c4d1d4808446a7c4a40","size":79235},
+"scripts/cwo_core/native_recovery_authority.py":["040ba0acc5bc91ace93742c8b681c320a8d3bc4c108d4c4d1d4808446a7c4a40",420,79235],
 
-"scripts/cwo_core/native_recovery_policy.py":{"mode":420,"sha256":"4b9de95d097addadf788e4a42c6833534b90c4055a344bd7cbe7b3b0fc8990d8","size":12678},
+"scripts/cwo_core/native_recovery_policy.py":["4b9de95d097addadf788e4a42c6833534b90c4055a344bd7cbe7b3b0fc8990d8",420,12678],
 
-"scripts/cwo_core/native_release.py":{"mode":420,"sha256":"8f458b43be5aa2202d125185341f386b3a615c654c2e1b7cb3bcc31f6c25b7c5","size":36385},
+"scripts/cwo_core/native_release.py":["8f458b43be5aa2202d125185341f386b3a615c654c2e1b7cb3bcc31f6c25b7c5",420,36385],
 
-"scripts/cwo_core/native_replanning.py":{"mode":420,"sha256":"7418c50e62c33bcb39cec5a4441f20353f2c403efe13859327a3b96899ccc9ee","size":93446},
+"scripts/cwo_core/native_replanning.py":["7418c50e62c33bcb39cec5a4441f20353f2c403efe13859327a3b96899ccc9ee",420,93446],
 
-"scripts/cwo_core/native_retry.py":{"mode":420,"sha256":"458cad41ce241ddf8dace4011aafda59cb127d96e3e43ae446c9c86f060d8a68","size":32192},
+"scripts/cwo_core/native_retry.py":["458cad41ce241ddf8dace4011aafda59cb127d96e3e43ae446c9c86f060d8a68",420,32192],
 
-"scripts/cwo_core/native_session.py":{"mode":420,"sha256":"2d5eaa3cce2a95d637053b6f692d59d45c7ecf9b5ee53039dde411dc4ad63dca","size":27227},
+"scripts/cwo_core/native_session.py":["2d5eaa3cce2a95d637053b6f692d59d45c7ecf9b5ee53039dde411dc4ad63dca",420,27227],
 
-"scripts/cwo_core/native_session_boundary.py":{"mode":420,"sha256":"2defbafba89dad64b2de11bd249dfe762d02d4e117ff63fee1d525b71c3914b9","size":13029},
+"scripts/cwo_core/native_session_boundary.py":["2defbafba89dad64b2de11bd249dfe762d02d4e117ff63fee1d525b71c3914b9",420,13029],
 
-"scripts/cwo_core/native_stop_scope.py":{"mode":420,"sha256":"564be5a7f1868f55ddf3adaf79fd209b13cbbfff2a85fa26640a2d4e92f2e886","size":9763},
+"scripts/cwo_core/native_stop_scope.py":["564be5a7f1868f55ddf3adaf79fd209b13cbbfff2a85fa26640a2d4e92f2e886",420,9763],
 
-"scripts/cwo_core/native_tool_activation.py":{"mode":420,"sha256":"eea6942730c6d53b1e095a746ebb5c836e9124b73bb340f5c99fff66f9b9cd00","size":19753},
+"scripts/cwo_core/native_tool_activation.py":["eea6942730c6d53b1e095a746ebb5c836e9124b73bb340f5c99fff66f9b9cd00",420,19753],
 
-"scripts/cwo_core/native_tool_isolation.py":{"mode":420,"sha256":"a955dc1717cbc1a333640f3bb06c85582057be2337f585dd13e6d7cd4cbfdf72","size":27339},
+"scripts/cwo_core/native_tool_isolation.py":["a955dc1717cbc1a333640f3bb06c85582057be2337f585dd13e6d7cd4cbfdf72",420,27339],
 
-"scripts/cwo_core/native_turn_dispatch.py":{"mode":420,"sha256":"9a8ecaacd04876a1378fb7b544619c1e69fcf67c4f012eb92ef7f6468408e1bb","size":22911},
+"scripts/cwo_core/native_turn_dispatch.py":["9a8ecaacd04876a1378fb7b544619c1e69fcf67c4f012eb92ef7f6468408e1bb",420,22911],
 
-"scripts/cwo_core/native_worker_contracts.py":{"mode":420,"sha256":"3162aa1846bcd951b14b645754cf9e696b774e5b795cf37fef5e4d7840bdb7a5","size":48251},
+"scripts/cwo_core/native_worker_contracts.py":["3162aa1846bcd951b14b645754cf9e696b774e5b795cf37fef5e4d7840bdb7a5",420,48251],
 
-"scripts/cwo_core/operative_routing.py":{"mode":420,"sha256":"092a3194772f4d699523707bbb5e240cfda0d95fb4d951bfb61706cd0926e13c","size":120183},
+"scripts/cwo_core/operative_routing.py":["092a3194772f4d699523707bbb5e240cfda0d95fb4d951bfb61706cd0926e13c",420,120183],
 
-"scripts/cwo_core/outbound_screen.py":{"mode":420,"sha256":"cb160e0e0ee6967c5beef8a748daee9e73f7bcdd135f75481fbc0ec4c13482c6","size":124664},
+"scripts/cwo_core/outbound_screen.py":["cb160e0e0ee6967c5beef8a748daee9e73f7bcdd135f75481fbc0ec4c13482c6",420,124664],
 
-"scripts/cwo_core/ownership_producer.py":{"mode":420,"sha256":"5829643ab1a5bba6999bd91b912fe8cf0f1a0115379b5b185296a2226f4478cd","size":25268},
+"scripts/cwo_core/ownership_producer.py":["5829643ab1a5bba6999bd91b912fe8cf0f1a0115379b5b185296a2226f4478cd",420,25268],
 
-"scripts/cwo_core/packet_provenance.py":{"mode":420,"sha256":"2b0486df948bf62941a2cc4be2f244ad5f92533af780950ffff9f6ff768e7e3b","size":3901},
+"scripts/cwo_core/packet_provenance.py":["2b0486df948bf62941a2cc4be2f244ad5f92533af780950ffff9f6ff768e7e3b",420,3901],
 
-"scripts/cwo_core/packets.py":{"mode":420,"sha256":"063e3b7654fa825cb47f6379617d4a893fd31615a58d3bec1bf41a09da15a1e8","size":66953},
+"scripts/cwo_core/packets.py":["063e3b7654fa825cb47f6379617d4a893fd31615a58d3bec1bf41a09da15a1e8",420,66953],
 
-"scripts/cwo_core/path_contract.py":{"mode":420,"sha256":"77c8bf04fd11076263cf34ee08278865fe277cf42459ad790bfb8c5ce7557245","size":1575},
+"scripts/cwo_core/path_contract.py":["77c8bf04fd11076263cf34ee08278865fe277cf42459ad790bfb8c5ce7557245",420,1575],
 
-"scripts/cwo_core/paths.py":{"mode":420,"sha256":"866cc0fe7dec368687ae428f53679167f86c9464330adeace0d273673cb2a72d","size":13095},
+"scripts/cwo_core/paths.py":["866cc0fe7dec368687ae428f53679167f86c9464330adeace0d273673cb2a72d",420,13095],
 
-"scripts/cwo_core/peer_review.py":{"mode":420,"sha256":"4f7de160687d1f38b84cd99623532fd3074b78b46f4fe4ec4e6d087d8e4552c0","size":4435},
+"scripts/cwo_core/peer_review.py":["4f7de160687d1f38b84cd99623532fd3074b78b46f4fe4ec4e6d087d8e4552c0",420,4435],
 
-"scripts/cwo_core/peer_review_identity.py":{"mode":420,"sha256":"a5604aba11031825f4bb7a533585abb6c501748e8b08ae81f9afb52b66cc8eb0","size":6918},
+"scripts/cwo_core/peer_review_identity.py":["a5604aba11031825f4bb7a533585abb6c501748e8b08ae81f9afb52b66cc8eb0",420,6918],
 
-"scripts/cwo_core/policy.py":{"mode":420,"sha256":"2fa1301d5dccb72ae70f3c54bc83a0a82c3f86b8e9d329f037c654b8208c48b9","size":14028},
+"scripts/cwo_core/policy.py":["2fa1301d5dccb72ae70f3c54bc83a0a82c3f86b8e9d329f037c654b8208c48b9",420,14028],
 
-"scripts/cwo_core/policy_schema.py":{"mode":420,"sha256":"1c44ea66f0fb1008692c722f00c3d94bdd9c40d1a16512331d433f3211350cae","size":25934},
+"scripts/cwo_core/policy_schema.py":["1c44ea66f0fb1008692c722f00c3d94bdd9c40d1a16512331d433f3211350cae",420,25934],
 
-"scripts/cwo_core/prepared_outbound.py":{"mode":420,"sha256":"70935d818023406be9283a85fa56e42a47cb0940eea0f423bc792cae485a687f","size":3236},
+"scripts/cwo_core/prepared_outbound.py":["70935d818023406be9283a85fa56e42a47cb0940eea0f423bc792cae485a687f",420,3236],
 
-"scripts/cwo_core/private_artifact.py":{"mode":420,"sha256":"c55461e3c33cce57046336920512f2c5ed0ed8e9ebcff5f6df3d74f9e653f29f","size":17127},
+"scripts/cwo_core/private_artifact.py":["c55461e3c33cce57046336920512f2c5ed0ed8e9ebcff5f6df3d74f9e653f29f",420,17127],
 
-"scripts/cwo_core/private_authority_input.py":{"mode":420,"sha256":"0f01b3f20792a1656708f5fd0fb2c2e0931a6b396f72896702b04198e4a36827","size":3824},
+"scripts/cwo_core/private_authority_input.py":["0f01b3f20792a1656708f5fd0fb2c2e0931a6b396f72896702b04198e4a36827",420,3824],
 
-"scripts/cwo_core/process_identity.py":{"mode":420,"sha256":"d98a08cc72b97cb012c31a7d8dee3a9be245c41280e62f4f709c8ef3c1686589","size":16153},
+"scripts/cwo_core/process_identity.py":["d98a08cc72b97cb012c31a7d8dee3a9be245c41280e62f4f709c8ef3c1686589",420,16153],
 
-"scripts/cwo_core/proportional_execution.py":{"mode":420,"sha256":"b99a225135068bea660aecee419529fe0e40861afeb2d97fca5c4691e0f8c3c3","size":20009},
+"scripts/cwo_core/proportional_execution.py":["b99a225135068bea660aecee419529fe0e40861afeb2d97fca5c4691e0f8c3c3",420,20009],
 
-"scripts/cwo_core/public_copy.py":{"mode":420,"sha256":"d4f94c1155806b72a7dfdb0f77c5c9c6022c410bf03e5eb8dcd1b9329c7893a9","size":8983},
+"scripts/cwo_core/public_copy.py":["d4f94c1155806b72a7dfdb0f77c5c9c6022c410bf03e5eb8dcd1b9329c7893a9",420,8983],
 
-"scripts/cwo_core/qualification_target.py":{"mode":420,"sha256":"2a458c41cb155f8d22e5144ca27227da84ede1d296ed52d6fc12d6e0d194100f","size":2936},
+"scripts/cwo_core/qualification_target.py":["2a458c41cb155f8d22e5144ca27227da84ede1d296ed52d6fc12d6e0d194100f",420,2936],
 
-"scripts/cwo_core/release_effect_routes.py":{"mode":420,"sha256":"9007f8feb95a0da02d47cfc4d01f7f746f0120bbb770b1aed9ea6aa79a8a4cbe","size":61365},
+"scripts/cwo_core/release_effect_routes.py":["3a904329f35a302b89f2d21f2c7deb553d48bb4c44da0e0fceb1312477a35c88",420,62730],
 
-"scripts/cwo_core/requirement_baseline.py":{"mode":420,"sha256":"135681130a0046db14dc84fcd7c73a8f61fd1c8001b7cc467828565fca693420","size":20496},
+"scripts/cwo_core/requirement_baseline.py":["135681130a0046db14dc84fcd7c73a8f61fd1c8001b7cc467828565fca693420",420,20496],
 
-"scripts/cwo_core/return_boundary.py":{"mode":420,"sha256":"7e659e801a243582b905fad873ab51514a406839e13e935ec7cce9b2abb20465","size":12865},
+"scripts/cwo_core/return_boundary.py":["7e659e801a243582b905fad873ab51514a406839e13e935ec7cce9b2abb20465",420,12865],
 
-"scripts/cwo_core/return_common.py":{"mode":420,"sha256":"5dddb09743604efc0032a5cac6277215c83cd729159f3aa7d273297b67e83b85","size":4599},
+"scripts/cwo_core/return_common.py":["5dddb09743604efc0032a5cac6277215c83cd729159f3aa7d273297b67e83b85",420,4599],
 
-"scripts/cwo_core/return_evidence.py":{"mode":420,"sha256":"e73340454b2d191f8dc5c2e5d9bcd2e2a74dbbfcf2ad35bfddab835a1a0750e4","size":17911},
+"scripts/cwo_core/return_evidence.py":["e73340454b2d191f8dc5c2e5d9bcd2e2a74dbbfcf2ad35bfddab835a1a0750e4",420,17911],
 
-"scripts/cwo_core/return_language.py":{"mode":420,"sha256":"e8d6fef820ac4827c71b6690349239466f71066470b59d6007bce7c357cb8884","size":11025},
+"scripts/cwo_core/return_language.py":["e8d6fef820ac4827c71b6690349239466f71066470b59d6007bce7c357cb8884",420,11025],
 
-"scripts/cwo_core/return_language_calibration.py":{"mode":420,"sha256":"561c5382e575eefd3fb1857db0798b65201e44c3da786ce03450f7a7c0e27340","size":48689},
+"scripts/cwo_core/return_language_calibration.py":["561c5382e575eefd3fb1857db0798b65201e44c3da786ce03450f7a7c0e27340",420,48689],
 
-"scripts/cwo_core/return_risk.py":{"mode":420,"sha256":"a29add966d7f9466af9d1a28d2feddaa3892ec832015e0f0209120e61a6d3730","size":31486},
+"scripts/cwo_core/return_risk.py":["a29add966d7f9466af9d1a28d2feddaa3892ec832015e0f0209120e61a6d3730",420,31486],
 
-"scripts/cwo_core/return_sections.py":{"mode":420,"sha256":"1e4ce59fad89ce5bb0b42aa79565d783fb1c4ac098aa84095215dde8a8fcb569","size":7049},
+"scripts/cwo_core/return_sections.py":["1e4ce59fad89ce5bb0b42aa79565d783fb1c4ac098aa84095215dde8a8fcb569",420,7049],
 
-"scripts/cwo_core/return_tripwires.py":{"mode":420,"sha256":"2ed46921c3ced52a00783e41ca3e918a2ad28abffef9bbbbfb27960e7b78f8b7","size":18128},
+"scripts/cwo_core/return_tripwires.py":["2ed46921c3ced52a00783e41ca3e918a2ad28abffef9bbbbfb27960e7b78f8b7",420,18128],
 
-"scripts/cwo_core/returns.py":{"mode":420,"sha256":"b4f331d541d27f1889e243e32fcf054bca903ffeb31f0ddd3cf78d95afca3ede","size":39845},
+"scripts/cwo_core/returns.py":["b4f331d541d27f1889e243e32fcf054bca903ffeb31f0ddd3cf78d95afca3ede",420,39845],
 
-"scripts/cwo_core/risk_features.py":{"mode":420,"sha256":"894ada759b8d000443b693a0ad382401fe2f64a519696aa039a20070443cf275","size":11188},
+"scripts/cwo_core/risk_features.py":["894ada759b8d000443b693a0ad382401fe2f64a519696aa039a20070443cf275",420,11188],
 
-"scripts/cwo_core/routing.py":{"mode":420,"sha256":"4f2b90800dfc6c8d37ac2807fcb74507d880c2985d86a03271a159a59bff04aa","size":71125},
+"scripts/cwo_core/routing.py":["4f2b90800dfc6c8d37ac2807fcb74507d880c2985d86a03271a159a59bff04aa",420,71125],
 
-"scripts/cwo_core/routing_signals.py":{"mode":420,"sha256":"6c32034033ae49cb45a38f63315825d648af53ac45455b2ee48249938d446246","size":8583},
+"scripts/cwo_core/routing_signals.py":["6c32034033ae49cb45a38f63315825d648af53ac45455b2ee48249938d446246",420,8583],
 
-"scripts/cwo_core/server_request_preparation.py":{"mode":420,"sha256":"c69d6f0966653f446aaa9b16591d8ebc9b491870ff2f68620c821f968556ae3c","size":23996},
+"scripts/cwo_core/server_request_preparation.py":["c69d6f0966653f446aaa9b16591d8ebc9b491870ff2f68620c821f968556ae3c",420,23996],
 
-"scripts/cwo_core/stage_completion.py":{"mode":420,"sha256":"46490b0a483ade12b7254e6c520a625805e98fb77488b92a4ed3a1dfd1344c4f","size":10579},
+"scripts/cwo_core/stage_completion.py":["46490b0a483ade12b7254e6c520a625805e98fb77488b92a4ed3a1dfd1344c4f",420,10579],
 
-"scripts/cwo_core/stage_evidence.py":{"mode":420,"sha256":"d62699bce7446d75293394d4bacc9f7d176659e703b14f04a9b611725f75b3dc","size":2595},
+"scripts/cwo_core/stage_evidence.py":["d62699bce7446d75293394d4bacc9f7d176659e703b14f04a9b611725f75b3dc",420,2595],
 
-"scripts/cwo_core/supervision/__init__.py":{"mode":420,"sha256":"363ea10aa7f27d5994295188e935330accfa55adb84f6a480f25a4ec6c2d6ee0","size":174},
+"scripts/cwo_core/supervision/__init__.py":["363ea10aa7f27d5994295188e935330accfa55adb84f6a480f25a4ec6c2d6ee0",420,174],
 
-"scripts/cwo_core/supervision/transport/__init__.py":{"mode":420,"sha256":"a65e521ee9e997c481559de0e91962f8a0c19d6ba434c8525b3ee8ee8a97190d","size":445},
+"scripts/cwo_core/supervision/transport/__init__.py":["a65e521ee9e997c481559de0e91962f8a0c19d6ba434c8525b3ee8ee8a97190d",420,445],
 
-"scripts/cwo_core/supervision/transport/app_server.py":{"mode":420,"sha256":"489f33ed56769df517616e1919288494f38fe7a3ce20e481e7065d7e15b79c6c","size":133148},
+"scripts/cwo_core/supervision/transport/app_server.py":["489f33ed56769df517616e1919288494f38fe7a3ce20e481e7065d7e15b79c6c",420,133148],
 
-"scripts/cwo_core/supervision/transport/errors.py":{"mode":420,"sha256":"066b654ae6e7e8257801dd0f6e3957410671a207c54009a9a885523a8ebd75b9","size":1946},
+"scripts/cwo_core/supervision/transport/errors.py":["066b654ae6e7e8257801dd0f6e3957410671a207c54009a9a885523a8ebd75b9",420,1946],
 
-"scripts/cwo_core/supervision/transport/private_io.py":{"mode":420,"sha256":"d86d07198b90557152fb19d4ec826a50b38c499ff8c2fdffdd94c4227917135f","size":7884},
+"scripts/cwo_core/supervision/transport/private_io.py":["d86d07198b90557152fb19d4ec826a50b38c499ff8c2fdffdd94c4227917135f",420,7884],
 
-"scripts/cwo_core/supervision/turn_observations.py":{"mode":420,"sha256":"51692167b2cd81f6083e5e168f748ab26439623ed9607cdb5fc8158c2ef9cb59","size":766},
+"scripts/cwo_core/supervision/turn_observations.py":["51692167b2cd81f6083e5e168f748ab26439623ed9607cdb5fc8158c2ef9cb59",420,766],
 
-"scripts/cwo_core/synthesis.py":{"mode":420,"sha256":"139b1e183cadd3aefbdd3623b0b549307c55df0edb8549adfefabe5602fd40d4","size":51657},
+"scripts/cwo_core/synthesis.py":["139b1e183cadd3aefbdd3623b0b549307c55df0edb8549adfefabe5602fd40d4",420,51657],
 
-"scripts/cwo_core/synthesis_inputs.py":{"mode":420,"sha256":"1ab5c6c75540c0d022df3151750d7fad8b4d523d0fa8ca1776f1f587679ebaeb","size":57469},
+"scripts/cwo_core/synthesis_inputs.py":["1ab5c6c75540c0d022df3151750d7fad8b4d523d0fa8ca1776f1f587679ebaeb",420,57469],
 
-"scripts/cwo_core/telemetry.py":{"mode":420,"sha256":"0de39ed344e27d05ffdaaf450a4fbd0bb49fe785b8583c3556b4746a2f4fe2e1","size":25784},
+"scripts/cwo_core/telemetry.py":["0de39ed344e27d05ffdaaf450a4fbd0bb49fe785b8583c3556b4746a2f4fe2e1",420,25784],
 
-"scripts/cwo_core/typed_artifact_requirement.py":{"mode":420,"sha256":"b193db816372482206aab6f34e06cf0239437761683880f49204b87c08ca0e2a","size":2296},
+"scripts/cwo_core/typed_artifact_requirement.py":["b193db816372482206aab6f34e06cf0239437761683880f49204b87c08ca0e2a",420,2296],
 
-"scripts/cwo_core/types.py":{"mode":420,"sha256":"e3d3f0a4908090aa7405ffbab3dc288689ac7592589be3b095ce33bb73c5ded8","size":15330},
+"scripts/cwo_core/types.py":["e3d3f0a4908090aa7405ffbab3dc288689ac7592589be3b095ce33bb73c5ded8",420,15330],
 
-"scripts/cwo_core/util.py":{"mode":420,"sha256":"c4172ab8755f97d17f4e92873c90a094fd4ad52bc04fdb6af77ceff274f31b77","size":6461},
+"scripts/cwo_core/util.py":["c4172ab8755f97d17f4e92873c90a094fd4ad52bc04fdb6af77ceff274f31b77",420,6461],
 
-"scripts/cwo_core/waivers.py":{"mode":420,"sha256":"dd27ea554c45d372b8f5967b833bff3e2cf74cad9fc9767dd18683229c5cd106","size":1570},
+"scripts/cwo_core/waivers.py":["dd27ea554c45d372b8f5967b833bff3e2cf74cad9fc9767dd18683229c5cd106",420,1570],
 
-"scripts/cwo_core/work_sizing.py":{"mode":420,"sha256":"bb388a4f9964f219504b3cd268464075e8d31a848d78a4918a4b8d48d411360d","size":107664},
+"scripts/cwo_core/work_sizing.py":["bb388a4f9964f219504b3cd268464075e8d31a848d78a4918a4b8d48d411360d",420,107664],
 
-"scripts/cwo_core/workgraph_markdown.py":{"mode":420,"sha256":"f135fb64e2e62747178a3521792d4cb934d2b4680a7560b9ecc20290b6404cb3","size":374},
+"scripts/cwo_core/workgraph_markdown.py":["f135fb64e2e62747178a3521792d4cb934d2b4680a7560b9ecc20290b6404cb3",420,374],
 
-"scripts/cwo_core/workspace.py":{"mode":420,"sha256":"9b7b23700b8a4538ef211ee461440bd6024230013e87c32abbce3d9440638bb9","size":34827},
+"scripts/cwo_core/workspace.py":["9b7b23700b8a4538ef211ee461440bd6024230013e87c32abbce3d9440638bb9",420,34827],
 
-"scripts/cwo_core/workspace_capture.py":{"mode":420,"sha256":"80273f8a536024990cf07159b18437511566bc01f1c90ddd171fa7d34dd87632","size":136987},
+"scripts/cwo_core/workspace_capture.py":["80273f8a536024990cf07159b18437511566bc01f1c90ddd171fa7d34dd87632",420,136987],
 
-"scripts/cwo_core/workspace_transition.py":{"mode":420,"sha256":"f7838c9d953e325d7221bdd8ed8761dfcb175f68710ea04e0bbe72c2c28cb14c","size":13228},
+"scripts/cwo_core/workspace_transition.py":["f7838c9d953e325d7221bdd8ed8761dfcb175f68710ea04e0bbe72c2c28cb14c",420,13228],
 
-"scripts/cwo_temp.py":{"mode":420,"sha256":"103b5a5cba453ff150d23502fbe88eadf19d51fd1dcc9c3cc007b79a2d8d1f45","size":8710},
+"scripts/cwo_temp.py":["103b5a5cba453ff150d23502fbe88eadf19d51fd1dcc9c3cc007b79a2d8d1f45",420,8710],
 
-"scripts/dispatch_work.py":{"mode":493,"sha256":"3ae8d1f8ddeb202a8e99d6f2c752f55cbd10d77765a837faaafd411b589cd580","size":124180},
+"scripts/dispatch_work.py":["3ae8d1f8ddeb202a8e99d6f2c752f55cbd10d77765a837faaafd411b589cd580",493,124180],
 
-"scripts/evaluate_proportional_execution.py":{"mode":420,"sha256":"e4c4e69fe464aa50130287a7c2b696fc62fd8a8b1ec20d41c0b7aadd8897f309","size":1824},
+"scripts/evaluate_proportional_execution.py":["e4c4e69fe464aa50130287a7c2b696fc62fd8a8b1ec20d41c0b7aadd8897f309",420,1824],
 
-"scripts/evaluate_return.py":{"mode":493,"sha256":"0d26722a7c2628ed7abfcc8b10764bcb33e7c847e5b769af125c8240128584b8","size":35638},
+"scripts/evaluate_return.py":["0d26722a7c2628ed7abfcc8b10764bcb33e7c847e5b769af125c8240128584b8",493,35638],
 
-"scripts/evidence_use.py":{"mode":420,"sha256":"60387077e995f67da609cba1fe7df8fb6a7b63f6fd5526078f8d707c1a52bfa4","size":9494},
+"scripts/evidence_use.py":["60387077e995f67da609cba1fe7df8fb6a7b63f6fd5526078f8d707c1a52bfa4",420,9494],
 
-"scripts/example_diagrams.py":{"mode":420,"sha256":"302d9353aa9cd30baa78769577eb063e5f032e6ee6bda9b54b07ad6763be28a4","size":13410},
+"scripts/example_diagrams.py":["302d9353aa9cd30baa78769577eb063e5f032e6ee6bda9b54b07ad6763be28a4",420,13410],
 
-"scripts/generate_diagram_themes.py":{"mode":420,"sha256":"db08b12b4230439142335aa50a53a21acf0da3148da965d811c9e1915c134bc8","size":2070},
+"scripts/generate_diagram_themes.py":["db08b12b4230439142335aa50a53a21acf0da3148da965d811c9e1915c134bc8",420,2070],
 
-"scripts/generate_diagrams.py":{"mode":420,"sha256":"5745682e8b3a090d39c3a2132b8c585637ccaa78c8c0d703a3d3dee9faab0cc9","size":17243},
+"scripts/generate_diagrams.py":["5745682e8b3a090d39c3a2132b8c585637ccaa78c8c0d703a3d3dee9faab0cc9",420,17243],
 
-"scripts/generate_manual_dispatch_prompt.py":{"mode":493,"sha256":"825604cc6bfb067c417c96cee3b9cc0e104955a9342460aa6523f2bb63406ff3","size":20699},
+"scripts/generate_manual_dispatch_prompt.py":["825604cc6bfb067c417c96cee3b9cc0e104955a9342460aa6523f2bb63406ff3",493,20699],
 
-"scripts/generate_site.py":{"mode":493,"sha256":"fc0d9241f96332ef06bac3dc36f6fee473557cf9d91daa47b8b84e05b2b77fae","size":8424},
+"scripts/generate_site.py":["fc0d9241f96332ef06bac3dc36f6fee473557cf9d91daa47b8b84e05b2b77fae",493,8424],
 
-"scripts/guarded_artifact_target.py":{"mode":420,"sha256":"7780fc04a6eae8ffc437681ed1de877491ec901d2500b94df0c92a3725699e1d","size":32627},
+"scripts/guarded_artifact_target.py":["7780fc04a6eae8ffc437681ed1de877491ec901d2500b94df0c92a3725699e1d",420,32627],
 
-"scripts/guide_diagrams.py":{"mode":420,"sha256":"d5f1240f7d3347b9c81437878002df10cd6801569a2cc852a4f267bc361af21a","size":18037},
+"scripts/guide_diagrams.py":["d5f1240f7d3347b9c81437878002df10cd6801569a2cc852a4f267bc361af21a",420,18037],
 
-"scripts/host_spool_snapshot.py":{"mode":420,"sha256":"5da7d2ab0866f3420b962ce74d60b7b0997bef0140f7e9b5aa578a9bf15267c8","size":6053},
+"scripts/host_spool_snapshot.py":["5da7d2ab0866f3420b962ce74d60b7b0997bef0140f7e9b5aa578a9bf15267c8",420,6053],
 
-"scripts/import_execution_telemetry.py":{"mode":493,"sha256":"bc5531f6014a7afde377b71f752dc668657561ba6c59a2c9ed2d3dc7bf663f75","size":22674},
+"scripts/import_execution_telemetry.py":["bc5531f6014a7afde377b71f752dc668657561ba6c59a2c9ed2d3dc7bf663f75",493,22674],
 
-"scripts/ingest_chatgpt_share_return.py":{"mode":493,"sha256":"dffc5298f6b4b9b28798157dc8b7aa93230956541796acd542490829bf23891f","size":23042},
+"scripts/ingest_chatgpt_share_return.py":["dffc5298f6b4b9b28798157dc8b7aa93230956541796acd542490829bf23891f",493,23042],
 
-"scripts/install.sh":{"mode":493,"sha256":"13f0cb58c6755d2ea6b649a6538fb328d1da71727825d06080571a7a06f89c9c","size":15766},
+"scripts/install.sh":["13f0cb58c6755d2ea6b649a6538fb328d1da71727825d06080571a7a06f89c9c",493,15766],
 
-"scripts/launch_chatgpt_cdp_chrome.sh":{"mode":493,"sha256":"c5dc4f4c76f825dbfaf8315208d88330d406e658bb1c6875765c69368081387d","size":8005},
+"scripts/launch_chatgpt_cdp_chrome.sh":["c5dc4f4c76f825dbfaf8315208d88330d406e658bb1c6875765c69368081387d",493,8005],
 
-"scripts/linux_owned_children.py":{"mode":420,"sha256":"288e7b58debf019fe3290493bf199512863954be6fc065f148c18606fc0a4fb0","size":37132},
+"scripts/linux_owned_children.py":["288e7b58debf019fe3290493bf199512863954be6fc065f148c18606fc0a4fb0",420,37132],
 
-"scripts/manage_instruction_profile.py":{"mode":420,"sha256":"40ba429a160733b1069a7abd7a544d5d2780af708d77e439095ae130c2a867e0","size":8996},
+"scripts/manage_instruction_profile.py":["40ba429a160733b1069a7abd7a544d5d2780af708d77e439095ae130c2a867e0",420,8996],
 
-"scripts/manage_native_release.py":{"mode":420,"sha256":"c16422aad6f989641900121a237f75a3cb7813f01467a1ce70d6537ec6ece428","size":5614},
+"scripts/manage_native_release.py":["c16422aad6f989641900121a237f75a3cb7813f01467a1ce70d6537ec6ece428",420,5614],
 
-"scripts/normalize_contractor_return.py":{"mode":493,"sha256":"5df891d107dacde74d6021d941e179861cb9b059fbd397da5372139fc13267ef","size":6086},
+"scripts/normalize_contractor_return.py":["5df891d107dacde74d6021d941e179861cb9b059fbd397da5372139fc13267ef",493,6086],
 
-"scripts/offline_admitted_n1.py":{"mode":420,"sha256":"c2a509afff234db565f35225c36bc5eea9a9e9fef52fe562f9040e07946b9236","size":22876},
+"scripts/offline_admitted_n1.py":["c2a509afff234db565f35225c36bc5eea9a9e9fef52fe562f9040e07946b9236",420,22876],
 
-"scripts/offline_artifact_validation.py":{"mode":420,"sha256":"b00653f4990e46b5cb3420b636d5187945d3669e843515ec723c69be2ed50d78","size":28764},
+"scripts/offline_artifact_validation.py":["b00653f4990e46b5cb3420b636d5187945d3669e843515ec723c69be2ed50d78",420,28764],
 
-"scripts/offline_effect_profile.py":{"mode":420,"sha256":"07cf482b313d1416d8470b1c43f4dca8478669e3ad488188e97884bcafdff9c6","size":5010},
+"scripts/offline_effect_profile.py":["07cf482b313d1416d8470b1c43f4dca8478669e3ad488188e97884bcafdff9c6",420,5010],
 
-"scripts/offline_fake_artifact_promotion.py":{"mode":420,"sha256":"cb211328fb54cd56054422dfe1fdafca446277665354ebef2669fcef36b1351c","size":38543},
+"scripts/offline_fake_artifact_promotion.py":["cb211328fb54cd56054422dfe1fdafca446277665354ebef2669fcef36b1351c",420,38543],
 
-"scripts/offline_n1_host.py":{"mode":420,"sha256":"bd7f9bc36eb453bdfa56c5dd2969b8f084a7d0b83ba2476faf00935d287769c0","size":33978},
+"scripts/offline_n1_host.py":["bd7f9bc36eb453bdfa56c5dd2969b8f084a7d0b83ba2476faf00935d287769c0",420,33978],
 
-"scripts/offline_native_adjudication.py":{"mode":420,"sha256":"261f83c85996dfa831a2842e75ffecef2b0d831eadf7bc143f1203bbeda6caaa","size":25338},
+"scripts/offline_native_adjudication.py":["261f83c85996dfa831a2842e75ffecef2b0d831eadf7bc143f1203bbeda6caaa",420,25338],
 
-"scripts/offline_profile_input.py":{"mode":420,"sha256":"b36cf984901f82515cc9a5fa50f221e453eadf1ee89b43838b6bdbc6e71872e4","size":25405},
+"scripts/offline_profile_input.py":["b36cf984901f82515cc9a5fa50f221e453eadf1ee89b43838b6bdbc6e71872e4",420,25405],
 
-"scripts/prepare_artifact_acceptance.py":{"mode":420,"sha256":"16548aae670b44a48c1db930ae6b03694d1f8de918aacb6846cc711e619f1ba3","size":22894},
+"scripts/prepare_artifact_acceptance.py":["16548aae670b44a48c1db930ae6b03694d1f8de918aacb6846cc711e619f1ba3",420,22894],
 
-"scripts/prepare_combined_review_binding.py":{"mode":420,"sha256":"16c1fd2b3f41d568c0ee067b5f08aaa01005d55951e4e56245b971c938308c65","size":22323},
+"scripts/prepare_combined_review_binding.py":["16c1fd2b3f41d568c0ee067b5f08aaa01005d55951e4e56245b971c938308c65",420,22323],
 
-"scripts/prepare_delivery_closure.py":{"mode":420,"sha256":"a1e49820709e5d831d02e10785e3a7a33947e160593c68fb4244b4f84125a89c","size":32514},
+"scripts/prepare_delivery_closure.py":["6dc38096ce1e5297dc1c4d0299320047a8075b9fbfd43d5491c2969856604c77",420,32512],
 
-"scripts/prepare_final_review_binding.py":{"mode":420,"sha256":"ecfa7761649ddd7ebef371891f7b3842dbf7774906ab33f2d7d5497c31ba3ef3","size":14738},
+"scripts/prepare_final_review_binding.py":["ecfa7761649ddd7ebef371891f7b3842dbf7774906ab33f2d7d5497c31ba3ef3",420,14738],
 
-"scripts/prepare_hold_clearance.py":{"mode":420,"sha256":"513842edd207b4f071242810ef0723b7937d1cd77bb300d667466d932c984420","size":13634},
+"scripts/prepare_hold_clearance.py":["513842edd207b4f071242810ef0723b7937d1cd77bb300d667466d932c984420",420,13634],
 
-"scripts/prepare_in_thread_plan.py":{"mode":420,"sha256":"b5827867742ad7cb1f2ac7cf347fbda48d87a44f7a69c5992a1485b1d73a0437","size":20795},
+"scripts/prepare_in_thread_plan.py":["b5827867742ad7cb1f2ac7cf347fbda48d87a44f7a69c5992a1485b1d73a0437",420,20795],
 
-"scripts/prepare_local_admission.py":{"mode":420,"sha256":"653c27644ab260eb70c29e52e91f88e04d80d4f03abbaf493aefb0e7c5ff3586","size":17175},
+"scripts/prepare_local_admission.py":["653c27644ab260eb70c29e52e91f88e04d80d4f03abbaf493aefb0e7c5ff3586",420,17175],
 
-"scripts/prepare_native_worker.py":{"mode":420,"sha256":"7a6592be0bb06c5ba39a0b27595ede9588337485b5480e4dd872f173d475e60a","size":109362},
+"scripts/prepare_native_worker.py":["7a6592be0bb06c5ba39a0b27595ede9588337485b5480e4dd872f173d475e60a",420,109362],
 
-"scripts/prepare_risk_narrowing.py":{"mode":420,"sha256":"2d0812f234c53844327573de9d789448302d942f9df8e8024a1ba59a40008a4f","size":26090},
+"scripts/prepare_risk_narrowing.py":["2d0812f234c53844327573de9d789448302d942f9df8e8024a1ba59a40008a4f",420,26090],
 
-"scripts/prepare_route_feasibility.py":{"mode":420,"sha256":"85a8d13f806a27b1ecd825cf640da02be5ff7a07c7f2c3a68fed6904571528d8","size":18592},
+"scripts/prepare_route_feasibility.py":["85a8d13f806a27b1ecd825cf640da02be5ff7a07c7f2c3a68fed6904571528d8",420,18592],
 
-"scripts/prepare_route_ledger_reconciliation.py":{"mode":420,"sha256":"1364831313473c68972a4f6a750e9e3ac88c919cad6540e45d9a977de690b127","size":15327},
+"scripts/prepare_route_ledger_reconciliation.py":["1364831313473c68972a4f6a750e9e3ac88c919cad6540e45d9a977de690b127",420,15327],
 
-"scripts/prepare_server_request_frames.py":{"mode":420,"sha256":"b2a31e4d03b9c838299c790c86e6c070972b52ee7b82c98f33ed822ef53f5c40","size":9443},
+"scripts/prepare_server_request_frames.py":["b2a31e4d03b9c838299c790c86e6c070972b52ee7b82c98f33ed822ef53f5c40",420,9443],
 
-"scripts/prepare_validator_receipts.py":{"mode":420,"sha256":"48bdbdd90668fbe058da7cccb57c78466b68ac583e797eca2b96da15987cc016","size":22221},
+"scripts/prepare_validator_receipts.py":["48bdbdd90668fbe058da7cccb57c78466b68ac583e797eca2b96da15987cc016",420,22221],
 
-"scripts/preview_site.py":{"mode":420,"sha256":"33c3bbd6d184cb9c2a0ac3b032a466bdbcbd6e75b08c11d53d9fa5959cd385ad","size":1726},
+"scripts/preview_site.py":["33c3bbd6d184cb9c2a0ac3b032a466bdbcbd6e75b08c11d53d9fa5959cd385ad",420,1726],
 
-"scripts/produce_validator_evidence.py":{"mode":420,"sha256":"72f93d3bbb8b0ac98567ec351f4607aeb129db431e0649fd45cf6dfe78f8efec","size":17526},
+"scripts/produce_validator_evidence.py":["72f93d3bbb8b0ac98567ec351f4607aeb129db431e0649fd45cf6dfe78f8efec",420,17526],
 
-"scripts/production_closure_authority.py":{"mode":420,"sha256":"7529924177b148b83bea5bc806d16aacfbea258dfee0d430444dd545c80be8e1","size":3633},
+"scripts/production_closure_authority.py":["8854b741f58ad9091567a563b91aefd0c0921fe1201526e9cce509bcd51f80c2",420,5207],
 
-"scripts/profile_preparation_diagnostics.py":{"mode":420,"sha256":"6db6813abc257892d4e22e1994127e0f6969dfe9aaa0a00297384899a15fe6ae","size":12961},
+"scripts/profile_preparation_diagnostics.py":["6db6813abc257892d4e22e1994127e0f6969dfe9aaa0a00297384899a15fe6ae",420,12961],
 
-"scripts/qualified_adjudication.py":{"mode":420,"sha256":"8baf42740aefce84f1dee388ffe5543712937942b736bd734876d8c02d3bc339","size":16909},
+"scripts/qualified_adjudication.py":["8baf42740aefce84f1dee388ffe5543712937942b736bd734876d8c02d3bc339",420,16909],
 
-"scripts/qualified_closure.py":{"mode":420,"sha256":"96dc3db6e3e328558dc52f082960ae7efc1f8b469e47146b9630d582a020e923","size":36894},
+"scripts/qualified_closure.py":["d495173d934c68c97f6eec78cfadc35d4f77e79edcf2fadb82335ac7bbd6a1bf",420,38129],
 
-"scripts/qualified_n1_host.py":{"mode":420,"sha256":"8e810722ef1ab5c642c8e6984d2350ae0de135efa968b0cac42815376f4196a9","size":12500},
+"scripts/qualified_n1_host.py":["8e810722ef1ab5c642c8e6984d2350ae0de135efa968b0cac42815376f4196a9",420,12500],
 
-"scripts/qualified_review_dispatch.py":{"mode":420,"sha256":"83faf9a9a2c534387f48587468b2250d3f8d690e1e3f502ae0fa60ec9bf704b1","size":23594},
+"scripts/qualified_review_dispatch.py":["83faf9a9a2c534387f48587468b2250d3f8d690e1e3f502ae0fa60ec9bf704b1",420,23594],
 
-"scripts/qualified_risk_use.py":{"mode":420,"sha256":"f89225010b9e0b35842c3cb21e6d5ec17f0a6c0055adbaf80751e6af0839dd54","size":13133},
+"scripts/qualified_risk_use.py":["f89225010b9e0b35842c3cb21e6d5ec17f0a6c0055adbaf80751e6af0839dd54",420,13133],
 
-"scripts/qualified_workflow_adjudication.py":{"mode":420,"sha256":"c8199f147b6330bcf20fccba2434572620eb4203c9099c54ec53f3bb1cedd936","size":30714},
+"scripts/qualified_workflow_adjudication.py":["bbfca24d750b1acfc108cf464dbb1b457eac2950733abc6ad0b65958f7f81d71",420,31699],
 
-"scripts/record_audit_event.py":{"mode":493,"sha256":"ae8100e6d066b55b61cc9dedba20b92172b0775d5ca95d1174e09c76a190e8e1","size":5255},
+"scripts/record_audit_event.py":["ae8100e6d066b55b61cc9dedba20b92172b0775d5ca95d1174e09c76a190e8e1",493,5255],
 
-"scripts/record_native_model_capability.py":{"mode":420,"sha256":"ccf8bb8c6c62e0c2d3b21a2d0549326d21555394148b98dcd785d3d78c6bef28","size":4186},
+"scripts/record_native_model_capability.py":["ccf8bb8c6c62e0c2d3b21a2d0549326d21555394148b98dcd785d3d78c6bef28",420,4186],
 
-"scripts/registered_app_server_transport.py":{"mode":420,"sha256":"91fb0184a5e45ad64047f69c43c39b64895c04dbcedaa6e2ea44696bfdc128dd","size":19058},
+"scripts/registered_app_server_transport.py":["91fb0184a5e45ad64047f69c43c39b64895c04dbcedaa6e2ea44696bfdc128dd",420,19058],
 
-"scripts/registered_finite_input.py":{"mode":420,"sha256":"df34c7348cd521046333c0bf2f99a74d6d7c5a6181314dd24f8d980f98b9e837","size":83972},
+"scripts/registered_finite_input.py":["df34c7348cd521046333c0bf2f99a74d6d7c5a6181314dd24f8d980f98b9e837",420,83972],
 
-"scripts/registered_finite_tool_calls.py":{"mode":420,"sha256":"1a1781ffabf01bc4441108ca4d6d9f410026344e65cb7412cdf44827d123567a","size":34421},
+"scripts/registered_finite_tool_calls.py":["1a1781ffabf01bc4441108ca4d6d9f410026344e65cb7412cdf44827d123567a",420,34421],
 
-"scripts/registered_host_root_boundary.py":{"mode":420,"sha256":"615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836","size":1303},
+"scripts/registered_host_root_boundary.py":["615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",420,1303],
 
-"scripts/registered_n1_factory.py":{"mode":420,"sha256":"b8fdc3c7c7d1a861ff26daf648ae1c1b11d4fdf687666cc274be7f1cc7cef1a1","size":105259},
+"scripts/registered_n1_factory.py":["b8fdc3c7c7d1a861ff26daf648ae1c1b11d4fdf687666cc274be7f1cc7cef1a1",420,105259],
 
-"scripts/registered_n1_workflow.py":{"mode":420,"sha256":"79edef49aa76cd2108ad57e56f07b57d2bb923f468d7d6c1ec2dab91bf3b72a5","size":29921},
+"scripts/registered_n1_workflow.py":["79edef49aa76cd2108ad57e56f07b57d2bb923f468d7d6c1ec2dab91bf3b72a5",420,29921],
 
-"scripts/registered_native_pool_client.py":{"mode":420,"sha256":"cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af","size":2228},
+"scripts/registered_native_pool_client.py":["cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",420,2228],
 
-"scripts/registered_native_pool_host.py":{"mode":420,"sha256":"0730465ebdab52097ea95015ec597be14bee37859bcaccbf9a044b4978f009fb","size":21143},
+"scripts/registered_native_pool_host.py":["0730465ebdab52097ea95015ec597be14bee37859bcaccbf9a044b4978f009fb",420,21143],
 
-"scripts/registered_native_pool_retry.py":{"mode":420,"sha256":"261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979","size":22322},
+"scripts/registered_native_pool_retry.py":["261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",420,22322],
 
-"scripts/registered_server_requests.py":{"mode":420,"sha256":"2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd","size":24889},
+"scripts/registered_server_requests.py":["2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd",420,24889],
 
-"scripts/render_access_profile_status.py":{"mode":493,"sha256":"6d2b5a6f4ee7b60561fc40ac467a60a80615de191e76d6efed0a5661a8f5a021","size":3319},
+"scripts/render_access_profile_status.py":["6d2b5a6f4ee7b60561fc40ac467a60a80615de191e76d6efed0a5661a8f5a021",493,3319],
 
-"scripts/render_execution_status_report.py":{"mode":493,"sha256":"e46dbf44101e51a17d127eebaeddbe7e3c6f3b7290e09e8aac899975d16cd615","size":3507},
+"scripts/render_execution_status_report.py":["e46dbf44101e51a17d127eebaeddbe7e3c6f3b7290e09e8aac899975d16cd615",493,3507],
 
-"scripts/render_harness_dispatch.py":{"mode":420,"sha256":"3248645957db4c1a8b8de94d3a4b060a94a076a89c11361ff51cc567a1463791","size":5303},
+"scripts/render_harness_dispatch.py":["3248645957db4c1a8b8de94d3a4b060a94a076a89c11361ff51cc567a1463791",420,5303],
 
-"scripts/render_native_control_turn.py":{"mode":420,"sha256":"d40c193256ad14bc1e4f2cd6b8785a7fe47deeaf6900eaa005e9ef7bad2cb56f","size":2966},
+"scripts/render_native_control_turn.py":["d40c193256ad14bc1e4f2cd6b8785a7fe47deeaf6900eaa005e9ef7bad2cb56f",420,2966],
 
-"scripts/render_run_projection.py":{"mode":493,"sha256":"bc93223dd80fdb38c7a4fa5c8db1337e4f4ed560a87d74e33a66845e700fec0a","size":11995},
+"scripts/render_run_projection.py":["bc93223dd80fdb38c7a4fa5c8db1337e4f4ed560a87d74e33a66845e700fec0a",493,11995],
 
-"scripts/replay_epic_convergence.py":{"mode":420,"sha256":"b62ce150d07985a2255c30d15245d42272892df70c84a08c510da06757ff1e48","size":17139},
+"scripts/replay_epic_convergence.py":["b62ce150d07985a2255c30d15245d42272892df70c84a08c510da06757ff1e48",420,17139],
 
-"scripts/report_return_tripwire_corpus.py":{"mode":420,"sha256":"4f5b889b4de6288b0ab077eddb1703489375d2ce3f83fbc0db439ee69055245e","size":4477},
+"scripts/report_return_tripwire_corpus.py":["4f5b889b4de6288b0ab077eddb1703489375d2ce3f83fbc0db439ee69055245e",420,4477],
 
-"scripts/route_work.py":{"mode":493,"sha256":"73e8be982c62c4bac75b2214abd678774ad2eed2751d9fec08b5f950c61bc7a8","size":14274},
+"scripts/route_work.py":["73e8be982c62c4bac75b2214abd678774ad2eed2751d9fec08b5f950c61bc7a8",493,14274],
 
-"scripts/run_admitted_native_pool_transaction.py":{"mode":493,"sha256":"b816158790514fb89205bcbc9269d603f64c317cc53ec1eed60bf09f6f0f4769","size":8551},
+"scripts/run_admitted_native_pool_transaction.py":["b816158790514fb89205bcbc9269d603f64c317cc53ec1eed60bf09f6f0f4769",493,8551],
 
-"scripts/run_checked_command.py":{"mode":420,"sha256":"889c09f950a07001dfd1317ce6db9e189d82927832f227da9a80b0035949f7ef","size":1103},
+"scripts/run_checked_command.py":["889c09f950a07001dfd1317ce6db9e189d82927832f227da9a80b0035949f7ef",420,1103],
 
-"scripts/run_checked_command_sequence.py":{"mode":420,"sha256":"67cb839861408e9e834d1d70bcbc460b98edd5a28e6649106cd2c196e6cd5062","size":1903},
+"scripts/run_checked_command_sequence.py":["67cb839861408e9e834d1d70bcbc460b98edd5a28e6649106cd2c196e6cd5062",420,1903],
 
-"scripts/run_native_pool_activation_preview.py":{"mode":420,"sha256":"bbf07d345868f1052a3addf7aa5c488c8f31a9c6c9ef8c29bc91a9fec2ab9c79","size":56230},
+"scripts/run_native_pool_activation_preview.py":["bbf07d345868f1052a3addf7aa5c488c8f31a9c6c9ef8c29bc91a9fec2ab9c79",420,56230],
 
-"scripts/run_native_pool_live_canaries.py":{"mode":420,"sha256":"d31f812a4adea3083223b1d9771a35a6a2901e5d8b05128b63cf9a524709e158","size":610467},
+"scripts/run_native_pool_live_canaries.py":["d31f812a4adea3083223b1d9771a35a6a2901e5d8b05128b63cf9a524709e158",420,610467],
 
-"scripts/run_parallel_unittest.py":{"mode":493,"sha256":"380ef9e2527494c9ba38e6505fb5e423fe425803ed8c920d90a709c6f4b13ef5","size":27111},
+"scripts/run_parallel_unittest.py":["380ef9e2527494c9ba38e6505fb5e423fe425803ed8c920d90a709c6f4b13ef5",493,27111],
 
-"scripts/scaffold_workgraph.py":{"mode":493,"sha256":"7236cba0c029355d39db7eec48bb550eed3474c2f26a09114e9fee1db727ecee","size":77572},
+"scripts/scaffold_workgraph.py":["7236cba0c029355d39db7eec48bb550eed3474c2f26a09114e9fee1db727ecee",493,77572],
 
-"scripts/selected_native_containment.py":{"mode":420,"sha256":"d8a7509f45696d5808eaef82660a6c6d58b4797e355b780a8e0d61d36ff24c44","size":39579},
+"scripts/selected_native_containment.py":["d8a7509f45696d5808eaef82660a6c6d58b4797e355b780a8e0d61d36ff24c44",420,39579],
 
-"scripts/setup_workspace_database.py":{"mode":420,"sha256":"f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd","size":725},
+"scripts/setup_workspace_database.py":["f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd",420,725],
 
-"scripts/site_code.py":{"mode":420,"sha256":"5c2be9f4a0736d78d409d4626893930133998dbd80f446b417ebc1193ef228dc","size":1129},
+"scripts/site_code.py":["5c2be9f4a0736d78d409d4626893930133998dbd80f446b417ebc1193ef228dc",420,1129],
 
-"scripts/site_diagram_theme.py":{"mode":420,"sha256":"eb28fd4844310e6da3dc3d764bdd8cdfc8c7bf9207354fcb16e6fc2844019395","size":1877},
+"scripts/site_diagram_theme.py":["eb28fd4844310e6da3dc3d764bdd8cdfc8c7bf9207354fcb16e6fc2844019395",420,1877],
 
-"scripts/spawn_expert_reviews.py":{"mode":493,"sha256":"b22468bd25f946afdff4630145f0a5507b4970b4a58fc25c3fbb81b71406841b","size":11988},
+"scripts/spawn_expert_reviews.py":["b22468bd25f946afdff4630145f0a5507b4970b4a58fc25c3fbb81b71406841b",493,11988],
 
-"scripts/summarize_resume_state.py":{"mode":493,"sha256":"18e9830176baa26c0aae69cdc7e0ce7cd7b4d564eeea15a4ee34e914cb0df053","size":6479},
+"scripts/summarize_resume_state.py":["18e9830176baa26c0aae69cdc7e0ce7cd7b4d564eeea15a4ee34e914cb0df053",493,6479],
 
-"scripts/supervise_native_pool.py":{"mode":493,"sha256":"e3fd7af143402739ef64c46e56f304c840fe1398c9f596296c5429692fca5114","size":10902},
+"scripts/supervise_native_pool.py":["e3fd7af143402739ef64c46e56f304c840fe1398c9f596296c5429692fca5114",493,10902],
 
-"scripts/supervise_native_precommit.py":{"mode":420,"sha256":"3fc66c17138a815dbb9e686af4591df508fc4e79c131a772ffbedcca1f8bdbfd","size":8944},
+"scripts/supervise_native_precommit.py":["3fc66c17138a815dbb9e686af4591df508fc4e79c131a772ffbedcca1f8bdbfd",420,8944],
 
-"scripts/supervise_native_worker.py":{"mode":420,"sha256":"560763c8669c6109312caa8ddcbdbc0b49e7c962b2ce64e5664c52e84ebee3bc","size":115121},
+"scripts/supervise_native_worker.py":["560763c8669c6109312caa8ddcbdbc0b49e7c962b2ce64e5664c52e84ebee3bc",420,115121],
 
-"scripts/sync_native_pool_capacity.py":{"mode":493,"sha256":"69524cb00be779407de2a0890d9570df86b4b9dd28ed3bdd0809a2ec93741a89","size":1360},
+"scripts/sync_native_pool_capacity.py":["69524cb00be779407de2a0890d9570df86b4b9dd28ed3bdd0809a2ec93741a89",493,1360],
 
-"scripts/validate_frozen_protocol.py":{"mode":493,"sha256":"f4e3cbba21eba4c2fc9e62a7db6ab296ec8caf8890b1f85f0e1ef9c1341bfacd","size":4295},
+"scripts/validate_frozen_protocol.py":["f4e3cbba21eba4c2fc9e62a7db6ab296ec8caf8890b1f85f0e1ef9c1341bfacd",493,4295],
 
-"scripts/validate_native_pool_preflight.py":{"mode":493,"sha256":"5aa9b8e312210422a34f135fda66f93a3a416a92dfef8d96ca34e9ce42f61298","size":3652},
+"scripts/validate_native_pool_preflight.py":["5aa9b8e312210422a34f135fda66f93a3a416a92dfef8d96ca34e9ce42f61298",493,3652],
 
-"scripts/validate_operator_handoff.py":{"mode":420,"sha256":"bef1131ccc767000d61b80c301a1cce471fd33f9f444e1d67519e9f5feb81dd9","size":12252},
+"scripts/validate_operator_handoff.py":["bef1131ccc767000d61b80c301a1cce471fd33f9f444e1d67519e9f5feb81dd9",420,12252],
 
-"scripts/validate_public_copy.py":{"mode":420,"sha256":"e63be9d1068501c22640263a71725c5d2743679ac61908334a0b8a7b71fcb7ca","size":63926},
+"scripts/validate_public_copy.py":["e63be9d1068501c22640263a71725c5d2743679ac61908334a0b8a7b71fcb7ca",420,63926],
 
-"scripts/validate_repository.py":{"mode":420,"sha256":"9f9d8bac04775eea7439ccf1438cbcc238ae8335b620a8cd5efe9775a3a95e30","size":110029},
+"scripts/validate_repository.py":["9f9d8bac04775eea7439ccf1438cbcc238ae8335b620a8cd5efe9775a3a95e30",420,110029],
 
-"scripts/validate_run_readiness_plan.py":{"mode":493,"sha256":"4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86","size":21103},
+"scripts/validate_run_readiness_plan.py":["4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",493,21103],
 
-"scripts/validate_site.py":{"mode":493,"sha256":"014b5ef40d2c540fa7962298f095ad3ab40ce5e41a8b1913f95f01f2ef590859","size":19311},
+"scripts/validate_site.py":["014b5ef40d2c540fa7962298f095ad3ab40ce5e41a8b1913f95f01f2ef590859",493,19311],
 
-"scripts/verify_affected_historical_contract.py":{"mode":420,"sha256":"8817b89c65c383cc08e0e5bba7511e702bd005b93453819c68f6845787d58e6b","size":22811},
+"scripts/verify_affected_historical_contract.py":["8817b89c65c383cc08e0e5bba7511e702bd005b93453819c68f6845787d58e6b",420,22811],
 
-"scripts/verify_attestation.py":{"mode":493,"sha256":"e5dfaef3110a6e92d09c55c9524812e5f0df847db86ba4bcd6fe968572bc9aed","size":1086},
+"scripts/verify_attestation.py":["e5dfaef3110a6e92d09c55c9524812e5f0df847db86ba4bcd6fe968572bc9aed",493,1086],
 
-"scripts/verify_audit_log.py":{"mode":493,"sha256":"d382da3581e3c5871b11d10c63c64eb12022e8b083c6d7992a013b2c3b153990","size":1158},
+"scripts/verify_audit_log.py":["d382da3581e3c5871b11d10c63c64eb12022e8b083c6d7992a013b2c3b153990",493,1158],
 
-"scripts/workspace_mutation_guard.py":{"mode":493,"sha256":"24fe0755ce056a2434d5dcaf6823cfa4ae7d5aa207e822f506489bbca7274fc4","size":3115},
+"scripts/workspace_mutation_guard.py":["24fe0755ce056a2434d5dcaf6823cfa4ae7d5aa207e822f506489bbca7274fc4",493,3115],
 
-"tests/browser_connected_fixture.py":{"mode":420,"sha256":"9bf5fc321d6bcd18b47f813d070f5c34f01955fad737da79fd137ebe982c4e0c","size":11195},
+"tests/browser_connected_fixture.py":["9bf5fc321d6bcd18b47f813d070f5c34f01955fad737da79fd137ebe982c4e0c",420,11195],
 
-"tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
+"tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"e1e4c4df7d69315bda256850e00ea6bbfddf24b937f75e912ef526add7c88137","size":127256},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["1178a61d1035f34daf5d481ac2f6596f336b7a2f0d9889e3e01bc9161001fd60",420,127291],
 
-"tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"eaacebfb44bcb28e0a3e98974c3db9b39ab75baaba9b6bd682a919f98b2bf11f","size":1939},
+"tests/host_acceptance_fixtures.py":["87a26b47c505e5834a98369efe916b51ca9af2e00e1df2b9e2139a28a4908171",420,2340],
 
-"tests/test_acceptance_product_flow.py":{"mode":420,"sha256":"3a6818b9521fb9217552bb6edc884a363841ed8df459ffac0437d1ef6a863d3b","size":28505},
+"tests/test_acceptance_product_flow.py":["05a6b7becd2638e3540b0068eb396a2462062d9fd1961a7462756fe9b33ae405",420,28833],
 
-"tests/test_atomic_spawn.py":{"mode":420,"sha256":"7e8ee59a4968ce4c55f845f1d4dcf510b3fe19a4971340edd62ca7f0aea6220b","size":18152},
+"tests/test_atomic_spawn.py":["7e8ee59a4968ce4c55f845f1d4dcf510b3fe19a4971340edd62ca7f0aea6220b",420,18152],
 
-"tests/test_authorize_sol_breakfix.py":{"mode":420,"sha256":"6b4e4c950e06644a5a2309f233bf2b9a80deb46076576641fe3abca01b62d970","size":5715},
+"tests/test_authorize_sol_breakfix.py":["6b4e4c950e06644a5a2309f233bf2b9a80deb46076576641fe3abca01b62d970",420,5715],
 
-"tests/test_beads_dash_id_safety.py":{"mode":420,"sha256":"557807f16c6010c29e75f72e214a66791cb506033e6f662eff7ac815d10ece72","size":35682},
+"tests/test_beads_dash_id_safety.py":["557807f16c6010c29e75f72e214a66791cb506033e6f662eff7ac815d10ece72",420,35682],
 
-"tests/test_browser_action_dispatch.py":{"mode":420,"sha256":"769460bbb370fc30a949b0db4f2b28e5ad42eaabc9f3f147e5b973694a8cfb19","size":35585},
+"tests/test_browser_action_dispatch.py":["769460bbb370fc30a949b0db4f2b28e5ad42eaabc9f3f147e5b973694a8cfb19",420,35585],
 
-"tests/test_browser_connected.py":{"mode":420,"sha256":"ac357c6da19436d9354a18dc17a56d26583d053550692723b740e7dac20ce911","size":27314},
+"tests/test_browser_connected.py":["ac357c6da19436d9354a18dc17a56d26583d053550692723b740e7dac20ce911",420,27314],
 
-"tests/test_browser_provenance.py":{"mode":420,"sha256":"b42f49ecbbedbb6317062e48be61a9f94b72fa9be94eee34fb734359fd02979d","size":10146},
+"tests/test_browser_provenance.py":["b42f49ecbbedbb6317062e48be61a9f94b72fa9be94eee34fb734359fd02979d",420,10146],
 
-"tests/test_browser_share_consent.py":{"mode":420,"sha256":"e3ca917fec19d203921a949d0f2200d7d39f6c7b41cc0a82c1bab986a6b93505","size":21997},
+"tests/test_browser_share_consent.py":["e3ca917fec19d203921a949d0f2200d7d39f6c7b41cc0a82c1bab986a6b93505",420,21997],
 
-"tests/test_browser_share_dom.py":{"mode":420,"sha256":"55ac3a2a6b18598da0fa1868dc3f892d6c2c9ddb98d8af7c4bea99b6465d6761","size":24763},
+"tests/test_browser_share_dom.py":["55ac3a2a6b18598da0fa1868dc3f892d6c2c9ddb98d8af7c4bea99b6465d6761",420,24763],
 
-"tests/test_browser_subject.py":{"mode":420,"sha256":"7b63f2490f23e1eea8cfd9a021f0d2d7bfaa7b98ebadaa1a68272c491ae238af","size":8259},
+"tests/test_browser_subject.py":["7b63f2490f23e1eea8cfd9a021f0d2d7bfaa7b98ebadaa1a68272c491ae238af",420,8259],
 
-"tests/test_chatgpt_browser_review.py":{"mode":420,"sha256":"cd5add6efd27b1db1eb398683c6e702227b35fb4f1c10c659ddf03815bed5503","size":133744},
+"tests/test_chatgpt_browser_review.py":["cd5add6efd27b1db1eb398683c6e702227b35fb4f1c10c659ddf03815bed5503",420,133744],
 
-"tests/test_chatgpt_share_ingest.py":{"mode":420,"sha256":"f1ba362a8d742a35c6280182c8d1d20f70d79946ab7a93050039f1a93357b33b","size":27959},
+"tests/test_chatgpt_share_ingest.py":["f1ba362a8d742a35c6280182c8d1d20f70d79946ab7a93050039f1a93357b33b",420,27959],
 
-"tests/test_checked_command_interpreters.py":{"mode":420,"sha256":"b2219f68eaeb9eeb37f5dc4f8bf3c40cd9ae674e158e7a29de1feeba4aaa61b9","size":4106},
+"tests/test_checked_command_interpreters.py":["b2219f68eaeb9eeb37f5dc4f8bf3c40cd9ae674e158e7a29de1feeba4aaa61b9",420,4106],
 
-"tests/test_close_bead_with_summary.py":{"mode":420,"sha256":"db7b2dc9d6f99b72f8542166c928535851f9cacd70274cfccd3e6848fb75357d","size":41925},
+"tests/test_close_bead_with_summary.py":["db7b2dc9d6f99b72f8542166c928535851f9cacd70274cfccd3e6848fb75357d",420,41925],
 
-"tests/test_code_health.py":{"mode":420,"sha256":"8f660ab109fdc51dacdd39350b79608d40b8af615bb2adc2ac127c5e8affbcba","size":142998},
+"tests/test_code_health.py":["8f660ab109fdc51dacdd39350b79608d40b8af615bb2adc2ac127c5e8affbcba",420,142998],
 
-"tests/test_configure_codex_beads_hooks.py":{"mode":420,"sha256":"ab5965a39daa88368478bb6e0b95abf9ea8b4e177145722aea2d1a2aee311da1","size":9603},
+"tests/test_configure_codex_beads_hooks.py":["ab5965a39daa88368478bb6e0b95abf9ea8b4e177145722aea2d1a2aee311da1",420,9603],
 
-"tests/test_configure_codex_beads_hooks_w18a_f1.py":{"mode":420,"sha256":"38fe271802995bdcc41a856d052cbe4a46a099e814f0c8ffdf3c00870ad95e2d","size":22924},
+"tests/test_configure_codex_beads_hooks_w18a_f1.py":["38fe271802995bdcc41a856d052cbe4a46a099e814f0c8ffdf3c00870ad95e2d",420,22924],
 
-"tests/test_core_resource_tool_profiles.py":{"mode":420,"sha256":"04b715405fb34f261e5f77ec905045f999d2a38c01e58e69fab2dfec6d753bd3","size":16187},
+"tests/test_core_resource_tool_profiles.py":["04b715405fb34f261e5f77ec905045f999d2a38c01e58e69fab2dfec6d753bd3",420,16187],
 
-"tests/test_cwo_core_import_contract.py":{"mode":420,"sha256":"a9c5bc3fbeda605c7dc79f73cdc9eee035775c9ac83a5f98fe9d96175eea39a0","size":22038},
+"tests/test_cwo_core_import_contract.py":["a9c5bc3fbeda605c7dc79f73cdc9eee035775c9ac83a5f98fe9d96175eea39a0",420,22038],
 
-"tests/test_documentation_tools.py":{"mode":420,"sha256":"d2013052619fc930ff6567c9f1b3843452a409a91d19af329aac52a47dc505c2","size":6569},
+"tests/test_documentation_tools.py":["d2013052619fc930ff6567c9f1b3843452a409a91d19af329aac52a47dc505c2",420,6569],
 
-"tests/test_f1_production_closure_guards.py":{"mode":420,"sha256":"7b1db301c63270a7ac4aef07b9be91739ccb27b3083fd8224b32e3593c5f291d","size":14408},
+"tests/test_f1_production_closure_guards.py":["a9b3d8d2d96380160a41b220cff7d1f6185a91f4b70d7a059d79730fef4c7512",420,14498],
 
-"tests/test_f5_native_live_holds.py":{"mode":420,"sha256":"4c6eaa5ea20de8a047b28dc851dff966341d827713d87b555f61925a308d6f89","size":27564},
+"tests/test_f5_native_live_holds.py":["4c6eaa5ea20de8a047b28dc851dff966341d827713d87b555f61925a308d6f89",420,27564],
 
-"tests/test_first_project.py":{"mode":420,"sha256":"8c834f22ee213349cd540aa2bb6ad388aacf415789555313d8ebb5c47b734913","size":2675},
+"tests/test_first_project.py":["8c834f22ee213349cd540aa2bb6ad388aacf415789555313d8ebb5c47b734913",420,2675],
 
-"tests/test_guarded_artifact_target.py":{"mode":420,"sha256":"985237fad5af446ac0f58960b2e290a9794857b086724158d8dab5a873e23a9f","size":53539},
+"tests/test_guarded_artifact_target.py":["985237fad5af446ac0f58960b2e290a9794857b086724158d8dab5a873e23a9f",420,53539],
 
-"tests/test_host_acceptance.py":{"mode":420,"sha256":"22f206f9e2abcce08b4b51017a3a10728aecd6efb9473f6342c3a3f457555d20","size":21891},
+"tests/test_host_acceptance.py":["432d38762b2c1d7fa48c24f07dd807964940c6917a723db6241c9e7658c2f6eb",420,24636],
 
-"tests/test_install_projection.py":{"mode":420,"sha256":"42b3b8f0cf7710370b82899410ac4fcddaabccadd4435a8069e69b8c14746bf2","size":43442},
+"tests/test_install_projection.py":["42b3b8f0cf7710370b82899410ac4fcddaabccadd4435a8069e69b8c14746bf2",420,43442],
 
-"tests/test_instruction_profiles.py":{"mode":420,"sha256":"7ba2829a0fc4feb585ae0e26fab0d25fe39c631330f731880a0de5157ec4a13e","size":14595},
+"tests/test_instruction_profiles.py":["7ba2829a0fc4feb585ae0e26fab0d25fe39c631330f731880a0de5157ec4a13e",420,14595],
 
-"tests/test_invocation_containment.py":{"mode":420,"sha256":"54422bae5d800553cb04c3629785c52138817f4c9010baa25bf75fa6310ecfe7","size":12880},
+"tests/test_invocation_containment.py":["54422bae5d800553cb04c3629785c52138817f4c9010baa25bf75fa6310ecfe7",420,12880],
 
-"tests/test_issue41_dispatch_matrix.py":{"mode":420,"sha256":"bda5db904b9d5d40ea87ff81aea0f11cad2fe5df67bdd1bc7b008f6d268528fd","size":29006},
+"tests/test_issue41_dispatch_matrix.py":["bda5db904b9d5d40ea87ff81aea0f11cad2fe5df67bdd1bc7b008f6d268528fd",420,29006],
 
-"tests/test_linux_owned_children.py":{"mode":420,"sha256":"95c50998fb7e5cbc961ca6c7bbc53af6b703d5dfc39fff9df9106722db2b9e92","size":73949},
+"tests/test_linux_owned_children.py":["95c50998fb7e5cbc961ca6c7bbc53af6b703d5dfc39fff9df9106722db2b9e92",420,73949],
 
-"tests/test_local_invocation_reservation.py":{"mode":420,"sha256":"61fc7e4dfa8e8a4aa2233e66dc522fc6e9aeba3cd1af02c947cad53669b8caf4","size":40692},
+"tests/test_local_invocation_reservation.py":["61fc7e4dfa8e8a4aa2233e66dc522fc6e9aeba3cd1af02c947cad53669b8caf4",420,40692],
 
-"tests/test_maintenance_native_runtime.py":{"mode":420,"sha256":"5ada83a8b794fb663c2f5f36250b61b3c3f8392ad8e3e8329447354f01f95653","size":55611},
+"tests/test_maintenance_native_runtime.py":["5ada83a8b794fb663c2f5f36250b61b3c3f8392ad8e3e8329447354f01f95653",420,55611],
 
-"tests/test_native_activation_preview.py":{"mode":420,"sha256":"a1e1cd5cb44683e98c8a3b7acc8da4531221381d16e45f403287b3d53d63b84c","size":54819},
+"tests/test_native_activation_preview.py":["a1e1cd5cb44683e98c8a3b7acc8da4531221381d16e45f403287b3d53d63b84c",420,54819],
 
-"tests/test_native_pool_admission.py":{"mode":420,"sha256":"ff2f3205ad88d81bf9003c8209cb6da2d71b59b0ed77399426159bbeb9226701","size":43199},
+"tests/test_native_pool_admission.py":["ff2f3205ad88d81bf9003c8209cb6da2d71b59b0ed77399426159bbeb9226701",420,43199],
 
-"tests/test_native_pool_transaction.py":{"mode":420,"sha256":"9bf9e8ae4ec10d184320392fbc2810e784353fdffa33bebfb72a99994f26f11a","size":89635},
+"tests/test_native_pool_transaction.py":["9bf9e8ae4ec10d184320392fbc2810e784353fdffa33bebfb72a99994f26f11a",420,89635],
 
-"tests/test_offline_n1_host.py":{"mode":420,"sha256":"64a4f905653e22682ec732aa76ad6bf0c0159ea893e8e0c27fd7c662f40794b3","size":34521},
+"tests/test_offline_n1_host.py":["64a4f905653e22682ec732aa76ad6bf0c0159ea893e8e0c27fd7c662f40794b3",420,34521],
 
-"tests/test_offline_profile_input.py":{"mode":420,"sha256":"c87cb4b7ad0e04b0547636e50e80e482ccbeb787e23bac597b9b5412ba5968ed","size":34065},
+"tests/test_offline_profile_input.py":["c87cb4b7ad0e04b0547636e50e80e482ccbeb787e23bac597b9b5412ba5968ed",420,34065],
 
-"tests/test_ownership_producer.py":{"mode":420,"sha256":"14d7a0ec68767275fd1e96daca77e524bf0dee174e108fe033c0dcb8f8c81c60","size":57956},
+"tests/test_ownership_producer.py":["14d7a0ec68767275fd1e96daca77e524bf0dee174e108fe033c0dcb8f8c81c60",420,57956],
 
-"tests/test_production_closure.py":{"mode":420,"sha256":"50ca1df5b2d882c7351a790cba409572d579a98d70ec39190db224f130e20237","size":41834},
+"tests/test_production_closure.py":["a98a6e9a4f72127c5f4f852575f0860b1585a3dd192fa3fdad162566a9588a49",420,61523],
 
-"tests/test_production_closure_authority.py":{"mode":420,"sha256":"39ff236574d3c25dd0bf98e36c153debca3178456a51d3e77ba6916fd99c36d4","size":10638},
+"tests/test_production_closure_authority.py":["f5cbcc2e57d48ebadca7991a7313e832b9e2c836fc837cc9a5cf3470effefccb",420,14313],
 
-"tests/test_qualified_review_dispatch.py":{"mode":420,"sha256":"51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c","size":24949},
+"tests/test_qualified_review_dispatch.py":["51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c",420,24949],
 
-"tests/test_r1_activation_preview_hold.py":{"mode":420,"sha256":"8e421673aab1c72d212edb9b89283169550cfa3c666cf9fc23a83a0235be70e0","size":14938},
+"tests/test_r1_activation_preview_hold.py":["8e421673aab1c72d212edb9b89283169550cfa3c666cf9fc23a83a0235be70e0",420,14938],
 
-"tests/test_r5_transport_launch.py":{"mode":420,"sha256":"a3e5b5377a17b5bf31cb90dad7455d21e31741e0d86bbc4cf60d1108b9f1ad52","size":7075},
+"tests/test_r5_transport_launch.py":["a3e5b5377a17b5bf31cb90dad7455d21e31741e0d86bbc4cf60d1108b9f1ad52",420,7075],
 
-"tests/test_registered_app_server_transport_f2.py":{"mode":420,"sha256":"ff436963e4d601a4276d0bc0acf44386b05f347745876099cff17b06e8b3e851","size":13049},
+"tests/test_registered_app_server_transport_f2.py":["ff436963e4d601a4276d0bc0acf44386b05f347745876099cff17b06e8b3e851",420,13049],
 
-"tests/test_registered_controlled_output_schedule.py":{"mode":420,"sha256":"2cdd3d39ead6c089a9aa1aa594f8817c62fadda752e5ef60da614ca034d7139d","size":7844},
+"tests/test_registered_controlled_output_schedule.py":["2cdd3d39ead6c089a9aa1aa594f8817c62fadda752e5ef60da614ca034d7139d",420,7844],
 
-"tests/test_registered_finite_input.py":{"mode":420,"sha256":"b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684","size":127597},
+"tests/test_registered_finite_input.py":["b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684",420,127597],
 
-"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"1a604d318a28ba9f850cda8adf77d66b20186aa49f14c25cbfbbb3b4df6339f1","size":218983},
+"tests/test_registered_finite_tool_wiring.py":["1a604d318a28ba9f850cda8adf77d66b20186aa49f14c25cbfbbb3b4df6339f1",420,218983],
 
-"tests/test_registered_n1_factory.py":{"mode":420,"sha256":"ac70f74e2c5982ead451b97b1762c7d829afd39e8b7731b647cacd7750654591","size":122995},
+"tests/test_registered_n1_factory.py":["ac70f74e2c5982ead451b97b1762c7d829afd39e8b7731b647cacd7750654591",420,122995],
 
-"tests/test_release_effect_routes.py":{"mode":420,"sha256":"88051a406760c06f4d1641bf7eee8465bab5159d6db05b19ab255fbfcbd0d42c","size":84850},
+"tests/test_release_effect_routes.py":["88051a406760c06f4d1641bf7eee8465bab5159d6db05b19ab255fbfcbd0d42c",420,84850],
 
-"tests/test_release_filesystem.py":{"mode":420,"sha256":"5fcb7a33f91ad28f1041c1498a61d47f22a67d4b55027f786b5c1df64584e212","size":16860},
+"tests/test_release_filesystem.py":["5fcb7a33f91ad28f1041c1498a61d47f22a67d4b55027f786b5c1df64584e212",420,16860],
 
-"tests/test_routing_risk_features.py":{"mode":420,"sha256":"00641ee49d3435c24783178c03b496c2325024f17e6f1c53630b516987a7d548","size":50200},
+"tests/test_routing_risk_features.py":["00641ee49d3435c24783178c03b496c2325024f17e6f1c53630b516987a7d548",420,50200],
 
-"tests/test_run_admitted_native_pool_transaction.py":{"mode":420,"sha256":"19407cedbb48a6c4405aefa0fb5cd3b1455ee58da115b52ff3e41f6d7dff0338","size":16470},
+"tests/test_run_admitted_native_pool_transaction.py":["19407cedbb48a6c4405aefa0fb5cd3b1455ee58da115b52ff3e41f6d7dff0338",420,16470],
 
-"tests/test_run_native_pool_live_canaries.py":{"mode":420,"sha256":"7913be64ddfe1067e70f8f2473227df846f61ceb98ebcc28ca9f24f07210e257","size":685637},
+"tests/test_run_native_pool_live_canaries.py":["7913be64ddfe1067e70f8f2473227df846f61ceb98ebcc28ca9f24f07210e257",420,685637],
 
-"tests/test_run_parallel_unittest.py":{"mode":420,"sha256":"bcefb9ce1392bc06a5f979abfb685cfc2c034dfe3ed91a0c8013192b3d9bc1ef","size":35637},
+"tests/test_run_parallel_unittest.py":["bcefb9ce1392bc06a5f979abfb685cfc2c034dfe3ed91a0c8013192b3d9bc1ef",420,35637],
 
-"tests/test_scaffold_dependency_validation.py":{"mode":420,"sha256":"56f647152b9bd65acfcbb014a04263203a1dd350082e61a35af9b0650c4e36dd","size":32651},
+"tests/test_scaffold_dependency_validation.py":["56f647152b9bd65acfcbb014a04263203a1dd350082e61a35af9b0650c4e36dd",420,32651],
 
-"tests/test_selected_native_containment.py":{"mode":420,"sha256":"2503146117839a651eb5611bd478fb39102f9fd3efbdb79b1066ff069c405c50","size":31358},
+"tests/test_selected_native_containment.py":["2503146117839a651eb5611bd478fb39102f9fd3efbdb79b1066ff069c405c50",420,31358],
 
-"tests/test_turn_observations.py":{"mode":420,"sha256":"fcbf803eb912648bf787ef485d1a147b867a46849940561a3f960fda04186d2e","size":17380},
+"tests/test_turn_observations.py":["fcbf803eb912648bf787ef485d1a147b867a46849940561a3f960fda04186d2e",420,17380],
 
-"tests/test_validate_repository.py":{"mode":420,"sha256":"c690c6028c23e2709d92c473cbe369ae6cecee2ff81edd9caf98652921d296ea","size":30182},
+"tests/test_validate_repository.py":["c690c6028c23e2709d92c473cbe369ae6cecee2ff81edd9caf98652921d296ea",420,30182],
 
-"tests/test_w20_affected_contract_w13.py":{"mode":420,"sha256":"2b667088928f442b6322017ea4cded5d4701d14f01fc5a2e409344565d638d4d","size":90632},
+"tests/test_w20_affected_contract_w13.py":["2b667088928f442b6322017ea4cded5d4701d14f01fc5a2e409344565d638d4d",420,90632],
 
-"tests/test_workflow_adjudication.py":{"mode":420,"sha256":"43d1617e2670b625ffdc3c4194d41a44d271de34f3078370a00d43ba94b730d0","size":37914},
+"tests/test_workflow_adjudication.py":["d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5",420,38470],
 
-"tests/test_workspace_inert_inspection.py":{"mode":420,"sha256":"e4431b1a69b387499980c5b275eb66872bb7c01f88c86f79e87802c041bc41c9","size":288978}
+"tests/test_workspace_inert_inspection.py":["e4431b1a69b387499980c5b275eb66872bb7c01f88c86f79e87802c041bc41c9",420,288978]
 },
 
 "witnesses":{
@@ -5446,15 +5478,27 @@
 
 "cleanup-retained-replacement":{"assertion":"self.assertEqual(replacement.signals, [])","body":"p1ca63e70","kind":"inspection-only","positive":"self.assertEqual(table.closes, [table.next_fd])","support":["paf5ebdc8"],"test_id":"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared"},
 
+"closure-acceptance-replay":{"assertion":"self.assertEqual(process.calls, [])","body":"closure-acceptance-replay-body","kind":"zero-effect-refusal","positive":"self.assertTrue(closure.execute_qualified_completed(host)[\"completed\"])","support":["closure-host-fixture"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes"},
+
+"closure-adjudicator":{"assertion":"self.assertEqual(self.store.audit_events(), before)","body":"closure-adjudicator-body","kind":"zero-effect-refusal","positive":"self.assertEqual(require_acceptance(self.store, **args, **self.beacon,","support":[],"test_id":"tests.test_host_acceptance.HostAcceptanceTests.test_closing_acceptance_requires_host_selected_separated_adjudicator"},
+
 "closure-capture-context":{"assertion":"configured.assert_not_called()","body":"closure-capture-context-body","kind":"zero-effect-refusal","positive":"self.assertEqual(authority.capture(database='/EXAMPLE/database', bead_id='EXAMPLE-bead',","support":[],"test_id":"tests.test_production_closure_authority.ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access"},
 
 "closure-consumer-adapter":{"assertion":"self.assertEqual(guard.call_count, entries[0])","body":"p39fdfd04","kind":"zero-effect-refusal","positive":"self.assertTrue(closure.execute_qualified_completed(host)[\"completed\"])","support":[],"test_id":"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control"},
 
-"closure-default-off":{"assertion":"self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, False)","body":"p880b7c3c","kind":"zero-effect-refusal","positive":"self.assertEqual(result[\"state\"], \"COMPLETED\")","support":[],"test_id":"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control"},
+"closure-consumption-intent":{"assertion":"self.assertEqual(len(consumed), 1)","body":"closure-consumption-intent-body","kind":"inspection-only","positive":"self.assertTrue(closure.execute_qualified_completed(host)[\"completed\"])","support":["closure-host-fixture"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures"},
 
 "closure-final-observation":{"assertion":"self.assertEqual(process.effects, [])","body":"closure-final-observation-body","kind":"zero-effect-refusal","positive":"self.assertEqual([effect[0] for effect in process.effects], ['comment', 'close'])","support":["closure-original-acceptance-positive"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete"},
 
+"closure-kill-switch":{"assertion":"self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, True)","body":"p880b7c3c","kind":"zero-effect-refusal","positive":"self.assertEqual(result[\"state\"], \"COMPLETED\")","support":[],"test_id":"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control"},
+
 "closure-lifecycle-inspection":{"assertion":"io.assert_not_called()","body":"pebe865d4","kind":"inspection-only","positive":"self.assertEqual([e[0] for e in process.effects], [\"comment\", \"close\"])","support":["p4cb99d4f"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io"},
+
+"closure-open-graph":{"assertion":"self.assertEqual(process.effects, [])","body":"closure-open-graph-body","kind":"zero-effect-refusal","positive":"self.assertTrue(closure.execute_qualified_completed(host)['completed'])","support":["closure-host-fixture"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes"},
+
+"closure-peer-policy-source":{"assertion":"self.assertEqual([x[0] for x in process.effects], [] if phase == 'bind' else ['comment'])","body":"closure-peer-policy-source-body","kind":"zero-effect-refusal","positive":"self.assertTrue(result['completed'])","support":["closure-original-acceptance-positive"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write"},
+
+"closure-policy-source":{"assertion":"self.assertEqual([x[0] for x in process.effects], [] if phase == 'bind' else ['comment'])","body":"closure-policy-source-body","kind":"zero-effect-refusal","positive":"self.assertTrue(result['completed'])","support":["closure-original-acceptance-positive"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_policy_source_drift_after_bind_or_comment_refuses_next_write"},
 
 "closure-source-candidate":{"assertion":"self.assertEqual(process.calls, [])","body":"closure-source-candidate-body","kind":"zero-effect-refusal","positive":"self.assertEqual([effect[0] for effect in process.effects], ['comment', 'close'])","support":["closure-original-acceptance-positive","closure-flow-provision","closure-flow-custody","closure-source-request","closure-source-evidence","closure-source-route","closure-host-fixture"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance"},
 

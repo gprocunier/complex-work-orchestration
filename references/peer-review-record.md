@@ -147,7 +147,15 @@ without those bindings is insufficient. Closure recomputes the full and pending
 evaluations from the recorded return, dispatch metadata and current policy before
 checking every required hold clearance. Generic record persistence cannot replace
 that acceptance receipt. Evidence or task holds without qualified clearance remain
-held. `PRODUCTION_CLOSURE_AVAILABLE` stays `False`; this work restores no route.
+held. `PRODUCTION_CLOSURE_AVAILABLE` ships `True` for the verified library;
+the original review-host producer stays held by `LOCAL_INVOCATION_AVAILABLE`.
+Closing acceptance also records the host-selected adjudicator identity and
+rechecks separation from the executor using these same provider/family/model,
+dispatch and session rules, even when peer review is not otherwise required.
+An arbitrary control ID or different model effort does not establish separation.
+Closure additionally requires single-use acceptance, current policy and setup
+database identity, exact original dispatch/baseline/candidate and no open blockers
+or children. Existing policy-required peer-review clearances still apply.
 
 Dispatch IDs remain single file components: `/` is refused in executor and reviewer
 identities before audit persistence, matching the store reader and public schemas.

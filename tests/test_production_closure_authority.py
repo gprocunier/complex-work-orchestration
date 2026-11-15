@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import json
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 from pathlib import Path
+import tempfile
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
@@ -21,6 +24,7 @@ class ProductionAuthorityTests(unittest.TestCase):
                         'candidate': 'sha256:' + '5' * 64}
         self.store = SimpleNamespace(require_outside_worker_roots=Mock(),
                                      require_database_identity=Mock(return_value=self.identity),
+                                     audit_events=Mock(return_value=[]),
                                      record_audit_event=Mock())
         self.captured = authority.Authority(
             self.store, "1" * 64, "EXAMPLE-bead", "2" * 64, "3" * 64,
@@ -103,13 +107,65 @@ class ProductionAuthorityTests(unittest.TestCase):
             self.store.record_audit_event.assert_not_called()
 
     def test_closure_audit_contains_exact_acceptance_and_database_identity(self):
-        """S4 audit binding: successful consumption names its full setup identity."""
-        self.captured.record_closure()
-        self.store.record_audit_event.assert_called_once_with({
+        """Consumption intent names its full setup identity before effects."""
+        expected = {
             "event_type": "production_closure_consumed", "bead_id": "EXAMPLE-bead",
             "acceptance_record_sha256": "1" * 64, "return_sha256": "2" * 64,
             "evaluation_sha256": "3" * 64,
-            "database_identity": json.loads(self.captured.database_identity)})
+            "database_identity": json.loads(self.captured.database_identity)}
+        with tempfile.TemporaryDirectory(prefix="EXAMPLE-closure-intent-") as directory:
+            store = authority.host_records.HostRecordStore.for_tests(Path(directory) / "host")
+            captured = replace(self.captured, store=store).record_closure()
+            event, = store.audit_events()
+            self.assertEqual({key: event[key] for key in expected}, expected)
+            self.assertEqual(captured.consumption_event, event["event_hash"])
+
+    def test_consumed_acceptance_refuses_capture_and_previously_captured_authority(self):
+        self.store.audit_events = Mock(return_value=[{
+            "event_type": "production_closure_consumed", "acceptance_record_sha256": "1" * 64}])
+        with patch.object(authority.host_records, "configured_store", return_value=self.store), \
+                patch.object(authority.host_acceptance, "require_acceptance", return_value=self.decision) as verify:
+            with self.assertRaisesRegex(ValueError, "already been consumed"):
+                authority.capture(database="/EXAMPLE/database", bead_id="EXAMPLE-bead",
+                    acceptance_record="1" * 64, return_sha256="2" * 64,
+                    evaluation_sha256="3" * 64, delivery_context=self.context)
+            with self.assertRaisesRegex(ValueError, "already been consumed"):
+                self.captured.check("/EXAMPLE/database")
+            self.store.require_database_identity.assert_not_called()
+            verify.assert_not_called()
+
+    def test_concurrent_consumption_has_one_winner_and_revalidates_in_flight_authority(self):
+        with tempfile.TemporaryDirectory(prefix="EXAMPLE-closure-claim-") as directory:
+            store = authority.host_records.HostRecordStore.for_tests(Path(directory) / "host")
+            store.record_audit_event({"event_type": "EXAMPLE-control"})
+            first, second = (replace(self.captured, store=store) for _ in range(2))
+            start = threading.Barrier(2)
+            def claim(captured):
+                start.wait(timeout=5)
+                try:
+                    return captured.record_closure()
+                except ValueError as error:
+                    return error
+            with ThreadPoolExecutor(max_workers=2) as pool:
+                results = list(pool.map(claim, (first, second)))
+            self.assertEqual(len([e for e in store.audit_events()
+                if e.get("event_type") == "production_closure_consumed"]), 1)
+            winners = [r for r in results if isinstance(r, authority.Authority)]
+            losers = [r for r in results if isinstance(r, ValueError)]
+            self.assertEqual(len(winners), 1)
+            self.assertEqual(len(losers), 1)
+            self.assertIn("already been consumed", str(losers[0]))
+            with patch.object(store, "require_database_identity", return_value=self.identity), \
+                    patch.object(authority.host_acceptance, "require_acceptance", return_value=self.decision) as verify:
+                self.assertEqual(winners[0].check("/EXAMPLE/database"), self.identity)
+                verify.assert_called_once()
+                verify.side_effect = ValueError("EXAMPLE policy changed after consumption")
+                with self.assertRaisesRegex(ValueError, "policy changed after consumption"):
+                    winners[0].check("/EXAMPLE/database")
+                with self.assertRaisesRegex(ValueError, "already been consumed"):
+                    first.check("/EXAMPLE/database")
+                with self.assertRaisesRegex(ValueError, "already been consumed"):
+                    winners[0].record_closure()
 
     def test_final_review_requires_the_exact_original_observation_digest(self):
         digest = 'sha256:' + '6' * 64

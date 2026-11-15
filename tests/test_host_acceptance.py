@@ -71,6 +71,35 @@ class HostAcceptanceTests(unittest.TestCase):
         self.assertEqual(require_acceptance(self.store, **args, **self.beacon,
                                            delivery_context=context), accepted)
 
+    def test_closing_acceptance_requires_host_selected_separated_adjudicator(self):
+        context = {'task': self.beacon['bead_id'], 'scope': 'sha256:' + '1' * 64,
+                   'candidate': 'sha256:' + '2' * 64}
+        dispatch_id = 'EXAMPLE_CLOSING_EXECUTOR'
+        self.dispatch(dispatch_id=dispatch_id, evaluation_metadata={'source_context': {
+            **context, 'dispatch_id': dispatch_id, 'packet_sha256': None,
+            'executor': 'codex_architecture_critic'}})
+        decide = lambda evaluation: HostAdjudicationDecision('accepted', 'Yes', 'ARBITRARY_CONTROL')
+        before = self.store.audit_events()
+        with self.assertRaisesRegex(CWOPolicyError, 'adjudication identity'):
+            HostAcceptancePipeline(decide).accept(self.text, dispatch_id=dispatch_id, **self.beacon)
+        self.assertEqual(self.store.audit_events(), before)
+        identity = dict(provider='openai', model_family='gpt', model_id='gpt-6-astra',
+            reasoning_effort='xhigh', dispatch_id='EXAMPLE_ADJUDICATION', session_id='EXAMPLE_ADJUDICATOR')
+        for changes in ({'dispatch_id': dispatch_id}, {'session_id': 'EXAMPLE_EXECUTOR'},
+                        {'model_id': 'gpt-6.1-sol', 'reasoning_effort': 'low'}):
+            with self.subTest(changes=changes), self.assertRaises(CWOPolicyError):
+                HostAcceptancePipeline(decide, adjudication_identity={**identity, **changes}).accept(
+                    self.text, dispatch_id=dispatch_id, **self.beacon)
+            self.assertEqual(self.store.audit_events(), before)
+        record = HostAcceptancePipeline(decide, adjudication_identity=identity).accept(
+            self.text, dispatch_id=dispatch_id, **self.beacon)
+        accepted = self.store.get(record)
+        args = dict(acceptance_record=record, return_sha256=accepted['return_sha256'],
+                    evaluation_sha256=accepted['evaluation_sha256'])
+        self.assertEqual(require_acceptance(self.store, **args, **self.beacon,
+            delivery_context=context), accepted)
+        self.assertEqual(self.store.get(accepted['adjudication_record'])['adjudication_identity'], identity)
+
     def test_p0_exact_context_database_and_all_linked_records_required(self):
         args, accepted = self.accepted()
         for field, value in (('bead_id', 'EXAMPLE_OTHER'), ('return_sha256', '0' * 64),
@@ -167,7 +196,8 @@ class HostAcceptanceTests(unittest.TestCase):
         fields = dict(dispatch_id='EXAMPLE_PIPELINE_EXECUTOR_' + str(len(self.store.find('dispatch'))), dispatch_role='executor', provider='openai',
             model_family='gpt', model_id='gpt-6.1-sol', reasoning_effort='xhigh', session_id='EXAMPLE_EXECUTOR',
             request_sha256='1' * 64, bead_id=self.beacon['bead_id'], executor='codex_architecture_critic')
-        self.store.write_dispatch(**{**fields, **changes})
+        fields.update(changes)
+        self.store.write_dispatch(**fields)
         self.store.write_return_received(fields['dispatch_id'], hashlib.sha256(self.text.encode()).hexdigest())
         return fields['dispatch_id']
 
@@ -279,7 +309,11 @@ class HostAcceptanceTests(unittest.TestCase):
 
     def test_p0_required_review_has_verified_clearance_and_received_decision(self):
         self.text = self.text.replace('not required for this sample return', 'independent review required before use')
-        dispatch_id = self.dispatch(evaluation_metadata={'peer_review_required': True})
+        dispatch_id = 'EXAMPLE_REVIEWED_CLOSURE'
+        context = dict(task=self.beacon['bead_id'], scope='sha256:' + '1' * 64, candidate='sha256:' + '2' * 64)
+        self.dispatch(dispatch_id=dispatch_id, evaluation_metadata={'peer_review_required': True,
+            'source_context': {**context, 'dispatch_id': dispatch_id, 'packet_sha256': None,
+                               'executor': 'codex_architecture_critic'}})
         pending = make_acceptance_decision(self.text, bead_id=self.beacon['bead_id'], dispatch_id=dispatch_id,
             executor='codex_architecture_critic', peer_review_required=True, peer_review_status='pending')
         returned = hashlib.sha256(self.text.encode()).hexdigest()
@@ -292,7 +326,9 @@ class HostAcceptanceTests(unittest.TestCase):
             'reviewer_identity': {'provider': 'openai', 'model_family': 'gpt', 'model_id': 'gpt-6-astra',
                 'reasoning_effort': 'max', 'dispatch_id': 'EXAMPLE_PIPELINE_REVIEW'},
             'return_sha256': returned, 'evaluation_sha256': target['evaluation_sha256']}
-        pipeline = HostAcceptancePipeline(lambda observed: HostAdjudicationDecision('accepted', 'Yes', 'HOST'))
+        pipeline = HostAcceptancePipeline(lambda observed: HostAdjudicationDecision('accepted', 'Yes', 'HOST'),
+            adjudication_identity=dict(provider='anthropic', model_family='claude', model_id='claude-opus-4-6',
+                reasoning_effort='high', dispatch_id='EXAMPLE_ADJUDICATOR', session_id='EXAMPLE_ADJUDICATOR'))
         for review in (None, record):
             with self.subTest(check='missing review' if review is None else 'missing receipt'), self.assertRaises(CWOPolicyError):
                 pipeline.accept(self.text, dispatch_id=dispatch_id, peer_review_record=review, **self.beacon)
@@ -301,7 +337,7 @@ class HostAcceptanceTests(unittest.TestCase):
         accepted = pipeline.accept(self.text, dispatch_id=dispatch_id, peer_review_record=record, **self.beacon)
         value = self.store.get(accepted)
         args = dict(acceptance_record=accepted, return_sha256=returned, evaluation_sha256=value['evaluation_sha256'])
-        checked = require_acceptance(self.store, **args, **self.beacon)
+        checked = require_acceptance(self.store, **args, **self.beacon, delivery_context=context)
         self.assertEqual(set(checked['required_holds']), {'peer-review-pending'})
         self.assertEqual(set(checked['cleared_holds']), {'peer-review-pending'})
         clearance = self.store.get(checked['cleared_holds']['peer-review-pending'])

@@ -36,6 +36,14 @@ change the checkpoint's full-file SHA256 binding. Those require reconciliation
 and rebinding after the merge. The checkpoint manifest keeps its indented,
 sorted object keys; an unchanged manifest remains byte-identical.
 
+Source bindings declare `source_binding_columns: ["sha256", "mode", "size"]`
+and retain one complete identity row per path. The checker expands these rows
+to the same named identity fields before comparing actual source. Column order,
+row width, digest, integer mode and nonnegative integer size are validated;
+Boolean modes or sizes refuse. Legacy named-field inventories remain supported.
+This lossless layout removes repeated field names without dropping bindings or
+changing the finite byte cap, route decisions or source identity checks.
+
 The inventory is authored decision data. Every route has an explicit manual
 conclusion and limits. Neither its presence nor a matching source hash approves
 that conclusion. Constructors, virtual calls, callbacks, context entry, dynamic

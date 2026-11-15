@@ -231,6 +231,21 @@ def _record_host_source(producer, store):
     producer.current()
 
 
+def _completed_adjudicator(host, ticket):
+    """Identity comes from the designated original host request, never decision text."""
+    from cwo_core.policy import load_policy
+    observed = host.observe_completion(host.completed(ticket))
+    envelope = binding._parse(observed.binding_bytes)['envelope']
+    registry = load_policy('provider-registry')
+    provider = registry['providers'][envelope['provider_key']]['family']
+    model = registry['review_models'].get(provider, {}).get(envelope['model'])
+    _need(type(model) is dict, 'Host adjudication model family is not registered.')
+    return dict(provider=provider, model_family=model['model_family'], model_id=envelope['model'],
+        reasoning_effort=envelope['request_options'].get('reasoning_effort'),
+        dispatch_id=envelope['dispatch_id'],
+        session_id='http-request-' + binding._sha(observed.ticket.prepared.request_bytes))
+
+
 def adjudication_basis(producer, support, reviewer_id):
     producer.current()
     _need(type(reviewer_id) is str and 0 < len(reviewer_id) <= 256,
@@ -417,7 +432,8 @@ class CompletedAdjudicationControl:
             return HostAdjudicationDecision(decision['decision'], decision['rationale'], self.control_id)
 
         _record_host_source(producer, store)
-        pipeline = HostAcceptancePipeline(decide, store=store)
+        pipeline = HostAcceptancePipeline(decide, store=store,
+            adjudication_identity=_completed_adjudicator(self.host, self.ticket))
         metadata = binding._parse(producer.metadata)
         self.acceptance_record = pipeline.accept(producer.raw.decode('utf-8'), bead_id=expected.task,
             dispatch_id=expected.dispatch_id, database_identity=database_identity,

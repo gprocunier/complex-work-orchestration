@@ -128,7 +128,8 @@ class AcceptanceProductFlowTests(unittest.TestCase):
         path = policy.POLICY_DIR / 'provider-registry.yaml'
         document = json.loads(path.read_text())
         document['review_models']['local-openai-compatible'] = {
-            'EXAMPLE-review-model': {'model_family': 'EXAMPLE-local', 'stronger_than': []}}
+            'EXAMPLE-review-model': {'model_family': 'EXAMPLE-local', 'stronger_than': []},
+            'EXAMPLE-adjudicator-model': {'model_family': 'EXAMPLE-review', 'stronger_than': []}}
         path.write_text(json.dumps(document))
         policy.clear_policy_cache()
         builders = P.fixtures.QualifiedClosureTests('runTest')
@@ -137,7 +138,7 @@ class AcceptanceProductFlowTests(unittest.TestCase):
         self.delivery_case.bead.update(updated_at='EXAMPLE-before',
             comment_count=len(self.delivery_case.bead['comments']), revision='EXAMPLE-before-revision')
         producer, _, _ = self.source(clean=clean, closure_case=self.delivery_case)
-        control, _, _, _ = self.designated(producer, support_override=())
+        control, _, _, _ = self.designated(producer, support_override=(), model='EXAMPLE-adjudicator-model')
         storage = self.home / 'EXAMPLE-database-storage'
         storage.mkdir(mode=0o700)
         database = storage / 'EXAMPLE-workspace.db'
@@ -224,7 +225,7 @@ class AcceptanceProductFlowTests(unittest.TestCase):
     def test_completed_adjudication_persists_once_then_real_closure_requires_every_phase(self):
         """Checks: setup, original capture/evaluation/decision, exact receipt, gate and every reference."""
         producer, control, database, store = self.provision()
-        self.assertFalse(P.qualified.PRODUCTION_CLOSURE_AVAILABLE)
+        self.assertTrue(P.qualified.PRODUCTION_CLOSURE_AVAILABLE)
         request = binding._parse(producer.observed.ticket.prepared.request_bytes)
         evidence = [binding._parse(item['text'].encode()) for item in request['sources']
                     if item['id'] == 'cwo-delivery-observations']
@@ -257,9 +258,10 @@ class AcceptanceProductFlowTests(unittest.TestCase):
         with self.closure(producer, database, authority) as (case, custody, process):
             options = dict(database=str(database), actor='EXAMPLE-supervisor', **authority)
             # Gate is checked first even with fully genuine original host evidence.
-            with self.assertRaisesRegex(P.original.ClosureError, 'unavailable'):
+            with patch.object(P.qualified, 'PRODUCTION_CLOSURE_AVAILABLE', False), \
+                    self.assertRaisesRegex(P.original.ClosureError, 'unavailable'):
                 with P.qualified.production_custody(str(custody), **options):
-                    self.fail('default gate opened')
+                    self.fail('patched-off kill switch opened')
             self.assertEqual(process.calls, [])
             evaluation = store.get(accepted['evaluation_record'])
             referenced = {'dispatch': evaluation['dispatch_record_sha256'],
@@ -367,7 +369,8 @@ class AcceptanceProductFlowTests(unittest.TestCase):
         # A coherent second host-pipeline acceptance isolates the cached reader:
         # same task and actual bytes, independently valid graph, different evaluation.
         pipeline = HostAcceptancePipeline(lambda _evaluation: HostAdjudicationDecision(
-            'accepted', 'EXAMPLE another completed host acceptance', 'EXAMPLE-other-control'), store=store)
+            'accepted', 'EXAMPLE another completed host acceptance', 'EXAMPLE-other-control'), store=store,
+            adjudication_identity=workflow._completed_adjudicator(control.host, control.ticket))
         other = pipeline.accept(producer.raw.decode(), bead_id=producer.expected.task,
             dispatch_id=fields['dispatch_id'], database_identity=store.require_database_identity(database))
         alternate = store.get(other)

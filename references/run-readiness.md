@@ -312,10 +312,13 @@ authorizes completion.
 
 ### Verified closure library
 
-Production availability remains held: `PRODUCTION_CLOSURE_AVAILABLE = False`.
+Production closure is enabled: `PRODUCTION_CLOSURE_AVAILABLE = True`, following
+the operator release decision of 2026-11-15. Closing acceptance must have a
+host-selected adjudicator separated from the executor even where policy does
+not require peer review. Existing peer-review requirements still apply on top.
 `production_custody` refuses before validation, setup, inspection reads or Beads
-calls while that source hold is false. An operator release decision is required
-to enable this surface; it is not a per-task confirmation or signing step.
+calls if this source kill switch is set to false. This is a release decision,
+not a per-task confirmation or signing step.
 Other source-held execution, dispatch and activation routes remain held.
 
 The supported consumer is the existing library sequence:
@@ -335,7 +338,10 @@ with qualified_closure.production_custody(
     result = execute_qualified_completed(host)
 ```
 
-This sequence is source-held in the current release. Offline tests exercise the
+This sequence is available to embedding library hosts. The shipped
+`RegisteredReviewHost.dispatch` producer remains held by
+`LOCAL_INVOCATION_AVAILABLE = False`; enabling closure opens no narrative CLI
+success route. Offline tests exercise the
 original consumer and Beads adapters against a disposable fixture database and
 fake process boundary. No real task is closed by those tests.
 
@@ -362,6 +368,15 @@ The embedding host establishes these inputs independently of returned text:
   completed adjudication consumer records eligible autonomous acceptance from
   that original completion, preserving the context in the host store. Generic
   legacy acceptance without this binding cannot grant closure.
+- Pin the adjudication control and its identity at host bootstrap. The pipeline
+  records provider, model family, model, effort, dispatch and session with the
+  adjudication, independently of the returned decision or arbitrary control ID.
+  Closure rechecks the existing peer-review separation rules: different dispatch,
+  session and model, with either a different provider/family or a registered
+  stronger model in the same family. Changing effort alone is insufficient.
+  The shipped producer derives identity from the designated original request.
+  An embedding host is responsible for selecting a trustworthy control and
+  truthful identity; these records do not independently authenticate that host.
 - Initialize the exact database through `scripts/setup_workspace_database.py`.
   Keep database storage, worker root, private custody directory and configured
   host state outside one another. Setup changes no Beads logical state.
@@ -379,6 +394,10 @@ consumer uses original issued observations; caller JSON, a saved success Boolean
 or a handwritten summary cannot substitute for them. Custody, source, candidate,
 task, acceptance and database are rechecked at consumption boundaries. Revoking
 the source flag after registration prevents even the original Beads adapter call.
+The captured original adapter queries the selected database's complete blocking
+dependencies and reverse parent-child relationships. Every blocker and child
+must be closed, both before any write and again before close. An open ordinary
+dependent or the task's own parent is not an open child or blocker.
 
 Binding and consumption require the exact original observations reviewed by the
 accepted source. A different passing validator receipt cannot replace the reviewed
@@ -391,11 +410,18 @@ the retained handle cannot turn a submitted delivery review into generic evidenc
 
 A preview performs necessary inspection reads and makes no comment/close writes.
 Successful consumption writes one derived summary and closes the intended task
-once. A registration is single use. A refusal after persistence preserves the
+once. The summary records `Disposition: closing` and says the close is not yet
+confirmed, since it precedes that effect. Confirm completion from Beads readback
+and `host.report`; an open Bead after a failed close retains a truthful intent.
+Both registration and acceptance are single use: an atomic reservation in
+the existing host audit records consumption intent before the first Beads write.
+Reopening the task or a failed write does not permit reuse of that acceptance.
+A refusal after persistence preserves the
 known comment/close state, reports uncertainty honestly and never automatically
 retries; inspect `host.report` before operator recovery. Ordinary refusals may
 read the contract, candidate, policy and host records, but make no relevant
-state writes. Host records are integrity-only: an unrestricted same-user process
+state writes; an attempted delivery reserves its acceptance even if the later
+write fails. Host records are integrity-only: an unrestricted same-user process
 able to rewrite and rehash the entire history remains outside this boundary.
 
 The maintained acceptance witnesses cover these boundaries:

@@ -22,7 +22,7 @@ OPEN_DISPOSITIONS = frozenset({"pending-acceptance", "deferred"})
 SUCCESS_UNAVAILABLE = (
     "successful closure is unavailable through narrative dispositions (issue #37): this CLI does not consume "
     "verified requirement, candidate and host acceptance records. The verified library consumer is "
-    "documented in references/run-readiness.md; its production availability remains held. "
+    "documented in references/run-readiness.md and requires exact verified host authority. "
     "Nothing was written. To record the work without claiming success, use an accurate non-completion "
     "disposition (" + ", ".join(NON_COMPLETION_DISPOSITIONS) + ") or leave the Bead open; the operator "
     "decides whether to close it"
@@ -55,7 +55,7 @@ def execute_offline_completed(
 
 
 def execute_qualified_completed(host: Any, *, dry_run: bool = False) -> dict[str, Any]:
-    """Consume production_custody -> observe -> bind; production availability is held.
+    """Consume production_custody -> observe -> bind with verified host authority.
 
     Caller summaries and serialized reports cannot replace the original issued
     host. See references/run-readiness.md for the verified consumer contract.
@@ -404,7 +404,7 @@ def parser() -> argparse.ArgumentParser:
     cli = argparse.ArgumentParser(
         description="Add a non-completion closure-memory comment to a Bead and optionally close it.",
         epilog="Verified completion uses the registered library consumer described in references/run-readiness.md; "
-               "production availability remains held.",
+               "exact verified host authority is required.",
     )
     cli.add_argument("--bead", required=True, help="Bead ID to comment on.")
     cli.add_argument(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import datetime as dt
 import hashlib
 import io
 import json
@@ -80,6 +81,15 @@ def packet_with(snippet: str) -> dict:
         external_opt_in=True,
         opt_in_basis="cli-flag",
     )
+
+
+@contextlib.contextmanager
+def packet_build_time(instant: dt.datetime):
+    """Control only the builder's clock; hashes and packet checks remain real."""
+    with patch("build_contractor_packet.dt") as clock:
+        clock.timezone.utc = dt.timezone.utc
+        clock.datetime.now.return_value = instant
+        yield
 
 
 @contextlib.contextmanager
@@ -245,6 +255,20 @@ class ManualExportTests(unittest.TestCase):
                 raised = exc
         return stdout.getvalue(), raised
 
+    def test_corpus_export_is_independent_of_ambient_packet_clock(self) -> None:
+        from cwo_core.packets import validate_contractor_packet
+        from cwo_core.util import packet_payload_hash
+
+        # This real build time makes the packet digest contain the short fake
+        # PIN. The original oracle then mistakes that extra occurrence for an
+        # uncovered payload in both output modes, although the literal is caught.
+        with packet_build_time(dt.datetime(2026, 11, 15, 12, 5, 35, tzinfo=dt.timezone.utc)):
+            packet = packet_with("pin=4831")
+            self.assertEqual(packet["packet_sha256"], packet_payload_hash(packet))
+            self.assertEqual(validate_contractor_packet(packet), [])
+            self.assertIn("4831", packet["packet_sha256"])
+            self.test_corpus_material_never_leaves_through_manual_export()
+
     def test_corpus_material_never_leaves_through_manual_export(self) -> None:
         """Every sensitive seed case, plain and as JSON, either exports with none of its sensitive content
         or is refused by the screen for content of that case. Any other exit fails the test, and so does a
@@ -255,7 +279,10 @@ class ManualExportTests(unittest.TestCase):
         for case in cases("seed-corpus.json"):
             if not case["sensitive"]:
                 continue
-            packet = packet_with(case["text"])
+            # Keep metadata deterministic: the all-occurrences oracle must not
+            # randomly find a short corpus value inside a time-dependent digest.
+            with packet_build_time(dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)):
+                packet = packet_with(case["text"])
             snippet = packet["selected_snippets"][0]["content"]
             for extra in ([], ["--json"]):
                 with self.subTest(case=case["id"], json=bool(extra)), tempfile.TemporaryDirectory() as tmpdir:

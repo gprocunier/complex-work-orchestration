@@ -7,7 +7,8 @@ from cwo_core.host_acceptance import HostAcceptancePipeline, HostAdjudicationDec
 from cwo_core.host_records import using_test_store
 
 
-def provision_acceptance(store, *, bead_id, database_identity, delivery_context=None, observation_sha256=None):
+def provision_acceptance(store, *, bead_id, database_identity, delivery_context=None,
+                        observation_sha256=None, adjudication_identity="default"):
     root = Path(__file__).resolve().parents[1]
     text = (root / "examples/sample-contractor-return.md").read_text(encoding="utf-8")
     dispatch_id = "EXAMPLE_ACCEPTANCE_" + uuid.uuid4().hex
@@ -23,8 +24,13 @@ def provision_acceptance(store, *, bead_id, database_identity, delivery_context=
         evaluation_metadata=metadata)
     returned = hashlib.sha256(text.encode("utf-8")).hexdigest()
     store.write_return_received(dispatch_id, returned)
+    if adjudication_identity == "default":
+        adjudication_identity = dict(provider="openai", model_family="gpt", model_id="gpt-6-astra",
+            reasoning_effort="xhigh", dispatch_id="EXAMPLE_ADJUDICATION_" + uuid.uuid4().hex,
+            session_id="EXAMPLE_ADJUDICATOR_SESSION")
     pipeline = HostAcceptancePipeline(lambda observed: HostAdjudicationDecision(
-        "accepted", "EXAMPLE offline autonomous CWO acceptance", "EXAMPLE_HOST_CONTROL"), store=store)
+        "accepted", "EXAMPLE offline autonomous CWO acceptance", "EXAMPLE_HOST_CONTROL"), store=store,
+        adjudication_identity=adjudication_identity)
     with using_test_store(store):
         record_id = pipeline.accept(text, bead_id=bead_id, dispatch_id=dispatch_id,
                                     database_identity=database_identity)
