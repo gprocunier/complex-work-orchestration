@@ -293,10 +293,9 @@ adjudication is the handoff decision.
 ## Closing Beads
 
 `scripts/close_bead_with_summary.py` records closure memory, but it does not
-record successful completion yet. Before any Beads write it refuses `completed`
-and every other success disposition, because it cannot verify a recorded
-requirement baseline, the exact delivered candidate and passing evidence for
-every requirement (issue #37). Nothing is written when it refuses.
+consume verified completion authority. Before any Beads write it refuses
+`completed` and every other success disposition. Caller narratives cannot stand
+in for the verified library consumer below. Nothing is written when it refuses.
 
 These outcomes remain available:
 
@@ -308,8 +307,75 @@ These outcomes remain available:
 | `rejected`, `abandoned` | The work will not be delivered | May be closed with `--close` |
 
 Planning, readiness validation and `--dry-run` previews of these outcomes are
-unaffected. Successful closure returns only when the helper verifies the
-baseline, the candidate and the evidence itself; a narrative summary will not
-satisfy it. Requirement baselines and candidate identities (above) are two of
-those parts. The closure helper reads neither yet, and neither a recorded
-baseline nor a verified candidate makes successful closure available.
+unaffected. Recording a baseline, candidate or narrative summary alone never
+authorizes completion.
+
+### Verified closure library
+
+Production availability remains held: `PRODUCTION_CLOSURE_AVAILABLE = False`.
+`production_custody` refuses before validation, setup, inspection reads or Beads
+calls while that source hold is false. An operator release decision is required
+to enable this surface; it is not a per-task confirmation or signing step.
+Other source-held execution, dispatch and activation routes remain held.
+
+The supported consumer is the existing library sequence:
+
+```python
+import qualified_closure
+from close_bead_with_summary import execute_qualified_completed
+
+with qualified_closure.production_custody(
+    custody_directory, database=database_path, actor=host_actor,
+    acceptance_record=acceptance_id,
+    return_sha256=return_digest, evaluation_sha256=evaluation_digest,
+) as host:
+    qualified_closure.observe(host)
+    qualified_closure.bind(host)
+    preview = execute_qualified_completed(host, dry_run=True)
+    result = execute_qualified_completed(host)
+```
+
+This sequence is source-held in the current release. Offline tests exercise the
+original consumer and Beads adapters against a disposable fixture database and
+fake process boundary. No real task is closed by those tests.
+
+The embedding host establishes these inputs independently of returned text:
+
+- Record the initial requirement baseline before implementation. Retain its
+  ordered reference comments, any supported additive amendments, and the latest
+  candidate reference in the task. Baselines contain obligations, never results.
+- Capture the exact current delivered candidate with `candidate_identity`; its
+  baseline binding, content, modes and repository identity must remain current.
+- Before submitting the source request, set `ExpectedContext.scope` to the
+  resolved baseline digest and `ExpectedContext.candidate` to the candidate
+  digest. Both are full `sha256:` digests. `WorkflowSource` verifies that the
+  original request includes `source_basis(expected)` exactly once. The existing
+  completed adjudication consumer records eligible autonomous acceptance from
+  that original completion, preserving the context in the host store. Generic
+  legacy acceptance without this binding cannot grant closure.
+- Initialize the exact database through `scripts/setup_workspace_database.py`.
+  Keep database storage, worker root, private custody directory and configured
+  host state outside one another. Setup changes no Beads logical state.
+- Place a private `contract.json` in the custody directory. Its closed schema is
+  `record_type: "cwo-production-closure-custody"`, `version: 1`, `root`, `initial`,
+  ordered `amendments`, `candidate`, current `bead` and `commands`. These are the
+  original baseline/candidate records and declared validator specifications,
+  not an approval file. The producer checks required artifact predicates and
+  validator observations against this contract; missing coverage refuses.
+
+Registration compares baseline and candidate to the immutable accepted source,
+including exact task, dispatch, received return, evaluation, required peer review
+or other supported clearance, current policy, audit receipt and database. The
+consumer uses original issued observations; caller JSON, a saved success Boolean
+or a handwritten summary cannot substitute for them. Custody, source, candidate,
+task, acceptance and database are rechecked at consumption boundaries. Revoking
+the source flag after registration prevents even the original Beads adapter call.
+
+A preview performs necessary inspection reads and makes no comment/close writes.
+Successful consumption writes one derived summary and closes the intended task
+once. A registration is single use. A refusal after persistence preserves the
+known comment/close state, reports uncertainty honestly and never automatically
+retries; inspect `host.report` before operator recovery. Ordinary refusals may
+read the contract, candidate, policy and host records, but make no relevant
+state writes. Host records are integrity-only: an unrestricted same-user process
+able to rewrite and rehash the entire history remains outside this boundary.

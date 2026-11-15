@@ -10,7 +10,7 @@
 
 "B3":{"admission":"guarded-effect","authority":"Operator selects disposition: pending-acceptance/deferred stay open; rejected/abandoned/superseded/split may close.","effect":"Operator non-completion comment/optional close; successful closure refused","effect_points":["p071ac76335d0"],"gates":["p450583015d97","pa4ceac5aa877","pb5c7f2f2e1da","p0ae7e29567e5"],"limits":"Zero Beads calls for successful aliases/open outcomes with close. Superseded/split/rejected/abandoned positive comments then closes; pending/deferred may comment only. Close failure after comment is partial persistence.","manual_decisions":["M02"],"ordering":"checked_disposition then narrative/memory checks before comment; dry return; optional close after persisted comment.","trace_files":["scripts/close_bead_with_summary.py"],"witnesses":["w61ae78f5a19c:zero-effect-refusal:wc5061f401cf4","wc5061f401cf4:matched-positive"]},
 
-"B4":{"admission":"guarded-effect","authority":"Opaque supervisor registration + independently host-recorded acceptance/database identity, review/candidate/source custody.","effect":"Host-qualified successful closure production Beads effects","effect_points":["pa55ca9b25525"],"gates":["p1b16815d6782","p70469ad0d95a","p2c8898fa944b","p05564e03eb5f"],"limits":"Production is held. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. Default-off witness covers the shipped flag and registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard.","manual_decisions":["M02","M03","M04"],"ordering":"Gate at registration/consume/_production_guard/_bd; validate repeatedly before each write; audit after confirmed close.","trace_files":["scripts/qualified_closure.py"],"witnesses":["closure-default-off","closure-consumer-adapter","closure-lifecycle-inspection","w2d147d34f1f4:matched-positive"]},
+"B4":{"admission":"guarded-effect","authority":"Opaque supervisor registration, exact baseline/candidate joined to original host-dispatch source context, independently verified acceptance, original observations and setup database identity.","effect":"Host-qualified successful closure production Beads effects","effect_points":["pa55ca9b25525"],"gates":["p1b16815d6782","p70469ad0d95a","p2c8898fa944b","p05564e03eb5f"],"limits":"Production is held. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. Default-off witness covers the shipped flag and registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage.","manual_decisions":["M02","M03","M04"],"ordering":"Gate at registration/consume/_production_guard/_bd; validate repeatedly before each write; audit after confirmed close.","trace_files":["scripts/close_bead_with_summary.py","scripts/qualified_closure.py","scripts/production_closure_authority.py","scripts/cwo_core/host_acceptance.py","scripts/cwo_core/host_records.py","scripts/qualified_workflow_adjudication.py","scripts/prepare_delivery_closure.py"],"witnesses":["closure-default-off","closure-consumer-adapter","closure-lifecycle-inspection","w2d147d34f1f4:matched-positive","closure-source-candidate","closure-source-candidate-only","closure-source-origin","closure-store-separation","closure-capture-context"]},
 
 "B5":{"admission":"guarded-effect","authority":"Explicit directory/database/actor and original default-bound structured runner; owned prestate not qualified completion.","effect":"Exact-prestate claim and owned close","effect_points":["pe0459714c462","p81f52913db2b"],"gates":["p8ad63c48fa2b","p0397d2ef80d3","R1B-87dc8ffd9fac26"],"limits":"Exact-show reads precede refusal. Zero additional update/close, not zero earlier successful claim. Explicit DB/actor and definition-bound runner; timeout/error reconciled by exact post-show without retry. Injected runner is trusted.","manual_decisions":["M02","M05"],"ordering":"Show exact prestate; refuse stale/preowned; at most one update/close; show exact poststate including timeout/error reconciliation.","trace_files":["scripts/cwo_core/native_pool_admission.py"],"witnesses":["w299907088a2a:zero-effect-refusal:wdbadf8483000"]},
 
@@ -402,7 +402,21 @@
 
 "tests/test_browser_share_consent.py",
 
-"tests/test_browser_share_dom.py"
+"tests/test_browser_share_dom.py",
+
+"tests/test_acceptance_product_flow.py",
+
+"tests/test_host_acceptance.py",
+
+"scripts/cwo_core/host_acceptance.py",
+
+"tests/test_workflow_adjudication.py",
+
+"tests/host_acceptance_fixtures.py",
+
+"tests/test_production_closure_authority.py",
+
+"scripts/production_closure_authority.py"
 ],
 
 "points":{
@@ -558,7 +572,7 @@
 
 "R1A-23ea5f6e9621e9":[4,1217,"guard.press(button)",24,1217,43],
 
-"R1A-2468805f7c8cc7":[48,491,"bridge([\"--db\", str(state.custody / \"EXAMPLE.db\"),\n                   \"--actor\", \"EXAMPLE-qualified-closure\", *args])",11,492,66],
+"R1A-2468805f7c8cc7":[48,498,"bridge([\"--db\", str(state.custody / \"EXAMPLE.db\"),\n                   \"--actor\", \"EXAMPLE-qualified-closure\", *args])",11,499,66],
 
 "R1A-25a6914a907e4f":[4,1125,"page.keyboard.press(\"Escape\")",12,1125,41],
 
@@ -630,7 +644,7 @@
 
 "R1A-91292172312f46":[19,334,"subprocess.run(executable_argv, cwd=cwd, env=environment, input=spec[\"stdin\"], text=True, capture_output=True, timeout=spec[\"timeout_seconds\"], shell=False)",24,334,180],
 
-"R1A-95d53aab5d9f3f":[12,381,"run_bd([\"close\", \"--reason\", close_reason, \"--\", clean_text(args.bead)])",12,381,84],
+"R1A-95d53aab5d9f3f":[12,384,"run_bd([\"close\", \"--reason\", close_reason, \"--\", clean_text(args.bead)])",12,384,84],
 
 "R1A-9a11f40c9116d1":[67,27,"run_bd(args)",22,27,34],
 
@@ -642,7 +656,7 @@
 
 "R1A-a29bc56031e553":[7,51,"subprocess.run([*command, *inventory], cwd=root, env=env,\n                            capture_output=True, text=True, check=False)",13,52,72],
 
-"R1A-a634298c375a7d":[12,376,"run_bd([\"comment\", \"--\", clean_text(args.bead), summary])",4,376,61],
+"R1A-a634298c375a7d":[12,379,"run_bd([\"comment\", \"--\", clean_text(args.bead), summary])",4,379,61],
 
 "R1A-ac062f7b1d41e2":[4,1384,"candidate.click(timeout=timeout_ms, force=True)",20,1384,67],
 
@@ -800,7 +814,7 @@
 
 "annotation-ruff-version-check":[7,46,"if initial.ruff_version() != RUFF:"],
 
-"annotation-version-test":[98,"ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive",952,"1d976528617ee874bd94c8cbaeaec4510677b31d83365a468a054e8bda64818a"],
+"annotation-version-test":[98,"ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive",954,"1d976528617ee874bd94c8cbaeaec4510677b31d83365a468a054e8bda64818a"],
 
 "beads-add-dependency-decl":[18,"add_dependency",347,"7ab5c75f5dbe3e70869ebe6ee81b9a6016c66495a6ff05f4f7ee5ddd5d292f16"],
 
@@ -1008,17 +1022,47 @@
 
 "checked-shell-mode":[19,298,"if spec[\"mode\"] == \"shell-source\":"],
 
-"closure-adapter-close":[48,685,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,685,67],
+"closure-adapter-close":[48,692,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,692,67],
 
-"closure-adapter-comment":[48,677,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,677,58],
+"closure-adapter-comment":[48,684,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,684,58],
 
-"closure-adapter-show":[48,535,"_bd(state, [\"show\", \"--json\", \"--include-comments\", \"--\", expected[\"id\"]])",10,535,84],
+"closure-adapter-show":[48,542,"_bd(state, [\"show\", \"--json\", \"--include-comments\", \"--\", expected[\"id\"]])",10,542,84],
+
+"closure-capture-context-body":[119,"ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access",73,"519cc665aef5e1a53cb4b88f5da35a5a64ea4c5b57dcf015534149dec4077436"],
+
+"closure-capture-context-check":[120,22,"if type(value) is not dict or set(value) != {\"task\", \"scope\", \"candidate\"}:"],
 
 "closure-consumer-adapter-body":[78,"F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control",70,"5e9119a96d7c542486ac60ccc955d0dea3ed2d9b3d0659f098ee757c2629a0d0"],
 
 "closure-default-off-body":[78,"F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control",23,"9727d19265d9f55de993f49c9ecbefb20600b38a4cc88d7ee27b546cb05a38da"],
 
-"closure-production-selection":[48,657,"if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:"],
+"closure-delivery-context-check":[116,204,"_need(type(source_context) is dict"],
+
+"closure-flow-custody":[114,"AcceptanceProductFlowTests.closure",57,"bedff8651cadcf04e802bb57026387ada057df920dc9ec7efbe6e612576b5341"],
+
+"closure-flow-provision":[114,"AcceptanceProductFlowTests.provision",34,"17fcdbf7a950e681f030e76f71e6c18f67fe14abc5c27e06615c4e933d7114c2"],
+
+"closure-host-fixture":[118,"provision_acceptance",10,"b421eb5073e55bc52b175616e67d1a6dc5f237a24216571ff6459245246b2377"],
+
+"closure-original-acceptance-positive":[114,"AcceptanceProductFlowTests.test_completed_adjudication_persists_once_then_real_closure_requires_every_phase",129,"b3bbdc07d6caf5760480bfd4651fb2be2ddf14dd0d7293474c6ad50a7d2f266c"],
+
+"closure-production-selection":[48,664,"if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:"],
+
+"closure-source-candidate-body":[114,"AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance",76,"192607830fac0710f577e5d39a88e3a2825d61af5372805aae27fe6e8721406f"],
+
+"closure-source-candidate-only-body":[114,"AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads",101,"ec214736db90d65094b6a72837a096009db5794bba628e694a0a03ae5f9338df"],
+
+"closure-source-evidence":[117,"delivery_evidence",22,"48d43dcd1d7859791b60b81b2c6bf442c0ad3b346236fbe682d97b52461f2c2f"],
+
+"closure-source-origin-body":[115,"HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest",45,"e60f60bff14fc83c6ab85e1cf6e25a344dc768508aee9e8aad810e15b689bbd8"],
+
+"closure-source-origin-check":[116,202,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
+
+"closure-source-request":[117,"WorkflowAdjudicationTests.source",109,"1170b00f6c1e3e932bc1e491d7bb46a631139bc2b17e39202e99e68ce5acb71e"],
+
+"closure-source-route":[117,"route_with_basis",33,"d76ef85b1db2ef4ecc454409dc3f19f2c251c025ad640018d214053c6d7b44cc"],
+
+"closure-store-separation-body":[92,"ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage",213,"c7bb04fd359aa9a620e2d667b90d929a2d3f7edaaba58b21915038a633c8458b"],
 
 "continue-list":[14,196,"_parent_query(parent_id, ready=False)",32,196,69],
 
@@ -1052,7 +1096,7 @@
 
 "d324c1c022d433e9f":[89,"NativePoolAdmissionTests.test_productive_n3_succeeds_and_forged_n4_rejects_before_claim",364,"2a7b45b66b247881754b04bdd81fac6893d73ad5f2adc0a7185f4f26cc877d8c"],
 
-"d358f4d2c9c2bf82f":[92,"ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io",192,"ba0db16bbdf1579fd493d49ef7904adb7d559231c36d81ebf7e3a18c76068491"],
+"d358f4d2c9c2bf82f":[92,"ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io",193,"ba0db16bbdf1579fd493d49ef7904adb7d559231c36d81ebf7e3a18c76068491"],
 
 "d377283012d4d4039":[85,"ControllerTests.test_missing_handle_wait_capabilities_refuse_before_creation",544,"e7483e496deee06468de55b344ba276409094f26feb022059a06c26c2af73644"],
 
@@ -1064,7 +1108,7 @@
 
 "d42a620d8225cd577":[32,"_review",1292,"097e6821a7f8cad0978ae4cb1092b91a2069918ab34c1ddb0b2a092f552239be"],
 
-"d4309a088cd21e1d3":[92,"ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls",126,"5db507d1e659df0c6598bd512b62fb2ccca06104099843e071183d3eff4bbd96"],
+"d4309a088cd21e1d3":[92,"ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls",127,"5db507d1e659df0c6598bd512b62fb2ccca06104099843e071183d3eff4bbd96"],
 
 "d4fe74b832f2674f8":[84,"Issue41DispatchMatrixTests.test_chrome_launcher_dry_run_and_operator_actions_use_only_expected_effects",434,"548f126bc0f29d64a35e8db3efa6b2353943ee6c83463fd1239bdfdd519af51e"],
 
@@ -1160,9 +1204,9 @@
 
 "dfc399bda23938878":[75,"ConfigureCodexBeadsHooksTests.test_valid_preview_never_writes_and_apply_persists_exact_managed_commands",27,"c9c7fb25ca6f07ac45e5920ac3598ace943bf8be4702ed3890487a5d113bea9a"],
 
-"disposition-call":[12,321,"checked_disposition(args.disposition, close=bool(args.close))",18,321,79],
+"disposition-call":[12,324,"checked_disposition(args.disposition, close=bool(args.close))",18,324,79],
 
-"disposition-validator":[12,"checked_disposition",199,"0ae219154507473534e82f36f41a053d226cb79c04ebd712d9547a6e1ab792a4"],
+"disposition-validator":[12,"checked_disposition",202,"0ae219154507473534e82f36f41a053d226cb79c04ebd712d9547a6e1ab792a4"],
 
 "dns-resolver-call":[35,804,"_resolve_local_endpoint_addresses(parsed.hostname, port)",16,804,72],
 
@@ -1200,11 +1244,11 @@
 
 "p04822b5d8bf0":[34,"WorktreeCapture._run_bound",2606,"a4a39c140f14aaa2542129d909520161df1d96039cd247cb35ec9e5619284cae"],
 
-"p05564e03eb5f":[48,478,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
+"p05564e03eb5f":[48,485,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
 
 "p060c62de6fe6":[36,"main",263,"49829ee88079922249d4770b5ef8b5aa0f8915beef6d4ccfb18c0ee71f94628c"],
 
-"p071ac76335d0":[12,376,"run_bd([\"comment\", \"--\", clean_text(args.bead), summary])"],
+"p071ac76335d0":[12,379,"run_bd([\"comment\", \"--\", clean_text(args.bead), summary])"],
 
 "p07fa211762b9":[18,361,"run_bd([\"dep\", \"add\", \"--type\", normalized, \"--\", bead_id_operand(blocked), bead_id_operand(blocker)])"],
 
@@ -1214,7 +1258,7 @@
 
 "p09c9c4f1c0eb":[33,775,"self.process.stdin.write("],
 
-"p0ae7e29567e5":[12,373,"if args.dry_run:"],
+"p0ae7e29567e5":[12,376,"if args.dry_run:"],
 
 "p0b075c8b663a":[21,"prepare_capture_binding",541,"62a8d76d6644a62380eb684c818896f7370da7ee4b7c7186ab6013bd79e4d252"],
 
@@ -1256,7 +1300,7 @@
 
 "p19d3bdaf89e3":[15,14,"if destination.exists() or destination.is_symlink():"],
 
-"p1b16815d6782":[48,300,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
+"p1b16815d6782":[48,306,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
 
 "p1bfaf69af5d8":[35,"main",2278,"cc2d1830b68bed1a1a621376431cfb93496caf8b5041c1129df1149a43b55ba8"],
 
@@ -1302,7 +1346,7 @@
 
 "p2b9ffe78eff6":[54,429,"R.live_availability.require_n1_live()"],
 
-"p2c8898fa944b":[48,408,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
+"p2c8898fa944b":[48,415,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
 
 "p2cdb9c179c2d":[64,410,"process = subprocess.Popen("],
 
@@ -1348,7 +1392,7 @@
 
 "p409fc36a6465":[56,355,"live_availability.require_pool_live()"],
 
-"p413e63f7b2ca":[98,"ReleaseEffectRoutesTests._dns_pair",1269,"9860a61a6c1a512153a195f37700e90ba28b301be2874e4a11cea665062a2849"],
+"p413e63f7b2ca":[98,"ReleaseEffectRoutesTests._dns_pair",1271,"9860a61a6c1a512153a195f37700e90ba28b301be2874e4a11cea665062a2849"],
 
 "p4256930bc441":[58,412,"count = os.write(writer.descriptor, frame)"],
 
@@ -1364,7 +1408,7 @@
 
 "p44f25f573d59":[66,269,"if unmet:"],
 
-"p450583015d97":[12,202,"if disposition not in NON_COMPLETION_DISPOSITIONS:"],
+"p450583015d97":[12,205,"if disposition not in NON_COMPLETION_DISPOSITIONS:"],
 
 "p4533c604f2f7":[3,"main",106,"cff6a893c69f541268410a7b79878f3e3a132863759eb4ad4326c45e7d9f0954"],
 
@@ -1380,7 +1424,7 @@
 
 "p47fb20aa56be":[7,171,"runpy.run_path(str(paths[1]), run_name=\"__w21_measurement__\")"],
 
-"p482b14ba5196":[98,"ReleaseEffectRoutesTests._git_pair",1221,"9ea51b3dd775b09c05711df0fc22507e51ad2470e896207c95ab8744467f27a5"],
+"p482b14ba5196":[98,"ReleaseEffectRoutesTests._git_pair",1223,"9ea51b3dd775b09c05711df0fc22507e51ad2470e896207c95ab8744467f27a5"],
 
 "p489282383484":[33,677,"self.process.stdin.write(json.dumps(payload, separators=(\",\", \":\")) + \"\\n\")"],
 
@@ -1428,7 +1472,7 @@
 
 "p59f4cf3df434":[33,748,"_require_native_rpc(method)"],
 
-"p5a1aa39d6bc6":[98,"ReleaseEffectRoutesTests._driver_pair",1244,"fbdd7ea1d56e2f31eb9808b37bbb97066c2388e2164e39f339bbd64c1ad0eb90"],
+"p5a1aa39d6bc6":[98,"ReleaseEffectRoutesTests._driver_pair",1246,"fbdd7ea1d56e2f31eb9808b37bbb97066c2388e2164e39f339bbd64c1ad0eb90"],
 
 "p5a2dd0d97579":[59,"_load_runtime",34,"20b0a4030b1e7ba1ff80dcbba8641705bdae8947f82667f4003c095a6cd331a7"],
 
@@ -1462,7 +1506,7 @@
 
 "p66a9973a696b":[13,400,"validate_advisory_hook_configuration(existing, context=f\"existing hooks file {hooks_file}\")"],
 
-"p67892f5871ab":[12,"execute_qualified_completed",58,"bccbf21608e00210bdd012ce5240ee4067d446748e4261003d784faeefc66796"],
+"p67892f5871ab":[12,"execute_qualified_completed",57,"a661a0599cf28a451867dbe803ea4ac95840ac68ec17940d1645cdd1a49ed08f"],
 
 "p68d6146d4507":[35,754,"records = socket.getaddrinfo(host, port or 0, type=socket.SOCK_STREAM)"],
 
@@ -1490,7 +1534,7 @@
 
 "p6ff83f0dd18c":[34,412,"if not _trustworthy(real):"],
 
-"p70469ad0d95a":[48,658,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
+"p70469ad0d95a":[48,665,"_need(PRODUCTION_CLOSURE_AVAILABLE is True,"],
 
 "p70cdb325f808":[6,"main",308,"e2120aebb5a95ccbfa0da03a398c3d08026254291393433338fa27b0a635dce6"],
 
@@ -1500,7 +1544,7 @@
 
 "p7559a0cb6877":[15,"main",21,"793854c53e135dbbbc4ea74f2ba5a2d768740f9113b9236fae2a434fa06251b8"],
 
-"p756929d3a7fd":[98,"ReleaseEffectRoutesTests._expert_pair",1291,"91b48bdf3f7cc2af1615b7e3d0a9034cd46855a890a69baf82a0d4692e9dacfb"],
+"p756929d3a7fd":[98,"ReleaseEffectRoutesTests._expert_pair",1293,"91b48bdf3f7cc2af1615b7e3d0a9034cd46855a890a69baf82a0d4692e9dacfb"],
 
 "p764be604293f":[46,46,"server = ThreadingHTTPServer((\"127.0.0.1\", args.port), partial(PagesHandler, directory=str(DOCS)))"],
 
@@ -1644,9 +1688,9 @@
 
 "pa4397c555b83":[30,1502,"if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:"],
 
-"pa4ceac5aa877":[12,204,"if disposition in OPEN_DISPOSITIONS and close:"],
+"pa4ceac5aa877":[12,207,"if disposition in OPEN_DISPOSITIONS and close:"],
 
-"pa55ca9b25525":[48,484,"return state.bridge(args)"],
+"pa55ca9b25525":[48,491,"return state.bridge(args)"],
 
 "pa57930afae4c":[38,"main",342,"2b7d82b549f71c1da4f1362cca3a36ea55403c4435d90049e25ace98e2f8b323"],
 
@@ -1658,7 +1702,7 @@
 
 "pa8139f109d6d":[25,"_Runtime.prepare",428,"3814cb915d84c3bc17886d14ce4942c9c5b13092600841c6e296365b98c8f779"],
 
-"pa8189f76d6ef":[48,"consume",647,"19bafcf3e50422729361b6b5ff0394e51ee22444b8423eaf881804ed08f6d497"],
+"pa8189f76d6ef":[48,"consume",654,"19bafcf3e50422729361b6b5ff0394e51ee22444b8423eaf881804ed08f6d497"],
 
 "pa8fba15123a1":[7,151,"if path.is_symlink() or not path.is_file() or path.resolve() != path.absolute():"],
 
@@ -1678,7 +1722,7 @@
 
 "pac5bbe477222":[18,"run_bd_structured",58,"d781473c3e5561ed87b7858716b135c9f398f6ad814100d5468acc378a0dad62"],
 
-"pace53901f4fd":[12,"execute",320,"58a3653bb306aff1533993e25a8a9499fe94a579bab5278f856417488d612917"],
+"pace53901f4fd":[12,"execute",323,"58a3653bb306aff1533993e25a8a9499fe94a579bab5278f856417488d612917"],
 
 "pacea48096199":[40,217,"write_config \"$CONFIG_PATH\" \"$PORT\""],
 
@@ -1686,11 +1730,11 @@
 
 "pae309cccfa1f":[33,136,"if method not in {\"initialize\", \"initialized\", \"thread/read\", \"turn/interrupt\", \"thread/archive\",\n                      \"thread/delete\", \"model/list\", \"mcpServerStatus/list\"}:"],
 
-"pafbef5ee0ec9":[12,"main",429,"6fc44a99948c0050a326d57516832c50458641219b57d849426a058d8f6727ee"],
+"pafbef5ee0ec9":[12,"main",434,"6fc44a99948c0050a326d57516832c50458641219b57d849426a058d8f6727ee"],
 
 "pb1bbf1658aa1":[25,429,"live_availability.require_n1_live()"],
 
-"pb1ea553b1fd1":[98,"ReleaseEffectRoutesTests._probe_listener_pair",1150,"a7331d6647368b4a62f7f058ce8d621d1fa2ee86b6054608c740195e344120f9"],
+"pb1ea553b1fd1":[98,"ReleaseEffectRoutesTests._probe_listener_pair",1152,"a7331d6647368b4a62f7f058ce8d621d1fa2ee86b6054608c740195e344120f9"],
 
 "pb1f4ea440bb2":[35,371,"self.sock = self._create_connection("],
 
@@ -1702,7 +1746,7 @@
 
 "pb446127342e0":[8,869,"status[\"install_manifest_path\"] = str(write_install_manifest(target_dir, status))"],
 
-"pb5c7f2f2e1da":[12,322,"checked_narrative(args)"],
+"pb5c7f2f2e1da":[12,325,"checked_narrative(args)"],
 
 "pb7743f2fed64":[13,"run_codex_version",49,"fd47de1c55288c088ae966e7d4bdf9a6113aac15167bd294fc5987126306f6f9"],
 
@@ -1774,7 +1818,7 @@
 
 "pdf772940be3e":[25,783,"completed = subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,"],
 
-"pdf8e06293dfc":[98,"ReleaseEffectRoutesTests._installer_pair",1193,"3de241f3f15ae7f3dcf2a96dfc30cf3038dcc60ba61e4a1981ff83e967ddaf0d"],
+"pdf8e06293dfc":[98,"ReleaseEffectRoutesTests._installer_pair",1195,"3de241f3f15ae7f3dcf2a96dfc30cf3038dcc60ba61e4a1981ff83e967ddaf0d"],
 
 "pe0459714c462":[30,444,"result = self._run((\"update\", \"--claim\", \"--json\", \"--\", issue_id))"],
 
@@ -1860,7 +1904,7 @@
 
 "pfa947ed0fe64":[35,800,"if not literal_host and hostname not in {\"localhost\"} and not allow_private_dns:"],
 
-"pfd5dca9ef8f1":[48,"production_custody",289,"1b6d3782e0b54b2db5f197face242e463dcf63417952203a8022ba63c8ba79ae"],
+"pfd5dca9ef8f1":[48,"production_custody",295,"38e881ac738c56eb3600687f6867644948ce16f7bea738528b1aef53a5d9b8b8"],
 
 "pfedc01113cd0":[4,672,"browser = playwright.chromium.connect_over_cdp(self._destination_url(cdp, source))"],
 
@@ -1894,7 +1938,7 @@
 
 "profile-existing-file-check":[42,73,"if path.exists():"],
 
-"q0":[98,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1319,"699561c960a2189981cdd63a23de8a3ccff70ff2d0b1f99237d65a4cf60dfa04"],
+"q0":[98,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1321,"699561c960a2189981cdd63a23de8a3ccff70ff2d0b1f99237d65a4cf60dfa04"],
 
 "q1":[18,187,"completed = subprocess.run("],
 
@@ -2795,30 +2839,6 @@
 "hits":[
 [0,65,8,68,9,"process","3ca9356381fd969c8c9412e96a02c0a7fb899d209b3be21ae38fda6c86e1e1ae",["route","B8.1","R1A-cf14aba96be3e5"]],
 
-[82,72,13,72,41,"dynamic","4fb1e950480161e109303247cc67e8c8ef51273b9dea1e272154999cdda8abaa",["exclude","browser-original-method-lookup"]],
-
-[82,78,12,78,46,"dynamic","3a445be4aaf82403a431caaaa31e85b70b9f7660807e49a974c1066329bc5a7f",["exclude","browser-current-receiver"]],
-
-[82,78,50,78,85,"dynamic","00455eef45eed2ff8da2eb859280cafa89717c812c4bd78cdec4123fa7b08b40",["exclude","browser-original-receiver"]],
-
-[82,79,16,79,53,"dynamic","a4adef2fa8fd0e2537e820bf408faed6744764fdfd7772b48727515da2a22e2d",["exclude","browser-current-function"]],
-
-[82,79,57,79,96,"dynamic","0fb6077cade91de5735ff914436c41097b9ad13a13e826408d5215628ef14abb",["exclude","browser-original-function"]],
-
-[82,83,18,83,40,"dynamic","73b3757eb128f67a8270bf4ba0dc53df6fe86f12b1194ee863de4b606c58f4e0",["exclude","share-lookup-0"]],
-
-[82,84,24,84,52,"dynamic","4fb1e950480161e109303247cc67e8c8ef51273b9dea1e272154999cdda8abaa",["exclude","share-lookup-1"]],
-
-[82,176,22,176,41,"dynamic","7fbdb66bda3f6bb418283592016900ca0b5f3fdefcdfccd5e6f3b86e993618fc",["exclude","browser-result-field"]],
-
-[82,276,48,276,56,"dynamic","b33946401e7b601f3b3f45aeceed558ddde5d2a10ba31c95cfa007349929f1e8",["exclude","share-lookup-2"]],
-
-[82,491,19,492,76,"dynamic","48ac79448b6dececcd83b1cd1fe441a175e48a969c80ae6269f4512de17d3995",["exclude","browser-registered-action-call"]],
-
-[82,538,19,538,58,"dynamic","17c94b2b057ceb65ace30d3d42732783ac1c5d332f1b43e7b12f3ddd5b974424",["exclude","browser-registered-send-forward"]],
-
-[83,234,15,234,56,"browser","73cfe637971840a22284b868ba45afd81287381995c5a0bc8e53047d18b2bbb1",["route","H5.7","share-eval"]],
-
 [1,374,11,374,44,"dynamic","f95c6d3829ed85c6295a213b7ae9bdd5a4cc907455c6f6892cf229ace7fe9f48",["exclude","XR001-namespace"]],
 
 [1,384,11,384,56,"dynamic","a77d96730f4872c08135ca99f2412940ad66d9270821aa1a08635a2331a45c4d",["exclude","XR002-namespace"]],
@@ -2947,29 +2967,29 @@
 
 [6,113,13,116,5,"process","3b8f67b55e86fc19777f692eea0b2dcaeef4633a7a210d59c63e79c64e6bd591",["route","X6.5","R1A-0ec6141bb329d2"]],
 
-[7,293,7,293,42,"dynamic","07f02f97a99290ee898fff05eabc693a0f300d55a2c43d705d20ddbeeb9016fe",["exclude","XR052-namespace"]],
+[7,296,7,296,42,"dynamic","07f02f97a99290ee898fff05eabc693a0f300d55a2c43d705d20ddbeeb9016fe",["exclude","XR052-namespace"]],
 
-[7,299,27,299,46,"dynamic","fccc57f95b4617e13fa018c64d8cc275b7cc6f547263c600fe18d094a3b2b102",["exclude","XR053-namespace"]],
+[7,302,27,302,46,"dynamic","fccc57f95b4617e13fa018c64d8cc275b7cc6f547263c600fe18d094a3b2b102",["exclude","XR053-namespace"]],
 
-[7,310,20,310,45,"dynamic","9e285f13caebf5d35e1f906c973a8cb6fb966ac8e3ac3bbf5795ab6e655c19e1",["exclude","XR054-namespace"]],
+[7,313,20,313,45,"dynamic","9e285f13caebf5d35e1f906c973a8cb6fb966ac8e3ac3bbf5795ab6e655c19e1",["exclude","XR054-namespace"]],
 
-[7,323,19,323,52,"dynamic","d7320aeb029337f16da654b0a6bf7368deea7b6de6c2ace091b35c8433af280f",["exclude","XR055-namespace"]],
+[7,326,19,326,52,"dynamic","d7320aeb029337f16da654b0a6bf7368deea7b6de6c2ace091b35c8433af280f",["exclude","XR055-namespace"]],
 
-[7,324,19,324,52,"dynamic","1308f9b4fcc57072343095dccda7dc02f91d0817f79cddea90ceffdaab6388ce",["exclude","XR056-namespace"]],
+[7,327,19,327,52,"dynamic","1308f9b4fcc57072343095dccda7dc02f91d0817f79cddea90ceffdaab6388ce",["exclude","XR056-namespace"]],
 
-[7,325,20,325,54,"dynamic","054678a61e342a8f75678b381e11d8e6c2ef5992c65ad808ffcd37994819ee03",["exclude","XR057-namespace"]],
+[7,328,20,328,54,"dynamic","054678a61e342a8f75678b381e11d8e6c2ef5992c65ad808ffcd37994819ee03",["exclude","XR057-namespace"]],
 
-[7,326,18,326,50,"dynamic","5a394f0c2717b494103abc748ed398133cf10a0f89c75e2c468995800945c47a",["exclude","XR058-namespace"]],
+[7,329,18,329,50,"dynamic","5a394f0c2717b494103abc748ed398133cf10a0f89c75e2c468995800945c47a",["exclude","XR058-namespace"]],
 
-[7,327,21,327,56,"dynamic","b1a71433318a435b7aad052069de759ed7e8faeaef4ffef091909f34c52009d1",["exclude","XR059-namespace"]],
+[7,330,21,330,56,"dynamic","b1a71433318a435b7aad052069de759ed7e8faeaef4ffef091909f34c52009d1",["exclude","XR059-namespace"]],
 
-[7,341,7,341,41,"dynamic","167b126ed6d79066ecbb3b96b8c8a88cfb5f57f5d469e5438071afd349fda90a",["exclude","XR060-namespace"]],
+[7,344,7,344,41,"dynamic","167b126ed6d79066ecbb3b96b8c8a88cfb5f57f5d469e5438071afd349fda90a",["exclude","XR060-namespace"]],
 
-[7,367,27,367,61,"dynamic","167b126ed6d79066ecbb3b96b8c8a88cfb5f57f5d469e5438071afd349fda90a",["exclude","XR061-namespace"]],
+[7,370,27,370,61,"dynamic","167b126ed6d79066ecbb3b96b8c8a88cfb5f57f5d469e5438071afd349fda90a",["exclude","XR061-namespace"]],
 
-[7,376,4,376,61,"beads","5e7ace2c191041c4889c52aa9822eff1faf51742a3d3d35d5bf2357b0e2d5ead",["route","B3.2","R1A-a634298c375a7d"]],
+[7,379,4,379,61,"beads","5e7ace2c191041c4889c52aa9822eff1faf51742a3d3d35d5bf2357b0e2d5ead",["route","B3.2","R1A-a634298c375a7d"]],
 
-[7,381,12,381,84,"beads","fc624adc87ae368a5a97a1442aea653ab3fa9e9f73e11e035ccc753a2e86ba94",["route","B3.2","R1A-95d53aab5d9f3f"]],
+[7,384,12,384,84,"beads","fc624adc87ae368a5a97a1442aea653ab3fa9e9f73e11e035ccc753a2e86ba94",["route","B3.2","R1A-95d53aab5d9f3f"]],
 
 [8,51,17,58,9,"process","17758ec6a374a7c9ac2dd1b3b0e8d43ed46dfe6002f051521ce1716dfe03732b",["route","N11.1","R1A-2b370ce631865c"]],
 
@@ -3615,15 +3635,15 @@
 
 [63,293,54,293,87,"dynamic","6b539ab04f1a98112dad4fac88fb597ddc6413ff47132dd6b5bb1a396382f9bf",["exclude","XR338-adjudication-callback"]],
 
-[64,491,11,492,66,"beads","55092020f9126d0761a6f12d37e5187701104eb7e344b5e29964d98dca92648b",["exclude","guard-scope-23e98ef81a80a3"]],
+[64,498,11,499,66,"beads","55092020f9126d0761a6f12d37e5187701104eb7e344b5e29964d98dca92648b",["exclude","guard-scope-23e98ef81a80a3"]],
 
-[64,491,11,492,66,"dynamic","55092020f9126d0761a6f12d37e5187701104eb7e344b5e29964d98dca92648b",["exclude","XR340-example-bridge"]],
+[64,498,11,499,66,"dynamic","55092020f9126d0761a6f12d37e5187701104eb7e344b5e29964d98dca92648b",["exclude","XR340-example-bridge"]],
 
-[64,535,10,535,84,"beads","5739bb06c1e78a8e2ddc382ccffc0dbe66631fdab5877e886b60d8c3cb9b9607",["exclude","guard-scope-96050b233982b6"]],
+[64,542,10,542,84,"beads","5739bb06c1e78a8e2ddc382ccffc0dbe66631fdab5877e886b60d8c3cb9b9607",["exclude","guard-scope-96050b233982b6"]],
 
-[64,677,8,677,58,"beads","688891c9f68a9e40644af047711eec5bbdb389e08bbb0dbc1c8273f39cfd5a26",["route","B4.3","closure-adapter-comment"]],
+[64,684,8,684,58,"beads","688891c9f68a9e40644af047711eec5bbdb389e08bbb0dbc1c8273f39cfd5a26",["route","B4.3","closure-adapter-comment"]],
 
-[64,685,8,685,67,"beads","fd19af61b6001cf3f329c9c333570c4c9cdc418fe87ec22363593b7653f57f57",["route","B4.3","closure-adapter-close"]],
+[64,692,8,692,67,"beads","fd19af61b6001cf3f329c9c333570c4c9cdc418fe87ec22363593b7653f57f57",["route","B4.3","closure-adapter-close"]],
 
 [65,134,14,134,48,"dynamic","bd6ebc2cc403a20668ccf6cbfccc0d44411109d9ad69b362640948b5361ed3f4",["exclude","XR341-archive-identity"]],
 
@@ -3793,7 +3813,31 @@
 
 [80,2572,7,2572,35,"dynamic","66a339e6322b74fea8133b75bed5791305a9d34d910742112ba7390a31c5c4f7",["exclude","XR416-namespace"]],
 
-[81,373,14,373,47,"dynamic","8eaf1f84aedb7d9844918bfedd8db1d69c82a042bfef4512bf974efa3f9754d5",["exclude","XR417-module-origin"]]
+[81,373,14,373,47,"dynamic","8eaf1f84aedb7d9844918bfedd8db1d69c82a042bfef4512bf974efa3f9754d5",["exclude","XR417-module-origin"]],
+
+[82,72,13,72,41,"dynamic","4fb1e950480161e109303247cc67e8c8ef51273b9dea1e272154999cdda8abaa",["exclude","browser-original-method-lookup"]],
+
+[82,78,12,78,46,"dynamic","3a445be4aaf82403a431caaaa31e85b70b9f7660807e49a974c1066329bc5a7f",["exclude","browser-current-receiver"]],
+
+[82,78,50,78,85,"dynamic","00455eef45eed2ff8da2eb859280cafa89717c812c4bd78cdec4123fa7b08b40",["exclude","browser-original-receiver"]],
+
+[82,79,16,79,53,"dynamic","a4adef2fa8fd0e2537e820bf408faed6744764fdfd7772b48727515da2a22e2d",["exclude","browser-current-function"]],
+
+[82,79,57,79,96,"dynamic","0fb6077cade91de5735ff914436c41097b9ad13a13e826408d5215628ef14abb",["exclude","browser-original-function"]],
+
+[82,83,18,83,40,"dynamic","73b3757eb128f67a8270bf4ba0dc53df6fe86f12b1194ee863de4b606c58f4e0",["exclude","share-lookup-0"]],
+
+[82,84,24,84,52,"dynamic","4fb1e950480161e109303247cc67e8c8ef51273b9dea1e272154999cdda8abaa",["exclude","share-lookup-1"]],
+
+[82,176,22,176,41,"dynamic","7fbdb66bda3f6bb418283592016900ca0b5f3fdefcdfccd5e6f3b86e993618fc",["exclude","browser-result-field"]],
+
+[82,276,48,276,56,"dynamic","b33946401e7b601f3b3f45aeceed558ddde5d2a10ba31c95cfa007349929f1e8",["exclude","share-lookup-2"]],
+
+[82,491,19,492,76,"dynamic","48ac79448b6dececcd83b1cd1fe441a175e48a969c80ae6269f4512de17d3995",["exclude","browser-registered-action-call"]],
+
+[82,538,19,538,58,"dynamic","17c94b2b057ceb65ace30d3d42732783ac1c5d332f1b43e7b12f3ddd5b974424",["exclude","browser-registered-send-forward"]],
+
+[83,234,15,234,56,"browser","73cfe637971840a22284b868ba45afd81287381995c5a0bc8e53047d18b2bbb1",["route","H5.7","share-eval"]]
 ],
 
 "paths":[
@@ -3980,11 +4024,11 @@
 
 {"contract":"B3","effect_points":["p071ac76335d0","R1A-a634298c375a7d","R1A-95d53aab5d9f3f"],"entrypoint":"pace53901f4fd","gate_chains":[{"calls":[{"call":"disposition-call","direction":"return","target":"disposition-validator"}],"effect":"p071ac76335d0","gate":"p450583015d97"},{"calls":[{"call":"disposition-call","direction":"return","target":"disposition-validator"}],"effect":"p071ac76335d0","gate":"pa4ceac5aa877"}],"id":"B3.2"},
 
-{"contract":"B4","entrypoint":"p67892f5871ab","gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect.","gates":["p05564e03eb5f"],"id":"B4.1","review_gates":["p1b16815d6782","p70469ad0d95a","p2c8898fa944b"],"trace_files":["scripts/close_bead_with_summary.py","scripts/qualified_closure.py"]},
+{"contract":"B4","entrypoint":"p67892f5871ab","gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p05564e03eb5f"],"id":"B4.1","review_gates":["p1b16815d6782","p70469ad0d95a","p2c8898fa944b","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check"],"trace_files":["scripts/close_bead_with_summary.py","scripts/qualified_closure.py","scripts/production_closure_authority.py","scripts/cwo_core/host_acceptance.py","scripts/cwo_core/host_records.py","scripts/qualified_workflow_adjudication.py","scripts/prepare_delivery_closure.py"]},
 
-{"contract":"B4","entrypoint":"pfd5dca9ef8f1","gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect.","gates":["p05564e03eb5f"],"id":"B4.2","review_gates":["p1b16815d6782","p70469ad0d95a","p2c8898fa944b"]},
+{"contract":"B4","entrypoint":"pfd5dca9ef8f1","gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p05564e03eb5f"],"id":"B4.2","review_gates":["p1b16815d6782","p70469ad0d95a","p2c8898fa944b","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check"]},
 
-{"contract":"B4","effect_points":["pa55ca9b25525","closure-adapter-comment","closure-adapter-close"],"entrypoint":"pa8189f76d6ef","gate_limits":"Custody creation and the stored production callback require lifecycle review; consume and adapter checks bind their own calls. Production-only consume admission is selected by the outer registered-bridge condition; EXAMPLE bridges retain their separate contract.","gates":["p05564e03eb5f","closure-production-selection"],"id":"B4.3","limits":"Production is held. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. The EXAMPLE-only bridge branch has its own custody contract, not the production hold. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review. Default-off witness covers the shipped flag and registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard.","review_gates":["p1b16815d6782","p2c8898fa944b","p70469ad0d95a"]},
+{"contract":"B4","effect_points":["pa55ca9b25525","closure-adapter-comment","closure-adapter-close"],"entrypoint":"pa8189f76d6ef","gate_limits":"Custody creation and the stored production callback require lifecycle review; consume and adapter checks bind their own calls. Production-only consume admission is selected by the outer registered-bridge condition; EXAMPLE bridges retain their separate contract. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p05564e03eb5f","closure-production-selection"],"id":"B4.3","limits":"Production is held. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. The EXAMPLE-only bridge branch has its own custody contract, not the production hold. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review. Default-off witness covers the shipped flag and registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage.","review_gates":["p1b16815d6782","p2c8898fa944b","p70469ad0d95a","closure-source-origin-check","closure-delivery-context-check","closure-capture-context-check"]},
 
 {"contract":"B5","effect_points":["pe0459714c462"],"entrypoint":"p510c5cb4e4e1","gate_limits":"Expected pre-hash is optional; the nested mismatch check is conditional on a supplied digest. The close-owned check belongs to the sibling method. Neither is an unconditional claim gate.","gates":["p0397d2ef80d3"],"id":"B5.1","review_gates":["p8ad63c48fa2b","R1B-87dc8ffd9fac26"],"selector":"claim zero-update witness"},
 
@@ -4278,7 +4322,7 @@
 
 "scripts/cleanup_stale_agents.py":{"mode":493,"sha256":"b1efd8bfc45345a64fdc5e89ec11c972c56cb8ad0557ac88aa86ef285cffc1a8","size":25019},
 
-"scripts/close_bead_with_summary.py":{"mode":420,"sha256":"725c9cfdb88b504e06deadd6e1a3dc5b714720e5572beded98542d1e24bb7d2b","size":20641},
+"scripts/close_bead_with_summary.py":{"mode":420,"sha256":"70891f6625a07d15882eb2cb2e3f675aa84df4912288427ea7be86350392afd3","size":20936},
 
 "scripts/coach_prompt.py":{"mode":493,"sha256":"473fe93a87544e147b58694c095255a8daa5014300fc85616a33e028c26d318d","size":12744},
 
@@ -4316,7 +4360,7 @@
 
 "scripts/cwo_core/browser_provenance.py":{"mode":420,"sha256":"e3b6feb3de6eba537e86599d19e5935a2b2b35360be1b2c4e73e0d41529f0a39","size":18381},
 
-"scripts/cwo_core/candidate_identity.py":{"mode":420,"sha256":"02aac60f74a03c422d2e8b29c806a0236c84939cba384ce47aac7f8b073877c7","size":45877},
+"scripts/cwo_core/candidate_identity.py":{"mode":420,"sha256":"698564a974f5d85b803cb086a199f041f3ccacdd1a7e7a4d65a1c383ac7fc0ff","size":45976},
 
 "scripts/cwo_core/chatgpt_urls.py":{"mode":420,"sha256":"99f28a57df7fbbb84342be73d2ac19b1f10e7e22aa9a32c60c3d538d0fa3ecc2","size":1126},
 
@@ -4348,7 +4392,7 @@
 
 "scripts/cwo_core/harness.py":{"mode":420,"sha256":"5667221137c5909d3aa5cc1407f7e723dfb521384a94e5fbfca4fe0a6aa8b815","size":27083},
 
-"scripts/cwo_core/host_acceptance.py":{"mode":420,"sha256":"be69c29589309c2da10e21638304a071b1f81a2d7f296c5d206a24596f6cc4f1","size":15922},
+"scripts/cwo_core/host_acceptance.py":{"mode":420,"sha256":"980e88785fd4557cfa6f396e3151d6b9fa1c10798c6622b634673454978282b3","size":17572},
 
 "scripts/cwo_core/host_record_inventory.py":{"mode":420,"sha256":"f278c0b50c2d931f3378769af398fdfc2fa93040b4af325aef13620c2b415f1c","size":1659},
 
@@ -4498,9 +4542,9 @@
 
 "scripts/cwo_core/qualification_target.py":{"mode":420,"sha256":"2a458c41cb155f8d22e5144ca27227da84ede1d296ed52d6fc12d6e0d194100f","size":2936},
 
-"scripts/cwo_core/release_effect_routes.py":{"mode":420,"sha256":"999123088cbff657e47f77550bb02be67b812ca4e9561a739cb37e476ee0ba6b","size":61377},
+"scripts/cwo_core/release_effect_routes.py":{"mode":420,"sha256":"9f1087ce064f833fa06e0ed53051c84a49b169a7d3e510469ad1053812e93955","size":61380},
 
-"scripts/cwo_core/requirement_baseline.py":{"mode":420,"sha256":"e5a912d39a7e9f10f35ab7b210c4c0e04de5db093c8bcc1545867b97919a90a6","size":20492},
+"scripts/cwo_core/requirement_baseline.py":{"mode":420,"sha256":"135681130a0046db14dc84fcd7c73a8f61fd1c8001b7cc467828565fca693420","size":20496},
 
 "scripts/cwo_core/return_boundary.py":{"mode":420,"sha256":"7e659e801a243582b905fad873ab51514a406839e13e935ec7cce9b2abb20465","size":12865},
 
@@ -4624,11 +4668,11 @@
 
 "scripts/offline_profile_input.py":{"mode":420,"sha256":"b36cf984901f82515cc9a5fa50f221e453eadf1ee89b43838b6bdbc6e71872e4","size":25405},
 
-"scripts/prepare_artifact_acceptance.py":{"mode":420,"sha256":"665d05341e70a39a69ffcd5a203bfe5d9f8f5f0817826988346311c0814d6e98","size":22891},
+"scripts/prepare_artifact_acceptance.py":{"mode":420,"sha256":"16548aae670b44a48c1db930ae6b03694d1f8de918aacb6846cc711e619f1ba3","size":22894},
 
 "scripts/prepare_combined_review_binding.py":{"mode":420,"sha256":"16c1fd2b3f41d568c0ee067b5f08aaa01005d55951e4e56245b971c938308c65","size":22323},
 
-"scripts/prepare_delivery_closure.py":{"mode":420,"sha256":"0e7f7a1902671e829ffc0910da09eac683b399e0c491831e88d58f1a6f187783","size":30294},
+"scripts/prepare_delivery_closure.py":{"mode":420,"sha256":"40bd0cda44b76c458a4794f2b32794e962180c9bd59cae9337bff807c25c1a15","size":30318},
 
 "scripts/prepare_final_review_binding.py":{"mode":420,"sha256":"ecfa7761649ddd7ebef371891f7b3842dbf7774906ab33f2d7d5497c31ba3ef3","size":14738},
 
@@ -4648,19 +4692,19 @@
 
 "scripts/prepare_server_request_frames.py":{"mode":420,"sha256":"b2a31e4d03b9c838299c790c86e6c070972b52ee7b82c98f33ed822ef53f5c40","size":9443},
 
-"scripts/prepare_validator_receipts.py":{"mode":420,"sha256":"d8908ca4a7d771e18ef6a946c86f5fe9e04e387912a108bbf3371a00132441b1","size":22218},
+"scripts/prepare_validator_receipts.py":{"mode":420,"sha256":"48bdbdd90668fbe058da7cccb57c78466b68ac583e797eca2b96da15987cc016","size":22221},
 
 "scripts/preview_site.py":{"mode":420,"sha256":"33c3bbd6d184cb9c2a0ac3b032a466bdbcbd6e75b08c11d53d9fa5959cd385ad","size":1726},
 
-"scripts/produce_validator_evidence.py":{"mode":420,"sha256":"21089a600bb0dbfdfe789d5fcbc5fdc75e932edaa52fbf462c13f831a7eb5cdb","size":17521},
+"scripts/produce_validator_evidence.py":{"mode":420,"sha256":"72f93d3bbb8b0ac98567ec351f4607aeb129db431e0649fd45cf6dfe78f8efec","size":17526},
 
-"scripts/production_closure_authority.py":{"mode":420,"sha256":"43b45cba109f41c4148c8fd5f87217e7cbba5d00fdb18545322021987a4a2544","size":2564},
+"scripts/production_closure_authority.py":{"mode":420,"sha256":"14fd545b5ec86e705d3b4f83c8364ed48a7eb672cfbc0f4068d8cc7d2323d7d5","size":3334},
 
 "scripts/profile_preparation_diagnostics.py":{"mode":420,"sha256":"6db6813abc257892d4e22e1994127e0f6969dfe9aaa0a00297384899a15fe6ae","size":12961},
 
 "scripts/qualified_adjudication.py":{"mode":420,"sha256":"71ba2af7640ba902aea23a86f7fd3205c844775269d29f25197872985a9265ba","size":16866},
 
-"scripts/qualified_closure.py":{"mode":420,"sha256":"e542a93427d358f6968a621255b3b6239e52b114ddc57297dbba99167e1025f3","size":34863},
+"scripts/qualified_closure.py":{"mode":420,"sha256":"ea2f38ca43b9ba74442647dd58e7c2a4c27de826921c1cce164de0bbab1bb042","size":35260},
 
 "scripts/qualified_n1_host.py":{"mode":420,"sha256":"8e810722ef1ab5c642c8e6984d2350ae0de135efa968b0cac42815376f4196a9","size":12500},
 
@@ -4668,7 +4712,7 @@
 
 "scripts/qualified_risk_use.py":{"mode":420,"sha256":"f89225010b9e0b35842c3cb21e6d5ec17f0a6c0055adbaf80751e6af0839dd54","size":13133},
 
-"scripts/qualified_workflow_adjudication.py":{"mode":420,"sha256":"6cd815375020ef63f5fb11b2bce9268087dd3413fb87f03ae281900f08dfd53d","size":28779},
+"scripts/qualified_workflow_adjudication.py":{"mode":420,"sha256":"0e1c3c7e9d685dd8c3774fa13a129bce164ce9c5d6ac81b80150dfc87864cd65","size":28838},
 
 "scripts/record_audit_event.py":{"mode":493,"sha256":"ae8100e6d066b55b61cc9dedba20b92172b0775d5ca95d1174e09c76a190e8e1","size":5255},
 
@@ -4768,7 +4812,11 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"78123d3056057b9fbadb156f29e107fed77d8b140eabc3ef1480cd3b66aeb76a","size":124962},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"44d8306005dbc9b7c80789b53a3f42e8f4da5fff57652faa50cd54281bea124d","size":124962},
+
+"tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"39a346be94280200fcd732c8f3a9a2113eb357fef8931575947e4334983d8be6","size":1797},
+
+"tests/test_acceptance_product_flow.py":{"mode":420,"sha256":"3100850955e5e89306bb6ba5baf61997f29031ac20d3ee53043f82086b9cec87","size":22376},
 
 "tests/test_authorize_sol_breakfix.py":{"mode":420,"sha256":"6b4e4c950e06644a5a2309f233bf2b9a80deb46076576641fe3abca01b62d970","size":5715},
 
@@ -4812,6 +4860,8 @@
 
 "tests/test_first_project.py":{"mode":420,"sha256":"8c834f22ee213349cd540aa2bb6ad388aacf415789555313d8ebb5c47b734913","size":2675},
 
+"tests/test_host_acceptance.py":{"mode":420,"sha256":"22f206f9e2abcce08b4b51017a3a10728aecd6efb9473f6342c3a3f457555d20","size":21891},
+
 "tests/test_install_projection.py":{"mode":420,"sha256":"42b3b8f0cf7710370b82899410ac4fcddaabccadd4435a8069e69b8c14746bf2","size":43442},
 
 "tests/test_instruction_profiles.py":{"mode":420,"sha256":"7ba2829a0fc4feb585ae0e26fab0d25fe39c631330f731880a0de5157ec4a13e","size":14595},
@@ -4834,7 +4884,9 @@
 
 "tests/test_offline_profile_input.py":{"mode":420,"sha256":"c87cb4b7ad0e04b0547636e50e80e482ccbeb787e23bac597b9b5412ba5968ed","size":34065},
 
-"tests/test_production_closure.py":{"mode":420,"sha256":"198af1389c14c8b12d78298586e92605fb201badfa9d02db2d849b92e40c0c6f","size":31778},
+"tests/test_production_closure.py":{"mode":420,"sha256":"d03eea546d335602d5e087247a7ea0ee53cf77e64e39b4a3e0f1129a779eb59a","size":33549},
+
+"tests/test_production_closure_authority.py":{"mode":420,"sha256":"66893acee456ee687335f40b14636b541b427824e4e40042555827dc038469c1","size":9957},
 
 "tests/test_qualified_review_dispatch.py":{"mode":420,"sha256":"14ef451068e8ae221ec820666b57f8ac7c97280f63b968938288cbf7a1f1d1d5","size":21798},
 
@@ -4846,7 +4898,7 @@
 
 "tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"65d759a58d9be3accd98b68a36aaab24d8e2d07222d84d16869a2bcd8172cedc","size":177528},
 
-"tests/test_release_effect_routes.py":{"mode":420,"sha256":"3af594f55440c472f30da5db7488e72a12fe06e9906ed74f2b8d80aa635d4116","size":84109},
+"tests/test_release_effect_routes.py":{"mode":420,"sha256":"a993527054db6db3c7ff2b270e3fbbbb3255fad25dde53b5cf191f37bbce4906","size":84278},
 
 "tests/test_release_filesystem.py":{"mode":420,"sha256":"5fcb7a33f91ad28f1041c1498a61d47f22a67d4b55027f786b5c1df64584e212","size":16860},
 
@@ -4865,6 +4917,8 @@
 "tests/test_validate_repository.py":{"mode":420,"sha256":"c690c6028c23e2709d92c473cbe369ae6cecee2ff81edd9caf98652921d296ea","size":30182},
 
 "tests/test_w20_affected_contract_w13.py":{"mode":420,"sha256":"e9b183ca86eeb6388898ed971a5a5d07c877e42728dd7816b5e3dc8a4efc41c7","size":86525},
+
+"tests/test_workflow_adjudication.py":{"mode":420,"sha256":"465f554a0c7d2566ee3485fd32d6d31727cef78b88b986f3abeea1cb54c3f4ab","size":38282},
 
 "tests/test_workspace_inert_inspection.py":{"mode":420,"sha256":"e4431b1a69b387499980c5b275eb66872bb7c01f88c86f79e87802c041bc41c9","size":288978}
 },
@@ -4920,11 +4974,21 @@
 
 "browser-share-admission":{"assertion":"self.assertEqual(len(calls), 0)","body":"browser-test-share-drift","kind":"zero-effect-refusal","positive":"self.assertEqual((len(page.sent), len(calls)), (1, 1))","support":["browser-test-share","browser-fixture-parent","browser-fixture-page","browser-fixture-handle"],"test_id":"tests.test_browser_connected.ConnectedBrowserTests.test_share_wrong_content_conversation_purpose_and_expiry_refuse_before_effect"},
 
+"closure-capture-context":{"assertion":"configured.assert_not_called()","body":"closure-capture-context-body","kind":"zero-effect-refusal","positive":"self.assertEqual(authority.capture(database='/EXAMPLE/database', bead_id='EXAMPLE-bead',","support":[],"test_id":"tests.test_production_closure_authority.ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access"},
+
 "closure-consumer-adapter":{"assertion":"self.assertEqual(guard.call_count, entries[0])","body":"closure-consumer-adapter-body","kind":"zero-effect-refusal","positive":"self.assertTrue(closure.execute_qualified_completed(host)[\"completed\"])","support":[],"test_id":"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control"},
 
 "closure-default-off":{"assertion":"self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, False)","body":"closure-default-off-body","kind":"zero-effect-refusal","positive":"self.assertEqual(result[\"state\"], \"COMPLETED\")","support":[],"test_id":"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control"},
 
 "closure-lifecycle-inspection":{"assertion":"io.assert_not_called()","body":"d358f4d2c9c2bf82f","kind":"inspection-only","positive":"self.assertEqual([e[0] for e in process.effects], [\"comment\", \"close\"])","support":["d4309a088cd21e1d3"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io"},
+
+"closure-source-candidate":{"assertion":"self.assertEqual(process.calls, [])","body":"closure-source-candidate-body","kind":"zero-effect-refusal","positive":"self.assertEqual([effect[0] for effect in process.effects], ['comment', 'close'])","support":["closure-original-acceptance-positive","closure-flow-provision","closure-flow-custody","closure-source-request","closure-source-evidence","closure-source-route","closure-host-fixture"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance"},
+
+"closure-source-candidate-only":{"assertion":"self.assertEqual(process.calls, [])","body":"closure-source-candidate-only-body","kind":"zero-effect-refusal","positive":"self.assertEqual([effect[0] for effect in process.effects], ['comment', 'close'])","support":["closure-original-acceptance-positive","closure-flow-provision","closure-flow-custody","closure-source-request","closure-source-evidence","closure-source-route","closure-host-fixture"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads"},
+
+"closure-source-origin":{"assertion":"self.assertEqual(before, {p.relative_to(self.store.state_root): p.read_bytes()","body":"closure-source-origin-body","kind":"zero-effect-refusal","positive":"self.assertEqual(require_acceptance(self.store, **args, **self.beacon,","support":["closure-host-fixture"],"test_id":"tests.test_host_acceptance.HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest"},
+
+"closure-store-separation":{"assertion":"self.assertEqual(process.calls, [])","body":"closure-store-separation-body","kind":"zero-effect-refusal","positive":"self.assertTrue(closure.execute_qualified_completed(host)['completed'])","support":["closure-host-fixture"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage"},
 
 "share-consent":{"assertion":"self.assertEqual(len(a.boundary.calls), 0)","body":"share-drift","kind":"zero-effect-refusal","positive":"self.assertEqual((result.status, len(a.boundary.calls)), (\"created\", 1))","support":["share-tests","share-bootstrap","share-fake","share-positive"],"test_id":"tests.test_browser_share_consent.ShareConsentTests.test_ordered_content_document_and_representation_drift_refuse"},
 

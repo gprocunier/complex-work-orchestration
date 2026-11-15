@@ -12,18 +12,17 @@ from typing import Any
 from cwo_core.beads import run_bd
 
 NO_VALUE = "None recorded."
-# Successful closure is unavailable until CWO can verify, before any Beads
-# write, a recorded requirement baseline, the exact delivered candidate and
-# passing evidence for every requirement (issue #37). Until then only these
-# accurate non-completion outcomes are recorded; anything else, including
-# every way of saying the work succeeded, is refused before Beads is touched.
+# Narrative dispositions grant no completion authority. Verified completion
+# uses the separately registered library consumer and its source availability
+# gate, exact baseline/candidate, original observations and host acceptance.
 NON_COMPLETION_DISPOSITIONS = ("pending-acceptance", "deferred", "rejected", "abandoned", "superseded", "split")
 # Outcomes after which the Bead stays open. pending-acceptance records delivered
 # work whose acceptance CWO has not verified; the operator decides on closure.
 OPEN_DISPOSITIONS = frozenset({"pending-acceptance", "deferred"})
 SUCCESS_UNAVAILABLE = (
-    "successful closure is unavailable: CWO cannot yet verify a recorded requirement baseline, the "
-    "delivered candidate and passing evidence for every requirement before writing to Beads (issue #37). "
+    "successful closure is unavailable through narrative dispositions (issue #37): this CLI does not consume "
+    "verified requirement, candidate and host acceptance records. The verified library consumer is "
+    "documented in references/run-readiness.md; its production availability remains held. "
     "Nothing was written. To record the work without claiming success, use an accurate non-completion "
     "disposition (" + ", ".join(NON_COMPLETION_DISPOSITIONS) + ") or leave the Bead open; the operator "
     "decides whether to close it"
@@ -56,7 +55,11 @@ def execute_offline_completed(
 
 
 def execute_qualified_completed(host: Any, *, dry_run: bool = False) -> dict[str, Any]:
-    """Consume an active supervisor registration; public CLI activation stays disabled."""
+    """Consume production_custody -> observe -> bind; production availability is held.
+
+    Caller summaries and serialized reports cannot replace the original issued
+    host. See references/run-readiness.md for the verified consumer contract.
+    """
     from qualified_closure import consume
 
     return consume(host, dry_run=dry_run)
@@ -292,7 +295,7 @@ def checked_narrative(args: argparse.Namespace) -> None:
     """ValueError, before any Beads write, if input could pass for the summary's own fields."""
     if getattr(args, "close_reason", None):
         raise ValueError(
-            "--close-reason is unavailable while successful closure is: the close reason is always "
+            "--close-reason is unavailable for narrative dispositions: the close reason is always "
             "'<disposition>: <why>'. Nothing was written"
         )
     for name in ("bead", "why"):
@@ -399,14 +402,16 @@ class PartialPersistence(Exception):
 
 def parser() -> argparse.ArgumentParser:
     cli = argparse.ArgumentParser(
-        description="Add a final closure-memory comment to a Bead and optionally close it."
+        description="Add a non-completion closure-memory comment to a Bead and optionally close it.",
+        epilog="Verified completion uses the registered library consumer described in references/run-readiness.md; "
+               "production availability remains held.",
     )
     cli.add_argument("--bead", required=True, help="Bead ID to comment on.")
     cli.add_argument(
         "--disposition",
         required=True,
         help="One of " + ", ".join(NON_COMPLETION_DISPOSITIONS) + ". Successful closure (completed, done, validated, ...) "
-        "is unavailable until verified acceptance exists, and is refused before any Beads write.",
+        "requires the separate verified library consumer and is refused here before any Beads write.",
     )
     cli.add_argument("--why", required=True, help="Short reason the Bead is being closed.")
     cli.add_argument("--who", dest="who_involved", action="append", default=[], help="Who was involved: agent, reviewer, operator, model lane, or team. Repeatable.")
@@ -420,7 +425,7 @@ def parser() -> argparse.ArgumentParser:
     cli.add_argument("--follow-up", action="append", default=[], help="Follow-up Bead, action, or 'none'. Repeatable.")
     cli.add_argument("--meaningful", action="store_true", help="Require full closure-memory fields for non-trivial Beads.")
     cli.add_argument("--close", action="store_true", help="Close the Bead after posting the closure comment.")
-    cli.add_argument("--close-reason", help="Unavailable while successful closure is; the reason is '<disposition>: <why>'.")
+    cli.add_argument("--close-reason", help="Unavailable for narrative dispositions; the reason is '<disposition>: <why>'.")
     cli.add_argument("--dry-run", action="store_true", help="Print what would be posted without calling bd.")
     cli.add_argument("--json", action="store_true", help="Print structured result JSON.")
     return cli

@@ -100,7 +100,8 @@ class ProductionClosureTests(unittest.TestCase):
             identity = store.setup_database_identity(db)
             process.store = store
             process.authority = provision_acceptance(
-                store, bead_id=contract["bead"]["id"], database_identity=identity)
+                store, bead_id=contract["bead"]["id"], database_identity=identity,
+                delivery_context=qualified._delivery_context(contract))
             with host_records.using_test_store(store), \
                     patch.object(subprocess, "run", side_effect=process), \
                     patch.object(shutil, "which", side_effect=process.lookup):
@@ -209,6 +210,30 @@ class ProductionClosureTests(unittest.TestCase):
             self.assertEqual(process.calls, before_calls)
             self.assertEqual(process.effects, [])
 
+    def test_host_record_store_cannot_overlap_database_storage(self):
+        """Host authority stays outside database custody as well as worker/custody roots."""
+        case = self.builders.compact()
+        with self.provisioned(case, directory_database=True) as (process, custody, database), \
+                patch.object(qualified, 'PRODUCTION_CLOSURE_AVAILABLE', True):
+            relocated = database / 'host-state'
+            process.store.state_root.rename(relocated)
+            store = host_records.HostRecordStore.for_tests(relocated)
+            before = {p.relative_to(custody.parent): p.read_bytes()
+                      for p in custody.parent.rglob('*') if p.is_file()}
+            with host_records.using_test_store(store), \
+                    self.assertRaisesRegex(original.ClosureError, 'overlap'):
+                with qualified.production_custody(str(custody), database=str(database),
+                        actor='EXAMPLE-supervisor', **process.authority):
+                    self.fail('overlapping database and host authority registered')
+            self.assertEqual(process.calls, [])
+            self.assertEqual(process.effects, [])
+            self.assertEqual(before, {p.relative_to(custody.parent): p.read_bytes()
+                                     for p in custody.parent.rglob('*') if p.is_file()})
+        with self.registered(case) as (host, process, custody):
+            self.reviewed(case, host, custody)
+            self.assertTrue(closure.execute_qualified_completed(host)['completed'])
+            self.assertEqual([e[0] for e in process.effects], ['comment', 'close'])
+
     def test_database_identity_is_rechecked_before_each_effect(self):
         """S4 effect recheck: a changed identity after comment prevents close."""
         case = self.builders.compact()
@@ -279,7 +304,8 @@ class ProductionClosureTests(unittest.TestCase):
                     parent / "host-state", worker_writable_roots=(Path(contract["root"]), custody))
                 authority = provision_acceptance(
                     store, bead_id=case.bead["id"],
-                    database_identity=store.setup_database_identity(database))
+                    database_identity=store.setup_database_identity(database),
+                    delivery_context=qualified._delivery_context(contract))
                 with host_records.using_test_store(store), \
                         patch.object(qualified, "PRODUCTION_CLOSURE_AVAILABLE", True), \
                         qualified.production_custody(str(custody), database=str(database), actor=actor,

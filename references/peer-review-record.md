@@ -138,7 +138,12 @@ are recorded by the product writers in disposable stores, never live model calls
 CWO closure acceptance is written by the existing completed adjudication
 control's `current()` observation through its internal `record_acceptance` path. The host reobserves the designated original completion,
 checks the exact return and evaluation, and records its autonomous acceptance and
-invocation receipt in this same chain. Closure recomputes the full and pending
+invocation receipt in this same chain. The original source request's independent
+context is retained in host dispatch metadata and copied into acceptance and its
+linked records. For closure, `scope` is the resolved requirement-baseline digest
+and `candidate` is the exact candidate-identity digest. Closure compares both to
+the independent custody contract; a same-task return or a legacy acceptance
+without those bindings is insufficient. Closure recomputes the full and pending
 evaluations from the recorded return, dispatch metadata and current policy before
 checking every required hold clearance. Generic record persistence cannot replace
 that acceptance receipt. Evidence or task holds without qualified clearance remain

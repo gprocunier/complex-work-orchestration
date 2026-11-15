@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Increase the release inventory limit from 528 to 540 KiB for the 547,353-byte integrated inventory, retaining 5,607 bytes of headroom without removing routes or bindings.
+- Bind production closure to the original host-accepted requirement baseline and exact delivered candidate, with current observations, hold clearances and database checks; keep host records outside database storage. Production availability remains held.
+- Document the verified closure library sequence separately from narrative non-completion summaries.
 - Require fresh consent for the complete final conversation disclosure, re-screen decoded content and final bytes, and refuse content, document or conversation drift before sharing; live browser submission and sharing remain unavailable.
 - Preserve exact multiline text when filling a contenteditable browser composer, while retaining the exact-text check before Send.
 

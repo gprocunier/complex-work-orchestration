@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read-only validator receipt consistency; successful closure stays unavailable."""
+"""Read-only validator receipt consistency; this helper grants no closure authority."""
 from __future__ import annotations
 
 import contextlib

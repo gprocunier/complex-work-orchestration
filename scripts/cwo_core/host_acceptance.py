@@ -102,7 +102,7 @@ class HostAcceptancePipeline:
                 "review evidence changed during adjudication")
         digest = pending_evaluation_sha256(frozen)
         context = dict(bead_id=bead_id, dispatch_id=dispatch_id, return_sha256=returned,
-                       evaluation_sha256=digest)
+                       evaluation_sha256=digest, source_context=_source_context(dispatch))
         evaluation_record = store.write_record("evaluation", **context, evaluation=frozen,
             pending_evaluation=pending, return_text=text, policy_sha256=policy_sha,
             dispatch_record_sha256=dispatch["_record_sha256"], return_record_sha256=receipt["_record_sha256"])
@@ -124,11 +124,25 @@ class HostAcceptancePipeline:
 
 def _host_inputs(dispatch, bead_id, dispatch_id):
     metadata = _copy(dispatch.get("evaluation_metadata") or {})
+    metadata.pop("source_context", None)
     forbidden = {"text", "bead_id", "dispatch_id", "packet_sha256", "executor", "provider_key", "peer_review_status",
                  "peer_review_record", "peer_review_reviewer"}
     _need(not forbidden.intersection(metadata), "dispatch metadata overrides host identity or review state")
     return {**metadata, "bead_id": bead_id, "dispatch_id": dispatch_id,
             "packet_sha256": dispatch.get("packet_sha256"), "executor": dispatch.get("executor"), "provider_key": dispatch.get("provider_key")}
+
+
+def _source_context(dispatch):
+    """The original host dispatch binds scope, never labels from the returned text."""
+    context = dispatch.get("evaluation_metadata", {}).get("source_context")
+    if context is None:
+        return None
+    fields = {"task", "scope", "candidate", "dispatch_id", "packet_sha256", "executor"}
+    _need(type(context) is dict and set(context) == fields, "accepted source context is malformed")
+    exact = dict(task=dispatch.get("bead_id"), dispatch_id=dispatch["dispatch_id"],
+                 packet_sha256=dispatch.get("packet_sha256"), executor=dispatch.get("executor"))
+    _context(context, exact)
+    return _copy(context)
 
 
 def _evaluate(text, inputs, review):
@@ -153,7 +167,8 @@ def _context(record: dict, expected: dict) -> None:
 
 
 def require_acceptance(store, acceptance_record: str, *, bead_id: str, return_sha256: str,
-                       evaluation_sha256: str, database_identity: dict) -> dict:
+                       evaluation_sha256: str, database_identity: dict,
+                       delivery_context: dict | None = None) -> dict:
     """Read only: check exact task, database and every independently anchored input."""
     accepted = store.get(acceptance_record, record_type="acceptance-decision")
     expected = dict(bead_id=bead_id, return_sha256=return_sha256, evaluation_sha256=evaluation_sha256)
@@ -161,6 +176,7 @@ def require_acceptance(store, acceptance_record: str, *, bead_id: str, return_sh
     _need(accepted.get("database_identity") == database_identity, "database identity does not match acceptance")
     _need(accepted.get("adjudication_result") == "accepted", "acceptance decision is not accepted")
     expected["dispatch_id"] = accepted["dispatch_id"]
+    _require_source_context(store, accepted, expected, delivery_context)
     recorded, evaluation, pending = _verified_evaluation(store, accepted, expected)
     _verified_receipts(store, recorded, expected)
     adjudication = store.get(accepted.get("adjudication_record"), record_type="adjudication")
@@ -175,8 +191,21 @@ def require_acceptance(store, acceptance_record: str, *, bead_id: str, return_sh
               "hold clearance targets another hold or evaluation")
         _verified_peer_clearance(store, clearance, evaluation, pending, expected)
     store.require_audit_event("host_acceptance_decided", acceptance_record_sha256=acceptance_record,
-        adjudication_record_sha256=accepted["adjudication_record"], host_control_id=adjudication["control_id"], **expected)
+        adjudication_record_sha256=accepted["adjudication_record"], host_control_id=adjudication["control_id"],
+        **{key: value for key, value in expected.items() if key != "source_context"})
     return accepted
+
+
+def _require_source_context(store, accepted, expected, delivery_context):
+    dispatch = store.require_dispatch(expected["dispatch_id"])
+    source_context = _source_context(dispatch)
+    _need(accepted.get("source_context") == source_context, "accepted source context differs from dispatch")
+    if delivery_context is not None:
+        _need(type(source_context) is dict
+              and delivery_context == {key: source_context[key] for key in ("task", "scope", "candidate")},
+              "accepted source does not match baseline and delivered candidate")
+    # Include this immutable origin in every linked record and invocation receipt.
+    expected["source_context"] = source_context
 
 
 def _verified_evaluation(store, accepted, expected):

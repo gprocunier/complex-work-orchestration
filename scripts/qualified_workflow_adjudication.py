@@ -170,6 +170,7 @@ def _record_host_source(producer, store):
     metadata = {key: value for key, value in metadata.items()
                 if key not in ('peer_review_status', 'peer_review_reviewer', 'peer_review_record')}
     metadata['expected_return_language_source'] = 'registered-adjudication-control'
+    metadata['source_context'] = asdict(producer.expected)
     fields = dict(dispatch_id=producer.expected.dispatch_id, dispatch_role='executor',
         bead_id=producer.expected.task, executor=producer.expected.executor,
         provider_key=envelope['provider_key'], provider=provider,

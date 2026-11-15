@@ -13,11 +13,24 @@ from tests.test_policy_current_effects import current_policy
 from tests.test_run_readiness_plan import sample_plan
 
 import qualified_workflow_adjudication as workflow
+from cwo_core import candidate_identity as ci
+from cwo_core import requirement_baseline as rb
 
 binding = workflow.binding
 
 
-def route_with_basis(identity, basis=None, basis_id="cwo-bound-review-basis"):
+def delivery_evidence(case):
+    """A bounded review packet from original observations, without nested command source."""
+    observed = case.observe().production
+    return {'initial': case.initial, 'amendments': case.amendments, 'candidate': case.candidate,
+            'observation_digest': rb.record_digest(observed),
+            'observations': {'observations_complete': observed['observations_complete'],
+                'required_criterion_ids': observed['required_criterion_ids'],
+                'criteria': [{key: row[key] for key in ('id', 'state', 'expected_contract', 'observation')}
+                             for row in observed['consumer_diagnostic']['criteria']]}}
+
+
+def route_with_basis(identity, basis=None, basis_id="cwo-bound-review-basis", *, evidence=None):
     route = original.workflow()
     route["run_id"] = "EXAMPLE-" + identity
     route["aggregate_id"] = "EXAMPLE-budget-" + identity
@@ -36,15 +49,18 @@ def route_with_basis(identity, basis=None, basis_id="cwo-bound-review-basis"):
             node["estimate_source"]["work_unit_id"] = node["id"]
         node["execution"]["options"]["max_tokens"] = 2048
         node["execution"]["output_tokens_upper"] = 2048
-        if basis is not None:
-            node["sources"].append({"id": basis_id, "text": basis.decode()})
+        sources = [] if basis is None else [(basis_id, basis)]
+        if evidence is not None:
+            sources.append(('EXAMPLE-delivery-observations', binding._json(evidence)))
+        for source_id, raw in sources:
+            node["sources"].append({"id": source_id, "text": raw.decode()})
             node["estimate_source"]["context_manifest"].append(
                 {
-                    "path": basis_id,
+                    "path": source_id,
                     "selector": "all",
                     "purpose": "EXAMPLE exact current review basis",
-                    "bytes": len(basis),
-                    "sha256": binding._sha(basis),
+                    "bytes": len(raw),
+                    "sha256": binding._sha(raw),
                 }
             )
         node["unit_estimate"] = original.planner.work_sizing.evaluate_work_estimate(
@@ -90,11 +106,12 @@ class WorkflowAdjudicationTests(unittest.TestCase):
             usable=self.http.usable, content=self.http.content
         )
 
-    def source(self, *, task=False, clean=False):
+    def source(self, *, task=False, clean=False, closure_case=None):
         expected = binding.ExpectedContext(
             self.route["parent_id"],
-            "EXAMPLE-doc-scope",
-            "EXAMPLE-candidate-tree",
+            "EXAMPLE-doc-scope" if closure_case is None else closure_case.chain['digest'],
+            "EXAMPLE-candidate-tree" if closure_case is None else
+                ci.candidate_digest(closure_case.candidate),
             self.route["run_id"] + ":plan",
             "0" * 64,
             "local_secure_review_worker",
@@ -114,9 +131,20 @@ class WorkflowAdjudicationTests(unittest.TestCase):
             "source",
             workflow.source_basis(expected, declared),
             "cwo-bound-source-context",
+            evidence=None if closure_case is None else delivery_evidence(closure_case),
         )
         self.host = self.make_host()
         sample = (original.ROOT / "examples/sample-contractor-return.md").read_text()
+        if closure_case is not None:
+            sample = sample.replace(
+                'The redacted packet design blocks full Bead JSON and only includes selected snippets.',
+                'The delivered src/item.txt satisfies the recorded validator outcome.')
+            sample = sample.replace(
+                'Reviewed provided packet manifest and selected snippets; no runtime command was executed.',
+                'Reviewed supplied original checked-command observations; every required observation passed.')
+            sample = sample.replace(
+                'Included artifacts list contains assignment summary and selected snippets only.',
+                'Observed baseline ' + expected.scope + ' and candidate ' + expected.candidate + '.')
         # This optional boilerplate is not review evidence. The outbound
         # screen refuses its escaped spelling inside a nested review request.
         self.http.content = (
