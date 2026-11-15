@@ -322,14 +322,23 @@ class RpcProcess(children.FakeChild):
 
     def diagnostic_pipe(self):
         read_fd, self.diagnostic_writer = os.pipe()
+        # The budget reader may stop draining before the producer is finished.
+        # Cancellation must not depend on a blocking write making progress.
+        os.set_blocking(self.diagnostic_writer, False)
         self.stderr = os.fdopen(read_fd, 'r', encoding='utf-8')
         self.diagnostic_bytes = 0
         self.diagnostic_written = threading.Event()
+        self.diagnostic_stop = threading.Event()
+        self.diagnostic_close_lock = threading.Lock()
         def produce(descriptor):
             data = memoryview(b'EXAMPLE diagnostic ' * 4096)
             try:
-                while data:
-                    count = os.write(descriptor, data[:4096])
+                while data and not self.diagnostic_stop.is_set():
+                    try:
+                        count = os.write(descriptor, data[:4096])
+                    except BlockingIOError:
+                        self.diagnostic_stop.wait(.01)
+                        continue
                     self.diagnostic_bytes += count
                     data = data[count:]
             except OSError:
@@ -337,15 +346,21 @@ class RpcProcess(children.FakeChild):
                     raise
             finally:
                 self.diagnostic_written.set()
-        self.diagnostic_thread = threading.Thread(target=produce, args=(self.diagnostic_writer,), daemon=True)
+        self.diagnostic_thread = threading.Thread(target=produce, args=(self.diagnostic_writer,))
         self.diagnostic_thread.start()
         self.case.test.addCleanup(self.finish_diagnostic)
 
     def finish_diagnostic(self):
-        if self.diagnostic_writer is not None:
-            os.close(self.diagnostic_writer)
-            self.diagnostic_writer = None
+        self.diagnostic_stop.set()
         self.diagnostic_thread.join(timeout=1)
+        self.case.test.assertFalse(self.diagnostic_thread.is_alive(),
+                                  'EXAMPLE diagnostic producer did not stop before cleanup')
+        # A failed server drain can leave its stop callback in flight when
+        # unittest reaches the separately registered fixture cleanup.
+        with self.diagnostic_close_lock:
+            if self.diagnostic_writer is not None:
+                os.close(self.diagnostic_writer)
+                self.diagnostic_writer = None
 
     def communicate(self, data, timeout):
         self.case.test.assertEqual(timeout, 10)
@@ -1011,6 +1026,290 @@ class PipeChildPropertiesTests(unittest.TestCase):
         original.pid, original.returncode = 987, 0
         self.assertEqual((child.pid, child.returncode), (987, 0))
         self.assertIs(child._child, original)
+
+
+class DiagnosticPipeTests(unittest.TestCase):
+    def process(self):
+        return RpcProcess(SimpleNamespace(pid=321, alive=False), SimpleNamespace(test=self))
+
+    def drain_diagnostic(self, process, release):
+        # Even the old helper must leave no held or pipe-blocked producer on red.
+        release.set()
+        reader_stop = threading.Event()
+        os.set_blocking(process.stderr.fileno(), False)
+
+        def read():
+            while not reader_stop.is_set():
+                try:
+                    if not os.read(process.stderr.fileno(), 4096):
+                        return
+                except BlockingIOError:
+                    reader_stop.wait(.01)
+
+        reader = threading.Thread(target=read)
+        reader.start()
+        try:
+            process.diagnostic_thread.join(1)
+            self.assertFalse(process.diagnostic_thread.is_alive(),
+                             'EXAMPLE regression producer did not drain')
+        finally:
+            try:
+                process.finish_diagnostic()
+            finally:
+                reader_stop.set()
+                reader.join(1)
+                try:
+                    self.assertFalse(reader.is_alive(), 'EXAMPLE regression reader did not drain')
+                finally:
+                    if not reader.is_alive() and not process.diagnostic_thread.is_alive():
+                        process.stderr.close()
+
+    def test_diagnostic_drain_finishes_resources_after_producer_assertion(self):
+        process, release = self.process(), threading.Event()
+        process.diagnostic_pipe()
+        original_thread, original_assert = threading.Thread, self.assertFalse
+        readers = []
+        failure = AssertionError('EXAMPLE injected producer drain assertion')
+
+        def reader(*args, **kwargs):
+            worker = original_thread(*args, **kwargs)
+            readers.append(worker)
+            return worker
+
+        def assert_false(value, message=None):
+            if message == 'EXAMPLE regression producer did not drain':
+                raise failure
+            return original_assert(value, message)
+
+        try:
+            with patch.object(threading, 'Thread', reader), \
+                    patch.object(self, 'assertFalse', assert_false), \
+                    self.assertRaises(AssertionError) as caught:
+                self.drain_diagnostic(process, release)
+            self.assertIs(caught.exception, failure)
+            self.assertTrue(release.is_set())
+            self.assertIsNone(process.diagnostic_writer)
+            self.assertEqual(len(readers), 1)
+            self.assertFalse(readers[0].is_alive())
+            self.assertTrue(process.stderr.closed)
+        finally:
+            release.set()
+            try:
+                process.finish_diagnostic()
+            finally:
+                for worker in readers:
+                    worker.join(1)
+                    self.assertFalse(worker.is_alive())
+                process.stderr.close()
+
+    def test_diagnostic_drain_stops_reader_while_producer_remains_unresolved(self):
+        process, release = self.process(), threading.Event()
+        entered, unblock = threading.Event(), threading.Event()
+        original_write, original_thread = os.write, threading.Thread
+        readers = []
+
+        def write(descriptor, data):
+            entered.set()
+            unblock.wait()
+            return original_write(descriptor, data)
+
+        def reader(*args, **kwargs):
+            worker = original_thread(*args, **kwargs)
+            readers.append(worker)
+            return worker
+
+        with patch.object(os, 'write', write):
+            process.diagnostic_pipe()
+            writer = process.diagnostic_writer
+            try:
+                self.assertTrue(entered.wait(1))
+                with patch.object(threading, 'Thread', reader), \
+                        self.assertRaisesRegex(AssertionError, 'diagnostic producer did not stop') as caught:
+                    self.drain_diagnostic(process, release)
+                self.assertIn('regression producer did not drain', str(caught.exception.__context__))
+                self.assertTrue(release.is_set())
+                self.assertTrue(process.diagnostic_thread.is_alive())
+                self.assertEqual(process.diagnostic_writer, writer)
+                os.fstat(writer)
+                self.assertFalse(process.stderr.closed)
+                self.assertEqual(len(readers), 1)
+                self.assertFalse(readers[0].is_alive())
+            finally:
+                unblock.set()
+                try:
+                    process.finish_diagnostic()
+                finally:
+                    for worker in readers:
+                        worker.join(1)
+                        self.assertFalse(worker.is_alive())
+                    process.stderr.close()
+
+    def test_diagnostic_stop_and_registered_cleanup_close_writer_once(self):
+        owner = unittest.FunctionTestCase(lambda: None)
+        process = RpcProcess(SimpleNamespace(pid=321, alive=False), SimpleNamespace(test=owner))
+        process.diagnostic_pipe()
+        writer = process.diagnostic_writer
+        entered, release = threading.Event(), threading.Event()
+        original_close = os.close
+        lock = getattr(process, 'diagnostic_close_lock', threading.Lock())
+        main = threading.current_thread()
+        closes, failures = [], []
+
+        class ObservedLock:
+            def __enter__(self):
+                if threading.current_thread() is main:
+                    release.set()
+                return lock.__enter__()
+
+            def __exit__(self, *args):
+                return lock.__exit__(*args)
+
+        process.diagnostic_close_lock = ObservedLock()
+
+        def close(descriptor):
+            if descriptor == writer:
+                closes.append(threading.current_thread())
+                if threading.current_thread() is main:
+                    # The old closer has already selected this stale integer.
+                    release.set()
+                    worker.join(1)
+                result = original_close(descriptor)
+                if threading.current_thread() is not main:
+                    entered.set()
+                    release.wait()
+                return result
+            return original_close(descriptor)
+
+        def stop():
+            try:
+                process.stop()
+            except BaseException as failure:
+                failures.append(failure)
+
+        worker = threading.Thread(target=stop)
+        try:
+            with patch.object(os, 'close', close):
+                worker.start()
+                self.assertTrue(entered.wait(1))
+                result = unittest.TestResult()
+                owner.run(result)
+            self.assertEqual(result.errors, [])
+            self.assertEqual(result.failures, [])
+            self.assertEqual(failures, [])
+            self.assertEqual(closes, [worker])
+            self.assertIsNone(process.diagnostic_writer)
+        finally:
+            release.set()
+            worker.join(1)
+            self.assertFalse(worker.is_alive())
+            process.finish_diagnostic()
+            process.stderr.close()
+
+    def test_diagnostic_finish_drains_before_descriptor_release(self):
+        process = self.process()
+        entered, release = threading.Event(), threading.Event()
+        original_write, original_close = os.write, os.close
+        closed_live, retained_at_join, joined = [], [], []
+
+        def write(descriptor, data):
+            entered.set()
+            release.wait()
+            return original_write(descriptor, data)
+
+        def close(descriptor):
+            if descriptor == writer:
+                closed_live.append(process.diagnostic_thread.is_alive())
+            return original_close(descriptor)
+
+        with patch.object(os, 'write', write):
+            process.diagnostic_pipe()
+            writer = process.diagnostic_writer
+            original_join = process.diagnostic_thread.join
+
+            def join(timeout=None):
+                try:
+                    os.fstat(writer)
+                    retained_at_join.append(True)
+                except OSError:
+                    retained_at_join.append(False)
+                release.set()
+                original_join(timeout)
+                joined.append((timeout, process.diagnostic_thread.is_alive()))
+
+            try:
+                self.assertTrue(entered.wait(1), 'EXAMPLE producer did not reach its real write')
+                with patch.object(os, 'close', close), \
+                        patch.object(process.diagnostic_thread, 'join', join):
+                    process.finish_diagnostic()
+                self.assertEqual(retained_at_join, [True])
+                self.assertEqual(joined, [(1, False)])
+                self.assertEqual(closed_live, [False])
+                self.assertIsNone(process.diagnostic_writer)
+            finally:
+                self.drain_diagnostic(process, release)
+
+    def test_diagnostic_finish_timeout_retains_live_producer_descriptor(self):
+        process = self.process()
+        entered, release = threading.Event(), threading.Event()
+        original_write = os.write
+
+        def write(descriptor, data):
+            entered.set()
+            release.wait()
+            return original_write(descriptor, data)
+
+        with patch.object(os, 'write', write):
+            process.diagnostic_pipe()
+            writer = process.diagnostic_writer
+            try:
+                self.assertTrue(entered.wait(1), 'EXAMPLE producer did not reach its real write')
+                with self.assertRaisesRegex(AssertionError, 'diagnostic producer did not stop'):
+                    process.finish_diagnostic()
+                self.assertTrue(process.diagnostic_thread.is_alive())
+                self.assertEqual(process.diagnostic_writer, writer)
+                os.fstat(writer)
+                self.assertFalse(process.stderr.closed)
+            finally:
+                self.drain_diagnostic(process, release)
+
+    def test_diagnostic_finish_cancels_with_full_pipe_without_reader(self):
+        process = self.process()
+        entered, release = threading.Event(), threading.Event()
+        original_pipe, original_write, original_close = os.pipe, os.write, os.close
+        closed_live = []
+
+        def full_pipe():
+            read_fd, write_fd = original_pipe()
+            os.set_blocking(write_fd, False)
+            try:
+                while True:
+                    original_write(write_fd, b'x' * 4096)
+            except BlockingIOError:
+                pass
+            os.set_blocking(write_fd, True)
+            return read_fd, write_fd
+
+        def write(descriptor, data):
+            entered.set()
+            return original_write(descriptor, data)
+
+        def close(descriptor):
+            if descriptor == process.diagnostic_writer:
+                closed_live.append(process.diagnostic_thread.is_alive())
+            return original_close(descriptor)
+
+        with patch.object(os, 'pipe', full_pipe), patch.object(os, 'write', write), \
+                patch.object(os, 'close', close):
+            process.diagnostic_pipe()
+            try:
+                self.assertTrue(entered.wait(1), 'EXAMPLE producer did not reach the full pipe')
+                process.finish_diagnostic()
+                self.assertEqual(closed_live, [False])
+                self.assertFalse(process.diagnostic_thread.is_alive())
+                self.assertTrue(process.diagnostic_written.is_set())
+                self.assertIsNone(process.diagnostic_writer)
+            finally:
+                self.drain_diagnostic(process, release)
 
 
 class FactoryTests(unittest.TestCase):
@@ -1947,6 +2246,98 @@ class FactoryTests(unittest.TestCase):
             self.assertEqual(len(reaps), 1)
 
 
+    def test_reserved_status_release_requires_original_lock_attempt(self):
+        fixture = FactoryTests('test_reserved_status_poll_serializes_with_termination_before_release')
+        held, unblock, requested = threading.Event(), threading.Event(), threading.Event()
+        captured, workers, snapshots = {}, [], []
+        original_start = threading.Thread.start
+        original_wait, original_set = threading.Event.wait, threading.Event.set
+        original_enter, original_factory = runtime.owned._LinuxEngine._enter, fixture.factory
+
+        class ObservedLock:
+            def __init__(self, lock, owner):
+                self.lock, self.owner = lock, owner
+
+            def __enter__(self):
+                if threading.current_thread() is self.owner:
+                    original_set(requested)
+                return self.lock.__enter__()
+
+            def __exit__(self, *args):
+                return self.lock.__exit__(*args)
+
+            def __getattr__(self, name):
+                return getattr(self.lock, name)
+
+        def factory(case, **kwargs):
+            result = original_factory(case, **kwargs)
+            captured['factory'] = result
+            return result
+
+        def start(worker):
+            workers.append(worker)
+            target = getattr(worker, '_target', None)
+            if getattr(target, '__name__', '') == 'release':
+                # Observe only this fixture's release callback and its two events.
+                cells = dict(zip(target.__code__.co_freevars,
+                                 (cell.cell_contents for cell in target.__closure__)))
+                captured.update(observer=worker, attempted=cells['attempted'], resume=cells['resume'])
+            return original_start(worker)
+
+        def enter(engine, state):
+            current = captured.get('factory')
+            if (state == 'terminating' and current is not None and current.server is not None
+                    and engine is current.server.lifetime.controller._engine):
+                engine._adapter._lifecycle_lock = ObservedLock(
+                    engine._adapter._lifecycle_lock, threading.current_thread())
+                original_set(held)
+                if not original_wait(unblock, 2):
+                    raise AssertionError('EXAMPLE held original termination entry did not resume')
+            return original_enter(engine, state)
+
+        def wait(event, timeout=None):
+            if (threading.current_thread() is captured.get('observer')
+                    and event is captured.get('attempted')):
+                if not original_wait(held, 2):
+                    raise AssertionError('EXAMPLE original termination entry was not held')
+                # An outer entry event is already set here and earns no release.
+                if not event.is_set():
+                    original_set(unblock)
+            return original_wait(event, timeout)
+
+        def set_event(event):
+            if event is captured.get('resume') and held.is_set() and not snapshots:
+                snapshots.append(requested.is_set())
+                original_set(unblock)  # Drain the old fixture after recording its early release.
+            return original_set(event)
+
+        def drain():
+            original_set(unblock)
+            if 'resume' in captured:
+                original_set(captured['resume'])
+            for worker in workers:
+                if worker.ident is not None:
+                    worker.join(2)
+            self.assertEqual([worker.name for worker in workers if worker.is_alive()], [],
+                             'EXAMPLE status regression worker did not drain')
+
+        # Covers every intercepted start, including failures before the nested cleanup.
+        self.addCleanup(drain)
+        result = unittest.TestResult()
+        with (patch.object(fixture, 'factory', factory),
+              patch.object(threading.Thread, 'start', start),
+              patch.object(threading.Event, 'wait', wait),
+              patch.object(threading.Event, 'set', set_event),
+              patch.object(runtime.owned._LinuxEngine, '_enter', enter)):
+            try:
+                fixture.run(result)
+            finally:
+                drain()
+        self.assertEqual(result.errors, [])
+        self.assertEqual(result.failures, [])
+        self.assertTrue(held.is_set())
+        self.assertEqual(snapshots, [True], 'EXAMPLE original lifecycle lock request must precede status release')
+
     def test_reserved_status_poll_serializes_with_termination_before_release(self):
         case = self.case(archive_schedule='concurrent', raced_approval=True, max_steps=256)
         factory = self.factory(case)
@@ -1954,7 +2345,8 @@ class FactoryTests(unittest.TestCase):
         original_wait = self.processes.waitid_api.side_effect
         original_enter = runtime.owned._LinuxEngine._enter
         original_terminate = runtime.owned.LinuxOwnedChildController.terminate
-        releases = []
+        releases, acknowledgments = [], []
+        termination_thread = None
         def waitid(kind, descriptor, options):
             server = factory.server
             if (server is not None and threading.current_thread() is server._reader_threads[0]
@@ -1964,23 +2356,44 @@ class FactoryTests(unittest.TestCase):
                     raise AssertionError('EXAMPLE paused status did not resume')
             return original_wait(kind, descriptor, options)
         def enter(engine, state):
+            nonlocal termination_thread
             if state == 'terminating' and engine is factory.server.lifetime.controller._engine:
-                attempted.set()
+                termination_thread = threading.current_thread()
+                try:
+                    return original_enter(engine, state)
+                finally:
+                    termination_thread = None
             return original_enter(engine, state)
         def release():
-            attempted.wait(2)
-            # Keep the actual status reservation active while the original retained-child owner
-            # termination attempts its lifecycle lock/operation.
-            time.sleep(0.05)
-            resume.set()
+            try:
+                acknowledgments.append(attempted.wait(2))
+            finally:
+                resume.set()
         def terminate(controller, *args, **kwargs):
             if controller is factory.server.lifetime.controller and not paused.is_set():
+                original_lock = controller._engine._adapter._lifecycle_lock
+
+                class ObservedLock:
+                    def __enter__(self):
+                        # The original _enter requests this same lock while status holds it.
+                        if threading.current_thread() is termination_thread:
+                            attempted.set()
+                        return original_lock.__enter__()
+
+                    def __exit__(self, *args):
+                        return original_lock.__exit__(*args)
+
+                    def __getattr__(self, name):
+                        return getattr(original_lock, name)
+
+                controller._engine._adapter._lifecycle_lock = ObservedLock()
                 self.assertTrue(factory.server.lifetime._ending)
                 factory.server.process.process.alive = False
                 factory.server.process.stop()
                 self.assertTrue(paused.wait(2), 'EXAMPLE actual EOF poll did not reserve its operation')
                 thread = threading.Thread(target=release, daemon=True)
                 releases.append(thread)
+                self.addCleanup(finish_worker, self, thread, resume, join_seconds=2)
                 thread.start()
             return original_terminate(controller, *args, **kwargs)
         failure = None
@@ -1994,6 +2407,8 @@ class FactoryTests(unittest.TestCase):
             resume.set()
             for thread in releases:
                 thread.join(timeout=2)
+                self.assertFalse(thread.is_alive(), 'EXAMPLE status release worker did not drain')
+        self.assertEqual(acknowledgments, [True], 'EXAMPLE original lifecycle lock request was not observed')
         self.assertTrue(paused.is_set() and attempted.is_set())
         self.assertIsNone(failure, 'EXAMPLE reserved status poll must finish before original termination takes authority')
         self.assertIsNotNone(factory.token)

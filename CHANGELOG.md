@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Drain diagnostic producers and lifecycle waiters before releasing fixture resources, reporting unresolved cleanup.
+- Acknowledge original lifecycle waits, termination locks and reply fences before advancing fixture assertions.
+
 - Wait for the original archive acknowledgment in the controlled output rejection fixture so driver steps cannot replace the selected validation failure.
 
 - Retain registered transport workers through bounded shutdown and archive checks, refusing unresolved cleanup and preserving original failure details.

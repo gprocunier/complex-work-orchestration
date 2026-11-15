@@ -2234,11 +2234,11 @@
 
 "registered-final-effect-check":[53,503,"self.factory.require_effect()",8,503,37],
 
-"registered-independent-cleanup-body":[128,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",899,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
+"registered-independent-cleanup-body":[128,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",914,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
 
 "registered-launcher-argv":[53,"_launcher_argv",95,"4ff15ecc165a978267d922a86efc1d2cf0b142dfa04f4aa339d7d361a31f8e01"],
 
-"registered-monitor-cleanup-support":[128,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",881,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
+"registered-monitor-cleanup-support":[128,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",896,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
 
 "registered-mount-options":[53,"_Containment._command",434,"bddb496316a7f11343589b9ecd7e200757c972084981a5c37f9c4ca23e629dfc"],
 
@@ -2248,9 +2248,9 @@
 
 "registered-namespace-info-bytes":[53,"_namespace_info_bytes",100,"51fe1fcadca2c30566207ec6ac4b43fd1824b7332c76f5948104133b2ba9cad4"],
 
-"registered-post-setup-control-body":[128,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",864,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
+"registered-post-setup-control-body":[128,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",879,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
 
-"registered-post-setup-refusal-body":[128,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",874,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
+"registered-post-setup-refusal-body":[128,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",889,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
 
 "registered-post-setup-release":[53,"_Containment._release_command",493,"1ec10424b6585e378c8aac5b774bcdc8749c83b19f19eb0c0231695d7a641669"],
 
@@ -5250,7 +5250,7 @@
 
 "tests/browser_provenance_fixture.py":{"mode":420,"sha256":"b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b","size":4582},
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"cac2ffc439d78723434e6c7ffb3b0035ce532d65a628d8f2ceb50117042932e5","size":127256},
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":{"mode":420,"sha256":"06248532ddaa762478ceb9e8fb315044f4adeeef5715af70a187f5dba621d5fc","size":127256},
 
 "tests/host_acceptance_fixtures.py":{"mode":420,"sha256":"eaacebfb44bcb28e0a3e98974c3db9b39ab75baaba9b6bd682a919f98b2bf11f","size":1939},
 
@@ -5344,11 +5344,11 @@
 
 "tests/test_registered_controlled_output_schedule.py":{"mode":420,"sha256":"2cdd3d39ead6c089a9aa1aa594f8817c62fadda752e5ef60da614ca034d7139d","size":7844},
 
-"tests/test_registered_finite_input.py":{"mode":420,"sha256":"17daaad42944ffae00c75e91315afae6ea20e62eb70ed6416fa3fcc8144c63e3","size":124379},
+"tests/test_registered_finite_input.py":{"mode":420,"sha256":"db7b01af63b23797ae35660975ef49c91016f85efbd64dcd1d49ba68d4903121","size":127294},
 
-"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"7583b9c1f0e00c07faae16d741977df428a7a4a17683ccd10271bf3997154c62","size":188923},
+"tests/test_registered_finite_tool_wiring.py":{"mode":420,"sha256":"3855b4a28cd4f761d864b9bb98b184a965df88dc457cc474fe27ad6319fabf60","size":203897},
 
-"tests/test_registered_n1_factory.py":{"mode":420,"sha256":"ec25cccfec5bff19b7623a08c1bae2727044f31dddca0bcfcdd9bda74d1ed17a","size":104846},
+"tests/test_registered_n1_factory.py":{"mode":420,"sha256":"ac70f74e2c5982ead451b97b1762c7d829afd39e8b7731b647cacd7750654591","size":122995},
 
 "tests/test_release_effect_routes.py":{"mode":420,"sha256":"88051a406760c06f4d1641bf7eee8465bab5159d6db05b19ab255fbfcbd0d42c","size":84850},
 
