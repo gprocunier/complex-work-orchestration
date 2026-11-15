@@ -61,6 +61,9 @@ def c1_failure_note(workflow):
             snapshot['staged_archive'] = {'started': archive._started, 'done': archive._done.is_set(),
                 'error_type': None if archive._error is None else type(archive._error).__name__[:80]}
     if server is not None:
+        observations = (factory.records / 'transport-observations').glob('observation-*.json')
+        snapshot['finite_tool_refusals'] = [row['observation'] for path in sorted(observations)
+            if (row := json.loads(path.read_bytes()))['stage'] == 'finite-tool-refusal']
         life = server.finite_input.lifecycle
         snapshot['lifecycle'] = {'phase': str(life.phase)[:80], 'generation': life.generation,
             'edge_deadline': life.edge_deadline, 'pending_count': len(life.pending),

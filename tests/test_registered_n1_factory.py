@@ -109,6 +109,15 @@ def finish_worker(test, worker, *releases, join_seconds=12):
     test.assertFalse(worker.is_alive(), 'EXAMPLE fixture worker did not stop before cleanup')
 
 
+def wait_for_release(test, release, timeout):
+    if not release.wait(timeout):
+        message = 'EXAMPLE fixture release expired'
+        # Callback errors can become conservative runtime refusals. Preserve
+        # a fixture expiry as a test failure even in a refusal-path test.
+        test.addCleanup(test.fail, message)
+        test.fail(message)
+
+
 class Input:
     def __init__(self, process):
         self.process = process
@@ -713,6 +722,7 @@ class FactoryTests(unittest.TestCase):
                                receipt=receipt, node_id=node['id'], ledger=ledger, policy=policy,
                                drift=False, bad_output=False, approval_change={}, probe_approvals=[], repeat_approval=False,
                                archive_fault=False, raced_approval=False, archive_frame_fault=False, on_startup=None,
+                               materialize_on_turn_start=finite_tool_mode == 'captured-host-tools',
                                effect_schedule=effect_schedule, effect_spy=RegisteredEffectSpy(),
                                effect_responses={}, ordinary_error=None, useful_output_before_followup=None)
         for key, value in changes.items():

@@ -519,7 +519,7 @@ class RegisteredFiniteToolCalls:
         except (FiniteToolError, ValueError) as failure:
             self._cleanup_failed_call(params['tool'], failure)
             self.factory.record('finite-tool-refusal', {
-                'tool': params['tool'], 'call': params['callId'], 'reason': type(failure).__name__})
+                'tool': params['tool'], 'call': params['callId'], 'reason': type(failure).__name__, 'message': str(failure)})
             return {'id': request.request_id, 'result': {
                 'contentItems': [{'type': 'inputText', 'text': 'finite-tool-request-refused'}],
                 'success': False}}

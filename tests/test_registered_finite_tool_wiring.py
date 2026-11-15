@@ -5,8 +5,8 @@ import json
 import os
 import threading
 import time
-from typing import Callable, NamedTuple
 from types import SimpleNamespace
+from typing import Callable, NamedTuple
 import unittest
 from unittest.mock import patch
 
@@ -91,7 +91,7 @@ class DynamicRpcProcess(family.RpcProcess):
         scenario = self.case.scenario
         if hasattr(self.case, 'command_prepared'):
             self.case.command_prepared.set()
-            self.case.command_release.wait(5)
+            family.wait_for_release(self.case.test, self.case.command_release, 5)
         if getattr(self.case, 'short_command_deadline', False):
             pending = self.case.factory.server._tool_queue
             original_put = pending.put_nowait
@@ -189,7 +189,7 @@ class DynamicRpcProcess(family.RpcProcess):
                                                   'EXAMPLE finite poll output\n'))
             if hasattr(self.case, 'poll_prepared'):
                 self.case.poll_prepared.set()
-                self.case.poll_release.wait(15)
+                family.wait_for_release(self.case.test, self.case.poll_release, 15)
             if getattr(self.case, 'poll_epoch_drift', False):
                 self.case.factory.server.connection_epoch_sha256 = 'EXAMPLE-foreign-epoch'
             self._send_tool('EXAMPLE-poll-call', 'finite_poll',
@@ -1098,8 +1098,16 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         with self.assertRaises(BlockingIOError):
             os.read(case.tool_read, 1)
         self.assertIn('EXAMPLE-poll-call', factory.server.finite_input.used_approvals)
-        self.assertNotIn('finite-poll-intent', [json.loads(path.read_bytes())['stage'] for path in
-            (factory.records / 'transport-observations').iterdir()])
+        observations = [json.loads(path.read_bytes()) for path in
+                        (factory.records / 'transport-observations').iterdir()]
+        self.assertNotIn('finite-poll-intent', [row['stage'] for row in observations])
+        refusals = [row['observation'] for row in observations if row['stage'] == 'finite-tool-refusal']
+        self.assertEqual(refusals, [{'tool': 'finite_poll', 'call': 'EXAMPLE-poll-call',
+            'reason': 'FiniteInputError',
+            'message': 'The finite profile refuses nonempty input before process delivery.'}])
+        from tests.test_registered_n1_workflow import c1_failure_note
+        self.assertIn(json.dumps(refusals, sort_keys=True),
+                      c1_failure_note(SimpleNamespace(factory=factory)))
 
     def test_poll_before_original_command_completion_refuses_without_input(self):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
@@ -1293,7 +1301,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             def blocked(stage, observation):
                 if stage == 'finite-tool-decision' and observation.get('tool') == 'finite_poll':
                     entered.set()
-                    release.wait(5)
+                    family.wait_for_release(self, release, 5)
                 return original(stage, observation)
             with patch.object(factory, 'record', blocked):
                 case.poll_release.set()
@@ -1369,7 +1377,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                         and reads[0] != gate.output_fd
                         and os.fstat(reads[0]).st_ino == gate.output_stat[1]):
                     entered.set()
-                    release.wait(3)
+                    family.wait_for_release(self, release, 3)
                     return [], [], []
                 return original(reads, writes, errors, timeout)
             with patch.object(gate_module.select, 'select', paused):
@@ -1644,18 +1652,18 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                      and observation.get('tool') == 'finite_command')
                         or (stage == 'during-intent' and name == 'finite-tool-command-intent')):
                     entered.set()
-                    release.wait(5)
+                    family.wait_for_release(self, release, 5)
                 value = original_record(name, observation)
                 if ((stage == 'intent' and name == 'finite-tool-command-intent')
                         or (stage == 'gate' and name == 'tool-contained')):
                     entered.set()
-                    release.wait(5)
+                    family.wait_for_release(self, release, 5)
                 return value
             def blocked_launch(lifetime, command, home, **kwargs):
                 process = original_launch(lifetime, command, home, **kwargs)
                 if lifetime.role == 'tool':
                     entered.set()
-                    release.wait(5)
+                    family.wait_for_release(self, release, 5)
                 return process
             patcher = (patch.object(factory, 'record', blocked_record) if stage in {'before-intent', 'during-intent', 'intent', 'gate'}
                        else patch.object(family.runtime._Containment, 'launch', blocked_launch))
@@ -1894,7 +1902,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             if (not entered.is_set() and not refusal
                     and message.get('params', {}).get('tool') == 'finite_command'):
                 entered.set()
-                release.wait(5)
+                family.wait_for_release(self, release, 5)
             return original_commit(gate, ticket, producer, message, response,
                                    deadline, frame, writer, refusal)
 
@@ -2294,6 +2302,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 family.runtime._RegisteredServer, '_commit_tool_reply', change_before_reply), \
                 self.assertRaises(ValueError):
             factory.run()
+        self.fixture.spawned[0].stdin.stream.require_healthy()
         self.assertEqual(len(self.fixture.spawned), 2)
         self.assertEqual(len(self.fixture.spawned[0].replies), 1)
         self.assertIn('error', self.fixture.spawned[0].replies[0])

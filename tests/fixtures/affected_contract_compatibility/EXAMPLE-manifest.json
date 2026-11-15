@@ -500,7 +500,7 @@
     "scripts/qualified_workflow_adjudication.py": "c8199f147b6330bcf20fccba2434572620eb4203c9099c54ec53f3bb1cedd936",
     "scripts/registered_app_server_transport.py": "91fb0184a5e45ad64047f69c43c39b64895c04dbcedaa6e2ea44696bfdc128dd",
     "scripts/registered_finite_input.py": "df34c7348cd521046333c0bf2f99a74d6d7c5a6181314dd24f8d980f98b9e837",
-    "scripts/registered_finite_tool_calls.py": "f5d9c74666828911df7802c2a9129db945b8bd0cf3cc268bbe66e08198193988",
+    "scripts/registered_finite_tool_calls.py": "1a1781ffabf01bc4441108ca4d6d9f410026344e65cb7412cdf44827d123567a",
     "scripts/registered_host_root_boundary.py": "615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",
     "scripts/registered_n1_factory.py": "cb43f1f1c7acca6411eb106e339b436978a57ae7c1c1c7f233ff9929a6aaa4b6",
     "scripts/registered_n1_workflow.py": "79edef49aa76cd2108ad57e56f07b57d2bb923f468d7d6c1ec2dab91bf3b72a5",
@@ -554,11 +554,11 @@
     "tests/test_qualified_review_dispatch.py": "51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c",
     "tests/test_registered_finite_input.py": "3b0c697289045cf27a36a67d69b47c79c69c8d6c932e4fdcdb7ba8c43cfab95d",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
-    "tests/test_registered_finite_tool_wiring.py": "d551304a135e46b0a2949c8907f846d3bf5c980ad38ce873086a20a5ba3d6bd7",
-    "tests/test_registered_n1_factory.py": "7aca77aabaf388a35d06264f7b674919fe9773a1be8d971a397ad1c39fa7adf1",
-    "tests/test_registered_n1_workflow.py": "53d07d834e21e20fc431d9088f3d685370f41c77e8f2b51c3ea4afcbc620a025",
+    "tests/test_registered_finite_tool_wiring.py": "634f8ca37806218017e542add9c8af2b9c7c580757789fdf3cbccee653393ca8",
+    "tests/test_registered_n1_factory.py": "2e555015d719a395ae9b7660ae8e5e5fc76119a91393a425856deabed94fa30e",
+    "tests/test_registered_n1_workflow.py": "591039a6beba03259fc5100f71161b8051f09b949ef629be6fff886ad2031673",
     "tests/test_registered_native_pool_host.py": "4fb66d804e142b7fdc2482c0171e045d943c9cec7e8e9333f416ee52a8f595ab",
-    "tests/test_registered_native_pool_profiles.py": "ea490d1a4ab6c40343c023a56a82ce28e8340624fbe68e76c9342e92d14b609e",
+    "tests/test_registered_native_pool_profiles.py": "ddefdaa789246d89f4dd9ee8033d271080155acc3ae2e05a003f62e004c6ba60",
     "tests/test_registered_server_requests.py": "e4d742d887d092b4d5d5f1db543f02f254a39de4d5cfb251302c6724cc66934f",
     "tests/test_route_feasibility_preparation.py": "45b615f5e7ad013c166846ba499c34c525452011539ed5de4eecbab6c8a5416f",
     "tests/test_run_admitted_native_pool_transaction.py": "19407cedbb48a6c4405aefa0fb5cd3b1455ee58da115b52ff3e41f6d7dff0338",
@@ -2315,7 +2315,7 @@
   "registered_current_scope": "Current imports, source bytes/modes and neutral offline compatibility inputs are independently bound. verify_fixture_checkpoint is explicitly fixture-only: archived IDs are non-reverified metadata, historical_artifacts_verified=false and all effect/current/semantic authority is false. verify_checkpoint and the process entry remain strict original Git verification without fixture fallback.",
   "registered_source_callers": {
     "references/registered-effect-contract.md": "87274ee9b26e2826a75dd021920f0efa584ebdeb098eaae3b27c0cb64d77751f",
-    "tests/test_registered_n1_factory.py": "7aca77aabaf388a35d06264f7b674919fe9773a1be8d971a397ad1c39fa7adf1",
+    "tests/test_registered_n1_factory.py": "2e555015d719a395ae9b7660ae8e5e5fc76119a91393a425856deabed94fa30e",
     "tests/test_registered_server_requests.py": "e4d742d887d092b4d5d5f1db543f02f254a39de4d5cfb251302c6724cc66934f"
   },
   "roots": [
