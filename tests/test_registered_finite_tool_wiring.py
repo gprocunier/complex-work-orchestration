@@ -3018,6 +3018,25 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             if not selected:
                 return callback(gate, *args)
             lock, owner = gate.server.requests.lock, threading.current_thread()
+            producer, producer_lock = gate.server.finite_tools, gate.server.finite_tools.lock
+
+            class ProducerFence:
+                def __enter__(self):
+                    result = producer_lock.__enter__()
+                    try:
+                        if threading.current_thread() is owner and not entered.is_set():
+                            # Park only after the original callback owns its
+                            # first lock. Fault cancellation also needs
+                            # producer -> requests and must not get ahead.
+                            entered.set()
+                            family.wait_for_release(self_test, stage_release, 3)
+                    except BaseException:
+                        producer_lock.__exit__(None, None, None)
+                        raise
+                    return result
+
+                def __exit__(self, *exc):
+                    return producer_lock.__exit__(*exc)
 
             class ReplyFence:
                 def __enter__(self):
@@ -3030,7 +3049,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
             # Only the selected original callback's request counts. It must
             # still acquire the real lock retained by the split publisher.
-            with patch.object(gate.server.requests, 'lock', ReplyFence()):
+            self_test = self
+            with patch.object(producer, 'lock', ProducerFence()), patch.object(
+                    gate.server.requests, 'lock', ReplyFence()):
                 return callback(gate, *args)
 
         def publish(requests):
@@ -3047,9 +3068,6 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             selected = (stage == 'issue' and not entered.is_set() and not refusal
                         and message.get('params', {}).get('tool') == tool
                         and response.get('result', {}).get('success') is True)
-            if selected:
-                entered.set()
-                family.wait_for_release(self, stage_release, 3)
             ticket = reply(original_issue, gate, selected, producer, message, response,
                            deadline, frame, refusal)
             if (stage == 'issue' and entered.is_set()
@@ -3065,8 +3083,6 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                         and response.get('result', {}).get('success') is True)
             if selected:
                 committed.append(ticket)
-                entered.set()
-                family.wait_for_release(self, stage_release, 3)
             return reply(original_commit, gate, selected, ticket, producer, message, response,
                          deadline, frame, writer, refusal)
 
@@ -3205,6 +3221,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             class OriginalFence:
                 def __enter__(self):
                     if threading.current_thread() is callback:
+                        held.set()
+                        family.wait_for_release(fixture, resume, 3)
                         requested.set()
                     return lock.__enter__()
 
@@ -3212,8 +3230,6 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     return lock.__exit__(*exc)
 
             with patch.object(gate.server.requests, 'lock', OriginalFence()):
-                held.set()
-                family.wait_for_release(fixture, resume, 3)
                 return original_reply(gate, *args)
 
         def publish(requests):
@@ -3240,6 +3256,145 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(snapshots, [True])
         self.assertEqual(len(acknowledgments), 1)
         self.assertTrue(requested.is_set())
+        self.assertTrue(workers)
+        self.assertTrue(all(not worker.is_alive() for worker in workers))
+
+    def test_split_reply_reserves_original_producer_before_fault_cancellation(self):
+        for tool in ('finite_command', 'finite_poll'):
+            for stage in ('issue', 'commit'):
+                with self.subTest(tool=tool, stage=stage):
+                    self._split_reply_with_fault_cancellation(tool, stage)
+
+    def _split_reply_with_fault_cancellation(self, tool, stage):
+        fixture = RegisteredFiniteToolWiringTests(methodName='runTest')
+        fixture.setUp()
+        fault, reply_release, response_release = (threading.Event(), threading.Event(),
+                                                  threading.Event())
+        cancel_requested, cancel_acquired = threading.Event(), threading.Event()
+        reply_acquired, fence_requested = threading.Event(), threading.Event()
+        selected, cancelling = threading.local(), threading.local()
+        workers, snapshots, servers, responses = [], [], [], []
+        method = stage + '_reply_observation'
+        original_reply = getattr(gate_module.RegisteredFiniteInput, method)
+        original_init = finite_tools.RegisteredFiniteToolCalls.__init__
+        original_response = family.runtime.RegisteredAppServer._turn_start_response
+        original_fault = family.runtime._RegisteredServer._publish_transport_failure
+        original_interrupt = family.runtime._RegisteredServer.interrupt_turn
+        original_publish = family.runtime._CoherentServerRequests._publish_progress
+        original_start = threading.Thread.start
+
+        def start(worker):
+            workers.append(worker)
+            self.addCleanup(family.finish_worker, self, worker, response_release,
+                            reply_release, join_seconds=3)
+            return original_start(worker)
+
+        def init(producer, server):
+            original_init(producer, server)
+            lock = producer.lock
+
+            class ProducerLock:
+                def __enter__(self):
+                    replying = getattr(selected, 'active', False)
+                    cancel = getattr(cancelling, 'active', False)
+                    if replying and server.transport_failure is not None:
+                        # Old ordering: let the real cancellation own the
+                        # producer before this original reply requests it.
+                        family.wait_for_release(fixture, reply_release, 3)
+                    if cancel:
+                        cancel_requested.set()
+                    result = lock.__enter__()
+                    if replying:
+                        reply_acquired.set()
+                    if cancel:
+                        cancel_acquired.set()
+                        reply_release.set()
+                    return result
+
+                def __exit__(self, *exc):
+                    return lock.__exit__(*exc)
+
+            producer.lock = ProducerLock()
+
+        def response(server, *args):
+            # Keep the actual turn-start response check behind the projection
+            # fault. Its real Condition wait releases the reader lock so tool
+            # requests can reach the selected stage in either ordering.
+            servers.append(server)
+            self.assertTrue(server._condition.wait_for(response_release.is_set, timeout=3))
+            result = original_response(server, *args)
+            responses.append(result)
+            return result
+
+        def publish_fault(server, failure):
+            result = original_fault(server, failure)
+            if str(failure) == 'registered-terminal-before-bound-turn':
+                fault.set()
+                response_release.set()
+                with server._condition:
+                    server._condition.notify_all()
+            return result
+
+        def interrupt(server, *args, **kwargs):
+            cancelling.active = True
+            try:
+                return original_interrupt(server, *args, **kwargs)
+            finally:
+                cancelling.active = False
+
+        def reply(gate, *args):
+            message, response = args[1:3] if stage == 'issue' else args[2:4]
+            if (message.get('params', {}).get('tool') != tool
+                    or response.get('result', {}).get('success') is not True):
+                return original_reply(gate, *args)
+            lock, owner = gate.server.requests.lock, threading.current_thread()
+
+            class RequestLock:
+                def __enter__(self):
+                    if threading.current_thread() is owner:
+                        fence_requested.set()
+                    return lock.__enter__()
+
+                def __exit__(self, *exc):
+                    return lock.__exit__(*exc)
+
+            selected.active = True
+            try:
+                with patch.object(gate.server.requests, 'lock', RequestLock()):
+                    return original_reply(gate, *args)
+            finally:
+                selected.active = False
+
+        def publish(requests):
+            if fault.is_set() and requests.terminals and not snapshots:
+                self.assertTrue(cancel_requested.wait(3))
+                snapshots.append((reply_acquired.is_set(), fence_requested.is_set(),
+                                  cancel_acquired.is_set()))
+            return original_publish(requests)
+
+        with patch.object(threading.Thread, 'start', start), patch.object(
+                finite_tools.RegisteredFiniteToolCalls, '__init__', init), patch.object(
+                family.runtime.RegisteredAppServer, '_turn_start_response', response), patch.object(
+                family.runtime._RegisteredServer, '_publish_transport_failure', publish_fault), patch.object(
+                family.runtime._RegisteredServer, 'interrupt_turn', interrupt), patch.object(
+                gate_module.RegisteredFiniteInput, method, reply), patch.object(
+                family.runtime._CoherentServerRequests, '_publish_progress', publish):
+            try:
+                fixture._split_reply_publication_schedule(tool, stage, exceptional=True)
+            finally:
+                response_release.set()
+                reply_release.set()
+                for server in servers:
+                    with server._condition:
+                        server._condition.notify_all()
+                try:
+                    family.cleanup_helper(self, fixture)
+                finally:
+                    for worker in workers:
+                        family.finish_worker(self, worker, join_seconds=3)
+        self.assertEqual(snapshots, [(True, True, False)])
+        self.assertEqual(responses, [('reader-error', None)])
+        self.assertTrue(cancel_acquired.is_set())
         self.assertTrue(workers)
         self.assertTrue(all(not worker.is_alive() for worker in workers))
 
