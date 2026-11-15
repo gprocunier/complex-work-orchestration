@@ -3738,6 +3738,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 if 'read_patcher' in locals():
                     read_patcher.stop()
         self.assertEqual(len(result), 1)
+        # The factory worker can finish before the fake child's reply consumer.
+        # Join that original consumer before inspecting its recorded replies.
+        self.fixture.spawned[0].stdin.stream.require_healthy()
         stages = [json.loads(path.read_bytes())['stage'] for path in
                   (factory.records / 'transport-observations').iterdir()]
         self.assertEqual(stages.count('finite-poll-intent'), 0)
