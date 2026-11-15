@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make manual-export corpus packets deterministic while retaining real hashes, provenance checks and every sensitive-content assertion.
+
 - Store complete release source bindings as declared column rows, retaining every hash, mode and size within the unchanged inventory bound.
 - Enable verified successful closure for embedding hosts under the operator decision of 2026-11-15: single-use acceptance, an adjudicator separated from the executor, no open blockers or children, and current original dispatch, baseline, candidate, policy and database checks. The narrative CLI still records `pending-acceptance`; other live routes remain held.
 - Record a truthful closing intent before the close call, so a failed close cannot leave a completed disposition on an open task.
