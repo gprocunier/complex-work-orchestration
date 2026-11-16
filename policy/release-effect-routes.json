@@ -456,7 +456,9 @@
 
 "tests/test_registered_finite_input.py",
 
-"tests/test_registered_controlled_output_schedule.py"
+"tests/test_registered_controlled_output_schedule.py",
+
+"tests/test_private_pid_ci_applicability.py"
 ],
 
 "points":{
@@ -736,73 +738,73 @@
 
 "d42a620d8225cd577":[32,"_review",1318,"097e6821a7f8cad0978ae4cb1092b91a2069918ab34c1ddb0b2a092f552239be"],
 
-"diagnostic-bootstrap-exec":[125,45,"os.execv(sys.argv[1],sys.argv[1:])",112,45,146],
+"diagnostic-bootstrap-exec":[125,47,"os.execv(sys.argv[1],sys.argv[1:])",112,47,146],
 
-"diagnostic-close":[125,"SelectedNativeProbe.close",669,"7e5aa08069768ae985a98d0d666f000c84afb4d1533c972abaa66835c6f5c85d"],
+"diagnostic-close":[125,"SelectedNativeProbe.close",709,"7e5aa08069768ae985a98d0d666f000c84afb4d1533c972abaa66835c6f5c85d"],
 
-"diagnostic-command-gate":[125,319,"os.write(self.process.stdin.fileno(), b'1')",12,319,55],
+"diagnostic-command-gate":[125,358,"os.write(self.process.stdin.fileno(), b'1')",12,358,55],
 
-"diagnostic-command-rpc":[125,604,"self._rpc({'id': 4, 'method': 'command/exec', 'params': params})",20,604,84],
+"diagnostic-command-rpc":[125,643,"self._rpc({'id': 4, 'method': 'command/exec', 'params': params})",20,643,84],
 
-"diagnostic-config-rpc":[125,581,"self._rpc({'id': number, 'method': method, 'params': params})",32,581,93],
+"diagnostic-config-rpc":[125,620,"self._rpc({'id': number, 'method': method, 'params': params})",32,620,93],
 
-"diagnostic-control-connect":[125,412,"control.connect(endpoint)",16,412,41],
+"diagnostic-control-connect":[125,451,"control.connect(endpoint)",16,451,41],
 
-"diagnostic-controller-death-helper":[127,"_controller_death",465,"b00ef1ee325d1491b0e2351ab0b1f89b3f69c4c91aeed57f237bd01a19f1cf61"],
+"diagnostic-controller-death-helper":[127,"_controller_death",1234,"b00ef1ee325d1491b0e2351ab0b1f89b3f69c4c91aeed57f237bd01a19f1cf61"],
 
-"diagnostic-fixed-command-body":[127,"SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec",556,"73b3f0431d8af57d27c78b9332ecda18df7a408f86808f1a94ba3fbf1f547b67"],
+"diagnostic-fixed-command-body":[127,"SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec",1325,"73b3f0431d8af57d27c78b9332ecda18df7a408f86808f1a94ba3fbf1f547b67"],
 
-"diagnostic-git-init":[125,178,"subprocess.run(['/usr/bin/git', '-c', 'init.defaultBranch=probe', 'init', '--quiet', str(self.worker)],\n                       env=environment, stdin=subprocess.DEVNULL, capture_output=True, timeout=5, check=True)",8,179,109],
+"diagnostic-git-init":[125,217,"subprocess.run(['/usr/bin/git', '-c', 'init.defaultBranch=probe', 'init', '--quiet', str(self.worker)],\n                       env=environment, stdin=subprocess.DEVNULL, capture_output=True, timeout=5, check=True)",8,218,109],
 
-"diagnostic-independent-cleanup-body":[127,"DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error",197,"be864487f2e246c3afd7d154d7d7cbc2bf2959de9a70b828f12150d643d0a3ad"],
+"diagnostic-independent-cleanup-body":[127,"DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error",952,"be864487f2e246c3afd7d154d7d7cbc2bf2959de9a70b828f12150d643d0a3ad"],
 
-"diagnostic-init":[125,"SelectedNativeProbe._initialize",154,"2b950d3ac8d55b694fdbc2ed2af776fe1f5d70d31f8e3a56980908f062c2a16f"],
+"diagnostic-init":[125,"SelectedNativeProbe._initialize",193,"2b950d3ac8d55b694fdbc2ed2af776fe1f5d70d31f8e3a56980908f062c2a16f"],
 
-"diagnostic-input-boundary-body":[127,"SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output",576,"91cf80212cf4203cf39ac2e8a9ef5f5627d2128e64704f33ecf85e0fa8db0ac6"],
+"diagnostic-input-boundary-body":[127,"SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output",1345,"91cf80212cf4203cf39ac2e8a9ef5f5627d2128e64704f33ecf85e0fa8db0ac6"],
 
-"diagnostic-launch":[125,"SelectedNativeProbe._launch",284,"fb2650af24fb6774c11c3fe2bf25c3e9cfa9a1f4a195a9fd5e9d3c202bfb8449"],
+"diagnostic-launch":[125,"SelectedNativeProbe._launch",323,"fb2650af24fb6774c11c3fe2bf25c3e9cfa9a1f4a195a9fd5e9d3c202bfb8449"],
 
-"diagnostic-listener-control":[125,410,"socket.socket(family, socket.SOCK_STREAM)",17,410,58],
+"diagnostic-listener-control":[125,449,"socket.socket(family, socket.SOCK_STREAM)",17,449,58],
 
-"diagnostic-listeners":[125,"SelectedNativeProbe._denial_program",390,"5847e90ddd6c2ba8490ea3208c6214368b925f3cdf52c8f7fb72a41ebf94a8fb"],
+"diagnostic-listeners":[125,"SelectedNativeProbe._denial_program",429,"5847e90ddd6c2ba8490ea3208c6214368b925f3cdf52c8f7fb72a41ebf94a8fb"],
 
-"diagnostic-live-readiness-helper":[127,"_await_live_heartbeat",525,"f0e968f4b98aaaff12bc20c830fcd6bd5d59459b5b91979bd98e304df0f4b849"],
+"diagnostic-live-readiness-helper":[127,"_await_live_heartbeat",1294,"f0e968f4b98aaaff12bc20c830fcd6bd5d59459b5b91979bd98e304df0f4b849"],
 
-"diagnostic-no-authority-body":[127,"SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority",102,"a15f8f76b3bf3692ddf6edbba83cecd8eb961eee51baa63e74118de2face51e6"],
+"diagnostic-no-authority-body":[127,"SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority",838,"a15f8f76b3bf3692ddf6edbba83cecd8eb961eee51baa63e74118de2face51e6"],
 
-"diagnostic-owned-spawn":[125,379,"self.controller.spawn_owned('selected-offline-probe',\n                    [str(self.launcher), '--args', str(arguments), '--', *command], str(self.worker))",17,380,101],
+"diagnostic-owned-spawn":[125,418,"self.controller.spawn_owned('selected-offline-probe',\n                    [str(self.launcher), '--args', str(arguments), '--', *command], str(self.worker))",17,419,101],
 
-"diagnostic-readiness-budget-body":[127,"ControllerDeathReadinessTests.test_absent_or_static_heartbeat_cannot_restart_the_startup_budget",358,"fb30a3afde5019fc3c8ba05aeb0c1ac69be57f2a5dd165fe73d3145a4837e5d6"],
+"diagnostic-readiness-budget-body":[127,"ControllerDeathReadinessTests.test_absent_or_static_heartbeat_cannot_restart_the_startup_budget",1113,"fb30a3afde5019fc3c8ba05aeb0c1ac69be57f2a5dd165fe73d3145a4837e5d6"],
 
-"diagnostic-readiness-exit-body":[127,"ControllerDeathReadinessTests.test_early_controller_or_namespace_exit_cannot_supply_live_readiness",375,"40ea1432098780303837e1ce02a77e63f5023ba30774b3f1694e2ee3051ca0ea"],
+"diagnostic-readiness-exit-body":[127,"ControllerDeathReadinessTests.test_early_controller_or_namespace_exit_cannot_supply_live_readiness",1130,"40ea1432098780303837e1ce02a77e63f5023ba30774b3f1694e2ee3051ca0ea"],
 
-"diagnostic-readiness-order-body":[127,"ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death",316,"d325e3a7cf600bb4e5b2a01480c9eeb3b957d9058d03387998110902e1c9ecbb"],
+"diagnostic-readiness-order-body":[127,"ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death",1071,"d325e3a7cf600bb4e5b2a01480c9eeb3b957d9058d03387998110902e1c9ecbb"],
 
-"diagnostic-request-policy":[125,"SelectedNativeProbe._validate_request",500,"bca58ec3260c05ad9675fc5449abf0fe6e178516fccaf02d5e813ee828695cbe"],
+"diagnostic-request-policy":[125,"SelectedNativeProbe._validate_request",539,"bca58ec3260c05ad9675fc5449abf0fe6e178516fccaf02d5e813ee828695cbe"],
 
-"diagnostic-retained-signal":[125,661,"signal.pidfd_send_signal(descriptor, signal.SIGKILL)",16,661,68],
+"diagnostic-retained-signal":[125,701,"signal.pidfd_send_signal(descriptor, signal.SIGKILL)",16,701,68],
 
 "diagnostic-schema-held":[132,19,"\"execution_authorized\": {"],
 
-"diagnostic-send":[125,"SelectedNativeProbe._send",515,"d274c21f8434e818a21ed486c5809d2a91dea38b117c40e01d8683a38a1c4577"],
+"diagnostic-send":[125,"SelectedNativeProbe._send",554,"d274c21f8434e818a21ed486c5809d2a91dea38b117c40e01d8683a38a1c4577"],
 
-"diagnostic-setup-gate":[125,317,"os.write(write_gate, b'1')",12,317,38],
+"diagnostic-setup-gate":[125,356,"os.write(write_gate, b'1')",12,356,38],
 
-"diagnostic-spawn":[125,"SelectedNativeProbe._spawn",374,"15ecd91b567fdc014b3576cbf5b6bd02b79d35654730cc82afec95a52c0c6b83"],
+"diagnostic-spawn":[125,"SelectedNativeProbe._spawn",413,"15ecd91b567fdc014b3576cbf5b6bd02b79d35654730cc82afec95a52c0c6b83"],
 
 "diagnostic-target-held":[131,3,"\"execution_authorized\": false,"],
 
-"diagnostic-tcp-listener":[125,396,"socket.socket()",19,396,34],
+"diagnostic-tcp-listener":[125,435,"socket.socket()",19,435,34],
 
-"diagnostic-unix-listener":[125,399,"socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)",15,399,64],
+"diagnostic-unix-listener":[125,438,"socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)",15,438,64],
 
-"diagnostic-watchdog-argv":[125,293,"command = ['/usr/bin/timeout', '--signal=KILL', '8',\n                   '/usr/bin/python3', '-I', '-S', '-c', _BOOTSTRAP, *command]",8,294,78],
+"diagnostic-watchdog-argv":[125,332,"command = ['/usr/bin/timeout', '--signal=KILL', '8',\n                   '/usr/bin/python3', '-I', '-S', '-c', _BOOTSTRAP, *command]",8,333,78],
 
-"diagnostic-watchdog-object":[125,"_executable_object",110,"491f6bc9f4d6619c45cf1b8cf26dc5ca74455006b33eeda4f1c45693bd514bdc"],
+"diagnostic-watchdog-object":[125,"_executable_object",134,"491f6bc9f4d6619c45cf1b8cf26dc5ca74455006b33eeda4f1c45693bd514bdc"],
 
-"diagnostic-watchdog-retention":[125,"SelectedNativeProbe._retain_watchdog",343,"c5ee24860e922e112c5569d8788f74057e31526361ed6ae6c9310f1845520784"],
+"diagnostic-watchdog-retention":[125,"SelectedNativeProbe._retain_watchdog",382,"51b919fdbbab9c11079a0c57a6f57cc10fdee3c07ee111cd24b5d110ff3c3eb8"],
 
-"diagnostic-wire-write":[125,527,"os.write(descriptor, pending)",28,527,57],
+"diagnostic-wire-write":[125,566,"os.write(descriptor, pending)",28,566,57],
 
 "finite-input-cleanup-classification":[51,"RegisteredFiniteInput.cleanup_phase",698,"fc5f125f858f2cc459e847e5b525a3dff22406e6f97d5367a06ff176cda7852e"],
 
@@ -1838,7 +1840,7 @@
 
 "pbdadb3ae6646":[35,"PinnedHTTPSConnection.connect",385,"5b1495139c3e265020d03743ce299640eea81bc397d87db4c4d7dc2ec9c9e529"],
 
-"pbdeae676":[43,"OfflineN1Host.run_registered",571,"ebb1e30f25461867b31fd50d3a85c42d79b9e582d6ba98e457f97240c914ba63"],
+"pbdeae676":[43,"OfflineN1Host.run_registered",571,"ccdfdf1692d7dfddda956109da2736a38623ada5baa25dd7020b0f630359943b"],
 
 "pbe253e8e":[4,837,"self._submit_prompt(page, submitted, timeout_ms, request_id, prepared=prepared, source=source, guard=guard)",16,837,123],
 
@@ -2080,7 +2082,7 @@
 
 "pea688137":[34,"WorktreeCapture._git",1542,"957bbafc0ae3a4261e504991fcbd97b3bade28080c0065c3e78da2eba25e419c"],
 
-"peb04be82":[97,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2150,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
+"peb04be82":[97,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2160,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
 
 "peb0ab97bc960":[24,"MaintenanceAuthorityVerifier.__init__",344,"03802d0590db57d2c1f457a056a7a56ee8a0e0ffce20be5e4abbad96ece2eb34"],
 
@@ -2208,6 +2210,16 @@
 
 "preview-update-metadata":[27,839,"_bd(\n            beads_directory,\n            \"update\",\n            \"--metadata\",\n            json.dumps(\n                {\"cwo_ready_set_admission\": metadata},\n                sort_keys=True,\n                separators=(\",\", \":\"),\n            ),\n            \"--json\",\n            \"--\",\n            issue_id,\n        )",8,851,9],
 
+"private-pid-boundary-body":[127,"PrivatePidReuseContractTests.test_parent_binds_single_helper_birth_and_pid_owner_before_release",171,"3ca256bd8fa0f1682abb20b6077080a41803c228dd01d74db8b4c7e32908bbd9"],
+
+"private-pid-channel":[125,1077,"socket.socket(fileno=int(descriptor))",9,1077,46],
+
+"private-pid-cleanup-proof-body":[135,"PrivatePidCIApplicabilityTests.test_original_watchdog_exit_reap_and_error_free_close_reports_are_required",486,"d65a6ffca9af747dbb87948026a64eb9382f76f0528c392d4719c16095fc6721"],
+
+"private-pid-owner":[125,"_PrivatePidReuseOwner.run",1231,"08d524cc05f678b63b495877130ef99c8a9a3f9f78702b2a2feb934596cd80d8"],
+
+"private-pid-socketpair":[125,1232,"socket.socketpair()",24,1232,43],
+
 "publication-actual-replace":[126,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
 "publication-apply":[126,"GuardedArtifactTarget._apply_one",512,"c07187fb7e2924d59fbf75eaa6d939b49e3dd437d5bd591095fc706ea15a0710"],
@@ -2254,11 +2266,11 @@
 
 "registered-final-effect-check":[53,503,"self.factory.require_effect()",8,503,37],
 
-"registered-independent-cleanup-body":[128,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",914,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
+"registered-independent-cleanup-body":[128,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",926,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
 
 "registered-launcher-argv":[53,"_launcher_argv",95,"4ff15ecc165a978267d922a86efc1d2cf0b142dfa04f4aa339d7d361a31f8e01"],
 
-"registered-monitor-cleanup-support":[128,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",896,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
+"registered-monitor-cleanup-support":[128,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",908,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
 
 "registered-mount-options":[53,"_Containment._command",434,"bddb496316a7f11343589b9ecd7e200757c972084981a5c37f9c4ca23e629dfc"],
 
@@ -2268,9 +2280,9 @@
 
 "registered-namespace-info-bytes":[53,"_namespace_info_bytes",100,"51fe1fcadca2c30566207ec6ac4b43fd1824b7332c76f5948104133b2ba9cad4"],
 
-"registered-post-setup-control-body":[128,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",879,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
+"registered-post-setup-control-body":[128,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",891,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
 
-"registered-post-setup-refusal-body":[128,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",889,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
+"registered-post-setup-refusal-body":[128,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",901,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
 
 "registered-post-setup-release":[53,"_Containment._release_command",493,"1ec10424b6585e378c8aac5b774bcdc8749c83b19f19eb0c0231695d7a641669"],
 
@@ -2320,19 +2332,19 @@
 
 "share-tests":[116,"ShareConsentTests",140,"856b0ba17280a32f78af37a6c37edfb30e42b19f2f547f0c5817e8f176e27006"],
 
-"shutdown-cleanup-metadata-body":[97,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",1730,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
+"shutdown-cleanup-metadata-body":[97,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",1740,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
 
-"shutdown-final-snapshot-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",1666,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
+"shutdown-final-snapshot-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",1676,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
 
-"shutdown-late-cleanup-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",1641,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
+"shutdown-late-cleanup-body":[97,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",1651,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
 
-"shutdown-original-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",1578,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
+"shutdown-original-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",1588,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
 
-"shutdown-pending-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1604,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
+"shutdown-pending-writer-body":[97,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1614,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
 
-"shutdown-poll-schedule":[97,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1471,"e4b826d3f010d430fbd5f70a9ecbad5e225df1e4d4a8ffbf0b4142c6bd946e7e"],
+"shutdown-poll-schedule":[97,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1481,"e4b826d3f010d430fbd5f70a9ecbad5e225df1e4d4a8ffbf0b4142c6bd946e7e"],
 
-"shutdown-record-hook":[97,"RegisteredFiniteToolWiringTests.install_poll_record_hook",1569,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
+"shutdown-record-hook":[97,"RegisteredFiniteToolWiringTests.install_poll_record_hook",1579,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
 
 "transport-chunk-method-guard":[33,486,"_require_native_rpc(method)",16,486,43],
 
@@ -4239,27 +4251,31 @@
 
 [84,234,15,234,56,"browser","73cfe637971840a22284b868ba45afd81287381995c5a0bc8e53047d18b2bbb1",["route","H5.7","share-eval"]],
 
-[85,105,14,105,33,"dynamic","f674475a5ca6278fd5816d3a55a3e7045597d712871610db4601fab703bcefa3",["exclude","diagnostic-state-_regular-105-14"]],
+[85,129,14,129,33,"dynamic","f674475a5ca6278fd5816d3a55a3e7045597d712871610db4601fab703bcefa3",["exclude","diagnostic-state-_regular-105-14"]],
 
-[85,105,37,105,57,"dynamic","bbeb55e866fd8b831eebf8243ffa8429ebd76e06c9f36ae929a16bedd1b5d347",["exclude","diagnostic-state-_regular-105-37"]],
+[85,129,37,129,57,"dynamic","bbeb55e866fd8b831eebf8243ffa8429ebd76e06c9f36ae929a16bedd1b5d347",["exclude","diagnostic-state-_regular-105-37"]],
 
-[85,178,8,179,109,"process","76d84cf0cb2791d4148c88d3f1734b01e385ef19552810ddb47b129cf7ea150b",["route","N13.1","diagnostic-git-init"]],
+[85,217,8,218,109,"process","76d84cf0cb2791d4148c88d3f1734b01e385ef19552810ddb47b129cf7ea150b",["route","N13.1","diagnostic-git-init"]],
 
-[85,396,19,396,34,"network","2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",["route","N13.2","diagnostic-tcp-listener"]],
+[85,435,19,435,34,"network","2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",["route","N13.2","diagnostic-tcp-listener"]],
 
-[85,399,15,399,64,"network","77092d9387eadc38a1771895f8133f5afa460db77c59d3b34e4f290874342681",["route","N13.2","diagnostic-unix-listener"]],
+[85,438,15,438,64,"network","77092d9387eadc38a1771895f8133f5afa460db77c59d3b34e4f290874342681",["route","N13.2","diagnostic-unix-listener"]],
 
-[85,410,17,410,58,"network","e8dc6795e279df7340b3d9dac05d0df36945902b0a5f4621e2d04cbc1d253321",["route","N13.2","diagnostic-listener-control"]],
+[85,449,17,449,58,"network","e8dc6795e279df7340b3d9dac05d0df36945902b0a5f4621e2d04cbc1d253321",["route","N13.2","diagnostic-listener-control"]],
 
-[85,412,16,412,41,"browser","10754d068f2e2693feabd6bf843854a988f1ab60b4dd97736a463407811a7121",["route","N13.2","diagnostic-control-connect"]],
+[85,451,16,451,41,"browser","10754d068f2e2693feabd6bf843854a988f1ab60b4dd97736a463407811a7121",["route","N13.2","diagnostic-control-connect"]],
 
-[85,581,32,581,93,"appserver","7e1f4883cd035d8749df5e3b45e636c97a0a7e28ba1f32eca8eb1cd06e426d61",["route","N13.3","diagnostic-config-rpc"]],
+[85,620,32,620,93,"appserver","7e1f4883cd035d8749df5e3b45e636c97a0a7e28ba1f32eca8eb1cd06e426d61",["route","N13.3","diagnostic-config-rpc"]],
 
-[85,604,20,604,84,"appserver","42b9115a22536a8707dd5cbcf66382727b823298e405515ee9611673dbba0661",["route","N13.3","diagnostic-command-rpc"]],
+[85,643,20,643,84,"appserver","42b9115a22536a8707dd5cbcf66382727b823298e405515ee9611673dbba0661",["route","N13.3","diagnostic-command-rpc"]],
 
-[85,650,23,650,65,"dynamic","19bfabff3498696136f4302e644093b014d4bf7c38207862a0538474473101e4",["exclude","diagnostic-state-_terminate_owner-624"]],
+[85,690,23,690,65,"dynamic","19bfabff3498696136f4302e644093b014d4bf7c38207862a0538474473101e4",["exclude","diagnostic-state-_terminate_owner-624"]],
 
-[85,698,25,698,44,"dynamic","7fbdb66bda3f6bb418283592016900ca0b5f3fdefcdfccd5e6f3b86e993618fc",["exclude","diagnostic-state-_resource_actions-672"]]
+[85,738,25,738,44,"dynamic","7fbdb66bda3f6bb418283592016900ca0b5f3fdefcdfccd5e6f3b86e993618fc",["exclude","diagnostic-state-_resource_actions-672"]],
+
+[85,1077,9,1077,46,"network","6c6a6b0d8bf3810f2953be09121b28fa30fc7d1a9eb0e4fe3ab8548ac0f9a419",["route","N13.6","private-pid-channel"]],
+
+[85,1232,24,1232,43,"network","dc4b9d6a8bb142b935cdc7d6ecb03c184bcc2a3b752ae47e176257631a569b90",["route","N13.6","private-pid-socketpair"]]
 ],
 
 "paths":[
@@ -4726,7 +4742,9 @@
 
 {"contract":"P2","effect_points":["host-actual-replace"],"entrypoint":"host-save","gate_limits":"Original lock verification is a trusted local caller contract. Contextual points bind checks at actual state mutation sites without conferring external-writer exclusion or native authority.","id":"P2.1","review_gates":["host-lock-present","host-lock-identity"]},
 
-{"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["closure-prerequisite-query"],"entrypoint":"closure-prerequisite-query-body","gates":[],"id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":["scripts/qualified_closure.py","scripts/cwo_core/beads.py"],"witnesses":["closure-open-graph"]}
+{"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["closure-prerequisite-query"],"entrypoint":"closure-prerequisite-query-body","gates":[],"id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":["scripts/qualified_closure.py","scripts/cwo_core/beads.py"],"witnesses":["closure-open-graph"]},
+
+{"contract":"N13","effect":"Fixed private primitive PID-reuse diagnostic and exact-handle cleanup","effect_points":["private-pid-channel","private-pid-socketpair"],"entrypoint":"private-pid-owner","gates":[],"id":"N13.6","limits":"Primitive only; selected package rejected. Channels are local socketpair/inherited fd, not external endpoints. Fixed driver/children are trusted private helpers; no model call, native admission or accepted output. Stable birth retains PID, comm, parent and start ticks. Mock graph/cleanup guards grant no OS credit. Exact WRITE EPERM is test-only unsupported after original exit/reap and error-free close; missing identity, retained or failed cleanup remain failures.","ordering":"20s absolute deadline; rearm parent death before handoff; verify original ancestry/private namespaces/PID owner before promotion/release; preserve E/P and clear inheritance after release; passively wait original birth within residual budget, then require exit/reap and error-free close.","trace_files":["scripts/selected_native_containment.py","scripts/linux_owned_children.py","scripts/cwo_core/atomic_spawn.py"],"witnesses":["private-pid-boundary"]}
 ],
 
 "schema":"compact-release-routes-v1",
@@ -5130,7 +5148,7 @@
 
 "scripts/offline_fake_artifact_promotion.py":["cb211328fb54cd56054422dfe1fdafca446277665354ebef2669fcef36b1351c",420,38543],
 
-"scripts/offline_n1_host.py":["bd7f9bc36eb453bdfa56c5dd2969b8f084a7d0b83ba2476faf00935d287769c0",420,33978],
+"scripts/offline_n1_host.py":["d3c911389bc30cace102a7eace24800da1213723b42fba3a77f8900691068af2",420,34016],
 
 "scripts/offline_native_adjudication.py":["261f83c85996dfa831a2842e75ffecef2b0d831eadf7bc143f1203bbeda6caaa",420,25338],
 
@@ -5236,7 +5254,7 @@
 
 "scripts/scaffold_workgraph.py":["7236cba0c029355d39db7eec48bb550eed3474c2f26a09114e9fee1db727ecee",493,77572],
 
-"scripts/selected_native_containment.py":["d8a7509f45696d5808eaef82660a6c6d58b4797e355b780a8e0d61d36ff24c44",420,39579],
+"scripts/selected_native_containment.py":["8540ea0a1843940ce50ae1b0b65c8dffa73ebff623b49e755ad86bc1eac1ac80",420,69983],
 
 "scripts/setup_workspace_database.py":["f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd",420,725],
 
@@ -5282,7 +5300,9 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["1178a61d1035f34daf5d481ac2f6596f336b7a2f0d9889e3e01bc9161001fd60",420,127291],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2afa4f380c165c2ebe044b0aaf52869263ebdb0c4a62b560010b5668ae30e3a2",420,127291],
+
+"tests/fixtures/private-pid-cursor-write-eperm.json":["37573ecfaa393bae0efd0cda482809e1579f5d10609cc9c6d7d1981eb66d46ef",420,3028],
 
 "tests/host_acceptance_fixtures.py":["87a26b47c505e5834a98369efe916b51ca9af2e00e1df2b9e2139a28a4908171",420,2340],
 
@@ -5362,6 +5382,8 @@
 
 "tests/test_ownership_producer.py":["14d7a0ec68767275fd1e96daca77e524bf0dee174e108fe033c0dcb8f8c81c60",420,57956],
 
+"tests/test_private_pid_ci_applicability.py":["4e997fb1ebd3dbcbda76a9ca6e544297da10b2fd6d2e6d8d1c4e530fe5a526d8",420,41227],
+
 "tests/test_production_closure.py":["a98a6e9a4f72127c5f4f852575f0860b1585a3dd192fa3fdad162566a9588a49",420,61523],
 
 "tests/test_production_closure_authority.py":["f5cbcc2e57d48ebadca7991a7313e832b9e2c836fc837cc9a5cf3470effefccb",420,14313],
@@ -5378,9 +5400,9 @@
 
 "tests/test_registered_finite_input.py":["b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684",420,127597],
 
-"tests/test_registered_finite_tool_wiring.py":["1a604d318a28ba9f850cda8adf77d66b20186aa49f14c25cbfbbb3b4df6339f1",420,218983],
+"tests/test_registered_finite_tool_wiring.py":["da9b7d711d464dfd717d32e534287aa962970d31a0a54aa5a6163fa3a09fb4e5",420,223454],
 
-"tests/test_registered_n1_factory.py":["ac70f74e2c5982ead451b97b1762c7d829afd39e8b7731b647cacd7750654591",420,122995],
+"tests/test_registered_n1_factory.py":["69e7de8518401764c6e79a3a60fc7d3b95cb24011014585607ff3ae8a4518451",420,125648],
 
 "tests/test_release_effect_routes.py":["88051a406760c06f4d1641bf7eee8465bab5159d6db05b19ab255fbfcbd0d42c",420,84850],
 
@@ -5396,7 +5418,7 @@
 
 "tests/test_scaffold_dependency_validation.py":["56f647152b9bd65acfcbb014a04263203a1dd350082e61a35af9b0650c4e36dd",420,32651],
 
-"tests/test_selected_native_containment.py":["2503146117839a651eb5611bd478fb39102f9fd3efbdb79b1066ff069c405c50",420,31358],
+"tests/test_selected_native_containment.py":["90a092707b2468314cc9174f26e04fe0c3d60a8c99e0aef7c24c668069799df8",420,75099],
 
 "tests/test_turn_observations.py":["fcbf803eb912648bf787ef485d1a147b867a46849940561a3f960fda04186d2e",420,17380],
 
@@ -5523,6 +5545,8 @@
 "host-lock-replacement":{"assertion":"self.assertFalse((host.state / \"artifact\").exists())","body":"host-lock-replacement-body","kind":"operator-contract","positive":"self.assertEqual(report[\"status\"], \"artifact-ready\", report[\"error\"])","support":["host-original-control"],"test_id":"tests.test_offline_n1_host.OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent"},
 
 "native-current-delivery":{"assertion":"self.assertEqual(native.fixture.spawned, [])","body":"native-delivery-during-refusal","kind":"zero-effect-refusal","positive":"self.assertTrue(result['execution_complete'])","support":["native-delivery-before-refusal","native-delivery-downgrade-refusal","native-delivery-positive","native-delivery-helper","p8ef10176"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_native_consumer_refuses_delivery_edit_during_original_evidence_consumption"},
+
+"private-pid-boundary":{"assertion":"self.assertNotIn('unshare_pid', owner.boundary)","body":"private-pid-boundary-body","kind":"operator-contract","positive":"owner.controller._engine._verified.assert_called_once()","support":["private-pid-cleanup-proof-body"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_parent_binds_single_helper_birth_and_pid_owner_before_release"},
 
 "publication-late-drift":{"assertion":"self.assert_late_drift_refused(lambda: destination.write_bytes(concurrent))","body":"publication-late-drift-body","kind":"operator-contract","positive":"self.assertEqual(result[\"new_invocation\"][\"replacements\"], 1)","support":["publication-original-control"],"test_id":"tests.test_guarded_artifact_target.GuardedArtifactTargetTests.test_late_dirty_manifest_drift_preserves_concurrent_target_bytes"},
 

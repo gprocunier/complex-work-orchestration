@@ -433,9 +433,21 @@ class RpcProcess(children.FakeChild):
         gate = getattr(self.case, 'scheduler_gate', None)
         if gate is not None and not gate.is_set():
             return False
-        return (self.pending is None or self.case.factory.server.transport_failure is not None or
+        return ((self.pending is None and self.replies_published())
+                or self.case.factory.server.transport_failure is not None or
                 (len(self.replies) == getattr(self, 'expected_replies', None) and
                  self.replies[-1].get('result') != {'decision': 'accept'}))
+
+    def replies_published(self):
+        # Positive byte-validation cases also settle the original sender. The
+        # fake child's completed callback alone cannot prove a full write was
+        # published; terminal intake during that gap must still revoke it.
+        if not getattr(self.case, 'settle_reply', False):
+            return True
+        registry = self.case.factory.server.requests
+        with registry.lock:
+            return bool(registry.entries) and all(
+                entry.state == 'sent' and entry.delivery == 'sent' for entry in registry.entries.values())
 
     def before_consumption(self, observed, *, armed=lambda: True):
         """Control only the real Condition scheduling boundary, never acceptance."""
@@ -1890,15 +1902,54 @@ class FactoryTests(unittest.TestCase):
         self.assertEqual(len(self.spawned), 1)
 
     def test_completed_execution_with_wrong_bytes_has_no_issued_output(self):
-        case = self.case(archive_schedule='settled', bad_output=True)
+        case = self.case(archive_schedule='settled', settle_reply=True, bad_output=True)
         factory = self.factory(case)
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError) as caught:
             factory.run()
+        self.assertIsNotNone(factory.execution)
         self.assertEqual(factory.execution['status'], 'artifact-ready')
+        self.assertIs(type(caught.exception), runtime.validation.ValidationError)
         self.assertIsNone(factory.token)
         with self.assertRaises(ValueError):
             factory.issued_artifact()
         self.assertEqual(len(self.spawned), 1)
+        attempt = self.attempt(case)
+        self.assertEqual(attempt['charge'], attempt['amount'])
+
+    def test_wrong_bytes_validation_waits_for_original_reply_publication(self):
+        terminal = threading.Event()
+        full_writes, terminal_states = [], []
+        original_write = os.write
+        original_observe = runtime._CoherentServerRequests.observe_trusted_terminal
+
+        def write(descriptor, data):
+            count = original_write(descriptor, data)
+            if (getattr(self, 'spawned', ()) and descriptor == self.spawned[0].stdin.descriptor
+                    and b'"decision":"accept"' in bytes(data)):
+                self.assertEqual(count, len(data))
+                full_writes.append(count)
+                # The real pipe consumer completes normally while the sender
+                # has not yet published the successful full write. A positive
+                # validation fixture must settle that publication first.
+                terminal.wait(2)
+            return count
+
+        def observe(registry, thread_id, turn_id, boundary):
+            if boundary.get('terminal_event') is not None:
+                with registry.lock:
+                    terminal_states.append(tuple(entry.state for entry in registry.entries.values()))
+            try:
+                return original_observe(registry, thread_id, turn_id, boundary)
+            finally:
+                if boundary.get('terminal_event') is not None:
+                    terminal.set()
+
+        with patch.object(os, 'write', write), patch.object(
+                runtime._CoherentServerRequests, 'observe_trusted_terminal', observe):
+            self.test_completed_execution_with_wrong_bytes_has_no_issued_output()
+        self.assertEqual(len(full_writes), 1)
+        self.assertTrue(terminal_states)
+        self.assertEqual(terminal_states[0], ('sent',))
 
     def test_serialized_authority_cannot_create_a_factory(self):
         case = self.case()

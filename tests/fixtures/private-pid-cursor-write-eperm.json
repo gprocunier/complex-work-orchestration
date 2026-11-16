@@ -1,0 +1,125 @@
+{
+  "description": "Original 3f26094 hosted WRITE EPERM data only. Unit fixtures do not establish kernel permission, verified parent/boundary, or cleanup.",
+  "helpers": {
+    "bwrap": {
+      "file_caps": {
+        "errno": 61
+      },
+      "gid": 0,
+      "mode": "0o755",
+      "path": "/usr/bin/bwrap",
+      "uid": 0,
+      "version": [
+        "bubblewrap 0.11.1"
+      ]
+    },
+    "python": {
+      "file_caps": {
+        "errno": 61
+      },
+      "gid": 0,
+      "mode": "0o755",
+      "path": "/usr/bin/python3.14",
+      "uid": 0,
+      "version": [
+        "Python 3.14.4"
+      ]
+    },
+    "timeout": {
+      "file_caps": {
+        "errno": 61
+      },
+      "gid": 0,
+      "mode": "0o755",
+      "path": "/usr/lib/cargo/bin/coreutils/timeout",
+      "uid": 0,
+      "version": [
+        "timeout (uutils coreutils) 0.10.0"
+      ]
+    }
+  },
+  "receipt": "ci-3f26094-shard2.log:1823-1850; run 43803028636",
+  "report": {
+    "driver_context": {
+      "capabilities": {
+        "CapAmb": "0000000000000000",
+        "CapEff": "000001ffffffffff",
+        "CapInh": "0000000000000000",
+        "CapPrm": "000001ffffffffff"
+      },
+      "gid": 1001,
+      "namespaces": {
+        "mnt": "mnt:[4026532262]",
+        "net": "net:[4026532267]",
+        "pid": "pid:[4026532266]",
+        "user": "user:[4026532261]"
+      },
+      "parent_death_signal": 9,
+      "pid_owner_user_namespace": [
+        5,
+        4026532261
+      ],
+      "securebits": 0,
+      "uid": 1001
+    },
+    "error": "PermissionError: [Errno 1] Operation not permitted",
+    "locations": [
+      {
+        "file": "selected_native_containment.py",
+        "function": "_pid_reuse_entry",
+        "line": 1131
+      },
+      {
+        "file": "selected_native_containment.py",
+        "function": "_reuse_case",
+        "line": 1018
+      },
+      {
+        "file": "selected_native_containment.py",
+        "function": "_reuse_sentinel",
+        "line": 986
+      },
+      {
+        "file": "selected_native_containment.py",
+        "function": "_write_private_pid_cursor",
+        "line": 841
+      }
+    ]
+  },
+  "security_records": [
+    {
+      "capabilities": {
+        "CapAmb": "000001ffffffffff",
+        "CapEff": "000001ffffffffff",
+        "CapInh": "000001ffffffffff",
+        "CapPrm": "000001ffffffffff"
+      },
+      "parent_death_signal": 0,
+      "securebits": 0,
+      "stage": "ENTRY"
+    },
+    {
+      "capabilities": {
+        "CapAmb": "000001ffffffffff",
+        "CapEff": "000001ffffffffff",
+        "CapInh": "000001ffffffffff",
+        "CapPrm": "000001ffffffffff"
+      },
+      "parent_death_signal": 9,
+      "securebits": 0,
+      "stage": "PRE_CLEAR"
+    },
+    {
+      "capabilities": {
+        "CapAmb": "0000000000000000",
+        "CapEff": "000001ffffffffff",
+        "CapInh": "0000000000000000",
+        "CapPrm": "000001ffffffffff"
+      },
+      "parent_death_signal": 9,
+      "securebits": 0,
+      "stage": "POST_CLEAR"
+    }
+  ],
+  "source_commit": "3f26094ee03be9de9adee5df3992a2be7c99f4e4"
+}
