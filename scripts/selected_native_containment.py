@@ -7,6 +7,8 @@ Native app-server tool execution is a separate, unperformed qualification case.
 from __future__ import annotations
 
 import argparse
+import array
+import ctypes
 import base64
 import fcntl
 import hashlib
@@ -94,6 +96,28 @@ def _need(condition, message):
         raise SelectedProbeError(message)
 
 
+def _stable_process_identity(observed):
+    # Scheduler state may change between observations of the same lifetime.
+    return observed.pid, observed.comm, observed.ppid, observed.start_ticks
+
+
+def _pid_owning_user_namespace(pid):
+    child = Path('/proc') / str(pid)
+    descriptor = os.open(child / 'ns/pid', os.O_RDONLY | os.O_CLOEXEC)
+    try:
+        owner = fcntl.ioctl(descriptor, 0xb701)  # NS_GET_USERNS from linux/nsfs.h.
+        try:
+            observed, expected = os.fstat(owner), (child / 'ns/user').stat()
+            identity = observed.st_dev, observed.st_ino
+            _need(identity == (expected.st_dev, expected.st_ino),
+                  'The private PID namespace belongs to another user namespace.')
+            return identity
+        finally:
+            os.close(owner)
+    finally:
+        os.close(descriptor)
+
+
 def _regular(path):
     _need(path.is_absolute() and path.resolve() == path and not path.is_symlink(), 'A direct absolute regular file is required.')
     info = path.stat(follow_symlinks=False)
@@ -138,6 +162,21 @@ def disposition(observations):
                            'native-ordinary-retry', 'native-approved-escalation',
                            'managed-runtime-grants', 'production-lifecycle-recovery'],
             'named_candidate': 'distinct-unselected-identity'}
+
+
+def _note_child_stderr(process, primary):
+    """Retain one bounded, nonblocking fixed-child observation before cleanup."""
+    if process is None:
+        return
+    try:
+        descriptor = process.stderr.fileno()
+        os.set_blocking(descriptor, False)
+        if select.select([descriptor], [], [], 0)[0]:
+            detail = os.read(descriptor, 4096).decode('utf-8', errors='replace')
+            if detail:
+                owned._note(primary, 'Diagnostic child stderr: ' + detail)
+    except BaseException as secondary:
+        owned._note(primary, 'Diagnostic stderr observation: ' + repr(secondary))
 
 
 class SelectedNativeProbe:
@@ -250,7 +289,7 @@ class SelectedNativeProbe:
         try:
             fdinfo = (Path('/proc/self/fdinfo') / str(descriptor)).read_text().splitlines()
             _need('Pid:\t' + str(pid) in fdinfo, 'The namespace handle has another identity.')
-            _need(self._namespace_identity(pid) == before, 'The namespace birth changed while opening its handle.')
+            _need(_stable_process_identity(self._namespace_identity(pid)) == _stable_process_identity(before), 'The namespace birth changed while opening its handle.')
             facts = self._namespace_facts(pid)
             _need(not select.select([descriptor], [], [], 0)[0], 'The blocked namespace already exited.')
             self.namespace_handle, self._namespace_pid = descriptor, pid
@@ -355,7 +394,7 @@ class SelectedNativeProbe:
               'The post-setup command is not the fixed watchdog: ' + detail)
         descriptor = os.pidfd_open(pid, 0)
         try:
-            _need(parse_proc_stat((child / 'stat').read_text()) == before
+            _need(_stable_process_identity(parse_proc_stat((child / 'stat').read_text())) == _stable_process_identity(before)
                   and 'Pid:\t' + str(pid) in (Path('/proc/self/fdinfo') / str(descriptor)).read_text().splitlines()
                   and not select.select([descriptor], [], [], 0)[0], 'The fixed watchdog birth changed: ' + detail)
             self.watchdog_handle = descriptor
@@ -622,6 +661,7 @@ class SelectedNativeProbe:
             self.close()
 
     def _close_after_failure(self, primary):
+        _note_child_stderr(self.__dict__.get('process'), primary)
         try:
             self.close()
         except BaseException as secondary:
@@ -745,6 +785,498 @@ class OuterBoundaryControl(SelectedNativeProbe):
         _need(kind in {'useful', 'denials', 'waiting'} and code is not None,
               'Only fixed Python outer-boundary controls are supported.')
         return [str(self.binary), '-I', '-S', '-c', code]
+
+
+_EXEC_CONTEXT = r'''
+import json,pathlib
+status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line)
+pathlib.Path('execution-context.json').write_text(json.dumps({'uid':os.getuid(),'gid':os.getgid(),
+ 'capabilities':{name:int(status[name],16) for name in ('CapEff','CapPrm','CapInh','CapAmb')}}))
+'''
+_PID_REUSE_SECONDS = 20
+_PID_REUSE_CHILD = 'import os\n' + _EXEC_CONTEXT + r'''
+import time
+deadline=time.monotonic()+10
+while time.monotonic()<deadline and not pathlib.Path('exit').exists():
+ with pathlib.Path('heartbeat').open('a') as stream: stream.write('.')
+ time.sleep(.01)
+'''
+_PID_REUSE_ENTRY = "import sys;sys.path.insert(0,sys.argv[1]);import selected_native_containment as s;s._pid_reuse_entry(sys.argv[2:])"
+_PID_REUSE_LAUNCH = r'''
+import ctypes,json,os,pathlib,signal,sys
+expected=json.loads(sys.argv[1]); parent=os.getppid()
+assert parent>1
+entry=pathlib.Path('/proc')/str(parent)/'exe'; info=entry.stat()
+assert [str(entry.resolve()),[info.st_dev,info.st_ino]]==expected
+assert ctypes.CDLL(None,use_errno=True).prctl(1,signal.SIGKILL,0,0,0)==0
+assert os.getppid()==parent
+command=json.loads(sys.argv[2])
+os.execve(command[0],command,{'PATH':'/usr/bin:/bin','LC_ALL':'C.UTF-8'})
+'''
+
+
+def _pid_namespace_facts():
+    return {kind: os.readlink('/proc/self/ns/' + kind) for kind in ('pid', 'user', 'mnt', 'net')}
+
+
+def _private_pid_scope(host_namespaces):
+    _need(os.getpid() == 1 and os.readlink('/proc/self') == '1',
+          'A private PID namespace with its own proc view is required.')
+    facts = _pid_namespace_facts()
+    _need(set(host_namespaces) == set(facts)
+          and all(facts[kind] != host_namespaces[kind] for kind in facts),
+          'Every private diagnostic namespace must differ from its host.')
+    _need(parse_proc_stat(Path('/proc/1/stat').read_text()).pid == 1,
+          'The private proc view does not expose its own namespace init.')
+    return facts
+
+
+def _write_private_pid_cursor(pid, host_namespaces):
+    _need(type(pid) is int and 2 <= pid < 2**31, 'A bounded original child PID is required.')
+    facts = _private_pid_scope(host_namespaces)
+    descriptor = os.open('/proc/sys/kernel/ns_last_pid', os.O_WRONLY | os.O_NOFOLLOW)
+    try:
+        _need(_pid_namespace_facts() == facts, 'The private namespace changed before cursor write.')
+        raw = str(pid - 1).encode('ascii')
+        _need(os.write(descriptor, raw) == len(raw), 'The private PID cursor write was incomplete.')
+    finally:
+        os.close(descriptor)
+
+
+class _ReuseCapHeader(ctypes.Structure):
+    _fields_ = [('version', ctypes.c_uint32), ('pid', ctypes.c_int)]
+
+
+class _ReuseCapData(ctypes.Structure):
+    _fields_ = [('effective', ctypes.c_uint32), ('permitted', ctypes.c_uint32),
+               ('inheritable', ctypes.c_uint32)]
+
+
+def _drop_reuse_inheritance(host_namespaces):
+    _private_pid_scope(host_namespaces)
+    before = _pid_reuse_security_state()['capabilities']
+    effective, permitted = int(before['CapEff'], 16), int(before['CapPrm'], 16)
+    library = ctypes.CDLL(None, use_errno=True)
+    header, values = _ReuseCapHeader(0x20080522, 0), (_ReuseCapData * 2)()
+    library.capset.argtypes = [ctypes.POINTER(_ReuseCapHeader), ctypes.POINTER(_ReuseCapData)]
+    library.capset.restype = ctypes.c_int
+    # capget may report a policy-filtered view. Preserve exactly the capabilities
+    # already held in kernel credentials; capset and every later use remain
+    # subject to the unchanged host security policy.
+    for index, value in enumerate(values):
+        value.effective = (effective >> (index * 32)) & 0xffffffff
+        value.permitted = (permitted >> (index * 32)) & 0xffffffff
+    _need(library.capset(ctypes.byref(header), values) == 0, 'Private capability inheritance could not be cleared.')
+    library.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
+    library.prctl.restype = ctypes.c_int
+    _need(library.prctl(47, 4, 0, 0, 0) == 0, 'Private ambient capability inheritance could not be cleared.')
+    status = dict(line.split(':', 1) for line in Path('/proc/self/status').read_text().splitlines() if ':' in line)
+    _need(int(status['CapInh'], 16) == 0 and int(status['CapAmb'], 16) == 0,
+          'The private diagnostic would pass capabilities to its exec children.')
+    _need(int(status['CapEff'], 16) == effective and int(status['CapPrm'], 16) == permitted,
+          'Clearing private inheritance changed the driver capabilities.')
+
+
+def _arm_private_parent_death(host_namespaces):
+    _private_pid_scope(host_namespaces)
+    library = ctypes.CDLL(None, use_errno=True)
+    library.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
+    library.prctl.restype = ctypes.c_int
+    _need(library.prctl(1, signal.SIGKILL, 0, 0, 0) == 0, 'The private driver could not bind parent death.')
+    _need(_pid_reuse_security_state()['parent_death_signal'] == signal.SIGKILL,
+          'The private driver parent-death binding was not retained.')
+
+
+def _reuse_wait(predicate, message, seconds=4):
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(.01)
+    raise SelectedProbeError(message)
+
+
+def _reuse_heartbeat(path, descriptor):
+    def size():
+        return path.stat().st_size if path.exists() else 0
+    _reuse_wait(lambda: size() > 0, 'The fixed child did not produce a heartbeat.')
+    before = size()
+    _reuse_wait(lambda: size() > before, 'The fixed child heartbeat did not advance.')
+    _need(not select.select([descriptor], [], [], 0)[0], 'The fresh child exited during its heartbeat.')
+    return True
+
+
+def _reuse_exec_context(root):
+    with (root / 'execution-context.json').open('rb') as stream:
+        raw = stream.read(4097)
+    _need(len(raw) <= 4096, 'The child execution-context record exceeded its bound.')
+    context = json.loads(raw)
+    _need(context['uid'] == os.getuid() and context['gid'] == os.getgid(),
+          'The fixed child did not preserve the original UID/GID context.')
+    _need(context['capabilities'] == dict.fromkeys(('CapEff', 'CapPrm', 'CapInh', 'CapAmb'), 0),
+          'The fixed exec child inherited private driver capabilities.')
+    return context
+
+
+def _reuse_spawn(root):
+    root.mkdir(mode=0o700)
+    executable = str(Path('/usr/bin/python3').resolve())
+    controller = owned.LinuxOwnedChildController(executable)
+    try:
+        report = controller.spawn_owned('fixed-pid-reuse-child',
+            [executable, '-I', '-S', '-c', _PID_REUSE_CHILD], str(root))
+        _need(report.get('outcome') == 'registered', 'The fixed child lacks its atomic birth: ' + str(report))
+        receipt = report['receipt']
+        birth = next(item for item in controller._backend.births if item.receipt is receipt)
+        _reuse_heartbeat(root / 'heartbeat', birth.descriptor)
+        return controller, receipt, birth
+    except BaseException as failure:
+        _finish_pid_reuse([controller.close], failure)
+        raise
+
+
+def _reuse_exit_original(root, birth):
+    (root / 'original/exit').touch()
+    _need(select.select([birth.descriptor], [], [], 5)[0], 'The original retained child did not exit.')
+    result = os.waitid(os.P_PIDFD, birth.descriptor, os.WEXITED | os.WNOHANG)
+    _need(result is not None and result.si_pid == birth.pid, 'The original external reap differs from its birth.')
+    _need(owned.ProcAdapter().pidfd_pid(birth.descriptor) == -1,
+          'The original pidfd still exposes a live PID after controlled reaping.')
+
+
+def _reuse_sentinel(root, pid, host_namespaces):
+    # Construct first: no child or background producer may allocate between the
+    # namespaced cursor write and this one qualified atomic child creation.
+    directory = root / 'sentinel'
+    directory.mkdir(mode=0o700)
+    executable = str(Path('/usr/bin/python3').resolve())
+    controller = owned.LinuxOwnedChildController(executable)
+    try:
+        _write_private_pid_cursor(pid, host_namespaces)
+        report = controller.spawn_owned('fixed-pid-reuse-sentinel',
+            [executable, '-I', '-S', '-c', _PID_REUSE_CHILD], str(directory))
+        _need(report.get('outcome') == 'registered', 'The fresh sentinel lacks its own atomic birth.')
+        receipt = report['receipt']
+        birth = next(item for item in controller._backend.births if item.receipt is receipt)
+        _need(birth.pid == pid, 'The kernel did not reuse the required private PID.')
+        return controller, receipt, birth
+    except BaseException as failure:
+        _finish_pid_reuse([controller.close], failure)
+        raise
+
+
+def _finish_pid_reuse(actions, primary):
+    errors, interruption = owned._cleanup(actions)
+    if primary is not None:
+        for detail in errors:
+            owned._note(primary, 'Private PID-reuse cleanup: ' + detail)
+        if interruption is not None:
+            owned._note(primary, interruption)
+        return
+    if interruption is not None:
+        raise interruption
+    _need(not errors, 'Private PID-reuse cleanup failed: ' + str(errors))
+
+
+def _reuse_case(root, host_namespaces):
+    original, receipt, birth = _reuse_spawn(root / 'original')
+    fresh = primary = None
+    try:
+        _reuse_exit_original(root, birth)
+        fresh, fresh_receipt, sentinel = _reuse_sentinel(root, birth.pid, host_namespaces)
+        _need(sentinel.descriptor != birth.descriptor, 'Original and fresh handles must remain independently retained.')
+        stale = original.terminate(receipt, 0, allow_kill=True)
+        _need(stale['signals'] == [] and not sentinel.reaped,
+              'The stale receipt affected the fresh sentinel lifetime.')
+        grew = _reuse_heartbeat(root / 'sentinel/heartbeat', sentinel.descriptor)
+        sentinel_context = _reuse_exec_context(root / 'sentinel')
+        cleanup = fresh.terminate(fresh_receipt, .1, allow_kill=True)
+        _need(cleanup.get('child_exit_confirmed') and cleanup.get('child_reaped'),
+              'Fresh-handle cleanup did not confirm and reap its original sentinel.')
+        result = {'original_pid': birth.pid, 'sentinel_pid': sentinel.pid,
+                  'sentinel_heartbeat_grew': grew, 'sentinel_reaped_by_stale_owner': False,
+                  'stale': stale, 'fresh_cleanup': cleanup,
+                  'scope': 'primitive-controller-pid-reuse',
+                  'sentinel_context': sentinel_context, 'profile_status': 'selected-unqualified',
+                  'confidential': 'unsupported', 'model_calls': False, 'thread_or_turn_started': False,
+                  'accepted_output': False, 'execution_authorized': False}
+        return result
+    except BaseException as failure:
+        primary = failure
+        raise
+    finally:
+        actions = [original.close]
+        if fresh is not None:
+            actions.append(fresh.close)
+        _finish_pid_reuse(actions, primary)
+
+
+def _pid_reuse_security_state():
+    """Observe this process without changing capabilities or parent-death state."""
+    with Path('/proc/self/status').open('rb') as stream:
+        raw = stream.read(8192)
+    status = dict(line.split(':', 1) for line in raw.decode('ascii').splitlines() if ':' in line)
+    library = ctypes.CDLL(None, use_errno=True)
+    library.prctl.argtypes = [ctypes.c_int, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong, ctypes.c_ulong]
+    library.prctl.restype = ctypes.c_int
+    death = ctypes.c_int()
+    _need(library.prctl(2, ctypes.addressof(death), 0, 0, 0) == 0, 'Private parent-death observation failed.')
+    securebits = library.prctl(27, 0, 0, 0, 0)
+    _need(securebits >= 0, 'Private securebits observation failed.')
+    return {'capabilities': {name: status[name].strip()[:32]
+                             for name in ('CapEff', 'CapPrm', 'CapInh', 'CapAmb')},
+            'securebits': securebits, 'parent_death_signal': death.value}
+
+
+def _pid_reuse_failure_context():
+    context = {'uid': os.getuid(), 'gid': os.getgid()}
+    try:
+        context.update(_pid_reuse_security_state())
+    except BaseException as failure:
+        context['capabilities_error'] = type(failure).__name__[:64]
+    try:
+        context['namespaces'] = {kind: value[:64] for kind, value in _pid_namespace_facts().items()}
+        context['pid_owner_user_namespace'] = _pid_owning_user_namespace(os.getpid())
+    except BaseException as failure:
+        context['namespace_error'] = type(failure).__name__[:64]
+    return context
+
+
+def _pid_reuse_failure(failure):
+    # Fixed failure context only: never inspect locals, source lines or environment.
+    try:
+        detail = str(failure) + '; '.join(failure.__dict__.get('__notes__', []))
+    except BaseException:
+        detail = 'Original failure message unavailable'
+    name = type(failure).__name__.encode('utf-8')[:64].decode('utf-8', errors='ignore')
+    error = name + ': ' + detail.encode('utf-8')[:400].decode('utf-8', errors='ignore')
+    report = {'error': error}
+    try:
+        locations, trace = [], failure.__traceback__
+        for _index in range(8):
+            if trace is None:
+                break
+            code = trace.tb_frame.f_code
+            locations.append({'file': Path(code.co_filename).name[:48],
+                              'function': code.co_name[:64], 'line': trace.tb_lineno})
+            trace = trace.tb_next
+        report['locations'] = locations
+        report['driver_context'] = _pid_reuse_failure_context()
+    except BaseException as secondary:
+        report['diagnostic_error'] = type(secondary).__name__[:64]
+    try:
+        if len(json.dumps(report).encode()) <= 4096:
+            return report
+    except BaseException:
+        pass
+    return {'error': error, 'diagnostic_error': 'Fixed diagnostic context exceeded its bound'}
+
+
+def _pid_reuse_entry(arguments):
+    descriptor, root, host_namespaces = arguments
+    with socket.socket(fileno=int(descriptor)) as channel:
+        try:
+            facts = _private_pid_scope(json.loads(host_namespaces))
+            # The independent parent verifies the original ancestry only after
+            # this post-exec binding, before promoting or releasing the handoff.
+            _arm_private_parent_death(json.loads(host_namespaces))
+            own = os.pidfd_open(os.getpid(), 0)
+            try:
+                channel.sendmsg([json.dumps({'inner_pid': os.getpid(), 'namespaces': facts}).encode()],
+                    [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array('i', [own]))])
+            finally:
+                os.close(own)
+            channel.settimeout(_PID_REUSE_SECONDS)
+            _need(channel.recv(1) == b'1', 'The independent parent did not release the private diagnostic.')
+            _drop_reuse_inheritance(json.loads(host_namespaces))
+            report = _reuse_case(Path(root), json.loads(host_namespaces))
+        except BaseException as failure:
+            report = _pid_reuse_failure(failure)
+        channel.sendall(json.dumps(report, default=str).encode())
+
+
+class _PrivatePidReuseOwner:
+    """One fixed, independently gated PID-namespace diagnostic; no native admission."""
+
+    def __init__(self, package):
+        _need(package is None, 'This private diagnostic supports only the primitive controller.')
+        self.package = ''
+        supported, reason = owned.atomic_spawn.supported()
+        _need(supported, reason)
+        self.timeout = _executable_object('/usr/bin/timeout')
+        self.bwrap = _executable_object('/usr/bin/bwrap')
+        self.python = _executable_object('/usr/bin/python3')
+        self.host_namespaces = _pid_namespace_facts()
+        self.temporary = tempfile.TemporaryDirectory(prefix='cwo-private-pid-reuse-')
+        self.root = Path(self.temporary.name)
+        self.scratch = self.root / 'temporary'
+        self.scratch.mkdir(mode=0o700)
+        self.controller = self.receipt = self.process = self.namespace_handle = None
+        self._quarantined_handle = None
+        self._parent_observation = None
+        self.cleanup = {'namespace_exited': False, 'accepted_output': False}
+
+    def _command(self, descriptor):
+        entry = [self.python[0], '-I', '-S', '-c', _PID_REUSE_ENTRY,
+                 str(Path(__file__).resolve().parent), str(descriptor), str(self.root),
+                 json.dumps(self.host_namespaces)]
+        # Use fixed device nodes without requesting devpts: the driver must stay
+        # in the user namespace that owns its PID namespace and private cursor.
+        command = [self.bwrap[0], '--unshare-user', '--uid', str(os.getuid()), '--gid', str(os.getgid()),
+                   '--unshare-pid', '--unshare-net', '--unshare-ipc', '--unshare-uts', '--as-pid-1',
+                   '--die-with-parent', '--new-session', '--clearenv', '--cap-add', 'ALL',
+                   '--ro-bind', '/', '/', '--bind', str(self.root), str(self.root),
+                   '--proc', '/proc', '--tmpfs', '/dev']
+        for name in ('null', 'zero', 'full', 'random', 'urandom', 'tty'):
+            command.extend(('--dev-bind', '/dev/' + name, '/dev/' + name))
+        command.extend(('--symlink', '/proc/self/fd', '/dev/fd', '--setenv', 'TMPDIR', str(self.scratch),
+                        '--setenv', 'PATH', '/usr/bin:/bin', '--setenv', 'LC_ALL', 'C.UTF-8', '--', *entry))
+        return [self.timeout[0], '--signal=KILL', str(_PID_REUSE_SECONDS), self.python[0], '-I', '-S',
+                '-c', _PID_REUSE_LAUNCH, json.dumps(self.timeout), json.dumps(command)]
+
+    def _spawn(self, descriptor):
+        backend = _PipeBackend((descriptor,))
+        self.controller = owned.LinuxOwnedChildController(self.timeout[0])
+        self.controller._backend = backend
+        self.controller._engine = owned._LinuxEngine(backend, self.timeout[0])
+        report = self.controller.spawn_owned('fixed-private-pid-reuse', self._command(descriptor), str(self.root))
+        if backend.births:
+            self.process = backend.births[0].child
+        self.receipt = report.get('receipt')
+        _need(report.get('outcome') == 'registered' and self.receipt is not None,
+              'The private diagnostic watchdog has no original atomic owner.')
+
+    def _verify_namespace(self, payload, descriptor):
+        info = json.loads(payload)
+        pid = owned.ProcAdapter().pidfd_pid(descriptor)
+        _need(type(pid) is int and pid > 1, 'The handed-off namespace handle has no host-visible identity.')
+        child = Path('/proc') / str(pid)
+        before = parse_proc_stat((child / 'stat').read_text())
+        parent = Path('/proc') / str(before.ppid)
+        monitor = parse_proc_stat((parent / 'stat').read_text())
+        registration = self.controller.owned_registration(self.receipt)
+        _need(registration is not None and monitor.ppid == registration.pid,
+              'The namespace is not below its original atomic watchdog.')
+        _need(_executable_object(parent / 'exe') == self.bwrap
+              and _executable_object(child / 'exe') == self.python, 'The fixed namespace helper ancestry differs.')
+        facts = {kind: os.readlink(child / 'ns' / kind) for kind in self.host_namespaces}
+        _need(info == {'inner_pid': 1, 'namespaces': facts}
+              and all(facts[kind] != self.host_namespaces[kind] for kind in facts), 'Private namespace identities differ.')
+        _need(parse_proc_stat((child / 'root/proc/1/stat').read_text()).pid == 1,
+              'The namespace does not have its own PID1 proc view.')
+        _need(os.readlink(child / 'root/proc/1/ns/pid') == facts['pid'],
+              'The private proc mount belongs to another PID namespace.')
+        owner_namespace = _pid_owning_user_namespace(pid)
+        _need(_stable_process_identity(parse_proc_stat((child / 'stat').read_text())) == _stable_process_identity(before)
+              and _stable_process_identity(parse_proc_stat((parent / 'stat').read_text())) == _stable_process_identity(monitor)
+              and not select.select([descriptor], [], [], 0)[0], 'The namespace birth changed before release.')
+        self._retain_parent_observation(monitor)
+        self.controller._engine._verified(self.controller._engine._lookup(self.receipt))
+        self.boundary = {'namespaces': facts, 'namespace_init': pid,
+                         'watchdog_pid': registration.pid, 'private_proc': True,
+                         'bwrap_pid': monitor.pid, 'bwrap_start_ticks': monitor.start_ticks,
+                         'pid_owner_user_namespace': owner_namespace}
+
+    def _retain_parent_observation(self, monitor):
+        """Observe the verified original parent lifetime; never signal this fd."""
+        identity = _stable_process_identity(monitor)
+        original = self.__dict__.get('_parent_observation')
+        if original is not None:
+            _need(original[1] == identity, 'The original private parent lifetime changed.')
+        descriptor = original[0] if original is not None else os.pidfd_open(monitor.pid, 0)
+        try:
+            current = parse_proc_stat((Path('/proc') / str(monitor.pid) / 'stat').read_text())
+            _need(owned.ProcAdapter().pidfd_pid(descriptor) == monitor.pid
+                  and _stable_process_identity(current) == identity
+                  and not select.select([descriptor], [], [], 0)[0],
+                  'The original private parent exited or changed before release.')
+        except BaseException:
+            if original is None:
+                os.close(descriptor)
+            raise
+        self._parent_observation = descriptor, identity
+
+    def _close_parent_observation(self):
+        original = self.__dict__.get('_parent_observation')
+        self._parent_observation = None
+        if original is not None:
+            os.close(original[0])
+
+    def _receive_namespace(self, channel):
+        payload, ancillary, flags, _address = channel.recvmsg(4096, socket.CMSG_SPACE(array.array('i').itemsize))
+        descriptors = []
+        try:
+            for level, kind, raw in ancillary:
+                if (level, kind) == (socket.SOL_SOCKET, socket.SCM_RIGHTS):
+                    handles = array.array('i')
+                    handles.frombytes(raw)
+                    descriptors.extend(handles)
+            _need(payload and not flags and len(ancillary) == 1 and len(descriptors) == 1,
+                  'The private namespace handoff is incomplete or has unexpected handles.')
+            self._quarantined_handle = descriptors.pop()
+            return payload
+        finally:
+            for descriptor in descriptors:
+                os.close(descriptor)
+
+    def _verify_result(self, result):
+        _need(type(result) is dict, 'The private diagnostic result must be an object.')
+        _need('error' not in result, 'Private PID reuse refused: ' + json.dumps(result, sort_keys=True))
+        _need(result.get('scope') == 'primitive-controller-pid-reuse', 'Primitive and selected PID-reuse evidence have different scopes.')
+        _need(result.get('accepted_output') is False and result.get('execution_authorized') is False
+              and result.get('profile_status') == 'selected-unqualified'
+              and result.get('confidential') == 'unsupported', 'PID-reuse observations grant no authority or qualification.')
+
+    def run(self):
+        parent, child = socket.socketpair()
+        deadline = time.monotonic() + _PID_REUSE_SECONDS
+        primary = None
+        try:
+            self._spawn(child.fileno())
+            child.close()
+            parent.settimeout(max(.001, deadline - time.monotonic()))
+            payload = self._receive_namespace(parent)
+            self._verify_namespace(payload, self._quarantined_handle)
+            # Receipt is not cleanup authority. Only the completed independent
+            # verification promotes this exact handle to owned namespace cleanup.
+            self.namespace_handle, self._quarantined_handle = self._quarantined_handle, None
+            parent.sendall(b'1')
+            parent.settimeout(max(.001, deadline - time.monotonic()))
+            result = json.loads(parent.recv(32768))
+            self._verify_result(result)
+            _need(select.select([self.namespace_handle], [], [], max(0, deadline - time.monotonic()))[0],
+                  'The private PID namespace did not exit within its original deadline.')
+            return {**result, 'cleanup': self.cleanup, 'boundary': self.boundary, 'private_namespaces': True}
+        except BaseException as failure:
+            primary = failure
+            _note_child_stderr(self.__dict__.get('process'), primary)
+            raise
+        finally:
+            _finish_pid_reuse([parent.close, child.close, self.close], primary)
+
+    def close(self):
+        actions = [self._close_parent_observation]
+        quarantined, self._quarantined_handle = self._quarantined_handle, None
+        if quarantined is not None and quarantined != self.namespace_handle:
+            # A refused handoff may refer to any lifetime. Close the received
+            # reference without signaling it; the original watchdog remains owned.
+            actions.append(lambda: os.close(quarantined))
+        if self.namespace_handle is not None:
+            descriptor, self.namespace_handle = self.namespace_handle, None
+            actions.extend((lambda: SelectedNativeProbe._stop_retained(self, 'namespace', descriptor, self.cleanup),
+                            lambda: os.close(descriptor)))
+        if self.controller is not None:
+            controller, self.controller = self.controller, None
+            if self.receipt is not None:
+                actions.append(lambda: controller.terminate(self.receipt, .1, allow_kill=True))
+            actions.append(controller.close)
+        if self.process is not None:
+            process, self.process = self.process, None
+            actions.extend(stream.close for stream in (process.stdin, process.stdout, process.stderr))
+        actions.append(self.temporary.cleanup)
+        errors, interruption = owned._cleanup(actions)
+        _need(not errors and interruption is None, 'Private namespace cleanup failed: ' + str(errors))
+
 
 
 def main():

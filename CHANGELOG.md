@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Correct scheduler-sensitive startup identity refusals in the held native supervision path, preserving stable process birth checks. Both 0.7.0 and 0.8.0 contained this defect.
+- Preserve diagnostic capabilities across private namespace execution and re-arm parent-death protection after credential changes, with bounded cleanup and refusal controls.
+- Preserve the original registered transport failure as the cause of a failed workflow, and settle fixture replies before inspecting terminal publication or post-refusal records.
+- Report the measured private PID cursor prerequisite refusal on hosts that deny it; complete original cleanup remains required and supported hosts still execute the controls.
+
 ## 0.8.0 - 2026-11-15
 
 - Make manual-export corpus packets deterministic while retaining real hashes, provenance checks and every sensitive-content assertion.

@@ -593,7 +593,7 @@ class OfflineN1Host:
                 if report["status"] != "artifact-ready":
                     failure = OfflineHostError(report["error"] or "Registered native execution requires reconciliation.")
                     failure.native_report = report
-                    raise failure
+                    raise failure from factory.server.transport_failure
                 return report
             except BaseException as primary:
                 factory._cleanup_owned(primary)

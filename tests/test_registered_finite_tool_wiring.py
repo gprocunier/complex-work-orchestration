@@ -1306,12 +1306,22 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
     def test_unknown_dynamic_tool_refuses_before_owned_command_launch(self):
         case = self.fixture.case(finite_tool_mode='captured-host-tools', command_tool='write_stdin')
         factory = self.fixture.factory(case)
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self.assertRaises(ValueError):
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self.assertRaises(ValueError) as caught:
             factory.run()
         self.assertEqual(len(self.fixture.spawned), 1)
         attempt = self.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])
+        primary = factory.server.transport_failure
+        self.assertIs(type(primary), finite_tools.FiniteToolError)
+        self.assertEqual(str(primary), 'Dynamic tool identity or fields differ.')
+        self.assertIs(type(caught.exception), family.runtime.native.OfflineHostError)
+        self.assertIs(caught.exception.native_report, factory.execution)
+        self.assertEqual(caught.exception.native_report['status'], 'reconciliation-required')
+        self.assertEqual(str(caught.exception), caught.exception.native_report['error'])
+        self.assertFalse(self.fixture.spawned[0].process.alive)
+        self.assertIn('Transport cleanup failed: AppServerError', caught.exception.__notes__)
+        self.assertIs(caught.exception.__cause__, primary)
 
     def test_raw_request_id_collision_across_permissions_and_tool_refuses(self):
         case = self.fixture.case(finite_tool_mode='captured-host-tools',
@@ -3721,8 +3731,16 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                         self.assertLess(time.monotonic(), end)
                         time.sleep(.001)
                     self.assertEqual(len(gate.lifecycle.pending), 2)
+                    refusal_deadline = time.monotonic() + 5
                     release_decision.set()
-                    self.assertTrue(refusal_seen.wait(5))
+                    self.assertTrue(refusal_seen.wait(max(0, refusal_deadline - time.monotonic())))
+                    # Receiving the frame precedes the sender's lifecycle
+                    # commit. Observe that commit within the same five-second
+                    # bound before testing a request made after refusal.
+                    with gate.lifecycle.condition:
+                        self.assertTrue(gate.lifecycle.condition.wait_for(
+                            lambda: gate.lifecycle.phase in gate.lifecycle.TERMINAL,
+                            timeout=max(0, refusal_deadline - time.monotonic())))
                     self.assertEqual(gate.lifecycle.phase, 'refused')
                     self.fixture.spawned[0]._send_tool('EXAMPLE-third-poll', 'finite_poll',
                         {'commandCallId': 'EXAMPLE-command-call', 'chars': ''}, case.scenario)
@@ -3761,6 +3779,30 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(self.fixture.attempt(case)['outcome'], 'unknown')
         self.assertEqual(self.fixture.attempt(case)['charge'],
                          self.fixture.attempt(case)['amount'])
+
+    def test_prequeued_poll_refusal_waits_for_original_reply_publication(self):
+        physical = gate_module.RegisteredFiniteInput._write_reply_frame
+        phases = []
+
+        def held_after_real_write(writer, frame):
+            sent = physical(writer, frame)
+            source = json.loads(frame)
+            if (source.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call'
+                    and source.get('result', {}).get('success') is False):
+                self.assertTrue(sent)
+                lifecycle = self.fixture.spawned[0].case.factory.server.finite_input.lifecycle
+                with lifecycle.condition:
+                    phases.append(lifecycle.phase)
+                # The actual child may consume this full refusal before the
+                # sender returns to publish it. Keep that reachable gap open
+                # within the original test's five-second observation bound.
+                threading.Event().wait(1)
+            return sent
+
+        with patch.object(gate_module.RegisteredFiniteInput, '_write_reply_frame',
+                          staticmethod(held_after_real_write)):
+            self.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect()
+        self.assertEqual(phases, ['poll-deciding'])
 
     def test_original_late_request_cannot_revive_poll_refusal(self):
         case = self.fixture.case(finite_tool_mode='captured-host-tools',
