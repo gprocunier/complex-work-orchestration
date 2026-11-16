@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Reduce release inventory size to restore at least 15% headroom under the unchanged byte cap while retaining every route, binding, witness and primitive decision.
+- Run offline browser DOM tests in hosted CI with pinned test-only Playwright and the runner's preinstalled Chrome.
 
 ## 1.0.0 - 2026-11-16
 
