@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.1.0 - 2026-11-16
+
 - Wait for the original finite poll reservation before starting the fixture completion join, preserving refusal and deadline checks.
 - Make pool-member adoption atomic across consent and signer failures by staging every member before the locked commit.
 - Recheck current and retained pool directories around terminal persistence, refusing success on replacement while preserving original records, completed charges and validated member artifacts.
