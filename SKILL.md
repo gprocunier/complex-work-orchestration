@@ -200,8 +200,7 @@ python3 scripts/render_run_projection.py <plan.json> --projection run-sheet
 python3 scripts/render_execution_status_report.py <inputs>
 ```
 
-Before closing meaningful Beads, add a compact closure-memory comment. The narrative CLI refuses success dispositions: record delivered work as `pending-acceptance`, which leaves the Bead open for the operator.
-The verified library can close a Bead with an embedding host's single-use acceptance bound to the original dispatch, exact baseline/candidate, current policy and setup database identity, a separated adjudicator, every required clearance and no open blockers or children; its shipped review-host producer remains held.
+Before closing meaningful Beads, add a compact closure-memory comment. The narrative CLI below refuses all success dispositions, even with verified acceptance; record delivered work as `pending-acceptance`, leaving the Bead open for the operator. Verified completion uses the enabled embedding-host `qualified_closure.py` library consumer ([run readiness](references/run-readiness.md)), requiring single-use host acceptance bound to the original dispatch, exact requirement baseline and candidate, exact original observations seen by the accepted final review, current policy and setup database identity, an adjudicator distinct from the executor, every required clearance and no open blockers or children. It records consumption intent in the host audit before the first Beads write; failure or reopening never permits reuse. Caller JSON or narrative summaries grant no acceptance. The shipped review-host producer and activation remain separately held.
 
 ```bash
 python3 scripts/close_bead_with_summary.py --bead <id> --disposition pending-acceptance --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful

@@ -45,14 +45,18 @@ class CorrectedReferenceSliceTests(unittest.TestCase):
         p = Page(); p.feed(self.source('first-project.html'))
         prompt = '\n'.join(p.prompts)
         for text in ['Fix only errors(config)', 'Reject boolean ports', 'Leave the CLI unimplemented',
-                     'CLI task blocked by it', 'only after its checks pass', 'record both IDs',
+                     'CLI task blocked by it', 'Run the tests without weakening them and inspect the diff',
+                     'Record the delivered validator work as pending-acceptance; leave both tasks open', 'record both IDs',
                      'No delegation', 'tool-initiated external network requests', 'Stop after this phase']:
             self.assertIn(text, prompt)
         first = self.source('first-project.html')
         self.assertIn('bd show VALIDATOR_TASK_ID --json', first)
         self.assertIn('bd show CLI_TASK_ID --json', first)
+        self.assertIn('The narrative closure helper refuses successful completion', first)
+        self.assertIn('This exercise does not use the separate verified closure library', first)
         continuation = self.source('continue-project.html')
-        self.assertIn('preserve the accepted validator task and its dependency', continuation)
+        self.assertIn('Verify the validator tests and the operator’s acceptance decision before editing', continuation)
+        self.assertIn('preserve the validator evidence and dependency', continuation)
         self.assertNotIn('Same boundary as session one', continuation)
         self.assertIn('Restoring files does not reset task history', self.source('tutorial-recovery.html'))
     def test_advanced_pilot_and_examples_have_one_article_grammar(self):

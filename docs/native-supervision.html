@@ -69,6 +69,7 @@
         <p>A finished connection or a worker’s claim of success is not proof that the task passed. A request to revise the assignment (<code>realignment</code>) is not completion. A stopped attempt cannot be resumed; another attempt needs its own fresh allowance.</p>
         </section>
         <section id="preview"><span id="concurrency-preview"></span><span id="activation-preview"></span><h2>Concurrent native work is held</h2>
+        <p>The selected Codex 0.163.0 <code>constrained-integrity</code> target and native pool remain unqualified in 1.0. Pool qualification is planned for 1.1; live routes remain held. Confidential operation is unsupported.</p>
         <p>The held concurrency contract is limited to fixed groups of N=1..3 on a host that has proved the required capabilities. Each group needs approved assignments, isolated write ownership and enough shared capacity; a flag does not establish any of these. Keep Beads updates, journals, result combining, promotion and model dispatch serial as their contracts require.</p>
         <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md">Pool contracts, admission, interruption and cleanup</a> preserve the details and historical evidence. Read-only work needs enforced read-only access. Do not treat a return as read-only when consistent evidence reports a mutation.</p>
         </section>

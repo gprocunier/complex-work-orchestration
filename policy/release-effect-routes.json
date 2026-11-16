@@ -4762,11 +4762,11 @@
 "source_bindings":{
 "policy/qualification-target.yaml":["f4df9cd4ac628f8697973038d641f530b934a12b0fd443ca75b0e8cf1565344a",420,15591],
 
-"references/claims-register.md":["d9d1c48e3bbcf8e2069a3debeaeb4d69247d26ab3c30f7479c30b3499f8086e0",420,6800],
+"references/claims-register.md":["ffa26c330bcb752e1aa2545bb0026d791269edc39f62b348e3d15922f4f8226b",420,7624],
 
 "references/cwo-system-prompt.md":["ea1aff306808c7c2a390011ad35e35d5eb7f65e31e568cd746dbd89704fd60dc",420,4391],
 
-"references/release-effect-routes.md":["97e359491cb6afe9269858d857cd67c6f440df6ccfe702564e096e53e4090e98",420,17617],
+"references/release-effect-routes.md":["a32c93d0525a4b07233026ce707ecb94e7bbf95b421e864dcced24db70aadf69",420,17438],
 
 "schemas/qualification-target.schema.json":["51ec7692a44f579eccc51e12baf2aadad02b3c02657d3fd627ee8290315ad7a9",420,21333],
 
@@ -4804,7 +4804,7 @@
 
 "scripts/check_release_filesystem.py":["da8078b3926d2749330459ee24b6e0c9f6de470c891f1a78be8803894c5140e8",420,7899],
 
-"scripts/cleanup_stale_agents.py":["a7d14dc3770647a92882d467a38fa1f56c9cc4dc7274fcb67860761256360a2a",493,25709],
+"scripts/cleanup_stale_agents.py":["923e38988513324f5b5b69961816d49d5f0968b24b124ea5cf8d06f5704afc98",493,25692],
 
 "scripts/close_bead_with_summary.py":["6399bcb7bda5fe89a3edadea1004ad24575b9728794bc7cd983a21add3ec4bea",420,20938],
 
@@ -5286,7 +5286,7 @@
 
 "scripts/validate_run_readiness_plan.py":["4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",493,21103],
 
-"scripts/validate_site.py":["014b5ef40d2c540fa7962298f095ad3ab40ce5e41a8b1913f95f01f2ef590859",493,19311],
+"scripts/validate_site.py":["42b2c6e5c9607d27369724e92c8a6aa8f67f931b671551b299a5fe54f4a7899a",493,19352],
 
 "scripts/verify_affected_historical_contract.py":["8817b89c65c383cc08e0e5bba7511e702bd005b93453819c68f6845787d58e6b",420,22811],
 
@@ -5300,7 +5300,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2afa4f380c165c2ebe044b0aaf52869263ebdb0c4a62b560010b5668ae30e3a2",420,127291],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["4c66a17cd3a6ea62c209fefa06c288b362e5562e463829dd557ded268c4fc778",420,127291],
 
 "tests/fixtures/private-pid-cursor-write-eperm.json":["37573ecfaa393bae0efd0cda482809e1579f5d10609cc9c6d7d1981eb66d46ef",420,3028],
 
