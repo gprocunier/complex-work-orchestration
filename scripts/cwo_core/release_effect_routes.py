@@ -1119,10 +1119,64 @@ def _primitive_path_table(coverage, contents):
     return paths
 
 
+def _exclusion_text_table(coverage):
+    texts = coverage.get("exclusion_texts", [])
+    need(type(texts) is list and len(texts) <= MAX_FILES, "primitive exclusion text table refused")
+    need(all(type(text) is str and text.strip() for text in texts), "primitive exclusion text required")
+    need(len(set(texts)) == len(texts), "duplicate primitive exclusion text")
+    return texts
+
+
+def _exclusion_fragment(item, texts, used):
+    if type(item) is str:
+        return item
+    need(type(item) is int and 0 <= item < len(texts), "primitive exclusion text index outside table")
+    used.add(item)
+    return texts[item]
+
+
+def _exclusion_text(item, texts, used):
+    fragments = item if type(item) is list else [item]
+    need(0 < len(fragments) <= 12, "bounded primitive exclusion text fragments required")
+    resolved = [_exclusion_fragment(fragment, texts, used) for fragment in fragments]
+    need(sum(len(fragment.encode()) for fragment in resolved) <= MAX_INVENTORY,
+         "decoded exclusion text length exceeded")
+    return "".join(resolved)
+
+
+def _exclusion_decision(row, texts, used):
+    need(type(row) is list and len(row) == 3, "primitive exclusion row width refused")
+    reason, conclusion, route = row
+    decision = {"reason": _exclusion_text(reason, texts, used),
+                "conclusion": _exclusion_text(conclusion, texts, used)}
+    if route is not None:
+        decision["route"] = route
+    return decision
+
+
+def _expanded_exclusions(coverage):
+    if "exclusion_columns" not in coverage and "exclusion_texts" not in coverage:
+        return coverage
+    need(coverage.get("exclusion_columns") == ["reason", "conclusion", "route"],
+         "primitive exclusion columns refused")
+    exclusions = coverage.get("exclusions")
+    need(type(exclusions) is dict, "primitive exclusions mapping required")
+    texts, used, expanded, total = _exclusion_text_table(coverage), set(), {}, 0
+    for key, row in exclusions.items():
+        decision = _exclusion_decision(row, texts, used)
+        total += sum(len(decision[field].encode()) for field in ("reason", "conclusion"))
+        need(total <= MAX_FILE, "decoded exclusion text budget exceeded")
+        expanded[key] = decision
+    need(used == set(range(len(texts))), "unused primitive exclusion text")
+    return {key: expanded if key == "exclusions" else item for key, item in coverage.items()
+            if key not in {"exclusion_columns", "exclusion_texts"}}
+
+
 def _expanded_primitive_coverage(coverage, contents):
-    """Decode explicit path indices only; keep evidence and dispositions expanded."""
+    """Decode explicit storage references before checking each individual decision."""
     need(isinstance(coverage, dict) and coverage.get("schema") in ("bounded-primitives-v1", "bounded-primitives-v2"),
          "primitive coverage schema required")
+    coverage = _expanded_exclusions(coverage)
     rows = coverage.get("hits", [])
     need(isinstance(rows, list), "primitive hit rows required")
     need(all(isinstance(row, list) and len(row) == 8 for row in rows), "primitive hit row required")

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reduce release inventory size to restore at least 15% headroom under the unchanged byte cap while retaining every route, binding, witness and primitive decision.
+
 ## 1.0.0 - 2026-11-16
 
 - Clarify that the selected Codex 0.163.0 constrained-integrity target and native pool remain unqualified in 1.0, with pool qualification planned for 1.1, confidential operation unsupported and live routes held.

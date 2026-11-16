@@ -395,6 +395,11 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         with self.assertRaisesRegex(R.Refused, "regular bounded file required"):
             R.inventory(root)
 
+    def test_installed_inventory_reserves_fifteen_percent_headroom(self):
+        size = (ROOT / R.INVENTORY).stat().st_size
+        self.assertGreaterEqual((R.MAX_INVENTORY - size) * 100, R.MAX_INVENTORY * 15,
+                                "installed route inventory must reserve at least 15% of its finite byte cap")
+
     def compact_primitive_paths(self, value):
         coverage = value["primitive_coverage"]
         paths = sorted({row[0] for row in coverage["hits"]})
@@ -445,6 +450,113 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         self.compact_primitive_paths(value)
         (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
         self.assertEqual(R.trace(root)["primitive_hits"], [])
+
+    def compact_exclusions(self, coverage):
+        texts = list(dict.fromkeys(text for row in coverage["exclusions"].values()
+                                   for text in (row["reason"], row["conclusion"])))
+        coverage.update(exclusion_columns=["reason", "conclusion", "route"], exclusion_texts=texts,
+                        exclusions={key: [texts.index(row["reason"]), texts.index(row["conclusion"]),
+                                          row.get("route")] for key, row in coverage["exclusions"].items()})
+
+    def test_compact_exclusion_columns_and_shared_text_preserve_individual_decisions(self):
+        code = "import subprocess\nsubprocess.run(['true'])\nsubprocess.check_call(['true'])\n"
+        for compact_paths in (False, True):
+            with self.subTest(compact_paths=compact_paths):
+                root, value, _hits = self.primitive_example(code, "exclude")
+                coverage = value["primitive_coverage"]
+                first, second = coverage["exclusions"]
+                coverage["exclusions"][first]["route"] = "EXAMPLE-send"
+                coverage["exclusions"][second].update(coverage["exclusions"][first])
+                del coverage["exclusions"][second]["route"]
+                path = root / R.INVENTORY
+                path.write_bytes(R.inventory_bytes(value))
+                expanded = R.trace(root)
+                if compact_paths:
+                    self.compact_primitive_paths(value)
+                self.compact_exclusions(coverage)
+                path.write_bytes(R.inventory_bytes(value))
+                compact = R.trace(root)
+                for field in ("primitive_hits", "primitive_coverage", "routes"):
+                    self.assertEqual(compact[field], expanded[field])
+                # Both literal text and reordered explicit indices retain exact meaning.
+                coverage["exclusion_texts"].reverse()
+                for row in coverage["exclusions"].values():
+                    row[:2] = [len(coverage["exclusion_texts"]) - 1 - index for index in row[:2]]
+                path.write_bytes(R.inventory_bytes(value))
+                self.assertEqual(R.trace(root)["primitive_coverage"], expanded["primitive_coverage"])
+                for row in coverage["exclusions"].values():
+                    row[:2] = [coverage["exclusion_texts"][index] for index in row[:2]]
+                del coverage["exclusion_texts"]
+                path.write_bytes(R.inventory_bytes(value))
+                self.assertEqual(R.trace(root)["primitive_coverage"], expanded["primitive_coverage"])
+
+    def test_compact_exclusion_columns_text_and_references_refuse_malformed_input(self):
+        root, value, _hits = self.primitive_example("import subprocess\nsubprocess.run(['true'])\n", "exclude")
+        self.compact_primitive_paths(value)
+        coverage = value["primitive_coverage"]
+        self.compact_exclusions(coverage)
+        key = next(iter(coverage["exclusions"]))
+        changes = {
+            "missing-columns": lambda x: x.pop("exclusion_columns"),
+            "reversed-columns": lambda x: x["exclusion_columns"].reverse(),
+            "malformed-columns": lambda x: x.update(exclusion_columns=None),
+            "short-row": lambda x: x["exclusions"][key].pop(),
+            "long-row": lambda x: x["exclusions"][key].append("extra"),
+            "mapping-row": lambda x: x["exclusions"].update({key: {"reason": "a", "conclusion": "b"}}),
+            "nonmapping-exclusions": lambda x: x.update(exclusions=[]),
+            "unknown-route": lambda x: x["exclusions"][key].__setitem__(2, "missing"),
+            "malformed-route": lambda x: x["exclusions"][key].__setitem__(2, []),
+            "empty-literal": lambda x: x["exclusions"][key].__setitem__(0, " "),
+            "wrong-table-type": lambda x: x.update(exclusion_texts={}),
+            "duplicate-text": lambda x: x["exclusion_texts"].append(x["exclusion_texts"][0]),
+            "unused-text": lambda x: x["exclusion_texts"].append("EXAMPLE unused text"),
+            "empty-text": lambda x: x["exclusion_texts"].__setitem__(0, " "),
+            "nonstring-text": lambda x: x["exclusion_texts"].__setitem__(0, []),
+            "table-bound": lambda x: x.update(exclusion_texts=["EXAMPLE"] * (R.MAX_FILES + 1)),
+        }
+        for index in (False, True, -1, 2, 0.0, None, [], {}):
+            changes[f"reference-{index!r}"] = lambda x, index=index: x["exclusions"][key].__setitem__(0, index)
+        for name, change in changes.items():
+            with self.subTest(invalid=name):
+                changed = copy.deepcopy(coverage)
+                change(changed)
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes({**value, "primitive_coverage": changed}))
+                with self.assertRaises(R.Refused, msg=f"invalid compact exclusion {name} admitted"):
+                    R.trace(root)
+
+    def test_compact_exclusion_fragments_preserve_exact_wording_and_bound_expansion(self):
+        root, value, _hits = self.primitive_example("import subprocess\nsubprocess.run(['true'])\n", "exclude")
+        expanded = R.trace(root)["primitive_coverage"]
+        coverage = value["primitive_coverage"]
+        key = next(iter(coverage["exclusions"]))
+        reason = coverage["exclusions"][key]["reason"]
+        self.compact_exclusions(coverage)
+        coverage["exclusion_texts"][0] = reason[10:]
+        coverage["exclusions"][key][0] = [reason[:10], 0]
+        (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
+        self.assertEqual(R.trace(root)["primitive_coverage"], expanded)
+        for fragments in ([], [0] * 13, [[0]], [False], [True], [-1], [2], [None], [{}], [0.0]):
+            with self.subTest(fragments=fragments):
+                coverage["exclusions"][key][0] = fragments
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
+                with self.assertRaises(R.Refused):
+                    R.trace(root)
+        coverage["exclusions"][key][0] = [0] * 12
+        decoded = reason[10:] * 12
+        with patch.object(R, "MAX_INVENTORY", len(decoded.encode())):
+            self.assertEqual(R._exclusion_text([0] * 12, coverage["exclusion_texts"], set()), decoded)
+        with patch.object(R, "MAX_INVENTORY", len(reason[10:]) * 12 - 1), \
+             self.assertRaisesRegex(R.Refused, "decoded exclusion text length"):
+            R._expanded_exclusions(coverage)
+        coverage["exclusions"][key][0] = [0]
+        coverage["exclusions"]["EXAMPLE-second"] = [0, 1, None]
+        size = sum(len(text.encode()) for text in coverage["exclusion_texts"])
+        with patch.object(R, "MAX_FILE", size * 2 - 1), \
+             self.assertRaisesRegex(R.Refused, "decoded exclusion text budget"):
+            R._expanded_exclusions(coverage)
+        with patch.object(R, "MAX_INVENTORY", 1), \
+             self.assertRaisesRegex(R.Refused, "decoded exclusion text length"):
+            R._exclusion_text(["é"], [], set())
 
     def test_compact_primitive_path_tables_and_indices_refuse_malformed_input(self):
         root, value, _hits = self.primitive_example("import subprocess\nsubprocess.run(['true'])\n", "exclude")

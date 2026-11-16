@@ -172,6 +172,51 @@ class RebindReleaseInventoryTests(unittest.TestCase):
                     R.inventory(root)
                 self.assert_refuses_untouched(root, 'source binding')
 
+    def compact_exclusions(self, value):
+        coverage = value["primitive_coverage"]
+        coverage.update(exclusion_columns=["reason", "conclusion", "route"],
+                        exclusion_texts=["fixture", "never executed"],
+                        exclusions={"EXAMPLE-exclusion": [["inert ", 0], 1, None]})
+
+    def test_compact_exclusion_rebind_preserves_storage_decisions_and_noop(self):
+        root, value, _manifest = self.fixture()
+        expected = R.trace(root)["primitive_coverage"]
+        self.compact_exclusions(value)
+        path = root / R.INVENTORY
+        path.write_bytes(R.inventory_bytes(value))
+        self.assertEqual(R.trace(root)["primitive_coverage"], expected)
+        source = root / "scripts/other.py"
+        source.write_bytes(source.read_bytes() + b"\n# EXAMPLE harmless edit\n")
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rebound = R.inventory(root)[0]
+        self.assertEqual(rebound["primitive_coverage"], value["primitive_coverage"])
+        self.assertEqual(R.trace(root)["primitive_coverage"], expected)
+        before = self.bindings_snapshot(root)
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "No bindings changed.\n")
+        self.assertEqual(self.bindings_snapshot(root), before)
+
+    def test_compact_exclusion_rebind_refuses_before_either_write(self):
+        changes = (
+            lambda x: x.update(exclusion_columns=["conclusion", "reason", "route"]),
+            lambda x: x["exclusion_texts"].append("EXAMPLE unused text"),
+            lambda x: x["exclusions"]["EXAMPLE-exclusion"].__setitem__(0, True),
+            lambda x: x["exclusions"]["EXAMPLE-exclusion"].__setitem__(2, "missing"),
+            lambda x: x["exclusions"]["EXAMPLE-exclusion"].pop(),
+            lambda x: x["exclusions"].update({"EXAMPLE-orphan": [0, 1, None]}),
+        )
+        for index, change in enumerate(changes):
+            with self.subTest(invalid=index):
+                root, value, _manifest = self.fixture()
+                self.compact_exclusions(value)
+                change(value["primitive_coverage"])
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
+                source = root / "scripts/other.py"
+                source.write_bytes(source.read_bytes() + b"\n# EXAMPLE proposed binding change\n")
+                self.assert_refuses_untouched(root)
+
     def test_independent_script_rebinds_merge_in_git_and_validate(self):
         root, value, manifest = self.fixture()
         # These scripts are independently bound, outside the checkpoint roster.
