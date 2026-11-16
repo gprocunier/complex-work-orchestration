@@ -46,6 +46,31 @@ def assert_no_native_births(test, fixture):
         test.assertEqual(backend.spawn_calls, [])
 
 
+def _wrong_bytes_diagnostic(factory, primary):
+    """Bounded failure context for the completed wrong-candidate assertion."""
+    def reason(value):
+        try:
+            return str(value)[:512]
+        except BaseException:
+            return 'unavailable'
+
+    def failure(value):
+        return None if value is None else {'type': type(value).__name__[:96], 'reason': reason(value)}
+
+    report = factory.execution if type(factory.execution) is dict else {}
+    receipt = report.get('receipt')
+    receipt = receipt if type(receipt) is dict else {}
+    errors = receipt.get('errors', [])
+    errors = errors if type(errors) is list else []
+    return json.dumps({'status': report.get('status'), 'error': reason(report.get('error')),
+                       'primary': failure(primary),
+                       'first_action': failure(getattr(factory.adapter, '_first_action_failure', None)),
+                       'transport': failure(getattr(factory.server, 'transport_failure', None)),
+                       'receipt_terminal': receipt.get('terminal_state'),
+                       'receipt_error_count': len(errors), 'receipt_errors': [reason(item) for item in errors[:3]]},
+                      sort_keys=True)
+
+
 def runtime_validator():
     """Select the explicit system helper inside the declared readonly runtime."""
     path = Path('/usr/bin/python3').resolve(strict=True)
@@ -485,7 +510,9 @@ class RpcProcess(children.FakeChild):
                 response['activePermissionProfile']['id'] = 'EXAMPLE_FALLBACK'
             return response
         if method == 'turn/start':
-            self.case.test.assertEqual(params['input'][0]['text'].encode(), case.receipt.request_bytes)
+            expected = case.factory.server.factory.model_task_bytes()
+            self.case.test.assertEqual(params['input'][0]['text'].encode(), expected)
+            scenario.expected_task = expected.decode()
             scenario.observe_intent(params['input'][0]['text'])
             scenario.started_threads[scenario.thread_id] = scenario.turn_id
             return {'turn': {'id': scenario.turn_id}}
@@ -1326,7 +1353,10 @@ class DiagnosticPipeTests(unittest.TestCase):
 
 class FactoryTests(unittest.TestCase):
     def setUp(self):
-        self.repositories = fixtures.RepositoryFixture(self)
+        # Generated test paths are protocol inputs too. Keep their private
+        # temporary parent short rather than inheriting a CI worktree path.
+        with patch.object(tempfile, 'tempdir', '/tmp'):
+            self.repositories = fixtures.RepositoryFixture(self)
         self.host_records = HostRecordStore.for_tests(self.repositories.root / 'EXAMPLE-PROVENANCE')
         self.enterContext(using_test_store(self.host_records))
         self.original_popen = subprocess.Popen
@@ -1390,6 +1420,7 @@ class FactoryTests(unittest.TestCase):
             spec['executable_sha256'] = hashlib.sha256(b'EXAMPLE different executable').hexdigest()
         route = example_route()
         node = route['nodes'][0]
+        node['prompt'] = changes.pop('task_prompt', node['prompt'])
         node['execution'].update(model=spec['model'], provider=spec['provider'], effort=spec['effort'], options={'registered_n1': copy.deepcopy(spec)})
         sizing = runtime.admission.planner.work_sizing
         node['estimate_source']['requested_model'] = spec['model']
@@ -1906,15 +1937,16 @@ class FactoryTests(unittest.TestCase):
         factory = self.factory(case)
         with self.assertRaises(ValueError) as caught:
             factory.run()
-        self.assertIsNotNone(factory.execution)
-        self.assertEqual(factory.execution['status'], 'artifact-ready')
-        self.assertIs(type(caught.exception), runtime.validation.ValidationError)
+        diagnostic = _wrong_bytes_diagnostic(factory, caught.exception)
+        self.assertIsNotNone(factory.execution, diagnostic)
+        self.assertEqual(factory.execution['status'], 'artifact-ready', diagnostic)
+        self.assertIs(type(caught.exception), runtime.validation.ValidationError, diagnostic)
         self.assertIsNone(factory.token)
         with self.assertRaises(ValueError):
             factory.issued_artifact()
         self.assertEqual(len(self.spawned), 1)
         attempt = self.attempt(case)
-        self.assertEqual(attempt['charge'], attempt['amount'])
+        self.assertEqual(attempt['charge'], attempt['amount'], diagnostic)
 
     def test_wrong_bytes_validation_waits_for_original_reply_publication(self):
         terminal = threading.Event()
@@ -1950,6 +1982,7 @@ class FactoryTests(unittest.TestCase):
         self.assertEqual(len(full_writes), 1)
         self.assertTrue(terminal_states)
         self.assertEqual(terminal_states[0], ('sent',))
+
 
     def test_serialized_authority_cannot_create_a_factory(self):
         case = self.case()

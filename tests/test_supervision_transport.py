@@ -954,7 +954,7 @@ class FakeAppServerTransportTests(unittest.TestCase):
             server.process.stdin = stream
             write, prefixes = os.write, []
             def revoke(fd, data):
-                count = write(fd, data)
+                count = write(fd, data[:7])
                 if fd == write_fd:
                     prefixes.append(data[:count])
                     transport("app_server").live_availability.N1_LIVE_AVAILABLE = False
@@ -963,7 +963,7 @@ class FakeAppServerTransportTests(unittest.TestCase):
                 os, "write", side_effect=revoke
             ):
                 with self.assertRaises(runner.AmbiguousTurnStartError) as caught:
-                    server.start_turn(thread_id, "x" * 512000, timeout=0.03, ambiguity_timeout=0)
+                    server.start_turn(thread_id, "Explain the local function.", timeout=0.03, ambiguity_timeout=0)
             self.assertEqual(server._reader_error, "native-n1-live-unavailable")
             record = caught.exception.record
             self.assertEqual((record["status"], record["ledger_resolution"], record["wire_write_attempt_count"]),

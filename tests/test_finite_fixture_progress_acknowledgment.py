@@ -174,15 +174,15 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                             condition.release()
                     return original_commit(server, message, response, deadline, refusal=refusal)
 
-                def write_reply(writer, frame):
+                def write_reply(writer, frame, source, deadline):
                     if not hold_reply or reply_held:
-                        return original_write(writer, frame)
+                        return original_write(writer, frame, source, deadline)
                     message = json.loads(frame)
                     selected = (message.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call'
                                 and message.get('result', {}).get('success') is True)
                     if selected:
                         reply_held.append(True)
-                    value = original_write(writer, frame)
+                    value = original_write(writer, frame, source, deadline)
                     if selected:
                         self.assertTrue(value)
                         entry = reconciliation.get(timeout=3)

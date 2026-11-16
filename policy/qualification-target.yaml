@@ -216,13 +216,41 @@
     },
     "offline-owner-lifecycle": {
       "classification": "os-observed",
-      "finding": "An atomic launcher receipt, verified descendant namespace pidfd and fixed watchdog bound each disposable epoch. Actual selected-runner host SIGKILL, double-fork/setsid descendants, watchdog death, deadline expiry and fresh-owner restart stopped the original namespace and withheld accepted output. Stale receipts refused another owner. Actual kernel PID reuse, production recovery and conservative host accounting remain unperformed.",
+      "finding": "An atomic launcher receipt, verified descendant namespace pidfd and fixed watchdog bound each disposable epoch. Actual selected-runner host SIGKILL, double-fork/setsid descendants, watchdog death, deadline expiry and fresh-owner restart stopped the original namespace and withheld accepted output. Stale receipts refused another owner. Private primitive and selected diagnostic-launcher PID reuse are recorded separately; native model-worker/server/callback PID reuse and production ownership/accounting recovery remain unperformed.",
       "evidence": [
         "scripts/selected_native_containment.py",
         "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_selected_controller_death_stops_detached_descendants",
         "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_selected_watchdog_failure_stops_the_namespace",
         "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_actual_selected_watchdog_deadline_stops_stalled_controller",
         "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_stopped_epoch_refuses_poll_and_restart_uses_a_fresh_owner"
+      ]
+    },
+    "offline-primitive-pid-reuse": {
+      "classification": "os-observed",
+      "scope": "primitive-controller-pid-reuse",
+      "finding": "The primitive PID-reuse result is a historical 2026-11-15 measurement. An original controller constructed after entry into private user/PID/mount/network namespaces retained its atomic receipt and pidfd across controlled exit and external reaping. A guarded private proc cursor write produced exact numeric PID reuse by a fresh atomic sentinel. The stale receipt sent no signal or reap, the sentinel heartbeat grew, and fresh cleanup confirmed exit and reaping. This is primitive-controller evidence only; no host-global process control was changed. The current implementation uses a single fixed bubblewrap bootstrap to enter the trusted driver in private namespaces without nested unshare. Private tmpfs device nodes avoid devpts and a second user namespace. The parent binds the driver and bubblewrap executable objects and stable PID/name/parent/start identities, excluding volatile scheduler state, under the original watchdog. It verifies that the PID namespace belongs to the driver user namespace before release. The host root is read-only, only the owned temporary root is writable and nested diagnostic TMPDIR stays there. Watchdog-death and rejected-helper controls observe physical exit; unverified received handles are closed without signal.",
+      "evidence": [
+        "scripts/selected_native_containment.py",
+        "tests/test_selected_native_containment.py#PrivatePidReuseOSControlTests.test_actual_private_pid_reuse_preserves_the_fresh_lifetime",
+        "tests/test_selected_native_containment.py#PrivatePidReuseOSControlTests.test_parent_refuses_an_aliased_host_proc_view_before_release",
+        "tests/test_selected_native_containment.py#PrivatePidReuseContractTests.test_host_pid_view_refuses_before_cursor_open"
+      ]
+    },
+    "offline-selected-launcher-pid-reuse": {
+      "classification": "os-observed",
+      "scope": "selected-runner-launcher-pid-reuse",
+      "finding": "The 2026-11-15 selected-package measurement is historical: the exact selected package and workspace-write/never/network-off configuration ran configuration reads and fixed no-model command/exec inside the private diagnostic. Its retained atomic launcher receipt and pidfd faced exact numeric PID reuse by a fresh fixed sentinel; the stale owner neither signaled nor reaped that sentinel. Live heartbeat growth and fresh cleanup were confirmed, and exec children reported zero effective, permitted, inheritable and ambient capabilities. On 2026-11-16 the existing selected-launcher PID-reuse positive and five matched package, scope and identity refusal controls passed six tests with zero skips under the unchanged package pin and configuration. This rerun did not repeat the historical configuration RPC checks. Native model-worker/server/callback PID reuse and production ownership/accounting/restart recovery remain unperformed. The selected profile and native pool remain unqualified and held; confidential workloads remain unsupported. The current implementation uses a single fixed bubblewrap bootstrap to enter the trusted driver in private namespaces without nested unshare. Private tmpfs device nodes avoid devpts and a second user namespace. The parent binds the driver and bubblewrap executable objects and stable PID/name/parent/start identities, excluding volatile scheduler state, under the original watchdog. It verifies that the PID namespace belongs to the driver user namespace before release. The host root is read-only, only the owned temporary root is writable and nested diagnostic TMPDIR stays there. Watchdog-death and rejected-helper controls observe physical exit; unverified received handles are closed without signal.",
+      "evidence": [
+        "scripts/selected_native_containment.py",
+        "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_private_pid_reuse_repeats_the_exact_selected_launcher_scope",
+        "tests/test_selected_native_containment.py#PrivatePidReuseContractTests.test_primitive_report_cannot_supply_selected_evidence"
+      ]
+    },
+    "native-worker-pid-reuse-and-recovery": {
+      "classification": "unknown",
+      "finding": "Native model-worker/server/callback PID reuse and production ownership, accounting and restart recovery remain unperformed. Private primitive and exact diagnostic-launcher reuse do not replace these cases. External reaping of the original diagnostic child retains its conservative already-exited and child_reaped false report; it does not heal ownership or accounting.",
+      "evidence": [
+        "references/codex-protocol-capability-matrix.md"
       ]
     },
     "original-named-candidate": {
@@ -262,7 +290,8 @@
       "native-ordinary-retry",
       "native-approved-escalation",
       "managed-runtime-grants",
-      "actual-kernel-pid-reuse",
+      "native-model-worker-pid-reuse",
+      "production-pid-accounting-recovery",
       "production-lifecycle-recovery"
     ],
     "named_candidate": {

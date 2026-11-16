@@ -12,6 +12,7 @@ as PATH; construction never falls back to the user's default Codex home.
 from __future__ import annotations
 
 import copy
+from contextlib import contextmanager
 import fcntl
 import hashlib
 import io
@@ -49,6 +50,8 @@ from cwo_core.native_live_allocation_ledger import (
     _TurnNegativeResponseObserverBinding,
 )
 from cwo_core.native_pool_contracts import write_private_artifact
+from cwo_core.outbound_screen import OutboundRefused
+from cwo_core.prepared_outbound import PreparedSource, prepare_json_frame
 from cwo_core.native_turn_dispatch import (
     TURN_ABSENCE_PROOF_ARTIFACT_TYPE,
     TurnDispatchReservation,
@@ -88,6 +91,51 @@ MAX_RESPONSES = 128
 MAX_RESPONSE_BYTES = 4 * 1024 * 1024
 MAX_NOTIFICATIONS = 4096
 MAX_NOTIFICATION_BYTES = 8 * 1024 * 1024
+_HOST_MODEL_CONTEXT_METHODS = frozenset({
+    "turn/start", "turn/steer", "review/start", "thread/start", "thread/resume",
+    "thread/fork", "thread/goal/set", "thread/inject_items", "thread/attachment/add",
+    "thread/metadata/update",
+})
+
+
+def _prepare_native_frame(payload, method):
+    source = PreparedSource.capture(payload)
+    value = source.value()
+    if not isinstance(value, dict) or value.get("method") != method:
+        raise OutboundRefused("native outbound refused: request method differs")
+    frame = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
+    if len(frame) > MAX_FRAME_BYTES:
+        raise AppServerError("app-server-request-size-limit:" + method)
+    prepared = None
+    if method in _HOST_MODEL_CONTEXT_METHODS:
+        prepared = prepare_json_frame(payload, frame, surface="native model request")
+    source.require_unchanged(_decode_stdout_frame(frame.decode("utf-8")))
+    return frame, (source, payload, frame, prepared)
+
+
+def _checked_native_frame(binding, frame, deadline, method):
+    source, payload, original, prepared = binding
+    source.require_unchanged(payload)
+    if frame != original:
+        raise OutboundRefused("native outbound refused: prepared frame differs")
+    if prepared is not None:
+        frame = prepared.require_unchanged(payload, frame)
+    if deadline is not None and time.monotonic() >= deadline:
+        raise AppServerError("app-server-request-write-timeout:" + method)
+    return frame
+
+
+def _note_native_cleanup(primary, phase, cleanup):
+    try:
+        primary.add_note("native " + phase + " also failed: " + type(cleanup).__name__)
+    except BaseException:
+        pass
+
+
+def _native_write_failure_reason(primary):
+    if isinstance(primary, OutboundRefused):
+        return "app-server-outbound-frame-refused"
+    return str(primary)
 
 
 def _unique_json_object(pairs):
@@ -473,7 +521,44 @@ class AppServer:
             pass
         raise AppServerError(self._reader_error)
 
-    def _write_wire_bytes(self, fd, frame, deadline, method):
+    def _checked_write_frame(self, binding, frame, deadline, method):
+        try:
+            return _checked_native_frame(binding, frame, deadline, method)
+        except (OutboundRefused, AppServerError) as primary:
+            self._reader_error = self._reader_error or _native_write_failure_reason(primary)
+            self._condition.notify_all()
+            try:
+                self.process.terminate()
+            except BaseException as cleanup:
+                _note_native_cleanup(primary, "transport termination", cleanup)
+            raise
+
+    def _restore_wire_writer(self, fd, blocking, primary):
+        try:
+            os.set_blocking(fd, blocking)
+        except BaseException as cleanup:
+            if primary is None:
+                raise
+            _note_native_cleanup(primary, "descriptor restoration", cleanup)
+        finally:
+            self._wire_writing = False
+            self._condition.notify_all()
+
+    @contextmanager
+    def _wire_writer_mode(self, fd):
+        blocking = os.get_blocking(fd)
+        self._wire_writing = True
+        primary = None
+        try:
+            os.set_blocking(fd, False)
+            yield
+        except BaseException as exc:
+            primary = exc
+            raise
+        finally:
+            self._restore_wire_writer(fd, blocking, primary)
+
+    def _write_wire_bytes(self, fd, frame, deadline, method, binding):
         offset = 0
         while offset < len(frame):
             self._raise_reader_fault()
@@ -486,6 +571,7 @@ class AppServer:
                 _require_native_rpc(method)
             except live_availability.NativeLiveUnavailable as exc:
                 self._write_fault(str(exc))
+            frame = self._checked_write_frame(binding, frame, deadline, method)
             try:
                 count = os.write(fd, frame[offset:])
             except BlockingIOError:
@@ -499,10 +585,8 @@ class AppServer:
 
     def _write_payload(self, payload, *, method, timeout):
         """Serialize frames while releasing the reader lock under backpressure."""
-        frame = (json.dumps(payload, separators=(",", ":")) + "\n").encode("utf-8")
-        if len(frame) > MAX_FRAME_BYTES:
-            raise AppServerError("app-server-request-size-limit:" + method)
         deadline = time.monotonic() + timeout
+        frame, binding = _prepare_native_frame(payload, method)
         while getattr(self, "_wire_writing", False):
             self._raise_reader_fault()
             remaining = deadline - time.monotonic()
@@ -517,18 +601,11 @@ class AppServer:
         except (AttributeError, io.UnsupportedOperation):
             fd = None
         if type(fd) is not int:
-            stream.write(frame.decode("utf-8"))
+            stream.write(self._checked_write_frame(binding, frame, None, method).decode("utf-8"))
             stream.flush()
             return deadline
-        self._wire_writing = True
-        blocking = os.get_blocking(fd)
-        try:
-            os.set_blocking(fd, False)
-            self._write_wire_bytes(fd, frame, deadline, method)
-        finally:
-            os.set_blocking(fd, blocking)
-            self._wire_writing = False
-            self._condition.notify_all()
+        with self._wire_writer_mode(fd):
+            self._write_wire_bytes(fd, frame, deadline, method, binding)
         return deadline
 
     def _refuse_server_request(self, message):
@@ -2089,6 +2166,21 @@ class AppServer:
             )
         return precursor
 
+    def _raise_failed_turn_start(self, record, thread_id, ambiguity_reason, ambiguity_timeout, primary):
+        try:
+            record = self._persist_turn_dispatch_record(
+                evolve_turn_dispatch_record(record, status="failed-ambiguous", ambiguity_reason=ambiguity_reason)
+            )
+            contained = self.contain_ambiguous_turn_dispatch(
+                thread_id, timeout=0 if self._reader_error else ambiguity_timeout
+            )
+        except BaseException as cleanup:
+            if primary is not None:
+                _note_native_cleanup(primary, "turn containment", cleanup)
+                raise primary from None
+            raise
+        raise AmbiguousTurnStartError(contained) from primary
+
     def start_turn(
         self,
         thread_id: str,
@@ -2210,10 +2302,12 @@ class AppServer:
             self._require_mcp_guard(thread_id)
             started = time.monotonic_ns()
             live_availability.require_n1_live()
+            write_error = None
             try:
                 assert self.process.stdin is not None
                 deadline = self._write_payload(payload, method="turn/start", timeout=timeout)
-            except (OSError, AppServerError):
+            except (OSError, AppServerError, OutboundRefused) as exc:
+                write_error = exc
                 ambiguity_reason = "wire-write-error"
             else:
                 ambiguity_reason = None
@@ -2243,17 +2337,7 @@ class AppServer:
                 )
 
         if ambiguity_reason is not None:
-            record = self._persist_turn_dispatch_record(
-                evolve_turn_dispatch_record(
-                    record,
-                    status="failed-ambiguous",
-                    ambiguity_reason=ambiguity_reason,
-                )
-            )
-            contained = self.contain_ambiguous_turn_dispatch(
-                thread_id, timeout=0 if self._reader_error else ambiguity_timeout
-            )
-            raise AmbiguousTurnStartError(contained)
+            self._raise_failed_turn_start(record, thread_id, ambiguity_reason, ambiguity_timeout, write_error)
 
         latency_ms = (time.monotonic_ns() - started) / 1_000_000
         self.rpc_latencies.setdefault("turn/start", []).append(latency_ms)

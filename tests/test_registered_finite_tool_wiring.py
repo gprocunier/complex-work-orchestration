@@ -28,6 +28,52 @@ class SelectedFlowRow(NamedTuple):
     oracle: Callable[[], None]
 
 
+def _note_typed_startup_failure(factory, failure):
+    """One bounded observation after original cleanup; never execution authority."""
+    def exception(error):
+        if error is None:
+            return None
+        try:
+            reason = str(error)[:512]
+        except BaseException:
+            reason = 'unavailable'
+        trace, cursor = [], error.__traceback__
+        while cursor is not None and len(trace) < 8:
+            code = cursor.tb_frame.f_code
+            trace.append({'file': os.path.basename(code.co_filename)[:96],
+                          'function': code.co_name[:128], 'line': cursor.tb_lineno})
+            cursor = cursor.tb_next
+        return {'type': (type(error).__module__ + '.' + type(error).__qualname__)[:128],
+                'reason': reason, 'trace': trace, 'trace_omitted': cursor is not None}
+
+    server, adapter = getattr(factory, 'server', None), getattr(factory, 'adapter', None)
+    producer = getattr(server, 'finite_tools', None)
+    lifecycle = getattr(getattr(server, 'finite_input', None), 'lifecycle', None)
+    queued = getattr(getattr(server, '_tool_queue', None), 'queue', None)
+    seen = getattr(server, '_request_ids', ())
+    detail = {'capture': 'post-original-factory-cleanup; best-effort-nonblocking',
+        'worker': exception(failure), 'transport': exception(getattr(server, 'transport_failure', None)),
+        'request_ids': [{'type': 'builtins.int', 'value': 7, 'observed': (int, 7) in seen},
+                        {'type': 'builtins.str', 'value': '7', 'observed': (str, '7') in seen}],
+        'check_count': getattr(adapter, 'check_count', None),
+        'queued': None if queued is None else len(queued),
+        'inflight': getattr(producer, 'inflight', None) is not None,
+        'producer': getattr(producer, 'state', None), 'phase': getattr(lifecycle, 'phase', None)}
+    for name in ('producer', 'phase'):
+        value = detail[name]
+        detail[name] = value[:80] if type(value) is str else None
+    prefix = 'Native startup failure: '
+    encoded = json.dumps(detail, sort_keys=True)
+    if len(prefix) + len(encoded) > 16384:
+        for name in ('worker', 'transport'):
+            if detail[name] is not None:
+                detail[name].update(trace=[], trace_omitted=True)
+        encoded = json.dumps(detail, sort_keys=True)
+    if len(prefix) + len(encoded) > 16384:
+        raise ValueError('The startup diagnostic exceeded its fixed bound.')
+    family.runtime.admission.ledger_api.add_failure_note(failure, prefix + encoded)
+
+
 class DynamicRpcProcess(family.RpcProcess):
     def __init__(self, process, case, validator=False):
         super().__init__(process, case, validator=validator)
@@ -1261,8 +1307,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         outcome = []
         physical = gate_module.RegisteredFiniteInput._write_reply_frame
 
-        def held_after_real_write(writer, frame):
-            sent = physical(writer, frame)
+        def held_after_real_write(writer, frame, source, deadline):
+            sent = physical(writer, frame, source, deadline)
             if b'"success":true' in frame and not entered.is_set():
                 entered.set()
                 release.wait(5)
@@ -1362,6 +1408,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             try:
                 outcome.append(factory.run())
             except BaseException as failure:
+                try:
+                    _note_typed_startup_failure(factory, failure)
+                except BaseException:
+                    pass
                 outcome.append(failure)
         with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
                 patch.object(gate_module._FiniteLifecycle, 'wait', wait):
@@ -1394,6 +1444,89 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertIn((int, 7), factory.server.requests.entries)
         self.assertEqual({(type(reply['id']), reply['id']) for reply in self.fixture.spawned[0].replies},
                          {(int, 7), (str, '7'), (str, 'EXAMPLE-request-EXAMPLE-poll-call')})
+
+    def _failed_typed_startup(self):
+        primary = finite_tools.FiniteToolError('EXAMPLE original typed startup failure')
+        captured = []
+        original = finite_tools.RegisteredFiniteToolCalls._require_capture_current
+
+        def inject_original_failure(producer):
+            value = original(producer)
+            if (not captured and (int, 7) in producer.server._request_ids
+                    and (str, '7') in producer.server._request_ids):
+                captured.append(producer.factory)
+                raise primary
+            return value
+
+        with patch.object(finite_tools.RegisteredFiniteToolCalls, '_require_capture_current',
+                          inject_original_failure), self.assertRaises(
+                              family.runtime.native.OfflineHostError) as caught:
+            self.test_typed_integer_and_string_request_ids_remain_distinct()
+        self.assertEqual(len(captured), 1)
+        factory = captured[0]
+        self.assertIs(factory.server.transport_failure, primary)
+        self.assertIs(caught.exception.__cause__, primary)
+        self.assertEqual(len(self.fixture.spawned), 1)
+        self.assertIs(caught.exception.native_report, factory.execution)
+        self.assertEqual(factory.execution['status'], 'reconciliation-required')
+        self.assertEqual(str(caught.exception), factory.execution['error'])
+        self.assertIn('Transport cleanup failed: AppServerError', caught.exception.__notes__)
+        self.assertFalse(self.fixture.spawned[0].process.alive)
+        self.assertIsNone(factory.token)
+        with self.assertRaises(ValueError):
+            factory.issued_artifact()
+        self.fixture.spawned[0].stdin.stream.require_healthy()
+        self.assertTrue(any(reply.get('id') == '7' and 'error' in reply
+                            for reply in self.fixture.spawned[0].replies))
+        self.assertFalse(any(reply.get('result', {}).get('success') is True
+                             for reply in self.fixture.spawned[0].replies))
+        attempt = self.fixture.attempt(self.fixture.spawned[0].case)
+        self.assertEqual(attempt['outcome'], 'unknown')
+        self.assertEqual(attempt['charge'], attempt['amount'])
+        return caught.exception, primary
+
+    def test_typed_startup_failure_renders_original_cause_and_typed_ids(self):
+        import traceback
+        failure, primary = self._failed_typed_startup()
+        notes = [note for note in getattr(failure, '__notes__', ())
+                 if note.startswith('Native startup failure: ')]
+        self.assertEqual(len(notes), 1)
+        self.assertLessEqual(len(notes[0].encode()), 16384)
+        detail = json.loads(notes[0][len('Native startup failure: '):])
+        self.assertEqual(detail['transport']['type'], 'registered_finite_tool_calls.FiniteToolError')
+        self.assertEqual(detail['transport']['reason'], str(primary))
+        self.assertIn('inject_original_failure', [row['function'] for row in detail['transport']['trace']])
+        self.assertEqual(detail['request_ids'], [
+            {'type': 'builtins.int', 'value': 7, 'observed': True},
+            {'type': 'builtins.str', 'value': '7', 'observed': True}])
+        rendered = ''.join(traceback.format_exception(failure))
+        self.assertIn(notes[0], rendered)
+
+    def test_typed_startup_note_handles_absent_server_without_changing_failure(self):
+        failure = RuntimeError('EXAMPLE failure before server startup')
+        cause = OSError('EXAMPLE original startup cause')
+        failure.__cause__ = cause
+        _note_typed_startup_failure(SimpleNamespace(server=None, adapter=None), failure)
+        self.assertIs(failure.__cause__, cause)
+        note = failure.__notes__[0]
+        self.assertLessEqual(len(note.encode()), 16384)
+        detail = json.loads(note[len('Native startup failure: '):])
+        self.assertEqual(detail['worker']['type'], 'builtins.RuntimeError')
+        self.assertEqual(detail['worker']['reason'], str(failure))
+        self.assertIsNone(detail['transport'])
+        self.assertEqual(detail['request_ids'], [
+            {'type': 'builtins.int', 'value': 7, 'observed': False},
+            {'type': 'builtins.str', 'value': '7', 'observed': False}])
+
+    def test_typed_startup_formatter_failure_cannot_replace_original_error(self):
+        def unavailable(*_args):
+            raise KeyboardInterrupt('EXAMPLE diagnostic failure')
+
+        with patch(__name__ + '._note_typed_startup_failure', unavailable):
+            failure, primary = self._failed_typed_startup()
+        self.assertIs(failure.__cause__, primary)
+        self.assertFalse(any(note.startswith('Native startup failure: ')
+                             for note in failure.__notes__))
 
     def test_answered_dynamic_id_cannot_reappear_as_permission_request(self):
         case = self.fixture.case(finite_tool_mode='captured-host-tools',
@@ -3817,9 +3950,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         physical = gate_module.RegisteredFiniteInput._write_reply_frame
         phases = []
 
-        def held_after_real_write(writer, frame):
-            sent = physical(writer, frame)
-            source = json.loads(frame)
+        def held_after_real_write(writer, frame, source, deadline):
+            sent = physical(writer, frame, source, deadline)
             if (source.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call'
                     and source.get('result', {}).get('success') is False):
                 self.assertTrue(sent)
