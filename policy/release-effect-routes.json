@@ -5300,7 +5300,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2afa4f380c165c2ebe044b0aaf52869263ebdb0c4a62b560010b5668ae30e3a2",420,127291],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["4c66a17cd3a6ea62c209fefa06c288b362e5562e463829dd557ded268c4fc778",420,127291],
 
 "tests/fixtures/private-pid-cursor-write-eperm.json":["37573ecfaa393bae0efd0cda482809e1579f5d10609cc9c6d7d1981eb66d46ef",420,3028],
 
