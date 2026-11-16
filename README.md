@@ -131,6 +131,10 @@ surface qualification is also held; existing receipts cannot restore a route.
 The pool contract bounds groups to three and additionally requires a trusted
 controller, which is not shipped.
 
+The selected Codex 0.163.0 `constrained-integrity` target remains unqualified.
+The native pool is also unqualified and held in 1.0; pool qualification is planned
+for 1.1. Confidential operation remains unsupported.
+
 ### Plan your task with Prompt Coach
 
 Start with [Prompt Coach](https://gprocunier.github.io/complex-work-orchestration/prompt-coach.html)

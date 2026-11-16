@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Clarify that the selected Codex 0.163.0 constrained-integrity target and native pool remain unqualified in 1.0, with pool qualification planned for 1.1, confidential operation unsupported and live routes held.
 - Correct scheduler-sensitive startup identity refusals in the held native supervision path, preserving stable process birth checks. Both 0.7.0 and 0.8.0 contained this defect.
 - Preserve diagnostic capabilities across private namespace execution and re-arm parent-death protection after credential changes, with bounded cleanup and refusal controls.
 - Wait for the original diagnostic watchdog before retiring its receipt, and require original exit and reap proof before reporting cleanup complete. Retain cleanup facts when a prerequisite refusal remains a failure.
