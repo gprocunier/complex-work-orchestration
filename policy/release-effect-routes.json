@@ -750,17 +750,17 @@
 
 "diagnostic-control-connect":[125,451,"control.connect(endpoint)",16,451,41],
 
-"diagnostic-controller-death-helper":[127,"_controller_death",1001,"b00ef1ee325d1491b0e2351ab0b1f89b3f69c4c91aeed57f237bd01a19f1cf61"],
+"diagnostic-controller-death-helper":[127,"_controller_death",1234,"b00ef1ee325d1491b0e2351ab0b1f89b3f69c4c91aeed57f237bd01a19f1cf61"],
 
-"diagnostic-fixed-command-body":[127,"SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec",1092,"73b3f0431d8af57d27c78b9332ecda18df7a408f86808f1a94ba3fbf1f547b67"],
+"diagnostic-fixed-command-body":[127,"SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec",1325,"73b3f0431d8af57d27c78b9332ecda18df7a408f86808f1a94ba3fbf1f547b67"],
 
 "diagnostic-git-init":[125,217,"subprocess.run(['/usr/bin/git', '-c', 'init.defaultBranch=probe', 'init', '--quiet', str(self.worker)],\n                       env=environment, stdin=subprocess.DEVNULL, capture_output=True, timeout=5, check=True)",8,218,109],
 
-"diagnostic-independent-cleanup-body":[127,"DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error",719,"be864487f2e246c3afd7d154d7d7cbc2bf2959de9a70b828f12150d643d0a3ad"],
+"diagnostic-independent-cleanup-body":[127,"DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error",952,"be864487f2e246c3afd7d154d7d7cbc2bf2959de9a70b828f12150d643d0a3ad"],
 
 "diagnostic-init":[125,"SelectedNativeProbe._initialize",193,"2b950d3ac8d55b694fdbc2ed2af776fe1f5d70d31f8e3a56980908f062c2a16f"],
 
-"diagnostic-input-boundary-body":[127,"SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output",1112,"91cf80212cf4203cf39ac2e8a9ef5f5627d2128e64704f33ecf85e0fa8db0ac6"],
+"diagnostic-input-boundary-body":[127,"SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output",1345,"91cf80212cf4203cf39ac2e8a9ef5f5627d2128e64704f33ecf85e0fa8db0ac6"],
 
 "diagnostic-launch":[125,"SelectedNativeProbe._launch",323,"fb2650af24fb6774c11c3fe2bf25c3e9cfa9a1f4a195a9fd5e9d3c202bfb8449"],
 
@@ -768,17 +768,17 @@
 
 "diagnostic-listeners":[125,"SelectedNativeProbe._denial_program",429,"5847e90ddd6c2ba8490ea3208c6214368b925f3cdf52c8f7fb72a41ebf94a8fb"],
 
-"diagnostic-live-readiness-helper":[127,"_await_live_heartbeat",1061,"f0e968f4b98aaaff12bc20c830fcd6bd5d59459b5b91979bd98e304df0f4b849"],
+"diagnostic-live-readiness-helper":[127,"_await_live_heartbeat",1294,"f0e968f4b98aaaff12bc20c830fcd6bd5d59459b5b91979bd98e304df0f4b849"],
 
-"diagnostic-no-authority-body":[127,"SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority",605,"a15f8f76b3bf3692ddf6edbba83cecd8eb961eee51baa63e74118de2face51e6"],
+"diagnostic-no-authority-body":[127,"SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority",838,"a15f8f76b3bf3692ddf6edbba83cecd8eb961eee51baa63e74118de2face51e6"],
 
 "diagnostic-owned-spawn":[125,418,"self.controller.spawn_owned('selected-offline-probe',\n                    [str(self.launcher), '--args', str(arguments), '--', *command], str(self.worker))",17,419,101],
 
-"diagnostic-readiness-budget-body":[127,"ControllerDeathReadinessTests.test_absent_or_static_heartbeat_cannot_restart_the_startup_budget",880,"fb30a3afde5019fc3c8ba05aeb0c1ac69be57f2a5dd165fe73d3145a4837e5d6"],
+"diagnostic-readiness-budget-body":[127,"ControllerDeathReadinessTests.test_absent_or_static_heartbeat_cannot_restart_the_startup_budget",1113,"fb30a3afde5019fc3c8ba05aeb0c1ac69be57f2a5dd165fe73d3145a4837e5d6"],
 
-"diagnostic-readiness-exit-body":[127,"ControllerDeathReadinessTests.test_early_controller_or_namespace_exit_cannot_supply_live_readiness",897,"40ea1432098780303837e1ce02a77e63f5023ba30774b3f1694e2ee3051ca0ea"],
+"diagnostic-readiness-exit-body":[127,"ControllerDeathReadinessTests.test_early_controller_or_namespace_exit_cannot_supply_live_readiness",1130,"40ea1432098780303837e1ce02a77e63f5023ba30774b3f1694e2ee3051ca0ea"],
 
-"diagnostic-readiness-order-body":[127,"ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death",838,"d325e3a7cf600bb4e5b2a01480c9eeb3b957d9058d03387998110902e1c9ecbb"],
+"diagnostic-readiness-order-body":[127,"ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death",1071,"d325e3a7cf600bb4e5b2a01480c9eeb3b957d9058d03387998110902e1c9ecbb"],
 
 "diagnostic-request-policy":[125,"SelectedNativeProbe._validate_request",539,"bca58ec3260c05ad9675fc5449abf0fe6e178516fccaf02d5e813ee828695cbe"],
 
@@ -2214,11 +2214,11 @@
 
 "private-pid-channel":[125,1077,"socket.socket(fileno=int(descriptor))",9,1077,46],
 
-"private-pid-cleanup-proof-body":[135,"PrivatePidCIApplicabilityTests.test_original_watchdog_exit_reap_and_error_free_close_reports_are_required",478,"d65a6ffca9af747dbb87948026a64eb9382f76f0528c392d4719c16095fc6721"],
+"private-pid-cleanup-proof-body":[135,"PrivatePidCIApplicabilityTests.test_original_watchdog_exit_reap_and_error_free_close_reports_are_required",486,"d65a6ffca9af747dbb87948026a64eb9382f76f0528c392d4719c16095fc6721"],
 
-"private-pid-owner":[125,"_PrivatePidReuseOwner.run",1230,"86adc7530b3e5813e452fdfbb9d8237d088474485da1d1c2dd2464a7ab9764ac"],
+"private-pid-owner":[125,"_PrivatePidReuseOwner.run",1231,"08d524cc05f678b63b495877130ef99c8a9a3f9f78702b2a2feb934596cd80d8"],
 
-"private-pid-socketpair":[125,1231,"socket.socketpair()",24,1231,43],
+"private-pid-socketpair":[125,1232,"socket.socketpair()",24,1232,43],
 
 "publication-actual-replace":[126,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -4275,7 +4275,7 @@
 
 [85,1077,9,1077,46,"network","6c6a6b0d8bf3810f2953be09121b28fa30fc7d1a9eb0e4fe3ab8548ac0f9a419",["route","N13.6","private-pid-channel"]],
 
-[85,1231,24,1231,43,"network","dc4b9d6a8bb142b935cdc7d6ecb03c184bcc2a3b752ae47e176257631a569b90",["route","N13.6","private-pid-socketpair"]]
+[85,1232,24,1232,43,"network","dc4b9d6a8bb142b935cdc7d6ecb03c184bcc2a3b752ae47e176257631a569b90",["route","N13.6","private-pid-socketpair"]]
 ],
 
 "paths":[
@@ -4744,7 +4744,7 @@
 
 {"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["closure-prerequisite-query"],"entrypoint":"closure-prerequisite-query-body","gates":[],"id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":["scripts/qualified_closure.py","scripts/cwo_core/beads.py"],"witnesses":["closure-open-graph"]},
 
-{"contract":"N13","effect":"Fixed private primitive PID-reuse diagnostic and exact-handle cleanup","effect_points":["private-pid-channel","private-pid-socketpair"],"entrypoint":"private-pid-owner","gates":[],"id":"N13.6","limits":"Primitive only; selected package rejected. Channels are local socketpair/inherited fd, not external endpoints. Fixed driver/children are trusted private helpers; no model call, native admission or accepted output. Stable birth retains PID, comm, parent and start ticks. Mock graph/cleanup guards grant no OS credit. Exact WRITE EPERM is test-only unsupported after original exit/reap and error-free close; missing identity, retained or failed cleanup remain failures.","ordering":"Fixed20s watchdog; arm post-exec parent death before handoff; verify private namespaces/PID owner/original ancestry before promotion/release; preserve E/P and clear inheritance after release; clean original handles.","trace_files":["scripts/selected_native_containment.py","scripts/linux_owned_children.py","scripts/cwo_core/atomic_spawn.py"],"witnesses":["private-pid-boundary"]}
+{"contract":"N13","effect":"Fixed private primitive PID-reuse diagnostic and exact-handle cleanup","effect_points":["private-pid-channel","private-pid-socketpair"],"entrypoint":"private-pid-owner","gates":[],"id":"N13.6","limits":"Primitive only; selected package rejected. Channels are local socketpair/inherited fd, not external endpoints. Fixed driver/children are trusted private helpers; no model call, native admission or accepted output. Stable birth retains PID, comm, parent and start ticks. Mock graph/cleanup guards grant no OS credit. Exact WRITE EPERM is test-only unsupported after original exit/reap and error-free close; missing identity, retained or failed cleanup remain failures.","ordering":"20s absolute deadline; rearm parent death before handoff; verify original ancestry/private namespaces/PID owner before promotion/release; preserve E/P and clear inheritance after release; passively wait original birth within residual budget, then require exit/reap and error-free close.","trace_files":["scripts/selected_native_containment.py","scripts/linux_owned_children.py","scripts/cwo_core/atomic_spawn.py"],"witnesses":["private-pid-boundary"]}
 ],
 
 "schema":"compact-release-routes-v1",
@@ -5254,7 +5254,7 @@
 
 "scripts/scaffold_workgraph.py":["7236cba0c029355d39db7eec48bb550eed3474c2f26a09114e9fee1db727ecee",493,77572],
 
-"scripts/selected_native_containment.py":["71bcfc1ec3d03e89bad7208b5bc30f428d901f30d416bdefe53ef28f39bd8e5b",420,67308],
+"scripts/selected_native_containment.py":["8540ea0a1843940ce50ae1b0b65c8dffa73ebff623b49e755ad86bc1eac1ac80",420,69983],
 
 "scripts/setup_workspace_database.py":["f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd",420,725],
 
@@ -5300,7 +5300,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["b535f53b142e9bd00d7f8476b31c27f84fc8a28d8b5f9b4f4f1bd0bfc3e7647b",420,127291],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2afa4f380c165c2ebe044b0aaf52869263ebdb0c4a62b560010b5668ae30e3a2",420,127291],
 
 "tests/fixtures/private-pid-cursor-write-eperm.json":["37573ecfaa393bae0efd0cda482809e1579f5d10609cc9c6d7d1981eb66d46ef",420,3028],
 
@@ -5382,7 +5382,7 @@
 
 "tests/test_ownership_producer.py":["14d7a0ec68767275fd1e96daca77e524bf0dee174e108fe033c0dcb8f8c81c60",420,57956],
 
-"tests/test_private_pid_ci_applicability.py":["df7c9dbf65eff26f01d15beb35fe50b4c3e8f06c0fae6499a9756fd8f8dab502",420,38426],
+"tests/test_private_pid_ci_applicability.py":["4e997fb1ebd3dbcbda76a9ca6e544297da10b2fd6d2e6d8d1c4e530fe5a526d8",420,41227],
 
 "tests/test_production_closure.py":["a98a6e9a4f72127c5f4f852575f0860b1585a3dd192fa3fdad162566a9588a49",420,61523],
 
@@ -5400,7 +5400,7 @@
 
 "tests/test_registered_finite_input.py":["b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684",420,127597],
 
-"tests/test_registered_finite_tool_wiring.py":["8d2a2a3667048e3b2f0640db63af1a4fa15afc75f335d45ff9e678d961b7c247",420,221632],
+"tests/test_registered_finite_tool_wiring.py":["da9b7d711d464dfd717d32e534287aa962970d31a0a54aa5a6163fa3a09fb4e5",420,223454],
 
 "tests/test_registered_n1_factory.py":["69e7de8518401764c6e79a3a60fc7d3b95cb24011014585607ff3ae8a4518451",420,125648],
 
@@ -5418,7 +5418,7 @@
 
 "tests/test_scaffold_dependency_validation.py":["56f647152b9bd65acfcbb014a04263203a1dd350082e61a35af9b0650c4e36dd",420,32651],
 
-"tests/test_selected_native_containment.py":["c0293165f71413759cc1ced78708f8c95416145f6a06f3da7d0de625fba6c94c",420,62511],
+"tests/test_selected_native_containment.py":["90a092707b2468314cc9174f26e04fe0c3d60a8c99e0aef7c24c668069799df8",420,75099],
 
 "tests/test_turn_observations.py":["fcbf803eb912648bf787ef485d1a147b867a46849940561a3f960fda04186d2e",420,17380],
 

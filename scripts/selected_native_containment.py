@@ -1115,6 +1115,7 @@ class _PrivatePidReuseOwner:
         self._quarantined_handle = None
         self._parent_observation = None
         self.cleanup = {'namespace_exited': False, 'accepted_output': False}
+        self._deadline = None
 
     def _command(self, descriptor):
         entry = [self.python[0], '-I', '-S', '-c', _PID_REUSE_ENTRY,
@@ -1229,7 +1230,8 @@ class _PrivatePidReuseOwner:
 
     def run(self):
         parent, child = socket.socketpair()
-        deadline = time.monotonic() + _PID_REUSE_SECONDS
+        self._deadline = time.monotonic() + _PID_REUSE_SECONDS
+        deadline = self._deadline
         primary = None
         try:
             self._spawn(child.fileno())
@@ -1254,6 +1256,47 @@ class _PrivatePidReuseOwner:
         finally:
             _finish_pid_reuse([parent.close, child.close, self.close], primary)
 
+    def _wait_original_watchdog(self, controller):
+        if self.cleanup.get('namespace_exited') is not True:
+            return
+        births = [item for item in controller._backend.births if item.receipt is self.receipt]
+        _need(len(births) == 1, 'The original watchdog birth is unavailable for cleanup.')
+        deadline = self.__dict__.get('_deadline')
+        _need(type(deadline) in (int, float), 'The original watchdog cleanup deadline is unavailable.')
+        # An exiting process can lose its executable link before it is waitable.
+        # Keep its original owner until the retained handle confirms exit.
+        backend, birth = controller._backend, births[0]
+        with backend._lifecycle_lock:
+            backend._begin_operation(birth, 'wait')
+        _need(backend._exit_operation(birth, max(0, deadline - time.monotonic())),
+              'The original watchdog exit remains unconfirmed within its original deadline.')
+
+    def _watchdog_cleanup_proof(self, report, stage):
+        _need(type(report) is dict and type(report.get('child_pid')) is int
+              and report['child_pid'] == self.receipt.registration.pid
+              and report.get('registration_committed') is True
+              and report.get('child_exit_confirmed') is True and report.get('child_reaped') is True
+              and report.get('receipt_available') is False,
+              'The original watchdog ' + stage + ' exit/reap remains unconfirmed.')
+        _need(not {'close_error', 'cleanup_errors', 'retained_cleanup_errors'} & set(report)
+              and report.get('close_errors', []) == []
+              and (stage != 'close' or (report.get('outcome') == 'closed' and report.get('close_errors') == [])),
+              'The original watchdog ' + stage + ' reported cleanup errors.')
+
+    def _terminate_original_watchdog(self, controller):
+        grace = 0 if self.cleanup.get('namespace_exited') is True else .1
+        deadline = self.__dict__.get('_deadline')
+        if type(deadline) in (int, float):
+            # Each original signal step may wait once; neither gets a new window.
+            grace = min(grace, max(0, deadline - time.monotonic()) / 2)
+        report = controller.terminate(self.receipt, grace, allow_kill=True)
+        self._watchdog_cleanup_proof(report, 'termination')
+
+    def _close_original_watchdog(self, controller):
+        report = controller.close()
+        if self.receipt is not None:
+            self._watchdog_cleanup_proof(report, 'close')
+
     def close(self):
         actions = [self._close_parent_observation]
         quarantined, self._quarantined_handle = self._quarantined_handle, None
@@ -1268,8 +1311,9 @@ class _PrivatePidReuseOwner:
         if self.controller is not None:
             controller, self.controller = self.controller, None
             if self.receipt is not None:
-                actions.append(lambda: controller.terminate(self.receipt, .1, allow_kill=True))
-            actions.append(controller.close)
+                actions.extend((lambda: self._wait_original_watchdog(controller),
+                                lambda: self._terminate_original_watchdog(controller)))
+            actions.append(lambda: self._close_original_watchdog(controller))
         if self.process is not None:
             process, self.process = self.process, None
             actions.extend(stream.close for stream in (process.stdin, process.stdout, process.stderr))

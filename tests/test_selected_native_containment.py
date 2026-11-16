@@ -489,6 +489,239 @@ class PrivatePidReuseOSControlTests(unittest.TestCase):
                          {'CapEff': 0, 'CapPrm': 0, 'CapInh': 0, 'CapAmb': 0})
 
 
+class PrivateWatchdogCleanupProofTests(unittest.TestCase):
+    def owner(self, termination, closed):
+        owner = object.__new__(selected._PrivatePidReuseOwner)
+        owner._parent_observation = owner._quarantined_handle = owner.namespace_handle = owner.process = None
+        owner.receipt = types.SimpleNamespace(registration=types.SimpleNamespace(pid=17001))
+        owner.controller = types.SimpleNamespace(terminate=Mock(return_value=termination), close=Mock(return_value=closed))
+        owner.temporary = types.SimpleNamespace(cleanup=Mock())
+        owner.cleanup = {'namespace_exited': False, 'accepted_output': False}
+        owner._deadline = time.monotonic() + selected._PID_REUSE_SECONDS
+        return owner
+
+    def test_missing_false_or_nonboolean_original_exit_proof_cannot_complete_cleanup(self):
+        valid = {'outcome': 'already-exited', 'signals': [], 'child_pid': 17001,
+                 'registration_committed': True, 'child_exit_confirmed': True,
+                 'child_reaped': True, 'receipt_available': False}
+        for stage in ('termination', 'close'):
+            for field in ('registration_committed', 'child_exit_confirmed', 'child_reaped', 'receipt_available'):
+                for value in ('missing', None, field == 'receipt_available', 1 if field != 'receipt_available' else 0):
+                    with self.subTest(stage=stage, field=field, value=value):
+                        reports = {'termination': dict(valid),
+                                   'close': {**valid, 'outcome': 'closed', 'close_errors': []}}
+                        if value == 'missing':
+                            reports[stage].pop(field)
+                        else:
+                            reports[stage][field] = value
+                        owner = self.owner(reports['termination'], reports['close'])
+                        controller, temporary = owner.controller, owner.temporary
+                        with self.assertRaisesRegex(selected.SelectedProbeError, 'watchdog.*unconfirmed'):
+                            owner.close()
+                        controller.terminate.assert_called_once()
+                        controller.close.assert_called_once_with()
+                        temporary.cleanup.assert_called_once_with()
+
+    def test_changed_birth_mapping_refuses_before_original_exit_wait(self):
+        owner = self.owner({}, {})
+        owner.cleanup['namespace_exited'] = True
+        backend = selected.owned._LinuxBackend()
+        original = selected.owned._Birth(pid=17001, descriptor=37, child=object(),
+                                        reap_authorized=True, receipt=owner.receipt)
+        replacement = selected.owned._Birth(pid=17002, descriptor=37, child=object(),
+                                           reap_authorized=True)
+        backend.births = [original, replacement]
+        backend._owned[37] = replacement
+        owner.controller._backend = backend
+        with patch.object(selected.owned.ProcAdapter, 'wait_exit') as waiting:
+            with self.assertRaisesRegex(selected.owned._Refusal, 'original child handle'):
+                owner._wait_original_watchdog(owner.controller)
+        waiting.assert_not_called()
+        self.assertIsNone(original.active_operation)
+        self.assertIsNone(replacement.active_operation)
+
+    def test_missing_close_errors_and_original_cleanup_errors_remain_failures(self):
+        valid = {'outcome': 'already-exited', 'signals': [], 'child_pid': 17001,
+                 'registration_committed': True, 'child_exit_confirmed': True,
+                 'child_reaped': True, 'receipt_available': False}
+        for field in ('close_errors', 'close_error', 'cleanup_errors', 'retained_cleanup_errors'):
+            with self.subTest(field=field):
+                closed = {**valid, 'outcome': 'closed', 'close_errors': []}
+                if field == 'close_errors':
+                    closed.pop(field)
+                else:
+                    closed[field] = ['EXAMPLE cleanup failure']
+                owner = self.owner(dict(valid), closed)
+                temporary = owner.temporary
+                with self.assertRaisesRegex(selected.SelectedProbeError, 'watchdog.*cleanup errors'):
+                    owner.close()
+                temporary.cleanup.assert_called_once_with()
+
+
+_EXITING_LEADER_CHILD = r'''
+import ctypes,os,threading
+release=threading.Event()
+def sibling():
+ release.wait()
+ os.write(1,b'sibling-ready\n')
+ os.read(0,1)
+threading.Thread(target=sibling).start()
+os.write(1,b'leader-ready\n')
+assert os.read(0,1)==b'1'
+release.set()
+ctypes.CDLL(None).syscall(60,0)
+raise AssertionError('The leader exit syscall returned.')
+'''
+
+
+class PrivateWatchdogCleanupOSControlTests(unittest.TestCase):
+    """Real original-owner exit transitions, without private namespace credit."""
+
+    def setUp(self):
+        _require_os_prerequisites(self)
+
+    def original_exiting_owner(self):
+        temporary = tempfile.TemporaryDirectory(prefix='cwo-watchdog-exit-control-')
+        self.addCleanup(temporary.cleanup)
+        executable = str(Path('/usr/bin/python3').resolve())
+        backend = selected._PipeBackend(())
+        controller = selected.owned.LinuxOwnedChildController(executable)
+        controller._backend = backend
+        controller._engine = selected.owned._LinuxEngine(backend, executable)
+        self.addCleanup(controller.close)
+        deadline = time.monotonic() + selected._PID_REUSE_SECONDS
+        report = controller.spawn_owned('fixed-watchdog-exit-control',
+            [executable, '-I', '-S', '-c', _EXITING_LEADER_CHILD], temporary.name)
+        self.assertEqual(report['outcome'], 'registered', report)
+        receipt = report['receipt']
+        birth = next(item for item in backend.births if item.receipt is receipt)
+        observer = os.dup(birth.descriptor)
+        child = birth.child
+        self.addCleanup(self.release_original, controller, child, observer)
+        self.marker(child, b'leader-ready\n', deadline)
+        boundary_deadline = min(deadline, time.monotonic() + 3)
+        os.write(child.stdin.fileno(), b'1')
+        self.marker(child, b'sibling-ready\n', boundary_deadline)
+        executable_link = Path('/proc') / str(birth.pid) / 'exe'
+        while True:
+            try:
+                os.readlink(executable_link)
+            except FileNotFoundError:
+                break
+            self.assertLess(time.monotonic(), boundary_deadline)
+            time.sleep(.001)
+        self.assertFalse(select.select([observer], [], [], 0)[0])
+        self.assertIsNone(os.waitid(os.P_PIDFD, observer, os.WEXITED | os.WNOHANG | os.WNOWAIT))
+        owner = object.__new__(selected._PrivatePidReuseOwner)
+        owner._parent_observation = owner._quarantined_handle = owner.namespace_handle = None
+        owner.controller, owner.receipt, owner.process = controller, receipt, child
+        # Independent namespace enforcement is covered elsewhere. This fixture
+        # starts at its completed-cleanup precondition to isolate the watchdog.
+        owner.cleanup = {'namespace_exited': True, 'accepted_output': False}
+        owner._deadline = deadline
+        owner.temporary = temporary
+        return owner, controller, backend, birth, child, observer, boundary_deadline
+
+    def marker(self, child, expected, deadline):
+        self.assertTrue(select.select([child.stdout], [], [], max(0, deadline - time.monotonic()))[0])
+        self.assertEqual(os.read(child.stdout.fileno(), 64), expected)
+
+    def release_original(self, controller, child, observer):
+        # Fixture-only recovery never supplies proof to the failed owner call.
+        try:
+            if not child.stdin.closed:
+                child.stdin.close()
+            if not select.select([observer], [], [], 0)[0]:
+                signal.pidfd_send_signal(observer, signal.SIGKILL)
+            self.assertTrue(select.select([observer], [], [], 3)[0])
+            try:
+                os.waitid(os.P_PIDFD, observer, os.WEXITED | os.WNOHANG)
+            except ChildProcessError:
+                pass
+        finally:
+            os.close(observer)
+            controller.close()
+            for stream in (child.stdin, child.stdout, child.stderr):
+                stream.close()
+
+    def measured_reports(self, controller):
+        records = []
+        terminate, close = controller.terminate, controller.close
+        def terminated(*args, **kwargs):
+            report = terminate(*args, **kwargs)
+            records.append(('termination', dict(report)))
+            return report
+        def closed():
+            report = close()
+            records.append(('close', dict(report)))
+            return report
+        self.enterContext(patch.object(controller, 'terminate', terminated))
+        self.enterContext(patch.object(controller, 'close', closed))
+        return records
+
+    def test_private_close_waits_for_its_original_exiting_watchdog(self):
+        owner, controller, backend, birth, child, observer, boundary_deadline = self.original_exiting_owner()
+        records = self.measured_reports(controller)
+        original_wait = selected.owned.ProcAdapter.wait_exit
+        waiting, lifetime_deadline = [], owner._deadline
+        remaining_before_close = max(0, lifetime_deadline - time.monotonic())
+        def release_at_original_wait(observed_backend, descriptor, seconds):
+            self.assertIs(observed_backend, backend)
+            self.assertEqual(descriptor, birth.descriptor)
+            self.assertFalse(birth.closed)
+            self.assertIs(backend._owned[descriptor], birth)
+            self.assertIsNotNone(controller.owned_registration(owner.receipt))
+            waiting.append(seconds)
+            self.assertGreater(seconds, 0)
+            self.assertLessEqual(seconds, remaining_before_close)
+            os.write(child.stdin.fileno(), b'2')
+            return original_wait(backend, descriptor, seconds)
+        with patch.object(selected.owned.ProcAdapter, 'wait_exit', release_at_original_wait), \
+                patch.object(os, 'pidfd_open', side_effect=AssertionError('No late PID handle is allowed.')), \
+                patch.object(signal, 'pidfd_send_signal', side_effect=AssertionError('No new signal is allowed.')):
+            owner.close()
+        self.assertEqual([stage for stage, _ in records], ['termination', 'close'])
+        for _stage, report in records:
+            self.assertTrue(report['child_exit_confirmed'])
+            self.assertTrue(report['child_reaped'])
+            self.assertFalse(report['receipt_available'])
+            self.assertEqual(report['child_pid'], birth.pid)
+            self.assertEqual(report['signals'], [])
+        self.assertEqual(len(waiting), 1)
+        self.assertTrue(select.select([observer], [], [], 0)[0])
+        self.assertTrue(birth.reaped)
+        self.assertEqual(owner._deadline, lifetime_deadline)
+        self.assertLess(time.monotonic(), boundary_deadline)
+
+    def test_expired_original_budget_cannot_be_restarted_or_claim_cleanup(self):
+        owner, controller, backend, birth, _child, _observer, _boundary_deadline = self.original_exiting_owner()
+        records = self.measured_reports(controller)
+        owner._deadline = time.monotonic() - .001
+        deadline = owner._deadline
+        original_wait = selected.owned.ProcAdapter.wait_exit
+        waits = []
+        def held_original(observed_backend, descriptor, seconds):
+            self.assertIs(observed_backend, backend)
+            self.assertEqual(descriptor, birth.descriptor)
+            self.assertEqual(seconds, 0)
+            waits.append(seconds)
+            return original_wait(backend, descriptor, seconds)
+        with patch.object(selected.owned.ProcAdapter, 'wait_exit', held_original), \
+                patch.object(os, 'pidfd_open', side_effect=AssertionError('No late PID handle is allowed.')), \
+                patch.object(signal, 'pidfd_send_signal', side_effect=AssertionError('No refused-lifetime signal is allowed.')):
+            with self.assertRaisesRegex(selected.SelectedProbeError, 'watchdog.*unconfirmed'):
+                owner.close()
+        self.assertEqual(waits, [0])
+        self.assertEqual(owner._deadline, deadline)
+        self.assertEqual([stage for stage, _ in records], ['termination', 'close'])
+        for _stage, report in records:
+            self.assertFalse(report['child_exit_confirmed'])
+            self.assertFalse(report['child_reaped'])
+            self.assertFalse(report['receipt_available'])
+            self.assertEqual(report['signals'], [])
+        self.assertFalse(birth.reaped)
+
+
 class StableBirthContractTests(unittest.TestCase):
     def test_namespace_open_rejects_every_stable_identity_substitution(self):
         before = selected.parse_proc_stat('601 (driver) R 602' + ' 0' * 17 + ' 603')

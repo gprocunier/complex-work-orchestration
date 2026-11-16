@@ -2269,6 +2269,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
                 def paused_effect(*args, **kwargs):
                     calls.append(1)
+                    # This owner cannot complete before its callback returns.
+                    # A peer may publish its timeout before the caller resumes.
+                    self.assertEqual(gate.cleanup_phase(), 'cleanup-pending')
                     owner_entered.set()
                     if not release_owner.wait(12):
                         raise AssertionError('EXAMPLE pending owner release missing')
@@ -2286,7 +2289,6 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                         pending._termination_finished, 'wait', failed_observation):
                     factory.server._fail_transport(primary)
                     self.assertTrue(owner_entered.wait(5))
-                    self.assertEqual(gate.cleanup_phase(), 'cleanup-pending')
                     release_record.set()
                     self.assertTrue(observer_entered.wait(8))
                     worker.join(12)
@@ -2308,6 +2310,37 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         attempt = self.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])
+
+    def test_pending_birth_timeout_commits_before_fault_caller_resumes(self):
+        """A peer's original timeout may commit before the fault caller resumes."""
+        timeout_committed = threading.Event()
+        caller = threading.current_thread()
+        phases = []
+        original_fault = family.runtime._RegisteredServer._fail_transport
+        original_observation = family.runtime._Containment._record_observation
+
+        def observe(lifetime, *args, **kwargs):
+            result = original_observation(lifetime, *args, **kwargs)
+            if lifetime.role == 'tool' and result.kind == 'timeout':
+                phases.append(lifetime.factory.server.finite_input.cleanup_phase())
+                timeout_committed.set()
+            return result
+
+        def fault(server, failure):
+            result = original_fault(server, failure)
+            if (threading.current_thread() is caller
+                    and str(failure) == 'EXAMPLE pending-birth transport fault'):
+                # The original fault publisher has released every request and
+                # gate lock. Let the real peer finish its failed observation
+                # before this caller resumes its fixture assertions.
+                self.assertTrue(timeout_committed.wait(8))
+            return result
+
+        with patch.object(family.runtime._Containment, '_record_observation', observe), \
+                patch.object(family.runtime._RegisteredServer, '_fail_transport', fault):
+            self.test_pending_birth_launch_observer_timeout_survives_owner_completion()
+        self.assertTrue(timeout_committed.is_set())
+        self.assertEqual(phases, ['unknown'])
 
     def test_expired_queued_command_refuses_before_owned_tool_effect(self):
         case = self.fixture.case(finite_tool_mode='captured-host-tools', short_command_deadline=True)

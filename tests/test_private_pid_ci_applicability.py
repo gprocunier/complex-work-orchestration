@@ -42,7 +42,7 @@ observe('ENTRY')
 s._pid_reuse_entry(sys.argv[2:])
 '''
 
-_PRIVATE_CURSOR_SOURCE_SHA256 = '71bcfc1ec3d03e89bad7208b5bc30f428d901f30d416bdefe53ef28f39bd8e5b'
+_PRIVATE_CURSOR_SOURCE_SHA256 = '8540ea0a1843940ce50ae1b0b65c8dffa73ebff623b49e755ad86bc1eac1ac80'
 _PRIVATE_CURSOR_LOCATIONS = [
     {'file': 'selected_native_containment.py', 'function': '_pid_reuse_entry', 'line': 1092},
     {'file': 'selected_native_containment.py', 'function': '_reuse_case', 'line': 986},
@@ -275,6 +275,14 @@ def _run_measured_pid_owner(owner):
     except BaseException as failure:
         # owner.run has completed its finally, including every cleanup action.
         unsupported = _private_cursor_unsupported(owner, proof, metadata, failure)
+        if unsupported is None:
+            try:
+                detail = json.dumps({'owner_termination': proof.get('owner_termination'),
+                    'owner_close': proof.get('owner_close'), 'namespace_cleanup': owner.cleanup,
+                    'promoted': proof.get('promoted'), 'closed': proof.get('closed')}, sort_keys=True)
+                selected.owned._note(failure, 'Private PID prerequisite cleanup: ' + detail[:3800])
+            except BaseException as secondary:
+                selected.owned._note(failure, 'Private PID prerequisite cleanup note: ' + type(secondary).__name__)
         selected.owned._note(failure, 'Private PID helpers: ' + json.dumps(metadata, sort_keys=True))
         print('\n'.join(getattr(failure, '__notes__', ())), flush=True)
         if unsupported is not None:
@@ -526,7 +534,8 @@ class PrivatePidCIApplicabilityTests(unittest.TestCase):
         owner.package = '/EXAMPLE/exact-selected-package'
         self.assertIsNone(self.classify(owner, proof, metadata, failure))
 
-    def exercise_run(self, *, broken_cleanup=False, cleanup_report_error=False, regression=None, success=False):
+    def exercise_run(self, *, broken_cleanup=False, cleanup_report_error=False,
+                     cleanup_unconfirmed=False, regression=None, success=False, refusal=None):
         """Exercise original owner.run/finally with explicit unit-only fake IO."""
         owner, proof, metadata, failure = self.fixture()
         report = proof['reports'][0]
@@ -552,10 +561,17 @@ class PrivatePidCIApplicabilityTests(unittest.TestCase):
                                            close=Mock(return_value=proof['owner_close'][0]))
         if cleanup_report_error:
             controller.close.return_value['close_errors'] = ['EXAMPLE returned close failure']
+        if cleanup_unconfirmed:
+            controller.terminate.return_value.update(outcome='identity-unavailable', signals=[],
+                reason="[Errno 2] No such file or directory: '/proc/6001/exe'")
+            for cleanup_report in (controller.terminate.return_value, controller.close.return_value):
+                cleanup_report.update(child_exit_confirmed=False, child_reaped=False, receipt_available=False)
         owner.controller = controller
         owner._spawn = Mock()
         owner._receive_namespace = Mock(return_value=b'EXAMPLE-handoff')
         owner._verify_namespace = Mock(side_effect=lambda *_args: events.append('namespace-verified'))
+        if refusal is not None:
+            owner._verify_result = Mock(side_effect=refusal)
         def close():
             events.append('cleanup')
             owner.namespace_handle = owner._parent_observation = None
@@ -615,6 +631,34 @@ class PrivatePidCIApplicabilityTests(unittest.TestCase):
         self.assertIs(type(result), selected.SelectedProbeError)
         self.assertEqual(events, ['namespace-verified', 'cleanup'])
         self.assertTrue(owner.cleanup['namespace_exited'])
+
+    def test_declined_refusal_renders_original_unconfirmed_cleanup(self):
+        primary = self.fixture()[3]
+        cause = RuntimeError('EXAMPLE original refusal cause')
+        primary.__cause__ = cause
+        with patch(__name__ + '._original_cursor_cleanup', wraps=_original_cursor_cleanup) as cleanup:
+            result, owner, events = self.exercise_run(cleanup_unconfirmed=True, refusal=primary)
+        cleanup.assert_called_once()
+        self.assertIs(result, primary)
+        self.assertIs(result.__cause__, cause)
+        self.assertEqual(events, ['namespace-verified', 'cleanup'])
+        prefix = 'Ownership cleanup: Private PID prerequisite cleanup: '
+        notes = [note for note in result.__notes__ if note.startswith(prefix)]
+        self.assertEqual(len(notes), 1)
+        self.assertLessEqual(len(notes[0].encode()), 4096)
+        details = json.loads(notes[0][len(prefix):])
+        self.assertIs(details['promoted'], True)
+        self.assertIs(details['closed'], True)
+        self.assertEqual(details['namespace_cleanup'], owner.cleanup)
+        for name in ('owner_termination', 'owner_close'):
+            self.assertEqual(len(details[name]), 1)
+            report = details[name][0]
+            self.assertEqual(report['child_pid'], 6001)
+            self.assertIs(report['child_exit_confirmed'], False)
+            self.assertIs(report['child_reaped'], False)
+            self.assertIs(report['receipt_available'], False)
+        self.assertEqual(details['owner_termination'][0]['outcome'], 'identity-unavailable')
+        self.assertEqual(details['owner_close'][0]['close_errors'], [])
 
     def test_counterfactual_product_regressions_remain_errors_without_skips(self):
         for regression in ('old-E-P-zero', 'old-death-zero', 'uid-float', 'death-float',
