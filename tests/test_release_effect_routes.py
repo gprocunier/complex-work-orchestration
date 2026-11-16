@@ -400,6 +400,78 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         self.assertGreaterEqual((R.MAX_INVENTORY - size) * 100, R.MAX_INVENTORY * 15,
                                 "installed route inventory must reserve at least 15% of its finite byte cap")
 
+    def test_shared_inventory_strings_preserve_expanded_routes_and_full_identities(self):
+        root, _output, _review = self.example(compact=True)
+        expected = R.trace(root)
+        path = root / R.INVENTORY
+        value = json.loads(path.read_bytes())
+        sha = value["points"]["entry"][3]
+        value.update(source_binding_columns=["sha256", "mode", "size"],
+                     shared_strings={"3": "scripts/example.py", "18": sha, "7": "EXAMPLE only"})
+        path.write_bytes(R.inventory_bytes(value))
+        stored = json.loads(path.read_bytes())
+        self.assertEqual(stored["point_files"][0], {"$": 3})
+        self.assertEqual(stored["points"]["entry"][3], {"$": 18})
+        self.assertEqual(stored["contracts"]["EXAMPLE"]["limits"], {"$": 7})
+        self.assertEqual(R._routes(stored), R._routes(value))
+        loaded = R.inventory(root)[0]
+        self.assertEqual(loaded["points"]["entry"][3], sha)
+        self.assertEqual(loaded["source_bindings"], value["source_bindings"])
+        observed = R.trace(root)
+        for field in ("routes", "primitive_hits", "primitive_coverage"):
+            self.assertEqual(observed[field], expected[field])
+        lines = {line.removesuffix(b",") for line in path.read_bytes().splitlines()}
+        for key, text in value["shared_strings"].items():
+            self.assertIn(R.encoded(key) + b":" + R.encoded(text), lines)
+
+    def test_shared_inventory_strings_refuse_invalid_tables_and_references(self):
+        root, _output, _review = self.example(compact=True)
+        path = root / R.INVENTORY
+        value = json.loads(path.read_bytes())
+        value["shared_strings"] = {"3": "scripts/example.py"}
+        original = json.loads(R.inventory_bytes(value))
+        changes = {
+            "undeclared": lambda x: x.pop("shared_strings"),
+            "wrong-table": lambda x: x.update(shared_strings=[]),
+            "duplicate-text": lambda x: x["shared_strings"].update({"4": "scripts/example.py"}),
+            "unused-text": lambda x: x["shared_strings"].update({"4": "EXAMPLE unused"}),
+            "empty-text": lambda x: x["shared_strings"].update({"3": ""}),
+            "nonstring-text": lambda x: x["shared_strings"].update({"3": []}),
+            "bad-key": lambda x: x["shared_strings"].update({"03": x["shared_strings"].pop("3")}),
+            "negative-key": lambda x: x["shared_strings"].update({"-1": x["shared_strings"].pop("3")}),
+            "key-bound": lambda x: x["shared_strings"].update({str(R.MAX_FILES): x["shared_strings"].pop("3")}),
+            "extra-marker-field": lambda x: x["point_files"].__setitem__(0, {"$": 3, "extra": 0}),
+            "nested-marker": lambda x: x["point_files"].__setitem__(0, {"$": {"$": 3}}),
+        }
+        for index in (False, True, -1, 0, 4, R.MAX_FILES, "3", None, [], 3.0):
+            changes[f"reference-{index!r}"] = lambda x, index=index: x["point_files"].__setitem__(0, {"$": index})
+        for name, change in changes.items():
+            with self.subTest(invalid=name):
+                changed = copy.deepcopy(original)
+                change(changed)
+                path.write_bytes(R._inventory_sections(changed) + b"\n")
+                with self.assertRaises(R.Refused):
+                    R.inventory(root)
+
+    def test_shared_inventory_strings_bound_depth_table_count_and_expanded_bytes(self):
+        value = {"shared_strings": {"3": "é" * 4}, "values": [{"$": 3}] * 12}
+        expected = {"shared_strings": {"3": "é" * 4}, "values": ["é" * 4] * 12}
+        size = len(R.encoded(expected))
+        self.assertLess(len(R.encoded(value)), size)
+        with patch.object(R, "MAX_FILE", size):
+            self.assertEqual(R._string_layout(value, compact=False), expected)
+        with patch.object(R, "MAX_FILE", size - 1), \
+             self.assertRaisesRegex(R.Refused, "decoded inventory string budget"):
+            R._string_layout(value, compact=False)
+        nested = 0
+        for _ in range(31):
+            nested = [nested]
+        self.assertEqual(R._string_layout({"value": nested}, compact=False), {"value": nested})
+        with self.assertRaisesRegex(R.Refused, "shared string nesting budget"):
+            R._string_layout({"value": [nested]}, compact=False)
+        with self.assertRaisesRegex(R.Refused, "shared string table"):
+            R._shared_strings({"shared_strings": {str(i): f"value-{i}" for i in range(R.MAX_FILES + 1)}})
+
     def compact_primitive_paths(self, value):
         coverage = value["primitive_coverage"]
         paths = sorted({row[0] for row in coverage["hits"]})

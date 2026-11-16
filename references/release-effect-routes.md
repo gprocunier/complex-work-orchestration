@@ -30,6 +30,16 @@ guard chains and other ordered references are never renumbered or rearranged.
 There is exactly one final newline. The checker and rebind command refuse
 one-line, indented, reordered-key and otherwise noncanonical byte layouts.
 
+An optional `shared_strings` map stores complete repeated strings under stable
+decimal IDs from `0` to `11999`. An exact `{"$":12}` object selects ID `"12"`;
+Boolean, missing or malformed references and extra marker fields refuse.
+Entries must be unique, nonempty strings, and every entry must be used. Full
+paths, hashes, test IDs and wording expand before existing validation. Expansion
+allows at most 32 nested levels and 2 MiB of canonical decoded JSON bytes.
+Each shared entry retains its own line. Rebinding prunes only obsolete entries
+after a validated mechanical update, keeping surviving IDs and references
+unchanged; malformed input refuses before either binding file is written.
+
 Independent source bindings can merge without a textual conflict. Changes to a
 shared record still overlap: in particular, two checkpoint dependency edits both
 change the checkpoint's full-file SHA256 binding. Those require reconciliation
