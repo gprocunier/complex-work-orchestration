@@ -172,6 +172,95 @@ class RebindReleaseInventoryTests(unittest.TestCase):
                     R.inventory(root)
                 self.assert_refuses_untouched(root, 'source binding')
 
+    def compact_exclusions(self, value):
+        coverage = value["primitive_coverage"]
+        coverage.update(exclusion_columns=["reason", "conclusion", "route"],
+                        exclusion_texts=["fixture", "never executed"],
+                        exclusions={"EXAMPLE-exclusion": [["inert ", 0], 1, None]})
+
+    def test_shared_string_rebind_preserves_ids_and_prunes_only_obsolete_text(self):
+        root, value, _manifest = self.fixture()
+        old_sha = value["source_bindings"]["scripts/other.py"]["sha256"]
+        value.update(source_binding_columns=["sha256", "mode", "size"],
+                     shared_strings={"3": "scripts/example.py", "18": old_sha, "7": "EXAMPLE only"})
+        path = root / R.INVENTORY
+        path.write_bytes(R.inventory_bytes(value))
+        stored = json.loads(path.read_bytes())
+        self.assertEqual(stored["points"]["other"][3], {"$": 18})
+        source = root / "scripts/other.py"
+        source.write_text(source.read_text().replace("'other'", "'changed'"))
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rebound = json.loads(path.read_bytes())
+        self.assertEqual(rebound["shared_strings"], {"3": "scripts/example.py", "7": "EXAMPLE only"})
+        self.assertEqual(rebound["point_files"], stored["point_files"])
+        self.assertEqual(rebound["contracts"], stored["contracts"])
+        self.assertEqual(rebound["source_bindings"]["scripts/other.py"][0], R.read_file(root, "scripts/other.py")[1]["sha256"])
+        R.trace(root)
+        before = self.bindings_snapshot(root)
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "No bindings changed.\n")
+        self.assertEqual(self.bindings_snapshot(root), before)
+
+    def test_shared_string_rebind_refuses_malformed_input_before_either_write(self):
+        changes = (
+            lambda x: x["shared_strings"].update({"4": "EXAMPLE unused"}),
+            lambda x: x["shared_strings"].update({"03": x["shared_strings"].pop("3")}),
+            lambda x: x["point_files"].__setitem__(0, {"$": True}),
+            lambda x: x["point_files"].__setitem__(0, {"$": 4}),
+            lambda x: x["point_files"].__setitem__(0, {"$": 3, "extra": 0}),
+        )
+        for index, change in enumerate(changes):
+            with self.subTest(invalid=index):
+                root, value, _manifest = self.fixture()
+                value["shared_strings"] = {"3": "scripts/example.py"}
+                stored = json.loads(R.inventory_bytes(value))
+                change(stored)
+                (root / R.INVENTORY).write_bytes(R._inventory_sections(stored) + b"\n")
+                source = root / "scripts/other.py"
+                source.write_bytes(source.read_bytes() + b"\n# EXAMPLE proposed binding change\n")
+                self.assert_refuses_untouched(root, "shared string")
+
+    def test_compact_exclusion_rebind_preserves_storage_decisions_and_noop(self):
+        root, value, _manifest = self.fixture()
+        expected = R.trace(root)["primitive_coverage"]
+        self.compact_exclusions(value)
+        path = root / R.INVENTORY
+        path.write_bytes(R.inventory_bytes(value))
+        self.assertEqual(R.trace(root)["primitive_coverage"], expected)
+        source = root / "scripts/other.py"
+        source.write_bytes(source.read_bytes() + b"\n# EXAMPLE harmless edit\n")
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        rebound = R.inventory(root)[0]
+        self.assertEqual(rebound["primitive_coverage"], value["primitive_coverage"])
+        self.assertEqual(R.trace(root)["primitive_coverage"], expected)
+        before = self.bindings_snapshot(root)
+        result = self.run_rebind(root)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "No bindings changed.\n")
+        self.assertEqual(self.bindings_snapshot(root), before)
+
+    def test_compact_exclusion_rebind_refuses_before_either_write(self):
+        changes = (
+            lambda x: x.update(exclusion_columns=["conclusion", "reason", "route"]),
+            lambda x: x["exclusion_texts"].append("EXAMPLE unused text"),
+            lambda x: x["exclusions"]["EXAMPLE-exclusion"].__setitem__(0, True),
+            lambda x: x["exclusions"]["EXAMPLE-exclusion"].__setitem__(2, "missing"),
+            lambda x: x["exclusions"]["EXAMPLE-exclusion"].pop(),
+            lambda x: x["exclusions"].update({"EXAMPLE-orphan": [0, 1, None]}),
+        )
+        for index, change in enumerate(changes):
+            with self.subTest(invalid=index):
+                root, value, _manifest = self.fixture()
+                self.compact_exclusions(value)
+                change(value["primitive_coverage"])
+                (root / R.INVENTORY).write_bytes(R.inventory_bytes(value))
+                source = root / "scripts/other.py"
+                source.write_bytes(source.read_bytes() + b"\n# EXAMPLE proposed binding change\n")
+                self.assert_refuses_untouched(root)
+
     def test_independent_script_rebinds_merge_in_git_and_validate(self):
         root, value, manifest = self.fixture()
         # These scripts are independently bound, outside the checkpoint roster.

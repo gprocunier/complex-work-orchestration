@@ -48,6 +48,65 @@ def encoded(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
 
 
+def _shared_strings(value):
+    table = value.get("shared_strings", {})
+    need(type(table) is dict and len(table) <= MAX_FILES, "shared string table refused")
+    need(all(type(key) is str and re.fullmatch(r"0|[1-9][0-9]{0,4}", key) and int(key) < MAX_FILES
+             for key in table), "shared string ID refused")
+    need(all(type(text) is str and text for text in table.values()), "shared string text required")
+    need(len(set(table.values())) == len(table), "duplicate shared string text")
+    return table
+
+
+def _string_charge(remaining, size):
+    need(size <= remaining[0], "decoded inventory string budget exceeded")
+    remaining[0] -= size
+
+
+def _shared_string_reference(item, table, used):
+    need(set(item) == {"$"}, "shared string marker fields refused")
+    index = item["$"]
+    need(type(index) is int and 0 <= index < MAX_FILES and str(index) in table,
+         "shared string reference refused")
+    used.add(str(index))
+    return table[str(index)]
+
+
+def _string_node(item, context, depth=0):
+    table, lookup, used, remaining, compact = context
+    need(depth <= 32, "shared string nesting budget exceeded")
+    if type(item) is dict and "$" in item:
+        item = _shared_string_reference(item, table, used)
+    if type(item) is str:
+        key = lookup.get(item)
+        if key is not None:
+            used.add(key)
+        _string_charge(remaining, len(encoded(item)))
+        return {"$": int(key)} if compact and key is not None else item
+    if type(item) is list:
+        _string_charge(remaining, 2 + max(0, len(item) - 1))
+        return [_string_node(child, context, depth + 1) for child in item]
+    if type(item) is dict:
+        _string_charge(remaining, 2 + max(0, len(item) - 1) + sum(len(encoded(key)) + 1 for key in item))
+        return {key: _string_node(child, context, depth + 1) for key, child in item.items()}
+    _string_charge(remaining, len(encoded(item)))
+    return item
+
+
+def _string_layout(value, *, compact, prune=False):
+    """Retain explicit stable IDs; bound expansion before building each record."""
+    table, used, remaining = _shared_strings(value), set(), [MAX_FILE]
+    body = {key: item for key, item in value.items() if key != "shared_strings"}
+    if "shared_strings" in value:
+        _string_charge(remaining, len(encoded("shared_strings")) + 1 + len(encoded(table)) + bool(body))
+    context = table, {text: key for key, text in table.items()}, used, remaining, compact
+    result = _string_node(body, context)
+    need(prune or used == set(table), "unused shared string entry")
+    if "shared_strings" in value:
+        result["shared_strings"] = {key: text for key, text in table.items() if key in used}
+    return result
+
+
 def _inventory_records(value):
     """Put independent entries on separate lines; keep each record compact."""
     if isinstance(value, dict):
@@ -70,7 +129,9 @@ def _inventory_sections(value):
 
 def inventory_bytes(value):
     """Sorted keys, authored array order, compact rows with blank separators."""
-    return _inventory_sections(_source_binding_layout(value, compact=True)) + b"\n"
+    expanded = _string_layout(value, compact=False, prune=True)
+    bindings = _source_binding_layout(expanded, compact=True)
+    return _inventory_sections(_string_layout(bindings, compact=True, prune=True)) + b"\n"
 
 
 def _source_binding_identity(row, columns):
@@ -1119,10 +1180,64 @@ def _primitive_path_table(coverage, contents):
     return paths
 
 
+def _exclusion_text_table(coverage):
+    texts = coverage.get("exclusion_texts", [])
+    need(type(texts) is list and len(texts) <= MAX_FILES, "primitive exclusion text table refused")
+    need(all(type(text) is str and text.strip() for text in texts), "primitive exclusion text required")
+    need(len(set(texts)) == len(texts), "duplicate primitive exclusion text")
+    return texts
+
+
+def _exclusion_fragment(item, texts, used):
+    if type(item) is str:
+        return item
+    need(type(item) is int and 0 <= item < len(texts), "primitive exclusion text index outside table")
+    used.add(item)
+    return texts[item]
+
+
+def _exclusion_text(item, texts, used):
+    fragments = item if type(item) is list else [item]
+    need(0 < len(fragments) <= 12, "bounded primitive exclusion text fragments required")
+    resolved = [_exclusion_fragment(fragment, texts, used) for fragment in fragments]
+    need(sum(len(fragment.encode()) for fragment in resolved) <= MAX_INVENTORY,
+         "decoded exclusion text length exceeded")
+    return "".join(resolved)
+
+
+def _exclusion_decision(row, texts, used):
+    need(type(row) is list and len(row) == 3, "primitive exclusion row width refused")
+    reason, conclusion, route = row
+    decision = {"reason": _exclusion_text(reason, texts, used),
+                "conclusion": _exclusion_text(conclusion, texts, used)}
+    if route is not None:
+        decision["route"] = route
+    return decision
+
+
+def _expanded_exclusions(coverage):
+    if "exclusion_columns" not in coverage and "exclusion_texts" not in coverage:
+        return coverage
+    need(coverage.get("exclusion_columns") == ["reason", "conclusion", "route"],
+         "primitive exclusion columns refused")
+    exclusions = coverage.get("exclusions")
+    need(type(exclusions) is dict, "primitive exclusions mapping required")
+    texts, used, expanded, total = _exclusion_text_table(coverage), set(), {}, 0
+    for key, row in exclusions.items():
+        decision = _exclusion_decision(row, texts, used)
+        total += sum(len(decision[field].encode()) for field in ("reason", "conclusion"))
+        need(total <= MAX_FILE, "decoded exclusion text budget exceeded")
+        expanded[key] = decision
+    need(used == set(range(len(texts))), "unused primitive exclusion text")
+    return {key: expanded if key == "exclusions" else item for key, item in coverage.items()
+            if key not in {"exclusion_columns", "exclusion_texts"}}
+
+
 def _expanded_primitive_coverage(coverage, contents):
-    """Decode explicit path indices only; keep evidence and dispositions expanded."""
+    """Decode explicit storage references before checking each individual decision."""
     need(isinstance(coverage, dict) and coverage.get("schema") in ("bounded-primitives-v1", "bounded-primitives-v2"),
          "primitive coverage schema required")
+    coverage = _expanded_exclusions(coverage)
     rows = coverage.get("hits", [])
     need(isinstance(rows, list), "primitive hit rows required")
     need(all(isinstance(row, list) and len(row) == 8 for row in rows), "primitive hit row required")
@@ -1182,7 +1297,8 @@ def _check_script_bindings(value, files):
 
 def inventory(root):
     data, _identity = read_file(root, INVENTORY, MAX_INVENTORY)
-    value = json.loads(data)
+    stored = json.loads(data)
+    value = _string_layout(stored, compact=False)
     need(value["schema"] == "compact-release-routes-v1", "inventory schema refused")
     ids = [route["id"] for route in value["routes"]]
     need(ids and len(ids) == len(set(ids)), "missing or duplicate routes")
@@ -1210,6 +1326,7 @@ def _table_witness(value, key):
 
 def _routes(value):
     """Expand only explicit shared inventory references; no inferred edges."""
+    value = _string_layout(value, compact=False, prune=True)
     if "contracts" not in value:
         return value["routes"]
     rows = []

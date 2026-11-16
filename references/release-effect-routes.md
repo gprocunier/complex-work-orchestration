@@ -30,6 +30,16 @@ guard chains and other ordered references are never renumbered or rearranged.
 There is exactly one final newline. The checker and rebind command refuse
 one-line, indented, reordered-key and otherwise noncanonical byte layouts.
 
+An optional `shared_strings` map stores complete repeated strings under stable
+decimal IDs from `0` to `11999`. An exact `{"$":12}` object selects ID `"12"`;
+Boolean, missing or malformed references and extra marker fields refuse.
+Entries must be unique, nonempty strings, and every entry must be used. Full
+paths, hashes, test IDs and wording expand before existing validation. Expansion
+allows at most 32 nested levels and 2 MiB of canonical decoded JSON bytes.
+Each shared entry retains its own line. Rebinding prunes only obsolete entries
+after a validated mechanical update, keeping surviving IDs and references
+unchanged; malformed input refuses before either binding file is written.
+
 Independent source bindings can merge without a textual conflict. Changes to a
 shared record still overlap: in particular, two checkpoint dependency edits both
 change the checkpoint's full-file SHA256 binding. Those require reconciliation
@@ -43,6 +53,10 @@ row width, digest, integer mode and nonnegative integer size are validated;
 Boolean modes or sizes refuse. Legacy named-field inventories remain supported.
 This lossless layout removes repeated field names without dropping bindings or
 changing the finite byte cap, route decisions or source identity checks.
+
+Point and witness keys are internal references, independent of route IDs and
+fully qualified test IDs. Short keys retain the same explicit source points and
+witness bodies; they do not infer call edges or replace any source identity.
 
 The inventory is authored decision data. Every route has an explicit manual
 conclusion and limits. Neither its presence nor a matching source hash approves
@@ -115,6 +129,26 @@ source span, never a file-wide exemption. Orphan/duplicate/unknown exclusions
 refuse. Dynamic-family candidates can only be excluded individually; a route name
 does not resolve their unknown target. These manual dispositions remain review
 trust, not evidence that an effect is unreachable or authorized.
+
+Either primitive schema can declare
+`exclusion_columns: ["reason", "conclusion", "route"]`. Each individually named
+exclusion then stores a three-item row, with `null` meaning no optional route.
+Its reason and conclusion are literal strings or integer indices into an
+optional `exclusion_texts` array. A list of one to twelve string/index fragments
+concatenates their exact text, without nesting or inserted separators. For
+example, `"exclusion_texts":["inspection only.","No execution authority."]`
+and `"EXAMPLE":[["Exact lookup is ",0],1,null]`
+retain both complete texts for that one exclusion. Shared text does not share an
+exclusion's identity or disposition: every span still selects its own unique
+exclusion ID. The checker expands these rows before applying the same exact
+coverage, route-link, nonempty-reason and conclusion checks. Column order, row
+width, nonstring/empty/duplicate/unused text entries, Boolean or invalid indices,
+and unknown routes refuse. Text tables require declared columns; legacy named
+exclusion objects remain supported. Rebinding preserves the authored column
+rows, table order and text references, and an unchanged inventory is byte-identical.
+Each decoded text is bounded by the existing inventory byte cap before
+concatenation; all decoded exclusion reasons and conclusions together share
+the existing 2 MiB file byte bound. Expansion cannot amplify past those limits.
 
 Gate points are checked against the complete bounded Python AST. They must
 anchor a conditional header/predicate, a Raise statement, or an exact reviewed
