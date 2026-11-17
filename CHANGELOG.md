@@ -10,6 +10,7 @@
 - Bind the complete native model task and acceptance requirements separately from the original admitted request, retaining execution policy, replay identity and budgets in protected host records.
 - Screen host-supplied native model and context frames plus finite tool replies at the final writer, binding structured source to exact JSON bytes and preserving conservative charging and containment on refusal.
 - Reduce release inventory size to restore at least 15% headroom under the unchanged byte cap while retaining every route, binding, witness and primitive decision.
+- Run offline browser DOM tests in hosted CI with pinned test-only Playwright and the runner's preinstalled Chrome.
 
 ## 1.0.0 - 2026-11-16
 
