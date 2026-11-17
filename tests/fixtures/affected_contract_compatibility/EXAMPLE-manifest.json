@@ -564,7 +564,7 @@
     "tests/test_qualified_review_dispatch.py": "51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c",
     "tests/test_registered_finite_input.py": "b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
-    "tests/test_registered_finite_tool_wiring.py": "ac1d33ce590879d35b63ac4643d2dd5a1b37525b857c04561a48129d5a2e1e91",
+    "tests/test_registered_finite_tool_wiring.py": "58ff085823085fad70a439c8720804890de4127690b725bb28bb622043036df7",
     "tests/test_registered_n1_factory.py": "5d80bde204db7f1aaf8a65554600120e09b9c0e55007cde2345f4cf4eaa7b483",
     "tests/test_registered_n1_workflow.py": "07a17588d0af8e5e7421af759e1fc439e4a34f1b978f4706725bd8fb2a7d56c6",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
@@ -584,7 +584,7 @@
     "tests/test_native_outbound_screen.py": "9705196b620941fd8f33979cff4020c6d00d4a723fc012a125dc3ce60233596f",
     "tests/test_registered_outbound_screen.py": "87e86d8309131cdaaecca36ec16c9a7719c4def40862ceecfec97138b68fef74",
     "tests/fixtures/outbound_screening/seed-corpus.json": "7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",
-    "tests/test_finite_fixture_progress_acknowledgment.py": "5d2acb28f532d3b58d07ca0ef1dcfdc44534ad769796b1bfee958f20691498e7",
+    "tests/test_finite_fixture_progress_acknowledgment.py": "506182804de1b4a21f8d556dd8b86696e968146084ae193db156b98273cf20dc",
     "tests/test_registered_startup_publication.py": "47114e91c9f6704d91f41eeaf909add83e6204a1b8461991e81c606cfa602715"
   },
   "historical_files": {

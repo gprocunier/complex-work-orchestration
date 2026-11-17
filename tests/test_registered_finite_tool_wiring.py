@@ -4,6 +4,7 @@ from __future__ import annotations
 from contextlib import ExitStack, contextmanager, nullcontext
 import json
 import os
+from pathlib import Path
 import threading
 import time
 from types import SimpleNamespace
@@ -297,12 +298,19 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
     @contextmanager
     def _positive_finite_completion(self, case):
         """Join the original poll consumer and accept its actual terminal records."""
-        command_consumed = threading.Event()
+        poll_intent_recorded = threading.Event()
         case._finite_success_consumed = threading.Event()
         self.addCleanup(case._finite_success_consumed.set)
         poll_success, settled = [], False
         original_receive = DynamicRpcProcess.receive
         original_progress = family.runtime._RegisteredServer.await_finite_progress
+        original_reserve = gate_module.RegisteredFiniteInput.reserve
+
+        def reserve(gate, *args, **kwargs):
+            ticket = original_reserve(gate, *args, **kwargs)
+            if gate.factory is case.factory:
+                poll_intent_recorded.set()
+            return ticket
 
         def receive(process, message):
             selected = process.case is case and not process.is_tool and not process.validator
@@ -325,16 +333,14 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     lifecycle.condition.release()
             value = original_receive(process, message)
             if selected:
-                if message.get('id') == 'EXAMPLE-request-EXAMPLE-command-call':
-                    command_consumed.set()
-                elif message.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call':
+                if message.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call':
                     poll_success.append(message.get('result', {}).get('success'))
                     case._finite_success_consumed.set()
             return value
 
         def settle(server):
             nonlocal settled
-            if server.factory is not case.factory or settled or not command_consumed.is_set():
+            if server.factory is not case.factory or settled or not poll_intent_recorded.is_set():
                 return
             family.wait_for_release(self, case._finite_success_consumed, 3)
             self.assertEqual(poll_success, [True])
@@ -345,16 +351,16 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             settled = True
 
         def progress(server, **kwargs):
-            # A check can wake on any reducer edge. Once the command consumer
-            # returns, join the real poll consumer instead of spending further
-            # checks while its durable intent/publication is still in flight.
+            # Join completion only after the original poll intent record, so
+            # the join does not spend its bound on earlier decision callouts.
             settle(server)
             value = original_progress(server, **kwargs)
             settle(server)
             return value
 
         with patch.object(DynamicRpcProcess, 'receive', receive), \
-                patch.object(family.runtime._RegisteredServer, 'await_finite_progress', progress):
+                patch.object(family.runtime._RegisteredServer, 'await_finite_progress', progress), \
+                patch.object(gate_module.RegisteredFiniteInput, 'reserve', reserve):
             yield
 
     def _run_tool_exit(self, *, output=True, status=0, pid_exited=True,
@@ -463,6 +469,40 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                          'EXAMPLE finite command output\nEXAMPLE late tail\n')
         self.assertEqual(case.poll_observation, {'stdout': '', 'running': False})
         self.assertIsNotNone(factory.issued_artifact())
+
+    def test_failed_poll_reservation_does_not_start_success_completion_join(self):
+        primary = OSError('EXAMPLE original poll intent persistence failed')
+        original_fsync, failures = os.fsync, []
+
+        def fsync(descriptor):
+            path = Path(os.readlink('/proc/self/fd/' + str(descriptor)))
+            if (path.parent.name == 'transport-observations'
+                    and json.loads(path.read_bytes()).get('stage') == 'finite-poll-intent'):
+                failures.append(primary)
+                raise primary
+            return original_fsync(descriptor)
+
+        with patch.object(os, 'fsync', side_effect=fsync), \
+                patch.object(family, 'wait_for_release', wraps=family.wait_for_release) as waits:
+            case, factory, result = self._exit_between_command_read_and_reply(
+                trailing='EXAMPLE late tail\n', no_fake_scheduler=True)
+        self.assertEqual(failures, [primary])
+        self.assertIs(type(result), family.runtime.native.OfflineHostError)
+        self.assertIs(result.__cause__, primary)
+        self.assertIs(factory.server.transport_failure, primary)
+        self.assertNotIn(case._finite_success_consumed, [call.args[1] for call in waits.call_args_list])
+        self.assertEqual(factory.server.finite_input.intent_reservations, {})
+        self.assertTrue(all(not child.process.alive for child in self.fixture.spawned))
+        self.assertTrue(all(not worker.is_alive() for worker, _ in factory.server._worker_snapshot()))
+        self.assertFalse(any(reply.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call'
+                             and reply.get('result', {}).get('success') is True
+                             for reply in self.fixture.spawned[0].replies))
+        attempt = self.fixture.attempt(case)
+        self.assertEqual(attempt['outcome'], 'unknown')
+        self.assertEqual(attempt['charge'], attempt['amount'])
+        self.assertIsNone(factory.token)
+        with self.assertRaises(ValueError):
+            factory.issued_artifact()
 
     def test_cumulative_stdout_bound_accepts_exact_limit_with_clean_eof(self):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',

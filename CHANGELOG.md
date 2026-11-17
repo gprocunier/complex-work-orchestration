@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Wait for the original finite poll reservation before starting the fixture completion join, preserving refusal and deadline checks.
 - Make pool-member adoption atomic across consent and signer failures by staging every member before the locked commit.
 - Recheck current and retained pool directories around terminal persistence, refusing success on replacement while preserving original records, completed charges and validated member artifacts.
 - Bound public pool request files to 4 KiB with pinned, nonblocking regular-file reads; refuse symlinks and changed input while keeping structural validation nonspending and without host authority.
