@@ -564,7 +564,7 @@
     "tests/test_qualified_review_dispatch.py": "51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c",
     "tests/test_registered_finite_input.py": "b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
-    "tests/test_registered_finite_tool_wiring.py": "fe396fbf6583a71dda5e299f93e8947b01b55b591fe6f491ca263b2c4460852b",
+    "tests/test_registered_finite_tool_wiring.py": "a0de36226f07cc2bd19214d1237c5102672e24025d403adb05da831e1c97e25e",
     "tests/test_registered_n1_factory.py": "9673224ae7ca19c36a5d3d87f245a057919c324735849d438c044660694d35ce",
     "tests/test_registered_n1_workflow.py": "07a17588d0af8e5e7421af759e1fc439e4a34f1b978f4706725bd8fb2a7d56c6",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",

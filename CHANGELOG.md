@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Make retained namespace handles in the process fixture report readiness from their original children, preserving owned cleanup and refusal checks.
+- Retain unexpected startup errors, causes and diagnostic notes in the typed request logging fixture.
 
 ## 1.1.0 - 2026-11-16
 

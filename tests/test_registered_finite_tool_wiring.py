@@ -1499,18 +1499,24 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             return value
 
         with patch.object(finite_tools.RegisteredFiniteToolCalls, '_require_capture_current',
-                          inject_original_failure), self.assertRaises(
-                              family.runtime.native.OfflineHostError) as caught:
-            self.test_typed_integer_and_string_request_ids_remain_distinct()
+                          inject_original_failure):
+            try:
+                self.test_typed_integer_and_string_request_ids_remain_distinct()
+            except family.runtime.native.OfflineHostError as error:
+                if len(captured) != 1 or error.__cause__ is not primary:
+                    raise
+                failure = error
+            else:
+                self.fail('OfflineHostError not raised')
         self.assertEqual(len(captured), 1)
         factory = captured[0]
         self.assertIs(factory.server.transport_failure, primary)
-        self.assertIs(caught.exception.__cause__, primary)
+        self.assertIs(failure.__cause__, primary)
         self.assertEqual(len(self.fixture.spawned), 1)
-        self.assertIs(caught.exception.native_report, factory.execution)
+        self.assertIs(failure.native_report, factory.execution)
         self.assertEqual(factory.execution['status'], 'reconciliation-required')
-        self.assertEqual(str(caught.exception), factory.execution['error'])
-        self.assertIn('Transport cleanup failed: AppServerError', caught.exception.__notes__)
+        self.assertEqual(str(failure), factory.execution['error'])
+        self.assertIn('Transport cleanup failed: AppServerError', failure.__notes__)
         self.assertFalse(self.fixture.spawned[0].process.alive)
         self.assertIsNone(factory.token)
         with self.assertRaises(ValueError):
@@ -1523,7 +1529,34 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         attempt = self.fixture.attempt(self.fixture.spawned[0].case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])
-        return caught.exception, primary
+        return failure, primary
+
+    def test_typed_startup_control_preserves_unexpected_pre_injection_error(self):
+        """Caller control for diagnostics, not a reproduction of the startup cause."""
+        import traceback
+        cause = finite_tools.FiniteToolError('EXAMPLE unexpected startup cause')
+        cause.add_note('EXAMPLE original cause note')
+        failure = family.runtime.native.OfflineHostError('EXAMPLE unexpected startup failure')
+        failure.add_note('EXAMPLE original worker note')
+        _note_typed_startup_failure(SimpleNamespace(server=None, adapter=None), failure)
+        notes = tuple(failure.__notes__)
+
+        def unexpected_startup():
+            raise failure from cause
+
+        with patch.object(self, 'test_typed_integer_and_string_request_ids_remain_distinct',
+                          unexpected_startup), self.assertRaises(
+                              family.runtime.native.OfflineHostError) as caught:
+            self._failed_typed_startup()
+        self.assertIs(caught.exception, failure)
+        self.assertIs(caught.exception.__cause__, cause)
+        self.assertEqual(tuple(caught.exception.__notes__), notes)
+        self.assertEqual(cause.__notes__, ['EXAMPLE original cause note'])
+        rendered = ''.join(traceback.format_exception(caught.exception))
+        self.assertIn(str(cause), rendered)
+        self.assertIn(cause.__notes__[0], rendered)
+        for note in notes:
+            self.assertIn(note, rendered)
 
     def test_typed_startup_failure_renders_original_cause_and_typed_ids(self):
         import traceback
