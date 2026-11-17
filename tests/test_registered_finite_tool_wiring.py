@@ -1499,18 +1499,24 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             return value
 
         with patch.object(finite_tools.RegisteredFiniteToolCalls, '_require_capture_current',
-                          inject_original_failure), self.assertRaises(
-                              family.runtime.native.OfflineHostError) as caught:
-            self.test_typed_integer_and_string_request_ids_remain_distinct()
+                          inject_original_failure):
+            try:
+                self.test_typed_integer_and_string_request_ids_remain_distinct()
+            except family.runtime.native.OfflineHostError as error:
+                if len(captured) != 1 or error.__cause__ is not primary:
+                    raise
+                failure = error
+            else:
+                self.fail('OfflineHostError not raised')
         self.assertEqual(len(captured), 1)
         factory = captured[0]
         self.assertIs(factory.server.transport_failure, primary)
-        self.assertIs(caught.exception.__cause__, primary)
+        self.assertIs(failure.__cause__, primary)
         self.assertEqual(len(self.fixture.spawned), 1)
-        self.assertIs(caught.exception.native_report, factory.execution)
+        self.assertIs(failure.native_report, factory.execution)
         self.assertEqual(factory.execution['status'], 'reconciliation-required')
-        self.assertEqual(str(caught.exception), factory.execution['error'])
-        self.assertIn('Transport cleanup failed: AppServerError', caught.exception.__notes__)
+        self.assertEqual(str(failure), factory.execution['error'])
+        self.assertIn('Transport cleanup failed: AppServerError', failure.__notes__)
         self.assertFalse(self.fixture.spawned[0].process.alive)
         self.assertIsNone(factory.token)
         with self.assertRaises(ValueError):
@@ -1523,7 +1529,34 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         attempt = self.fixture.attempt(self.fixture.spawned[0].case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])
-        return caught.exception, primary
+        return failure, primary
+
+    def test_typed_startup_control_preserves_unexpected_pre_injection_error(self):
+        """Caller control for diagnostics, not a reproduction of the startup cause."""
+        import traceback
+        cause = finite_tools.FiniteToolError('EXAMPLE unexpected startup cause')
+        cause.add_note('EXAMPLE original cause note')
+        failure = family.runtime.native.OfflineHostError('EXAMPLE unexpected startup failure')
+        failure.add_note('EXAMPLE original worker note')
+        _note_typed_startup_failure(SimpleNamespace(server=None, adapter=None), failure)
+        notes = tuple(failure.__notes__)
+
+        def unexpected_startup():
+            raise failure from cause
+
+        with patch.object(self, 'test_typed_integer_and_string_request_ids_remain_distinct',
+                          unexpected_startup), self.assertRaises(
+                              family.runtime.native.OfflineHostError) as caught:
+            self._failed_typed_startup()
+        self.assertIs(caught.exception, failure)
+        self.assertIs(caught.exception.__cause__, cause)
+        self.assertEqual(tuple(caught.exception.__notes__), notes)
+        self.assertEqual(cause.__notes__, ['EXAMPLE original cause note'])
+        rendered = ''.join(traceback.format_exception(caught.exception))
+        self.assertIn(str(cause), rendered)
+        self.assertIn(cause.__notes__[0], rendered)
+        for note in notes:
+            self.assertIn(note, rendered)
 
     def test_typed_startup_failure_renders_original_cause_and_typed_ids(self):
         import traceback
@@ -2382,15 +2415,58 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 self.assertIsNotNone(pending)
                 self.assertIsNone(factory.server.finite_tools.lifetime)
                 self.assertEqual(gate.cleanup_phase(), 'owned-active')
-                factory.server._fail_transport(RuntimeError('EXAMPLE fault during tool record'))
-                until = time.monotonic() + 8
-                while gate.cleanup_phase() != 'contained' and time.monotonic() < until:
-                    time.sleep(.005)
-                self.assertEqual(gate.cleanup_phase(), 'contained')
-                self.assertFalse(pending.process.process.alive)
-                self.assertFalse(release.is_set(), 'cleanup must finish while record remains blocked')
-                release.set()
-                worker.join(12)
+                host = factory.server.lifetime
+                host_handle, tool_handle = host.namespace_handle, pending.namespace_handle
+                self.assertNotEqual(self.fixture.namespace_handles[host_handle],
+                                    self.fixture.namespace_handles[tool_handle])
+                host_release, tool_release, tool_exited = (threading.Event() for _ in range(3))
+                original_host_terminate = host.controller.terminate
+                original_tool_stop = pending._stop_namespace
+
+                def paused_host_terminate(*args, **kwargs):
+                    # Preserve the host's original owned termination, parking
+                    # it before its signal while tool cleanup proceeds.
+                    family.wait_for_release(self, host_release, 10)
+                    return original_host_terminate(*args, **kwargs)
+
+                def paused_tool_stop():
+                    # The original monitor has signalled and reaped the tool;
+                    # retain its namespace handle until both oracles run.
+                    tool_exited.set()
+                    family.wait_for_release(self, tool_release, 10)
+                    return original_tool_stop()
+
+                with patch.object(host.controller, 'terminate', paused_host_terminate), \
+                        patch.object(pending, '_stop_namespace', paused_tool_stop):
+                    try:
+                        factory.server._fail_transport(RuntimeError('EXAMPLE fault during tool record'))
+                        self.assertTrue(tool_exited.wait(8))
+                        self.assertEqual(len(self.fixture.spawned), 2)
+                        self.assertIs(host.process, self.fixture.spawned[0])
+                        self.assertIs(pending.process, self.fixture.spawned[1])
+                        self.assertTrue(host.process.process.alive)
+                        self.assertEqual(host.process.process.signals, [])
+                        self.assertFalse(pending.process.process.alive)
+                        self.assertEqual(pending.process.process.signals, [family.signal.SIGTERM])
+                        self.assertTrue(pending.termination['child_exit_confirmed'])
+                        self.assertTrue(pending.termination['child_reaped'])
+                        self.assertEqual(family.runtime.select.select([tool_handle], [], [], 0),
+                                         ([tool_handle], [], []))
+                        self.assertEqual(family.runtime.select.select([host_handle], [], [], 0),
+                                         ([], [], []), 'live host readiness must use its own namespace child')
+                        tool_release.set()
+                        until = time.monotonic() + 8
+                        while gate.cleanup_phase() != 'contained' and time.monotonic() < until:
+                            time.sleep(.005)
+                        self.assertEqual(gate.cleanup_phase(), 'contained')
+                        self.assertFalse(pending.process.process.alive)
+                        self.assertFalse(release.is_set(), 'cleanup must finish while record remains blocked')
+                    finally:
+                        tool_release.set()
+                        host_release.set()
+                        release.set()
+                        worker.join(12)
+        self.assertFalse(worker.is_alive())
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], BaseException)
         self.assertFalse(any(reply.get('result', {}).get('success') is True

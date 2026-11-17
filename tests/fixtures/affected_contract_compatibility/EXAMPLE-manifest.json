@@ -564,8 +564,8 @@
     "tests/test_qualified_review_dispatch.py": "51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c",
     "tests/test_registered_finite_input.py": "b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
-    "tests/test_registered_finite_tool_wiring.py": "58ff085823085fad70a439c8720804890de4127690b725bb28bb622043036df7",
-    "tests/test_registered_n1_factory.py": "5d80bde204db7f1aaf8a65554600120e09b9c0e55007cde2345f4cf4eaa7b483",
+    "tests/test_registered_finite_tool_wiring.py": "a0de36226f07cc2bd19214d1237c5102672e24025d403adb05da831e1c97e25e",
+    "tests/test_registered_n1_factory.py": "9673224ae7ca19c36a5d3d87f245a057919c324735849d438c044660694d35ce",
     "tests/test_registered_n1_workflow.py": "07a17588d0af8e5e7421af759e1fc439e4a34f1b978f4706725bd8fb2a7d56c6",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
     "tests/test_registered_native_pool_profiles.py": "14f113d8c8780527a85ac6e7d3ef98d9527d86e5ffcb8bf8d4b18b8d238cfaa6",
@@ -2356,7 +2356,7 @@
   "registered_current_scope": "Current imports, source bytes/modes and neutral offline compatibility inputs are independently bound. verify_fixture_checkpoint is explicitly fixture-only: archived IDs are non-reverified metadata, historical_artifacts_verified=false and all effect/current/semantic authority is false. verify_checkpoint and the process entry remain strict original Git verification without fixture fallback.",
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
-    "tests/test_registered_n1_factory.py": "5d80bde204db7f1aaf8a65554600120e09b9c0e55007cde2345f4cf4eaa7b483",
+    "tests/test_registered_n1_factory.py": "9673224ae7ca19c36a5d3d87f245a057919c324735849d438c044660694d35ce",
     "tests/test_registered_server_requests.py": "f28f079b8612a25d9dfbaf289577d4618e22ffa73404c095daeea6b991468800"
   },
   "roots": [

@@ -1600,7 +1600,8 @@ class FactoryTests(unittest.TestCase):
         select_original = runtime.select.select
         def select(reads, writes, errors, timeout=None):
             if reads and reads[0] in self.namespace_handles:
-                return (reads, [], []) if not self.spawned[-1].process.alive else ([], [], [])
+                index = self.namespace_handles[reads[0]] - 2147000001
+                return (reads, [], []) if not self.spawned[index].process.alive else ([], [], [])
             if reads and isinstance(reads[0], Lines):
                 return reads, [], []
             return select_original(reads, writes, errors, timeout)
@@ -1644,6 +1645,18 @@ class FactoryTests(unittest.TestCase):
         self.assertEqual(nested.spawned, [])
         self.assertEqual(self.tables, [])
         self.assertEqual(nested.tables, [])
+
+    def test_namespace_select_preserves_real_pipe_fallback_for_foreign_handles(self):
+        self.case()
+        read_fd, write_fd = os.pipe()
+        with os.fdopen(read_fd, 'rb', buffering=0) as reader, os.fdopen(write_fd, 'wb', buffering=0) as writer:
+            self.assertNotIn(reader.fileno(), self.namespace_handles)
+            self.assertEqual(runtime.select.select([read_fd], [write_fd], [], 0),
+                             ([], [write_fd], []))
+            writer.write(b'EXAMPLE ready')
+            self.assertEqual(runtime.select.select([read_fd], [], [], 0), ([read_fd], [], []))
+        with self.assertRaises(OSError):
+            runtime.select.select([read_fd], [], [], 0)
 
     def test_incomplete_namespace_info_keeps_charge_without_retention_or_command_release(self):
         case = self.case()
