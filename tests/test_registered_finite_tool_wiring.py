@@ -2382,15 +2382,58 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 self.assertIsNotNone(pending)
                 self.assertIsNone(factory.server.finite_tools.lifetime)
                 self.assertEqual(gate.cleanup_phase(), 'owned-active')
-                factory.server._fail_transport(RuntimeError('EXAMPLE fault during tool record'))
-                until = time.monotonic() + 8
-                while gate.cleanup_phase() != 'contained' and time.monotonic() < until:
-                    time.sleep(.005)
-                self.assertEqual(gate.cleanup_phase(), 'contained')
-                self.assertFalse(pending.process.process.alive)
-                self.assertFalse(release.is_set(), 'cleanup must finish while record remains blocked')
-                release.set()
-                worker.join(12)
+                host = factory.server.lifetime
+                host_handle, tool_handle = host.namespace_handle, pending.namespace_handle
+                self.assertNotEqual(self.fixture.namespace_handles[host_handle],
+                                    self.fixture.namespace_handles[tool_handle])
+                host_release, tool_release, tool_exited = (threading.Event() for _ in range(3))
+                original_host_terminate = host.controller.terminate
+                original_tool_stop = pending._stop_namespace
+
+                def paused_host_terminate(*args, **kwargs):
+                    # Preserve the host's original owned termination, parking
+                    # it before its signal while tool cleanup proceeds.
+                    family.wait_for_release(self, host_release, 10)
+                    return original_host_terminate(*args, **kwargs)
+
+                def paused_tool_stop():
+                    # The original monitor has signalled and reaped the tool;
+                    # retain its namespace handle until both oracles run.
+                    tool_exited.set()
+                    family.wait_for_release(self, tool_release, 10)
+                    return original_tool_stop()
+
+                with patch.object(host.controller, 'terminate', paused_host_terminate), \
+                        patch.object(pending, '_stop_namespace', paused_tool_stop):
+                    try:
+                        factory.server._fail_transport(RuntimeError('EXAMPLE fault during tool record'))
+                        self.assertTrue(tool_exited.wait(8))
+                        self.assertEqual(len(self.fixture.spawned), 2)
+                        self.assertIs(host.process, self.fixture.spawned[0])
+                        self.assertIs(pending.process, self.fixture.spawned[1])
+                        self.assertTrue(host.process.process.alive)
+                        self.assertEqual(host.process.process.signals, [])
+                        self.assertFalse(pending.process.process.alive)
+                        self.assertEqual(pending.process.process.signals, [family.signal.SIGTERM])
+                        self.assertTrue(pending.termination['child_exit_confirmed'])
+                        self.assertTrue(pending.termination['child_reaped'])
+                        self.assertEqual(family.runtime.select.select([tool_handle], [], [], 0),
+                                         ([tool_handle], [], []))
+                        self.assertEqual(family.runtime.select.select([host_handle], [], [], 0),
+                                         ([], [], []), 'live host readiness must use its own namespace child')
+                        tool_release.set()
+                        until = time.monotonic() + 8
+                        while gate.cleanup_phase() != 'contained' and time.monotonic() < until:
+                            time.sleep(.005)
+                        self.assertEqual(gate.cleanup_phase(), 'contained')
+                        self.assertFalse(pending.process.process.alive)
+                        self.assertFalse(release.is_set(), 'cleanup must finish while record remains blocked')
+                    finally:
+                        tool_release.set()
+                        host_release.set()
+                        release.set()
+                        worker.join(12)
+        self.assertFalse(worker.is_alive())
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], BaseException)
         self.assertFalse(any(reply.get('result', {}).get('success') is True

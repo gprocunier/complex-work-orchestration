@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Make retained namespace handles in the process fixture report readiness from their original children, preserving owned cleanup and refusal checks.
+
 ## 1.1.0 - 2026-11-16
 
 - Wait for the original finite poll reservation before starting the fixture completion join, preserving refusal and deadline checks.
