@@ -45,7 +45,13 @@ print(json.dumps({'command':r.stdout,'patch':(root/'result.txt').read_text(),
  'independent_git':(root/common).resolve()==root/'.git'}),flush=True)
 '''
 _BOOTSTRAP = "import os,sys; print('boundary-ready',flush=True); gate=os.read(0,1); gate==b'1' or sys.exit(73); os.execv(sys.argv[1],sys.argv[1:])"
-_DETACH = "if os.fork()==0:\n os.setsid()\n if os.fork(): os._exit(0)\n while True:\n  with open('heartbeat','a') as stream: stream.write('.')\n  time.sleep(.05)\n"
+_EXEC_CONTEXT = r'''
+import json,pathlib
+status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line)
+pathlib.Path('execution-context.json').write_text(json.dumps({'uid':os.getuid(),'gid':os.getgid(),
+ 'capabilities':{name:int(status[name],16) for name in ('CapEff','CapPrm','CapInh','CapAmb')}}))
+'''
+_DETACH = _EXEC_CONTEXT + "if os.fork()==0:\n os.setsid()\n if os.fork(): os._exit(0)\n while True:\n  with open('heartbeat','a') as stream: stream.write('.')\n  time.sleep(.05)\n"
 _WAITING = r'''
 import os,time
 assert os.read(0,1)==b''
@@ -787,12 +793,6 @@ class OuterBoundaryControl(SelectedNativeProbe):
         return [str(self.binary), '-I', '-S', '-c', code]
 
 
-_EXEC_CONTEXT = r'''
-import json,pathlib
-status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line)
-pathlib.Path('execution-context.json').write_text(json.dumps({'uid':os.getuid(),'gid':os.getgid(),
- 'capabilities':{name:int(status[name],16) for name in ('CapEff','CapPrm','CapInh','CapAmb')}}))
-'''
 _PID_REUSE_SECONDS = 20
 _PID_REUSE_CHILD = 'import os\n' + _EXEC_CONTEXT + r'''
 import time
@@ -935,8 +935,38 @@ def _reuse_spawn(root):
         raise
 
 
-def _reuse_exit_original(root, birth):
-    (root / 'original/exit').touch()
+def _reuse_selected_ready(probe):
+    output, deadline = '', time.monotonic() + 5
+    while time.monotonic() < deadline:
+        frame = probe.poll('')
+        _need(not frame['stderr'], 'The selected fixed command emitted diagnostics: ' + frame['stderr'][:2000])
+        output += frame['stdout']
+        _need(len(output.encode()) <= 4096, 'The selected readiness output exceeded its bound.')
+        if 'poll-ok' in output:
+            return
+    raise SelectedProbeError('The selected fixed command did not acknowledge startup.')
+
+def _reuse_original(root, package):
+    if not package:
+        controller, receipt, birth = _reuse_spawn(root / 'original')
+        return controller, receipt, birth, None
+    probe = SelectedNativeProbe(Path(package))
+    try:
+        probe.start_waiting(detached=True)
+        _reuse_selected_ready(probe)
+        birth = next(item for item in probe.controller._backend.births if item.receipt is probe.receipt)
+        _reuse_heartbeat(probe.worker / 'heartbeat', probe.namespace_handle)
+        return probe.controller, probe.receipt, birth, probe
+    except BaseException as failure:
+        _finish_pid_reuse([probe.close], failure)
+        raise
+
+
+def _reuse_exit_original(root, birth, probe):
+    if probe is None:
+        (root / 'original/exit').touch()
+    else:
+        probe._stop_retained('namespace', probe.namespace_handle, {})
     _need(select.select([birth.descriptor], [], [], 5)[0], 'The original retained child did not exit.')
     result = os.waitid(os.P_PIDFD, birth.descriptor, os.WEXITED | os.WNOHANG)
     _need(result is not None and result.si_pid == birth.pid, 'The original external reap differs from its birth.')
@@ -978,11 +1008,12 @@ def _finish_pid_reuse(actions, primary):
     _need(not errors, 'Private PID-reuse cleanup failed: ' + str(errors))
 
 
-def _reuse_case(root, host_namespaces):
-    original, receipt, birth = _reuse_spawn(root / 'original')
+def _reuse_case(root, package, host_namespaces):
+    original, receipt, birth, probe = _reuse_original(root, package)
     fresh = primary = None
     try:
-        _reuse_exit_original(root, birth)
+        selected_context = _reuse_exec_context(probe.worker) if probe is not None else None
+        _reuse_exit_original(root, birth, probe)
         fresh, fresh_receipt, sentinel = _reuse_sentinel(root, birth.pid, host_namespaces)
         _need(sentinel.descriptor != birth.descriptor, 'Original and fresh handles must remain independently retained.')
         stale = original.terminate(receipt, 0, allow_kill=True)
@@ -996,10 +1027,15 @@ def _reuse_case(root, host_namespaces):
         result = {'original_pid': birth.pid, 'sentinel_pid': sentinel.pid,
                   'sentinel_heartbeat_grew': grew, 'sentinel_reaped_by_stale_owner': False,
                   'stale': stale, 'fresh_cleanup': cleanup,
-                  'scope': 'primitive-controller-pid-reuse',
+                  'scope': 'selected-runner-launcher-pid-reuse' if package else 'primitive-controller-pid-reuse',
                   'sentinel_context': sentinel_context, 'profile_status': 'selected-unqualified',
                   'confidential': 'unsupported', 'model_calls': False, 'thread_or_turn_started': False,
                   'accepted_output': False, 'execution_authorized': False}
+        if probe is not None:
+            result['selected_context'] = selected_context
+            result['selected_target_id'] = probe.target['id']
+            result['selected_executable_sha256'] = _regular(probe.binary)
+            result['configuration'] = {'sandbox_mode': 'workspace-write', 'approval_policy': 'never', 'network_access': False}
         return result
     except BaseException as failure:
         primary = failure
@@ -1008,6 +1044,8 @@ def _reuse_case(root, host_namespaces):
         actions = [original.close]
         if fresh is not None:
             actions.append(fresh.close)
+        if probe is not None:
+            actions.append(probe.close)
         _finish_pid_reuse(actions, primary)
 
 
@@ -1073,7 +1111,7 @@ def _pid_reuse_failure(failure):
 
 
 def _pid_reuse_entry(arguments):
-    descriptor, root, host_namespaces = arguments
+    descriptor, root, host_namespaces, package = arguments
     with socket.socket(fileno=int(descriptor)) as channel:
         try:
             facts = _private_pid_scope(json.loads(host_namespaces))
@@ -1089,7 +1127,7 @@ def _pid_reuse_entry(arguments):
             channel.settimeout(_PID_REUSE_SECONDS)
             _need(channel.recv(1) == b'1', 'The independent parent did not release the private diagnostic.')
             _drop_reuse_inheritance(json.loads(host_namespaces))
-            report = _reuse_case(Path(root), json.loads(host_namespaces))
+            report = _reuse_case(Path(root), package, json.loads(host_namespaces))
         except BaseException as failure:
             report = _pid_reuse_failure(failure)
         channel.sendall(json.dumps(report, default=str).encode())
@@ -1099,8 +1137,10 @@ class _PrivatePidReuseOwner:
     """One fixed, independently gated PID-namespace diagnostic; no native admission."""
 
     def __init__(self, package):
-        _need(package is None, 'This private diagnostic supports only the primitive controller.')
-        self.package = ''
+        self.package = str(Path(package)) if package is not None else ''
+        self.target = None
+        if package is not None:
+            self.target, _binary = _package(Path(package))
         supported, reason = owned.atomic_spawn.supported()
         _need(supported, reason)
         self.timeout = _executable_object('/usr/bin/timeout')
@@ -1120,7 +1160,7 @@ class _PrivatePidReuseOwner:
     def _command(self, descriptor):
         entry = [self.python[0], '-I', '-S', '-c', _PID_REUSE_ENTRY,
                  str(Path(__file__).resolve().parent), str(descriptor), str(self.root),
-                 json.dumps(self.host_namespaces)]
+                 json.dumps(self.host_namespaces), self.package]
         # Use fixed device nodes without requesting devpts: the driver must stay
         # in the user namespace that owns its PID namespace and private cursor.
         command = [self.bwrap[0], '--unshare-user', '--uid', str(os.getuid()), '--gid', str(os.getgid()),
@@ -1223,10 +1263,16 @@ class _PrivatePidReuseOwner:
     def _verify_result(self, result):
         _need(type(result) is dict, 'The private diagnostic result must be an object.')
         _need('error' not in result, 'Private PID reuse refused: ' + json.dumps(result, sort_keys=True))
-        _need(result.get('scope') == 'primitive-controller-pid-reuse', 'Primitive and selected PID-reuse evidence have different scopes.')
+        expected = 'selected-runner-launcher-pid-reuse' if self.package else 'primitive-controller-pid-reuse'
+        _need(result.get('scope') == expected, 'Primitive and selected PID-reuse evidence have different scopes.')
         _need(result.get('accepted_output') is False and result.get('execution_authorized') is False
               and result.get('profile_status') == 'selected-unqualified'
               and result.get('confidential') == 'unsupported', 'PID-reuse observations grant no authority or qualification.')
+        if self.package:
+            _need(result.get('selected_executable_sha256') == self.target['executable_sha256']
+                  and result.get('selected_target_id') == self.target['id'], 'The selected result has another identity.')
+            _need(result.get('configuration') == {'sandbox_mode': 'workspace-write', 'approval_policy': 'never',
+                                                 'network_access': False}, 'The selected result has another configuration.')
 
     def run(self):
         parent, child = socket.socketpair()
@@ -1321,6 +1367,11 @@ class _PrivatePidReuseOwner:
         errors, interruption = owned._cleanup(actions)
         _need(not errors and interruption is None, 'Private namespace cleanup failed: ' + str(errors))
 
+
+
+def probe_pid_reuse(package=None):
+    """Exercise one private numeric PID reuse, separately scoped to the exact target."""
+    return _PrivatePidReuseOwner(package).run()
 
 
 def main():

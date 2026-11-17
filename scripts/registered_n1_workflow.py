@@ -402,20 +402,59 @@ class RegisteredN1Workflow:
                 'publication': [str(c.publication_state), c.publication_identity],
                 'source_image': self._image, 'evidence': evidence, 'disclosure': self._disclosure}
 
-    def adopt_execution(self, *, adoption_id, disclosure_consent):
-        """Current parent adoption, distinct from task-risk or evidence acceptance."""
+    def _execution_disclosure(self, *, adoption_id, disclosure_consent):
         _need(type(adoption_id) is str and 0 < len(adoption_id) <= 80,
               'A bounded current adoption ID is required.')
         _need(disclosure_consent == {'boundary': 'local-only', 'allowed_effects': ['native-worker', 'target-publication'],
                                     'request_sha256': hashlib.sha256(self._receipt.request_bytes).hexdigest()},
               'Explicit exact local disclosure consent is required.')
-        self._disclosure = _copy(disclosure_consent)
+        return _copy(disclosure_consent)
+
+    def _execution_state(self):
+        return (_encode(self._disclosure), _encode(self._adoption),
+                self._selected_action, self.config._guard)
+
+    def _require_execution_state(self, state):
+        _need(self._execution_state() == state, 'Original execution adoption changed during preparation.')
+
+    def _prepare_execution(self, *, adoption_id, disclosure_consent):
+        disclosure = self._execution_disclosure(adoption_id=adoption_id,
+                                               disclosure_consent=disclosure_consent)
+        state = self._execution_state()
         action = self._action()
+        action['disclosure'] = disclosure
         self.verifier._current()
-        self._selected_action = _encode(action)
-        self._adoption = self._sign(action, adoption_id, self.verifier._mission_hash)
-        self.config._guard = self._execution_current
-        return _copy(self._adoption)
+        directive = self._sign(action, adoption_id, self.verifier._mission_hash)
+        return state, _encode(action), _encode(directive)
+
+    def _validate_execution(self, prepared):
+        state, selected, directive_bytes = prepared
+        self._require_execution_state(state)
+        action, directive = json.loads(selected), json.loads(directive_bytes)
+        disclosure = self._execution_disclosure(adoption_id=directive['directive_id'],
+                                               disclosure_consent=action['disclosure'])
+        current = self._action()
+        current['disclosure'] = disclosure
+        _need(_encode(current) == selected, 'Original execution action changed during preparation.')
+        self.verifier._current()
+        self._verify(current, directive, self.verifier._mission_hash)
+        self._require_execution_state(state)
+        return disclosure, selected, directive, self._execution_current
+
+    def _commit_execution(self, prepared):
+        # All parsing, signing, current checks and allocation happen before
+        # these assignments. A pool commits only after every member validates.
+        self._disclosure, self._selected_action, self._adoption, self.config._guard = prepared
+
+    def adopt_execution(self, *, adoption_id, disclosure_consent):
+        """Current parent adoption, distinct from task-risk or evidence acceptance."""
+        prepared = self._prepare_execution(adoption_id=adoption_id,
+                                           disclosure_consent=disclosure_consent)
+        commit = self._validate_execution(prepared)
+        result = _copy(commit[2])
+        self._require_execution_state(prepared[0])
+        self._commit_execution(commit)
+        return result
 
     def _execution_current(self):
         _need(self._adoption is not None and _encode(self._action()) == self._selected_action,

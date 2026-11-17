@@ -8,6 +8,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 import subprocess
@@ -45,6 +46,137 @@ def write_adapter(plan, marker=None):
 
 
 class LauncherAuthorityTests(unittest.TestCase):
+    def test_pool_request_byte_limit_has_a_matched_nonspending_boundary(self):
+        request = {'version': 1, 'mode': 'validate-only', 'pool_id': 'EXAMPLE-pool',
+                   'workers': ['EXAMPLE-worker']}
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'EXAMPLE-request.json'
+            bounded = json.dumps(request).encode().ljust(4096, b' ')
+            path.write_bytes(bounded)
+            out = io.StringIO()
+            with redirect_stdout(out):
+                self.assertEqual(launcher.main(['--pool-request', str(path)]), 0)
+            result = json.loads(out.getvalue())
+            self.assertFalse(result['authority_validated'])
+            self.assertFalse(result['dispatch_authorized'])
+            self.assertEqual(result['model_calls'], 0)
+            maximum = dict(request, pool_id='A' * 128,
+                           workers=['A' * 127 + str(index) for index in range(3)])
+            escaped = json.dumps(maximum)
+            for identity in [maximum['pool_id'], *maximum['workers']]:
+                encoded = ''.join(f'\\u{ord(character):04x}' for character in identity)
+                escaped = escaped.replace(json.dumps(identity), '"' + encoded + '"')
+            self.assertLessEqual(len(escaped.encode()), 4096)
+            path.write_bytes(escaped.encode().ljust(4096, b' '))
+            with redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(launcher.main(['--pool-request', str(path)]), 0)
+            self.assertEqual(json.loads(out.getvalue())['model_calls'], 0)
+            path.write_bytes(bounded + b' ')
+            with patch.object(client, 'submit') as submit, \
+                    redirect_stdout(io.StringIO()) as out, redirect_stderr(io.StringIO()) as err:
+                self.assertEqual(launcher.main(['--pool-request', str(path)]), 2)
+            self.assertEqual(out.getvalue(), '')
+            self.assertIn('byte bound', err.getvalue())
+            submit.assert_not_called()
+
+    def test_pool_request_growth_during_read_refuses_before_submit(self):
+        request = {'version': 1, 'mode': 'validate-only', 'pool_id': 'EXAMPLE-pool',
+                   'workers': ['EXAMPLE-worker']}
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'EXAMPLE-request.json'
+            for size in (len(json.dumps(request).encode()), 4096):
+                with self.subTest(initial_size=size):
+                    path.write_bytes(json.dumps(request).encode().ljust(size, b' '))
+                    original_read = os.read
+
+                    def grow(descriptor, count):
+                        with path.open('ab') as stream:
+                            stream.write(b' ')
+                        return original_read(descriptor, count)
+
+                    with patch.object(os, 'read', side_effect=grow), \
+                            patch.object(client, 'submit') as submit, \
+                            redirect_stdout(io.StringIO()) as out, redirect_stderr(io.StringIO()) as err:
+                        self.assertEqual(launcher.main(['--pool-request', str(path)]), 2)
+                    self.assertEqual(out.getvalue(), '')
+                    self.assertIn('changed during', err.getvalue())
+                    submit.assert_not_called()
+
+    def test_pool_request_missing_protection_refuses_before_open(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'EXAMPLE-request.json'
+            path.write_text('{}')
+            for feature in ('O_NOFOLLOW', 'O_NONBLOCK'):
+                with self.subTest(feature=feature), patch.dict(os.__dict__):
+                    os.__dict__.pop(feature, None)
+                    with patch.object(os, 'open') as opening, patch.object(client, 'submit') as submit, \
+                            redirect_stdout(io.StringIO()) as out, redirect_stderr(io.StringIO()) as err:
+                        self.assertEqual(launcher.main(['--pool-request', str(path)]), 2)
+                    self.assertEqual(out.getvalue(), '')
+                    self.assertIn('unsupported', err.getvalue())
+                    opening.assert_not_called()
+                    submit.assert_not_called()
+
+    @unittest.skipUnless(hasattr(os, 'mkfifo'), 'Named pipes are unavailable on this platform')
+    def test_pool_request_fifo_refuses_without_waiting_for_a_writer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'EXAMPLE-request.fifo'
+            os.mkfifo(path)
+            result = subprocess.run([sys.executable, launcher.__file__, '--pool-request', str(path),
+                                     '--validate-only'], capture_output=True, text=True, timeout=3)
+            self.assertEqual(result.returncode, 2, result.stdout)
+            self.assertEqual(result.stdout, '')
+            self.assertIn('regular file', result.stderr)
+
+    def test_pool_request_malformed_utf8_and_deep_json_refuse_before_submit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'EXAMPLE-request.json'
+            for raw in (b'\xff', b'[' * 1200 + b'0' + b']' * 1200, b'[]', b''):
+                with self.subTest(length=len(raw)):
+                    path.write_bytes(raw)
+                    with patch.object(client, 'submit') as submit, \
+                            redirect_stdout(io.StringIO()) as out, redirect_stderr(io.StringIO()) as err:
+                        self.assertEqual(launcher.main(['--pool-request', str(path)]), 2)
+                    self.assertEqual(out.getvalue(), '')
+                    self.assertTrue(err.getvalue())
+                    submit.assert_not_called()
+
+    def test_pool_request_path_replacement_during_read_refuses_before_submit(self):
+        request = {'version': 1, 'mode': 'validate-only', 'pool_id': 'EXAMPLE-pool',
+                   'workers': ['EXAMPLE-worker']}
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / 'EXAMPLE-request.json'
+            replacement = Path(temporary) / 'EXAMPLE-replacement.json'
+            for item in (path, replacement):
+                item.write_text(json.dumps(request))
+            replaced = False
+            original_check, original_read = Path.is_symlink, os.read
+
+            def replace_path():
+                nonlocal replaced
+                if not replaced:
+                    path.unlink()
+                    path.symlink_to(replacement)
+                    replaced = True
+
+            def checked(item):
+                result = original_check(item)
+                if item == path and not result:
+                    replace_path()
+                return result
+
+            def read(descriptor, count):
+                replace_path()
+                return original_read(descriptor, count)
+
+            with patch.object(Path, 'is_symlink', checked), patch.object(os, 'read', side_effect=read), \
+                    patch.object(client, 'submit', wraps=client.submit) as submit, \
+                    redirect_stdout(io.StringIO()) as out, redirect_stderr(io.StringIO()):
+                self.assertEqual(launcher.main(['--pool-request', str(path)]), 2)
+            self.assertTrue(replaced)
+            self.assertEqual(out.getvalue(), '')
+            submit.assert_not_called()
+
     def test_w17_r3_public_structural_validation_and_no_host_execute_before_imports(self):
         """New public ingress, including hostless zero-spend pre-import checks."""
         request = {'version': 1, 'mode': 'execute', 'pool_id': 'EXAMPLE-pool',

@@ -79,6 +79,44 @@ def _snapshot(value):
     return admitted.reconciliation._snapshot(value)[1]
 
 
+def _model_task(receipt, spec, policy):
+    selected = json.loads(receipt.selected_node_bytes)
+    admission.planner._input_measurements(selected)
+    _need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes
+          and _snapshot(selected['execution']) == receipt.execution_bytes,
+          'The model task requires the exact original admitted request and execution.')
+    unit = selected['unit_estimate']
+    task = {'version': 1,
+            'task': {key: selected[key] for key in ('prompt', 'wrappers', 'attachments', 'sources')},
+            'acceptance': {'allowed_command': spec['command'], 'completion_marker': spec['expected_token'],
+                           'outputs': policy['outputs'], 'expected_artifacts': unit['expected_artifacts'],
+                           'acceptance_checks': unit['acceptance_checks']}}
+    data = _snapshot(task)
+    _need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),
+          'The complete model task exceeds its original admitted byte allowance.')
+    return data
+
+
+def _observe_adapter_failure(adapter, failure):
+    primary = getattr(adapter, '_first_action_failure', None)
+    if primary is None:
+        adapter._first_action_failure = primary = failure
+    elif primary is not failure:
+        admission.ledger_api.add_failure_note(primary, 'Later adapter action failed: ' + type(failure).__name__)
+    try:
+        adapter.server._fail_transport(failure)
+    except BaseException as secondary:
+        admission.ledger_api.add_failure_note(primary, 'Adapter failure cleanup also failed: ' + type(secondary).__name__)
+
+
+def _require_summary_primary(adapter):
+    primary = getattr(adapter, '_first_action_failure', None)
+    if primary is None:
+        primary = adapter.server.transport_failure
+    if primary is not None:
+        raise primary
+
+
 def _argument_file():
     """One Linux ABI on both interpreters; unsupported kernels/libcs refuse."""
     library = owned.ctypes.CDLL(None, use_errno=True)
@@ -1563,11 +1601,22 @@ class RegisteredAdapter(native.LiveThreadAdapter):
                     return result
                 action = observe_then_wait
             return super()._timed(name, action)
-        except Exception as failure:
+        except BaseException as failure:
             # Revoke before NativeControlTurn records the original failure and
             # before finalization/scratch persistence can block its cleanup.
-            self.server._fail_transport(failure)
+            _observe_adapter_failure(self, failure)
             raise
+
+    def _current_effective_boundary(self):
+        factory = _ADAPTERS.get(self)
+        _need(factory is not None, 'Only the original registered factory can bind the model task.')
+        boundary = super()._current_effective_boundary()
+        boundary['adapter']['registered_task'] = factory.model_task_binding()
+        return boundary
+
+    def final_summary(self):
+        _require_summary_primary(self)
+        return super().final_summary()
 
     def _validate_effective_boundary(self, boundary):
         factory = _ADAPTERS.get(self)
@@ -1576,8 +1625,12 @@ class RegisteredAdapter(native.LiveThreadAdapter):
         expected = factory.boundary
         _need(expected is not None and _snapshot(boundary) == expected, "Registered task/session/policy boundary changed.")
         _check_response(factory, boundary['thread_start']['request'], boundary['thread_response'])
-        _need(self.prompt.encode() == factory.receipt.request_bytes and self.worktree == factory.host.worker,
+        binding = factory.model_task_binding()
+        _need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,
               "Task or workspace identity differs from the original admission.")
+        _need(boundary['adapter']['registered_task'] == binding
+              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],
+              'The original admission, actual model task and native control binding differ.')
 
     def _record_complete_boundary_locked(self, boundary):
         observed = super()._record_complete_boundary_locked(boundary)
@@ -1592,11 +1645,7 @@ def is_registered_adapter(adapter):
 def require_adapter(adapter):
     _need(type(adapter) is RegisteredAdapter and adapter in _ADAPTERS, "An original registered adapter is required.")
     for name, (original, static) in native._METHODS.items():
-        expected = _VALIDATE if name == '_validate_effective_boundary' else original
-        if name == '_record_complete_boundary_locked':
-            expected = _RECORD_BOUNDARY
-        if name == '_timed':
-            expected = _TIMED
+        expected = _registered_adapter_method(name, original)
         method = getattr(adapter, name)
         actual = method if static else getattr(method, '__func__', None)
         _need(actual is expected, "Registered adapter methods changed.")
@@ -1624,6 +1673,15 @@ def require_server_or_fixture(adapter):
 _VALIDATE = RegisteredAdapter._validate_effective_boundary
 _RECORD_BOUNDARY = RegisteredAdapter._record_complete_boundary_locked
 _TIMED = RegisteredAdapter._timed
+_CURRENT_BOUNDARY = RegisteredAdapter._current_effective_boundary
+_FINAL_SUMMARY = RegisteredAdapter.final_summary
+
+
+def _registered_adapter_method(name, original):
+    return {'_validate_effective_boundary': _VALIDATE,
+            '_record_complete_boundary_locked': _RECORD_BOUNDARY,
+            '_timed': _TIMED, '_current_effective_boundary': _CURRENT_BOUNDARY,
+            'final_summary': _FINAL_SUMMARY}.get(name, original)
 
 
 class RegisteredN1Factory:
@@ -1665,6 +1723,7 @@ class RegisteredN1Factory:
         self._ledger_handles = admitted._ledger_handles(ledger)
         self._validate()
         admitted._require_primary(self.receipt)
+        self._model_task = _model_task(self.receipt, self.spec, self.policy.report)
         self.home = _private(host.state / 'fake-server' / 'codex-home')
         _cold_spool(self.home, False)
         self.records = _private(host.state / 'records')
@@ -1729,10 +1788,25 @@ class RegisteredN1Factory:
         _need(admission._receipt_sha256(self.receipt) == self.spec['admission_sha256'], "Registered admission changed.")
         _need(self.spec['custody'] == self._custody() and self.node_id == self.receipt.node_id
               and _snapshot(self.route) == self.receipt.route_input_bytes, "Registered custody or route replay differs.")
+        self._require_model_task()
         if self._configured:
             self._check_configuration()
         if self.server is None:
             _cold_spool(self.home, self._configured)
+
+    def _require_model_task(self):
+        _need(type(self._model_task) is bytes
+              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),
+              'The model task changed from its original admitted inputs.')
+
+    def model_task_bytes(self):
+        self._require_model_task()
+        return self._model_task
+
+    def model_task_binding(self):
+        return {'projection_version': 1,
+                'original_request_sha256': hashlib.sha256(self.receipt.request_bytes).hexdigest(),
+                'model_task_sha256': hashlib.sha256(self.model_task_bytes()).hexdigest()}
 
     def _custody(self):
         return {'state': str(self.host.state), 'worker': str(self.host.worker), 'target': str(self.host.target),
@@ -1770,7 +1844,8 @@ class RegisteredN1Factory:
             model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,
             request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),
             review_target=self.review_target,
-            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1'},
+            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',
+                                 'registered_task': self.model_task_binding()},
         )
 
     def _visible_mount_sources(self):
@@ -1862,14 +1937,14 @@ class RegisteredN1Factory:
 
     def _make_adapter(self, response):
         output = self.policy.report['outputs'][0]['path']
-        adapter = RegisteredAdapter(self.server, response, prompt=self.receipt.request_bytes.decode(),
+        adapter = RegisteredAdapter(self.server, response, prompt=self.model_task_bytes().decode(),
             expected_token=self.spec['expected_token'], worktree=self.host.worker, mutable=True,
             expected_mutation=output, record_dir=self.records, campaign_live_route=False)
         self.adapter = adapter
         _ADAPTERS[adapter] = self
         control = build_control_turn_contract(state_file=str(self.records / 'worker-state.json'),
             agent_id=adapter.thread_id, control_turn_id=self.operation_id,
-            task_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(), poll_interval_ms=500)
+            task_sha256=hashlib.sha256(self.model_task_bytes()).hexdigest(), poll_interval_ms=500)
         # This boundary binds the original *actual* planner result and claimed
         # operation. No serialized success flag stands in for an admission.
         sources = {'planned_child': json.loads(self.receipt.selected_node_bytes),

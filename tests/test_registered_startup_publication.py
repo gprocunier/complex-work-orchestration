@@ -21,6 +21,7 @@ class StartupPublicationTests(unittest.TestCase):
         case = self.helper.fixture.case(archive_schedule='settled',
             finite_tool_mode='captured-host-tools', no_fake_scheduler=True)
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
+        original_request = case.receipt.request_bytes
         factory = self.helper.fixture.factory(case)
         result, published = [], []
         acknowledged = threading.Event()
@@ -52,8 +53,13 @@ class StartupPublicationTests(unittest.TestCase):
                 context = next(row['payload'] for row in records if row['type'] == 'turn_context')
                 self.assertEqual((context['model'], context['effort']), (case.spec['model'], case.spec['effort']))
                 self.assertEqual(context['turn_id'], case.scenario.turn_id)
-                self.assertEqual(case.scenario.intent_observed['binding']['task'],
-                                 case.receipt.request_bytes.decode())
+                binding = case.scenario.intent_observed['binding']
+                self.assertEqual(binding['task'], factory.model_task_bytes().decode())
+                self.assertEqual(case.receipt.request_bytes, original_request)
+                self.assertEqual(binding['adapter_boundary']['planned_child'],
+                                 json.loads(case.receipt.selected_node_bytes))
+                self.assertEqual(binding['adapter_boundary']['adapter']['registered_task'],
+                                 factory.model_task_binding())
                 family.wait_for_startup(self, case.poll_prepared, worker, result)
                 path = case.scenario.path
                 self.assertEqual((path.stat().st_dev, path.stat().st_ino, path.read_bytes()),
@@ -98,7 +104,8 @@ class StartupPublicationTests(unittest.TestCase):
                 # Keep the original command/reply/completion producer held until
                 # the observer has refused the deliberately absent session.
                 self.assertFalse(case.scenario.path.exists())
-                with self.assertRaisesRegex(ValueError, 'trusted session file is missing'):
+                with self.assertRaisesRegex(family.runtime.native.OfflineHostError,
+                        'post-submission-materialization-deadline-exceeded') as rejected:
                     family.wait_for_startup(self, case.poll_prepared, worker, result)
             finally:
                 case.command_release.set()
@@ -109,6 +116,18 @@ class StartupPublicationTests(unittest.TestCase):
                         producer.join(2)
                 self.assertFalse(any(producer.is_alive() for producer in producers),
                                  'original producer survived fixture cleanup')
+        self.assertEqual(len(result), 1)
+        self.assertIs(result[0], rejected.exception)
+        primary = factory.adapter._first_action_failure
+        self.assertIsInstance(primary, family.runtime.AppServerError)
+        self.assertEqual(str(primary), 'post-submission-materialization-deadline-exceeded')
+        self.assertIsNone(primary.__cause__)
+        transport_failure = factory.server.transport_failure
+        with self.assertRaises(family.runtime.AppServerError) as summary:
+            factory.adapter.final_summary()
+        self.assertIs(summary.exception, primary)
+        self.assertIsNone(summary.exception.__cause__)
+        self.assertIs(factory.server.transport_failure, transport_failure)
         self.assertFalse(case.poll_prepared.is_set())
         self.assertFalse(case.scenario.path.exists())
         self.assertIsNone(factory.token)

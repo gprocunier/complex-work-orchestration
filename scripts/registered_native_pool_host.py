@@ -230,24 +230,37 @@ class RegisteredNativePoolHost:
 
     def adopt_execution(self, *, adoption_id, disclosure_consents):
         """Trusted parent explicitly adopts each actual original N1 workflow."""
-        self._current()
-        _need(type(disclosure_consents) is dict
-              and set(disclosure_consents) == set(self.config.workers),
-              'Every worker needs its exact original disclosure consent.')
-        for worker, workflow in zip(self.config.workers, self.config.workflows):
-            workflow.adopt_execution(adoption_id=adoption_id,
-                disclosure_consent=disclosure_consents[worker])
-        self.config.binding = self.config.describe()
+        with self._locked():
+            _need(type(disclosure_consents) is dict
+                  and set(disclosure_consents) == set(self.config.workers),
+                  'Every worker needs its exact original disclosure consent.')
+            members = tuple(zip(self.config.workers, self.config.workflows))
+            for worker, workflow in members:
+                workflow._execution_disclosure(adoption_id=adoption_id,
+                                               disclosure_consent=disclosure_consents[worker])
+            original = _encode(self.config.binding)
+            prepared = [workflow._prepare_execution(adoption_id=adoption_id,
+                        disclosure_consent=disclosure_consents[worker]) for worker, workflow in members]
+            commits = [workflow._validate_execution(stage)
+                       for (_worker, workflow), stage in zip(members, prepared)]
+            following = json.loads(original)
+            following['members'] = [json.loads(commit[1]) for commit in commits]
+            self._current()
+            _need(_encode(self.config.binding) == original, 'Protected pool binding changed during adoption.')
+            for (_worker, workflow), stage in zip(members, prepared):
+                workflow._require_execution_state(stage[0])
+            for (_worker, workflow), commit in zip(members, commits):
+                workflow._commit_execution(commit)
+            self.config.binding = following
 
     @contextmanager
     def _locked(self):
         self._current()
         workflow = self.config.workflows[0]
         with workflow._descriptor(os.open(self.config.state, H._FLAGS)) as fd:
-            info = os.fstat(fd)
-            _need([info.st_dev, info.st_ino, info.st_mode] == self.config.identity,
-                  'Pool state descriptor changed.')
+            self._require_directory(fd)
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self._require_directory(fd)
             primary = None
             try:
                 yield fd
@@ -262,17 +275,51 @@ class RegisteredNativePoolHost:
                         raise
                     R.admission.ledger_api.add_failure_note(primary, 'Pool unlock failed: ' + type(secondary).__name__)
 
+    def _require_directory(self, directory):
+        info = os.fstat(directory)
+        _need([info.st_dev, info.st_ino, info.st_mode] == self.config.identity,
+              'Pool state descriptor changed.')
+        _need(H._identity(R._private(self.config.state)) == self.config.identity,
+              'Pool state directory changed.')
+
+    @contextmanager
+    def _bound_directory(self, directory):
+        self._require_directory(directory)
+        try:
+            yield
+        except BaseException as primary:
+            try:
+                self._require_directory(directory)
+            except BaseException as secondary:
+                try:
+                    R.admission.ledger_api.add_failure_note(primary,
+                        'Pool custody recheck failed: ' + type(secondary).__name__)
+                except BaseException:
+                    pass
+            raise
+        else:
+            self._require_directory(directory)
+
     def _save(self, directory, name, body):
+        with self._bound_directory(directory):
+            self._save_bound(directory, name, body)
+
+    def _save_bound(self, directory, name, body):
         workflow = self.config.workflows[0]
         record = {'body': body, 'directive': workflow._sign(body, 'pool-' + name, workflow.verifier._mission_hash)}
         data = memoryview(_encode(record))
+        self._require_directory(directory)
         flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
         with workflow._descriptor(os.open(name, flags, 0o400, dir_fd=directory)) as fd:
             while data:
+                self._require_directory(directory)
                 count = os.write(fd, data)
                 _need(count > 0, 'Pool record write made no progress.')
                 data = data[count:]
+            self._require_directory(directory)
             os.fsync(fd)
+            self._require_directory(directory)
+        self._require_directory(directory)
         os.fsync(directory)
 
     def _load(self, name):
@@ -330,9 +377,10 @@ class RegisteredNativePoolHost:
                     primary = self._primary_exception(workflow, primary)
                     self._finish_failure(directory, index, primary)
                     raise primary
-            self.result = self._observation()
-            self._save(directory, 'terminal.json', self.result)
-            return _copy(self.result)
+            observation = self._observation()
+            self._save(directory, 'terminal.json', observation)
+            self.result = observation
+            return _copy(observation)
 
     def _request_bytes(self, index):
         return _encode({'pool': R.canonical_sha256(self.config.binding),

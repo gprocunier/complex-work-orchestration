@@ -6,7 +6,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import stat
 import sys
 from typing import Any, Mapping
 
@@ -17,6 +19,39 @@ from cwo_core.native_pool_transaction import (
     validate_transaction_plan,
     write_transaction_result,
 )
+
+MAX_POOL_REQUEST_BYTES = 4096
+
+
+def _pool_request_mark(info):
+    return tuple(getattr(info, field) for field in (
+        'st_dev', 'st_ino', 'st_mode', 'st_nlink', 'st_size', 'st_mtime_ns', 'st_ctime_ns'))
+
+
+def _load_pool_request(path: Path) -> dict[str, Any]:
+    """Read a small caller document without following or waiting on special files."""
+    if not all(hasattr(os, flag) for flag in ('O_NOFOLLOW', 'O_NONBLOCK')):
+        raise ValueError('Pool request file protection is unsupported on this platform')
+    flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | getattr(os, 'O_CLOEXEC', 0)
+    descriptor = os.open(path, flags)
+    try:
+        before = os.fstat(descriptor)
+        if not stat.S_ISREG(before.st_mode) or not 0 <= before.st_size <= MAX_POOL_REQUEST_BYTES:
+            raise ValueError('Pool request must be a regular file within its byte bound')
+        raw = os.read(descriptor, MAX_POOL_REQUEST_BYTES + 1)
+        after, named = os.fstat(descriptor), os.stat(path, follow_symlinks=False)
+        if (len(raw) != before.st_size or _pool_request_mark(before) != _pool_request_mark(after)
+                or _pool_request_mark(before) != _pool_request_mark(named)):
+            raise ValueError('Pool request file changed during its bounded read')
+    finally:
+        os.close(descriptor)
+    try:
+        value = json.loads(raw.decode('utf-8'))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f'pool request is not valid JSON: {exc}') from exc
+    if type(value) is not dict:
+        raise ValueError('pool request must contain one JSON object')
+    return value
 
 
 def _load_json(path: Path, label: str) -> dict[str, Any]:
@@ -134,7 +169,7 @@ def main(argv: list[str] | None = None, *, host=None) -> int:
     try:
         if args.pool_request is not None:
             from registered_native_pool_client import submit, validate_structure
-            request = _load_json(args.pool_request, "pool request")
+            request = _load_pool_request(args.pool_request)
             validate_structure(request)
             if args.journal is not None or args.output is not None:
                 raise ValueError("pool journals and evidence are owned by the protected host")

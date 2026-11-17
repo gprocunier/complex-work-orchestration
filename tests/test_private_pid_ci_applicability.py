@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import types
 import unittest
 from pathlib import Path
@@ -42,11 +43,11 @@ observe('ENTRY')
 s._pid_reuse_entry(sys.argv[2:])
 '''
 
-_PRIVATE_CURSOR_SOURCE_SHA256 = '8540ea0a1843940ce50ae1b0b65c8dffa73ebff623b49e755ad86bc1eac1ac80'
+_PRIVATE_CURSOR_SOURCE_SHA256 = '759ed5503f04f24c700525abfa2050bb9996d755bcb7cd17d2b4cad220771eb4'
 _PRIVATE_CURSOR_LOCATIONS = [
-    {'file': 'selected_native_containment.py', 'function': '_pid_reuse_entry', 'line': 1092},
-    {'file': 'selected_native_containment.py', 'function': '_reuse_case', 'line': 986},
-    {'file': 'selected_native_containment.py', 'function': '_reuse_sentinel', 'line': 955},
+    {'file': 'selected_native_containment.py', 'function': '_pid_reuse_entry', 'line': 1130},
+    {'file': 'selected_native_containment.py', 'function': '_reuse_case', 'line': 1017},
+    {'file': 'selected_native_containment.py', 'function': '_reuse_sentinel', 'line': 985},
     {'file': 'selected_native_containment.py', 'function': '_write_private_pid_cursor', 'line': 841},
 ]
 _PRIVATE_CURSOR_CAPS = {'CapEff': '000001ffffffffff', 'CapPrm': '000001ffffffffff',
@@ -676,3 +677,72 @@ class PrivatePidCIApplicabilityTests(unittest.TestCase):
         self.assertTrue(result['cleanup']['namespace_exited'])
         self.assertTrue(owner.cleanup['namespace_exited'])
         self.assertEqual(events, ['namespace-verified', 'cleanup'])
+
+
+    def test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence(self):
+        """Original owned finite-watchdog reports, independent of private cursor support."""
+        supported, reason = selected.owned.atomic_spawn.supported()
+        if not supported:
+            self.skipTest(reason)
+        watchdog = selected._executable_object('/usr/bin/timeout')[0]
+        python = selected._executable_object('/usr/bin/python3')[0]
+        code = ("import pathlib,time\nend=time.monotonic()+3\n"
+                "while not pathlib.Path('exit').exists() and time.monotonic()<end: time.sleep(.001)\n")
+        with tempfile.TemporaryDirectory(prefix='cwo-owned-exit-receipt-') as temporary:
+            root = Path(temporary).resolve()
+            controller = selected.owned.LinuxOwnedChildController(watchdog)
+            backend = controller._backend
+            with patch.object(backend, 'pidfd_open', side_effect=AssertionError('No late PID open')), \
+                    patch.object(backend, 'send_signal', wraps=backend.send_signal) as signals:
+                receipt = None
+                try:
+                    spawned = controller.spawn_owned('fixed-finite-watchdog',
+                        [watchdog, '--signal=KILL', '20', python, '-I', '-S', '-c', code], str(root))
+                    receipt = spawned.get('receipt')
+                    self.assertEqual(spawned['outcome'], 'registered', spawned)
+                    birth = next(item for item in backend.births if item.receipt is receipt)
+                    boundary = {'watchdog_pid': birth.pid}
+                    (root / 'exit').touch()
+                    self.assertTrue(selected.select.select([birth.descriptor], [], [], 3)[0])
+                finally:
+                    try:
+                        if receipt is not None:
+                            terminated = controller.terminate(receipt, .1, allow_kill=True)
+                    finally:
+                        closed = controller.close()
+                signals.assert_not_called()
+        proof = {'owner_termination': [terminated], 'owner_close': [closed]}
+        self.assertEqual(terminated['outcome'], 'identity-unavailable')
+        self.assertEqual(terminated['reason'],
+                         f"[Errno 2] No such file or directory: '/proc/{boundary['watchdog_pid']}/exe'")
+        self.assertEqual(terminated['signals'], [])
+        self.assertEqual(closed['outcome'], 'closed')
+        for report in (terminated, closed):
+            self.assertEqual(report['child_pid'], boundary['watchdog_pid'])
+            self.assertIs(report['registration_committed'], True)
+            self.assertIs(report['child_exit_confirmed'], True)
+            self.assertIs(report['child_reaped'], True)
+            self.assertIs(report['receipt_available'], False)
+        self.assertTrue(_original_cursor_cleanup(proof, boundary))
+        for name, field, value in (
+                ('owner_termination', 'reason', 'unknown'),
+                ('owner_termination', 'reason',
+                 f"[Errno 2] No such file or directory: '/proc/{boundary['watchdog_pid'] + 1}/exe'"),
+                ('owner_termination', 'reason',
+                 f"[Errno 13] Permission denied: '/proc/{boundary['watchdog_pid']}/exe'"),
+                ('owner_termination', 'outcome', 'unavailable'),
+                ('owner_termination', 'signals', ['SIGTERM']),
+                ('owner_termination', 'signals', None),
+                ('owner_termination', 'child_exit_confirmed', False),
+                ('owner_termination', 'child_reaped', False),
+                ('owner_termination', 'receipt_available', True),
+                ('owner_termination', 'child_pid', float(boundary['watchdog_pid'])),
+                ('owner_close', 'outcome', 'identity-unavailable'),
+                ('owner_close', 'child_exit_confirmed', False),
+                ('owner_close', 'child_reaped', False),
+                ('owner_close', 'receipt_available', True),
+                ('owner_close', 'close_errors', ['EXAMPLE cleanup failure'])):
+            with self.subTest(report=name, field=field, value=value):
+                changed = copy.deepcopy(proof)
+                changed[name][0][field] = value
+                self.assertFalse(_original_cursor_cleanup(changed, boundary))

@@ -111,6 +111,9 @@
         "offline-network-process",
         "offline-empty-poll-input",
         "offline-owner-lifecycle",
+        "offline-primitive-pid-reuse",
+        "offline-selected-launcher-pid-reuse",
+        "native-worker-pid-reuse-and-recovery",
         "original-named-candidate"
       ],
       "properties": {
@@ -612,6 +615,88 @@
             }
           }
         },
+        "offline-primitive-pid-reuse": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence",
+            "scope"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/selected_native_containment.py",
+                "tests/test_selected_native_containment.py#PrivatePidReuseOSControlTests.test_actual_private_pid_reuse_preserves_the_fresh_lifetime",
+                "tests/test_selected_native_containment.py#PrivatePidReuseOSControlTests.test_parent_refuses_an_aliased_host_proc_view_before_release",
+                "tests/test_selected_native_containment.py#PrivatePidReuseContractTests.test_host_pid_view_refuses_before_cursor_open"
+              ]
+            },
+            "scope": {
+              "const": "primitive-controller-pid-reuse"
+            }
+          }
+        },
+        "offline-selected-launcher-pid-reuse": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence",
+            "scope"
+          ],
+          "properties": {
+            "classification": {
+              "const": "os-observed"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "scripts/selected_native_containment.py",
+                "tests/test_selected_native_containment.py#SelectedNativeOSProbeTests.test_private_pid_reuse_repeats_the_exact_selected_launcher_scope",
+                "tests/test_selected_native_containment.py#PrivatePidReuseContractTests.test_primitive_report_cannot_supply_selected_evidence"
+              ]
+            },
+            "scope": {
+              "const": "selected-runner-launcher-pid-reuse"
+            }
+          }
+        },
+        "native-worker-pid-reuse-and-recovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "classification",
+            "finding",
+            "evidence"
+          ],
+          "properties": {
+            "classification": {
+              "const": "unknown"
+            },
+            "finding": {
+              "type": "string",
+              "minLength": 1
+            },
+            "evidence": {
+              "const": [
+                "references/codex-protocol-capability-matrix.md"
+              ]
+            }
+          }
+        },
         "original-named-candidate": {
           "type": "object",
           "additionalProperties": false,
@@ -667,7 +752,8 @@
           "native-ordinary-retry",
           "native-approved-escalation",
           "managed-runtime-grants",
-          "actual-kernel-pid-reuse",
+          "native-model-worker-pid-reuse",
+          "production-pid-accounting-recovery",
           "production-lifecycle-recovery"
         ],
         "named_candidate": {
