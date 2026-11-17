@@ -54,6 +54,11 @@ class FiniteFixtureProgressTests(unittest.TestCase):
             'test_exit_between_initial_read_and_reply_drains_tail_atomically',
         ), hold_intent=True)
 
+    def test_completion_join_waits_for_original_poll_intent(self):
+        self.success_consumers((
+            'test_exit_between_initial_read_and_reply_drains_tail_atomically',
+        ), hold_intent=True, hold_preintent=True)
+
     def test_atomic_intent_acknowledges_wait_before_command_consumer_returns(self):
         self.success_consumers((
             'test_exit_between_initial_read_and_reply_drains_tail_atomically',
@@ -67,12 +72,14 @@ class FiniteFixtureProgressTests(unittest.TestCase):
         ), hold_reply=True)
 
     def success_consumers(self, methods, *, hold_intent=False, hold_reply=False,
-                          hold_consumer_return=False):
+                          hold_consumer_return=False, hold_preintent=False):
         for method in methods:
             with self.subTest(method=method):
                 waits, acknowledged, held, faults = queue.Queue(), [], [], []
                 publication, publication_ack, intent_held, cases = queue.Queue(), [], [], []
                 publication_kinds = []
+                preintent_held, preintent_ack = [], []
+                command_return_observed = threading.Event()
                 reconciliation, reply_ack, reply_held, early_terminals = queue.Queue(), [], [], []
                 host_joined, consumers = [], []
                 intent_returned, consumer_held = threading.Event(), []
@@ -119,6 +126,10 @@ class FiniteFixtureProgressTests(unittest.TestCase):
 
                 def receive(process, message):
                     value = original_receive(process, message)
+                    if (hold_preintent and cases and process.case is cases[0]
+                            and message.get('method') == 'thread/read'):
+                        self.assertEqual(threading.get_ident(), consumers[0])
+                        command_return_observed.set()
                     if (not process.validator and not process.is_tool
                             and message.get('id') == 'EXAMPLE-request-EXAMPLE-command-call'
                             and message.get('result', {}).get('success') is True):
@@ -174,15 +185,15 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                             condition.release()
                     return original_commit(server, message, response, deadline, refusal=refusal)
 
-                def write_reply(writer, frame):
+                def write_reply(writer, frame, source, deadline):
                     if not hold_reply or reply_held:
-                        return original_write(writer, frame)
+                        return original_write(writer, frame, source, deadline)
                     message = json.loads(frame)
                     selected = (message.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call'
                                 and message.get('result', {}).get('success') is True)
                     if selected:
                         reply_held.append(True)
-                    value = original_write(writer, frame)
+                    value = original_write(writer, frame, source, deadline)
                     if selected:
                         self.assertTrue(value)
                         entry = reconciliation.get(timeout=3)
@@ -224,13 +235,32 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     path = Path(os.readlink('/proc/self/fd/' + str(descriptor)))
                     if path.parent != cases[0].factory.records / 'transport-observations':
                         return value
-                    if json.loads(path.read_bytes()).get('stage') != 'finite-poll-intent':
+                    record = json.loads(path.read_bytes())
+                    preintent = (hold_preintent and record.get('stage') == 'finite-tool-decision'
+                                 and record['observation'].get('tool') == 'finite_poll')
+                    if preintent:
+                        if preintent_held:
+                            return value
+                        preintent_held.append(True)
+                        gate = cases[0].factory.server.finite_input
+                        with gate.lifecycle.condition:
+                            self.assertEqual(gate.lifecycle.phase, 'poll-queued')
+                            self.assertNotIn('EXAMPLE-poll-call', gate.used_approvals)
+                            self.assertFalse(any(item[0] == 'poll'
+                                                 for item in gate.intent_reservations.values()))
+                    elif record.get('stage') != 'finite-poll-intent':
                         return value
-                    intent_held.append(True)
+                    else:
+                        intent_held.append(True)
                     # The host may already be in an original RPC/lifecycle
                     # wait before the command consumer returns. A completion
                     # join is not the only genuine progress acknowledgment.
                     end = time.monotonic() + 1.05
+                    if preintent:
+                        # This subsequent callback runs on the original single
+                        # input consumer after its command callback returned.
+                        self.assertTrue(command_return_observed.wait(
+                            max(0, end - time.monotonic())))
                     try:
                         while (remaining := end - time.monotonic()) > 0:
                             try:
@@ -249,16 +279,22 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                                 kind = ('rpc' if condition is host[0][0]._condition else
                                         'lifecycle' if condition is host[0][0].finite_input.lifecycle.condition
                                         else 'consumer')
-                                if hold_consumer_return:
+                                if preintent:
+                                    self.assertIn(kind, {'rpc', 'lifecycle'},
+                                        'Original completion join began before poll intent.')
+                                    preintent_ack.append(kind)
+                                elif hold_consumer_return:
                                     self.assertFalse(consumer_returned.is_set())
                                     self.assertIn(kind, {'rpc', 'lifecycle'})
-                                publication_ack.append(True)
-                                publication_kinds.append(kind)
+                                if not preintent:
+                                    publication_ack.append(True)
+                                    publication_kinds.append(kind)
                                 break
                             finally:
                                 condition.release()
                     finally:
-                        intent_returned.set()
+                        if not preintent:
+                            intent_returned.set()
                     return value
 
                 def fail_transport(server, failure):
@@ -326,6 +362,10 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     self.assertEqual(intent_held, [True])
                     self.assertEqual(publication_ack, [True])
                     self.assertEqual(poll_refusals, [])
+                if hold_preintent:
+                    self.assertEqual(preintent_held, [True])
+                    self.assertEqual(len(preintent_ack), 1)
+                    self.assertIn(preintent_ack[0], {'rpc', 'lifecycle'})
                 if hold_consumer_return:
                     self.assertEqual(consumer_held, [True])
                     self.assertTrue(consumer_returned.is_set())

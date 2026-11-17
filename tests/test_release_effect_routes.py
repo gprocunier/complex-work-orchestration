@@ -371,21 +371,24 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         return root, value, hits
 
     def test_inventory_headroom_is_bounded(self):
+        self.assertEqual(R.MAX_INVENTORY, 580 * 1024)
         root, _output, _review = self.example()
         path = root / R.INVENTORY
         value = json.loads(path.read_bytes())
         value["capacity_example"] = ""
         base = len(R.inventory_bytes(value))
-        for size in (200001, 528 * 1024 + 1, 540 * 1024 + 1, 564 * 1024 + 1, 568 * 1024 + 1, 576 * 1024 + 1):
+        for size in (200001, 528 * 1024 + 1, 540 * 1024 + 1, 564 * 1024 + 1,
+                     568 * 1024 + 1, 576 * 1024 + 1, 580 * 1024 + 1, 612 * 1024 + 1, 624 * 1024 + 1, 644 * 1024 + 1):
             with self.subTest(previous_limit_positive=size):
                 value["capacity_example"] = "x" * (size - base)
                 path.write_bytes(R.inventory_bytes(value))
-                try:
+                if size > R.MAX_INVENTORY:
+                    with self.assertRaisesRegex(R.Refused, "regular bounded file required"):
+                        R.inventory(root)
+                else:
                     loaded = R.inventory(root)[0]
-                except R.Refused as error:
-                    self.fail(f"valid inventory over the former cap refused: {error}")
-                self.assertEqual(loaded["schema"], "compact-release-routes-v1",
-                                 "valid inventory over the former cap must load")
+                    self.assertEqual(loaded["schema"], "compact-release-routes-v1",
+                                     "valid inventory within the current cap must load")
         value["capacity_example"] = "x" * (R.MAX_INVENTORY - base)
         path.write_bytes(R.inventory_bytes(value))
         self.assertEqual(path.stat().st_size, R.MAX_INVENTORY)

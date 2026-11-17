@@ -19,6 +19,7 @@ import time
 import weakref
 
 import linux_owned_children as owned
+from cwo_core import prepared_outbound
 from cwo_core import server_request_preparation as protocol
 
 
@@ -1477,10 +1478,9 @@ class RegisteredFiniteInput:
             if success and dispatch is None:
                 raise FiniteInputError('The finite reply lost shared authority.')
         try:
-            written = self._write_reply_frame(writer, frame)
-        except BaseException:
-            if dispatch is not None:
-                self.lifecycle.authority_result(dispatch, 'unknown-send')
+            written = self._write_reply_frame(writer, frame, response, deadline)
+        except BaseException as primary:
+            self._record_reply_failure(dispatch, primary)
             raise
         if dispatch is not None:
             self.lifecycle.authority_result(dispatch, 'wire-sent' if written else 'not-sent')
@@ -1492,6 +1492,14 @@ class RegisteredFiniteInput:
             self.server._mark_command_reply(message, response, item)
             self.server._sync_finite_progress_locked()
             return True
+
+    def _record_reply_failure(self, dispatch, primary):
+        if dispatch is None:
+            return
+        try:
+            self.lifecycle.authority_result(dispatch, 'unknown-send')
+        except BaseException as secondary:
+            owned._note(primary, 'Finite reply accounting failed: ' + type(secondary).__name__)
 
     def _consume_reply_observation(self, ticket):
         issued = self.reply_tickets.get(ticket) if type(ticket) is ReplyTicket else None
@@ -1538,13 +1546,18 @@ class RegisteredFiniteInput:
         return True
 
     @staticmethod
-    def _write_reply_frame(writer, frame):
+    def _write_reply_frame(writer, frame, source, deadline):
         writer.flush()
+        prepared = prepared_outbound.prepare_json_frame(source, frame, surface='native finite tool reply')
+        descriptor = writer.descriptor
+        payload = prepared.require_unchanged(source, frame)
+        if time.monotonic() >= deadline:
+            raise FiniteInputError('The finite tool reply exceeded its original deadline.')
         try:
-            count = os.write(writer.descriptor, frame)
+            count = os.write(descriptor, payload)
         except (BlockingIOError, InterruptedError):
             return False
-        if count != len(frame):
+        if count != len(payload):
             raise FiniteInputError('The finite tool reply was partially written.')
         return True
 

@@ -61,15 +61,17 @@ assert ctypes.CDLL(None).prctl(1,0,0,0,0)==0
 
 
 class PrivatePidReuseContractTests(unittest.TestCase):
-    def test_selected_package_scope_is_refused_before_primitive_driver_effects(self):
-        with patch.object(selected, '_package') as package, \
-                patch.object(selected.owned.atomic_spawn, 'supported') as supported, \
-                patch.object(selected.tempfile, 'TemporaryDirectory') as temporary:
-            with self.assertRaisesRegex(selected.SelectedProbeError, 'only the primitive controller'):
-                selected._PrivatePidReuseOwner(Path('/EXAMPLE/selected-package'))
-        package.assert_not_called()
-        supported.assert_not_called()
-        temporary.assert_not_called()
+    def test_missing_or_changed_selected_package_refuses_before_driver_effects(self):
+        for missing in (True, False):
+            with self.subTest(missing=missing):
+                with patch.object(selected, '_regular', return_value='0' * 64,
+                        side_effect=FileNotFoundError('EXAMPLE missing package') if missing else None), \
+                        patch.object(selected.owned.atomic_spawn, 'supported') as supported, \
+                        patch.object(selected.tempfile, 'TemporaryDirectory') as temporary:
+                    with self.assertRaises(selected.SelectedProbeError):
+                        selected._PrivatePidReuseOwner(ROOT)
+                supported.assert_not_called()
+                temporary.assert_not_called()
 
     def test_host_uid_map_boundary_requires_fixed_outer_bootstrap(self):
         """Inspect the sanctioned bootstrap contract; this is not OS-enforcement credit."""
@@ -295,6 +297,178 @@ class PrivatePidReuseContractTests(unittest.TestCase):
             with self.assertRaisesRegex(selected.SelectedProbeError, 'private PID namespace'):
                 selected._drop_reuse_inheritance({})
         library.assert_not_called()
+
+
+    def test_missing_handoff_preserves_bounded_child_diagnostics_before_cleanup(self):
+        for diagnostic in (True, False):
+            with self.subTest(diagnostic=diagnostic):
+                read, write = os.pipe()
+                self.addCleanup(os.close, write)
+                stream = os.fdopen(read, 'r')
+                self.addCleanup(stream.close)
+                if diagnostic:
+                    os.set_blocking(write, False)
+                    raw = b'EXAMPLE fixed launcher refusal: ' + b'x' * 8000
+                    self.assertGreaterEqual(os.write(write, raw), 4096)
+                parent, child = Mock(), Mock()
+                parent.recvmsg.return_value = (b'', [], 0, None)
+                owner = object.__new__(selected._PrivatePidReuseOwner)
+                owner.process = types.SimpleNamespace(stderr=stream)
+                observed = []
+                # Capture the exact original missing-handoff failure before the
+                # final cleanup callback, whose secondary error must not replace it.
+                original, failures = owner._receive_namespace, []
+                def receive(channel):
+                    try:
+                        return original(channel)
+                    except selected.SelectedProbeError as failure:
+                        failures.append(failure)
+                        raise
+                owner.close = Mock()
+                with patch.object(selected.socket, 'socketpair', return_value=(parent, child)), \
+                        patch.object(owner, '_spawn'), \
+                        patch.object(owner, '_receive_namespace', side_effect=receive), \
+                        patch.object(selected.os, 'read', wraps=os.read) as reads, \
+                        patch.object(selected.signal, 'pidfd_send_signal') as signals:
+                    def cleanup():
+                        observed.extend(getattr(failures[0], '__notes__', ()))
+                        raise OSError('EXAMPLE secondary cleanup')
+                    owner.close.side_effect = cleanup
+                    with self.assertRaises(selected.SelectedProbeError) as caught:
+                        owner.run()
+                self.assertEqual(len(failures), 1)
+                primary = failures[0]
+                self.assertIs(caught.exception, primary)
+                parent.sendall.assert_not_called()
+                signals.assert_not_called()
+                prefix = 'Ownership cleanup: Diagnostic child stderr: '
+                notes = [item for item in observed if item.startswith(prefix)]
+                if diagnostic:
+                    self.assertEqual(len(notes), 1)
+                    self.assertTrue(notes[0].startswith(prefix + 'EXAMPLE fixed launcher refusal: '))
+                    self.assertEqual(len(notes[0].removeprefix(prefix).encode()), 4096)
+                    self.assertEqual(reads.call_args.args[1], 4096)
+                else:
+                    self.assertEqual(notes, [])
+                    reads.assert_not_called()
+                self.assertFalse(os.get_blocking(read))
+                self.assertIn('secondary cleanup', str(primary.__notes__))
+
+    def test_primitive_report_cannot_supply_selected_evidence(self):
+        owner = object.__new__(selected._PrivatePidReuseOwner)
+        owner.package = '/EXAMPLE/selected-package'
+        owner.target = {'id': 'EXAMPLE-selected', 'executable_sha256': 'EXAMPLE-pin'}
+        with self.assertRaisesRegex(selected.SelectedProbeError, 'scope'):
+            owner._verify_result({'scope': 'primitive-controller-pid-reuse'})
+
+    def test_startup_refusal_keeps_bounded_child_diagnostics_before_close(self):
+        read, write = os.pipe()
+        self.addCleanup(os.close, write)
+        stream = os.fdopen(read, 'r')
+        self.addCleanup(stream.close)
+        os.write(write, b'EXAMPLE namespace startup refusal')
+        probe = object.__new__(selected.SelectedNativeProbe)
+        probe.process = types.SimpleNamespace(stderr=stream)
+        primary = selected.SelectedProbeError('EXAMPLE original birth refusal')
+        with patch.object(probe, 'close'):
+            probe._close_after_failure(primary)
+        self.assertIn('namespace startup refusal', str(getattr(primary, '__notes__', ())))
+
+    def test_primary_refusal_survives_cleanup_failure(self):
+        owner = object.__new__(selected._PrivatePidReuseOwner)
+        primary = selected.SelectedProbeError('EXAMPLE independent parent refused namespace')
+        with patch.object(owner, '_spawn', side_effect=primary), \
+                patch.object(owner, 'close', side_effect=OSError('EXAMPLE secondary cleanup')):
+            with self.assertRaises(selected.SelectedProbeError) as caught:
+                owner.run()
+        self.assertIs(caught.exception, primary)
+        self.assertIn('secondary cleanup', str(primary.__notes__))
+
+    def test_host_pid_view_refuses_before_cursor_open(self):
+        namespaces = {kind: 'EXAMPLE-host-' + kind for kind in ('pid', 'user', 'mnt', 'net')}
+        with patch.object(selected.os, 'getpid', return_value=17), \
+                patch.object(selected.os, 'open') as opening:
+            with self.assertRaisesRegex(selected.SelectedProbeError, 'private PID namespace'):
+                selected._write_private_pid_cursor(20, namespaces)
+        opening.assert_not_called()
+
+    def test_cursor_input_refuses_before_any_namespace_or_file_effect(self):
+        for pid in (True, 0, 1, -1, 2**31, '20'):
+            with self.subTest(pid=pid), patch.object(selected.os, 'open') as opening:
+                with self.assertRaises(selected.SelectedProbeError):
+                    selected._write_private_pid_cursor(pid, {})
+                opening.assert_not_called()
+
+
+class PrivatePidFailureDiagnosticTests(unittest.TestCase):
+    """Refusal-path diagnostics do not grant namespace or cleanup authority."""
+
+    def test_driver_security_observation_preserves_capabilities_and_death_signal(self):
+        before = Path('/proc/self/status').read_text()
+        context = selected._pid_reuse_security_state()
+        status = dict(line.split(':', 1) for line in before.splitlines() if ':' in line)
+        self.assertEqual(context['capabilities'],
+                         {name: status[name].strip() for name in ('CapEff', 'CapPrm', 'CapInh', 'CapAmb')})
+        self.assertIs(type(context['securebits']), int)
+        self.assertIs(type(context['parent_death_signal']), int)
+        self.assertEqual(selected._pid_reuse_security_state(), context)
+
+    def driver_refusal(self, primary, context):
+        channel = Mock()
+        channel.recv.return_value = b'1'
+        manager = unittest.mock.MagicMock()
+        manager.__enter__.return_value = channel
+        def denied_stage(*_args):
+            raise primary
+        with patch.object(selected.socket, 'socket', return_value=manager), \
+                patch.object(selected, '_private_pid_scope', return_value={'pid': 'private-pid'}), \
+                patch.object(selected.os, 'pidfd_open', return_value=37), \
+                patch.object(selected.os, 'close') as close, \
+                patch.object(selected, '_arm_private_parent_death'), \
+                patch.object(selected, '_drop_reuse_inheritance') as drop, \
+                patch.object(selected, '_reuse_case', side_effect=denied_stage), \
+                patch.object(selected, '_pid_reuse_failure_context', context, create=True), \
+                patch.object(selected.signal, 'pidfd_send_signal') as signals:
+            selected._pid_reuse_entry(('38', '/EXAMPLE/owned', '{}', ''))
+        close.assert_called_once_with(37)
+        drop.assert_called_once_with({})
+        signals.assert_not_called()
+        raw = channel.sendall.call_args.args[0]
+        report = json.loads(raw)
+        self.assertLessEqual(len(raw), 4096)
+        owner = object.__new__(selected._PrivatePidReuseOwner)
+        with self.assertRaisesRegex(selected.SelectedProbeError, 'PermissionError'):
+            owner._verify_result(report)
+        return report
+
+    def test_driver_permission_refusal_preserves_location_and_bounded_context(self):
+        primary = PermissionError(1, 'EXAMPLE private operation refused')
+        context = {'uid': 123, 'gid': 123, 'capabilities': {'CapEff': '0000000000000000'},
+                   'namespaces': {'pid': 'pid:[123]'}, 'pid_owner_user_namespace': [7, 456]}
+        report = self.driver_refusal(primary, Mock(return_value=context))
+        self.assertIn('EXAMPLE private operation refused', report['error'])
+        self.assertEqual(report['driver_context'], context)
+        self.assertIn('denied_stage', [row['function'] for row in report['locations']])
+        self.assertLessEqual(len(report['locations']), 8)
+        self.assertTrue(all(set(row) == {'file', 'function', 'line'} for row in report['locations']))
+        self.assertNotIn('locals', json.dumps(report))
+
+    def test_secondary_context_failure_cannot_replace_original_or_exceed_report_bound(self):
+        primary = PermissionError(1, 'EXAMPLE primary ' + '\x01' * 4000 + '🧭' * 4000)
+        report = self.driver_refusal(primary, Mock(side_effect=KeyboardInterrupt('EXAMPLE secondary')))
+        self.assertTrue(report['error'].startswith('PermissionError: [Errno 1] EXAMPLE primary '))
+        self.assertEqual(report['diagnostic_error'], 'KeyboardInterrupt')
+        self.assertNotIn('EXAMPLE secondary', json.dumps(report))
+
+    def test_cleanup_failure_names_the_original_retained_lifetime_without_refreshing_budget(self):
+        probe = PrivatePidReuseOSControlTests()
+        with patch.object(selected.time, 'monotonic', side_effect=[0, 1, 2]), \
+                patch.object(selected.select, 'select', side_effect=[([37], [], []), ([], [], [])]) as ready:
+            with self.assertRaisesRegex(AssertionError, 'watchdog.*pid=604.*ready=False'):
+                probe._assert_boundary_exited([(37, 'driver', 601), (38, 'watchdog', 604)])
+        self.assertEqual(ready.call_args_list,
+                         [unittest.mock.call([37], [], [], 2), unittest.mock.call([38], [], [], 1)])
+
 
 
 class PrivatePidReuseOSControlTests(unittest.TestCase):
@@ -1400,6 +1574,23 @@ class SelectedNativeOSProbeTests(unittest.TestCase):
         refused = successor.controller.terminate(original, 0, allow_kill=True)
         self.assertNotIn(refused['outcome'], {'killed', 'terminated'})
         self.assertIn('poll-ok', successor.poll('')['stdout'])
+
+
+    def test_private_pid_reuse_repeats_the_exact_selected_launcher_scope(self):
+        report = selected.probe_pid_reuse(Path(os.environ['CWO_QUALIFICATION_PACKAGE']))
+        self.assertEqual(report['scope'], 'selected-runner-launcher-pid-reuse')
+        self.assertEqual(report['selected_executable_sha256'],
+                         '399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215')
+        self.assertEqual(report['configuration'], {'sandbox_mode': 'workspace-write',
+                         'approval_policy': 'never', 'network_access': False})
+        self.assertEqual(report['original_pid'], report['sentinel_pid'])
+        self.assertEqual(report['stale']['signals'], [])
+        self.assertTrue(report['sentinel_heartbeat_grew'])
+        self.assertTrue(report['fresh_cleanup']['child_reaped'])
+        self.assertTrue(report['cleanup']['namespace_exited'])
+        self.assertFalse(report['accepted_output'])
+        self.assertEqual(report['selected_context']['capabilities'],
+                         {'CapEff': 0, 'CapPrm': 0, 'CapInh': 0, 'CapAmb': 0})
 
 
 if __name__ == '__main__':

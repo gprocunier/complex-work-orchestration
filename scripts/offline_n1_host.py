@@ -582,7 +582,7 @@ class OfflineN1Host:
             _sync(self.state)
             try:
                 adapter, control = factory._prepare_registered_adapter()
-                inputs = _inputs(factory.operation_id, factory.receipt.request_bytes.decode(), control,
+                inputs = _inputs(factory.operation_id, adapter.prompt, control,
                     [factory.policy.report["outputs"][0]["path"]], factory.spec["max_steps"],
                     factory.spec["configuration_pins"])
                 current = self._observe()

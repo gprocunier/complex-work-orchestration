@@ -6,6 +6,16 @@ ordinary errors and denied effects. Offline tests exercise the direct
 `OfflineN1Host.run_registered`, `RegisteredServerRequests`, and the registered
 transport adapters. They use a fake RPC child and real consumer code.
 
+The registered factory derives an immutable model task from the original admitted
+prompt, wrappers, attachments and sources, with the complete declared output and
+acceptance requirements. Execution policy remains in the protected original
+request. Its digest and the actual model-task digest are bound separately through
+the factory guard, native control, adapter boundary and dispatch provenance.
+Changing either binding refuses; projecting the task grants no authority or new
+budget. Final model/context and finite tool-reply bytes are screened before
+physical writes. A failed action remains primary through later cleanup and
+success-only summary checks.
+
 `FactoryTests.test_original_registered_useful_then_forbidden_effect_matrix` in
 `tests/test_registered_n1_factory.py` first produces useful output with a tool
 receipt, then sends correlated requests on the same thread, turn, connection

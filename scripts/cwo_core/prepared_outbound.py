@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from .outbound_screen import OutboundRefused, SCREEN_VERSION, ScreenedPayload
+from .outbound_screen import OutboundRefused, SCREEN_VERSION, ScreenedPayload, require_clean
 
 
 def _canonical(source: Any) -> bytes:
@@ -16,6 +16,27 @@ def _canonical(source: Any) -> bytes:
                           allow_nan=False).encode("ascii")
     except (ValueError, TypeError, RecursionError):
         raise OutboundRefused("outbound preparation refused: source cannot be captured") from None
+
+
+def _unique_frame_object(pairs):
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise OutboundRefused("outbound preparation refused: duplicate JSON member")
+        result[key] = value
+    return result
+
+
+def prepare_json_frame(source: Any, frame: bytes, *, surface: str) -> PreparedOutbound:
+    """Screen and bind one complete JSON frame to its actual producer source."""
+    captured = PreparedSource.capture(source)
+    screened = require_clean(frame, surface=surface, content_type="application/json")
+    try:
+        decoded = json.loads(screened.data, object_pairs_hook=_unique_frame_object)
+    except (ValueError, UnicodeError, RecursionError):
+        raise OutboundRefused("outbound preparation refused: invalid JSON frame") from None
+    captured.require_unchanged(decoded)
+    return captured.bind(source, screened)
 
 
 @dataclass(frozen=True)

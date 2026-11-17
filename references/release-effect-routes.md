@@ -212,6 +212,19 @@ with the direct writer covered by its manual programme contract. Its enabling
 option supplies no refusal credit, and postactivation validation cannot undo an
 install.
 
+The fixed private PID diagnostic binds masked-capability preservation, post-exec
+parent-death rearming and death during handoff to named inspection witnesses.
+The original parent pidfd is observation only; quarantine, verified cleanup and
+the original three-second exit and twenty-second outer bounds remain. These
+controls grant no hosted success, selected-profile qualification or host-policy
+change. A test-only prerequisite may report only the exactly measured primitive
+cursor WRITE denial as unperformed after verified original cleanup; source,
+credential, parent, type and cleanup faults still fail. Supported positives remain
+required; the selected-package counterpart cannot inherit this disposition.
+The finite-poll fixture separately binds original refusal publication
+within its existing shared five-second bound, including the unchanged third-poll
+no-effect and full-charge checks.
+
 These checks establish source form, interval consistency and the stated bounded
 ordering relationships. They cannot prove predicate correctness, runtime value
 or callback identity, all runtime paths, or refusal causality. Functioning

@@ -125,6 +125,69 @@ class PoolTests(unittest.TestCase):
                             'request_sha256': hashlib.sha256(f.case.receipt.request_bytes).hexdigest()}
             for worker, f in zip(self.workers, self.fixtures)})
 
+    def adoption_state(self):
+        return [(copy.deepcopy(workflow._disclosure), copy.deepcopy(workflow._adoption),
+                 workflow._selected_action, workflow.config._guard)
+                for workflow in self.config.workflows]
+
+    def assert_adoption_has_no_effects(self, authority):
+        self.assertEqual(authority, [fixture.settings['state_store'].read_state()
+                                     for fixture in self.fixtures])
+        self.assertFalse(list(self.state.iterdir()))
+        self.assertFalse(self.ledger.root.exists())
+        for fixture in self.fixtures:
+            N.assert_no_native_births(self, fixture.fixture)
+            self.assertFalse(fixture.case.ledger.root.exists())
+
+    def test_later_invalid_consent_preserves_entire_pool_adoption(self):
+        self.cohort(2, archive_schedule='settled', shared_source=True)
+        before, binding = self.adoption_state(), copy.deepcopy(self.config.binding)
+        authority = [fixture.settings['state_store'].read_state() for fixture in self.fixtures]
+        consents = {worker: {'boundary': 'local-only',
+            'allowed_effects': ['native-worker', 'target-publication'],
+            'request_sha256': hashlib.sha256(fixture.case.receipt.request_bytes).hexdigest()}
+            for worker, fixture in zip(self.workers, self.fixtures)}
+        consents[self.workers[1]] = {'accepted': True}
+        with patch.object(P.W.A, 'sign_controller_directive', wraps=P.W.A.sign_controller_directive) as signer:
+            with self.assertRaisesRegex(ValueError, 'disclosure consent'):
+                self.host.adopt_execution(adoption_id='EXAMPLE_POOL_ADOPTION', disclosure_consents=consents)
+        signer.assert_not_called()
+        self.assert_adoption_has_no_effects(authority)
+        self.assertEqual(self.config.binding, binding)
+        self.assertEqual(self.adoption_state(), before)
+        self.adopt()
+        self.host._current()
+        for workflow in self.config.workflows:
+            workflow._require_execution()
+        self.assert_adoption_has_no_effects(authority)
+
+    def test_later_signer_failure_preserves_entire_pool_adoption(self):
+        self.cohort(2, archive_schedule='settled', shared_source=True)
+        before, binding = self.adoption_state(), copy.deepcopy(self.config.binding)
+        authority = [fixture.settings['state_store'].read_state() for fixture in self.fixtures]
+        original, calls = P.W.A.sign_controller_directive, []
+        primary = OSError('EXAMPLE later member adoption signer failed')
+
+        def sign(**kwargs):
+            if kwargs['directive_id'] == 'EXAMPLE_POOL_ADOPTION':
+                calls.append(kwargs['action_sha256'])
+                if len(calls) == 2:
+                    raise primary
+            return original(**kwargs)
+
+        with patch.object(P.W.A, 'sign_controller_directive', sign), self.assertRaises(OSError) as caught:
+            self.adopt()
+        self.assertIs(caught.exception, primary)
+        self.assertEqual(len(calls), 2)
+        self.assert_adoption_has_no_effects(authority)
+        self.assertEqual(self.config.binding, binding)
+        self.assertEqual(self.adoption_state(), before)
+        self.adopt()
+        self.host._current()
+        for workflow in self.config.workflows:
+            workflow._require_execution()
+        self.assert_adoption_has_no_effects(authority)
+
     def execute(self):
         self.adopt()
         return self.host.run(self.config.request('execute'))
@@ -141,6 +204,209 @@ class PoolTests(unittest.TestCase):
         self.assertEqual(summary['charged'], {key: sum(a['amount'][key] for a in attempts)
                                              for key in json.loads(first.receipt.amounts_bytes)})
         return summary
+
+    def after_first_outer_reservation(self, action):
+        original, fired = P.fcntl.flock, []
+
+        def flock(descriptor, operation):
+            result = original(descriptor, operation)
+            lock = self.ledger.root / P.R.admission.ledger_api.LOCK_FILE
+            if operation != P.fcntl.LOCK_UN or fired or not lock.exists():
+                return result
+            info, expected = os.fstat(descriptor), lock.stat()
+            if (info.st_dev, info.st_ino) != (expected.st_dev, expected.st_ino):
+                return result
+            attempts = list(self.attempts().values())
+            if len(attempts) == 1 and attempts[0]['request_id'] == self.workers[0]:
+                fired.append(attempts[0])
+                action(attempts[0])
+            return result
+
+        self.enterContext(patch.object(P.fcntl, 'flock', flock))
+        return fired
+
+    def assert_partial_reservation_is_held(self, count):
+        before = copy.deepcopy(self.attempts())
+        self.assertEqual(len(before), count)
+        self.assertTrue(all(row['state'] == 'reserved' and row['charge'] == row['amount']
+                            for row in before.values()))
+        budget = self.ledger.summary(self.config.pool_id)
+        self.assertEqual(budget['limits'], self.config.limits)
+        self.assertTrue(self.host.status()['reconciliation_required'])
+        self.assertFalse(self.host.status()['redispatch_permitted'])
+        with self.assertRaises(ValueError):
+            self.host.run(self.config.request('execute'))
+        self.assertEqual(self.attempts(), before)
+        self.assertIsNone(self.host.result)
+        for fixture in self.fixtures:
+            N.assert_no_native_births(self, fixture.fixture)
+            self.assertFalse(fixture.case.ledger.root.exists())
+            self.assertIsNone(fixture.workflow.factory)
+
+    def test_competing_reservation_between_members_retains_both_original_charges(self):
+        self.cohort(2, archive_schedule='settled', shared_source=True)
+        self.adopt()
+        start, done, errors = threading.Event(), threading.Event(), []
+
+        def compete():
+            try:
+                self.assertTrue(start.wait(5))
+                row = next(iter(self.attempts().values()))
+                ledger = P.R.admission.ledger_api.InvocationLedger(self.ledger.root,
+                    clock=self.ledger.clock, owner_probe=self.ledger.owner_probe)
+                ledger.reserve(budget_id=self.config.pool_id, request_id='EXAMPLE-interleaved',
+                    request_sha256='a' * 64, admission_sha256='b' * 64,
+                    amount={key: limit - row['charge'][key] for key, limit in self.config.limits.items()},
+                    expires_at=self.ledger.current_time() + 30)
+            except BaseException as failure:
+                errors.append(failure)
+            finally:
+                done.set()
+
+        worker = threading.Thread(target=contextvars.copy_context().run, args=(compete,), daemon=True)
+        worker.start()
+        self.addCleanup(N.finish_worker, self, worker, start)
+        def interleave(_attempt):
+            start.set()
+            self.assertTrue(done.wait(5))
+        fired = self.after_first_outer_reservation(interleave)
+        with self.assertRaisesRegex(ValueError, 'aggregate allowance exhausted'):
+            self.host.run(self.config.request('execute'))
+        worker.join(2)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(errors, [])
+        self.assertEqual(len(fired), 1)
+        self.assert_partial_reservation_is_held(2)
+
+    def test_second_reservation_write_failure_preserves_first_and_replay_hold(self):
+        self.cohort(2, archive_schedule='settled', shared_source=True)
+        self.adopt()
+        original, failures = os.replace, []
+        primary = OSError('EXAMPLE second reservation persistence failed')
+
+        def replace(source, target, *args, **kwargs):
+            if Path(target) == self.ledger.root / P.R.admission.ledger_api.LEDGER_FILE:
+                document = json.loads(Path(source).read_bytes())
+                if len(document['attempts']) == 2:
+                    failures.append(document)
+                    raise primary
+            return original(source, target, *args, **kwargs)
+
+        with patch.object(os, 'replace', replace), self.assertRaises(OSError) as caught:
+            self.host.run(self.config.request('execute'))
+        self.assertIs(caught.exception, primary)
+        self.assertEqual(len(failures), 1)
+        self.assert_partial_reservation_is_held(1)
+
+    def test_expiry_between_reservations_cannot_reopen_pool_or_dispatch_sibling(self):
+        self.cohort(2, archive_schedule='settled', shared_source=True)
+        self.adopt()
+        def expire(_attempt):
+            self.ledger.clock.now = self.config.controllers[1].receipt.expires_at
+        fired = self.after_first_outer_reservation(expire)
+        with self.assertRaisesRegex(ValueError, 'stale admission'):
+            self.host.run(self.config.request('execute'))
+        self.assertEqual(len(fired), 1)
+        self.assert_partial_reservation_is_held(1)
+
+    def assert_substituted_pool_is_held(self, retired, *, terminal_saved):
+        attempts = copy.deepcopy(self.attempts())
+        self.assertEqual(len(attempts), 1)
+        row = next(iter(attempts.values()))
+        self.assertEqual(row['outcome'], 'completed')
+        self.assertEqual(row['charge'], row['amount'])
+        self.assertTrue((retired / 'intent.json').is_file())
+        self.assertEqual((retired / 'terminal.json').exists(), terminal_saved)
+        self.assertFalse(list(self.state.iterdir()))
+        self.assertIsNone(self.host.result)
+        with self.assertRaises(ValueError):
+            self.host.status()
+        with self.assertRaises(ValueError):
+            self.host.run(self.config.request('execute'))
+        self.assertEqual(self.attempts(), attempts)
+        factory = self.config.workflows[0].factory
+        self.assertEqual(P.W.V.consume_validated(*factory.issued_artifact()),
+                         (('result.txt', N.fixtures.host_fixtures.OUTPUT),))
+        self.assertFalse((factory.host.target / 'result.txt').exists())
+
+    def test_state_path_replacement_after_member_settlement_cannot_return_success(self):
+        self.cohort(1, archive_schedule='settled', shared_source=True)
+        self.adopt()
+        original, changed = P.fcntl.flock, []
+        retired = self.state.with_name(self.state.name + '-retired')
+
+        def flock(descriptor, operation):
+            result = original(descriptor, operation)
+            lock = self.ledger.root / P.R.admission.ledger_api.LOCK_FILE
+            if operation != P.fcntl.LOCK_UN or changed or not lock.exists():
+                return result
+            info, expected = os.fstat(descriptor), lock.stat()
+            if (info.st_dev, info.st_ino) != (expected.st_dev, expected.st_ino):
+                return result
+            rows = list(self.attempts().values())
+            if len(rows) == 1 and rows[0]['outcome'] == 'completed':
+                self.state.rename(retired)
+                self.state.mkdir(mode=0o700)
+                changed.append(rows[0])
+            return result
+
+        with patch.object(P.fcntl, 'flock', flock), self.assertRaisesRegex(ValueError, 'Pool (custody|state)'):
+            self.host.run(self.config.request('execute'))
+        self.assertEqual(len(changed), 1)
+        self.assert_substituted_pool_is_held(retired, terminal_saved=False)
+
+    def test_state_path_replacement_during_terminal_sync_cannot_return_success(self):
+        self.cohort(1, archive_schedule='settled', shared_source=True)
+        self.adopt()
+        original, changed = os.fsync, []
+        retired = self.state.with_name(self.state.name + '-retired')
+        identity = tuple(self.config.identity[:2])
+
+        def sync(descriptor):
+            result = original(descriptor)
+            info = os.fstat(descriptor)
+            if (not changed and (info.st_dev, info.st_ino) == identity
+                    and (self.state / 'terminal.json').exists()):
+                self.state.rename(retired)
+                self.state.mkdir(mode=0o700)
+                changed.append(True)
+            return result
+
+        with patch.object(os, 'fsync', sync), self.assertRaisesRegex(ValueError, 'Pool (custody|state)'):
+            self.host.run(self.config.request('execute'))
+        self.assertEqual(changed, [True])
+        self.assert_substituted_pool_is_held(retired, terminal_saved=True)
+
+    def test_state_path_guard_failure_preserves_original_write_error(self):
+        self.cohort(1, archive_schedule='settled', shared_source=True)
+        self.adopt()
+        original, changed = os.write, []
+        retired = self.state.with_name(self.state.name + '-retired')
+        primary = OSError('EXAMPLE original pool intent write failed')
+
+        def write(descriptor, data):
+            intent = self.state / 'intent.json'
+            if not changed and intent.exists():
+                info, expected = os.fstat(descriptor), intent.stat()
+                if (info.st_dev, info.st_ino) == (expected.st_dev, expected.st_ino):
+                    self.state.rename(retired)
+                    self.state.mkdir(mode=0o700)
+                    changed.append(True)
+                    raise primary
+            return original(descriptor, data)
+
+        with patch.object(os, 'write', write), self.assertRaises(OSError) as caught:
+            self.host.run(self.config.request('execute'))
+        self.assertIs(caught.exception, primary)
+        self.assertEqual(changed, [True])
+        self.assertTrue(any('Pool custody recheck failed' in note for note in primary.__notes__))
+        self.assertEqual(self.attempts(), {})
+        self.assertTrue((retired / 'intent.json').exists())
+        self.assertFalse(list(self.state.iterdir()))
+        self.assertIsNone(self.host.result)
+        for fixture in self.fixtures:
+            N.assert_no_native_births(self, fixture.fixture)
+            self.assertFalse(fixture.case.ledger.root.exists())
 
     def test_r1_c1_host_positive_n1_n2_n3_original_workflows_and_replay(self):
         """Registered N=1/2/3 consumer checks; producer tests stay separate."""

@@ -337,6 +337,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_live_allocation_ledger",
         "native_pool_contracts",
         "native_turn_dispatch",
+        "outbound_screen",
+        "prepared_outbound",
         "supervision.transport.errors",
         "supervision.transport.private_io",
     },

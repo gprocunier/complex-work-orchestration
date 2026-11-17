@@ -443,9 +443,15 @@ class PreparedRouteTraceTests(unittest.TestCase):
         # destinations; raw network helpers and dormant sharing methods do not.
         # The registered offline share boundary carries the prepared-disclosure
         # context; its raw forwarder remains contextual, without standalone admission.
+        # Native N10.8/N10.9 bind final reply/model bytes. The shared N2/N10
+        # source traces also select construction, receiver and containment paths
+        # for contextual review; they confer no separate final-screen authority.
+        # N10.6 retains its explicit trace scope rather than inheriting that family.
         expected = {
             "H1.1", "H1.2", "H2.1", "H4.1", "H4.2", "H4.3", "H4.4",
             "H4.5", "H4.6", "H5.5", "H5.7",
+            "N2.1", "N2.2", "N2.3", "N2.4", "N10.1", "N10.2", "N10.3",
+            "N10.4", "N10.5", "N10.7", "N10.8", "N10.9", "N10.10",
         }
         observed = {route["id"] for route in routes._routes(inventory) if helper in route["trace_files"]}
         self.assertEqual(observed, expected)

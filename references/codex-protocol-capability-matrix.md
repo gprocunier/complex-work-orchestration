@@ -81,10 +81,65 @@ path absent.
 | Network and process access | The same command cannot reach matched live host TCP/Unix listeners, read host process memory, signal host processes or debug them. PID, user, mount and network namespace separation is observed independently. |
 | Inherited access | A synthetic credential environment value and an inheritable descriptor are excluded. Host control sockets remain inaccessible. These bounded controls do not inventory every possible helper or credential source. |
 | Finite input | The fixed command uses `streamStdin: false`. Nonempty polling refuses before RPC delivery; an empty poll observes useful output for the original connection-scoped process. Native model-tool `write_stdin` remains unknown. |
-| Lifecycle | Original launcher and verified namespace pidfds bind each epoch. Actual controller death, detached descendants, watchdog death and deadline expiry stop the tested namespace. Restart uses a fresh owner; a stale receipt cannot terminate its successor. Forced kernel PID reuse and production recovery remain unperformed. |
+| Lifecycle | Original launcher and verified namespace pidfds bind each epoch. Actual controller death, detached descendants, watchdog death and deadline expiry stop the tested namespace. Restart uses a fresh owner; a stale receipt cannot terminate its successor. Private PID reuse has the two distinct scopes below; native model-worker and production recovery remain unperformed. |
+| Primitive PID reuse | In the historical 2026-11-15 measurement, an original controller constructed after private namespace entry retained its atomic receipt and pidfd through controlled exit and external reaping. A fresh atomic sentinel received the exact reused numeric PID. The stale owner sent no signal or reap, the live sentinel heartbeat grew, and its fresh owner confirmed exit and reaping. This primitive control supplies no selected-executable evidence. |
+| Exact diagnostic-launcher PID reuse | In the historical 2026-11-15 measurement, with the selected package and unchanged configuration, actual configuration reads and fixed no-model command/exec preceded reuse of the original launcher PID by a fresh fixed sentinel. The retained stale receipt/pidfd did not signal or reap that sentinel; live heartbeat growth and fresh cleanup were confirmed. This observes the diagnostic launcher, not a native model-worker/server/callback lifetime or production recovery. |
 | Instructions | No prompt instruction establishes any diagnostic denial or custody property. Model compliance is not used as enforcement evidence. |
-| Required unknowns | Model-turn builtin tools, their stdin and callbacks, ordinary retry versus approved escalation, complete effective grants/rules/helpers, forced PID reuse, full dependency admission and production recovery keep the selected profile unqualified. |
+| Required unknowns | Model-turn builtin tools, their stdin and callbacks, ordinary retry versus approved escalation, complete effective grants/rules/helpers, native model-worker/server/callback PID reuse and production ownership/accounting/restart recovery keep the selected profile unqualified. Current local dependency and host fixtures do not establish those native properties. |
 | Unsupported operation | Confidential workloads remain unsupported. The original named root-deny candidate is a different, unselected configuration and fails configuration parsing as described below. |
+
+The 2026-11-15 PID-reuse measurements above are historical observations.
+Current guard behavior is described below.
+
+On 2026-11-16 the existing selected-launcher PID-reuse positive and five
+matched package, scope and identity refusal controls passed all six tests
+with zero skips under the unchanged package pin and configuration. This
+offline rerun did not repeat the historical configuration RPC checks. It
+does not qualify native model-worker/server/callback PID reuse or production
+ownership/accounting/restart recovery, which remain unperformed. The selected
+profile and native pool remain unqualified and held; confidential workloads
+remain unsupported.
+
+The current implementation uses disposable user, PID, mount and network
+namespaces with private procfs. A single fixed bubblewrap
+bootstrap directly enters the trusted driver without nested unshare. It mounts
+the host root read-only, binds only the owned temporary root writable, and sets
+nested diagnostic `TMPDIR` within that root. Private procfs and a tmpfs `/dev`
+with six fixed device nodes avoid devpts and a second user namespace. Parent
+checks join the handed-off self-pidfd, exact bubblewrap/driver executable
+objects, original watchdog ancestry and private PID namespace before release.
+The PID namespace's owning user namespace must equal the driver's user
+namespace. Birth comparisons preserve PID, command name, parent and start ticks;
+volatile scheduler state may change. Watchdog-death and rejected-helper controls
+observe the fixed helper and driver exiting under the original bounded cleanup.
+Received handles remain quarantined until all checks pass;
+refusal closes an unverified handle without signaling its lifetime. The controller under test is constructed in a fresh
+interpreter after namespace entry. Only the verified private `ns_last_pid` cursor
+is written; no host-global process control changes. The trusted driver retains
+namespace-local cursor capabilities while clearing inheritable and ambient
+capabilities; exec children report zero effective, permitted, inheritable and
+ambient capabilities and retain the original user/group identities. Unsupported
+cursor access, aliased host procfs, bad handoffs or unexpected scope refuse.
+
+The primitive test may report the exactly measured original cursor WRITE
+permission denial as **unperformed** only after checking original source, security
+and independent boundary receipts and all original cleanup results. This supplies
+no useful PID-reuse or qualification credit. Unknown source, credential, lifetime,
+identity, type or cleanup failures still fail. Supported targets must execute the
+unchanged positives; the exact selected-package case cannot inherit primitive
+applicability. The data fixture and unit controls establish no kernel permission
+or cleanup.
+
+External reaping of the original child does not repair its old controller's
+accounting: its stale report remains conservatively `already-exited` with
+`child_reaped: false`. The fresh owner's cleanup is checked independently. The
+two observations are covered by
+`PrivatePidReuseOSControlTests.test_actual_private_pid_reuse_preserves_the_fresh_lifetime`
+and `SelectedNativeOSProbeTests.test_private_pid_reuse_repeats_the_exact_selected_launcher_scope`
+in [the diagnostic tests](../tests/test_selected_native_containment.py).
+Primitive results cannot substitute for the selected-launcher scope. Neither
+scope authorizes model work, accepted output, confidential workloads or
+production recovery.
 
 The original named candidate was assessed separately with `untrusted` approvals,
 the `user` reviewer, root deny, minimal runtime reads, isolated workspace writes
@@ -100,10 +155,56 @@ python scripts/selected_native_containment.py --package "$QUALIFICATION_PACKAGE"
 CWO_QUALIFICATION_PACKAGE="$QUALIFICATION_PACKAGE" python -m unittest tests.test_selected_native_containment -q
 ```
 
+The full test module includes both PID-reuse scopes. The fixed CLI catalogue
+does not run PID reuse or accept an arbitrary command.
+
 Tests without that package still exercise the actual outer OS mechanisms, but
 give those controls no selected-executable credit. The machine-readable target
 policy separates the original dated identity/schema observations from these
 scoped diagnostics. Both retain `execution_authorized: false`.
+
+## Protected serial pool integration
+
+Current pool fixtures exercise the original registered host, opaque authority,
+validators and ledger for N=1/2/3 with fake OS/RPC. Every member's consent and
+signed adoption are staged before a callout-free commit under the pool lock;
+a later consent or signer failure preserves the entire cohort. Retained and
+current pool-directory identities are checked around terminal persistence.
+Replacement refuses success while preserving original records, completed
+charges and independently validated member artifacts. Interleaved reservation
+failure and expiry controls retain original charges and reconciliation holds
+without implicit redispatch or restored capacity. These are serial fixture
+observations, not selected-native multi-worker isolation or concurrency
+qualification.
+
+The public launcher remains an in-process host client. Local structural
+validation grants no authority and makes no model call; trusted host validation
+still applies the original authority checks without consuming an operation. Pool request capture accepts at
+most 4 KiB through a pinned regular-file descriptor, refuses symlinks and special
+files without waiting for a writer, and checks descriptor/path identity and size
+around the read. Missing no-follow or nonblocking primitives refuse before open.
+Request data cannot select factories, imports or credentials. Client exceptions
+pass through without an implicit retry, budget expansion or privilege change.
+These controls preserve the direct CLI's pre-import authority refusal; no live
+pool qualification, activation or accepted delivery follows.
+
+The registered model task preserves every admitted prompt, wrapper, attachment
+and source, together with its permitted command, completion marker, outputs and
+original acceptance criteria. The full execution manifest stays in protected
+host records. Separate original-request and actual model-task digests bind the
+factory, native control, adapter boundary and dispatch provenance. The model
+task is rederived from the original admission and stays within its byte allowance;
+original reservations and replay identity remain bound to the complete request.
+
+Host-supplied model submissions and supported context RPCs, together with
+registered finite tool replies, are prepared and screened at their final host
+writers. Preparation binds the original structured payload to the exact JSON
+bytes, and screening refusal preserves conservative charging and containment.
+The original action failure remains primary through later cleanup and summary
+errors, while independent cleanup facts are retained.
+These source and fake-wire controls cover known host-supplied frames. Complete
+server-loaded context, native builtin tools, provider behavior and helper paths
+remain unqualified; no live model observation is inferred from these guards.
 
 ## Classification
 

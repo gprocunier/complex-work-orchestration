@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Wait for the original finite poll reservation before starting the fixture completion join, preserving refusal and deadline checks.
+- Make pool-member adoption atomic across consent and signer failures by staging every member before the locked commit.
+- Recheck current and retained pool directories around terminal persistence, refusing success on replacement while preserving original records, completed charges and validated member artifacts.
+- Bound public pool request files to 4 KiB with pinned, nonblocking regular-file reads; refuse symlinks and changed input while keeping structural validation nonspending and without host authority.
+- Extend private-namespace PID reuse diagnostics to the exact selected launcher, retaining a separate primitive-controller scope, quarantining received handles until verification and checking stale-owner refusal and fresh cleanup without qualifying native model-worker or production recovery.
+- Bind the complete native model task and acceptance requirements separately from the original admitted request, retaining execution policy, replay identity and budgets in protected host records.
+- Screen host-supplied native model and context frames plus finite tool replies at the final writer, binding structured source to exact JSON bytes and preserving conservative charging and containment on refusal.
 - Reduce release inventory size to restore at least 15% headroom under the unchanged byte cap while retaining every route, binding, witness and primitive decision.
 
 ## 1.0.0 - 2026-11-16

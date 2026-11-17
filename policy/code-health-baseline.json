@@ -414,7 +414,7 @@
     "scripts/cwo_core/supervision/transport/app_server.py::AppServer.request_once_with_guard": 20,
     "scripts/cwo_core/supervision/transport/app_server.py::AppServer.same_process_containment_proof": 32,
     "scripts/cwo_core/supervision/transport/app_server.py::AppServer.start_thread": 28,
-    "scripts/cwo_core/supervision/transport/app_server.py::AppServer.start_turn": 49,
+    "scripts/cwo_core/supervision/transport/app_server.py::AppServer.start_turn": 48,
     "scripts/cwo_core/supervision/transport/private_io.py::_load_owned_regular_bytes": 17,
     "scripts/cwo_core/supervision/transport/private_io.py::_private_control_directory": 17,
     "scripts/cwo_core/synthesis.py::_decide_lane": 66,
