@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Isolate partial-frame EOF from child exit in the transport fixture, preserving the original refusal and owned cleanup checks.
 - Make retained namespace handles in the process fixture report readiness from their original children, preserving owned cleanup and refusal checks.
 - Retain unexpected startup errors, causes and diagnostic notes in the typed request logging fixture.
 

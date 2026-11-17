@@ -564,7 +564,12 @@ FAKE_APP_SERVER = textwrap.dedent(
         elif mode == "partial-eof":
             sys.stdout.write('{"method":"progress"')
             sys.stdout.flush()
-            sys.exit(0)
+            # Isolate stream EOF from process exit; the original reader refusal
+            # and close() still own termination and reaping of this child.
+            os.close(sys.stdout.fileno())
+            sys.stderr.write("partial-eof-stdout-closed\\n")
+            sys.stderr.flush()
+            sys.stdin.read()
         elif mode == "timeout":
             continue
         elif mode == "duplicate-key":
@@ -847,6 +852,76 @@ class FakeAppServerTransportTests(unittest.TestCase):
     def test_partial_eof_and_duplicate_keys_are_latched(self) -> None:
         self.bounded_modes(["partial-eof"], "app-server-partial-frame")
         self.bounded_modes(["duplicate-key"], "app-server-duplicate-json-key")
+
+    def test_partial_eof_fixture_keeps_child_until_reader_refusal(self) -> None:
+        defining = transport("app_server")
+        read_lines, drain_stderr = defining.AppServer._bounded_protocol_lines, defining.AppServer._drain_stderr
+        epochs = []
+        for label, server_class in self.import_paths():
+            with self.subTest(import_path=label):
+                partial_seen, stderr_seen, release_reader = (threading.Event() for _ in range(3))
+                stderr_chunks = []
+
+                def paused_lines(server):
+                    try:
+                        yield from read_lines(server)
+                    except defining.AppServerError as exc:
+                        if str(exc) == "app-server-partial-frame":
+                            partial_seen.set()
+                            self.assertTrue(release_reader.wait(2), "partial-frame reader was not released")
+                        raise
+
+                def observed_stderr(server):
+                    stream = server.process.stderr.buffer
+                    read = stream.read1
+                    def observe(size):
+                        data = read(size)
+                        stderr_chunks.append(data)
+                        if b"\n" in data or not data:
+                            stderr_seen.set()
+                        return data
+                    with mock.patch.object(stream, "read1", side_effect=observe):
+                        drain_stderr(server)
+
+                def check(server, module):
+                    write, wait = server._write_payload, server._condition.wait
+                    epochs.append(server.connection_epoch_sha256)
+                    def write_before_reader(*args, **kwargs):
+                        deadline = write(*args, **kwargs)
+                        self.assertTrue(partial_seen.wait(2), "real partial EOF was not observed")
+                        self.assertTrue(stderr_seen.wait(2), "child stdout-close acknowledgment or exit was not observed")
+                        if not b"".join(stderr_chunks):
+                            # Old fixture: observe its real exit before allowing
+                            # request() to poll, while the parser has not latched.
+                            server.process.wait(timeout=2)
+                        return deadline
+                    def wait_after_poll(*args, **kwargs):
+                        # request() has polled the retained child alive and is
+                        # entering its original condition wait. Let EOF latch.
+                        release_reader.set()
+                        return wait(*args, **kwargs)
+                    try:
+                        with mock.patch.object(server, "_write_payload", side_effect=write_before_reader), mock.patch.object(
+                            server._condition, "wait", side_effect=wait_after_poll
+                        ):
+                            self.assert_bounded_refusal(server, module, "app-server-partial-frame")
+                        self.assertEqual(b"".join(stderr_chunks), b"partial-eof-stdout-closed\n")
+                        self.assertEqual(server._stderr_line_count, 1)
+                        self.assertEqual(server._reader_error, "app-server-partial-frame")
+                        self.assertFalse(any("fake/after-fault" in line for line in server.process.stdin.written))
+                    finally:
+                        release_reader.set()
+
+                with mock.patch.object(defining.AppServer, "_bounded_protocol_lines", paused_lines), mock.patch.object(
+                    defining.AppServer, "_drain_stderr", observed_stderr
+                ):
+                    self.exercise(label, server_class, "partial-eof", check)
+
+        def fresh(server, module):
+            self.assertNotIn(server.connection_epoch_sha256, epochs)
+            self.assertIsNone(server._reader_error)
+            self.assertEqual(server.request("fake/echo", {}, timeout=2)[0], {"echo": "fake/echo", "params": {}})
+        self.run_mode("ok", fresh)
 
     def test_stderr_drain_bounds_unterminated_bytes_and_counts_lines(self) -> None:
         class ChunkedStderr:
