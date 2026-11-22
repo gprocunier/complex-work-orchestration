@@ -1,17 +1,66 @@
 """Selected finite fixtures acknowledge original host waits before releasing work."""
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 import queue
 import json
 import os
 from pathlib import Path
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from tests import test_registered_finite_tool_wiring as wiring
 
 family = wiring.family
+
+
+@contextmanager
+def original_poll_ticket_clock(selected_producer):
+    """Pause the selected ticket clock during the fixture's intent hold."""
+    gate_type = wiring.gate_module.RegisteredFiniteInput
+    producer_type = wiring.finite_tools.RegisteredFiniteToolCalls
+    original_reserve, original_read = gate_type.reserve, gate_type._poll_dynamic
+    original_poll = producer_type._poll
+    sample = threading.local()
+
+    def monotonic():
+        now = time.monotonic()
+        reserved = getattr(sample, 'reserved', None)
+        if reserved is None:
+            return now
+        reading = getattr(sample, 'reading', None)
+        return reserved if reading is None else reserved + (now - reading)
+
+    def poll(producer, params, deadline):
+        if producer is not selected_producer():
+            return original_poll(producer, params, deadline)
+        sample.gate = producer.server.finite_input
+        try:
+            return original_poll(producer, params, deadline)
+        finally:
+            sample.__dict__.clear()
+
+    def reserve(gate, chars, **kwargs):
+        if gate is getattr(sample, 'gate', None):
+            sample.reserved = time.monotonic()
+            sample.deadline = kwargs['deadline']
+        return original_reserve(gate, chars, **kwargs)
+
+    def read(gate, issued, timeout):
+        if gate is getattr(sample, 'gate', None):
+            if issued.deadline != sample.deadline:
+                raise AssertionError('The fixture must observe the exact original poll ticket deadline.')
+            # Resume elapsed time before the original ticket and pipe checks.
+            sample.reading = time.monotonic()
+        return original_read(gate, issued, timeout)
+
+    clock = SimpleNamespace(monotonic=monotonic, sleep=time.sleep)
+    with patch.object(wiring.gate_module, 'time', clock), \
+            patch.object(producer_type, '_poll', poll), \
+            patch.object(gate_type, 'reserve', reserve), \
+            patch.object(gate_type, '_poll_dynamic', read):
+        yield
 
 
 class FiniteFixtureProgressTests(unittest.TestCase):
@@ -314,6 +363,11 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                             completion.set()
 
                 with ExitStack() as patches:
+                    if hold_consumer_return:
+                        # Keep the independent RPC, lifecycle and observation
+                        # clocks real while the test parks this one producer.
+                        patches.enter_context(original_poll_ticket_clock(
+                            lambda: cases[0].factory.server.finite_tools if cases else None))
                     patches.enter_context(patch.object(family.runtime._RegisteredServer,
                                                       'start_turn', start_turn))
                     patches.enter_context(patch.object(threading.Condition, 'wait', wait))

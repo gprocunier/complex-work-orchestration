@@ -1061,14 +1061,32 @@ class FakeAppServerTransportTests(unittest.TestCase):
                 server._reader_error = "app-server-frame-size-limit"
                 return result
             writer.write = fault
-            started = time.monotonic()
-            with self.assertRaises(runner.AmbiguousTurnStartError) as caught:
+
+            # The real read preflight refuses before a wire request on this
+            # faulted connection. Recovery can still inspect local evidence.
+            read_thread = runner.AppServer.read_thread.__get__(server)
+            with (
+                mock.patch.object(server, "read_thread", read_thread),
+                mock.patch.object(server, "contain_ambiguous_turn_dispatch",
+                                  wraps=server.contain_ambiguous_turn_dispatch) as contain,
+                mock.patch.object(server._condition, "wait",
+                                  side_effect=AssertionError("waited for faulted reader")) as response_wait,
+                mock.patch.object(time, "sleep",
+                                  side_effect=AssertionError("polled faulted reader")) as poll_sleep,
+                self.assertRaises(runner.AmbiguousTurnStartError) as caught,
+            ):
                 server.start_turn(thread_id, "bounded", timeout=1, ambiguity_timeout=0.4)
-            self.assertLess(time.monotonic() - started, 0.2)
-            self.assertEqual(caught.exception.record["status"], "failed-ambiguous")
-            self.assertEqual(caught.exception.record["ledger_resolution"], "pending")
-            self.assertEqual(ledger.summary()["unresolved_turn_intent_count"], 1)
-            self.assertEqual(len(writer.payloads), 1)
+            contain.assert_called_once_with(thread_id, timeout=0)
+            response_wait.assert_not_called()
+            poll_sleep.assert_not_called()
+            record = caught.exception.record
+            self.assertEqual(record["status"], "failed-ambiguous")
+            self.assertEqual(record["ledger_resolution"], "pending")
+            self.assertEqual(record["query_count"], 0)
+            summary = ledger.summary()
+            self.assertEqual(summary["turn_intent_count"], 1)
+            self.assertEqual(summary["unresolved_turn_intent_count"], 1)
+            self.assertEqual([payload["method"] for payload in writer.payloads], ["turn/start"])
 
     def test_required_request_reply_refuses_pipe_backpressure_without_blocking(self) -> None:
         read_fd, write_fd = os.pipe()
