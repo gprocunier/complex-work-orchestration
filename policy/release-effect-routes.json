@@ -1306,7 +1306,7 @@
 
 "p251":[23,76,"if not actor_value:"],
 
-"p252":[135,"ParallelUnittestTests.test_cli_runs_isolated_shards_and_aggregates_success",309,"d1432b1ea6ba737a32f8dae7846a009d7209cb4223e06d4658f264d05fc177d1"],
+"p252":[135,"ParallelUnittestTests.test_cli_runs_isolated_shards_and_aggregates_success",310,"d1432b1ea6ba737a32f8dae7846a009d7209cb4223e06d4658f264d05fc177d1"],
 
 "p253":[43,1550,"git_dir, common_dir = self._resolve_dirs()"],
 
@@ -6616,7 +6616,7 @@
 
 "scripts/run_native_pool_live_canaries.py":["d31f812a4adea3083223b1d9771a35a6a2901e5d8b05128b63cf9a524709e158",420,610467],
 
-"scripts/run_parallel_unittest.py":["380ef9e2527494c9ba38e6505fb5e423fe425803ed8c920d90a709c6f4b13ef5",493,27111],
+"scripts/run_parallel_unittest.py":["2aa0756c9cf5543bb7c215a608574b3365b22991ccfe9e2d917ac05f31765576",493,27154],
 
 "scripts/scaffold_workgraph.py":["fe6fc0c20566c9425bf5e6fee261d028410d56596806fd924cb21f01d481152f",493,77914],
 
@@ -6794,7 +6794,7 @@
 
 "tests/test_run_native_pool_live_canaries.py":["75373d41578b5c073d4150321b404be754a20d24db6b5fc323135e1628bdb1d7",420,685970],
 
-"tests/test_run_parallel_unittest.py":["bcefb9ce1392bc06a5f979abfb685cfc2c034dfe3ed91a0c8013192b3d9bc1ef",420,35637],
+"tests/test_run_parallel_unittest.py":["557f0665f12bb1f0aef4a9c7d9438496361409dd96a83ebea89b39fb7d2b2802",420,35677],
 
 "tests/test_scaffold_dependency_validation.py":["56f647152b9bd65acfcbb014a04263203a1dd350082e61a35af9b0650c4e36dd",420,32651],
 
