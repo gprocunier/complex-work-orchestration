@@ -40,7 +40,7 @@
 
 "I2":{"admission":{"$":4},"authority":"Operator-selected install/uninstall/destination and validator path; selected validator may be arbitrary external program, no native/closure authority from its output alone.","effect":"Uninstall move/selected postinstall validator/manifest persistence","effect_points":["p182"],"gates":[],"limits":"Disposable positive actual selected harmless validator marker exact argv; dry no skills tree/validator marker, uninstall-dry complete snapshot unchanged, uninstall moves complete snapshot outside skills. Postactivation validator cannot retroactively prevent install. Direct manifest writer intentional local persistence; no universal install/native gate.","manual_decisions":["M13","M19"],"ordering":"Uninstall source guard and dry return before move. validate_skill DRY_RUN before external program; manifest is deliberate write after projection/status construction, atomic text replacement.","trace_files":[{"$":264},{"$":69}],"witnesses":["w92"]},
 
-"I3":{"admission":{"$":2},"authority":"Operator chooses codex_home/launcher_dir/source_root and force; prompt/profile content is configuration, not authorization for autonomous agent effects.","effect":"Instruction-profile install/remove and delayed operator launcher","effect_points":["p25e","p148"],"limits":"Each modified file refuses without force; install/remove loop can retain earlier successful files. Selected source prompts/profiles and cwo-codex exact bytes; no default-config mutation. Writing launcher is delayed N12 execution, not launching Codex.","manual_decisions":["M13","M20"],"ordering":"All selected source paths exist before install loop; each target checked before replacement/removal, with temp write/chmod/replace; no transaction-wide rollback promised after earlier successful files.","review_gates":["p246"],"trace_files":[{"$":275}],"witnesses":["w66","w80"]},
+"I3":{"admission":{"$":2},"authority":"Operator chooses codex_home/launcher_dir/source_root and force; prompt/profile content is configuration, not authorization for autonomous agent effects.","effect":"Instruction-profile install/remove and delayed operator launcher","effect_points":["p25e","p148"],"limits":"Each modified file refuses without force. The file loop can retain earlier successful changes. The prompt is copied byte-for-byte, the profile sets only its path, and the wrapper binds the selected skill source. Default config stays intact. Invoking the wrapper is the separate N12 effect.","manual_decisions":["M13","M20"],"ordering":"Check selected prompt and launcher sources and prepare the exact managed files before the loop. Check each target before local replacement or removal. Earlier successful file operations can remain after a later refusal.","review_gates":["p246"],"trace_files":[{"$":275}],"witnesses":["w66","w80"]},
 
 "I4":{"admission":{"$":2},"authority":"Explicit supported mode/acknowledgement/operator --apply; managed command output does not confer Beads database/task/closure authority. Later PATH bd and Codex hook semantics are external program contracts.","effect":"Codex hook config atomic write and delayed Beads commands","effect_points":["p285"],"gates":["p261","p29b"],"limits":"Valid preview zero write; apply exactly atomic persisted hooks. Probe-independent refusal zero version/write via N11. Managed bd codex-hook SessionStart/PreCompact/UserPromptSubmit/Stop are later Codex-consumed external command strings, not executed by writer; no downstream native/closure grant.","manual_decisions":["M02","M13","M20"],"ordering":"Safe hooks path + duplicate/shape/advisory validation before probe; mode-independent refusals before probe; merge preserves unrelated entries; rendered validation before if args.apply/write_hooks; atomic writer then later Codex consumes hooks.","trace_files":[{"$":64}],"witnesses":["w50"]},
 
@@ -50,7 +50,7 @@
 
 "N11":{"admission":{"$":4},"authority":"Explicit caller-selected binary/environment programme; no outer hook/expected-binary admission on this direct entry.","effect":"Intentional selected --version child programme","gates":[],"manual_decisions":["M12","M13"],"ordering":"Immediately execute selected --version child; only result interpretation follows.","trace_files":[{"$":64},{"$":104}]},
 
-"N12":{"admission":{"$":4},"authority":"Explicit execution of extensionless scripts/cwo-codex by operator; shell resolves codex from operator PATH; cwd, HOME/CODEX_HOME and environment are operator controlled.","effect":"Operator Codex launcher","effect_points":["p179"],"gates":[],"limits":"set -eu; exec codex --profile cwo-sol-operator-e \"$@\". Operator controls PATH/cwd/env/full forwarded argv including overrides. No intrinsic timeout/output/cost bound; downstream option precedence unproved.","manual_decisions":["M13"],"ordering":"set -eu followed by shell exec codex --profile cwo-sol-operator-e \"$@\". No source live/campaign/production hold or argv restriction. Exec lookup/permission failures are OS errors, not a native guard.","trace_files":["scripts/cwo-codex"],"witnesses":["w5c"]},
+"N12":{"admission":{"$":4},"authority":"Explicit operator execution of cwo-codex, directly from the skill or from its installed wrapper. The operator selects PATH, cwd, HOME/CODEX_HOME, environment and forwarded arguments.","earlier_effects":"Read the selected skill role policy. An unpinned latest-in-family selection can start the bounded catalog child for handshake and model/list; explicit or pinned Sol selection skips the catalog probe.","effect":"Operator Codex launcher","effect_points":["p179","pArchitectExec"],"gates":[],"limits":"The selected Python and Codex executables resolve through PATH. The role adds model, effort and tier overrides before all forwarded arguments. No intrinsic timeout, output or cost bound covers the interactive command. Downstream option precedence remains outside this check.","manual_decisions":["M13"],"ordering":"The installed wrapper selects the skill shell entrypoint. That entrypoint runs the adjacent Python helper, which checks launch settings and resolves Sol policy before replacing itself with Codex using execvp.","trace_files":["scripts/cwo-codex","scripts/launch_architect.py",{"$":275},"scripts/model_catalog_startup.py","scripts/cwo_core/model_catalog_startup.py","scripts/cwo_core/model_identities.py"],"witnesses":["w5c","wArchitectInstalled"]},
 
 "N13":{"admission":{"$":4},"authority":"Explicit operator fixed offline diagnostics only; no native factory, maintenance, model-turn or accepted-artifact authority.","effect":"Disposable repository/listener setup, fixed command/config RPCs, trusted bootstrap/watchdog execution and retained-handle cleanup","gates":[],"limits":"No model/thread/turn, arbitrary command API, stdin delivery or accepted output. Original selected never configuration is unchanged. Diagnostic effects bypass no production hold and establish only enumerated observations; required omissions keep selected-unqualified/confidential unsupported. Private helpers retain trusted internal-caller prerequisites.","manual_decisions":["M25","M33"],"ordering":"Verify the selected executable capabilities in a confined schema process and bind its observed identity. Apply the fixed runtime and configuration, retain the original owner and verified namespace handle, check mounts, then release the bootstrap gate. Bound the fixed RPC and empty-poll observations and clean up independently.","trace_files":[{"$":74},{"$":16},{"$":17},{"$":10},"scripts/cwo_core/codex_protocol_capabilities.py"],"witnesses":["w34","w31","w33","pC"]},
 
@@ -168,7 +168,7 @@
 
 "M19":{"conclusion":"Installer projection must exclude full trace/intermediates at final join.","evidence_contracts":["I1","I2"],"external_trust_limit":"BA owns harmless actual dryrun/projection fixture proving exclusion after final compact policy/trace paths are fixed. Optional external validator runs after activation and does not authenticate arbitrary programmes.","reason":"scripts/install.sh asks checker for exact projection then dry/stage gates. policy/scripts directory selection could ship data placed there; topworkspace evidence is outside product tree. BB does not run installation or fabricate projection result for unfinished BA layout.","review_evidence":{"$":7},"source":["p15a","pc8"]},
 
-"M20":{"conclusion":"Generated outputs retain named later consumers, not implicit execution.","evidence_contracts":["I3","I4","X1","X6","X7"],"external_trust_limit":"Operator/browser consumer selection and supplied content remain trusted. No automatic transition from metadata/green output to native/closure authority.","later_consumer_bytes":["docs/site.js (clipboard click line45, DOM events)","docs/theme.js (localStorage choice lines27-28 and DOM theme)","examples/first-project/starter/checker.py + test_checker.py (explicit Python/unittest consumer)","scripts/run_checked_command_sequence.py (checked-sequence JSON)","scripts/cwo-codex (generated installed launcher)","external Codex hook interpreter (four managed bd commands; downstream executable bytes outside this source)"],"reason":"Hook bd command strings later consumed by Codex, profile launcher by shell, checked-sequence JSON by explicit runner, starter Python by chosen interpreter, docs JS by browser. Producer writes do not itself perform those delayed effects.","review_evidence":{"$":7},"source":["p1d5","pda","p220","p109","p263"]},
+"M20":{"conclusion":"Generated outputs retain named later consumers, not implicit execution.","evidence_contracts":["I3","I4","X1","X6","X7"],"external_trust_limit":"Operator/browser consumer selection and supplied content remain trusted. No automatic transition from metadata/green output to native/closure authority.","later_consumer_bytes":["docs/site.js (clipboard click line45, DOM events)","docs/theme.js (localStorage choice lines27-28 and DOM theme)","examples/first-project/starter/checker.py + test_checker.py (explicit Python/unittest consumer)","scripts/run_checked_command_sequence.py (checked-sequence JSON)","Installed cwo-codex wrapper, scripts/cwo-codex and scripts/launch_architect.py (explicit launch)","external Codex hook interpreter (four managed bd commands; downstream executable bytes outside this source)"],"reason":"Hook bd command strings later consumed by Codex, profile launcher by shell, checked-sequence JSON by explicit runner, starter Python by chosen interpreter, docs JS by browser. Producer writes do not itself perform those delayed effects.","review_evidence":{"$":7},"source":["p1d5","pda","p220","p109","p263"]},
 
 "M21":{"conclusion":"AF Git-retarget repair is retrospective consistency, not confinement.","evidence_contracts":["X4","X5"],"external_trust_limit":"Mutation/revert between checks and unrestricted same-user observer/scratch rewriting excluded; no read-only OS sandbox. Retarget is zero admitted COMPLETE baseline, not zero inspection. AF/AG first failures completeness assertions, not unseen later comparator assertions.","reason":"Re-resolve .git/commondir before use and final identity. Four real changed-context rows require incomplete capture with unchanged/retargeted complete positives; early/late legitimate version/read/scratch Git retained. Direct patch validator remains ambient four-child API. Read1550 is re-resolution evidence; same_dirs refusal2621 and final identity condition2679 are the checks.","review_evidence":{"$":7},"source":["p26c","p351","pd1","p22e","p253"]},
 
@@ -486,7 +486,11 @@
 
 "tests/test_codex_protocol_capabilities.py",
 
-"scripts/cwo_core/supervision/turn_observations.py"
+"scripts/cwo_core/supervision/turn_observations.py",
+
+"scripts/launch_architect.py",
+
+"tests/test_install_script.py"
 ],
 
 "points":{
@@ -648,7 +652,7 @@
 
 "p147":[38,1576,"context = dict(runtime.prepare(plan))"],
 
-"p148":[52,164,"path.unlink()"],
+"p148":[52,96,"path.unlink()"],
 
 "p149":[42,260,{"$":13}],
 
@@ -722,7 +726,7 @@
 
 "p16a":[3,"_BrowserAction._call",483,"e0ed60364675e72d23e0f40ce180f89ff453c14d233b9fd6d3f14d6fc9685fb7"],
 
-"p16b":[49,421,{"$":246}],
+"p16b":[49,425,{"$":246}],
 
 "p16c":[73,203,"def start_turn("],
 
@@ -746,13 +750,13 @@
 
 "p175":[70,101,"if hashlib.sha256(source).hexdigest() != descriptor:"],
 
-"p176":[52,"remove",168,"8a31fad3d92b791fbe661c1b9fb1b5440c16ce311b9bf2ca479ef99ee6661e97"],
+"p176":[52,"remove",100,"c8ea24f5d102e226ab53ac9ff4653717a1ec076a0738738caee00c7e4961be16"],
 
 "p177":[8,1563,{"$":228}],
 
 "p178":[80,"Handle",20,"0103d8abd391894912173a56f1ecd57b4e392c9cdc42fde97e6900bb404d8c04"],
 
-"p179":[20,4,"exec codex --profile cwo-sol-operator-e \"$@\""],
+"p179":[20,4,"exec python3 -B -- \"$(dirname -- \"$0\")/launch_architect.py\" \"$@\""],
 
 "p17a":[8,896,"self._page_snapshot(page)",19,896,44],
 
@@ -814,13 +818,13 @@
 
 "p195":[50,256,"if [[ \"$DRY_RUN\" -eq 0 ]]; then"],
 
-"p196":[18,"main",650,"379848b66d032d2eff2f38c41ad2411b43dd86a32c6d4252d607d879777410e7"],
+"p196":[18,"main",661,"379848b66d032d2eff2f38c41ad2411b43dd86a32c6d4252d607d879777410e7"],
 
 "p197":[118,"ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls",497,"5db507d1e659df0c6598bd512b62fb2ccca06104099843e071183d3eff4bbd96"],
 
 "p198":[112,"NativePoolAdmissionTests.test_timeout_reconciliation_uses_exact_show_not_command_output",417,"0a810be1461f0235ffa97acd4748e9c20c8a8af068f6e79cda9ff103feb00ecc"],
 
-"p199":[49,334,{"$":94}],
+"p199":[49,338,{"$":94}],
 
 "p19a":[25,324,"if artifact is not None:"],
 
@@ -928,7 +932,7 @@
 
 "p1b2":[106,"matrix_model_observation",51,"480a683d236aa8d23f2ba8dc1f9b013737eed836ffa91b1cd0ccb7522a79a2df"],
 
-"p1b3":[49,434,{"$":94}],
+"p1b3":[49,438,{"$":94}],
 
 "p1b4":[61,"RegisteredAppServer._launch_process",215,"5849d1a75fcd1d5dc195ef1238fbbfdc49df5d3afad091f8c84b15bf5352ae4a"],
 
@@ -976,7 +980,7 @@
 
 "p1c9":[123,"RegisteredTransportF2Tests.test_f2_base_transport_refuses_before_any_launch",87,"6cb7531c86ed17fb79f98e162413b52fea93cce600f67ccd9ce187e233e71fe4"],
 
-"p1ca":[52,"main",209,"44de3be033dc0b52034b8dfc998fd1aed9c34a17d6a39ca18582215d0349c50f"],
+"p1ca":[52,"main",125,"fe4344acacee53c237e7e0937d0fbb3670757cdbd47666d5ab850a326895de24"],
 
 "p1cb":[11,46,"if initial.ruff_version() != RUFF:"],
 
@@ -1040,7 +1044,7 @@
 
 "p1e7":[50,298,"quote_cmd \"${cmd[@]}\""],
 
-"p1e8":[104,"InstructionProfileTests.test_install_verify_remove_does_not_create_default_config",34,"6e06f00fe0f999fe80813feb412e35553056519e827a4d87cfbbb8769b374acb"],
+"p1e8":[104,"InstructionProfileTests.test_install_verify_remove_does_not_create_default_config",33,"61f590dcecd6ea4ccac74986e2fa9c0d1e8fe288ed037a1b264174b51c6fec83"],
 
 "p1e9":[71,"main",17,"be95fbea7c6a9ff47cac7b6482403c8acaa0fcc93d2b9e30a1508fe8766de1fd"],
 
@@ -1164,7 +1168,7 @@
 
 "p20e":[50,304,"printf 'Launched %s.service with CDP at http://127.0.0.1:%s\\n' \"$UNIT\" \"$PORT\""],
 
-"p20f":[49,445,"python3 \"$validator\" \"$target_dir\""],
+"p20f":[49,449,"python3 \"$validator\" \"$target_dir\""],
 
 "p21":[73,707,"AppServer()",11,707,22],
 
@@ -1280,9 +1284,9 @@
 
 "p244":[83,"RealAtomicPipeTests.test_original_pipe_contract_preserves_stdio_pass_fds_and_child_only_umask",315,"9ce8471d87ee7aebbb1c6a5b28c4b0d64d1feb7ec61d34276bd40c89ed9bac8b"],
 
-"p245":[49,375,"if ! mv -- \"$INSTALL_STAGE_DIR\" \"$target_dir\"; then"],
+"p245":[49,379,"if ! mv -- \"$INSTALL_STAGE_DIR\" \"$target_dir\"; then"],
 
-"p246":[52,78,"if not force:"],
+"p246":[52,49,"if not force:"],
 
 "p247":[83,"AtomicSpawnTests.test_native_errno_is_used_and_all_initialized_resources_are_destroyed",50,"af1bf89f3e0293d657dbd66681f2523ad7d7196af8b1bdd27eae5724e9e2bfaf"],
 
@@ -1290,7 +1294,7 @@
 
 "p249":[59,"_ProductionBeadsBridge.__call__",133,"c369d07ed9b38933226144bf027863c3e9749567af9639161ae6ecd44edd8ad2"],
 
-"p24a":[104,"InstructionProfileTests.test_default_e_launcher_selects_profile_and_forwards_arguments",284,"280765088e8d48ba646ecad4821581e221382d550e33d39d379276b55187dc0e"],
+"p24a":[104,"InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments",166,"02d0380d8e080a1dfd1aaa6204e05b2211d0949f68efa6e4b34ac4ac60a28749"],
 
 "p24b":[95,"ConfigureCodexBeadsHooksTests.test_valid_preview_never_writes_and_apply_persists_exact_managed_commands",27,"c9c7fb25ca6f07ac45e5920ac3598ace943bf8be4702ed3890487a5d113bea9a"],
 
@@ -1304,7 +1308,7 @@
 
 "p25":[10,161,"AppServer(requested_model=requested_model,\n                           tool_surface_probe_binding=binding)",17,162,62],
 
-"p250":[52,73,"if path.exists():"],
+"p250":[52,44,"if path.exists():"],
 
 "p251":[23,76,"if not actor_value:"],
 
@@ -1332,7 +1336,7 @@
 
 "p25d":[60,229,"if not dispatch.LOCAL_INVOCATION_AVAILABLE:"],
 
-"p25e":[52,85,"temporary.replace(path)"],
+"p25e":[52,56,"temporary.replace(path)"],
 
 "p25f":[35,43,"if profile == \"n2-read-only\":"],
 
@@ -1724,7 +1728,7 @@
 
 "p2fd":[34,"_create_beads_graph",775,"e9587fdc9cd02b500835486ae6c2882a784a01a8d0868e1a4a03dbd857884f53"],
 
-"p2fe":[49,371,{"$":246}],
+"p2fe":[49,375,{"$":246}],
 
 "p2ff":[74,"LiveThreadAdapter.send_input",3623,"6629bc95143371952140cd5ccea76cc27eb435057e63356520ae85689443a8e3"],
 
@@ -1788,7 +1792,7 @@
 
 "p307":[25,258,"spec = normalize_command_spec(value)"],
 
-"p308":[49,413,{"$":94}],
+"p308":[49,417,{"$":94}],
 
 "p309":[8,{"$":198},1049,{"$":236}],
 
@@ -1820,7 +1824,7 @@
 
 "p316":[50,199,{"$":245}],
 
-"p317":[52,162,"if path.read_bytes() != expected and not force:"],
+"p317":[52,94,"if path.read_bytes() != expected and not force:"],
 
 "p318":[60,"RegisteredReviewHost.dispatch",227,"f52b608fbfbf5fa2b8dcd957ec3494093145da05dbf930b86981f552a38dbf9b"],
 
@@ -1840,7 +1844,7 @@
 
 "p32":[16,379,{"$":257},4,379,61],
 
-"p320":[104,"InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove",77,"60018279e964d501d580cddaa6c7832d625db36ad83bd44e6c123c1832ba82b8"],
+"p320":[104,"InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove",66,"3b4e1fdf421cdaeb9f05eddd0301ab30fac1bbc8066971961690005242f3003d"],
 
 "p321":[27,"prepare_capture_binding",541,"62a8d76d6644a62380eb684c818896f7370da7ee4b7c7186ab6013bd79e4d252"],
 
@@ -1952,7 +1956,7 @@
 
 "p354":[66,"submit",23,"90bb1eb8f62f4160d03920b1cc60f02711dc2ba1f85af98c5612338e5a0cabc3"],
 
-"p355":[49,322,"entries=\"$(projection_list --list-entries)\" || die \"source does not satisfy the installed projection ($PROJECTION); nothing was installed\""],
+"p355":[49,326,"entries=\"$(projection_list --list-entries)\" || die \"source does not satisfy the installed projection ($PROJECTION); nothing was installed\""],
 
 "p356":[8,{"$":201},1143,{"$":178}],
 
@@ -2020,7 +2024,7 @@
 
 "p374":[122,"R5TransportLaunchTests.test_r5_real_probe_helper_refuses_mismatch_before_reads_and_pins_matching_version_home",119,"e6f37c3c04f417249646ddfc70206641a97c8062f80de5359590d33d875b9004"],
 
-"p375":[97,"DocumentationToolTests.test_preview_main_binds_only_loopback_and_closes_the_server",102,"0b47e1a409087b5ffadea32e8c547d321eaf72fdecf416c1bffd1691aa8521a9"],
+"p375":[97,"DocumentationToolTests.test_preview_main_binds_only_loopback_and_closes_the_server",77,"0b47e1a409087b5ffadea32e8c547d321eaf72fdecf416c1bffd1691aa8521a9"],
 
 "p376":[8,769,{"$":286},42,772,17],
 
@@ -2450,6 +2454,10 @@
 
 "pA":[77,"_note_child_stderr",222,"a677d57b55e196c6efcda55d1e18ef8a86877362b8b1785828215d2c669b2cc3"],
 
+"pArchitectExec":[144,29,"os.execvp(\"codex\", command + sys.argv[1:])",8,29,50],
+
+"pArchitectInstalled":[145,"InstallScriptTests.test_install_offers_only_architect_and_launches_with_installed_role_policy",130,"455a21a1dca06bea65912348dd8df3756fa8c22dda870fe3f687dfca057157f4"],
+
 "pB":[77,"SelectedNativeProbe._inspect",346,"0b5b989d57eab67ebd6f671d42f595cb4fbe4b6b70094d3a4d4bbdc4bbceca72"],
 
 "pC":[77,"_stable_process_identity",123,"326a49937507e27c9af0479e43a64c9506b0a43a61a19035b822e04b6a48ae20"],
@@ -2640,7 +2648,7 @@
 
 "pd2":[8,1287,"self._response_in_progress(page)",30,1287,62],
 
-"pd3":[49,364,"if ! python3 -B \"$CHECKER\" --source-dir \"$SOURCE_DIR\" --installed-dir \"$INSTALL_STAGE_DIR\" --write-manifest --check; then"],
+"pd3":[49,368,"if ! python3 -B \"$CHECKER\" --source-dir \"$SOURCE_DIR\" --installed-dir \"$INSTALL_STAGE_DIR\" --write-manifest --check; then"],
 
 "pd4":[41,1482,"return {\"contract_valid\": True, \"complete_effect_trace\": True, \"f8_complete\": False,"],
 
@@ -2648,13 +2656,13 @@
 
 "pd6":[74,7563,{"$":13}],
 
-"pd7":[49,359,"copy_projection \"$INSTALL_STAGE_DIR\" \"$directories\" \"$files\""],
+"pd7":[49,363,"copy_projection \"$INSTALL_STAGE_DIR\" \"$directories\" \"$files\""],
 
 "pd8":[44,1697,"if not LOCAL_INVOCATION_AVAILABLE:"],
 
 "pd9":[44,"PinnedHTTPConnection.connect",370,"84a7a9b040e01a2f4af5be355ac688cf2f85ac542d5e83802bb8006a7acdd506"],
 
-"pda":[52,"install",89,"6f707ee8911d5413232e27aeab435fc4da28302aa1a2ef8838f9fce9f891b1ce"],
+"pda":[52,"install",60,"ba1dca37644b19f0a31039fccd663f4fb423f8067d77119a5ec55b90e3e2c071"],
 
 "pdb":[61,217,"raise AppServerError("],
 
@@ -4625,21 +4633,23 @@
 
 [53,74,0,74,90,"beads","57d28731fa56f164d861be3feb289ce7c0a799d06c12a9ea1118509ad9a10ade",[{"$":9},"installer-beads-help"]],
 
-[53,462,0,462,40,"beads","7599c36e8ac4e976a846b50df30d97231b0b6451068d600165dc3b1395d9796f",[{"$":9},"installer-beads-lookup"]],
+[53,466,0,466,40,"beads","7599c36e8ac4e976a846b50df30d97231b0b6451068d600165dc3b1395d9796f",[{"$":9},"installer-beads-lookup"]],
 
-[53,463,0,463,43,"beads","3ba28e4b788c4786191b36da8e437c6f8d8f8086f6820f958590a827357c84eb",[{"$":9},"installer-beads-found"]],
+[53,467,0,467,43,"beads","3ba28e4b788c4786191b36da8e437c6f8d8f8086f6820f958590a827357c84eb",[{"$":9},"installer-beads-found"]],
 
-[53,464,0,464,68,"beads","bd4585cbc3a1023b9f9e82b84df55668fd5461085f9955e80090f7d6bf08d6b8",[{"$":9},"installer-beads-version"]],
+[53,468,0,468,68,"beads","bd4585cbc3a1023b9f9e82b84df55668fd5461085f9955e80090f7d6bf08d6b8",[{"$":9},"installer-beads-version"]],
 
-[53,468,0,468,37,"beads","8b43d060267a75b5e0375b7789ecb6ec8bc5b21ad8a7346c2c153111718e2214",[{"$":9},"installer-beads-missing"]],
+[53,472,0,472,37,"beads","8b43d060267a75b5e0375b7789ecb6ec8bc5b21ad8a7346c2c153111718e2214",[{"$":9},"installer-beads-missing"]],
 
-[53,482,0,482,22,"beads",{"$":219},[{"$":9},"installer-rpm-version-advice"]],
+[53,486,0,486,22,"beads",{"$":219},[{"$":9},"installer-rpm-version-advice"]],
 
-[53,485,0,485,74,"beads","da9d86c1c1f0a48e3b58fe066de733096c5825eaf46a57b811ed3af19475f025",[{"$":9},"installer-upstream-beads-advice"]],
+[53,489,0,489,74,"beads","da9d86c1c1f0a48e3b58fe066de733096c5825eaf46a57b811ed3af19475f025",[{"$":9},"installer-upstream-beads-advice"]],
 
-[53,487,0,487,105,"network","3dedbf3435aedd49cb9695771ea6002a7390d50484cc7810e09b51931d293663",[{"$":9},"installer-curl-advice"]],
+[53,491,0,491,105,"network","3dedbf3435aedd49cb9695771ea6002a7390d50484cc7810e09b51931d293663",[{"$":9},"installer-curl-advice"]],
 
-[53,488,0,488,22,"beads",{"$":219},[{"$":9},"installer-upstream-version-advice"]],
+[53,492,0,492,22,"beads",{"$":219},[{"$":9},"installer-upstream-version-advice"]],
+
+[89,29,8,29,50,"process","1f9eee67b33cf492a0023cc7b200d883b3fd96501d6e5cb0cdc7472613dd8714",["route","N12.1","pArchitectExec"]],
 
 [54,84,0,84,69,"process","bdff473c34a5649ec6588144850aa199cbd29e4ea7ba2ddcc8dc596e916f8025",[{"$":9},"chrome-unit-status"]],
 
@@ -5153,7 +5163,9 @@
 
 "scripts/cwo_core/model_catalog_startup.py",
 
-"scripts/model_catalog_startup.py"
+"scripts/model_catalog_startup.py",
+
+"scripts/launch_architect.py"
 ],
 
 "schema":"bounded-primitives-v2"
@@ -5565,8 +5577,6 @@
 "142":"self.assertEqual(value.process.stdin.getvalue().count('\\n'), 1)",
 
 "143":"self.assertIs(caught.exception, primary)",
-
-"144":"self.assertTrue((home / \"cwo-sol-overlay-experimental.config.toml\").is_file())",
 
 "145":"self.assertTrue(closure.execute_qualified_completed(host)[\"completed\"])",
 
@@ -6128,11 +6138,13 @@
 ],
 
 "source_bindings":{
+"policy/model-roles.yaml":["f1b87b2782590676df717862770925039225444fe69bf034cf258834076fc075",420,507],
+
 "policy/qualification-target.yaml":["0d69dde80205fa799fa2c8dd3aabd5ede48b08fe20cdcd4e7e931328f5c0d181",420,20299],
 
-"references/claims-register.md":["305ee7568009f09ecb2e92a195e0ab0e1953a040a2cff7cdcc631cc59efbe3d0",420,8584],
+"references/claims-register.md":["f3feb00cb738c65cd453fd5a3fa1871380d7cc8c4dec8c022f515b920ba97b05",420,8645],
 
-"references/cwo-system-prompt.md":["ea1aff306808c7c2a390011ad35e35d5eb7f65e31e568cd746dbd89704fd60dc",420,4391],
+"references/cwo-system-prompt.md":["35a51347e73c234265797478a591dd101b803e4ba123d36b0ceeaa556c3b92bf",420,2833],
 
 "references/release-effect-routes.md":["cbd67546525d7664893bc15b76d3c13b04d0fd1446934e1bd771196e39f950ee",420,20671],
 
@@ -6186,11 +6198,11 @@
 
 "scripts/configure_codex_beads_hooks.py":["011bb9c62ef4b33358a106cfebc6c31c10dee02841caccf1194f1e9eb7280f0f",493,17894],
 
-"scripts/continue_sprint.py":["a99614266846fad59cc1b29d9817ed1e2608830519092fd211a8e04c61f7476a",420,26818],
+"scripts/continue_sprint.py":["79e5a181dab367174120d6f1d17b1e4fb0d0c8830413f62f6898827b63d93c22",420,27248],
 
 "scripts/create_first_project.py":["9555c6a19f449e888edf33b582d97468aaa115c3b2715476805e19e0004b1627",420,1174],
 
-"scripts/cwo-codex":["d58a3925c9a3d3d6e333568ce48bb9c27b52978eab5824298ed72954d3c2fe18",493,72],
+"scripts/cwo-codex":["5f1938f53386b7ec90c8a1946917a1a6ad1703ee56d517f3a7e7b12157ada27b",493,92],
 
 "scripts/cwo.py":["76b0c3a568e75b4bb966572a9dfaec6121ee1321c38c8080768223b1640a70c8",493,1848],
 
@@ -6280,7 +6292,7 @@
 
 "scripts/cwo_core/model_catalog_startup.py":["0eab2e78e670d470619c4709d18fc14cc548a0d9ed96233b923229484e30c6f2",420,2045],
 
-"scripts/cwo_core/model_identities.py":["73166864bb4f5c46bb3fe7bc5fb0cffba5b8e18c3216ab5355d70829baf39641",420,6991],
+"scripts/cwo_core/model_identities.py":["63e8ab23e17780efcc11f84bcd33954b6f9b9836edd3abf06aa2bd72789eecab",420,7092],
 
 "scripts/cwo_core/model_identity_scope.py":["135e9573348d39101ee0ad57e3990a699c99381ae2d8dc2e78c1bb1b781e5d4f",420,10592],
 
@@ -6502,13 +6514,15 @@
 
 "scripts/ingest_chatgpt_share_return.py":["dffc5298f6b4b9b28798157dc8b7aa93230956541796acd542490829bf23891f",493,23042],
 
-"scripts/install.sh":["13f0cb58c6755d2ea6b649a6538fb328d1da71727825d06080571a7a06f89c9c",493,15766],
+"scripts/install.sh":["cbc9a1a3e85edd398ced21203e83a90f02168ccbde15f95e1f1c92d35477252e",493,16137],
+
+"scripts/launch_architect.py":["22f3d24d1e2f8b1cf663ab90e86ce8b68ee343fe452c9e6f6177a8c05cbde748",420,1226],
 
 "scripts/launch_chatgpt_cdp_chrome.sh":["c5dc4f4c76f825dbfaf8315208d88330d406e658bb1c6875765c69368081387d",493,8005],
 
 "scripts/linux_owned_children.py":["288e7b58debf019fe3290493bf199512863954be6fc065f148c18606fc0a4fb0",420,37132],
 
-"scripts/manage_instruction_profile.py":["ed49db1af01323985e7f21fb3ab20efe91261dec341acd12c6214db971258012",420,9169],
+"scripts/manage_instruction_profile.py":["d6e874fa5e8f2c31da5dde7b121edccc23b8eee37b9acbf0a793da77d4b9df0d",420,5927],
 
 "scripts/manage_native_release.py":["c16422aad6f989641900121a237f75a3cb7813f01467a1ce70d6537ec6ece428",420,5614],
 
@@ -6654,15 +6668,15 @@
 
 "scripts/validate_native_pool_preflight.py":["5aa9b8e312210422a34f135fda66f93a3a416a92dfef8d96ca34e9ce42f61298",493,3652],
 
-"scripts/validate_operator_handoff.py":["bef1131ccc767000d61b80c301a1cce471fd33f9f444e1d67519e9f5feb81dd9",420,12252],
+"scripts/validate_operator_handoff.py":["526bec9d379f42339f10eb45282d21050040295071766c4a6024da90e0b88880",420,10019],
 
 "scripts/validate_public_copy.py":["e63be9d1068501c22640263a71725c5d2743679ac61908334a0b8a7b71fcb7ca",420,63926],
 
-"scripts/validate_repository.py":["badd0cdab3ac9cfd997028020213d7bb1d0f3f03b2db9a80cfa81a84633af66f",420,114697],
+"scripts/validate_repository.py":["1e02c0d21536fa4308a721cdb89f909163b979340c71f3fa776f7f3929cd4baf",420,114688],
 
 "scripts/validate_run_readiness_plan.py":["4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",493,21103],
 
-"scripts/validate_site.py":["42b2c6e5c9607d27369724e92c8a6aa8f67f931b671551b299a5fe54f4a7899a",493,19352],
+"scripts/validate_site.py":["2924ff2e981f62522bfabc579753b84a4e08b29d8f47043f44565dbfb512acc8",493,19352],
 
 "scripts/verify_affected_historical_contract.py":["690f2340cb1ad17e8190db07c5d6d14d22d2816bcca95abbb48d1141038abae2",420,23726],
 
@@ -6676,7 +6690,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["abd45b2d0adbae22627622a2c97da28b5482ab647eb97883a3eb75eef4e3f8a4",420,130781],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["e3e1059fe68ba502e1e3704af68f04ca0ad577e7b594be538d6a830b7f0db59d",420,130781],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -6724,7 +6738,7 @@
 
 "tests/test_cwo_core_import_contract.py":["9ef8a891ff8c20088486bcc382d2f77155a2f57ad2e120ef181cb218c352c3f9",420,22353],
 
-"tests/test_documentation_tools.py":["d2013052619fc930ff6567c9f1b3843452a409a91d19af329aac52a47dc505c2",420,6569],
+"tests/test_documentation_tools.py":["370a6442e2928d9cc7ede031531898e78de7c4a7bbf459784c500a733af5bfd7",420,4875],
 
 "tests/test_f1_production_closure_guards.py":["a9b3d8d2d96380160a41b220cff7d1f6185a91f4b70d7a059d79730fef4c7512",420,14498],
 
@@ -6740,7 +6754,9 @@
 
 "tests/test_install_projection.py":["42b3b8f0cf7710370b82899410ac4fcddaabccadd4435a8069e69b8c14746bf2",420,43442],
 
-"tests/test_instruction_profiles.py":["27ff169dcb5779a158e8d2592037df361b151ffe362a8bb51d32e778866335fe",420,14765],
+"tests/test_install_script.py":["3765f37566fd2a5fb848ba0cf9c18f8e78cdcf2f52416fb7e342990df538213e",420,11195],
+
+"tests/test_instruction_profiles.py":["5ee673efd85777409581f1343808fb91f977fbad890ad4ab6e270b4c9d7a135f",420,9428],
 
 "tests/test_invocation_containment.py":["54422bae5d800553cb04c3629785c52138817f4c9010baa25bf75fa6310ecfe7",420,12880],
 
@@ -6988,7 +7004,7 @@
 
 "w5b":{"assertion":{"$":232},"body":"p372","kind":{"$":1},"positive":{"$":232},"support":["p20d"],"test_id":{"$":20}},
 
-"w5c":{"assertion":{"$":135},"body":"p24a","kind":{"$":12},"positive":{"$":135},"support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_default_e_launcher_selects_profile_and_forwards_arguments"},
+"w5c":{"assertion":"self.assertEqual(result.stdout.splitlines()[:2], [\"--profile\", \"cwo-architect\"])","body":"p24a","kind":{"$":12},"positive":"self.assertEqual(result.stdout.splitlines()[:2], [\"--profile\", \"cwo-architect\"])","support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments"},
 
 "w5d":{"assertion":"run_bd.assert_not_called()","body":"p338","kind":{"$":0},"positive":{"$":121},"support":["p2d4"],"test_id":"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_no_form_of_successful_closure_writes_to_beads"},
 
@@ -7010,7 +7026,7 @@
 
 "w65":{"assertion":"self.assertEqual((factory.call_count, prepare.call_count, calls), (0, 0, []))","body":"p372","kind":{"$":0},"positive":{"$":47},"support":["p144","p375"],"test_id":{"$":20}},
 
-"w66":{"assertion":"self.assertEqual(profile.read_text(encoding=\"utf-8\"), \"locally modified\\n\")","body":"p320","kind":{"$":0},"positive":{"$":144},"support":["p1e8"],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove"},
+"w66":{"assertion":"self.assertEqual(profile.read_text(encoding=\"utf-8\"), \"locally modified\\n\")","body":"p320","kind":{"$":0},"positive":"self.assertTrue(verified[\"ok\"])","support":["p1e8"],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove"},
 
 "w67":{"assertion":"creator.assert_not_called()","body":"p23b","kind":{"$":0},"positive":{"$":126},"support":["p372","p15f"],"test_id":"tests.test_routing_risk_features.RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands"},
 
@@ -7066,7 +7082,7 @@
 
 "w8":{"assertion":{"$":139},"body":"p2f5","kind":{"$":0},"positive":"self.assertEqual(transport.thread_roles, {'EXAMPLE-thread': 'worker'})","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_thread_rechecks_each_hold_before_intent_rpc_or_binding"},
 
-"w80":{"assertion":{"$":144},"body":"p1e8","kind":{"$":6},"positive":{"$":144},"support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_install_verify_remove_does_not_create_default_config"},
+"w80":{"assertion":"self.assertTrue(verified[\"ok\"])","body":"p1e8","kind":{"$":6},"positive":"self.assertTrue(verified[\"ok\"])","support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_install_verify_remove_does_not_create_default_config"},
 
 "w81":{"assertion":{"$":149},"body":"p24b","kind":{"$":1},"positive":{"$":149},"support":[],"test_id":{"$":317}},
 
@@ -7107,6 +7123,8 @@
 "w92":{"assertion":{"$":129},"body":"p372","kind":{"$":1},"positive":{"$":129},"support":["p181"],"test_id":{"$":20}},
 
 "wA":{"assertion":"self.assertEqual(len(cases), 52)","body":"pM","kind":{"$":1},"positive":"self.assertFalse(any(span in str(error) for span in item['sensitive']),","support":["pI","pJ","pN","pK","pO"],"test_id":"tests.test_registered_outbound_screen.FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write"},
+
+"wArchitectInstalled":{"assertion":"self.assertEqual(refused.stdout, \"\")","body":"pArchitectInstalled","kind":{"$":12},"positive":"self.assertEqual(launch.stdout.splitlines(), [","support":[],"test_id":"tests.test_install_script.InstallScriptTests.test_install_offers_only_architect_and_launches_with_installed_role_policy"},
 
 "wB":{"assertion":"self.assertEqual(writer.payloads, [])","body":"po","kind":{"$":1},"positive":"self.assertEqual(ledger.summary()[\"unresolved_turn_intent_count\"], 1)","support":["pU","pj","pY","pg"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_sensitive_prompt_and_metadata_keep_original_intent_without_wire"},
 

@@ -4,25 +4,23 @@ Use this packet in the final TUI response for CWO closeout, sprint parking,
 blocked work, pushed commits, or carry-forward handoff. Beads comments and repo
 artifacts are not a substitute for this user-visible packet.
 
-- Next executable Bead: `<bead-id or none - stop condition met>`
-- Why it is next: `<priority, dependency, validation, unblock, or stop condition>`
+- Next action: `<specific work that can proceed now, or None>`
+- Waiting on: `<affected work and specific dependency, or None>`
+- Next executable Bead: `<bead-id or reason no Bead is ready>`
+- Why it is next: `<priority, dependency, validation, or unblock>`
 - Exact command/resume: `<copy-paste command>`
 - Execution prompt: `<prompt to resume the next bounded lane>`
 - What must NOT run yet: `<blocked, unsafe, unapproved, or out-of-scope work>`
 - Commit/push status: `<commit, push, remote verification, or not requested>`
 - Validation status: `<commands run, not run, or blocked>`
-- Escalation rule: `<when to stop and ask the operator>`
+- Escalation rule: `<applicable project rule or how to follow up on the blocker>`
 
-For a current campaign with a terminal or protected sub-operation, also supply
-the scoped continuation fields below and validate with
-`--require-scoped-continuation`. They describe a decision; they do not grant
-dispatch authority. When a source-derived continuation-state artifact exists,
-also pass `--continuation-state <path>` to catch a false generic approval ask.
-That artifact is a consistency input, not authority. Historical handoffs remain
-readable without these fields.
+Record work that can proceed under **Next action** even when **Waiting on**
+names a dependency for other work. Use `--require-scoped-continuation` to
+validate both fields. If source-derived continuation state exists, pass
+`--continuation-state <path>` to check both values against it. Provide that
+state when both fields are `None` in a scoped packet. The JSON state has
+`version` set to `2` and includes `next_action` and `waiting_on`, each as exact
+text or `null` for absence. Project rules and runtime controls govern dispatch.
 
-- Stopped operation: `<exact child, cohort, path, or parent operation>`
-- Stop scope: `<child, cohort, execution-path, complete-task, or publication>`
-- Continuation disposition: `<continue-authorized, material-decision, or complete>`
-- Already-authorized next action: `<exact action or none>`
-- Authority delta required: `<specific new authority or none>`
+Validate historical handoffs without the scoped fields by omitting these flags.

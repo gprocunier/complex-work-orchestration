@@ -260,8 +260,8 @@ v2 result.
 ## Trusted Live Canary Gate
 
 The release canary is a separate, single-shot controller:
-`scripts/run_native_pool_live_canaries.py`. It requires the immutable full-auto
-authorization, the active outer authority, the exact predecessor authorization
+`scripts/run_native_pool_live_canaries.py`. It requires the immutable campaign
+authorization artifact, the active outer authority, the exact predecessor authorization
 and campaign manifest, an accepting independent Spark receipt, plus
 independently adjudicated pre-mutation and pre-live Sol steering receipts. All
 artifacts are private mode 0600. The launcher recomputes canonical receipt and

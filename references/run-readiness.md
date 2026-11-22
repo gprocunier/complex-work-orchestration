@@ -273,6 +273,15 @@ Use `templates/run-readiness-plan.md` when the run needs a readable planning
 artifact instead of JSON first. If both forms exist, the JSON artifact is the
 validator input and the Markdown template is reader-facing support.
 
+For a scoped continuation, the [operator handoff packet](../templates/operator-handoff-packet.md)
+records `Next action` and `Waiting on`. Use `None` when either field has no
+value. When validating against observed state, pass
+`--require-scoped-continuation --continuation-state <path>` to
+`scripts/validate_operator_handoff.py`. The state JSON uses `version: 2`,
+`next_action` and `waiting_on`. Both values must match the handoff, with `null`
+for absence. Supply matching state when both values are absent. Record only
+actions and dependencies supported by the project record and current scope.
+
 ## Authority Model
 
 ```mermaid

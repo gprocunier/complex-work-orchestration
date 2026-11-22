@@ -1,22 +1,21 @@
-import json
 import hashlib
+import json
 import os
+import re
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "manage_instruction_profile.py"
-GUIDE = ROOT / "references" / "cwo-sol-operator-profile.md"
 OPERATOR_GUIDE = ROOT / "references" / "cwo-system-prompt.md"
-C_PROMPT = ROOT / "prompts" / "cwo-sol-operator.md"
-E_PROMPT = ROOT / "prompts" / "cwo-sol-operator-e.md"
-QUALIFIED_E_PROMPT = ROOT / "prompts" / "archive" / "cwo-sol-operator-e-v5-qualified.md"
+PROMPT = ROOT / "prompts" / "cwo-architect.md"
 LAUNCHER = ROOT / "scripts" / "cwo-codex"
-CWO_SKILL = ROOT / "SKILL.md"
 README = ROOT / "README.md"
+APPROVED_PROMPT_SHA256 = "8c0f2c9d7bf50490a7795ad113383518e3c7236bee3717950feeddf656ce9a4f"
 
 
 class InstructionProfileTests(unittest.TestCase):
@@ -35,282 +34,164 @@ class InstructionProfileTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
             launcher_dir = home / ".local" / "bin"
-            installed = json.loads(
-                self.run_cli(
-                    "install",
-                    "--codex-home",
-                    str(home),
-                    "--launcher-dir",
-                    str(launcher_dir),
-                ).stdout
-            )
+            common = ("--codex-home", str(home), "--launcher-dir", str(launcher_dir))
+            installed = json.loads(self.run_cli("install", *common).stdout)
+            self.assertEqual(installed["profiles"], ["architect"])
             self.assertFalse(installed["default_profile_changed"])
             self.assertFalse((home / "config.toml").exists())
-            self.assertTrue((home / "cwo-sol-overlay-experimental.config.toml").is_file())
-            operator = home / "cwo-sol-operator-experimental.config.toml"
-            self.assertIn(str((home / "prompts" / "cwo-sol-operator.md").resolve()), operator.read_text())
-
-            verified = json.loads(
-                self.run_cli(
-                    "verify",
-                    "--codex-home",
-                    str(home),
-                    "--launcher-dir",
-                    str(launcher_dir),
-                ).stdout
+            self.assertEqual(
+                [path.name for path in home.glob("*.config.toml")],
+                ["cwo-architect.config.toml"],
             )
+            prompt = home / "prompts" / "cwo-architect.md"
+            profile = home / "cwo-architect.config.toml"
+            self.assertEqual(
+                tomllib.loads(profile.read_text(encoding="utf-8")),
+                {"model_instructions_file": str(prompt.resolve())},
+            )
+            launcher = launcher_dir / "cwo-codex"
+            self.assertTrue(os.access(launcher, os.X_OK))
+
+            verified = json.loads(self.run_cli("verify", *common).stdout)
             self.assertTrue(verified["ok"])
+            self.assertEqual(verified["profiles"], ["architect"])
 
-            removed = json.loads(
-                self.run_cli(
-                    "remove",
-                    "--codex-home",
-                    str(home),
-                    "--launcher-dir",
-                    str(launcher_dir),
-                ).stdout
-            )
+            removed = json.loads(self.run_cli("remove", *common).stdout)
+            self.assertEqual(removed["profiles"], ["architect"])
             self.assertFalse(removed["default_profile_changed"])
-            self.assertFalse(operator.exists())
-            self.assertFalse((home / "prompts" / "cwo-sol-operator.md").exists())
+            self.assertFalse(profile.exists())
+            self.assertFalse(prompt.exists())
+            self.assertFalse(launcher.exists())
 
     def test_modified_profile_requires_force_to_overwrite_or_remove(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            self.run_cli("install", "--profile", "overlay", "--codex-home", str(home))
-            profile = home / "cwo-sol-overlay-experimental.config.toml"
+            common = (
+                "--profile", "architect", "--codex-home", str(home),
+                "--launcher-dir", str(home / "bin"),
+            )
+            self.run_cli("install", *common)
+            profile = home / "cwo-architect.config.toml"
             profile.write_text("locally modified\n", encoding="utf-8")
-            self.run_cli("install", "--profile", "overlay", "--codex-home", str(home), expected=2)
+            self.run_cli("verify", *common, expected=2)
+            self.run_cli("install", *common, expected=2)
             self.assertEqual(profile.read_text(encoding="utf-8"), "locally modified\n")
-            self.run_cli("remove", "--profile", "overlay", "--codex-home", str(home), expected=2)
+            self.run_cli("remove", *common, expected=2)
             self.assertTrue(profile.exists())
-            self.run_cli("remove", "--profile", "overlay", "--codex-home", str(home), "--force")
+            self.run_cli("remove", *common, "--force")
             self.assertFalse(profile.exists())
 
-    def test_default_candidate_e_workflow_installs_launcher_without_editing_config(self) -> None:
+    def test_architect_profile_preserves_other_defaults_and_profiles(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             home = Path(directory)
-            launcher_dir = home / ".local" / "bin"
-            installed = json.loads(
-                self.run_cli(
-                    "install",
-                    "--profile",
-                    "operator-e",
-                    "--codex-home",
-                    str(home),
-                    "--launcher-dir",
-                    str(launcher_dir),
-                ).stdout
-            )
-            self.assertEqual(installed["profiles"], ["operator-e"])
-            self.assertFalse(installed["default_profile_changed"])
-            self.assertFalse((home / "config.toml").exists())
-            self.assertFalse((home / "cwo-sol-overlay-experimental.config.toml").exists())
-            self.assertEqual((launcher_dir / "cwo-codex").read_bytes(), LAUNCHER.read_bytes())
-
-            verified = json.loads(
-                self.run_cli(
-                    "verify", "--profile", "operator-e", "--codex-home", str(home),
-                    "--launcher-dir", str(launcher_dir)
-                ).stdout
-            )
-            self.assertTrue(verified["ok"])
-            self.assertEqual(verified["profiles"], ["operator-e"])
-
-            removed = json.loads(
-                self.run_cli(
-                    "remove", "--profile", "operator-e", "--codex-home", str(home),
-                    "--launcher-dir", str(launcher_dir)
-                ).stdout
-            )
-            self.assertEqual(removed["profiles"], ["operator-e"])
-            self.assertFalse(removed["default_profile_changed"])
-            self.assertFalse((home / "config.toml").exists())
-            self.assertFalse((home / "cwo-sol-operator-e.config.toml").exists())
-            self.assertFalse((home / "prompts" / "cwo-sol-operator-e.md").exists())
-            self.assertFalse((launcher_dir / "cwo-codex").exists())
+            common = ("--codex-home", str(home), "--launcher-dir", str(home / "bin"))
+            unrelated = {
+                home / "config.toml": b"# Default Codex settings\n",
+                home / "cwo-sol-operator-e.config.toml": b"# Existing legacy profile\n",
+                home / "cwo-sol-overlay-experimental.config.toml": b"# Existing legacy overlay\n",
+            }
+            for path, content in unrelated.items():
+                path.write_bytes(content)
+            self.run_cli("install", "--profile", "architect", *common)
+            self.run_cli("verify", "--profile", "architect", *common)
+            self.run_cli("remove", "--profile", "architect", *common)
+            for path, content in unrelated.items():
+                self.assertEqual(path.read_bytes(), content)
 
     def test_operator_guide_commands_and_discoverability_do_not_drift(self) -> None:
         guide = OPERATOR_GUIDE.read_text(encoding="utf-8")
         for command in (
-            "python3 scripts/manage_instruction_profile.py install --profile operator-e",
-            "python3 scripts/manage_instruction_profile.py verify --profile operator-e",
+            "python3 scripts/manage_instruction_profile.py install --profile architect",
+            "python3 scripts/manage_instruction_profile.py verify --profile architect",
             'cwo-codex -C "$PWD"',
-            'codex --profile cwo-sol-operator-e -C "$PWD"',
-            "python3 scripts/manage_instruction_profile.py remove --profile operator-e",
+            'codex --profile cwo-architect -C "$PWD"',
+            "python3 scripts/manage_instruction_profile.py remove --profile architect",
         ):
             self.assertIn(command, guide)
-        self.assertIn("at the start of a new Codex session", guide)
-        self.assertIn("does not edit `config.toml`", guide)
-        self.assertIn("trusted CWO enforcement", guide)
         self.assertIn(
-            "[CWO system prompt](references/cwo-system-prompt.md)",
+            "](references/cwo-system-prompt.md)",
             README.read_text(encoding="utf-8"),
         )
 
-    def test_candidate_e_install_verify_remove_preserves_other_defaults(self) -> None:
+    def test_installed_prompt_equals_the_approved_source_bytes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            home = root / ".codex"
-            launcher_dir = root / ".local" / "bin"
-            common = (
-                "--profile",
-                "operator-e",
-                "--codex-home",
-                str(home),
-                "--launcher-dir",
-                str(launcher_dir),
+            home = Path(directory)
+            self.run_cli(
+                "install", "--profile", "architect", "--codex-home", str(home),
+                "--launcher-dir", str(home / "bin"),
             )
+            source = PROMPT.read_bytes()
+            self.assertEqual((home / "prompts" / PROMPT.name).read_bytes(), source)
+            self.assertEqual(hashlib.sha256(source).hexdigest(), APPROVED_PROMPT_SHA256)
 
-            installed = json.loads(self.run_cli("install", *common).stdout)
-            self.assertEqual(installed["profiles"], ["operator-e"])
-            self.assertFalse(installed["default_profile_changed"])
-            self.assertFalse((home / "config.toml").exists())
-            self.assertFalse((home / "cwo-sol-operator-experimental.config.toml").exists())
-
-            prompt = home / "prompts" / "cwo-sol-operator-e.md"
-            profile = home / "cwo-sol-operator-e.config.toml"
-            self.assertEqual(prompt.read_bytes(), E_PROMPT.read_bytes())
-            roles = json.loads((ROOT / "policy/model-roles.yaml").read_text(encoding="utf-8"))["roles"]
-            model = roles["sol"].get("pin", roles["sol"]["current"])
-            self.assertIn(f'model = "{model}"', profile.read_text(encoding="utf-8"))
-            self.assertNotIn("model_reasoning_effort", profile.read_text(encoding="utf-8"))
-            self.assertIn(str(prompt.resolve()), profile.read_text(encoding="utf-8"))
-            self.assertEqual((launcher_dir / "cwo-codex").read_bytes(), LAUNCHER.read_bytes())
-
-            verified = json.loads(self.run_cli("verify", *common).stdout)
-            self.assertTrue(verified["ok"])
-            self.assertTrue(all(check["ok"] for check in verified["checks"]))
-
-            removed = json.loads(self.run_cli("remove", *common).stdout)
-            self.assertEqual(removed["profiles"], ["operator-e"])
-            self.assertFalse(prompt.exists())
-            self.assertFalse(profile.exists())
-            self.assertFalse((launcher_dir / "cwo-codex").exists())
-
-    def test_candidate_e_profile_is_interactive_and_documented(self) -> None:
-        prompt = E_PROMPT.read_text(encoding="utf-8")
-        for expected in (
-            "Acceptance closure",
-            "Semantic and decision closure",
-            "Complete change transactions",
-            "Finite execution and recovery",
-            "Distinguish candidate or product failure from harness",
-        ):
-            self.assertIn(expected, prompt)
-        for evaluation_only in (
-            "Return exactly one JSON object",
-            "Do not call tools",
-            "campaign_id",
-            "Frozen inspection",
-        ):
-            self.assertNotIn(evaluation_only, prompt)
-
-        guide = OPERATOR_GUIDE.read_text(encoding="utf-8")
-        for command in (
-            "python3 scripts/manage_instruction_profile.py install --profile operator-e",
-            "python3 scripts/manage_instruction_profile.py verify --profile operator-e",
-            'codex --profile cwo-sol-operator-e -C "$PWD"',
-            "python3 scripts/manage_instruction_profile.py remove --profile operator-e",
-        ):
-            self.assertIn(command, guide)
-        self.assertIn("prompts/cwo-sol-operator-e.md", CWO_SKILL.read_text(encoding="utf-8"))
-        self.assertIn(
-            "[CWO system prompt](references/cwo-system-prompt.md)",
-            README.read_text(encoding="utf-8"),
-        )
-        combined = "\n".join(
-            (
-                README.read_text(encoding="utf-8"),
-                CWO_SKILL.read_text(encoding="utf-8"),
-                guide,
-            )
-        )
-        self.assertNotIn("interim incumbent", combined)
-        self.assertIn("optimized for complex project work", combined)
-        self.assertNotIn("fewest recorded tokens", combined)
-
-    def test_candidate_e_protocol_repair_preserves_qualified_prompt_evidence(self) -> None:
-        qualified = QUALIFIED_E_PROMPT.read_bytes()
-        active = E_PROMPT.read_text(encoding="utf-8")
+    def test_candidate_e_archive_preserves_qualified_prompt_evidence(self) -> None:
+        archived = ROOT / "prompts" / "archive"
+        qualified = (archived / "cwo-sol-operator-e-v5-qualified.md").read_bytes()
+        final = (archived / "cwo-sol-operator-e.md").read_bytes()
         self.assertEqual(
             hashlib.sha256(qualified).hexdigest(),
             "75b3bdf7624d7e3913f2879f4a20306c74805ad8409ce785597da67e1011c3f8",
         )
-        self.assertNotEqual(E_PROMPT.read_bytes(), qualified)
-        normalized = " ".join(active.split())
-        for expected in (
-            "Frozen protocol fidelity",
-            "For experiments these bound fields are scope boundaries, not summaries.",
-            "does not authorize a replacement benchmark",
-            "Explicit replacement authority starts a new protocol",
-            "Revalidate the protocol lock before every candidate or model call",
-            "End the parent objective only when no useful, independently authorized action remains",
-            "A spent child remains terminal and cannot be resumed or retried",
-            "do not ask for generic “proceed” or reapproval of unchanged adopted work",
-            "--require-scoped-continuation",
-        ):
-            self.assertIn(expected, normalized)
-        guide = OPERATOR_GUIDE.read_text(encoding="utf-8")
-        history = " ".join(
-            (ROOT / "references/candidate-e-qualification-summary.md").read_text().split()
-        )
-        self.assertIn("post-v5 repair", history)
-        self.assertIn("No new model comparison has qualified", history)
-        self.assertIn("frozen-protocol-lock.md", guide)
-        self.assertIn("does not set `model_reasoning_effort`", guide)
-        self.assertIn("default OpenAI system prompt", README.read_text(encoding="utf-8"))
-        # Active source after the issue #44 wording revision. Earlier active bytes
-        # (post-v5 repair, scoped continuation) are listed in the qualification
-        # summary; this assertion does not claim the installed profile has reloaded.
         self.assertEqual(
-            hashlib.sha256(E_PROMPT.read_bytes()).hexdigest(),
+            hashlib.sha256(final).hexdigest(),
             "78a322fe1b5e72ba7f1d1a4253230f90fef37a372ed1334ec00c1e20647874b8",
         )
 
-    def test_issue_44_passages_name_the_permitted_action(self) -> None:
-        normalized = " ".join(E_PROMPT.read_text(encoding="utf-8").split())
-        self.assertNotIn("blocking ceremony", normalized)
-        self.assertNotIn("already-authorized bypass", normalized)
-        self.assertNotIn("If ceremony blocks", normalized)
-        for expected in (
-            "Use an alternative workflow only when the applicable CWO contract already authorizes it within the existing task scope.",
-            "Provider safeguards, security and access gates, required validation, and frozen protocol bindings are not optional workflow steps.",
-            "authorizes continuation within the lock; it does not authorize a replacement benchmark",
-            "Do not request another user authorization for routine same-scope repair already covered by the request.",
-        ):
-            self.assertIn(expected, normalized)
+    def test_architect_prompt_contains_no_model_ids(self) -> None:
+        model_id = re.compile(
+            r"\b(?:gpt-\d+(?:\.\d+)*(?:-[a-z0-9]+)*|gpt-reserve|"
+            r"gpt-daybreak-blue-latest|codex-auto-review)\b",
+            re.IGNORECASE,
+        )
+        self.assertNotRegex(PROMPT.read_text(encoding="utf-8"), model_id)
 
-    def test_default_e_launcher_selects_profile_and_forwards_arguments(self) -> None:
+    def test_architect_prompt_contains_no_authority_tokens(self) -> None:
+        """Cover F1 and F2 only because no phrase may act as a password for authority."""
+        quoted_steering = r"""["'“‘`](?:proceed|go|repair until complete)["'”’`]"""
+        quoted_phrase = r"""["'“‘`][^"'”’`]{1,60}["'”’`]"""
+        authority = r"\b(?:grant|remove|authoriz|permit|enabl|disabl|switch|toggl)\w*\b"
+        autonomy_switch = r"\b(?:enabl|disabl|switch|toggl)\w*[^.!?]{0,20}\bautonomy\b"
+        patterns = (
+            r"\b(?:bypass|pre[- ]?authoriz(?:e|ed|ation)|step (?:over|around)|full_auto)\b",
+            r"\b(?:skip|cut|remove|blocking)\s+(?:the\s+)?ceremony\b|\bceremony\s+blocks\b",
+            rf"{quoted_steering}[^.!?]{{0,40}}{authority}",
+            rf"{authority}[^.!?]{{0,40}}{quoted_steering}",
+            rf"{quoted_phrase}[^.!?]{{0,40}}{autonomy_switch}",
+            rf"{autonomy_switch}[^.!?]{{0,40}}{quoted_phrase}",
+        )
+        prompt = " ".join(PROMPT.read_text(encoding="utf-8").split())
+        for pattern in patterns:
+            self.assertNotRegex(prompt, re.compile(pattern, re.IGNORECASE))
+
+    def test_launcher_selects_profile_and_forwards_arguments(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            fake_bin = root / "bin"
-            fake_bin.mkdir()
-            fake_codex = fake_bin / "codex"
+            fake_codex = root / "codex"
             fake_codex.write_text(
                 "#!/usr/bin/env sh\nprintf '%s\\n' \"$@\"\n",
                 encoding="utf-8",
             )
             fake_codex.chmod(0o755)
-            env = dict(os.environ)
-            env["PATH"] = f"{fake_bin}:{env.get('PATH', '')}"
+            env = {**os.environ, "PATH": f"{root}{os.pathsep}{os.environ['PATH']}"}
             result = subprocess.run(
-                [str(LAUNCHER), "-C", "/tmp/example", "--ephemeral"],
-                cwd=ROOT,
+                [str(LAUNCHER), "-C", "/tmp/example project", "--ephemeral"],
+                cwd=root,
                 env=env,
                 text=True,
                 capture_output=True,
                 check=False,
             )
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines()[:2], ["--profile", "cwo-architect"])
+            sol = json.loads((ROOT / "policy" / "model-roles.yaml").read_text())["roles"]["sol"]
             self.assertEqual(
                 result.stdout.splitlines(),
                 [
-                    "--profile",
-                    "cwo-sol-operator-e",
-                    "-C",
-                    "/tmp/example",
-                    "--ephemeral",
+                    "--profile", "cwo-architect",
+                    "-c", f"model={json.dumps(sol.get('pin', sol['current']))}",
+                    "-c", f"model_reasoning_effort={json.dumps(sol['reasoning_effort'])}",
+                    "-c", f"service_tier={json.dumps(sol['service_tier'])}",
+                    "-C", "/tmp/example project", "--ephemeral",
                 ],
             )
 

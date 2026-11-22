@@ -29,6 +29,13 @@ class ModelRoleResolutionTests(unittest.TestCase):
                     self.assertIsNone(identities.role_for_model(invalid))
         self.assertGreater(identities.reviewer_rank("astra"), identities.reviewer_rank("sol"))
 
+    def test_legacy_sol_role_can_still_resolve_its_model(self):
+        config = self.config()
+        sol = config["roles"]["sol"]
+        del sol["reasoning_effort"]
+        del sol["service_tier"]
+        self.assertEqual(identities.resolve_model("sol", config=config), sol["current"])
+
     def test_latest_uses_numeric_order_from_public_catalog(self):
         config = self.config()
         config["roles"]["luna"]["selection"] = "latest-in-family"

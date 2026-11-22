@@ -134,10 +134,10 @@ INDEX_EXPERT_ROUTE_HREFS = [
 ]
 
 ONBOARDING_STEPS = [
-    "manage_instruction_profile.py install --profile operator-e",
-    "manage_instruction_profile.py verify --profile operator-e",
+    "manage_instruction_profile.py install --profile architect",
+    "manage_instruction_profile.py verify --profile architect",
     "scripts/create_first_project.py",
-    'cwo-codex -C "$HOME/cwo-first-project"',
+    '<code>codex -C "$HOME/cwo-first-project"',
     "Fix only errors(config)",
 ]
 

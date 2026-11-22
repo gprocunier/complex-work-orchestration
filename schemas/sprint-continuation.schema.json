@@ -93,6 +93,10 @@
     "resume_commands": {"type": "array", "items": {"type": "string"}},
     "operator_handoff_packet": {
       "type": "object",
+      "dependentRequired": {
+        "next_action": ["waiting_on"],
+        "waiting_on": ["next_action"]
+      },
       "required": [
         "next_executable_bead",
         "why_it_is_next",
@@ -104,6 +108,8 @@
         "escalation_rule"
       ],
       "properties": {
+        "next_action": {"type": ["string", "null"], "minLength": 1},
+        "waiting_on": {"type": ["string", "null"], "minLength": 1},
         "next_executable_bead": {"type": "string", "minLength": 1},
         "why_it_is_next": {"type": "string", "minLength": 1},
         "exact_command_resume": {"type": "string", "minLength": 1},

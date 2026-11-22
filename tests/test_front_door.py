@@ -164,13 +164,13 @@ class FrontDoorTests(unittest.TestCase):
         for identity in (
             "./scripts/install.sh --yes",
             "python3 scripts/check_installed_skill.py --check",
-            "python3 scripts/manage_instruction_profile.py install --profile operator-e",
-            "python3 scripts/manage_instruction_profile.py verify --profile operator-e",
+            "python3 scripts/manage_instruction_profile.py install --profile architect",
+            "python3 scripts/manage_instruction_profile.py verify --profile architect",
             'cwo-codex -C "$PWD"',
-            'codex --profile cwo-sol-operator-e -C "$PWD"',
+            'codex --profile cwo-architect -C "$PWD"',
             "python3 scripts/scaffold_workgraph.py",
             "--scaffold-size tight",
-            "configured Sol model",
+            "Sol role",
             "policy/model-roles.yaml",
             "Spark appears in historical records.",
         ):
@@ -196,7 +196,7 @@ class FrontDoorTests(unittest.TestCase):
 
     def test_the_example_is_labelled_recorded_and_keeps_its_limits_beside_it(self) -> None:
         example = section("Example: one project across two fresh sessions")
-        for phrase in ("This is recorded work, not an illustration.",
+        for phrase in ("before the architect prompt replaced Candidate E",
                        "Limits of this record:", "not a novice study, benchmark or cost claim",
                        "`pending-acceptance`", "examples/first-project/VALIDATION.md",
                        "guided practice example"):

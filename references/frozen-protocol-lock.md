@@ -5,9 +5,9 @@ manifest prescribes an experiment controller, task family, candidate set,
 scoring contract, budget, or decision rule. In this setting those fields are
 scope boundaries, not summaries.
 
-The lock prevents general steering such as “proceed,” “repair until complete,”
-or `full_auto` from silently becoming authority to replace a benchmark. Such steering may continue the locked run or authorize
-a same-scope mechanical repair. It does not change the locked experiment.
+Steering can update work within the locked scope. The lock limits changes to
+the typed same-scope repairs below. Replacing the experiment requires separate
+authorization and a new lock.
 
 ## Artifacts
 

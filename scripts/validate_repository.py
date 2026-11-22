@@ -1489,7 +1489,7 @@ def validate_repository() -> list[str]:
         ],
     )
     require_doc_terms(errors, 'docs/get-started.html', ["signed-in Codex command-line client", "github.com/gastownhall/beads", "./install.html", "./first-project.html", "./continue-project.html"])
-    require_doc_terms(errors, 'docs/install.html', ["CODEX_SKILLS_DIR", "manage_instruction_profile.py install --profile operator-e", "manage_instruction_profile.py verify --profile operator-e"])
+    require_doc_terms(errors, 'docs/install.html', ["CODEX_SKILLS_DIR", "manage_instruction_profile.py install --profile architect", "manage_instruction_profile.py verify --profile architect"])
     require_doc_terms(errors, 'docs/first-project.html', ["scripts/create_first_project.py", "bd init", "a CLI task blocked by it", "HANDOFF.md", "cwo-tutorial-start", "provider"])
     require_doc_terms(errors, 'docs/continue-project.html', ["fresh", "HANDOFF.md", "exit 0", "exit 1", "exit 2"])
     require_doc_terms(errors, 'docs/tutorial-recovery.html', ["--uninstall", "git restore", "staged", "managed"])
@@ -1754,7 +1754,7 @@ def validate_repository() -> list[str]:
             "updates",
             "troubleshooting",
             "CODEX_HOME",
-            "modified-managed-file refusal",
+            "modified managed files",
             "Luna-first",
             "Historical",
             "qualification",

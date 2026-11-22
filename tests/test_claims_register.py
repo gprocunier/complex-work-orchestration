@@ -386,10 +386,22 @@ class ClaimsRegisterTests(unittest.TestCase):
             "Signed maintenance approvals",
             "Concurrent native pool contract",
             "Stale-agent cleanup",
-            "Operator prompt qualification",
+            "Architect prompt check",
         ):
             with self.subTest(area=area):
                 self.assertIn(area, register)
+
+    def test_architect_prompt_claim_stays_within_the_small_check(self) -> None:
+        register = (ROOT / "references" / "claims-register.md").read_text(encoding="utf-8")
+        row = next(line for line in register.splitlines() if line.startswith("| Architect prompt check |"))
+        _, claim, limits, evidence = row.strip("|").split("|")
+        self.assertIn("2026-11-22", claim)
+        self.assertIn("passed 11 of 12 cells", claim)
+        self.assertIn("twelfth behaved correctly", claim)
+        self.assertIn("hidden assertion about message wording that the contract did not specify", claim)
+        self.assertIn("comparative rankings", limits)
+        self.assertIn("real-use qualification", limits)
+        self.assertIn("../CHANGELOG.md#unreleased", evidence)
 
     def test_character_references_are_refused_except_basic_entities(self) -> None:
         # All character references except &amp;, &lt;, &gt;, &quot; are refused.

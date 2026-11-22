@@ -73,6 +73,10 @@ Environment:
   CODEX_HOME          Codex home directory; defaults to $HOME/.codex.
   BEADS_COPR          Optional COPR owner/project to show when bd is missing on RPM hosts.
 
+Architect profile (opt-in):
+  The installer prints the profile setup command. Run it separately to
+  install the named profile and launcher.
+
 Interrupted installs:
   The files are copied into a staging directory in the skills directory and
   verified before anything active changes. The existing install is then moved
@@ -538,6 +542,9 @@ main() {
     say "Contractor brief: $skills_dir/$SKILL_NAME/references/contractor-brief.md"
     say "Routing policy: $skills_dir/$SKILL_NAME/policy/routing-policy.yaml"
   fi
+  say "To opt in to the CWO architect profile after installing the skill:"
+  printf '  python3 %q install --profile architect --codex-home %q\n' \
+    "$skills_dir/$SKILL_NAME/scripts/manage_instruction_profile.py" "$codex_home"
 }
 
 main "$@"

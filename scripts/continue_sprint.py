@@ -259,7 +259,7 @@ def dependency_lookup(items: list[dict[str, Any]]) -> dict[str, list[dict[str, A
 def blocker_reasons(item: dict[str, Any], lookup: dict[str, list[dict[str, Any]]]) -> list[str]:
     reasons: list[str] = []
     if item["status"] == "blocked":
-        reasons.append("status blocked requires operator decision")
+        reasons.append("status is blocked")
     label_set = set(item["labels"])
     for label in sorted(label_set & CODEX_BLOCKING_LABELS):
         reasons.append(f"guard label {label} prevents normal Codex pickup")
@@ -514,18 +514,25 @@ def build_continuation_brief(
     return result
 
 
-def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str]:
+def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str | None]:
     recommended = result.get("recommended_next_issue")
+    blocked = result.get("blocked_issues") or []
     resume_commands = result.get("resume_commands") or []
     resume = resume_commands[0] if resume_commands else "bd ready --json"
+    next_action = None
+    waiting_on = None
+    if blocked:
+        first_blocked = blocked[0]
+        waiting_on = f"{first_blocked['id']}: {', '.join(first_blocked['blockers'])}"
     if recommended:
         next_bead = f"{recommended['id']} {recommended['title']}".strip()
+        next_action = f"Continue {next_bead}"
         execution_prompt = (
             "Use $complex-work-orchestration to continue "
             f"{recommended['id']} under epic {result['epic_id']}; start with "
             f"`{resume}` and execute only that bounded lane."
         )
-    elif result.get("blocked_issues"):
+    elif blocked:
         next_bead = "none - blocked"
         execution_prompt = (
             f"DECIDE: epic {result['epic_id']} has no ready issue; resolve the "
@@ -545,6 +552,8 @@ def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str]:
             "and native-pool preflight."
         )
     return {
+        "next_action": next_action,
+        "waiting_on": waiting_on,
         "next_executable_bead": next_bead,
         "why_it_is_next": result.get("why_next") or "No ready work item is available.",
         "exact_command_resume": resume,
@@ -556,7 +565,7 @@ def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str]:
         ),
         "commit_push_status": "not evaluated by continuation helper; report current repo closeout status in the final response",
         "validation_status": "pending for the next lane; use the Definition of Done and evidence expectations above",
-        "escalation_rule": "stop and ask the operator if no ready issue exists, a guard label blocks pickup, or validation cannot run",
+        "escalation_rule": "Record blockers and continue independent work. Bring operator decisions required by project rules to the operator.",
     }
 
 
@@ -632,6 +641,8 @@ def print_text(result: dict[str, Any], *, include_blocked: bool = False) -> None
         print(f"- `{item}`")
     packet = result.get("operator_handoff_packet") or {}
     print("\n## Operator Handoff Packet")
+    print(f"- Next action: {packet.get('next_action')}")
+    print(f"- Waiting on: {packet.get('waiting_on')}")
     print(f"- Next executable Bead: {packet.get('next_executable_bead', '')}")
     print(f"- Why it is next: {packet.get('why_it_is_next', '')}")
     print(f"- Exact command/resume: {packet.get('exact_command_resume', '')}")

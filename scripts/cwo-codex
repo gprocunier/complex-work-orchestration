@@ -1,4 +1,4 @@
 #!/usr/bin/env sh
 set -eu
 
-exec codex --profile cwo-sol-operator-e "$@"
+exec python3 -B -- "$(dirname -- "$0")/launch_architect.py" "$@"

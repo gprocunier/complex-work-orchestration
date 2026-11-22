@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Replace Candidate E with the opt-in CWO architect prompt and move the previous installer choices to history. The profile sets only the instruction file, and `cwo-codex` takes model, reasoning effort and service tier from the Sol routing role. In the 2026-11-22 small check, 11 of 12 cells passed. The twelfth behaved correctly and failed a hidden assertion about message wording that the contract did not specify.
+- Replace the scoped handoff fields with `Next action` and `Waiting on`. The checked continuation state uses version 2 with `next_action` and `waiting_on`.
+
 ## 1.4.0 - 2026-11-22
 
 - Report structured provider safety refusals as terminal blockers in registered native worker failure records.

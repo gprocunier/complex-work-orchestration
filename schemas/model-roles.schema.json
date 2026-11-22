@@ -22,7 +22,9 @@
             "previous": {"type": ["string", "null"], "minLength": 1},
             "selection": {"enum": ["explicit", "latest-in-family"]},
             "pin": {"type": "string", "minLength": 1},
-            "reviewer_rank": {"type": "integer", "minimum": 1}
+            "reviewer_rank": {"type": "integer", "minimum": 1},
+            "reasoning_effort": {"type": "string", "minLength": 1},
+            "service_tier": {"type": "string", "minLength": 1}
           }
         },
         "astra": {

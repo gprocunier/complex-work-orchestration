@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from copy import deepcopy
+import json
 import os
+import shlex
 import subprocess
 import tempfile
 import unittest
@@ -120,8 +123,70 @@ class InstallScriptTests(unittest.TestCase):
             self.assertEqual(install.returncode, 0, install.stderr or install.stdout)
 
             prompts = skills_dir / "complex-work-orchestration" / "prompts"
-            self.assertTrue((prompts / "cwo-sol-operator-e.md").is_file())
+            self.assertTrue((prompts / "cwo-architect.md").is_file())
             self.assertTrue((prompts / "archive" / "cwo-sol-operator-e-v5-qualified.md").is_file())
+
+
+    def test_install_offers_only_architect_and_launches_with_installed_role_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir) / "operator home"
+            codex_home = home / "codex"
+            skills_dir = home / "custom skills"
+            bin_dir = home / "bin"
+            bin_dir.mkdir(parents=True)
+            fake_codex = bin_dir / "codex"
+            fake_codex.write_text("#!/bin/sh\nprintf '%s\\n' \"$PWD\" \"$CODEX_HOME\" \"$@\"\n", encoding="utf-8")
+            fake_codex.chmod(0o755)
+            env = {
+                **os.environ, "HOME": str(home), "CODEX_HOME": str(codex_home),
+                "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+            }
+            install = subprocess.run(
+                [str(ROOT / "scripts" / "install.sh"), "--skills-dir", str(skills_dir), "--yes"],
+                cwd=home, env=env, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(install.returncode, 0, install.stderr or install.stdout)
+            self.assertFalse(codex_home.exists())
+            launcher = home / ".local" / "bin" / "cwo-codex"
+            self.assertFalse(launcher.exists())
+
+            offers = [shlex.split(line) for line in install.stdout.splitlines()
+                      if "manage_instruction_profile.py install" in line]
+            skill = skills_dir / "complex-work-orchestration"
+            self.assertEqual(offers, [[
+                "python3", str(skill / "scripts" / "manage_instruction_profile.py"),
+                "install", "--profile", "architect", "--codex-home", str(codex_home),
+            ]])
+            opt_in = subprocess.run(offers[0], cwd=home, env=env, capture_output=True, text=True, check=False)
+            self.assertEqual(opt_in.returncode, 0, opt_in.stderr)
+
+            routing_file = skill / "policy" / "model-roles.yaml"
+            policy = json.loads(routing_file.read_text(encoding="utf-8"))
+            policy["roles"]["sol"].update(pin="gpt-9.6-sol", reasoning_effort="high", service_tier="fast")
+            routing_file.write_text(json.dumps(policy), encoding="utf-8")
+            launch = subprocess.run(
+                [str(launcher), "-C", str(home), "--ephemeral"],
+                cwd=home, env=env, text=True, capture_output=True, check=False,
+            )
+            self.assertEqual(launch.returncode, 0, launch.stderr)
+            self.assertEqual(launch.stdout.splitlines(), [
+                str(home), str(codex_home),
+                "--profile", "cwo-architect", "-c", 'model="gpt-9.6-sol"',
+                "-c", 'model_reasoning_effort="high"', "-c", 'service_tier="fast"',
+                "-C", str(home), "--ephemeral",
+            ])
+            for missing in ("reasoning_effort", "service_tier"):
+                with self.subTest(missing=missing):
+                    incomplete = deepcopy(policy)
+                    del incomplete["roles"]["sol"][missing]
+                    routing_file.write_text(json.dumps(incomplete), encoding="utf-8")
+                    refused = subprocess.run(
+                        [str(launcher)], cwd=home, env=env, text=True, capture_output=True, check=False,
+                    )
+                    self.assertNotEqual(refused.returncode, 0)
+                    self.assertIn(f"sol {missing}", refused.stderr)
+                    self.assertEqual(refused.stdout, "")
+            self.assertFalse((codex_home / "config.toml").exists())
 
     def test_uninstall_dry_run_keeps_active_install(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
