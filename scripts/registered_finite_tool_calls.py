@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from cwo_core import server_request_preparation as protocol
+from registered_n1_qualification import FINITE_TOOL_NAMESPACE
 
 
 class FiniteToolError(ValueError):
@@ -45,6 +46,8 @@ _SCHEMAS = {_COMMAND: _COMMAND_SCHEMA, _POLL: _POLL_SCHEMA}
 _CAPTURE_NAME = 'finite-tool-capture.json'
 _CAPTURE_TOKEN = object()
 _DECISION_TOKEN = object()
+_HISTORY_PASSTHROUGH = 'internal_chat_message_metadata_passthrough'
+_HISTORY_ITEM_FIELDS = {'id', 'id_allocation', _HISTORY_PASSTHROUGH}
 FAKE_CAPTURE_MODE = 'captured-host-tools'
 LIVE_CAPTURE_MODE = 'captured-live-host-tools'
 CAPTURE_MODES = frozenset({FAKE_CAPTURE_MODE, LIVE_CAPTURE_MODE})
@@ -61,8 +64,12 @@ def _digest(value):
 
 def _tool_specs(*, live_capture=False):
     descriptions = _QUALIFICATION_DESCRIPTIONS if live_capture else _DESCRIPTIONS
-    return [{'type': 'function', 'name': name, 'description': descriptions[name],
-             'inputSchema': copy.deepcopy(_SCHEMAS[name])} for name in (_COMMAND, _POLL)]
+    tools = [{'type': 'function', 'name': name, 'description': descriptions[name],
+              'inputSchema': copy.deepcopy(_SCHEMAS[name])} for name in (_COMMAND, _POLL)]
+    if not live_capture:
+        return tools
+    return [{'type': 'namespace', 'name': FINITE_TOOL_NAMESPACE,
+             'description': 'Registered finite command and empty input poll.', 'tools': tools}]
 
 
 def _response_tools():
@@ -95,6 +102,286 @@ def _unique_object(pairs):
             raise FiniteToolError('Duplicate captured model-request field.')
         value[key] = item
     return value
+
+
+@dataclass
+class _QualifiedCall:
+    request_key: tuple
+    epoch: str
+    tool: str
+    arguments: bytes
+    poll_input: str | None = None
+    reply: tuple[bool, str] | None = None
+    reply_deadline: float | None = None
+    reply_sent: bool = False
+    reply_failed: bool = False
+    completed: bool = False
+
+
+def _typed_reply(content, success):
+    if (type(success) is not bool or type(content) is not list or len(content) != 1
+            or type(content[0]) is not dict or set(content[0]) != {'type', 'text'}
+            or content[0]['type'] != 'inputText' or type(content[0]['text']) is not str):
+        raise FiniteToolError('Qualification requires the original typed finite tool result.')
+    return success, content[0]['text']
+
+
+class QualifiedToolEvidence:
+    """One qualification transport's original call, write and notification facts.
+
+    All mutations occur under the original server request lock. Reads take
+    that lock after the trusted rollout descriptor has been captured.
+    """
+
+    def __init__(self, server):
+        self.server = server
+        self.calls = {}
+        self.completed_turn = None
+        self.settlement = threading.Condition(server.requests.lock)
+
+    @staticmethod
+    def _identity(params):
+        return params['threadId'], params['turnId'], params['callId']
+
+    def admit(self, request, params):
+        identity = self._identity(params)
+        self.calls[identity] = _QualifiedCall(protocol._id_key(request.request_id),
+            self.server.connection_epoch_sha256, params['tool'], _canonical(params['arguments']))
+        self.settlement.notify_all()
+
+    def poll_input(self, observed, outcome, delivered):
+        identity = observed['thread'], observed['turn'], observed['call']
+        with self.server.requests.lock:
+            call = self.calls.get(identity)
+            if (call is None or call.tool != _POLL or call.epoch != observed['epoch']
+                    or call.request_key != protocol._id_key(observed['request_id'])
+                    or call.poll_input is not None or delivered != b''
+                    or outcome not in {'empty-poll', 'refused-nonempty'}):
+                raise FiniteToolError('Qualification poll input observation differs from the original call.')
+            call.poll_input = outcome
+
+    def begin_reply(self, message, response, deadline):
+        result = response.get('result')
+        if result is None:
+            return None
+        params = message['params']
+        call = self.calls.get(self._identity(params))
+        reply = _typed_reply(result.get('contentItems'), result.get('success'))
+        if (call is None or call.epoch != self.server.connection_epoch_sha256
+                or call.request_key != protocol._id_key(message['id']) or call.tool != params['tool']
+                or call.arguments != _canonical(params['arguments']) or call.reply is not None):
+            raise FiniteToolError('Qualification reply differs from the original finite call.')
+        if call.tool == _POLL and call.poll_input != ('empty-poll' if reply[0] else 'refused-nonempty'):
+            if reply[0] or call.poll_input is not None:
+                raise FiniteToolError('Qualification poll result differs from its zero-byte input record.')
+            return None
+        call.reply = reply
+        call.reply_deadline = deadline
+        return call
+
+    def cancel_reply(self, call):
+        if call is not None:
+            if call.completed:
+                self.fail_reply(call)
+                raise FiniteToolError('Qualification completion preceded an unwritten tool reply.')
+            call.reply = None
+            call.reply_deadline = None
+
+    def fail_reply(self, call):
+        if call is not None:
+            with self.settlement:
+                call.reply_failed = True
+                self.settlement.notify_all()
+
+    def finish_reply(self, call, committed):
+        if call is not None:
+            call.reply_sent = committed
+            call.reply_failed = not committed
+            self.settlement.notify_all()
+
+    def observe_turn_terminal(self, params):
+        turn = params.get('turn', {})
+        identity = params.get('threadId'), turn.get('id')
+        if turn.get('status') == 'completed' and self._completion_turn_open(identity):
+            self.completed_turn = identity
+
+    def can_settle_terminal_reply(self, call, turn):
+        return (call is not None and call.completed and not call.reply_failed
+                and self.completed_turn == turn
+                and self.server.transport_failure is None and not self.server.requests.closed
+                and self.server.requests.cancelled_turn != self.completed_turn)
+
+    def _completion_turn_open(self, turn):
+        requests = self.server.requests
+        wire_turn = self.server._wire_turn
+        return (wire_turn is not None and wire_turn[:2] == turn
+                and not requests.closed
+                and turn not in requests.terminals and turn not in requests.trusted_terminals
+                and turn != requests.cancelled_turn and self.server.transport_failure is None)
+
+    def complete(self, params, item):
+        identity = params.get('threadId'), params.get('turnId'), item.get('id')
+        call = self.calls.get(identity)
+        reply = _typed_reply(item.get('contentItems'), item.get('success'))
+        if (call is None or call.epoch != self.server.connection_epoch_sha256
+                or not self._completion_turn_open(identity[:2])
+                or item.get('namespace') != FINITE_TOOL_NAMESPACE or item.get('tool') != call.tool
+                or _canonical(item.get('arguments')) != call.arguments
+                or item.get('status') != ('completed' if reply[0] else 'failed')
+                or call.completed or call.reply != reply):
+            raise FiniteToolError('Qualification completion differs from the original finite reply attempt.')
+        call.completed = True
+        self.settlement.notify_all()
+
+    def completion(self, identity):
+        call = self.calls.get(identity)
+        if call is None or not call.completed:
+            return None
+        return 'committed' if call.reply_sent else 'pending'
+
+    def project(self, thread, turn, records, receipts, terminal):
+        # The reader may observe the durable call before the original callback
+        # is accepted. Only an exact original completion can attest a result.
+        with self.server.requests.lock:
+            self._project(thread, turn, records, receipts, terminal)
+
+    def _project(self, thread, turn, records, receipts, terminal):
+        calls, outputs = _rollout_finite_pairs(records, turn)
+        if len(calls) != len(receipts):
+            raise FiniteToolError('Qualification rollout contains unregistered or unmatched tool activity.')
+        for receipt in receipts:
+            call_id = receipt['call_id']
+            raw = calls.get(call_id)
+            if raw is None or raw[0] != receipt['tool']:
+                raise FiniteToolError('Qualification rollout tool identity differs from the paired receipt.')
+            output = outputs.get(call_id)
+            expected = ('paired', 'paired-unknown') if output is not None else ('unpaired', 'unpaired-call')
+            if (receipt.get('pairing_status'), receipt['typed_result']['kind']) != expected:
+                raise FiniteToolError('Qualification rollout is not one exact direct call and text result.')
+            identity = thread, turn, call_id
+            call = (self._wait_original_call(identity) if output is None and not terminal
+                    else self.calls.get(identity))
+            result = self._result(raw, output, call)
+            if result == 'paired-pending' and terminal:
+                self._wait_terminal_reply(identity[:2], call, output)
+                result = self._result(raw, output, call)
+            receipt['typed_result']['kind'] = result
+            receipt['_registered_finite'] = True
+        if terminal and any(identity[:2] == (thread, turn) and identity[2] not in calls
+                            for identity in self.calls):
+            raise FiniteToolError('Qualification terminal rollout omitted an original finite call.')
+
+    def _wait_original_call(self, identity):
+        # An advancing rollout can briefly lead the protocol reader. Wait
+        # on its existing next obligation with the request lock released.
+        turn = identity[:2]
+        if identity not in self.calls and self._completion_turn_open(turn):
+            lifecycle = self.server.finite_input.lifecycle
+            with lifecycle.condition:
+                deadlines = [entry[2] for entry in lifecycle.pending.values()]
+                if lifecycle.edge_deadline is not None:
+                    deadlines.append(lifecycle.edge_deadline)
+            if deadlines:
+                self.settlement.wait_for(
+                    lambda: identity in self.calls or not self._completion_turn_open(turn),
+                    timeout=max(0, min(deadlines) - time.monotonic()))
+        return self.calls.get(identity)
+
+    def _wait_terminal_reply(self, turn, call, output):
+        # The durable terminal can precede original item intake or full-write
+        # reconciliation. Release the request lock within the original bound.
+        if output is not None and call.reply_deadline is not None:
+            self.settlement.wait_for(lambda: self._reply_settled_or_unavailable(turn, call),
+                                     timeout=max(0, call.reply_deadline - time.monotonic()))
+            if call.completed and call.reply_sent:
+                return
+        raise FiniteToolError('Qualification turn ended before original finite evidence settled.')
+
+    def _reply_settled_or_unavailable(self, turn, call):
+        return (call.reply_failed or (call.completed and call.reply_sent)
+                or not (self._completion_turn_open(turn) or self.can_settle_terminal_reply(call, turn)))
+
+    def _result(self, raw, output, call):
+        if call is None:
+            raise FiniteToolError('Qualification rollout has no original finite callback.')
+        if call.epoch != self.server.connection_epoch_sha256 or (call.tool, call.arguments) != raw:
+            raise FiniteToolError('Qualification rollout arguments differ from the original finite call.')
+        if output is None:
+            return 'paired-pending'
+        if call.reply is None or call.reply[1] != output:
+            raise FiniteToolError('Qualification rollout output differs from the original finite reply.')
+        if not call.completed or not call.reply_sent:
+            return 'paired-pending'
+        return 'paired-success' if call.reply[0] else 'paired-failure'
+
+
+def _rollout_finite_pairs(records, turn):
+    calls, outputs, item_ids = {}, {}, set()
+    for record in records:
+        item = record.get('payload')
+        if record.get('type') != 'response_item' or type(item) is not dict:
+            continue
+        kind = item.get('type')
+        if kind not in ('function_call', 'function_call_output'):
+            continue
+        _check_rollout_history(item, turn)
+        if item['id'] in item_ids:
+            raise FiniteToolError('Qualification rollout metadata repeats a response item ID.')
+        item_ids.add(item['id'])
+        if kind == 'function_call':
+            call, tool, arguments = _rollout_finite_call(item)
+            if call in calls:
+                raise FiniteToolError('Repeated qualification rollout call.')
+            calls[call] = tool, arguments
+        else:
+            call = item.get('call_id')
+            if (set(item) - _HISTORY_ITEM_FIELDS != {'type', 'call_id', 'output'} or not _text(call)
+                    or call not in calls or call in outputs or type(item['output']) is not str):
+                raise FiniteToolError('Qualification rollout output shape or order differs.')
+            outputs[call] = item['output']
+    return calls, outputs
+
+
+def _uint64(value):
+    return type(value) is int and 0 <= value < 2 ** 64
+
+
+def _history_item_allocation(value):
+    return (type(value) is dict and not set(value) - {'prefix', 'salt', 'ordinal', 'value', 'suffix'}
+            and _text(value.get('salt')) and _uint64(value.get('ordinal')) and _uint64(value.get('value'))
+            and all(key not in value or _text(value[key]) for key in ('prefix', 'suffix')))
+
+
+def _history_payload_metadata(item, turn):
+    metadata = item.get(_HISTORY_PASSTHROUGH)
+    if type(metadata) is not dict or set(metadata) - {'turn_id', 'create_time'} or metadata.get('turn_id') != turn:
+        return False
+    created = metadata.get('create_time', 0)
+    return type(created) in (int, float) and 0 <= created < 2 ** 64
+
+
+def _check_rollout_history(item, turn):
+    if (not _text(item.get('id')) or not _history_payload_metadata(item, turn)
+            or ('id_allocation' in item and not _history_item_allocation(item['id_allocation']))):
+        raise FiniteToolError('Qualification rollout metadata differs from the original turn or retained item shape.')
+
+
+def _rollout_finite_call(item):
+    call, tool, arguments = item.get('call_id'), item.get('name'), item.get('arguments')
+    if (set(item) - _HISTORY_ITEM_FIELDS != {'type', 'call_id', 'name', 'namespace', 'arguments'}
+            and set(item) - _HISTORY_ITEM_FIELDS != {'type', 'call_id', 'name', 'namespace', 'arguments', 'status'}):
+        raise FiniteToolError('Qualification rollout call is outside the direct finite namespace.')
+    if (item.get('status', 'completed') != 'completed'
+            or item.get('namespace') != FINITE_TOOL_NAMESPACE or not _text(call)
+            or tool not in (_COMMAND, _POLL) or type(arguments) is not str):
+        raise FiniteToolError('Qualification rollout call is outside the direct finite namespace.')
+    try:
+        parsed = json.loads(arguments, object_pairs_hook=_unique_object)
+        if type(parsed) is dict:
+            return call, tool, _canonical(parsed)
+    except (ValueError, RecursionError) as exc:
+        raise FiniteToolError('Qualification rollout lacks exact finite arguments.') from exc
+    raise FiniteToolError('Qualification rollout lacks exact finite arguments.')
 
 
 class CapturedToolSurface:
@@ -210,6 +497,7 @@ class RegisteredFiniteToolCalls:
         self.server = server
         self.factory = server.factory
         self.live_capture = self.factory.spec.get('finite_tool_mode') == LIVE_CAPTURE_MODE
+        self.namespace = FINITE_TOOL_NAMESPACE if self.live_capture else None
         self.lock = threading.RLock()
         self.state = 'unregistered'
         self.epoch = None
@@ -435,7 +723,7 @@ class RegisteredFiniteToolCalls:
         return (type(item) is dict and item.get('type') == 'dynamicToolCall'
                 and item.get('status') == 'inProgress' and item.get('id') == params['callId']
                 and item.get('tool') == params['tool']
-                and item.get('namespace') is None
+                and item.get('namespace') == self.namespace
                 and item.get('arguments') == params['arguments'])
 
     def _current(self, params):
@@ -509,7 +797,7 @@ class RegisteredFiniteToolCalls:
             raise FiniteToolError(f'Captured {surface} changed after registration.')
 
     @staticmethod
-    def _params(message):
+    def _params(message, *, namespace=None):
         request = protocol.classify_message(message)
         if type(request) is not protocol.ServerRequest or request.method != 'item/tool/call':
             raise FiniteToolError('Only the pinned dynamic tool request is supported.')
@@ -517,7 +805,7 @@ class RegisteredFiniteToolCalls:
         if (set(params) not in ({'arguments', 'callId', 'threadId', 'tool', 'turnId'},
                                 {'arguments', 'callId', 'namespace', 'threadId', 'tool', 'turnId'})
                 or any(not _text(params.get(key)) for key in ('callId', 'threadId', 'turnId'))
-                or params.get('namespace') is not None or params['tool'] not in {_COMMAND, _POLL}
+                or params.get('namespace') != namespace or params['tool'] not in {_COMMAND, _POLL}
                 or type(params['arguments']) is not dict):
             raise FiniteToolError('Dynamic tool identity or fields differ.')
         return request, params
@@ -529,7 +817,7 @@ class RegisteredFiniteToolCalls:
         bounded protocol writer. A refusal returns a method-valid failure,
         never an accepting substitute.
         """
-        request, params = self._params(message)
+        request, params = self._params(message, namespace=self.namespace)
         deadline = self._deadline_or_default(deadline)
         self._require_capture_current()
         with self.lock, self.server.requests.lock:
@@ -540,6 +828,8 @@ class RegisteredFiniteToolCalls:
                 raise FiniteToolError('Stale, repeated or mismatched tool call.')
             self.calls.update((call, key))
             self.inflight = call
+            if self.live_capture:
+                self.server.qualified_tool_evidence.admit(request, params)
         try:
             self.server.finite_input.lifecycle.require_request(key, call)
             self._require_deadline(deadline)

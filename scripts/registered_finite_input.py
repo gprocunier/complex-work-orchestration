@@ -198,6 +198,16 @@ class _FiniteLifecycle:
                     and binding[2:4] not in self.authority_revoked_turns
                     and binding[1] not in self.authority_revoked_requests)
 
+    def authority_terminal_reply_sent(self, ticket, binding):
+        """Read a full historical write without restoring any terminal authority."""
+        with self.condition:
+            return (self.phase == 'terminal' and not self.authority_global_revoked
+                    and binding[2:4] in self.authority_revoked_turns
+                    and binding[1] not in self.authority_revoked_requests
+                    and ticket[1] in ('tool-reply', 'tool-refusal')
+                    and self.authority_commits.get((ticket[1], binding)) == ticket
+                    and self.authority_attempt_results.get(ticket) == 'wire-sent')
+
     def authority_revoke(self, kind, scope=None):
         """Latch a negative before any public registry flag or blocked observer."""
         with self.condition:
@@ -724,7 +734,7 @@ class RegisteredFiniteInput:
                     or producer.process is not self.process
                     or type(item) is not dict or item.get('type') != 'dynamicToolCall'
                     or item.get('id') != call or item.get('tool') != 'finite_command'
-                    or item.get('namespace') is not None
+                    or item.get('namespace') != producer.namespace
                     or item.get('arguments') != {'command': self.factory.spec['command']}
                     or self.server._wire_turn is None or self.server._wire_turn[:2] != (thread, turn)):
                 raise FiniteInputError('The original dynamic command binding differs.')
@@ -862,6 +872,7 @@ class RegisteredFiniteInput:
         self.factory.record('finite-tool-input', {
             **captured, 'outcome': outcome, 'delivered_bytes': len(delivered),
             'delivered_sha256': hashlib.sha256(delivered).hexdigest()})
+        self.server.qualified_tool_evidence.poll_input(captured, outcome, delivered)
 
     def reserve(self, chars, *, thread_id, turn_id, item_id, approval_id, deadline, captured=None):
         """Consume an identity even on denial; never cache a declined input."""
@@ -1132,9 +1143,10 @@ class RegisteredFiniteInput:
     def _current_item(self, thread, turn, item, approval):
         if self.dynamic_command is not None:
             observed = self.server._items.get((thread, turn, approval))
+            producer = self.server.finite_tools
             return (type(observed) is dict and observed.get('type') == 'dynamicToolCall'
                     and observed.get('status') == 'inProgress' and observed.get('id') == approval
-                    and observed.get('tool') == 'finite_poll' and observed.get('namespace') is None
+                    and observed.get('tool') == 'finite_poll' and observed.get('namespace') == producer.namespace
                     and observed.get('arguments') == {'commandCallId': item, 'chars': ''})
         observed = self.server._items.get((thread, turn, item))
         return (type(observed) is dict
@@ -1503,22 +1515,50 @@ class RegisteredFiniteInput:
                 return False
             binding = (issued.epoch, message['id'], item[0], item[1], item[2],
                        message['params'].get('callId'))
-            dispatch = self.lifecycle.authority_dispatch('tool-reply', binding) if success else None
-            if success and dispatch is None:
-                raise FiniteInputError('The finite reply lost shared authority.')
+            evidence = self.server.qualified_tool_evidence
+            qualified = None if evidence is None else evidence.begin_reply(message, response, deadline)
+            dispatch = self._dispatch_tool_reply(binding, success, evidence, qualified)
         try:
             written = self._write_reply_frame(writer, frame, response, deadline)
         except BaseException as primary:
             self._record_reply_failure(dispatch, primary)
+            if qualified is not None:
+                evidence.fail_reply(qualified)
             raise
         if dispatch is not None:
             self.lifecycle.authority_result(dispatch, 'wire-sent' if written else 'not-sent')
-        if not written:
-            return False
+        return self._finish_reply_publication(producer, message, response, item, dispatch, binding,
+                                              written, evidence, qualified)
+
+    def _dispatch_tool_reply(self, binding, success, evidence, qualified):
+        if not success and (qualified is None or qualified.poll_input != 'refused-nonempty'):
+            return None
+        kind = 'tool-reply' if success else 'tool-refusal'
+        dispatch = self.lifecycle.authority_dispatch(kind, binding)
+        if dispatch is None:
+            if qualified is not None:
+                evidence.fail_reply(qualified)
+            raise FiniteInputError('The finite reply lost shared authority.')
+        return dispatch
+
+    def _finish_reply_publication(self, producer, message, response, item, dispatch, binding,
+                                  written, evidence, qualified):
         with producer.lock, self.lock, self.server.requests.lock, self.lifecycle.condition:
+            if not written:
+                if qualified is not None:
+                    evidence.cancel_reply(qualified)
+                return False
             if dispatch is not None and not self.lifecycle.authority_reply_finishable(binding):
+                if (evidence is not None and evidence.can_settle_terminal_reply(qualified, binding[2:4])
+                        and self.lifecycle.authority_terminal_reply_sent(dispatch, binding)):
+                    evidence.finish_reply(qualified, True)
+                    return True
+                if qualified is not None:
+                    evidence.fail_reply(qualified)
                 raise FiniteInputError('The prior-inflight tool reply is ambiguous.')
-            self.server._mark_command_reply(message, response, item)
+            committed = self.server._mark_command_reply(message, response, item)
+            if qualified is not None:
+                evidence.finish_reply(qualified, committed is True)
             self.server._sync_finite_progress_locked()
             return True
 

@@ -268,7 +268,7 @@ def _configuration(spec, worker):
                 'permissions': {spec['thread_start']['permissions']: {
                     'filesystem': {'/': 'deny', str(worker): 'write'}, 'network': {'enabled': False}}}}
     if qualification.MODEL_SELECTION in spec:
-        expected['features'] = qualification.disabled_features()
+        expected['features'] = qualification.configuration_features()
         expected['permissions'][spec['thread_start']['permissions']]['filesystem'][str(worker)] = 'read'
     _need(config == expected, "Registered configuration selectors, roots, hooks or network differ.")
 
@@ -628,6 +628,12 @@ class _Containment:
         server.finite_tools._require_capture_current()
         server.finite_tools.require_launch(tool_call, deadline, tool_decision)
 
+    def _preflight_qualification_schema(self):
+        factory = self.factory
+        if self.role == 'appserver' and type(factory) is RegisteredN1Factory and factory.qualification is not None:
+            qualification.require_executable_schema(factory.spec['executable'], factory.spec['executable_sha256'])
+            factory.require_effect()
+
     def launch(self, command, home, *, tool_call=None, deadline=None, tool_decision=None):
         _require_launch_selection(self.factory)
         self.factory.require_effect()
@@ -636,6 +642,7 @@ class _Containment:
               or (self.role == 'validator' and command == [self.factory.spec['validator'], '-I', '-S', '-c', _VALIDATOR]),
               "The trusted containment role has no other executable allowance.")
         self._preflight_tool_launch(tool_call, deadline, tool_decision)
+        self._preflight_qualification_schema()
         self.command = tuple(command)
         read_gate, write_gate, read_info, write_info = self._launch_pipes()
         try:
@@ -1119,6 +1126,8 @@ class _RegisteredServer(RegisteredAppServer):
         self.requests = _CoherentServerRequests(self)
         self.finite_input = RegisteredFiniteInput(factory, self)
         self.finite_tools = None
+        self.qualified_tool_evidence = (finite_calls.QualifiedToolEvidence(self)
+                                        if _qualification_operation_metadata(factory) is not None else None)
         self._tool_queue = None
         self._tool_cleanup_lock = threading.Lock()
         self._tool_cleanup_scheduled = False
@@ -1191,6 +1200,9 @@ class _RegisteredServer(RegisteredAppServer):
         method = message.get('method')
         params = message.get('params', {})
         item = params.get('item', {})
+        if self.qualified_tool_evidence is not None:
+            self._observe_qualified_tool_item(method, params, item)
+            return
         if method == 'item/started':
             _need(item.get('type') not in {'commandExecution', 'fileChange'},
                   "Selected finite tools refuse uncontrolled builtin execution or writes.")
@@ -1202,6 +1214,28 @@ class _RegisteredServer(RegisteredAppServer):
                            or self.finite_input.lifecycle.command_reply_dispatched(identity)),
                       "The original finite command completion must follow its dispatched reply.")
 
+    def _observe_qualified_tool_item(self, method, params, item):
+        if method == 'turn/completed':
+            with self.requests.lock:
+                self.qualified_tool_evidence.observe_turn_terminal(params)
+            return
+        if method == 'item/started':
+            _need(item.get('type') not in {'commandExecution', 'fileChange'},
+                  'Selected finite tools refuse uncontrolled builtin execution or writes.')
+            if item.get('type') == 'dynamicToolCall':
+                _need(item.get('namespace') == qualification.FINITE_TOOL_NAMESPACE
+                      and item.get('tool') in ('finite_command', 'finite_poll')
+                      and item.get('status') == 'inProgress'
+                      and item.get('contentItems') is None and item.get('success') is None,
+                      'Qualification requires an original direct finite tool item.')
+        if method == 'item/completed':
+            with self.requests.lock:
+                identity = params.get('threadId'), params.get('turnId'), item.get('id')
+                started = self._items.get(identity, {})
+                if started.get('type') == 'dynamicToolCall' or item.get('type') == 'dynamicToolCall':
+                    _need(item.get('type') == 'dynamicToolCall', 'Qualification completion must be typed.')
+                    self.qualified_tool_evidence.complete(params, item)
+
     def _sync_finite_progress_locked(self):
         """Reconcile selected original facts under requests -> reducer.
 
@@ -1210,6 +1244,8 @@ class _RegisteredServer(RegisteredAppServer):
         """
         if self.finite_tools is None:
             return
+        if self.qualified_tool_evidence is not None:
+            self.qualified_tool_evidence.settlement.notify_all()
         lifecycle = self.finite_input.lifecycle
         with lifecycle.condition:
             if self.transport_failure is not None:
@@ -1237,6 +1273,9 @@ class _RegisteredServer(RegisteredAppServer):
         command = self.finite_tools.command_call_id
         if command is None or (*turn, command) not in self.requests.completed_items:
             return False
+        evidence = self.qualified_tool_evidence
+        if evidence is not None and evidence.completion((*turn, command)) != 'committed':
+            return False
         if lifecycle.phase == 'command-replied':
             lifecycle.complete(turn, command)
         elif lifecycle.phase == 'command-effect' and lifecycle.command_reply_dispatched(
@@ -1253,6 +1292,11 @@ class _RegisteredServer(RegisteredAppServer):
 
     def _completed_unreplied_item_locked(self, lifecycle, turn):
         command = self.finite_tools.command_call_id
+        evidence = self.qualified_tool_evidence
+        if evidence is not None:
+            return any((*turn, entry[1]) in self.requests.completed_items
+                       and evidence.completion((*turn, entry[1])) != 'pending'
+                       for entry in lifecycle.pending.values())
         return any((*turn, entry[1]) in self.requests.completed_items
                    and not (entry[1] == command and lifecycle.phase == 'command-effect'
                             and lifecycle.command_reply_dispatched((*turn, command)))
@@ -1550,7 +1594,7 @@ class _RegisteredServer(RegisteredAppServer):
         tool = message.get('params', {}).get('tool')
         if success and tool == 'finite_command':
             self._command_reply_committed = item
-        self.finite_input.lifecycle.reply(
+        return self.finite_input.lifecycle.reply(
             protocol._id_key(message['id']), tool,
             message.get('params', {}).get('callId'), success)
 
@@ -1733,6 +1777,26 @@ def _check_response(factory, params, response):
 class RegisteredAdapter(native.LiveThreadAdapter):
     """Original driver with a registered profile/custody validation boundary."""
 
+    def _registered_tool_projector(self):
+        factory = _ADAPTERS.get(self)
+        _need(factory is not None and factory.server is self.server,
+              'Only the original adapter may observe finite reply evidence.')
+        evidence = self.server.qualified_tool_evidence
+        if evidence is None:
+            return None
+        return lambda turn, records, receipts, terminal: evidence.project(
+            self.thread_id, turn, records, receipts, terminal)
+
+    def _observe_forbidden_tool_activity(self, boundary):
+        if self.server.qualified_tool_evidence is not None:
+            # The descriptor-bound projector has already validated every
+            # finite activity row against the original qualification transport.
+            boundary = dict(boundary, trusted_tool_activity=[
+                row for row in boundary.get('trusted_tool_activity', [])
+                if not (row.get('registered_finite') is True
+                        and row.get('tool') in ('finite_command', 'finite_poll'))])
+        return super()._observe_forbidden_tool_activity(boundary)
+
     def _timed(self, name, action):
         try:
             if name == 'check':
@@ -1829,10 +1893,14 @@ _RECORD_BOUNDARY = RegisteredAdapter._record_complete_boundary_locked
 _TIMED = RegisteredAdapter._timed
 _CURRENT_BOUNDARY = RegisteredAdapter._current_effective_boundary
 _FINAL_SUMMARY = RegisteredAdapter.final_summary
+_TOOL_PROJECTOR = RegisteredAdapter._registered_tool_projector
+_FORBIDDEN_TOOLS = RegisteredAdapter._observe_forbidden_tool_activity
 
 
 def _registered_adapter_method(name, original):
     return {'_validate_effective_boundary': _VALIDATE,
+            '_registered_tool_projector': _TOOL_PROJECTOR,
+            '_observe_forbidden_tool_activity': _FORBIDDEN_TOOLS,
             '_record_complete_boundary_locked': _RECORD_BOUNDARY,
             '_timed': _TIMED, '_current_effective_boundary': _CURRENT_BOUNDARY,
             'final_summary': _FINAL_SUMMARY}.get(name, original)

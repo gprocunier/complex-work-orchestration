@@ -2492,6 +2492,20 @@ def _normalize_expected_tool_trace(
     return normalized
 
 
+def _bind_receipt_workdirs(receipts, workdir):
+    for receipt in receipts:
+        binding = _exec_workdir_binding(receipt, workdir)
+        receipt["_workdir_binding"] = binding
+        typed_result = receipt.get("typed_result")
+        if (
+            isinstance(typed_result, dict)
+            and typed_result.get("kind") == "paired-input-error"
+            and isinstance(binding, Mapping)
+            and binding.get("disposition") == "recoverable-nonexistent-workdir"
+        ):
+            typed_result["kind"] = "paired-recoverable-workdir-input-error"
+
+
 def trusted_tool_evidence_summary(
     records: list[Mapping[str, Any]],
     *,
@@ -2499,6 +2513,7 @@ def trusted_tool_evidence_summary(
     terminal_event: Mapping[str, Any] | None = None,
     tool_transport: str = DIRECT_TOOL_TRANSPORT,
     expected_workdir: Path | str | None = None,
+    registered_tool_projector: Callable[..., None] | None = None,
 ) -> dict[str, Any]:
     """Summarize tool activity only from the descriptor-bound session boundary."""
 
@@ -2550,15 +2565,18 @@ def trusted_tool_evidence_summary(
         if expected_workdir is not None
         else None
     )
+    tool_records = records[start_index + 1 : end_index]
     receipts = normalize_action_receipts(
-        records[start_index + 1 : end_index],
+        tool_records,
         segment_id=turn_id,
         tool_transport=tool_transport,
         include_private_transport_evidence=controller_workdir is not None,
     )
     calls = list(receipts)
+    if registered_tool_projector is not None:
+        registered_tool_projector(turn_id, tool_records, calls, terminal_event is not None)
     authority_receipts = _trusted_tool_authority_receipts(
-        records[start_index + 1 : end_index],
+        tool_records,
         calls,
         tool_transport=tool_transport,
     )
@@ -2605,17 +2623,7 @@ def trusted_tool_evidence_summary(
             calls,
             tool_transport=tool_transport,
         )
-    for receipt in calls:
-        binding = _exec_workdir_binding(receipt, controller_workdir)
-        receipt["_workdir_binding"] = binding
-        typed_result = receipt.get("typed_result")
-        if (
-            isinstance(typed_result, dict)
-            and typed_result.get("kind") == "paired-input-error"
-            and isinstance(binding, Mapping)
-            and binding.get("disposition") == "recoverable-nonexistent-workdir"
-        ):
-            typed_result["kind"] = "paired-recoverable-workdir-input-error"
+    _bind_receipt_workdirs(calls, controller_workdir)
     completed = [
         receipt
         for receipt in calls
@@ -2624,6 +2632,8 @@ def trusted_tool_evidence_summary(
             receipt.get("typed_result", {}).get("kind")
             not in {"paired-interrupted", "paired-pending"}
         )
+        and (not receipt.get("_registered_finite")
+             or receipt["typed_result"]["kind"] == "paired-success")
     ]
     trusted_receipts = [
         _tool_receipt_projection(receipt) for receipt in calls
@@ -2682,14 +2692,15 @@ def trusted_tool_evidence_summary(
             "pairing_status": receipt.get("pairing_status"),
             "workdir_binding": workdir_binding,
         }
-        trusted_activity.append(
-            {
-                "tool": tool,
-                "evidence_sha256": canonical_sha256(activity_payload),
-                "pairing_status": receipt.get("pairing_status"),
-                "result_kind": result_kind,
-            }
-        )
+        activity = {
+            "tool": tool,
+            "evidence_sha256": canonical_sha256(activity_payload),
+            "pairing_status": receipt.get("pairing_status"),
+            "result_kind": result_kind,
+        }
+        if receipt.get("_registered_finite") is True:
+            activity["registered_finite"] = True
+        trusted_activity.append(activity)
     evidence_sha256 = sorted(
         canonical_sha256(
             {
@@ -2730,6 +2741,7 @@ def session_boundary_summary(
     expected_source_identity_sha256: str | None = None,
     tool_transport: str = DIRECT_TOOL_TRANSPORT,
     expected_workdir: Path | str | None = None,
+    registered_tool_projector: Callable[..., None] | None = None,
 ) -> dict[str, Any]:
     try:
         located, boundary, records = capture_unique_boundary(
@@ -2813,6 +2825,7 @@ def session_boundary_summary(
         terminal_event=terminal_event,
         tool_transport=tool_transport,
         expected_workdir=controller_workdir,
+        registered_tool_projector=registered_tool_projector,
     )
     return {
         "available": True,
@@ -4533,6 +4546,9 @@ class LiveThreadAdapter:
         self._pending_window_is_open_locked()
         return True
 
+    def _registered_tool_projector(self):
+        return None
+
     def _capture_trusted_boundary(self, *, allow_pending: bool) -> dict[str, Any]:
         with self._boundary_lock:
             pending_phase = self._boundary_phase in {
@@ -4557,6 +4573,7 @@ class LiveThreadAdapter:
                 expected_source_identity_sha256=self._session_source_identity_sha256,
                 tool_transport=self.tool_transport,
                 expected_workdir=self.worktree,
+                registered_tool_projector=self._registered_tool_projector(),
             )
             if boundary["available"]:
                 return self._record_complete_boundary_locked(boundary)
@@ -4589,6 +4606,7 @@ class LiveThreadAdapter:
                 expected_source_identity_sha256=None,
                 tool_transport=self.tool_transport,
                 expected_workdir=self.worktree,
+                registered_tool_projector=self._registered_tool_projector(),
             )
             if boundary["available"]:
                 return self._record_complete_boundary_locked(boundary)
