@@ -1,9 +1,10 @@
-"""Offline selected-native probes; runtime coverage requires the exact package."""
+"""Offline selected-native probes with an explicitly supplied Codex executable."""
 from __future__ import annotations
 
 import array
 import contextlib
 import dataclasses
+import hashlib
 import json
 import os
 import select
@@ -61,17 +62,13 @@ assert ctypes.CDLL(None).prctl(1,0,0,0,0)==0
 
 
 class PrivatePidReuseContractTests(unittest.TestCase):
-    def test_missing_or_changed_selected_package_refuses_before_driver_effects(self):
-        for missing in (True, False):
-            with self.subTest(missing=missing):
-                with patch.object(selected, '_regular', return_value='0' * 64,
-                        side_effect=FileNotFoundError('EXAMPLE missing package') if missing else None), \
-                        patch.object(selected.owned.atomic_spawn, 'supported') as supported, \
-                        patch.object(selected.tempfile, 'TemporaryDirectory') as temporary:
-                    with self.assertRaises(selected.SelectedProbeError):
-                        selected._PrivatePidReuseOwner(ROOT)
-                supported.assert_not_called()
-                temporary.assert_not_called()
+    def test_missing_selected_executable_refuses_before_driver_effects(self):
+        with patch.object(selected.owned.atomic_spawn, 'supported') as supported, \
+                patch.object(selected.tempfile, 'TemporaryDirectory') as temporary:
+            with self.assertRaises(selected.SelectedProbeError):
+                selected._PrivatePidReuseOwner(ROOT)
+        supported.assert_not_called()
+        temporary.assert_not_called()
 
     def test_host_uid_map_boundary_requires_fixed_outer_bootstrap(self):
         """Inspect the sanctioned bootstrap contract; this is not OS-enforcement credit."""
@@ -80,7 +77,7 @@ class PrivatePidReuseContractTests(unittest.TestCase):
         owner.bwrap = ('/EXAMPLE/bwrap', (1, 2))
         owner.unshare = ('/EXAMPLE/unshare', (1, 3))
         owner.python = ('/EXAMPLE/python', (1, 4))
-        owner.root, owner.package, owner.host_namespaces = Path('/EXAMPLE/owned'), '', {}
+        owner.root, owner.selection, owner.host_namespaces = Path('/EXAMPLE/owned'), '', {}
         owner.scratch = owner.root / 'temporary'
         command = owner._command(37)
         self.assertEqual(command[:3], [owner.timeout[0], '--signal=KILL', '20'])
@@ -934,9 +931,111 @@ class StableBirthContractTests(unittest.TestCase):
 
 
 class SelectedContainmentContractTests(unittest.TestCase):
-    def test_package_identity_refuses_before_child_creation(self):
+    def executable(self, path, content):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        path.chmod(0o700)
+        return path
+
+    def test_missing_package_executable_refuses_before_child_creation(self):
         with self.assertRaises(selected.SelectedProbeError):
             selected.SelectedNativeProbe(ROOT)
+
+    def test_capabilities_admit_a_standalone_executable_without_a_package_manifest(self):
+        with tempfile.TemporaryDirectory() as root:
+            binary = self.executable(Path(root) / 'bin/codex', b'other Codex bytes')
+            with patch.object(selected, 'check_codex_capabilities', create=True) as check, \
+                    patch.object(selected.SelectedNativeProbe, '_initialize') as initialize:
+                probe = selected.SelectedNativeProbe(Path(root))
+            self.assertEqual(probe.binary, binary)
+            self.assertEqual(check.call_args.args, (binary,))
+            self.assertTrue(callable(check.call_args.kwargs['launcher']))
+            initialize.assert_called_once_with()
+
+    def test_capability_gap_names_the_method_before_probe_effects(self):
+        from cwo_core.codex_protocol_capabilities import CapabilityError
+
+        with tempfile.TemporaryDirectory() as root:
+            binary = self.executable(Path(root) / 'codex', b'new Codex bytes')
+            with patch.object(selected, 'check_codex_capabilities', create=True,
+                    side_effect=CapabilityError('missing App Server method command/exec/write')) as check, \
+                    patch.object(selected.SelectedNativeProbe, '_initialize') as initialize:
+                with self.assertRaisesRegex(selected.SelectedProbeError, 'command/exec/write'):
+                    selected.SelectedNativeProbe(codex=binary)
+            check.assert_called_once()
+            initialize.assert_not_called()
+
+    def test_capabilities_and_launch_bind_the_observed_executable(self):
+        with tempfile.TemporaryDirectory() as root, \
+                patch.object(selected, 'check_codex_capabilities', create=True) as check, \
+                patch.object(selected.SelectedNativeProbe, '_initialize'):
+            binary = self.executable(Path(root) / 'codex', b'checked bytes')
+            alias = binary.with_name('installed-codex')
+            alias.symlink_to(binary)
+            probe = selected.SelectedNativeProbe(codex=alias)
+            self.assertEqual(check.call_args.args, (binary,))
+            replacement = self.executable(Path(root) / 'replacement', binary.read_bytes())
+            replacement.replace(binary)
+            with self.assertRaisesRegex(selected.SelectedProbeError, 'changed'):
+                probe._check_identity()
+
+    def test_capability_check_rechecks_executable_bytes_before_initializing(self):
+        with tempfile.TemporaryDirectory() as root:
+            binary = self.executable(Path(root) / 'codex', b'original bytes')
+            with patch.object(selected, 'check_codex_capabilities', create=True,
+                    side_effect=lambda *_args, **_kwargs: binary.write_bytes(b'substituted bytes')), \
+                    patch.object(selected.SelectedNativeProbe, '_initialize') as initialize:
+                with self.assertRaisesRegex(selected.SelectedProbeError, 'changed'):
+                    selected.SelectedNativeProbe(codex=binary)
+            initialize.assert_not_called()
+
+    def test_schema_generation_mounts_only_the_executable_runtime_and_scratch(self):
+        binary = Path('/EXAMPLE/selected/codex')
+        scratch = Path('/EXAMPLE/capability-scratch')
+        with patch.object(selected, '_fixed_launcher', return_value=Path('/usr/bin/bwrap')):
+            argv = selected._schema_launcher(scratch, binary, ['EXAMPLE-sha256', []])
+        self.assertIn('--unshare-all', argv)
+        binds = [argv[index:index + 3] for index, value in enumerate(argv) if value in {'--bind', '--ro-bind'}]
+        self.assertEqual(binds, [
+            *[['--ro-bind', directory, directory] for directory in selected._RUNTIME],
+            ['--ro-bind', str(binary), str(binary)],
+            ['--bind', str(scratch), str(scratch)],
+        ])
+        self.assertEqual(argv[argv.index('--remount-ro') + 1], '/')
+
+    def test_pid_reuse_child_refuses_executable_changed_since_parent_observation(self):
+        with tempfile.TemporaryDirectory() as root:
+            binary = self.executable(Path(root) / 'codex', b'checked bytes')
+            context = json.dumps([str(binary), selected._observe_binary(binary)])
+            self.executable(binary, b'changed bytes')
+            with patch.object(selected, 'check_codex_capabilities', create=True) as check, \
+                    patch.object(selected.SelectedNativeProbe, '_initialize') as initialize:
+                with self.assertRaisesRegex(selected.SelectedProbeError, 'changed'):
+                    selected._reuse_original(Path(root), context)
+            check.assert_not_called()
+            initialize.assert_not_called()
+
+    def test_pid_reuse_result_must_match_parent_identity_and_literal_configuration(self):
+        with tempfile.TemporaryDirectory() as root:
+            binary = self.executable(Path(root) / 'codex', b'checked bytes')
+            owner = object.__new__(selected._PrivatePidReuseOwner)
+            owner.binary = binary
+            owner.target = {'id': 'EXAMPLE-target'}
+            owner._binary_identity = selected._observe_binary(binary)
+            report = {'selected_executable_sha256': owner._binary_identity[0],
+                      'selected_target_id': owner.target['id'],
+                      'configuration': {'sandbox_mode': 'workspace-write', 'approval_policy': 'never',
+                                        'network_access': False}}
+            owner._verify_selected_result(report)
+            wrong_identity = {**report, 'selected_executable_sha256': '0' * 64}
+            with self.assertRaisesRegex(selected.SelectedProbeError, 'identity'):
+                owner._verify_selected_result(wrong_identity)
+            wrong_configuration = {**report, 'configuration': {**report['configuration'], 'network_access': 0}}
+            with self.assertRaisesRegex(selected.SelectedProbeError, 'configuration'):
+                owner._verify_selected_result(wrong_configuration)
+            self.executable(binary, b'changed after startup')
+            with self.assertRaisesRegex(selected.SelectedProbeError, 'identity'):
+                owner._verify_selected_result(report)
 
     def test_unsupported_atomic_backend_refuses_before_repository_or_child_effects(self):
         probe = object.__new__(selected.SelectedNativeProbe)
@@ -1486,7 +1585,7 @@ def _await_live_heartbeat(test, process, descriptor, heartbeat, deadline):
     test.fail('Detached descendant did not produce live heartbeat growth within the original startup budget')
 
 
-@unittest.skipUnless(os.environ.get('CWO_QUALIFICATION_PACKAGE'), 'Exact standalone package not supplied')
+@unittest.skipUnless(os.environ.get('CWO_QUALIFICATION_PACKAGE'), 'Standalone package path not supplied')
 class SelectedNativeOSProbeTests(unittest.TestCase):
     def setUp(self):
         _require_os_prerequisites(self)
@@ -1577,10 +1676,13 @@ class SelectedNativeOSProbeTests(unittest.TestCase):
 
 
     def test_private_pid_reuse_repeats_the_exact_selected_launcher_scope(self):
-        report = selected.probe_pid_reuse(Path(os.environ['CWO_QUALIFICATION_PACKAGE']))
+        package = Path(os.environ['CWO_QUALIFICATION_PACKAGE'])
+        with (package / 'bin/codex').open('rb') as stream:
+            expected = hashlib.file_digest(stream, 'sha256').hexdigest()
+        report = selected.probe_pid_reuse(package)
         self.assertEqual(report['scope'], 'selected-runner-launcher-pid-reuse')
-        self.assertEqual(report['selected_executable_sha256'],
-                         '399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215')
+        self.assertEqual(report['selected_executable_sha256'], expected)
+        self.assertEqual(report['selected_target_id'], 'codex-constrained-integrity')
         self.assertEqual(report['configuration'], {'sandbox_mode': 'workspace-write',
                          'approval_policy': 'never', 'network_access': False})
         self.assertEqual(report['original_pid'], report['sentinel_pid'])

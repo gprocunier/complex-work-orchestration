@@ -1,8 +1,7 @@
 # Codex hook enforcement disposition
 
-Hook-based enforcement is **unsupported and ineligible** on the pinned Codex
-versions (0.163.0 and 0.162.0). This disposition completes the investigation on
-the pinned versions, not the feature.
+Hook-based enforcement is **unsupported and ineligible**. The historical
+investigation covered Codex 0.163.0 and 0.162.0.
 
 ## Status
 
@@ -10,9 +9,9 @@ the pinned versions, not the feature.
 injection (Beads lifecycle hooks) where the output is treated as context, not
 authority.
 
-## Facts (pinned versions 0.163.0 and 0.162.0)
+## Historical findings for 0.163.0 and 0.162.0
 
-Source inspection of the pinned Codex versions (source at `c1382380`) establishes:
+The historical source inspection (source at `c1382380`) recorded these findings.
 
 1. **PreToolUse leaves should_block=false** on execution or JSON failures, so it
    fails the proposed sole-gate fail-closed requirement.
@@ -28,7 +27,7 @@ Source inspection of the pinned Codex versions (source at `c1382380`) establishe
 
 These facts do not mean every hook failure directly approves an action, but they
 do mean the mechanisms are not equivalent and cannot provide fail-closed
-enforcement on the pinned versions.
+enforcement on the investigated versions.
 
 ## Enforcement ineligibility
 
@@ -63,7 +62,7 @@ does not authorize enforcement on any version.
 
 ## Policy enforcement
 
-Unsupported versions refuse enforcement-mode configuration.
+CWO refuses enforcement-mode configuration on all versions.
 `validate_advisory_hook_configuration()` in
 `scripts/cwo_core/codex_hook_enforcement.py` is the single validation path. The
 hooks writer, `configure_codex_beads_hooks.py` (before rendering and before
@@ -81,8 +80,9 @@ positive allowlist and refuses everything else:
   `statusMessage` (a string) and `visibilityHint` (`quiet` or `verbose`).
   Commands match exactly, so shell chains, comments and another event's
   argument are refused.
-- PreToolUse and PermissionRequest are refused by name, before their contents
-  are inspected, citing the pinned versions in `policy/codex-protocol-pins.yaml`.
+- PreToolUse and PermissionRequest are refused by name before inspection of
+  their contents. `policy/codex-protocol-pins.yaml` preserves the historical
+  protocol fixtures.
 - Malformed structure is refused: a non-object document, a non-object `hooks`,
   groups that are not a list, unknown keys, empty hook lists and duplicate JSON
   keys in the hooks file.
@@ -95,8 +95,8 @@ positive allowlist and refuses everything else:
 
 ## Future eligibility
 
-Any future host-bound hook implementation requires new exact-version eligibility
-and source/runtime evidence. The pinned unsupported disposition remains in force.
+Any future host-bound hook implementation requires new source and runtime
+eligibility evidence for the exact implementation under review.
 
 ## References
 

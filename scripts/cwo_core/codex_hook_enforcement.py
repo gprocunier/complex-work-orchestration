@@ -1,7 +1,6 @@
 """Codex hook enforcement disposition and advisory hook allowlist.
 
-Hook-based enforcement is unsupported and ineligible on the pinned Codex versions
-(0.163.0 and 0.162.0). Advisory Beads lifecycle hooks are permitted only as an
+Hook-based enforcement is unsupported. Advisory Beads lifecycle hooks are permitted only as an
 exact positive allowlist: the qualified events, the allowed hook type, and the
 exact commands that ``scripts/configure_codex_beads_hooks.py`` writes. Anything
 else, including malformed structure, is refused.
@@ -13,7 +12,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from .codex_protocol_pin import load_pins
 from .errors import CWOValidationError
 
 
@@ -76,30 +74,6 @@ def _keys(values: Any) -> list[str]:
     return sorted(str(value) for value in values)
 
 
-def check_pinned_versions_ineligible(*, context: str | None = None, events: list[str] | None = None) -> None:
-    """Refuse hook-based enforcement on the pinned Codex versions. Always raises."""
-    try:
-        pins = load_pins()
-    except Exception as exc:
-        raise CWOValidationError(
-            f"codex protocol pins not loaded; cannot verify enforcement eligibility: {exc}"
-        ) from exc
-
-    pinned_versions = [pin["version"] for pin in pins]
-    if not pinned_versions:
-        raise CWOValidationError(
-            "no pinned codex versions found; cannot verify enforcement eligibility"
-        )
-
-    prefix = f"{context}: hook event(s) {events} refused: " if context else ""
-    raise CWOValidationError(
-        f"{prefix}hook-based enforcement is unsupported on pinned Codex versions {pinned_versions}; "
-        f"PreToolUse leaves should_block=false on execution/JSON failures, "
-        f"stdin skips PreToolUse, and PermissionRequest fallthrough is not equivalent to PreToolUse; "
-        f"enforcement mode refused"
-    )
-
-
 def validate_advisory_hook_configuration(payload: Any, *, context: str = "hook configuration") -> None:
     """Accept only the exact advisory Beads hook allowlist; refuse anything else.
 
@@ -129,7 +103,10 @@ def validate_advisory_hook_configuration(payload: Any, *, context: str = "hook c
             )
     prohibited = sorted(name for name in events if name.casefold() in _ENFORCEMENT_EVENT_FOLDED)
     if prohibited:
-        check_pinned_versions_ineligible(context=context, events=prohibited)
+        raise CWOValidationError(
+            f"{context}: hook event(s) {prohibited} refused: "
+            "hook-based enforcement is unsupported; enforcement mode refused"
+        )
     for name in events:
         if name not in ADVISORY_HOOK_ALLOWLIST:
             raise CWOValidationError(
@@ -218,7 +195,7 @@ def validate_profile_hooks(profile: Any, *, profile_name: str = "profile") -> No
     if "enforcement_hooks" in profile:
         raise CWOValidationError(
             f"access profile '{profile_name}' declares enforcement_hooks; "
-            f"hook-based enforcement is unsupported on pinned Codex versions"
+            "hook-based enforcement is unsupported"
         )
     if "hooks" in profile:
         validate_advisory_hook_configuration(

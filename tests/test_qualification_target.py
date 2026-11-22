@@ -12,7 +12,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cwo_core import codex_protocol_pin as pins, qualification_target as target
+from cwo_core import qualification_target as target
 from cwo_core.policy import load_policy
 from cwo_core.policy_schema import policy_document_errors
 import validate_repository
@@ -23,35 +23,26 @@ class QualificationTargetTests(unittest.TestCase):
         selected = load_policy("qualification-target")["selection"]
         return {
             "profile": selected["profile"],
-            "version_text": "codex-cli 0.163.0",
-            "executable_sha256": selected["executable_sha256"],
-            "package_json_sha256": selected["package"]["sha256"],
             "configuration": copy.deepcopy(selected["configuration"]),
         }
 
-    def test_selected_target_resolves_existing_pin_and_profile(self):
+    def test_selected_target_declares_support_floor_and_profile(self):
         document = target.selected_target()
         selected = document["selection"]
-        pin = pins.pin_for(selected["pin_version"])
-        self.assertEqual(selected["executable_sha256"], pin["executable"]["sha256"])
-        self.assertEqual(selected["package"]["sha256"], pin["executable"]["package_json_sha256"])
+        self.assertEqual(selected["minimum_version"], "0.163.0")
+        self.assertNotIn("pin_version", selected)
+        self.assertNotIn("executable_sha256", selected)
+        self.assertNotIn("package", selected)
         self.assertEqual(target.target_for(**self.arguments()), selected)
         self.assertEqual(document["profiles"]["constrained-integrity"]["status"], "selected-unqualified")
         self.assertEqual(document["profiles"]["confidential"]["status"], "unsupported")
         self.assertIs(document["execution_authorized"], False)
 
-    def test_other_hash_version_package_and_profile_refuse_at_resolution(self):
-        for field, value in (
-            ("executable_sha256", "1" * 64),
-            ("version_text", "codex-cli 0.162.0"),
-            ("package_json_sha256", "2" * 64),
-            ("profile", "confidential"),
-            ("profile", "unknown"),
-            ("profile", None),
-        ):
-            with self.subTest(field=field, value=value):
+    def test_other_profiles_refuse_at_resolution(self):
+        for value in ("confidential", "unknown", None):
+            with self.subTest(profile=value):
                 arguments = self.arguments()
-                arguments[field] = value
+                arguments["profile"] = value
                 with self.assertRaises(target.TargetError):
                     target.target_for(**arguments)
 
@@ -77,7 +68,8 @@ class QualificationTargetTests(unittest.TestCase):
         cases = (
             lambda d: d["selection"].update(profile="confidential"),
             lambda d: d["selection"].update(executable_sha256="1" * 64),
-            lambda d: d["selection"]["package"].update(sha256="2" * 64),
+            lambda d: d["selection"].update(minimum_version="latest"),
+            lambda d: d["selection"].pop("minimum_version"),
             lambda d: d.update(execution_authorized=True),
             lambda d: d["properties"].pop("effective-configuration"),
             lambda d: d["properties"]["effective-configuration"].pop("classification"),
@@ -126,33 +118,9 @@ class QualificationTargetTests(unittest.TestCase):
                     with self.assertRaises(target.TargetError):
                         target.selected_target()
 
-    def test_pin_drift_invalidates_selection(self):
-        for field in ("sha256", "package_json_sha256", "target"):
-            pin = pins.pin_for("0.163.0")
-            pin["executable"][field] = "other"
-            with self.subTest(field=field), mock.patch.object(target, "pin_for", return_value=pin):
-                with self.assertRaises(target.TargetError):
-                    target.selected_target()
-
-    def test_missing_optional_package_pin_metadata_refuses(self):
-        for field in ("package_json_sha256", "target"):
-            pin = pins.pin_for("0.163.0")
-            del pin["executable"][field]
-            with self.subTest(field=field), mock.patch.object(target, "pin_for", return_value=pin):
-                with self.assertRaises(target.TargetError):
-                    target.selected_target()
-
-    def test_recorded_observations_do_not_carry_over_to_changed_pin_metadata(self):
-        for mutate in (
-            lambda p: p["executable"].update(version_text="codex-cli other"),
-            lambda p: p["bundles"]["stable"].update(digest="1" * 64),
-            lambda p: p["bundles"]["experimental"].update(files=1),
-        ):
-            pin = pins.pin_for("0.163.0")
-            mutate(pin)
-            with self.subTest(pin=pin["bundles"]), mock.patch.object(target, "pin_for", return_value=pin):
-                with self.assertRaises(target.TargetError):
-                    target.selected_target()
+    def test_historical_fixture_lookup_is_independent_of_target_resolution(self):
+        with mock.patch("cwo_core.codex_protocol_pin.load_pins", side_effect=AssertionError("fixture read")):
+            self.assertEqual(target.selected_target()["selection"], target.target_for(**self.arguments()))
 
     def test_every_property_has_a_classification_and_bounded_evidence(self):
         document = target.selected_target()
@@ -166,15 +134,13 @@ class QualificationTargetTests(unittest.TestCase):
                     self.assertFalse(Path(evidence.split("#", 1)[0]).is_absolute())
                     self.assertTrue((ROOT / evidence.split("#", 1)[0]).is_file(), evidence)
 
-    def test_portable_package_locator_and_recorded_observations(self):
+    def test_historical_package_observations_are_portable(self):
         document = target.selected_target()
-        package = document["selection"]["package"]
-        self.assertEqual(package["entrypoint"], "bin/codex")
-        self.assertEqual(package["manifest"], "codex-package.json")
         raw = json.dumps(document)
         self.assertNotIn("/home/", raw)
         self.assertNotIn("/Users/", raw)
         self.assertEqual(document["observations"]["version_text"], "codex-cli 0.163.0")
+        self.assertEqual(document["offline_diagnostics"]["target_id"], "codex-0.163.0-constrained-integrity")
         self.assertIs(document["observations"]["model_calls"], False)
         self.assertIs(document["observations"]["containment_tested"], False)
 

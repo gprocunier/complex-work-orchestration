@@ -40,6 +40,7 @@ __all__ = [
     "chatgpt_urls",
     "coach",
     "codex_hook_enforcement",
+    "codex_protocol_capabilities",
     "codex_protocol_pin",
     "codex_tool_surface",
     "epic_convergence",

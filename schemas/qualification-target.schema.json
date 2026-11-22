@@ -21,17 +21,8 @@
     },
     "selection": {
       "const": {
-        "id": "codex-0.163.0-constrained-integrity",
-        "pin_version": "0.163.0",
-        "executable_sha256": "399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215",
-        "package": {
-          "distribution": "standalone",
-          "version": "0.163.0",
-          "target": "x86_64-unknown-linux-musl",
-          "manifest": "codex-package.json",
-          "sha256": "5fa8533bde21972564cbb2c665c99c6d6d0e92b625fa6f4fdf1354ac5fb71a78",
-          "entrypoint": "bin/codex"
-        },
+        "id": "codex-constrained-integrity",
+        "minimum_version": "0.163.0",
         "profile": "constrained-integrity",
         "configuration": {
           "id": "native-worker-workspace-write-v1",
@@ -207,7 +198,8 @@
             },
             "evidence": {
               "const": [
-                "tests/test_qualification_target.py"
+                "tests/test_qualification_target.py",
+                "tests/test_selected_native_containment.py"
               ]
             }
           }

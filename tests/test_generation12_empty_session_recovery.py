@@ -625,6 +625,8 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
             ), mock.patch.object(
                 TRANSPORT, "_codex_binary", return_value=root / "codex"
             ), mock.patch.object(
+                TRANSPORT, "check_codex_capabilities"
+            ), mock.patch.object(
                 LIVE.subprocess, "Popen", return_value=process
             ) as popen, mock.patch.object(
                 LIVE.threading, "Thread", return_value=fake_thread

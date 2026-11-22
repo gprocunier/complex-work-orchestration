@@ -1,32 +1,41 @@
 # Codex protocol and capability matrix
 
-This matrix records what the host contract can rely on for a specific Codex
-executable, and what is still an open question. Facts are pinned in
-`policy/codex-protocol-pins.yaml` and checked by `cwo_core.codex_protocol_pin`
-against schema bundles generated offline: no model call, no network, no Codex
-configuration. A different executable or bundle matches no pin, so evidence
-qualified against one pin does not carry over to it.
+## Runtime protocol compatibility
 
-## Pinned executables
+Codex CLI 0.163.0 is the tested support floor. CWO also supports later releases
+that provide the app-server methods, request fields, notifications and reply
+shapes it uses. On startup CWO checks the installed executable's bounded,
+offline schema exports in a disposable Codex home and names the capability on
+refusal. A CLI version number alone never triggers a refusal.
 
-| Version | Status | Executable SHA-256 | Stable bundle | Experimental bundle |
+The required CI check exercises this contract against 0.163.0 and 0.171.0. The
+weekly workflow checks the current stable release. To run the same check with
+the Codex CLI on `PATH`, use `python scripts/check_codex_protocol_capabilities.py`.
+The command only exports schemas and checks their contents. Assessments of
+worker identity, execution profiles and containment require their own evidence.
+
+## Historical schema fixtures
+
+`policy/codex-protocol-pins.yaml` and `cwo_core.codex_protocol_pin` identify and
+verify the retained fixtures used for protocol comparisons. The policy's
+`current` label identifies its reference fixture. Each measured executable or
+bundle digest describes the recorded bytes and scope.
+
+| Version | Fixture role | Observed executable SHA-256 | Stable bundle | Experimental bundle |
 |---|---|---|---|---|
-| 0.163.0 | current | `399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215` | 318 files, `89fe2000…3fff09` | 452 files, `d25388c6…01ccff47` |
+| 0.163.0 | reference | `399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215` | 318 files, `89fe2000…3fff09` | 452 files, `d25388c6…01ccff47` |
 | 0.162.0 | historical | `50ed828f357c655a3c82054d346cab8434f24901f14ec19b8267571bdd008b38` | 317 files, `317dfbf9…041d2eb` | 447 files, `d906641e…a205242c` |
 
 The policy file holds the full digests, the generation commands
 (`codex app-server generate-json-schema --out DIR`, and the same with
 `--experimental`) and the per-file manifests under
 `tests/fixtures/codex-protocol/`. Generating the 0.163.0 bundles twice gave
-identical bytes. Every fact below holds for both versions.
+identical bytes. The historical schema findings below describe both fixtures.
 
 ## Selected qualification target
 
-`policy/qualification-target.yaml` selects the existing **Codex 0.163.0** pin,
-the standalone `x86_64-unknown-linux-musl` package, and the
-**constrained-integrity** profile. The package entrypoint is `bin/codex` relative
-to an operator-supplied package directory; `codex-package.json` has SHA-256
-`5fa8533bde21972564cbb2c665c99c6d6d0e92b625fa6f4fdf1354ac5fb71a78`.
+`policy/qualification-target.yaml` selects the **constrained-integrity** profile
+and records **Codex CLI 0.163.0** as the minimum supported version.
 
 The selected configuration is the native worker's `workspace-write` sandbox,
 `approvalPolicy: never`, no network, and a bwrap host. Qualification must show
@@ -38,10 +47,13 @@ and unqualified. **Confidential** operation is **unsupported**: diagnostic read
 denials do not establish a fully qualified native worker confidentiality boundary.
 
 On 2026-11-14, no-model local observations confirmed the executable version,
-executable hash and package-manifest hash. Stable and experimental schema
-generation ran with empty `HOME` and `CODEX_HOME` in bwrap with `--unshare-net`;
-both complete bundle digests matched the existing pin. This observes identity
-and schema generation only. No worker containment test or model turn ran.
+executable hash and package-manifest hash of the standalone 0.163.0
+`x86_64-unknown-linux-musl` package. The package entrypoint was `bin/codex` and
+`codex-package.json` had SHA-256
+`5fa8533bde21972564cbb2c665c99c6d6d0e92b625fa6f4fdf1354ac5fb71a78`.
+Stable and experimental schema generation ran with empty `HOME` and `CODEX_HOME`
+in bwrap with `--unshare-net`. Both complete bundle digests matched their
+recorded fixtures. The observation covered identity and schema generation.
 
 The machine-readable property matrix labels every row as **source-supported**,
 **fake-tested**, **os-observed**, **unknown**, or **unsupported**, and links each
@@ -51,29 +63,26 @@ Neither establishes platform enforcement. Unknown properties include effective
 rules and grants, protected write roots, network denial, retries and escalation,
 stdin gating, named-profile compilation, tool behavior and live model behavior.
 
-`cwo_core.qualification_target.selected_target()` validates the document and
-resolves its executable and package through `pin_for`. `target_for` additionally
-checks a supplied profile, observed executable version/hash, package-manifest
-hash and selected configuration descriptor. A different hash, profile or
-configuration refuses. Repository validation uses the same resolver. These
-checks return metadata and grant no execution authority; existing live holds
-remain in force. Historical pins and their default lookup behavior are retained.
+`cwo_core.qualification_target.selected_target()` validates the document.
+`target_for` checks the supplied profile and configuration descriptor. These
+checks return policy metadata. The schema check addresses protocol compatibility,
+and exact executable identity remains part of scoped worker or diagnostic
+evidence. Existing live holds remain in force.
 
 ## Offline boundary diagnostics
 
 `scripts/selected_native_containment.py` exercises a fixed catalogue through the
-selected executable's app-server `command/exec` API. It creates an independent
+supplied executable's app-server `command/exec` API. It creates an independent
 disposable repository, reads the effective configuration, and omits per-command
 `sandboxPolicy` and `permissionProfile` overrides. It starts no thread, model
 turn or live route, accepts no worker output and cannot promote an artifact.
 
-With the exact selected package supplied, current tests observe a useful shell
-command and `git apply`, followed by prohibited effects through that same runner.
-The app-server reports `workspace-write`, `never`, network off, an isolated user
+The recorded 0.163.0 package diagnostics observed a useful shell command and
+`git apply`, followed by prohibited effects through that same runner. The
+app-server reported `workspace-write`, `never`, network off, an isolated user
 configuration, an empty system configuration layer and no managed requirements.
-Server diagnostic output during admission refuses the diagnostic. Empty staged
-rules and these readbacks do not prove every runtime grant, cache, hook or helper
-path absent.
+Server diagnostic output during admission refuses the diagnostic. The wider
+inventory of runtime grants, caches, hooks and helper paths remains unknown.
 
 | Property | Disposition and scope |
 | --- | --- |
@@ -126,8 +135,8 @@ permission denial as **unperformed** only after checking original source, securi
 and independent boundary receipts and all original cleanup results. This supplies
 no useful PID-reuse or qualification credit. Unknown source, credential, lifetime,
 identity, type or cleanup failures still fail. Supported targets must execute the
-unchanged positives; the exact selected-package case cannot inherit primitive
-applicability. The data fixture and unit controls establish no kernel permission
+positive controls. The diagnostic-launcher case has its own applicability check.
+The data fixture and unit controls establish no kernel permission
 or cleanup.
 
 External reaping of the original child does not repair its old controller's
@@ -148,12 +157,16 @@ before profile compilation. No root-deny transformation, fallback behavior or
 named enforcement follows from that refusal. A different approval setting would
 be another configuration identity; it is not substituted for either candidate.
 
-Supply the standalone package explicitly to run the fixed diagnostics:
+Supply the native executable explicitly to run the fixed diagnostics.
 
 ```sh
-python scripts/selected_native_containment.py --package "$QUALIFICATION_PACKAGE"
+python scripts/selected_native_containment.py --codex /path/to/codex
 CWO_QUALIFICATION_PACKAGE="$QUALIFICATION_PACKAGE" python -m unittest tests.test_selected_native_containment -q
 ```
+
+The CLI also accepts a standalone package directory via `--package` and locates
+its `bin/codex` entrypoint. Each new diagnostic records its own executable
+identity. The dated package observations continue to describe that package.
 
 The full test module includes both PID-reuse scopes. The fixed CLI catalogue
 does not run PID reuse or accept an arbitrary command.
@@ -220,10 +233,12 @@ remain unqualified; no live model observation is inferred from these guards.
 
 ## Matrix
 
+These findings describe the 0.162.0 and 0.163.0 schema fixtures.
+
 | Question | Finding | Classification |
 |---|---|---|
-| Executable identity | Version text and SHA-256 must both match a pin. | fake-tested |
-| Schema drift | A missing, extra or changed file, or a changed bundle digest, is reported; symlinks in a bundle are refused. | fake-tested |
+| Historical executable identity | Version text and SHA-256 are both checked when verifying a match to recorded evidence. | fake-tested |
+| Fixture integrity | A missing, extra or changed file, or a changed bundle digest, is reported. Symlinks in a fixture bundle are refused. | fake-tested |
 | Capability opt-in | The `permissions` selector, `additionalPermissions` and `availableDecisions` exist only with `--experimental`; a stable client never sees them. | source-supported (schema), fake-tested |
 | Named profile selector | `thread/start.permissions` names a profile and "cannot be combined with `sandbox`". Mapping to `default_permissions`, compilation and effective roots are not in the schema. | selector: source-supported (schema); mapping: source-cited, not re-verified |
 | Approval envelope | `reason` is optional explanatory text. No `retry_reason`, `retryReason`, `sandbox_permissions` or `sandboxPermissions` field exists on command, file-change, exec or apply-patch approvals, stable or experimental. Identical reason text therefore cannot authenticate a retry class. | source-supported (schema), fake-tested |

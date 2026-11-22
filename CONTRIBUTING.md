@@ -176,6 +176,13 @@ Its scratch directory is a container filesystem, not a claimed tmpfs mount,
 and the gate checks `/etc/os-release` at runtime. Other filesystems/platforms
 are untested. This gate grants no product activation or live-run authority.
 
+The required `test` CI status also includes the offline app-server protocol
+contract for Codex CLI 0.163.0 and 0.171.0 on separate runners. The weekly
+workflow runs the same contract against the current stable npm release. Run
+`python scripts/check_codex_protocol_capabilities.py` locally with Codex on
+`PATH`, or pass `--codex /path/to/codex`. The check uses bounded schema exports
+without signing in or creating a model turn.
+
 Before handoff, run the broader checks in AGENTS.md and CI, using an isolated
 test environment with `requirements-test.txt`. Stateful operations stay serial;
 the prescribed test fanout does not authorize concurrent Beads/model dispatch.

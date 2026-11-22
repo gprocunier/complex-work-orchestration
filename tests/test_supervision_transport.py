@@ -685,8 +685,9 @@ class FakeAppServerTransportTests(unittest.TestCase):
             defining = sys.modules[server_class.__module__]
             with mock.patch.dict(os.environ, environment), mock.patch.object(
                 defining, "_codex_binary", return_value=fake
-            ):
+            ), mock.patch.object(defining, "check_codex_capabilities") as capability_check:
                 server = server_class(requested_model="gpt-5.6-luna", executable=fake, codex_home=home)
+                capability_check.assert_called_once_with(str(fake))
                 # Every write after the handshake goes through this pipe, so a reply
                 # the client sent is recorded even if the child never reads it.
                 pipe = RecordingPipe(server.process.stdin)

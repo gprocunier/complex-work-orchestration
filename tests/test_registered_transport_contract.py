@@ -8,7 +8,9 @@ import unittest
 from unittest.mock import patch
 
 from tests import test_registered_server_requests as requests
-from cwo_core import codex_protocol_pin as pins, qualification_target as target
+from cwo_core import codex_protocol_pin as pins
+
+_FIXTURE_VERSION = "0.163.0"
 
 
 class RegisteredTransportContractTests(unittest.TestCase):
@@ -18,11 +20,10 @@ class RegisteredTransportContractTests(unittest.TestCase):
         self.addCleanup(requests.family.cleanup_helper, self, self.fixture)
 
     def response_schema(self, bundle, name):
-        version = target.selected_target()["selection"]["pin_version"]
-        pin = pins.pin_for(version)
+        pin = pins.pin_for(_FIXTURE_VERSION)
         manifest = pins.load_manifest(pin, requests.family.ROOT)
         relative = name + ".json"
-        path = requests.family.ROOT / "tests/fixtures/codex-protocol" / version / bundle / relative
+        path = requests.family.ROOT / "tests/fixtures/codex-protocol" / _FIXTURE_VERSION / bundle / relative
         raw = path.read_bytes()
         self.assertEqual(hashlib.sha256(raw).hexdigest(), manifest[bundle][relative])
         return json.loads(raw)

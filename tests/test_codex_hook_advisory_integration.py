@@ -29,11 +29,7 @@ import configure_codex_beads_hooks as writer  # noqa: E402
 from cwo_core import access_profiles  # noqa: E402
 from cwo_core.errors import CWOValidationError  # noqa: E402
 
-PINNED = (
-    "hook-based enforcement is unsupported on pinned Codex versions ['0.163.0', '0.162.0']; "
-    "PreToolUse leaves should_block=false on execution/JSON failures, stdin skips PreToolUse, "
-    "and PermissionRequest fallthrough is not equivalent to PreToolUse; enforcement mode refused"
-)
+UNSUPPORTED = "hook-based enforcement is unsupported; enforcement mode refused"
 EVENTS = "['PostCompact', 'PreCompact', 'SessionStart', 'UserPromptSubmit']"
 SESSION_COMMANDS = "['bd codex-hook SessionStart', 'bd prime --memories-only --hook-json']"
 SESSION_MATCHER = "startup|resume|clear"
@@ -116,12 +112,12 @@ COUNTEREXAMPLES: dict[str, tuple[Any, Callable[[str], str], bool]] = {
     ),
     "pre_tool_use_groups_as_object": (
         {"hooks": {"PreToolUse": {"hooks": [command("guard")]}}},
-        lambda ctx: f"{ctx}: hook event(s) ['PreToolUse'] refused: {PINNED}",
+        lambda ctx: f"{ctx}: hook event(s) ['PreToolUse'] refused: {UNSUPPORTED}",
         True,
     ),
     "permission_request_with_no_groups": (
         {"hooks": {"PermissionRequest": []}},
-        lambda ctx: f"{ctx}: hook event(s) ['PermissionRequest'] refused: {PINNED}",
+        lambda ctx: f"{ctx}: hook event(s) ['PermissionRequest'] refused: {UNSUPPORTED}",
         True,
     ),
     "hooks_as_list_of_pairs": (
@@ -373,7 +369,7 @@ class RegistryRefusalTests(unittest.TestCase):
         errors = self.errors_for(self.registry_with(enforcement_hooks={"PreToolUse": []}))
         self.assertEqual(errors, [
             f"access profile '{PROFILE}' hook validation failed: access profile '{PROFILE}' declares "
-            "enforcement_hooks; hook-based enforcement is unsupported on pinned Codex versions"
+            "enforcement_hooks; hook-based enforcement is unsupported"
         ])
 
     def test_profile_with_allowlisted_hooks_validates(self) -> None:

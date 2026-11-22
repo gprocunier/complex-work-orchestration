@@ -41,6 +41,7 @@ import run_native_pool_live_canaries as LIVE  # noqa: E402
 from cwo_core import maintenance_qualification as MQ  # noqa: E402
 from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
 from cwo_core import native_pool_contracts as POOL  # noqa: E402
+from cwo_core.supervision.transport import app_server as TRANSPORT  # noqa: E402
 from tests import test_codex_tool_surface as SURFACE_TESTS  # noqa: E402
 from tests import test_native_live_campaign_generation12 as G12  # noqa: E402
 from tests import test_native_pool_contracts as POOL_TESTS  # noqa: E402
@@ -659,6 +660,7 @@ class _SurfaceWorld:
     def patches(self, stack: ExitStack, *, binary: Path | None = None) -> None:
         stack.enter_context(mock.patch.object(SURFACE, "_codex_binary", return_value=binary or self.binary))
         stack.enter_context(mock.patch.object(SURFACE, "_codex_version", return_value="test-version"))
+        stack.enter_context(mock.patch.object(TRANSPORT, "check_codex_capabilities"))
         stack.enter_context(mock.patch.dict(os.environ, {"PATH": str(self.empty_path)}))
 
     def proofs(self) -> dict[str, dict]:

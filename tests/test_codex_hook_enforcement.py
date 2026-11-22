@@ -4,6 +4,7 @@ from __future__ import annotations
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -15,17 +16,12 @@ from cwo_core.codex_hook_enforcement import (  # noqa: E402
     ADVISORY_HOOK_KEYS,
     ADVISORY_HOOK_TYPES,
     ENFORCEMENT_HOOK_EVENTS,
-    check_pinned_versions_ineligible,
     validate_advisory_hook_configuration,
     validate_profile_hooks,
 )
 from cwo_core.errors import CWOValidationError  # noqa: E402
 
-PINNED = (
-    "hook-based enforcement is unsupported on pinned Codex versions ['0.163.0', '0.162.0']; "
-    "PreToolUse leaves should_block=false on execution/JSON failures, stdin skips PreToolUse, "
-    "and PermissionRequest fallthrough is not equivalent to PreToolUse; enforcement mode refused"
-)
+UNSUPPORTED = "hook-based enforcement is unsupported; enforcement mode refused"
 CTX = "hook configuration"
 
 
@@ -44,10 +40,10 @@ def session_hook(**hook) -> dict:
 
 
 class EnforcementRefusalTests(unittest.TestCase):
-    def test_pinned_versions_always_refuse_enforcement(self) -> None:
-        with self.assertRaises(CWOValidationError) as context:
-            check_pinned_versions_ineligible()
-        self.assertEqual(str(context.exception), PINNED)
+    def test_enforcement_refusal_does_not_read_historical_pins(self) -> None:
+        with mock.patch("cwo_core.codex_protocol_pin.load_pins", side_effect=AssertionError("fixture read")):
+            with self.assertRaisesRegex(CWOValidationError, UNSUPPORTED):
+                validate_advisory_hook_configuration({"hooks": {"PreToolUse": []}})
 
     def test_enforcement_events_are_refused_by_name_before_contents(self) -> None:
         cases = {
@@ -61,7 +57,7 @@ class EnforcementRefusalTests(unittest.TestCase):
             with self.subTest(name):
                 with self.assertRaises(CWOValidationError) as context:
                     validate_advisory_hook_configuration({"hooks": events})
-                self.assertEqual(str(context.exception), f"{CTX}: hook event(s) {[refused]} refused: {PINNED}")
+                self.assertEqual(str(context.exception), f"{CTX}: hook event(s) {[refused]} refused: {UNSUPPORTED}")
 
     def test_enforcement_and_advisory_events_are_disjoint(self) -> None:
         self.assertFalse(ENFORCEMENT_HOOK_EVENTS & ADVISORY_HOOK_EVENTS)
@@ -195,7 +191,7 @@ class ProfileHookTests(unittest.TestCase):
             "not an object": (["hooks"], "access profile 'test' must be an object; refused"),
             "enforcement_hooks": (
                 {"enforcement_hooks": {}},
-                "access profile 'test' declares enforcement_hooks; hook-based enforcement is unsupported on pinned Codex versions",
+                "access profile 'test' declares enforcement_hooks; hook-based enforcement is unsupported",
             ),
             "hooks null": (
                 {"hooks": None},

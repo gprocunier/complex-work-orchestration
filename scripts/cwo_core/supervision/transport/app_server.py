@@ -28,6 +28,7 @@ from typing import Any, Callable, Mapping
 import uuid
 from cwo_core import native_live_availability as live_availability
 
+from cwo_core.codex_protocol_capabilities import CapabilityError, check_codex_capabilities
 from cwo_core.codex_tool_surface import (
     ALLOWLIST_PARAMETER as CONFIG_TOOL_ALLOWLIST_PARAMETER,
     CodexToolSurfaceError,
@@ -228,6 +229,13 @@ def _explicit_probe_binding(executable, codex_home, requested_model, catalog):
     return binding
 
 
+def _require_launch_capabilities(executable: str) -> None:
+    try:
+        check_codex_capabilities(executable)
+    except CapabilityError as exc:
+        raise AppServerError(str(exc)) from exc
+
+
 class AppServer:
     """Minimal stdlib JSON-RPC client for one trusted Codex app-server."""
 
@@ -298,7 +306,7 @@ class AppServer:
             self._mcp_notification_generation = 0
             self._zero_mcp_observations = {}
             self._mcp_finalized_threads = set()
-            self.launched_executable = binding["codex_binary"] if binding else str(executable)
+            self.launched_executable = binding["codex_binary"] if binding else str(Path(executable).resolve())
             command = [self.launched_executable]
             for key, value in sorted(startup_config.items()):
                 command.extend(["-c", key + "=" + json.dumps(value)])
@@ -306,6 +314,8 @@ class AppServer:
             # The requested home is process-local, never a global config mutation.
             environment = dict(os.environ, CODEX_HOME=str(home),
                                PATH=str(Path(self.launched_executable).parent))
+            live_availability.require_n1_live()
+            _require_launch_capabilities(self.launched_executable)
             live_availability.require_n1_live()
             self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE, text=True, bufsize=1, umask=0o077, env=environment)

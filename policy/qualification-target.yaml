@@ -2,17 +2,8 @@
   "version": 1,
   "execution_authorized": false,
   "selection": {
-    "id": "codex-0.163.0-constrained-integrity",
-    "pin_version": "0.163.0",
-    "executable_sha256": "399ff69c431c066e40de318fba45c2b07f45a76b19939d247ee4828fc70c4215",
-    "package": {
-      "distribution": "standalone",
-      "version": "0.163.0",
-      "target": "x86_64-unknown-linux-musl",
-      "manifest": "codex-package.json",
-      "sha256": "5fa8533bde21972564cbb2c665c99c6d6d0e92b625fa6f4fdf1354ac5fb71a78",
-      "entrypoint": "bin/codex"
-    },
+    "id": "codex-constrained-integrity",
+    "minimum_version": "0.163.0",
     "profile": "constrained-integrity",
     "configuration": {
       "id": "native-worker-workspace-write-v1",
@@ -65,7 +56,7 @@
   "properties": {
     "executable-identity": {
       "classification": "os-observed",
-      "finding": "The selected binary reported codex-cli 0.163.0; its bytes and standalone package manifest matched the existing pin. This observation establishes identity only.",
+      "finding": "The historical 0.163.0 executable and standalone package manifest matched their recorded digests. These observations identify the measured package.",
       "evidence": [
         "policy/codex-protocol-pins.yaml",
         "references/codex-protocol-capability-matrix.md#selected-qualification-target"
@@ -73,7 +64,7 @@
     },
     "schema-generation": {
       "classification": "os-observed",
-      "finding": "Both schema bundles were regenerated without model work in a network namespace and matched the existing complete manifests. This does not exercise worker containment.",
+      "finding": "The historical 0.163.0 schema bundles were regenerated without model work in a network namespace and matched the recorded manifests. This observation covers schema generation.",
       "evidence": [
         "policy/codex-protocol-pins.yaml",
         "tests/fixtures/codex-protocol/0.163.0/manifest.json"
@@ -89,9 +80,10 @@
     },
     "selection-check": {
       "classification": "fake-tested",
-      "finding": "Target resolution refuses a changed executable, package, profile or configuration; matching metadata grants no execution authority.",
+      "finding": "Target resolution requires the constrained-integrity profile and its fixed configuration. Diagnostic startup checks the selected executable for required App Server capabilities and binds the observed bytes to that diagnostic. Execution authorization remains false.",
       "evidence": [
-        "tests/test_qualification_target.py"
+        "tests/test_qualification_target.py",
+        "tests/test_selected_native_containment.py"
       ]
     },
     "worker-configuration-request": {
@@ -168,7 +160,7 @@
     },
     "hook-fail-closed-enforcement": {
       "classification": "unsupported",
-      "finding": "Hook-based enforcement is unsupported for the pinned versions. The cited PreToolUse failure does not establish the fallback behavior of every other hook.",
+      "finding": "Hook-based enforcement remains unsupported. Historical source inspection recorded a PreToolUse failure path for Codex 0.163.0 and 0.162.0. Other hook fallback behavior remains unverified.",
       "evidence": [
         "scripts/cwo_core/codex_hook_enforcement.py",
         "references/codex-protocol-capability-matrix.md"

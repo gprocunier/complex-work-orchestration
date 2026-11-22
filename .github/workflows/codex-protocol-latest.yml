@@ -1,0 +1,28 @@
+name: Latest Codex protocol contract
+
+on:
+  schedule:
+    - cron: '23 6 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  codex-protocol-contract:
+    name: Codex protocol contract (latest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Install the current stable Codex release
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/cwo-codex" --ignore-scripts --no-audit --no-fund --include=optional @openai/codex@latest
+          npm list --global --prefix "$RUNNER_TEMP/cwo-codex" --depth 0 @openai/codex
+          echo "$RUNNER_TEMP/cwo-codex/bin" >> "$GITHUB_PATH"
+      - name: Verify the offline app-server protocol contract
+        run: python scripts/check_codex_protocol_capabilities.py

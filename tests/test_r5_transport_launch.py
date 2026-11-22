@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -27,6 +28,7 @@ class R5TransportLaunchTests(unittest.TestCase):
             mock.patch.object(raw, '_codex_binary') as find,
             mock.patch.object(raw, 'prepare_capture_binding') as prepare,
             mock.patch.object(raw.Path, 'home', side_effect=AssertionError('Unexpected ambient home lookup')),
+            mock.patch.object(raw, 'check_codex_capabilities') as capabilities,
             mock.patch.object(raw.subprocess, 'Popen', side_effect=_FakeLaunchReached) as launch,
         ):
             for settings in ({}, {'tool_surface_probe_catalog': Path('/EXAMPLE/catalog.json')},
@@ -40,19 +42,22 @@ class R5TransportLaunchTests(unittest.TestCase):
                                  {'all_contained': True, 'resources_closed': True, 'errors': []})
             find.assert_not_called()
             prepare.assert_not_called()
+            capabilities.assert_not_called()
             launch.assert_not_called()
             with self.assertRaises(_FakeLaunchReached):
                 raw.AppServer(executable='/EXAMPLE/bin/codex', codex_home='/EXAMPLE/isolated-home')
             self.assertEqual(launch.call_args.args[0], ['/EXAMPLE/bin/codex', 'app-server', '--stdio'])
             self.assertEqual(launch.call_args.kwargs['env']['CODEX_HOME'], '/EXAMPLE/isolated-home')
             self.assertEqual(launch.call_args.kwargs['env']['PATH'], '/EXAMPLE/bin')
+            capabilities.assert_called_once_with('/EXAMPLE/bin/codex')
             # An explicitly requested probe may not silently choose another binary.
             prepare.return_value = {'codex_binary': '/EXAMPLE/different-codex'}
             with self.assertRaisesRegex(raw.AppServerError, 'app-server-explicit-executable-mismatch'):
                 raw.AppServer(executable='/EXAMPLE/bin/codex', codex_home='/EXAMPLE/isolated-home',
                               tool_surface_probe_catalog=Path('/EXAMPLE/catalog.json'))
             self.assertEqual(launch.call_count, 1)
-            # Recheck the live hold immediately before this explicitly injected fake launch.
+            capabilities.assert_called_once()
+            # Recheck the live hold before the schema subprocess or transport.
             def close_hold(*args):
                 availability.N1_LIVE_AVAILABLE = False
                 return Path('/EXAMPLE/isolated-home')
@@ -60,6 +65,56 @@ class R5TransportLaunchTests(unittest.TestCase):
                     availability.NativeLiveUnavailable):
                 raw.AppServer(executable='/EXAMPLE/bin/codex', codex_home='/EXAMPLE/isolated-home')
             self.assertEqual(launch.call_count, 1)
+            capabilities.assert_called_once()
+
+    def test_capability_failure_refuses_launch_with_the_gap_named(self):
+        with (
+            mock.patch.object(availability, 'N1_LIVE_AVAILABLE', True),
+            mock.patch.object(raw, 'check_codex_capabilities',
+                              side_effect=raw.CapabilityError('missing thread/read')) as check,
+            mock.patch.object(raw.subprocess, 'Popen') as launch,
+            self.assertRaisesRegex(raw.AppServerError, 'missing thread/read') as caught,
+        ):
+            raw.AppServer(executable='/EXAMPLE/bin/codex', codex_home='/EXAMPLE/isolated-home')
+        check.assert_called_once_with('/EXAMPLE/bin/codex')
+        launch.assert_not_called()
+        self.assertTrue(caught.exception.app_server_cleanup['all_contained'])
+
+    def test_live_hold_is_rechecked_after_the_schema_probe(self):
+        def close_hold(executable):
+            availability.N1_LIVE_AVAILABLE = False
+
+        with (
+            mock.patch.object(availability, 'N1_LIVE_AVAILABLE', True),
+            mock.patch.object(raw, 'check_codex_capabilities', side_effect=close_hold),
+            mock.patch.object(raw.subprocess, 'Popen') as launch,
+            self.assertRaises(availability.NativeLiveUnavailable),
+        ):
+            raw.AppServer(executable='/EXAMPLE/bin/codex', codex_home='/EXAMPLE/isolated-home')
+        launch.assert_not_called()
+
+    def test_raw_launch_keeps_the_executable_checked_if_a_symlink_retargets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            selected, updated, alias = (root / name for name in ("selected", "updated", "codex"))
+            selected.touch()
+            updated.touch()
+            alias.symlink_to(selected)
+
+            def replace_alias(executable):
+                self.assertEqual(executable, str(selected))
+                alias.unlink()
+                alias.symlink_to(updated)
+
+            with (
+                mock.patch.object(availability, 'N1_LIVE_AVAILABLE', True),
+                mock.patch.object(raw, 'check_codex_capabilities', side_effect=replace_alias) as check,
+                mock.patch.object(raw.subprocess, 'Popen', side_effect=_FakeLaunchReached) as launch,
+                self.assertRaises(_FakeLaunchReached),
+            ):
+                raw.AppServer(executable=alias, codex_home=root)
+            check.assert_called_once_with(str(selected))
+            self.assertEqual(launch.call_args.args[0][0], str(selected))
 
     def test_r5_real_probe_helper_refuses_mismatch_before_reads_and_pins_matching_version_home(self):
         """The actual capture helper makes zero unselected process calls."""
