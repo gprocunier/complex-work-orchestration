@@ -1756,8 +1756,9 @@ class FiniteInputTests(unittest.TestCase):
         self.assertTrue(self._wait(lambda: bool(result), 8))
 
     def test_cancel_during_pipe_wait_blocks_fresh_poll(self):
-        case, factory, tool, stream, read, release, result = self._active()
+        case, factory, tool, stream, read, release, result = self._active(hold_admission=True)
         gate = factory.server.finite_input
+        before_bytes = gate.output_bytes_seen
         ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
             turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
             approval_id='EXAMPLE-before-cancel', deadline=time.monotonic() + 2)
@@ -1794,10 +1795,13 @@ class FiniteInputTests(unittest.TestCase):
             revoker.join(3)
         self.assertIsInstance(polled[0], finite.FiniteInputError)
         self.assertTrue(cancelled.is_set())
-        with self.assertRaises(finite.FiniteInputError):
+        factory.require_effect()
+        with self.assertRaisesRegex(finite.FiniteInputError,
+                                    r'The original registered tool item is no longer active\.'):
             gate.reserve(b'', thread_id=case.scenario.thread_id,
                 turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
                 approval_id='EXAMPLE-after-cancel', deadline=time.monotonic() + 2)
+        self.assertEqual(gate.output_bytes_seen, before_bytes)
         with self.assertRaises(BlockingIOError):
             os.read(read, 1)
         tool.settle_termination()
@@ -1805,6 +1809,11 @@ class FiniteInputTests(unittest.TestCase):
         self.assertTrue(tool.contained and tool.termination_recorded)
         release.set()
         self.assertTrue(self._wait(lambda: bool(result), 8))
+        attempt = self.fixture.attempt(case)
+        self.assertEqual((attempt['state'], attempt['outcome']), ('terminal', 'unknown'))
+        self.assertEqual(attempt['charge'], attempt['amount'])
+        self.assertIsNone(factory.result)
+        self.assertIsNone(factory.token)
 
     def test_close_during_pipe_wait_revokes_next_ticket(self):
         case, factory, tool, _stream, read, release, result = self._active(
