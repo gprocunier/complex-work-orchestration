@@ -55,27 +55,29 @@ source checkout, following the
 ./scripts/install.sh --yes --dry-run
 ./scripts/install.sh --yes
 python3 scripts/check_installed_skill.py --check
-python3 scripts/manage_instruction_profile.py install --profile operator-e
-python3 scripts/manage_instruction_profile.py verify --profile operator-e
 ```
 
-Then start a **fresh** session in your project with the named profile
-`cwo-sol-operator-e`:
+To opt in to the CWO architect prompt, run these commands from the installed
+skill directory reported by the installer:
+
+```bash
+python3 scripts/manage_instruction_profile.py install --profile architect
+python3 scripts/manage_instruction_profile.py verify --profile architect
+```
+
+Start a fresh session in your project:
 
 ```bash
 cwo-codex -C "$PWD"
-# equivalent: codex --profile cwo-sol-operator-e -C "$PWD"
 ```
 
-CWO uses a system prompt optimized for complex project work rather than the
-default OpenAI system prompt; the [CWO system prompt](references/cwo-system-prompt.md)
-explains its intended behavior, setup and limits, not measured superiority.
-The profile requests the configured Sol model and inherits reasoning effort from
-the host or user. Check the selected route and actual model and effort in the
-running session.
-Resuming an older conversation does not load that profile. Default profile
-settings remain intact; the installed CWO skill remains available in ordinary
-sessions until disabled or removed.
+The profile replaces Codex's base instructions for that session. Its only setting
+is `model_instructions_file`. The launcher passes the model, reasoning effort
+and service tier from the Sol role in CWO's routing configuration. To select the
+same prompt using your Codex settings, run `codex --profile cwo-architect -C "$PWD"`.
+Verify the active settings in the new session. The CWO skill remains available in
+ordinary sessions until disabled or removed. The practice walkthrough uses
+ordinary sessions for in-thread edits. See the [architect prompt reference](references/cwo-system-prompt.md).
 
 CWO does not include model access; your account supplies it and its quota. Local
 task records do not mean prompts stay offline. Your configured model provider
@@ -83,7 +85,7 @@ receives selected context. Additional outside review is off by default.
 
 ## Example: one project across two fresh sessions
 
-This is recorded work, not an illustration. On October 15, 2026, two fresh
+On October 15, 2026, before the architect prompt replaced Candidate E, two
 named-profile sessions worked on the practice project, a small Python program
 that checks server names and port numbers:
 

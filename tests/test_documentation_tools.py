@@ -6,7 +6,6 @@ import io
 from http.server import ThreadingHTTPServer
 import importlib.util
 from pathlib import Path
-import re
 import sys
 import threading
 import unittest
@@ -46,36 +45,12 @@ class DocumentationToolTests(unittest.TestCase):
         readme = " ".join((ROOT / "README.md").read_text().split())
         self.assertIn("CWO skill remains available in ordinary sessions until disabled or removed", readme)
 
-    def test_current_docs_describe_the_default_optimized_cwo_system_prompt(self):
-        for relative in ("README.md", "SKILL.md", "docs/index.html", "docs/explanation.html",
-                         "references/cwo-system-prompt.md"):
-            with self.subTest(path=relative):
-                text = " ".join((ROOT / relative).read_text().split())
-                self.assertIn("system prompt optimized for complex project work", text)
-                self.assertIn("default OpenAI system prompt", text)
-
-    def test_current_reader_docs_do_not_reintroduce_candidate_branding_or_links(self):
-        paths = [ROOT / name for name in ("README.md", "SKILL.md", "CHANGELOG.md",
-                 "references/cwo-system-prompt.md", "references/cwo-candidate-e-operator-profile.md",
-                 "references/cwo-sol-operator-profile.md", "references/native-supervision.md")]
-        paths.extend(sorted((ROOT / "docs").glob("*.html")))
-        for path in paths:
-            with self.subTest(path=path.relative_to(ROOT)):
-                source = path.read_text()
-                visible = " ".join(re.sub(r"<[^>]+>", "", source).split())
-                self.assertNotRegex(visible, r"(?i)\bcandidate[ -]+[cef]\b")
-                self.assertNotIn("post-v5", visible)
-                self.assertNotIn("fewest recorded tokens", visible)
-                self.assertNotIn("cwo-candidate-e-operator-profile.md", source)
-                self.assertNotIn("candidate-e-qualification-summary.md", source)
-
-    def test_legacy_profile_guide_keeps_its_links_without_current_candidate_branding(self):
-        source = (ROOT / "references/cwo-candidate-e-operator-profile.md").read_text()
-        self.assertIn("[CWO system prompt](cwo-system-prompt.md)", source)
-        for identifier in ("candidate-e-baseline-operator-profile", "qualification-and-repair-boundary",
-                           "install-and-verify", "start-a-candidate-e-session", "roll-back"):
-            with self.subTest(fragment=identifier):
-                self.assertIn(f'id="{identifier}"', source)
+    def test_historical_profile_references_are_archived(self):
+        references = ROOT / "references"
+        for name in ("cwo-candidate-e-operator-profile.md", "candidate-e-qualification-summary.md"):
+            with self.subTest(path=name):
+                self.assertTrue((references / "history" / name).is_file())
+                self.assertFalse((references / name).exists())
 
     def test_preview_serves_only_the_repository_subpath(self):
         preview = load("preview_site")

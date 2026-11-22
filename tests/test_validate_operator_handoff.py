@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import subprocess
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -15,45 +15,45 @@ from validate_operator_handoff import validate_text, validate_continuation_state
 
 SCOPED_BASE = """# Operator Handoff Packet
 - Next executable Bead: complex-work-orchestration-bpm4
-- Why it is next: v107 child stopped but parent preparation remains authorized
+- Why it is next: providerless preparation can proceed independently
 - Exact command/resume: python -B .orchestration-audit/v109/verify_v109.py
-- Execution prompt: Continue zero-model preparation and preserve the paid stop.
+- Execution prompt: Continue providerless preparation.
 - What must NOT run yet: no fresh SB-A paid attempt under the exhausted grant
 - Commit/push status: not requested
 - Validation status: providerless preparation verified
-- Escalation rule: request only a precise uncovered paid authority delta
-- Stopped operation: v107 SB-A paid child
-- Stop scope: child
-- Continuation disposition: continue-authorized
-- Already-authorized next action: verify v109 providerless preparation
-- Authority delta required: fresh SB-A qualification and pair, after gates
+- Escalation rule: record the paid run's outstanding dependency
+- Next action: verify v109 providerless preparation
+- Waiting on: fresh SB-A qualification and pair, after gates
 """
 
 SCOPED_STATE = {
-    "version": 1,
-    "stopped_operation": "v107 SB-A paid child",
-    "stop_scope": "child",
-    "authorized_next_action": "verify v109 providerless preparation",
-    "authority_delta_required": "fresh SB-A qualification and pair, after gates",
+    "version": 2,
+    "next_action": "verify v109 providerless preparation",
+    "waiting_on": "fresh SB-A qualification and pair, after gates",
 }
 
 
 class ValidateOperatorHandoffTests(unittest.TestCase):
-    def test_scoped_child_stop_keeps_authorized_parent_work(self) -> None:
+    def test_scoped_dependency_keeps_independent_work(self) -> None:
+        self.assertEqual(validate_text(SCOPED_BASE, require_scoped_continuation=True), [])
         self.assertEqual(
             validate_text(SCOPED_BASE, continuation_state=SCOPED_STATE), []
         )
 
-    def test_scoped_state_rejects_false_generic_approval_handoff(self) -> None:
-        false_stop = SCOPED_BASE.replace(
-            "- Continuation disposition: continue-authorized",
-            "- Continuation disposition: material-decision",
-        ).replace(
-            "- Already-authorized next action: verify v109 providerless preparation",
-            "- Already-authorized next action: none",
-        )
-        errors = validate_text(false_stop, continuation_state=SCOPED_STATE)
-        self.assertIn("handoff omitted an already-authorized next action", errors)
+    def test_scoped_state_rejects_missing_or_substituted_fields(self) -> None:
+        for field, key, replacements in (
+            ("Next action", "next_action", ("None", "check a different run")),
+            ("Waiting on", "waiting_on", ("None", "a different qualification")),
+        ):
+            for replacement in replacements:
+                with self.subTest(field=field, replacement=replacement):
+                    changed = SCOPED_BASE.replace(
+                        f"- {field}: {SCOPED_STATE[key]}", f"- {field}: {replacement}",
+                    )
+                    self.assertIn(
+                        f"handoff {field} disagrees with continuation state",
+                        validate_text(changed, continuation_state=SCOPED_STATE),
+                    )
 
     def test_scoped_handoff_rejects_ask_as_next_command(self) -> None:
         text = SCOPED_BASE.replace(
@@ -61,49 +61,58 @@ class ValidateOperatorHandoffTests(unittest.TestCase):
             "- Exact command/resume: ask for generic approval to proceed",
         )
         self.assertIn(
-            "continue-authorized cannot hand off a generic approval request",
+            "Exact command/resume must carry out the Next action",
             validate_text(text, require_scoped_continuation=True),
         )
 
-    def test_precise_material_decision_only_when_no_authorized_action(self) -> None:
-        text = SCOPED_BASE.replace(
-            "- Continuation disposition: continue-authorized",
-            "- Continuation disposition: material-decision",
-        ).replace(
-            "- Already-authorized next action: verify v109 providerless preparation",
-            "- Already-authorized next action: none",
-        )
-        state = {**SCOPED_STATE, "authorized_next_action": None}
+    def test_scoped_wait_names_concrete_dependency(self) -> None:
+        text = SCOPED_BASE.replace(f"Next action: {SCOPED_STATE['next_action']}", "Next action: None")
+        state = {**SCOPED_STATE, "next_action": None}
         self.assertEqual(validate_text(text, continuation_state=state), [])
         self.assertIn(
-            "material-decision requires a precise authority delta",
+            "field has no meaningful value: Waiting on",
             validate_text(text.replace(
-                "fresh SB-A qualification and pair, after gates", "approval needed"
+                state["waiting_on"], "approval needed"
             ), require_scoped_continuation=True),
         )
 
-    def test_child_stop_cannot_complete_parent(self) -> None:
+    def test_work_without_dependency_can_continue(self) -> None:
         text = SCOPED_BASE.replace(
-            "- Continuation disposition: continue-authorized",
-            "- Continuation disposition: complete",
-        ).replace(
-            "- Already-authorized next action: verify v109 providerless preparation",
-            "- Already-authorized next action: none",
-        ).replace(
-            "- Authority delta required: fresh SB-A qualification and pair, after gates",
-            "- Authority delta required: none",
+            f"Waiting on: {SCOPED_STATE['waiting_on']}", "Waiting on: `None`",
         )
+        self.assertEqual(validate_text(text, require_scoped_continuation=True), [])
+        self.assertEqual(validate_text(text, continuation_state={**SCOPED_STATE, "waiting_on": None}), [])
+
+    def test_scoped_handoff_without_next_action_or_dependency_needs_source_state(self) -> None:
+        text = SCOPED_BASE.replace(
+            f"Next action: {SCOPED_STATE['next_action']}", "Next action: None",
+        ).replace(f"Waiting on: {SCOPED_STATE['waiting_on']}", "Waiting on: None")
         self.assertIn(
-            "child or path stop cannot complete the parent",
+            "a scoped handoff with no Next action or Waiting on requires continuation state",
             validate_text(text, require_scoped_continuation=True),
         )
+        self.assertIn(
+            "handoff Next action disagrees with continuation state",
+            validate_text(text, continuation_state=SCOPED_STATE),
+        )
+        self.assertEqual(validate_text(text, continuation_state={
+            "version": 2, "next_action": None, "waiting_on": None,
+        }), [])
+
+    def test_scoped_mode_needs_both_new_fields(self) -> None:
+        base = SCOPED_BASE.split("- Next action:")[0]
+        self.assertEqual(validate_text(base), [])
+        self.assertEqual(validate_text(base, require_scoped_continuation=True), [
+            "missing field: Next action", "missing field: Waiting on",
+        ])
 
     def test_malformed_continuation_state_fails_controlled(self) -> None:
         for state in (
             {**SCOPED_STATE, "version": True},
-            {**SCOPED_STATE, "stop_scope": []},
-            {**SCOPED_STATE, "authorized_next_action": {}},
-            {**SCOPED_STATE, "authority_delta_required": 0},
+            {**SCOPED_STATE, "version": 1},
+            {**SCOPED_STATE, "next_action": {}},
+            {**SCOPED_STATE, "waiting_on": 0},
+            {**SCOPED_STATE, "waiting_on": "approval needed"},
             {**SCOPED_STATE, "unexpected": 1},
         ):
             with self.subTest(state=state):
@@ -122,10 +131,10 @@ class ValidateOperatorHandoffTests(unittest.TestCase):
             ]
             good = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
             self.assertEqual(good.returncode, 0, good.stderr)
-            state.write_text(json.dumps({**SCOPED_STATE, "authorized_next_action": None}), encoding="utf-8")
+            state.write_text(json.dumps({**SCOPED_STATE, "waiting_on": None}), encoding="utf-8")
             bad = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
             self.assertNotEqual(bad.returncode, 0)
-            self.assertIn("handoff authority delta disagrees", bad.stderr)
+            self.assertIn("handoff Waiting on disagrees", bad.stderr)
 
     def test_accepts_meaningful_packet(self) -> None:
         text = """# Operator Handoff Packet

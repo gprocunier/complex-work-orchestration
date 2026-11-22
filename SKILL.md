@@ -20,7 +20,7 @@ Use CWO when:
 - independent investigations can run in parallel
 - release, lab, production, publication, or security risk needs architect judgment
 
-For narrow fixes, work in-thread with one Bead; Beads tracking is mandatory for non-trivial work.
+Beads tracking is mandatory for non-trivial work. In ordinary Codex sessions, handle narrow fixes in-thread with one Bead.
 
 ## Operating Defaults
 
@@ -29,7 +29,7 @@ release. Activation preview and new worker-surface qualification are held too.
 Use observed host capability evidence for the executable, configuration and tool
 profile. Check the actual model against the exact selection for each assignment.
 
-- CWO uses a system prompt optimized for complex project work rather than the default OpenAI system prompt (`prompts/cwo-sol-operator-e.md`; see `references/cwo-system-prompt.md`). Named-profile activation requires a fresh session. Reading it in an unprofiled thread is a fallback without profile-selection evidence. The main thread owns final decisions; instructions never override runtime authority.
+- The opt-in architect profile loads `prompts/cwo-architect.md` in a fresh session. See `references/cwo-system-prompt.md`.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
 - Prefer review-only workers before implementation unless write ownership is disjoint.
 - In connected Codex work, select the exact model configured for Luna after model-neutral sizing. Terra requires documented nonfit or justified escalation. Sol handles architecture and adjudication. Astra handles unresolved architecture review. Spark records describe historical dispatches.
@@ -118,9 +118,9 @@ three units or six reads warn; four or eleven require replanning.
   prerequisite for authorized editing/testing. Repair with available tools,
   then prove the repaired installed path works. Preserve old receipts and UNKNOWN
   findings; establish present ownership/isolation for new operations.
-- `full_auto` must be explicit. For covered defects: suspend the affected operation,
-  diagnose, repair, test, revalidate bindings, rerun the failed gate and continue.
-  Do not turn routine failure or a phase boundary into a generic permission ask.
+- Diagnose failed steps and repair them within scope. Revalidate bindings and
+  rerun failed checks before dependent work resumes. Record blockers with
+  their causes and continue independent work within scope.
 - Consult the strongest authorized available adviser for unresolved architecture
   or repeated materially different failed repairs. Advice is evidence, not authority
   to waive a gate. Disclose genuine access/outage/security boundaries plainly.
@@ -216,5 +216,5 @@ the packet. Use `templates/operator-handoff-packet.md` and, when drafting to a f
 python3 scripts/validate_operator_handoff.py <handoff.md>
 ```
 
-Follow `references/run-readiness.md` and retain `Next executable Bead`,
-`Commit/push status`, and `Execution prompt`.
+Keep `Next executable Bead`, `Commit/push status`, and `Execution prompt`.
+For scoped continuation, record `Next action` and `Waiting on` as described in `references/run-readiness.md`.

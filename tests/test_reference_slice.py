@@ -59,7 +59,7 @@ class ReferenceSliceTests(unittest.TestCase):
         import html
         source=html.unescape(without_token_spans((ROOT/'docs/tutorial-recovery.html').read_text()))
         self.assertIn('--model YOUR_AVAILABLE_MAIN_MODEL',source)
-        self.assertIn('--profile cwo-sol-operator-e',source)
+        self.assertIn('--profile cwo-architect',source)
         self.assertIn('/model',source)
         self.assertIn('/status',source)
         self.assertIn('exact working launch command',source)

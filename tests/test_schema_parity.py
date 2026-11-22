@@ -352,6 +352,11 @@ class SchemaParityTests(unittest.TestCase):
         ]:
             self.assertIn(field, operator_packet["required"])
             self.assertIn(field, operator_packet["properties"])
+        self.assertEqual(operator_packet["dependentRequired"], {
+            "next_action": ["waiting_on"], "waiting_on": ["next_action"],
+        })
+        for field in ("next_action", "waiting_on"):
+            self.assertEqual(operator_packet["properties"][field]["type"], ["string", "null"])
         self.assertEqual(
             schema["properties"]["continuation_result_type"]["const"],
             "complex-work-orchestration-sprint-continuation",

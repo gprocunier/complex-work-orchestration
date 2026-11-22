@@ -43,7 +43,7 @@ class CheckInstalledSkillTests(unittest.TestCase):
         (root / "docs" / "index.html").write_text("<!doctype html><title>Docs</title>\n", encoding="utf-8")
         prompts = root / "prompts" / "archive"
         prompts.mkdir(parents=True)
-        (root / "prompts" / "cwo-sol-operator-e.md").write_text("Candidate E\n", encoding="utf-8")
+        (root / "prompts" / "cwo-architect.md").write_text("CWO architect\n", encoding="utf-8")
         (prompts / "cwo-sol-operator-e-v5-qualified.md").write_text("Qualified v5\n", encoding="utf-8")
         calibration = root / "calibration"
         calibration.mkdir()

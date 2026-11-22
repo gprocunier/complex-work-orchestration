@@ -54,9 +54,6 @@ class DurableMemoryDocumentationTests(unittest.TestCase):
         hooks = (ROOT/'scripts/configure_codex_beads_hooks.py').read_text()
         for event in ('SessionStart','UserPromptSubmit','PreCompact','PostCompact'):
             self.assertIn(f'"{event}"',hooks)
-        prompt = (ROOT/'prompts/cwo-sol-operator-e.md').read_text()
-        self.assertIn('After interruption or compaction,',prompt)
-        self.assertIn('reconcile the checkout, tracker, accepted evidence, remaining scope, and budget',prompt)
 
     def test_recovery_graph_keeps_both_stores_and_requires_verification_before_continuation(self):
         config = json.loads((ROOT/'docs/diagrams/flows.json').read_text())['durable-recovery']

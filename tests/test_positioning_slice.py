@@ -61,10 +61,17 @@ class PositioningSliceTests(unittest.TestCase):
                        'A blocked check stops candidate work', 'actually invoked'):
             self.assertIn(phrase, text)
         self.assertIn('references/frozen-protocol-lock.md', ' '.join(page('workflows.html').hrefs['contract']))
-    def test_working_launcher_and_public_maintainer_example_keep_correct_scope(self):
+    def test_practice_sessions_support_in_thread_work(self):
+        command = 'codex -C "$HOME/cwo-first-project"'
+        first = page('first-project.html').sections['fresh-session']
         text=page('continue-project.html').sections['continue']
+        self.assertIn(command, first)
+        self.assertIn(command, text)
         self.assertIn('same working launch command as the first session', text)
-        self.assertIn('explicit named-profile alternative', text)
+        self.assertNotIn('cwo-codex', first)
+        self.assertNotIn('cwo-codex', text)
+
+    def test_public_maintainer_example_keeps_correct_scope(self):
         self.assertNotIn('remains subject to owner review', page('use-cases.html').sections['docs-workflow'])
 
     def test_home_separates_component_recorded_and_unexecuted_evidence(self):

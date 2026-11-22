@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 import importlib.util
+import io
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -19,6 +21,7 @@ from continue_sprint import (  # noqa: E402
     build_continuation_brief,
     load_beads_items,
     load_markdown_items,
+    print_text,
 )
 from cwo_core.beads_ready_set import (  # noqa: E402
     build_ready_set_evidence,
@@ -35,6 +38,7 @@ from tests.real_beads_fixture import (  # noqa: E402
     run_fixture_subprocess,
 )
 from tests.real_beads_fixture import configure_git_fixture
+from validate_operator_handoff import validate_text  # noqa: E402
 
 BD_PATH = shutil.which("bd")
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
@@ -106,6 +110,12 @@ class ContinueSprintTests(unittest.TestCase):
         historical = {
             key: value for key, value in result.items() if key not in V2_READY_SET_FIELDS
         }
+        old_packet = {
+            key: value for key, value in result["operator_handoff_packet"].items()
+            if key not in {"next_action", "waiting_on"}
+        }
+        validator.validate({**result, "operator_handoff_packet": old_packet})
+        historical["operator_handoff_packet"] = old_packet
         historical["version"] = 1
         validator.validate(historical)
         historical_with_explicit_safe_default = {
@@ -115,6 +125,10 @@ class ContinueSprintTests(unittest.TestCase):
         validator.validate(historical_with_explicit_safe_default)
         with self.assertRaises(ValidationError):
             validator.validate({**historical, "dispatch_authorized": True})
+        with self.assertRaises(ValidationError):
+            validator.validate({
+                **result, "operator_handoff_packet": {**old_packet, "next_action": "Continue task"},
+            })
 
     def test_ranks_ready_issues_by_priority_then_unblocking_value(self) -> None:
         items = [
@@ -137,6 +151,17 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertIn("priority 1", result["why_next"])
         self.assertIn("unblocks 1 downstream", result["why_next"])
         self.assertEqual([item["id"] for item in result["ready_issues"]], ["engine", "docs"])
+
+        packet = result["operator_handoff_packet"]
+        self.assertEqual(packet["next_action"], "Continue engine Engine")
+        self.assertEqual(packet["waiting_on"], "validate: depends on engine (open)")
+        rendered = io.StringIO()
+        with redirect_stdout(rendered):
+            print_text(result)
+        handoff = rendered.getvalue().split("## Operator Handoff Packet\n", 1)[1]
+        self.assertIn("- Next action: Continue engine Engine", handoff)
+        self.assertIn("- Waiting on: validate: depends on engine (open)", handoff)
+        self.assertEqual(validate_text(handoff, require_scoped_continuation=True), [])
 
     def test_beads_dependency_objects_ignore_parent_child_and_extract_blockers(self) -> None:
         items = [
@@ -325,6 +350,8 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertEqual(result["ready_issues"], [])
         self.assertEqual(result["blocked_issues"], [])
         self.assertEqual(packet["next_executable_bead"], "none - stop condition met")
+        self.assertIsNone(packet["next_action"])
+        self.assertIsNone(packet["waiting_on"])
         self.assertTrue(packet["execution_prompt"].startswith("STOP:"))
         self.assertNotIn(
             "Use $complex-work-orchestration to continue",
@@ -383,6 +410,8 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertEqual(result["ready_issues"], [])
         self.assertEqual([item["id"] for item in result["blocked_issues"]], ["guarded"])
         self.assertEqual(packet["next_executable_bead"], "none - blocked")
+        self.assertIsNone(packet["next_action"])
+        self.assertEqual(packet["waiting_on"], "guarded: status is blocked")
         self.assertTrue(packet["execution_prompt"].startswith("DECIDE:"))
         self.assertNotIn(
             "Use $complex-work-orchestration to continue",

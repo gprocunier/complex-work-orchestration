@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Install the skill and named profile while keeping source, installation and project directories separate."
+      content="Install the skill and optionally add the architect profile while keeping source, installation and project directories separate."
     >
     <title>Install and verify CWO | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -53,11 +53,11 @@
     </header>
 
     <main id="main" tabindex="-1">
-<div class="page-shell reference-slice page--tutorial"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./get-started.html">Start Here</a></nav><h1 id="page-title">Install and verify CWO</h1><p class="lede">Install the CWO skill and a named Codex profile: a set of CWO-specific settings selected when you start a session. Verify both before starting the optional practice example.</p><nav class="tutorial-progress" aria-label="Practice walkthrough stages"><ol><li><a href="./get-started.html">1. Prepare</a></li><li><a href="./install.html" aria-current="step">2. Install</a></li><li><a href="./first-project.html">3. Practice example</a></li><li><a href="./continue-project.html">4. Continue the example</a></li></ol></nav></header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page"><a href="#agent-install">Have your agent install CWO</a><a href="#install">Keep source, installed files and project separate</a></nav></details><article class="doc-content" aria-labelledby="page-title"><p>Tested on Linux with Python 3.12 and 3.14. Other operating systems and interpreter versions are untested.</p><section id="agent-install" aria-labelledby="agent-install-title">
+<div class="page-shell reference-slice page--tutorial"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./get-started.html">Start Here</a></nav><h1 id="page-title">Install and verify CWO</h1><p class="lede">Install and verify the CWO skill. You can also opt in to the architect profile, which loads CWO’s replacement base instructions in a fresh session.</p><nav class="tutorial-progress" aria-label="Practice walkthrough stages"><ol><li><a href="./get-started.html">1. Prepare</a></li><li><a href="./install.html" aria-current="step">2. Install</a></li><li><a href="./first-project.html">3. Practice example</a></li><li><a href="./continue-project.html">4. Continue the example</a></li></ol></nav></header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page"><a href="#agent-install">Have your agent install CWO</a><a href="#install">Keep source, installed files and project separate</a></nav></details><article class="doc-content" aria-labelledby="page-title"><p>Tested on Linux with Python 3.12 and 3.14. Other operating systems and interpreter versions are untested.</p><section id="agent-install" aria-labelledby="agent-install-title">
 <h2 id="agent-install-title">If you want your agent to install this skill, give it this</h2>
 <p>Copy this prompt into an ordinary Codex CLI session. It does not require CWO to be installed. Your agent checks the machine, sets up missing prerequisites within your permissions, installs CWO and verifies the result.</p>
 <details class="install-prompt"><summary>Show the installation prompt</summary>
-<pre class="prompt shiki github-dark-default shiki-style-8930c6a81784fc59" data-language="text" tabindex="0" role="region" aria-label="Agent installation prompt" data-theme="github-dark-default"><code><span class="line"><span>Install Complex Work Orchestration (CWO) for my local Codex CLI setup.</span></span>
+<pre class="prompt shiki github-dark-default shiki-style-8930c6a81784fc59" data-language="text" tabindex="0" role="region" aria-label="Agent installation prompt" data-theme="github-dark-default"><code><span class="line"><span>Install Complex Work Orchestration (CWO) and its optional architect profile for my local Codex CLI setup.</span></span>
 <span class="line"><span>CWO is not installed yet: use ordinary tools and a short setup checklist,</span></span>
 <span class="line"><span>not CWO commands or a CWO work graph, to get started.</span></span>
 <span class="line"><span></span></span>
@@ -102,7 +102,7 @@
 <span class="line"><span>docs/install.html, scripts/install.sh and scripts/manage_instruction_profile.py</span></span>
 <span class="line"><span>before running the installer. Do not require an installed CWO to do this.</span></span>
 <span class="line"><span></span></span>
-<span class="line"><span>5. Install the skill and its named settings profile.</span></span>
+<span class="line"><span>5. Install the skill and its architect profile.</span></span>
 <span class="line"><span>From the source checkout, inspect the installer's dry-run destination first.</span></span>
 <span class="line"><span>The following commands use the default paths. If I use CODEX_HOME or</span></span>
 <span class="line"><span>CODEX_SKILLS_DIR, use each helper's --help to align installation, checking,</span></span>
@@ -112,8 +112,10 @@
 <span class="line"><span>./scripts/install.sh --yes --dry-run</span></span>
 <span class="line"><span>./scripts/install.sh --yes</span></span>
 <span class="line"><span>python3 scripts/check_installed_skill.py --check</span></span>
-<span class="line"><span>python3 scripts/manage_instruction_profile.py install --profile operator-e</span></span>
-<span class="line"><span>python3 scripts/manage_instruction_profile.py verify --profile operator-e</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>Change to the installed skill directory reported by the installer first.</span></span>
+<span class="line"><span>python3 scripts/manage_instruction_profile.py install --profile architect</span></span>
+<span class="line"><span>python3 scripts/manage_instruction_profile.py verify --profile architect</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>Inspect any existing installation and preserve its local changes and backup.</span></span>
 <span class="line"><span>Do not use --force to overwrite a modified profile or launcher without asking</span></span>
@@ -123,9 +125,9 @@
 <span class="line"><span>6. Verify and hand back a usable starting point.</span></span>
 <span class="line"><span>Require the skill check to report current and profile verification to report</span></span>
 <span class="line"><span>"ok": true. Report failures separately; do not label a partial install ready.</span></span>
-<span class="line"><span>Check that the launcher can be found, or give its full path. If the profile's</span></span>
-<span class="line"><span>model is unavailable, report it and propose a supported per-session override</span></span>
-<span class="line"><span>that retains the named profile; do not silently rewrite defaults.</span></span>
+<span class="line"><span>Check that the launcher can be found, or give its full path. If the model</span></span>
+<span class="line"><span>configured for the Sol route is unavailable, report it and give me</span></span>
+<span class="line"><span>the explicit Codex profile command, which uses my Codex settings.</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>Summarize the source commit, installed paths, prerequisite/backend checks,</span></span>
 <span class="line"><span>backups, actual verification results and any remaining blocker. Give me the</span></span>
@@ -142,11 +144,15 @@
         <pre tabindex="0" role="region" aria-label="Terminal commands or recorded output" data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">git</span><span class="shiki-style-fccf53bf0d08ec6a"> clone</span><span class="shiki-style-fccf53bf0d08ec6a"> https://github.com/gprocunier/complex-work-orchestration.git</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/cwo-source"</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">cd</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/cwo-source"</span></span>
 <span class="line"><span class="shiki-style-3655fcaf5376929f">./scripts/install.sh</span><span class="shiki-style-ab138001542cb31f"> --yes</span></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/check_installed_skill.py</span><span class="shiki-style-ab138001542cb31f"> --check</span></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> install</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> operator-e</span></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> verify</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> operator-e</span></span></code></pre>
-        <p>Expected: the installer reports its destination, the skill check reports <code>current</code>, and profile verification reports <code>"ok": true</code>. The named profile adds CWO instructions and a launcher without changing your default profile settings. The installed skill remains discoverable in ordinary sessions until disabled or removed. If a managed file has local changes, inspect the reported path before deciding what to keep; do not add <code>--force</code> blindly. Resolve a missing <code>bd</code> warning before continuing.</p>
-        <p>These commands use the default Codex home. If you deliberately use <code>CODEX_HOME</code> or <code>CODEX_SKILLS_DIR</code>, align the installer, check, profile, and launcher with that same home. The <a href="./reference.html#installation">installation reference</a> covers explicit destinations.</p>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/check_installed_skill.py</span><span class="shiki-style-ab138001542cb31f"> --check</span></span></code></pre>
+        <p>The skill check should report <code>current</code>. Resolve a missing <code>bd</code> warning before continuing. For the practice example, the verified skill is enough.</p>
+        <p>To opt in to the architect profile, change to the installed skill directory and run:</p>
+        <p class="input-label">Terminal</p>
+        <pre tabindex="0" role="region" aria-label="Terminal commands or recorded output" data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default"><code><span class="line"><span class="shiki-style-ab138001542cb31f">cd</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$HOME</span><span class="shiki-style-fccf53bf0d08ec6a">/.codex/skills/complex-work-orchestration"</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> install</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> architect</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/manage_instruction_profile.py</span><span class="shiki-style-fccf53bf0d08ec6a"> verify</span><span class="shiki-style-ab138001542cb31f"> --profile</span><span class="shiki-style-fccf53bf0d08ec6a"> architect</span></span></code></pre>
+        <p>Profile verification should report <code>"ok": true</code>. Use <code>cwo-codex -C "$PWD"</code> from your project to start a fresh architect session. The launcher supplies model, reasoning effort and service tier from CWO’s Sol routing role. The profile itself sets only <code>model_instructions_file</code>. Inspect any managed file changes before using <code>--force</code>.</p>
+        <p>These commands use the default Codex home. If you set <code>CODEX_HOME</code> or <code>CODEX_SKILLS_DIR</code>, use the installed location that the installer reports. Use the same Codex home for profile installation, verification and launch. The <a href="./reference.html#installation">installation reference</a> covers explicit destinations.</p>
         </section><nav class="next-action" aria-label="Next task"><a class="button" href="./first-project.html">Next: try the practice example</a></nav></article></div></div>
     </main>
 

@@ -22,8 +22,8 @@ COMMANDS = [
     './scripts/install.sh --yes --dry-run',
     './scripts/install.sh --yes',
     'python3 scripts/check_installed_skill.py --check',
-    'python3 scripts/manage_instruction_profile.py install --profile operator-e',
-    'python3 scripts/manage_instruction_profile.py verify --profile operator-e',
+    'python3 scripts/manage_instruction_profile.py install --profile architect',
+    'python3 scripts/manage_instruction_profile.py verify --profile architect',
 ]
 
 
@@ -129,9 +129,10 @@ class AgentInstallPromptTests(unittest.TestCase):
                    'CODEX_SKILLS_DIR': str(skills),
                    'PATH': str(bin_dir) + os.pathsep + os.environ['PATH'],
                    'SKILL_VALIDATOR': str(home / 'no-live-validator.py')}
+            target = skills / 'complex-work-orchestration'
             results = []
             for index, argv in enumerate(commands):
-                result = subprocess.run(argv, cwd=ROOT, env=env, text=True,
+                result = subprocess.run(argv, cwd=ROOT if index < 3 else target, env=env, text=True,
                                         capture_output=True, timeout=40)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 results.append(result)
@@ -140,7 +141,6 @@ class AgentInstallPromptTests(unittest.TestCase):
             self.assertIn('current', results[2].stdout.lower())
             self.assertTrue(json.loads(results[-1].stdout)['ok'])
             self.assertEqual(config.read_bytes(), original)
-            target = skills / 'complex-work-orchestration'
             self.assertEqual((target / 'SKILL.md').read_bytes(), (ROOT / 'SKILL.md').read_bytes())
             self.assertTrue((home / '.local/bin/cwo-codex').is_file())
             self.assertFalse((home / '.codex').exists())

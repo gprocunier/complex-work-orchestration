@@ -1,101 +1,72 @@
-# CWO system prompt
+# CWO architect prompt
 
-CWO uses a system prompt optimized for complex project work rather than the
-default OpenAI system prompt. It directs the lead to define acceptance criteria,
-preserve project decisions, check evidence, coordinate bounded specialist work,
-and leave a usable handoff. This describes its intended workflow, not a guarantee
-of better results on every task.
-
-For the complete setup and continuation journey, use
-[Start Here](../docs/get-started.html). This reference owns prompt activation,
-verification and removal, not a second beginner tutorial.
+The opt-in `architect` profile loads [the CWO architect prompt](../prompts/cwo-architect.md)
+as replacement Codex base instructions in a fresh session. The architect defines
+success, delegates through CWO, integrates results and leaves a handoff. Separate
+review and CWO's verified-acceptance process handle acceptance.
 
 ## Behavior and authority
 
-The prompt keeps normal interactive tools and response formats. It instructs the
-lead to define success before editing, check related behavior, make a complete
-change, save state before triggering observable actions, and account for failed
-attempts and remaining allowance. For evaluations, it preserves the agreed cases,
-scoring and decision rule.
+Continue independent work within the requested scope when a step is blocked.
+Record the cause, follow the applicable runtime controls and present effects
+reserved to the operator for their decision. No phrase grants or removes
+authority. The [claims register](claims-register.md) and
+[threat model](security-threat-model.md) describe the limits of CWO's controls.
 
-The prompt itself cannot provide trusted CWO enforcement.
-Policy, validators, hooks and supervision helpers refuse specific invalid
-inputs when their supported paths are invoked. These checks are cooperative
-where a lead can bypass the helper or rewrite its inputs; supervision helpers
-do not independently poll or interrupt workers. Configured host audit verification
-checks retained history against its private head checkpoint and segment seals;
-legacy diagnostic logs lack that checkpoint and cannot provide host authority.
-A same-account writer can erase that state or rewrite and rehash the host chain
-and checkpoint.
-These records do not authenticate the operator or supply an external anchor.
-The [claims register](claims-register.md) and
-[threat model](security-threat-model.md) describe those boundaries.
-
-The prompt guides the lead's behavior; it cannot establish a sandbox, grant
-publication permission or qualify a worker runtime. Source inspection, fake-effect
-tests, operating-system observations and live runtime qualification are separate
-evidence classes; none implies the others.
-
-When a brief or immutable manifest supplies an experiment protocol, build and
-validate the lock described in [frozen-protocol-lock.md](frozen-protocol-lock.md)
-before costly dispatch. Revalidate after steering, interruption or compaction.
-A `new-protocol-required` result stops that operation; it does not permit a
-replacement experiment under the old evidence boundary.
+For an experiment governed by a brief or immutable manifest, use the
+[frozen protocol lock](frozen-protocol-lock.md) before costly dispatch.
 
 ## Install and verify
 
-After installing the CWO skill, run from this repository root:
+After [installing the CWO skill](../docs/install.html#install), use its installed
+directory to install and verify the optional profile:
 
 ```bash
-python3 scripts/manage_instruction_profile.py install --profile operator-e
-python3 scripts/manage_instruction_profile.py verify --profile operator-e
+python3 scripts/manage_instruction_profile.py install --profile architect
+python3 scripts/manage_instruction_profile.py verify --profile architect
 ```
 
-The profile and source filenames are stable compatibility identifiers, not
-choices between competing prompts. Installation creates the named Codex profile,
-a hash-bound copy of `prompts/cwo-sol-operator-e.md` under `$CODEX_HOME/prompts`,
-and the `cwo-codex` launcher. It does not edit `config.toml` or change ordinary
-default-profile settings.
-
-The profile does not set `model_reasoning_effort`. It inherits the effort
-selected by the host or user. Verify the actual model and effort in the running
-session; a config file alone is not runtime evidence. Drift causes installation,
-verification and removal to fail closed. Inspect modified managed files before
-deciding whether an explicit `--force` is appropriate.
+Installation writes `cwo-architect.config.toml` with the single setting
+`model_instructions_file`, a byte-for-byte copy of the prompt under
+`$CODEX_HOME/prompts`, and the `cwo-codex` launcher. Verification checks the
+managed files against their expected bytes. Inspect any reported differences
+before forcing an overwrite or removal.
 
 ## Start a fresh CWO session
 
-Select the profile at the start of a new Codex session:
+From your project, start a fresh session:
 
 ```bash
 cwo-codex -C "$PWD"
 ```
 
-The equivalent explicit command is:
+The launcher reads model, reasoning effort and service tier from the Sol role
+in [CWO's routing configuration](../policy/model-roles.yaml). To select the
+same prompt with your own Codex settings, use:
 
 ```bash
-codex --profile cwo-sol-operator-e -C "$PWD"
+codex --profile cwo-architect -C "$PWD"
 ```
 
-Resuming an older thread does not activate the named profile or provide
-profile-selection evidence. Explicitly reading and following the source prompt
-is a fallback for a thread that cannot restart, but it is not named-profile
-activation. The installed CWO skill remains available in ordinary sessions until
-disabled or removed; that is separate from selecting the system-prompt profile.
+Check the active settings in the new session. The profile is selected at
+startup, so use a fresh conversation to activate it. An ordinary session can
+use the installed CWO skill and its [practice walkthrough](../docs/first-project.html).
 
 ## Roll back
 
-Leave the profiled session and start a fresh ordinary session:
+Start a fresh ordinary session with `codex -C "$PWD"`. To remove the managed
+profile, prompt and launcher, run from the installed skill directory:
 
 ```bash
-codex -C "$PWD"
+python3 scripts/manage_instruction_profile.py remove --profile architect
 ```
 
-To remove the managed profile, prompt and unmodified launcher:
+The skill remains available to ordinary sessions until disabled or removed.
 
-```bash
-python3 scripts/manage_instruction_profile.py remove --profile operator-e
-```
+## History
 
-Removal does not edit `config.toml` or remove the CWO skill or other profiles.
-Preserve unexpected local changes instead of forcing removal by default.
+The overlay, Candidate C and both Candidate E prompts are archived under
+[`prompts/archive/`](../prompts/archive/). Candidate E's guide and qualification
+summary are in [`references/history/`](history/). The held three-arm study has a
+frozen binding to `prompts/cwo-sol-operator-e.md`, which remains at that path
+with its original bytes solely as a study input.
