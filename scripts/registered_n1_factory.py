@@ -1,8 +1,8 @@
 """Registered finite N=1 transport with parent custody and no route activation.
 
 Only a claimed original maintenance capability can select this factory. Worker
-code never runs in the controller, and the namespace launcher exposes neither
-controller state nor credentials. OS qualification is separate from this code.
+code never runs in the controller. The isolated qualification app server can
+receive one explicitly attached provider credential through its start gate.
 """
 from __future__ import annotations
 
@@ -479,6 +479,7 @@ class _Containment:
         self._observation_listener = None
         self._fds = []
         self.provider_network = None
+        self._access_token_fd = -1
 
     def _command(self, command, home, block, info):
         spec, host = self.factory.spec, self.factory.host
@@ -524,8 +525,30 @@ class _Containment:
     def _provider_network_fds(self):
         if not self._provider_network_selected():
             return ()
-        self.provider_network = provider_network.ProviderBroker(self._record_provider_denial)
-        return (self.provider_network.child_socket.fileno(),)
+        token = self.factory._take_provider_access_token()
+        self.provider_network = provider_network.ProviderBroker(
+            self._record_provider_denial, allow_personal_access_token=token is not None)
+        control = self.provider_network.child_socket.fileno()
+        if token is None:
+            return (control,)
+        self._stage_access_token(token)
+        return (control, self._access_token_fd)
+
+    def _pipe(self):
+        descriptors = os.pipe()
+        self._fds.extend(descriptors)
+        return descriptors
+
+    def _close_fd(self, descriptor):
+        self._fds.remove(descriptor)
+        os.close(descriptor)
+
+    def _stage_access_token(self, token):
+        self._access_token_fd, writer = self._pipe()
+        try:
+            _need(os.write(writer, token) == len(token), "Provider credential handoff was incomplete.")
+        finally:
+            self._close_fd(writer)
 
     def _record_provider_denial(self, reason):
         self.factory.record('provider-network-denied', {'reason': reason})
@@ -551,7 +574,8 @@ class _Containment:
     def _bootstrap_command(self, command):
         entry = [self.factory.spec['validator'], '-I', '-S']
         if self.provider_network is not None:
-            return [*entry, provider_network.RELAY_MOUNT, str(self.provider_network.child_socket.fileno()), *command]
+            return [*entry, provider_network.RELAY_MOUNT, str(self.provider_network.child_socket.fileno()),
+                    str(self._access_token_fd), *command]
         return [*entry, '-c', _BOOTSTRAP, *command]
 
     def _confirm_mounts(self):
@@ -599,10 +623,9 @@ class _Containment:
               "The trusted containment role has no other executable allowance.")
         self._preflight_tool_launch(tool_call, deadline, tool_decision)
         self.command = tuple(command)
-        read_gate, write_gate = os.pipe()
-        read_info, write_info = os.pipe()
-        self._fds = [read_gate, write_gate, read_info, write_info]
         try:
+            read_gate, write_gate = self._pipe()
+            read_info, write_info = self._pipe()
             network_fds = self._provider_network_fds()
             argv = self._command(command, home, read_gate, write_info)
             arguments = _argument_file()
@@ -633,8 +656,7 @@ class _Containment:
             if self.role == 'tool':
                 self.factory.server.finite_input.publish_pending_lifetime(self)
             for descriptor in (read_gate, write_info):
-                os.close(descriptor)
-                self._fds.remove(descriptor)
+                self._close_fd(descriptor)
             observation = self._observe(read_info)
             self.controller._engine._verified(self.controller._engine._lookup(self.receipt))
             # This is the only gate release. A selected tool must still be the
@@ -669,6 +691,9 @@ class _Containment:
     def _release_provider_descriptor(self):
         if self.provider_network is not None:
             self.provider_network.child_socket.close()
+        if self._access_token_fd != -1:
+            self._close_fd(self._access_token_fd)
+            self._access_token_fd = -1
 
     def _close_provider_network(self, primary=None):
         if self.provider_network is None:
@@ -1839,6 +1864,7 @@ class RegisteredN1Factory:
         self._host_bytes = admitted._host_snapshot(host)
         self._ledger_handles = admitted._ledger_handles(ledger)
         self._qualification_start = None
+        self._provider_access_token = None
         self._qualification_permit = copy.deepcopy(qualification_permit)
         self._qualification = self._authorize_qualification(self._qualification_permit, operation)
         self._validate()
@@ -2290,14 +2316,30 @@ class RegisteredN1Factory:
             raise
         self.record('validated', {'artifact': report['artifact']['sha256'], 'policy': self.policy.report})
 
-    def run(self):
+    def _claim_run(self, provider_access_token):
+        if provider_access_token is not None:
+            _need(self.qualification is not None, "Provider credential attachment requires signed qualification.")
+            provider_access_token = provider_network.personal_access_token_bytes(provider_access_token)
         self.require_launch_selection()
         with self._lock:
             if self._started:
+                _need(provider_access_token is None, "Provider credentials apply to one original launch only.")
                 _need(self.result is not None, "Unknown execution requires reconciliation, never redispatch.")
                 self.guard()
-                return self.result
+                return False
+            self._provider_access_token = provider_access_token
             self._started = True
+            return True
+
+    def _take_provider_access_token(self):
+        token, self._provider_access_token = self._provider_access_token, None
+        return token
+
+    def run(self, *, provider_access_token=None):
+        """Run once with an optional personal access token from the trusted embedder."""
+        if not self._claim_run(provider_access_token):
+            return self.result
+        del provider_access_token
         try:
             self.guard()
             result = admission.invoke_offline(self.receipt, self.route, self.node_id,
@@ -2332,6 +2374,8 @@ class RegisteredN1Factory:
             if self.adapter is not None:
                 _ADAPTERS.pop(self.adapter, None)
             raise
+        finally:
+            self._provider_access_token = None
 
     def _observer(self, report):
         # A real observer is persisted by InvocationLedger before the effect.

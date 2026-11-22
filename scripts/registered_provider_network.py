@@ -1,6 +1,7 @@
 """Run-local HTTPS egress for the isolated registered N1 app server."""
 from __future__ import annotations
 
+from contextlib import ExitStack
 import io
 import ipaddress
 import os
@@ -15,6 +16,7 @@ import time
 
 
 PROVIDERS = frozenset({'api.openai.com', 'chatgpt.com'})
+_PERSONAL_ACCESS_TOKEN_PROVIDERS = PROVIDERS | {'auth.openai.com'}
 RELAY_SOURCE = Path(__file__).resolve()
 RELAY_MOUNT = '/cwo/provider-network.py'
 PROXY_PORT = 24671
@@ -22,6 +24,20 @@ _TIMEOUT = 5
 _MAX_CONNECTIONS = 8
 _CONNECT = re.compile(rb'CONNECT ([a-zA-Z0-9.-]{1,253}):443 HTTP/1\.[01]')
 _READY = b'cwo-boundary-ready\n'
+_MAX_ACCESS_TOKEN_BYTES = 4096  # Linux PIPE_BUF, so staging needs only one bounded write.
+_ACCESS_TOKEN = re.compile(rb'at-[A-Za-z0-9._~+/-]+=*')
+
+
+def _valid_access_token(value):
+    return len(value) <= _MAX_ACCESS_TOKEN_BYTES and _ACCESS_TOKEN.fullmatch(value) is not None
+
+
+def personal_access_token_bytes(value):
+    if type(value) is str and len(value) <= _MAX_ACCESS_TOKEN_BYTES and value.isascii():
+        encoded = value.encode('ascii')
+        if _valid_access_token(encoded):
+            return encoded
+    raise ValueError('A bounded Codex personal access token is required.')
 
 
 class ProviderNetworkError(RuntimeError):
@@ -70,13 +86,13 @@ class _Reader:
         return answer
 
 
-def _destination(reader):
+def _destination(reader, providers):
     first_line = reader.headers().split(b'\r\n', 1)[0]
     match = _CONNECT.fullmatch(first_line)
     if match is None:
         raise _Refused('invalid-connect')
     host = match[1].decode('ascii').lower()
-    if host not in PROVIDERS:
+    if host not in providers:
         raise _Refused('destination-not-allowed')
     return host
 
@@ -291,8 +307,9 @@ def _receive_handoff(control):
 class ProviderBroker:
     """The host owns DNS, endpoint policy and every outbound socket."""
 
-    def __init__(self, record):
+    def __init__(self, record, *, allow_personal_access_token=False):
         self._record = record
+        self._providers = _PERSONAL_ACCESS_TOKEN_PROVIDERS if allow_personal_access_token else PROVIDERS
         self._connections = _Connections(_MAX_CONNECTIONS)
         self._control, self.child_socket = socket.socketpair(type=socket.SOCK_DGRAM)
         self._control.settimeout(.25)
@@ -325,7 +342,7 @@ class ProviderBroker:
         reader = _Reader(client)
         acknowledged = False
         try:
-            host = _destination(reader)
+            host = _destination(reader, self._providers)
             client.sendall(b'HTTP/1.1 200 Connection Established\r\n\r\n')
             acknowledged = True
             wire, hello = _client_hello(reader)
@@ -383,30 +400,49 @@ def _serve_relay(listener, control):
         connections.start(listener.accept()[0], forward)
 
 
-def _fork_relay(listener, control):
+def _fork_relay(listener, control, access_token_fd):
     if os.fork() != 0:
         return
     try:
+        if access_token_fd != -1:
+            os.close(access_token_fd)
         os.closerange(0, 3)
         _serve_relay(listener, control)
     finally:
         os._exit(74)
 
 
-def _bootstrap(descriptor, command):
+def _start_relay(descriptor, access_token_fd):
     with socket.socket(fileno=descriptor) as control, socket.socket() as listener:
         control.set_inheritable(False)
         control.settimeout(.25)
         listener.bind(('127.0.0.1', PROXY_PORT))
         listener.listen(_MAX_CONNECTIONS)
-        _fork_relay(listener, control)
+        _fork_relay(listener, control, access_token_fd)
     proxy = f'http://127.0.0.1:{PROXY_PORT}'
     os.environ.update(HTTP_PROXY=proxy, HTTPS_PROXY=proxy, ALL_PROXY=proxy)
-    os.write(1, _READY)
-    if not select.select([0], [], [], 10)[0] or os.read(0, 1) != b'1':
+
+
+def _read_access_token(attachment):
+    data = attachment.read(_MAX_ACCESS_TOKEN_BYTES + 1)
+    if not _valid_access_token(data):
         raise SystemExit(73)
+    return data.decode('ascii')
+
+
+def _bootstrap(descriptor, access_token_fd, command):
+    with ExitStack() as cleanup:
+        attachment = (None if access_token_fd == -1
+                      else cleanup.enter_context(os.fdopen(access_token_fd, 'rb')))
+        _start_relay(descriptor, access_token_fd)
+        os.write(1, _READY)
+        if not select.select([0], [], [], 10)[0] or os.read(0, 1) != b'1':
+            raise SystemExit(73)
+        token = None if attachment is None else _read_access_token(attachment)
+    if token is not None:
+        os.environ['CODEX_ACCESS_TOKEN'] = token
     os.execv(command[0], command)
 
 
 if __name__ == '__main__':
-    _bootstrap(int(sys.argv[1]), sys.argv[2:])
+    _bootstrap(int(sys.argv[1]), int(sys.argv[2]), sys.argv[3:])

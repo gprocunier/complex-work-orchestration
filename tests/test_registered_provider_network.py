@@ -19,6 +19,7 @@ import registered_provider_network as network  # noqa: E402
 import registered_n1_factory as runtime  # noqa: E402
 
 _EXAMPLE_TLS = Path(__file__).resolve().parent / 'fixtures/registered-provider-network/EXAMPLE-local-tls.pem'
+_EXAMPLE_ACCESS_TOKEN = b'at-EXAMPLE-offline-qualification'
 
 
 def _hello(host):
@@ -81,6 +82,31 @@ class ProviderNetworkTests(unittest.TestCase):
             self.assertEqual(self.denials.get(timeout=3), 'destination-not-allowed')
             dial.assert_not_called()
 
+    def test_auth_host_without_attachment_is_refused_before_dial(self):
+        with patch.object(network, '_dial_provider') as dial:
+            client = self.client()
+            client.sendall(b'CONNECT auth.openai.com:443 HTTP/1.1\r\n\r\n')
+            self.assertIn(b'403', client.recv(1024))
+            self.assertEqual(self.denials.get(timeout=3), 'destination-not-allowed')
+            dial.assert_not_called()
+
+    def test_attachment_keeps_exact_tls_name_and_connect_port(self):
+        self.broker.close()
+        self.broker = network.ProviderBroker(self.denials.put, allow_personal_access_token=True)
+        self.addCleanup(self.broker.close)
+        with patch.object(network, '_dial_provider') as dial:
+            client = self.client()
+            client.sendall(b'CONNECT auth.openai.com:8443 HTTP/1.1\r\n\r\n')
+            self.assertIn(b'403', client.recv(1024))
+            self.assertEqual(self.denials.get(timeout=3), 'invalid-connect')
+            client = self.client()
+            client.sendall(b'CONNECT auth.openai.com:443 HTTP/1.1\r\n\r\n')
+            self.assertIn(b'200', client.recv(1024))
+            client.sendall(_hello('chatgpt.com'))
+            self.assertEqual(client.recv(1024), b'')
+            self.assertEqual(self.denials.get(timeout=3), 'tls-server-name-mismatch')
+            dial.assert_not_called()
+
     def test_a_different_tls_name_has_no_outbound_effect(self):
         with patch.object(network, '_dial_provider') as dial:
             client = self.client()
@@ -115,7 +141,7 @@ class ProviderNetworkTests(unittest.TestCase):
 
 
 _APP_SERVER = '''#!/usr/bin/python3 -I
-import os, socket, ssl, stat
+import os, socket, ssl
 
 try:
     open('appserver-should-not-write', 'w').close()
@@ -126,9 +152,11 @@ else:
 
 for entry in os.listdir('/proc/self/fd'):
     try:
-        assert not stat.S_ISSOCK(os.fstat(int(entry)).st_mode)
+        os.fstat(int(entry))
     except OSError:
         pass
+    else:
+        assert int(entry) <= 2
 
 address = ('127.0.0.1', int(os.environ['HTTPS_PROXY'].rsplit(':', 1)[1]))
 try:
@@ -140,26 +168,34 @@ else:
 with socket.create_connection(address, timeout=3) as stream:
     stream.sendall(b'CONNECT denied.example:443 HTTP/1.1\\r\\n\\r\\n')
     assert b'403' in stream.recv(1024)
+token = os.environ.get('CODEX_ACCESS_TOKEN')
+host = 'chatgpt.com' if token is None else 'auth.openai.com'
+request = b'EXAMPLE provider request' if token is None else b'Authorization: Bearer ' + token.encode()
 with socket.create_connection(address, timeout=3) as stream:
-    stream.sendall(b'CONNECT chatgpt.com:443 HTTP/1.1\\r\\n\\r\\n')
+    stream.sendall(f'CONNECT {host}:443 HTTP/1.1\\r\\n\\r\\n'.encode())
     assert b'200' in stream.recv(1024)
     context = ssl.create_default_context(cafile='provider-test.pem')
-    with context.wrap_socket(stream, server_hostname='chatgpt.com') as tls:
-        tls.sendall(b'EXAMPLE provider request')
+    # The bundled loopback trust pin has just the model host name. The broker
+    # still verifies the authority and requested TLS name for both witnesses.
+    context.check_hostname = token is None
+    with context.wrap_socket(stream, server_hostname=host) as tls:
+        tls.sendall(request)
         assert tls.recv(1024) == b'EXAMPLE provider reply'
 print('EXAMPLE provider reachable', flush=True)
 os.read(0, 1)
 '''
 
-_OFFLINE_CHILD = '''import os, socket, stat, sys
+_OFFLINE_CHILD = '''import os, socket, sys
 
-assert not any(name in os.environ for name in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY'))
+assert not any(name in os.environ for name in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'CODEX_ACCESS_TOKEN'))
 assert not os.path.exists('/cwo/provider-network.py')
 for entry in os.listdir('/proc/self/fd'):
     try:
-        assert not stat.S_ISSOCK(os.fstat(int(entry)).st_mode)
+        os.fstat(int(entry))
     except OSError:
         pass
+    else:
+        assert int(entry) <= 2
 for port in sys.argv[1:]:
     try:
         socket.create_connection(('127.0.0.1', int(port)), timeout=1).close()
@@ -168,6 +204,56 @@ for port in sys.argv[1:]:
     raise AssertionError('Unexpected provider or host access')
 print('EXAMPLE child isolated')
 '''
+
+
+class ProviderAttachmentTests(unittest.TestCase):
+    def attachment(self, data=_EXAMPLE_ACCESS_TOKEN):
+        read, write = os.pipe()
+        with os.fdopen(write, 'wb') as stream:
+            stream.write(data)
+        return read
+
+    def test_early_gate_refusal_closes_without_reading_attachment(self):
+        descriptor = self.attachment()
+        with os.fdopen(os.dup(descriptor), 'rb') as witness:
+            with (patch.object(network, '_start_relay'), patch.object(network.os, 'write'),
+                  patch.object(network.select, 'select', return_value=([], [], [])),
+                  patch.object(network.os, 'execv') as execute,
+                  self.assertRaises(SystemExit) as refused):
+                network._bootstrap(-1, descriptor, ['EXAMPLE-executable'])
+            self.assertEqual(refused.exception.code, 73)
+            execute.assert_not_called()
+            with self.assertRaises(OSError):
+                os.fstat(descriptor)
+            self.assertEqual(witness.read(), _EXAMPLE_ACCESS_TOKEN)
+
+    def test_malformed_descriptor_refuses_after_gate_without_exporting(self):
+        descriptor = self.attachment(b'EXAMPLE-invalid-pipe-bytes')
+        with (patch.object(network, '_start_relay'), patch.object(network.os, 'write'),
+              patch.object(network.os, 'read', return_value=b'1'),
+              patch.object(network.select, 'select', return_value=([0], [], [])),
+              patch.object(network.os, 'environ', {}) as environment,
+              patch.object(network.os, 'execv') as execute,
+              self.assertRaises(SystemExit) as refused):
+            network._bootstrap(-1, descriptor, ['EXAMPLE-executable'])
+        self.assertEqual(refused.exception.code, 73)
+        self.assertEqual(environment, {})
+        execute.assert_not_called()
+        with self.assertRaises(OSError):
+            os.fstat(descriptor)
+
+    def test_relay_closes_attachment_before_serving(self):
+        descriptor = self.attachment()
+        def serve(listener, control):
+            with self.assertRaises(OSError):
+                os.fstat(descriptor)
+            self.assertNotIn('CODEX_ACCESS_TOKEN', network.os.environ)
+        with (patch.object(network.os, 'fork', return_value=0), patch.object(network.os, 'closerange'),
+              patch.object(network.os, 'environ', {}), patch.object(network.os, '_exit', side_effect=SystemExit),
+              patch.object(network, '_serve_relay', side_effect=serve) as run,
+              self.assertRaises(SystemExit)):
+            network._fork_relay('listener', 'control', descriptor)
+        run.assert_called_once_with('listener', 'control')
 
 
 class ProviderNamespaceTests(unittest.TestCase):
@@ -191,6 +277,7 @@ class ProviderNamespaceTests(unittest.TestCase):
             operation_id='EXAMPLE-provider-witness', server=None, require_effect=lambda: None,
             host_records=SimpleNamespace(assert_worker_roots_excluded=lambda roots: None),
             record=lambda stage, observation: self.records.put((stage, observation)),
+            _take_provider_access_token=lambda: None,
             _protected_roots=lambda: ())
         self.lifetime = runtime._Containment(self.factory)
         self.addCleanup(self._close_lifetime)
@@ -291,6 +378,24 @@ class ProviderNamespaceTests(unittest.TestCase):
         self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))
         self.assertEqual(self.records.get_nowait()[0], 'appserver-terminated')
         self.assertTrue(self.records.empty())
+
+    def test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot(self):
+        with (patch.object(self.lifetime, '_provider_network_selected', return_value=True),
+              patch.object(self.factory, '_take_provider_access_token', return_value=_EXAMPLE_ACCESS_TOKEN),
+              patch.object(runtime.live_availability, 'N1_LIVE_AVAILABLE', True),
+              patch.object(network, '_dial_provider', side_effect=lambda *_: socket.create_connection(
+                  self.endpoint, timeout=2)) as dial):
+            process = self.lifetime.launch([self.factory.spec['executable'], 'app-server', '--stdio'], self.home)
+            self.assertTrue(select.select([process.stdout], [], [], 5)[0])
+            self.assertEqual(process.stdout.readline(), 'EXAMPLE provider reachable\n')
+            self.assertEqual(self.provider_request.get(timeout=3), b'Authorization: Bearer ' + _EXAMPLE_ACCESS_TOKEN)
+            for role in ('tool', 'validator'):
+                self.assertEqual(self._run_offline_child(role).stdout, b'EXAMPLE child isolated\n')
+            self.assertEqual([call.args[0] for call in dial.call_args_list], ['auth.openai.com'])
+            self._confirm_natural_exit_reaps_relay(process)
+            self.assertTrue(self.lifetime.terminate()['child_reaped'])
+        self.assertEqual(process.stderr.read(), '')
+        self.assertNotIn(_EXAMPLE_ACCESS_TOKEN.decode(), repr(list(self.records.queue)))
 
 
 class RegisteredMonitorExitTests(unittest.TestCase):

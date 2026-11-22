@@ -75,5 +75,12 @@ processes run in separate network namespaces. Qualification output stays in
 disposable custody and production dispatch continues to require its own source
 decision.
 
-The isolated app-server spool starts without account state. A live run requires
-an authorized provider authentication handoff to that spool.
+The isolated app-server spool starts without account state. A trusted embedding
+controller can pass an already provisioned Codex personal access token through
+the `provider_access_token` keyword to `RegisteredN1Factory.run`. The signed
+qualification launch delivers it through a private pipe. The app-server
+bootstrap closes the pipe before passing the token to Codex as
+`CODEX_ACCESS_TOKEN`. Only this launch's provider broker admits
+`auth.openai.com:443`, with matching CONNECT authority and TLS server name.
+The controller supplies and manages the credential. See the
+[Codex access token documentation](https://learn.chatgpt.com/docs/enterprise/access-tokens).
