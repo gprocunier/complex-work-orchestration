@@ -87,6 +87,7 @@
     "scripts/cwo_core/checked_command_sequence.py": 420,
     "scripts/cwo_core/coach.py": 420,
     "scripts/cwo_core/codex_hook_enforcement.py": 420,
+    "scripts/cwo_core/codex_protocol_capabilities.py": 420,
     "scripts/cwo_core/codex_protocol_pin.py": 420,
     "scripts/cwo_core/codex_tool_surface.py": 420,
     "scripts/cwo_core/epic_convergence.py": 420,
@@ -373,6 +374,7 @@
     "scripts/cwo_core/checked_command_sequence.py": "ba99b618d548ff236de1735127a4cbc5370f5f554d9ea21c696171841e0d6f3b",
     "scripts/cwo_core/coach.py": "a2e975b1d5516e32c0374824a0dbb6db64165ad5a91ee9020b9fd500d3edcabc",
     "scripts/cwo_core/codex_hook_enforcement.py": "b988f0062b354cf193ec3528462168cb828f2721d29d046573c78f69ee1685a0",
+    "scripts/cwo_core/codex_protocol_capabilities.py": "2e088d9fc1cae5987132754853fc1c7b7d7425defddaf1bc0a089191625362c0",
     "scripts/cwo_core/codex_protocol_pin.py": "5f65e2bfedc3ccbb1f5248c63fa17c4d7b60a6586bf93044741e157a35c94bbd",
     "scripts/cwo_core/codex_tool_surface.py": "e315a29dc6a5667eab1fa89a00f231bbe9ca085b7e3743ea253edeb64ef4eb18",
     "scripts/cwo_core/epic_convergence.py": "5646a96f5a39242e265e9cbf1dfdc29c4d67b3854eb94aa0d2370191c56193e5",
@@ -853,9 +855,9 @@
     ],
     "scripts/cwo_core/codex_hook_enforcement.py": [
       "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/codex_protocol_pin.py",
       "scripts/cwo_core/errors.py"
     ],
+    "scripts/cwo_core/codex_protocol_capabilities.py": [],
     "scripts/cwo_core/codex_protocol_pin.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/policy.py"
@@ -1275,7 +1277,6 @@
     "scripts/cwo_core/process_identity.py": [],
     "scripts/cwo_core/qualification_target.py": [
       "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/codex_protocol_pin.py",
       "scripts/cwo_core/policy.py",
       "scripts/cwo_core/policy_schema.py"
     ],
@@ -1365,6 +1366,7 @@
     "scripts/cwo_core/supervision/transport/__init__.py": [],
     "scripts/cwo_core/supervision/transport/app_server.py": [
       "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/codex_protocol_capabilities.py",
       "scripts/cwo_core/codex_tool_surface.py",
       "scripts/cwo_core/native_canary_contracts.py",
       "scripts/cwo_core/native_live_allocation_ledger.py",
@@ -1849,6 +1851,7 @@
     ],
     "scripts/selected_native_containment.py": [
       "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/codex_protocol_capabilities.py",
       "scripts/cwo_core/process_identity.py",
       "scripts/cwo_core/qualification_target.py",
       "scripts/linux_owned_children.py",
