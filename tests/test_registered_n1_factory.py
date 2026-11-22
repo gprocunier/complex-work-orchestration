@@ -1618,8 +1618,8 @@ class FactoryTests(unittest.TestCase):
         self.held = set()
         def close(fd):
             if fd not in self.held:
-                real_close(fd)
                 self.namespace_handles.pop(fd, None)
+                real_close(fd)
         self.enterContext(patch.object(runtime.os, 'close', close))
         self.addCleanup(lambda: [real_close(fd) for fd in self.held])
         original_signal = self.processes.signal_api.side_effect
@@ -2621,6 +2621,32 @@ class FactoryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             factory.run()
         self.assertEqual(len(self.spawned), 1)
+
+    def test_namespace_select_keeps_a_handle_reused_during_close(self):
+        real_close = os.close
+        retired = replacement = None
+        child = children.FakeProcess(2147000001)
+
+        def close_and_reopen(descriptor):
+            nonlocal replacement
+            real_close(descriptor)
+            if descriptor == retired and replacement is None:
+                replacement = os.pidfd_open(child.pid, 0)
+
+        # Run the replacement allocation after the actual descriptor release,
+        # before the original fixture close wrapper resumes its bookkeeping.
+        self.enterContext(patch.object(os, 'close', close_and_reopen))
+        self.case()
+        self.spawned.append(children.FakeChild(child))
+        self.namespace_children[child.pid] = False
+        retired = os.open(os.devnull, os.O_RDONLY)
+        os.close(retired)
+        self.assertIsNotNone(replacement)
+        self.addCleanup(os.close, replacement)
+        self.assertEqual(replacement, retired)
+        self.assertEqual(runtime.select.select([replacement], [], [], 0), ([], [], []))
+        child.alive = False
+        self.assertEqual(runtime.select.select([replacement], [], [], 0), ([replacement], [], []))
 
 
 if __name__ == '__main__':
