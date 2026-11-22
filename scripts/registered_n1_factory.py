@@ -7,6 +7,7 @@ controller state nor credentials. OS qualification is separate from this code.
 from __future__ import annotations
 
 import copy
+import errno
 import fcntl
 import hashlib
 import importlib
@@ -806,10 +807,23 @@ class _Containment:
             self.termination = getattr(failure, 'ownership_report', None)
             raise
         report = self.termination
-        _need(report.get('outcome') in {'terminated', 'killed', 'already-exited', 'exited-before-signal'}
+        controlled = report.get('outcome') in {'terminated', 'killed', 'already-exited', 'exited-before-signal'}
+        _need((controlled or self._reaped_monitor_without_exe(report))
               and report.get('child_exit_confirmed') is True and report.get('child_reaped') is True,
               "Controlled termination and same-handle reaping are required before capture.")
         return report
+
+    def _reaped_monitor_without_exe(self, report):
+        """Use completed original custody when natural exit removed the proc link."""
+        birth = self.birth
+        if (report.get('outcome') != 'identity-unavailable' or report.get('signals') != []
+                or birth is None or birth.receipt is not self.receipt):
+            return False
+        if (not birth.exit_confirmed or not birth.reaped or report.get('child_pid') != birth.pid
+                or report.get('registration_committed') is not True or report.get('receipt_available') is not False):
+            return False
+        missing = FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), f'/proc/{birth.pid}/exe')
+        return report.get('reason') == str(missing)
 
     def _stop_namespace_preserving(self, primary):
         try:
@@ -1458,7 +1472,10 @@ class _RegisteredServer(RegisteredAppServer):
         response, _latency = self.request('thread/start', params, timeout=10)
         _check_response(self.factory, params, response)
         self.thread_id = response['thread']['id']
-        self.factory.record_dispatch(self.thread_id, response=response)
+        if self.factory.qualification is None:
+            self.factory.record_dispatch(self.thread_id)
+        else:
+            self.factory._record_qualification_dispatch(self.thread_id, response)
         self.started_threads[self.thread_id] = None
         self._known_thread_turn_ids[self.thread_id] = set()
         self._profile_response = copy.deepcopy(response)
@@ -1960,19 +1977,13 @@ class RegisteredN1Factory:
         _need(self.host_records.require_dispatch(target['dispatch_id'])['dispatch_role'] == 'executor',
               "A review dispatch must target an original executor return.")
 
-    def record_dispatch(self, session_id, *, response):
+    def record_dispatch(self, session_id):
         """Persist the checked actual thread identity before the first task turn."""
         from cwo_core.peer_review_identity import registered_review_model
 
         self.guard()
-        if self.qualification is not None:
-            self.record('qualification-dispatch', {'session_id': session_id,
-                'selection': self.spec[qualification.MODEL_SELECTION],
-                'actual_readback': {key: response[key] for key in (
-                    'model', 'modelProvider', 'reasoningEffort', 'serviceTier')},
-                'operation_sha256': self.capability.operation_sha256,
-                'start': self._qualification_start})
-            return
+        _need(type(self) is not RegisteredN1Factory or self.qualification is None,
+              "Qualification dispatch evidence stays in disposable worker custody.")
         registered = registered_review_model(self.spec['provider'], self.spec['model']) or {}
         self.dispatch_record_sha256 = self.host_records.write_dispatch(
             dispatch_id=self.dispatch_id,
@@ -1984,6 +1995,16 @@ class RegisteredN1Factory:
             evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',
                                  'registered_task': self.model_task_binding()},
         )
+
+    def _record_qualification_dispatch(self, session_id, response):
+        self.guard()
+        self.require_qualification_rpc()
+        self.record('qualification-dispatch', {'session_id': session_id,
+            'selection': self.spec[qualification.MODEL_SELECTION],
+            'actual_readback': {key: response[key] for key in (
+                'model', 'modelProvider', 'reasoningEffort', 'serviceTier')},
+            'operation_sha256': self.capability.operation_sha256,
+            'start': self._qualification_start})
 
     def _visible_mount_sources(self):
         scripts = Path(__file__).resolve().parent
@@ -2167,7 +2188,7 @@ class RegisteredN1Factory:
         # exact bytes before validation can produce any authorization.
         return_bytes = native._read(self.host.state, 'operation.json', native.MAX_RECORD_BYTES)
         _need(json.loads(return_bytes) == report, "The received native return differs from host custody.")
-        if self.qualification is not None:
+        if type(self) is RegisteredN1Factory and self.qualification is not None:
             self.record('qualification-return', {'return_sha256': hashlib.sha256(return_bytes).hexdigest()})
             return
         if self.review_target is None:

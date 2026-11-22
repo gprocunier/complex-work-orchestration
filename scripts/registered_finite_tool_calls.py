@@ -548,8 +548,10 @@ class RegisteredFiniteToolCalls:
                 call=call)
             if params['tool'] == _COMMAND:
                 data = self._command(params, deadline, decision)
+            elif self.live_capture:
+                data = self._poll_input(params, deadline, request=request)
             else:
-                data = self._poll(request, params, deadline)
+                data = self._poll(params, deadline)
             self._require_call_current(params)
             self._require_capture_current()
             return {'id': request.request_id, 'result': {
@@ -680,7 +682,10 @@ class RegisteredFiniteToolCalls:
                     self.state = 'failed'
             raise
 
-    def _poll(self, request, params, deadline):
+    def _poll(self, params, deadline):
+        return self._poll_input(params, deadline)
+
+    def _poll_input(self, params, deadline, *, request=None):
         self._require_deadline(deadline)
         gate = self.server.finite_input
         gate.observe_process()
@@ -693,7 +698,7 @@ class RegisteredFiniteToolCalls:
         chars = args['chars'].encode('utf-8')
         # The exact original bytes reach the invocation gate before any process input.
         capture_arguments = {}
-        if self.live_capture:
+        if request is not None:
             capture_arguments['captured'] = gate.capture_poll_input(request, params, chars)
         ticket = gate.reserve(
             chars, thread_id=params['threadId'], turn_id=params['turnId'],
@@ -703,7 +708,7 @@ class RegisteredFiniteToolCalls:
         observation = gate.poll(ticket)
         if observation['stdin_bytes'] != b'' or type(observation['running']) is not bool:
             raise FiniteToolError('Finite poll observation differs.')
-        if self.live_capture:
+        if request is not None:
             gate.record_poll_input(capture_arguments['captured'], 'empty-poll', observation['stdin_bytes'])
         return observation
 

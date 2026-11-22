@@ -686,14 +686,7 @@ class _LinuxEngine(_RetainedOwnershipProducer):
         wanted = entry.expected
         if (context.boot_id, context.pid_namespace, context.uid) != (wanted.boot_id, wanted.pid_namespace, wanted.uid):
             raise _Refusal("identity-mismatch", "The independent controller context changed.")
-        try:
-            return super()._verified(entry)
-        except (FileNotFoundError, ProcessLookupError) as missing:
-            # A naturally exited child can lose its procfs links before its
-            # collected status releases the PID. Require its original handle.
-            if self._state == "terminating" and self._wait(entry.descriptor, 0, "natural-exit"):
-                raise _Refusal("already-exited", "The retained child exited before signalling.") from missing
-            raise
+        return super()._verified(entry)
 
     def _register(self, pid: int, descriptor: int, expected: ExpectedSpawn) -> dict[str, Any]:
         with self._adapter._lifecycle_lock:

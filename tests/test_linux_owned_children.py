@@ -570,31 +570,6 @@ class ControllerTests(unittest.TestCase):
                 self.assertEqual(table.spawn_calls, [])
                 table.send_signal.assert_not_called()
 
-    def test_missing_proc_exe_requires_an_exact_exited_handle(self):
-        for exited in (False, True):
-            with self.subTest(exited=exited):
-                table, controller, receipt = self.registered()
-                birth = table.births[0]
-                process = table.handles[birth.descriptor]
-                process.alive = not exited
-                original_readlink = table.readlink
-
-                def readlink(path):
-                    if path == f'{birth.pid}/exe':
-                        raise FileNotFoundError(errno.ENOENT, 'EXAMPLE missing child executable link')
-                    return original_readlink(path)
-
-                # Linux can retain a zombie's PID in fdinfo until waitid reaps it.
-                with (mock.patch.object(table, 'pidfd_pid', return_value=birth.pid),
-                      mock.patch.object(table, 'readlink', side_effect=readlink)):
-                    report = controller.terminate(receipt, 0, allow_kill=True)
-                self.assertEqual(report['outcome'], 'already-exited' if exited else 'identity-unavailable')
-                self.assertIs(report['child_reaped'], exited)
-                self.assertIs(report['child_exit_confirmed'], exited)
-                self.assertFalse(report['receipt_available'])
-                self.assertEqual(report['signals'], [])
-                table.send_signal.assert_not_called()
-
     def assert_pending_release(self, case, operation):
         birth, table = case.birth, case.table
         descriptor = birth.descriptor
@@ -1363,10 +1338,7 @@ class RealOwnedChildTests(unittest.TestCase):
                         self.assertEqual(backend.wait_exit.call_args.args[0], descriptor)
                     else:
                         self.assertTrue(backend.wait_exit(descriptor, 5))
-                        report = controller.terminate(report['receipt'], 0)
-                        self.assertEqual(report['outcome'], 'already-exited')
-                        self.assertTrue(report['child_reaped'])
-                        self.assertFalse(report['receipt_available'])
+                        controller.close()
                         backend.send_signal.assert_not_called()
                         self.assertEqual(child.returncode, 0)
                     backend.pidfd_open.assert_not_called()

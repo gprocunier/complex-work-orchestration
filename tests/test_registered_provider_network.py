@@ -1,9 +1,9 @@
 """Offline witnesses for the registered N1 provider network boundary."""
+import errno
 from pathlib import Path
 import os
 import queue
 import select
-import shutil
 import socket
 import ssl
 import subprocess
@@ -17,6 +17,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 import registered_provider_network as network  # noqa: E402
 import registered_n1_factory as runtime  # noqa: E402
+
+_EXAMPLE_TLS = Path(__file__).resolve().parent / 'fixtures/registered-provider-network/EXAMPLE-local-tls.pem'
 
 
 def _hello(host):
@@ -172,10 +174,9 @@ class ProviderNamespaceTests(unittest.TestCase):
     def setUp(self):
         self.launcher = '/usr/bin/bwrap'
         self.validator = str(Path('/usr/bin/python3').resolve())
-        self.openssl = shutil.which('openssl')
         supported, reason = runtime.owned.atomic_spawn.supported()
-        if not supported or not Path(self.launcher).is_file() or self.openssl is None:
-            self.skipTest(reason or 'The offline namespace or TLS fixture prerequisite is unavailable')
+        if not supported or not Path(self.launcher).is_file():
+            self.skipTest(reason if not supported else 'The offline namespace prerequisite is unavailable')
         development = self.enterContext(tempfile.TemporaryDirectory(prefix='cwo-provider-test-', dir='/tmp'))
         root = Path(development).resolve()
         self.home, self.worker = root / 'home', root / 'worker'
@@ -193,16 +194,17 @@ class ProviderNamespaceTests(unittest.TestCase):
             _protected_roots=lambda: ())
         self.lifetime = runtime._Containment(self.factory)
         self.addCleanup(self._close_lifetime)
-        self.endpoint = self._synthetic_endpoint(root)
+        self.endpoint = self._synthetic_endpoint()
         (self.worker / 'provider-test.port').write_text(str(self.endpoint[1]))
 
-    def _synthetic_endpoint(self, root):
-        cert, key = self.worker / 'provider-test.pem', root / 'tls-key.pem'
-        subprocess.run([self.openssl, 'req', '-x509', '-newkey', 'rsa:2048', '-noenc', '-days', '1',
-                        '-subj', '/CN=chatgpt.com', '-addext', 'subjectAltName=DNS:chatgpt.com',
-                        '-out', str(cert), '-keyout', str(key)], check=True, capture_output=True, timeout=5)
+    def _synthetic_endpoint(self):
+        # Only the certificate enters the isolated client workspace. The
+        # intentionally public test private key stays with the local endpoint.
+        cert, end, _key = _EXAMPLE_TLS.read_bytes().partition(b'-----END CERTIFICATE-----\n')
+        self.assertTrue(end)
+        (self.worker / 'provider-test.pem').write_bytes(cert + end)
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        context.load_cert_chain(cert, key)
+        context.load_cert_chain(_EXAMPLE_TLS)
         endpoint = self.enterContext(socket.socket())
         endpoint.bind(('127.0.0.1', 0))
         endpoint.listen(1)
@@ -289,6 +291,32 @@ class ProviderNamespaceTests(unittest.TestCase):
         self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))
         self.assertEqual(self.records.get_nowait()[0], 'appserver-terminated')
         self.assertTrue(self.records.empty())
+
+
+class RegisteredMonitorExitTests(unittest.TestCase):
+    def test_reaped_monitor_requires_original_identity_and_no_signal(self):
+        lifetime = runtime._Containment(object())
+        lifetime.receipt = object()
+        lifetime.birth = SimpleNamespace(pid=371, receipt=lifetime.receipt, exit_confirmed=True, reaped=True)
+        missing = FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), '/proc/371/exe')
+        complete = {'outcome': 'identity-unavailable', 'reason': str(missing), 'signals': [],
+                    'child_pid': 371, 'child_exit_confirmed': True, 'child_reaped': True,
+                    'registration_committed': True, 'receipt_available': False}
+        lifetime.controller = SimpleNamespace(terminate=lambda *_args, **_kwargs: complete)
+        self.assertIs(lifetime._terminate_monitor(), complete)
+
+        for field, value in [('child_pid', 372), ('child_reaped', False), ('child_exit_confirmed', False),
+                             ('receipt_available', True), ('signals', ['SIGTERM']), ('reason', 'unknown')]:
+            with self.subTest(field=field):
+                different = dict(complete, **{field: value})
+                with patch.object(lifetime.controller, 'terminate', return_value=different):
+                    with self.assertRaisesRegex(runtime.native.OfflineHostError, 'same-handle reaping'):
+                        lifetime._terminate_monitor()
+                    self.assertIs(lifetime.termination, different)
+
+        lifetime.birth.reaped = False
+        with self.assertRaisesRegex(runtime.native.OfflineHostError, 'same-handle reaping'):
+            lifetime._terminate_monitor()
 
 
 if __name__ == '__main__':
