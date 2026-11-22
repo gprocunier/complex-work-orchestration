@@ -237,6 +237,8 @@ class ControllerConfiguration:
         _need(H.Path(publication_plan['runtime_adapter_path']) == H.Path(G.__file__).resolve(),
               'Native and publication capabilities require their own exact adapter sources.')
         _need(native_op['operation_id'] != publication_op['operation_id'], 'Distinct operation claims are required.')
+        _need(R.qualification.MODEL_SELECTION not in native_plan['registered_n1'],
+              'Qualification cannot select the product workflow.')
         _need(native_plan['registered_n1']['purpose'] == 'local-engineering',
               'External execution purpose has no supported producer/consumer here.')
         _need(native_plan['registered_n1']['validation_policy'] == self.policy.report,

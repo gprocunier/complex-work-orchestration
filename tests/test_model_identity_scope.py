@@ -108,6 +108,18 @@ class LintUnitTests(unittest.TestCase):
         (self.root / "scripts" / "new_default.py").write_text(f'DEFAULT = "{SPARK}"\n', encoding="utf-8")
         self.assert_error(f"unclassified model identity '{SPARK}' in scripts/new_default.py")
 
+    def test_qualification_pin_does_not_exempt_the_same_model_in_another_path(self) -> None:
+        register = json.loads((ROOT / "policy" / "model-identity-scope.yaml").read_text(encoding="utf-8"))
+        declaration = next(entry for entry in register["source_literals"]
+                           if entry["path"] == "scripts/registered_n1_qualification.py")
+        self.assertEqual((declaration["class"], declaration["literal"], declaration["count"]),
+                         ("qualification-pin", "gpt-6.2-sol", 1))
+        self.register["source_literals"].append(declaration)
+        (self.root / declaration["path"]).write_text('MODEL = "gpt-6.2-sol"\n', encoding="utf-8")
+        self.assertEqual(self.errors(), [])
+        (self.root / "scripts" / "new_default.py").write_text('MODEL = "gpt-6.2-sol"\n', encoding="utf-8")
+        self.assertEqual(self.errors(), ["unclassified model identity 'gpt-6.2-sol' in scripts/new_default.py (1 occurrence)"])
+
     def test_case_and_prefix_variants_are_identities(self) -> None:
         (self.root / "scripts" / "variant.py").write_text('A = "GPT-5.3-Codex-Spark"\nB = "_gpt-5.6-luna-max"\n', encoding="utf-8")
         errors = self.errors()

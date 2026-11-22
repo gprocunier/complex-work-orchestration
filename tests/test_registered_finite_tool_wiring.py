@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import ExitStack, contextmanager, nullcontext
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -150,6 +151,8 @@ class DynamicRpcProcess(family.RpcProcess):
                 tools.append({'type': item['type'], 'name': item['name'],
                               'description': item['description'], 'parameters': item['inputSchema']})
             self.case.test.assertEqual(tools, finite_tools._response_tools())
+            if self.case.spec['finite_tool_mode'] != 'captured-host-tools':
+                return response
             capture = {'start': params, 'response': response,
                        'request': {'model': params['model'], 'tools': tools}}
             if getattr(self.case, 'catalog_drift', False):
@@ -1379,6 +1382,63 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         from tests.test_registered_n1_workflow import c1_failure_note
         self.assertIn(json.dumps(refusals, sort_keys=True),
                       c1_failure_note(SimpleNamespace(factory=factory)))
+
+    def _run_live_capture_with_fake_rpc(self, chars):
+        case = self.fixture.case(qualification=True, archive_schedule='settled',
+                                 poll_chars=chars, complete_after_refusal=True)
+        factory = self.fixture.factory(case)
+        progress = self._positive_finite_completion(case) if not chars else nullcontext()
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), progress:
+            result = factory.run()
+        self.assertEqual(result['attempt']['outcome'], 'completed')
+        self.assertFalse((case.home / 'finite-tool-capture.json').exists())
+        rows = [json.loads(path.read_bytes()) for path in
+                (factory.records / 'transport-observations').glob('observation-*.json')]
+        refusals = [row['observation'] for row in rows if row['stage'] == 'finite-tool-refusal']
+        self.assertEqual([reply['result']['success'] for reply in self.fixture.spawned[0].replies],
+                         [True, not chars], refusals)
+        intents = [row for row in rows if row['stage'] == 'finite-poll-intent']
+        self.assertEqual(len(intents), 0 if chars else 1)
+        with self.assertRaises(BlockingIOError):
+            os.read(case.tool_read, 1)
+        catalog, = [row['observation'] for row in rows if row['stage'] == 'finite-tool-catalog']
+        captured = [row['observation'] for row in rows if row['stage'] == 'finite-tool-input']
+        self.assertEqual(len(captured), 1, refusals)
+        observation = captured[0]
+        self.assertEqual(catalog['source'], 'registered-app-server')
+        self.assertEqual(observation['request_id'], 'EXAMPLE-request-EXAMPLE-poll-call')
+        self.assertEqual(observation['method'], 'item/tool/call')
+        self.assertEqual(observation['thread'], case.scenario.thread_id)
+        self.assertEqual(observation['turn'], case.scenario.turn_id)
+        self.assertEqual(observation['call'], 'EXAMPLE-poll-call')
+        self.assertEqual(observation['command_call'], 'EXAMPLE-command-call')
+        self.assertEqual(observation['epoch'], catalog['epoch'])
+        self.assertEqual(observation['tool_session'], factory.operation_id + '-tool')
+        self.assertEqual(observation['stdin_pipe'][1], os.fstat(case.tool_read).st_ino)
+        request = family.runtime.protocol.classify_message({
+            'id': 'EXAMPLE-request-EXAMPLE-poll-call', 'method': 'item/tool/call', 'params': {
+                'threadId': case.scenario.thread_id, 'turnId': case.scenario.turn_id,
+                'callId': 'EXAMPLE-poll-call', 'tool': 'finite_poll',
+                'arguments': {'commandCallId': 'EXAMPLE-command-call', 'chars': chars}}})
+        self.assertEqual(observation['request_params_sha256'],
+                         hashlib.sha256(request.params_json.encode()).hexdigest())
+        submitted = chars.encode('utf-8')
+        self.assertEqual(observation['submitted_bytes'], len(submitted))
+        self.assertEqual(observation['submitted_sha256'], hashlib.sha256(submitted).hexdigest())
+        self.assertEqual(observation['delivered_bytes'], 0)
+        self.assertEqual(observation['delivered_sha256'], hashlib.sha256(b'').hexdigest())
+        self.assertNotIn('chars', observation)
+        return case, observation
+
+    def test_live_capture_refuses_nonempty_app_server_input_before_delivery(self):
+        _, observation = self._run_live_capture_with_fake_rpc('EXAMPLE €\n')
+        self.assertEqual(observation['outcome'], 'refused-nonempty')
+
+    def test_live_capture_observes_empty_app_server_input_at_owned_pipe(self):
+        case, observation = self._run_live_capture_with_fake_rpc('')
+        self.assertEqual(observation['outcome'], 'empty-poll')
+        self.assertEqual(case.poll_observation,
+                         {'stdout': 'EXAMPLE finite poll output\n', 'running': True})
 
     def test_poll_before_original_command_completion_refuses_without_input(self):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',

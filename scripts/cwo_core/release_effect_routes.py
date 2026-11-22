@@ -17,9 +17,9 @@ import stat
 
 INVENTORY = "policy/release-effect-routes.json"
 IGNORED = {".git", "__pycache__", ".ruff_cache"}
-# Reviewed integrated route decisions exceed the former 576 KiB bound.
-# Keep a finite 580 KiB bound; generated traces remain external.
-MAX_INVENTORY = 580 * 1024
+# Bound the encoded inventory and each decoded exclusion text independently.
+MAX_INVENTORY = 620 * 1024
+MAX_DECODED_EXCLUSION_TEXT = 580 * 1024
 MAX_FILE = 2 * 1024 * 1024
 MAX_TOTAL = 128 * 1024 * 1024
 MAX_FILES = 12000
@@ -1200,7 +1200,7 @@ def _exclusion_text(item, texts, used):
     fragments = item if type(item) is list else [item]
     need(0 < len(fragments) <= 12, "bounded primitive exclusion text fragments required")
     resolved = [_exclusion_fragment(fragment, texts, used) for fragment in fragments]
-    need(sum(len(fragment.encode()) for fragment in resolved) <= MAX_INVENTORY,
+    need(sum(len(fragment.encode()) for fragment in resolved) <= MAX_DECODED_EXCLUSION_TEXT,
          "decoded exclusion text length exceeded")
     return "".join(resolved)
 

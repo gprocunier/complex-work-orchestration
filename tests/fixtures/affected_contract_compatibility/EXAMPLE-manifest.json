@@ -233,10 +233,12 @@
     "scripts/registered_finite_tool_calls.py": 420,
     "scripts/registered_host_root_boundary.py": 420,
     "scripts/registered_n1_factory.py": 420,
+    "scripts/registered_n1_qualification.py": 420,
     "scripts/registered_n1_workflow.py": 420,
     "scripts/registered_native_pool_client.py": 420,
     "scripts/registered_native_pool_host.py": 420,
     "scripts/registered_native_pool_retry.py": 420,
+    "scripts/registered_provider_network.py": 420,
     "scripts/registered_server_requests.py": 420,
     "scripts/render_execution_status_report.py": 493,
     "scripts/route_work.py": 493,
@@ -288,9 +290,11 @@
     "tests/test_registered_finite_tool_calls.py": 420,
     "tests/test_registered_finite_tool_wiring.py": 420,
     "tests/test_registered_n1_factory.py": 420,
+    "tests/test_registered_n1_qualification.py": 420,
     "tests/test_registered_n1_workflow.py": 420,
     "tests/test_registered_native_pool_host.py": 420,
     "tests/test_registered_native_pool_profiles.py": 420,
+    "tests/test_registered_provider_network.py": 420,
     "tests/test_registered_server_requests.py": 420,
     "tests/test_route_feasibility_preparation.py": 420,
     "tests/test_run_admitted_native_pool_transaction.py": 420,
@@ -316,7 +320,7 @@
     "policy/expert-registry.yaml": "91161757dfda43cd2fef0218a58f6f28e54a1dc014b4890ebc08f65af58849e5",
     "policy/harness-registry.yaml": "c6f55fdb4d97d39e522c2aedf7c362c446c4f152eca796b669f42e011674da2c",
     "policy/install-projection.yaml": "d17b014bffa51e2bd74465d0d5c91826f1b2f93eaa5633119ea5cca0d08d0cbe",
-    "policy/model-identity-scope.yaml": "807d9b4388cf2b175af3e5d4f2cb2f8a7e0b8bb8530b8c7acec36ec73be55042",
+    "policy/model-identity-scope.yaml": "1a5b6c92fee0924d44648064955a4875fbfaf87985b91cec00b13c65026d09fa",
     "policy/model-profiles.yaml": "3c7f592fbfb15e5cbafd6f50f7dd008116df1cbad60ea1b9c2a2e0f644f7d44f",
     "policy/native-worker-execution.yaml": "d0592743ce19f5f420963aca4ca63c0a1e2f5e063e1cfab1cfcf9d9f2317d9fb",
     "policy/outbound-screening.yaml": "94566e213284364be699123d155bb2a2d79d452482e4929f518b296ec31b5e33",
@@ -340,7 +344,7 @@
     "schemas/expert-registry.schema.json": "e4e8dc0c38b05fbeecf6a739f6df0c940be322163afe388310a3d590cbab4f3a",
     "schemas/harness-registry.schema.json": "984415e47a1d44fbad7cfeaf52d25d13c73fc45a6dac21397de223c81f878ed0",
     "schemas/invocation-ledger.schema.json": "9873da9c19c9a3acfff8f65a74a641b979b0c6d82fdc4fba3250faa2fff8f829",
-    "schemas/model-identity-scope.schema.json": "1ecc3cbff74490586d1475eefa1033dca6413e7e2ad4dde92543fd66f1b2fad1",
+    "schemas/model-identity-scope.schema.json": "7857e762817d23cf31f43f79b772c34f78c5dae8f549b799e34a380eaa8ff10c",
     "schemas/model-profiles.schema.json": "e01a703d3b2045c0aa1da5504ec705bde8a071208bba0dae200851e22c46c186",
     "schemas/model-roles.schema.json": "d7b7de6fa92c1b70b71fe0bd97eb19fa112ffaa9ce1c2e56b08dfe19e1afce5b",
     "schemas/native-work-estimate.schema.json": "a2171350213f9c1106b6f1b44249855c1668be3e25013d7388cdb38c8fb16ac7",
@@ -470,7 +474,7 @@
     "scripts/cwo_core/server_request_preparation.py": "c69d6f0966653f446aaa9b16591d8ebc9b491870ff2f68620c821f968556ae3c",
     "scripts/cwo_core/supervision/__init__.py": "363ea10aa7f27d5994295188e935330accfa55adb84f6a480f25a4ec6c2d6ee0",
     "scripts/cwo_core/supervision/transport/__init__.py": "a65e521ee9e997c481559de0e91962f8a0c19d6ba434c8525b3ee8ee8a97190d",
-    "scripts/cwo_core/supervision/transport/app_server.py": "7d913be46b88060fe7b86456a84a02ccd13e525d67ee668daae05bdd41d9645b",
+    "scripts/cwo_core/supervision/transport/app_server.py": "9b5dcef8d620c98b826a1ff321bb9242d483fb941e6f45d837bf5a5d275d1570",
     "scripts/cwo_core/supervision/transport/errors.py": "066b654ae6e7e8257801dd0f6e3957410671a207c54009a9a885523a8ebd75b9",
     "scripts/cwo_core/supervision/transport/private_io.py": "d86d07198b90557152fb19d4ec826a50b38c499ff8c2fdffdd94c4227917135f",
     "scripts/cwo_core/supervision/turn_observations.py": "1e28ced04c8a439287179e18a683e4be076d22ec23ed6ca5bbd09bcbc5c206f2",
@@ -493,7 +497,7 @@
     "scripts/guarded_artifact_target.py": "7780fc04a6eae8ffc437681ed1de877491ec901d2500b94df0c92a3725699e1d",
     "scripts/import_execution_telemetry.py": "bc5531f6014a7afde377b71f752dc668657561ba6c59a2c9ed2d3dc7bf663f75",
     "scripts/install.sh": "cbc9a1a3e85edd398ced21203e83a90f02168ccbde15f95e1f1c92d35477252e",
-    "scripts/linux_owned_children.py": "288e7b58debf019fe3290493bf199512863954be6fc065f148c18606fc0a4fb0",
+    "scripts/linux_owned_children.py": "af8b96128011f7a328acd99547ae0b778c389b52d1ae5bceaf9f3680cd4830af",
     "scripts/model_catalog_startup.py": "ca86340346abea3e40e4d77be2733055ae46bb53f7fcad2ae2e0de05fd044c34",
     "scripts/offline_admitted_n1.py": "c2a509afff234db565f35225c36bc5eea9a9e9fef52fe562f9040e07946b9236",
     "scripts/offline_artifact_validation.py": "b00653f4990e46b5cb3420b636d5187945d3669e843515ec723c69be2ed50d78",
@@ -519,14 +523,16 @@
     "scripts/qualified_risk_use.py": "f89225010b9e0b35842c3cb21e6d5ec17f0a6c0055adbaf80751e6af0839dd54",
     "scripts/qualified_workflow_adjudication.py": "caa8e81acffd83f43242ec50e63d6f4c9ec490491091e71db51d98c10f6c93e1",
     "scripts/registered_app_server_transport.py": "91fb0184a5e45ad64047f69c43c39b64895c04dbcedaa6e2ea44696bfdc128dd",
-    "scripts/registered_finite_input.py": "79132259051f67f4db05c88f5af205bd1e306466413e5cda6cdc76ebd582c55f",
-    "scripts/registered_finite_tool_calls.py": "1a1781ffabf01bc4441108ca4d6d9f410026344e65cb7412cdf44827d123567a",
+    "scripts/registered_finite_input.py": "1ad3dd1af24dca68349eca1e359f3f3b9e56c99440285fe463c2aba47af707cf",
+    "scripts/registered_finite_tool_calls.py": "c11974ecffc297ecb4f52ff8420bbed7e122d709a1b57ab42a42169020d942e1",
     "scripts/registered_host_root_boundary.py": "615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",
-    "scripts/registered_n1_factory.py": "7698c7726ff99d4a5438076e18ee8ed15142f5a87af8524af9b38175bded1070",
-    "scripts/registered_n1_workflow.py": "15eedf06ec1e643be1c3d5a10d528c3dcc54d1f16705cab9297f6bf6e14b3a7f",
+    "scripts/registered_n1_factory.py": "18ff3ecaa474ef494ee2485d65d0dc760c5968ad7e2cb62c17c9b417f6c1e8b8",
+    "scripts/registered_n1_qualification.py": "dacc43c5e722159bb0a1a3bfe89c9f023280dc890f1f52d521ae661cef4b2fea",
+    "scripts/registered_n1_workflow.py": "ab229624003f1d516d1831703aea8ecff27b5cb992b24106f66ac831adb60439",
     "scripts/registered_native_pool_client.py": "cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",
     "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
     "scripts/registered_native_pool_retry.py": "261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",
+    "scripts/registered_provider_network.py": "60121fa246611e3eeea04bb35cf98ae052bc6cbb812cc7087ac0b9d3cb8db42f",
     "scripts/registered_server_requests.py": "2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd",
     "scripts/render_execution_status_report.py": "e46dbf44101e51a17d127eebaeddbe7e3c6f3b7290e09e8aac899975d16cd615",
     "scripts/route_work.py": "df875375e2611c71775dbca6ab20fab7daece7ddb9f8f74cfdf45a705ec73b66",
@@ -548,7 +554,7 @@
     "tests/test_beads_ready_set.py": "f0d40bac7c5596fbef8e9d2739b0823eb3df1abd1b10fe8a5bca183d2983a8cc",
     "tests/test_codex_tool_surface.py": "162b77a5b7c7885422b5ebeb0e0f0807e22304e2ef6bd5a365c8137e5cd1fb07",
     "tests/test_invocation_ledger.py": "31df25162f54ed7a897b054ecbc794e55f4f6db5743bf5852c7d50829ace28da",
-    "tests/test_linux_owned_children.py": "95c50998fb7e5cbc961ca6c7bbc53af6b703d5dfc39fff9df9106722db2b9e92",
+    "tests/test_linux_owned_children.py": "e86708a7f393ea1c5d88252caa2883136597e3de8307cae89faf63171d606dcc",
     "tests/test_local_admission_preparation.py": "e57e952c8e0f908b535e18971f0dbefc7606648f2b87c910bbd47e9290547551",
     "tests/test_maintenance_authority.py": "aa834050333ec749804ce51dc2cf51b343ae4cfb6348d95a02a98995c870641d",
     "tests/test_native_canary_contracts.py": "e0a4e3ec89d4af8e2e686da513ab37f6d04ee1755e2be47a22c0ad3782adc067",
@@ -574,11 +580,13 @@
     "tests/test_qualified_review_dispatch.py": "51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c",
     "tests/test_registered_finite_input.py": "d04d99a4cd211eda3dabbc9fb0f36fcc9bb837176d83a75d0e5cd0b8d717926b",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
-    "tests/test_registered_finite_tool_wiring.py": "81e5f0c809333543a98caf2f9c7fc8b79a0509dd943bd52d93315856c881f00c",
-    "tests/test_registered_n1_factory.py": "650c6bdf83d5a272b9953e504ecafe74bb661df59ced4d40eeac2f8344e5fe15",
+    "tests/test_registered_finite_tool_wiring.py": "f257188ff86df5b6c30a222d91e940a43255822deeadb45ad9181b5c5bde2fa9",
+    "tests/test_registered_n1_factory.py": "123f9c08530791a5dd48a9230de197b9413c721fba6a5d5e46ce0da507a24a0b",
+    "tests/test_registered_n1_qualification.py": "27709dc0c37dec062e3bf272b8ab984bedff543b1f99633d520e7dc35bf38b94",
     "tests/test_registered_n1_workflow.py": "94d4de5b25c5e986311ebec6c55eb91b143dcf60080e84130748f8a290f35ed7",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
+    "tests/test_registered_provider_network.py": "682c5e8d15f2baafcfa4bc6874865f26c7258ba43ef360082093f96c86941f3c",
     "tests/test_registered_server_requests.py": "1339fd305c7267d3b7d7fef24453268c8180c1090ae20122f430ad675b3a07f5",
     "tests/test_route_feasibility_preparation.py": "45b615f5e7ad013c166846ba499c34c525452011539ed5de4eecbab6c8a5416f",
     "tests/test_run_admitted_native_pool_transaction.py": "531a7ebd4d5ed5623dbcb711d468889b934736398f48cae00ee1567398c4818a",
@@ -1770,8 +1778,16 @@
       "scripts/registered_finite_input.py",
       "scripts/registered_finite_tool_calls.py",
       "scripts/registered_host_root_boundary.py",
+      "scripts/registered_n1_qualification.py",
+      "scripts/registered_provider_network.py",
       "scripts/registered_server_requests.py",
       "tests/test_run_native_pool_live_canaries.py"
+    ],
+    "scripts/registered_n1_qualification.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/host_records.py",
+      "scripts/cwo_core/maintenance_authority.py",
+      "scripts/cwo_core/model_identities.py"
     ],
     "scripts/registered_n1_workflow.py": [
       "scripts/cwo_core/__init__.py",
@@ -1796,6 +1812,7 @@
     "scripts/registered_native_pool_retry.py": [
       "scripts/registered_native_pool_host.py"
     ],
+    "scripts/registered_provider_network.py": [],
     "scripts/registered_server_requests.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/server_request_preparation.py"
@@ -2199,6 +2216,14 @@
       "tests/test_offline_host_crash_matrix.py",
       "tests/test_route_feasibility_preparation.py"
     ],
+    "tests/test_registered_n1_qualification.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/maintenance_authority.py",
+      "scripts/cwo_core/model_identities.py",
+      "scripts/cwo_core/supervision/transport/app_server.py",
+      "scripts/registered_n1_qualification.py",
+      "tests/test_registered_n1_factory.py"
+    ],
     "tests/test_registered_n1_workflow.py": [
       "scripts/registered_n1_workflow.py",
       "tests/test_registered_finite_tool_wiring.py",
@@ -2216,6 +2241,10 @@
     "tests/test_registered_native_pool_profiles.py": [
       "tests/test_registered_finite_tool_wiring.py",
       "tests/test_registered_native_pool_host.py"
+    ],
+    "tests/test_registered_provider_network.py": [
+      "scripts/registered_n1_factory.py",
+      "scripts/registered_provider_network.py"
     ],
     "tests/test_registered_server_requests.py": [
       "tests/test_registered_n1_factory.py"
@@ -2340,8 +2369,10 @@
     "tests/test_registered_finite_tool_calls.py",
     "tests/test_registered_finite_tool_wiring.py",
     "tests/test_registered_n1_factory.py",
+    "tests/test_registered_n1_qualification.py",
     "tests/test_registered_n1_workflow.py",
     "tests/test_registered_native_pool_profiles.py",
+    "tests/test_registered_provider_network.py",
     "tests/test_registered_server_requests.py",
     "tests/test_run_admitted_native_pool_transaction.py"
   ],
@@ -2405,10 +2436,12 @@
     "scripts/registered_native_pool_retry.py",
     "scripts/run_admitted_native_pool_transaction.py"
   ],
-  "registered_current_scope": "Current imports, source bytes/modes and neutral offline compatibility inputs are independently bound. verify_fixture_checkpoint is explicitly fixture-only: archived IDs are non-reverified metadata, historical_artifacts_verified=false and all effect/current/semantic authority is false. verify_checkpoint and the process entry remain strict original Git verification without fixture fallback.",
+  "registered_current_scope": "Current imports, source bytes/modes and neutral offline compatibility inputs are independently bound. verify_fixture_checkpoint is explicitly fixture-only: archived IDs are non-reverified metadata, historical_artifacts_verified=false and all effect/current/semantic authority is false. verify_checkpoint and the process entry remain strict original Git verification without fixture fallback. Signed qualification permit and provider relay dependencies and their offline witnesses are separately bound current source; fixture mode confers no qualification or live effect authority.",
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
-    "tests/test_registered_n1_factory.py": "650c6bdf83d5a272b9953e504ecafe74bb661df59ced4d40eeac2f8344e5fe15",
+    "tests/test_registered_n1_factory.py": "123f9c08530791a5dd48a9230de197b9413c721fba6a5d5e46ce0da507a24a0b",
+    "tests/test_registered_n1_qualification.py": "27709dc0c37dec062e3bf272b8ab984bedff543b1f99633d520e7dc35bf38b94",
+    "tests/test_registered_provider_network.py": "682c5e8d15f2baafcfa4bc6874865f26c7258ba43ef360082093f96c86941f3c",
     "tests/test_registered_server_requests.py": "1339fd305c7267d3b7d7fef24453268c8180c1090ae20122f430ad675b3a07f5"
   },
   "roots": [

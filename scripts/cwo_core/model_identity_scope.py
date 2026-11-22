@@ -25,6 +25,9 @@ frozen literal all fail until the register is changed in review. Classes:
   recorded and its consumers resolve it through the model refusal rule
   (``operative_routing.nonoperative_model_refusal``), which refuses it without
   substituting another model. May name only such models.
+- ``qualification-pin``: an exact source literal used by a separately
+  authorized, bounded qualification run. The classification is scoped to
+  the declared source path and occurrence count.
 
 The register grants nothing. No runtime consumer reads it, and classifying a
 literal never makes a model selectable, dispatchable, qualified or cleared.

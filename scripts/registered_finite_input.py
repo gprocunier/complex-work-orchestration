@@ -1,8 +1,8 @@
 """Issued empty-poll gate for a host-owned registered tool process.
 
-This is an offline component. The native app-server builtin write_stdin does
-not call it; the registered factory never treats an approval callback as proof
-of input bytes. A caller must wire a host-owned tool process before use.
+The registered factory wires the original app-server's finite dynamic tools to
+this gate. The native write_stdin builtin has a separate path. An approval
+callback alone supplies no evidence of process input.
 """
 from __future__ import annotations
 
@@ -835,14 +835,42 @@ class RegisteredFiniteInput:
             raise FiniteInputError('Selected tool stream is not a kernel pipe.')
         return info.st_dev, info.st_ino, stat.S_IFMT(info.st_mode)
 
-    def reserve(self, chars, *, thread_id, turn_id, item_id, approval_id, deadline):
+    def capture_poll_input(self, request, params, chars):
+        """Observe the original queued request against the current owned stdin pipe."""
+        producer = self.server.finite_tools
+        thread, turn, call = params['threadId'], params['turnId'], params['callId']
+        command = params['arguments']['commandCallId']
+        key = protocol._id_key(request.request_id)
+        with producer.lock, self.lock, self.server.requests.lock, self.lifecycle.condition:
+            self.lifecycle.require_request(key, call)
+            if (producer.inflight != call or not producer._current(params)
+                    or not self.lifecycle.call_live(call, {'poll-deciding'})
+                    or not self._current_authority()
+                    or not self._current_transport(thread, turn, command, call)
+                    or not self._current_process()):
+                raise FiniteInputError('No original live finite poll is bound to the owned input pipe.')
+            registration = self.lifetime.receipt.registration
+            return {'operation': self.factory.operation_id, 'request_id': request.request_id,
+                    'method': request.method, 'thread': thread, 'turn': turn,
+                    'call': call, 'command_call': command, 'epoch': self.epoch,
+                    'request_params_sha256': hashlib.sha256(request.params_json.encode()).hexdigest(),
+                    'submitted_bytes': len(chars), 'submitted_sha256': hashlib.sha256(chars).hexdigest(),
+                    'tool_session': registration.session_id, 'tool_pid': registration.pid,
+                    'tool_start_ticks': registration.start_ticks, 'stdin_pipe': list(self.input_stat)}
+
+    def record_poll_input(self, captured, outcome, delivered):
+        self.factory.record('finite-tool-input', {
+            **captured, 'outcome': outcome, 'delivered_bytes': len(delivered),
+            'delivered_sha256': hashlib.sha256(delivered).hexdigest()})
+
+    def reserve(self, chars, *, thread_id, turn_id, item_id, approval_id, deadline, captured=None):
         """Consume an identity even on denial; never cache a declined input."""
         with self.lock:
             if not self._fresh_approval(approval_id):
                 raise FiniteInputError('A fresh bounded approval identity is required.')
             self.used_approvals.add(approval_id)
         self.factory.require_effect()
-        self._check_poll_input(chars, (thread_id, turn_id, item_id), deadline)
+        self._check_poll_input(chars, (thread_id, turn_id, item_id), deadline, captured)
         # Reservation is the admission linearization. Persistence is a
         # blocking callout and cannot hold the reader's request lock. A
         # terminal during persistence leaves only this preterminal intent and
@@ -943,8 +971,7 @@ class RegisteredFiniteInput:
         return (type(approval_id) is str and 0 < len(approval_id) <= 256
                 and approval_id not in self.used_approvals and len(self.used_approvals) < 256)
 
-    @staticmethod
-    def _check_poll_input(chars, identity, deadline):
+    def _check_poll_input(self, chars, identity, deadline, captured):
         if type(chars) is not bytes or len(chars) > 4096:
             raise FiniteInputError('Exact bounded UTF-8 input bytes are required.')
         try:
@@ -952,6 +979,8 @@ class RegisteredFiniteInput:
         except UnicodeError as error:
             raise FiniteInputError('Input must be exact UTF-8 bytes.') from error
         if chars:
+            if captured is not None:
+                self.record_poll_input(captured, 'refused-nonempty', b'')
             raise FiniteInputError('The finite profile refuses nonempty input before process delivery.')
         if (any(type(value) is not str or not 0 < len(value) <= 256 for value in identity)
                 or type(deadline) not in (int, float)
