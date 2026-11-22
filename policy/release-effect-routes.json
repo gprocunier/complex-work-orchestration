@@ -1354,7 +1354,7 @@
 
 "p25BrokerPair":[146,297,"socket.socketpair(type=socket.SOCK_DGRAM)",43,297,84],
 
-"p25Budget":[148,"CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks",34,"8527c5eb6394a4a05df33b729c116e774e00420a465d8034c5653cdab392e1a6"],
+"p25Budget":[148,"CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks",35,"8527c5eb6394a4a05df33b729c116e774e00420a465d8034c5653cdab392e1a6"],
 
 "p25CampaignStart":[149,"_campaign_start",249,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
 
@@ -1368,9 +1368,9 @@
 
 "p25EnrollMkdir":[149,163,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
 
-"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",98,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
+"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",99,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
 
-"p25ExpirySupport0":[148,{"$":330},150,{"$":331}],
+"p25ExpirySupport0":[148,{"$":330},151,{"$":331}],
 
 "p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1433,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
@@ -1390,7 +1390,7 @@
 
 "p25LoopbackSocket":[146,397,"socket.socket()",54,397,69],
 
-"p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",65,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
+"p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",66,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
 
 "p25MonitorCall":[64,805,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
 
@@ -1406,9 +1406,9 @@
 
 "p25OriginalWatchdog":[117,"PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence",684,"03c80a17c82bad214cde5e29feb81bcc65e11e6704ad5daac3b03b09fc6f8fba"],
 
-"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",84,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
+"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",85,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
 
-"p25PermitSupport0":[148,{"$":330},150,{"$":331}],
+"p25PermitSupport0":[148,{"$":330},151,{"$":331}],
 
 "p25PermitVerify":[149,"verify_qualification_permit",131,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
 
@@ -1454,9 +1454,9 @@
 
 "p25StreamPair":[146,271,"socket.socketpair()",21,271,40],
 
-"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",135,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
+"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",136,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
 
-"p25TransportScopeSupport0":[148,{"$":330},150,{"$":331}],
+"p25TransportScopeSupport0":[148,{"$":330},151,{"$":331}],
 
 "p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1107,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
 
@@ -6870,7 +6870,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["bf659065b16106e2cd2db5248ee3d9a6a9a1a417954d5ff03ba067d9e7863584",420,133062],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["02124eb7400f7841f98103abe4a884dca398f7061f1e9688de7f77b13d85be17",420,133062],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -6986,7 +6986,7 @@
 
 "tests/test_registered_n1_factory.py":["123f9c08530791a5dd48a9230de197b9413c721fba6a5d5e46ce0da507a24a0b",420,133174],
 
-"tests/test_registered_n1_qualification.py":["27709dc0c37dec062e3bf272b8ab984bedff543b1f99633d520e7dc35bf38b94",420,8603],
+"tests/test_registered_n1_qualification.py":["ec742c73fbcab6701c2521230eb149c2a6898ea9875258d131e6636500e67da2",420,9179],
 
 "tests/test_registered_native_pool_host.py":["25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",420,39405],
 

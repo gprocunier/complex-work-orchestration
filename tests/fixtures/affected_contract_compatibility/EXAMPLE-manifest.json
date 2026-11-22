@@ -584,7 +584,7 @@
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
     "tests/test_registered_finite_tool_wiring.py": "f257188ff86df5b6c30a222d91e940a43255822deeadb45ad9181b5c5bde2fa9",
     "tests/test_registered_n1_factory.py": "123f9c08530791a5dd48a9230de197b9413c721fba6a5d5e46ce0da507a24a0b",
-    "tests/test_registered_n1_qualification.py": "27709dc0c37dec062e3bf272b8ab984bedff543b1f99633d520e7dc35bf38b94",
+    "tests/test_registered_n1_qualification.py": "ec742c73fbcab6701c2521230eb149c2a6898ea9875258d131e6636500e67da2",
     "tests/test_registered_n1_workflow.py": "94d4de5b25c5e986311ebec6c55eb91b143dcf60080e84130748f8a290f35ed7",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
@@ -2442,7 +2442,7 @@
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
     "tests/test_registered_n1_factory.py": "123f9c08530791a5dd48a9230de197b9413c721fba6a5d5e46ce0da507a24a0b",
-    "tests/test_registered_n1_qualification.py": "27709dc0c37dec062e3bf272b8ab984bedff543b1f99633d520e7dc35bf38b94",
+    "tests/test_registered_n1_qualification.py": "ec742c73fbcab6701c2521230eb149c2a6898ea9875258d131e6636500e67da2",
     "tests/test_registered_provider_network.py": "46cfd8813221389c291a5d06818df0d4c8b70edbc8451280208931293e71ab66",
     "tests/test_registered_server_requests.py": "1339fd305c7267d3b7d7fef24453268c8180c1090ae20122f430ad675b3a07f5"
   },
