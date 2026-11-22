@@ -55,11 +55,13 @@ class FiniteInputTests(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(family.cleanup_helper, self, self.fixture)
 
-    def _active(self, *, hold_admission=False, no_fake_scheduler=False):
+    def _active(self, *, hold_admission=False, no_fake_scheduler=False, prepared_poll_approval=None,
+                allow_original_turn_response=False):
         from tests.test_registered_finite_tool_wiring import DynamicRpcProcess
         fixture = self.fixture
         case = fixture.case(finite_tool_mode='captured-host-tools', complete_after_refusal=True,
-                            no_fake_scheduler=no_fake_scheduler)
+                            no_fake_scheduler=no_fake_scheduler,
+                            allow_original_turn_response=allow_original_turn_response)
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
         if hold_admission:
             # A poll fault otherwise releases the host's Condition scheduler
@@ -103,6 +105,16 @@ class FiniteInputTests(unittest.TestCase):
         self.assertEqual(os.read(gate.output_fd, 4096), b'EXAMPLE finite poll output\n')
         original_reserve = gate.reserve
 
+        def observe_poll_item(key, item_id, chars):
+            thread_id, turn_id, approval_id = key
+            text = chars.decode('utf-8', 'replace') if type(chars) is bytes else ''
+            fixture.spawned[0].stdout.put({'method': 'item/started', 'params': {
+                'threadId': thread_id, 'turnId': turn_id,
+                'item': {'id': approval_id, 'type': 'dynamicToolCall', 'status': 'inProgress',
+                         'tool': 'finite_poll', 'namespace': None,
+                         'arguments': {'commandCallId': item_id, 'chars': text}}}})
+            self.assertTrue(self._wait(lambda: key in factory.server._items, 2))
+
         def observed_reserve(chars, *, thread_id, turn_id, item_id, approval_id, deadline):
             key = thread_id, turn_id, approval_id
             if (thread_id == case.scenario.thread_id and turn_id == case.scenario.turn_id
@@ -110,16 +122,14 @@ class FiniteInputTests(unittest.TestCase):
                     and approval_id != 'EXAMPLE-missing-item' and key not in factory.server._items
                     and gate.state == 'active' and factory.server.transport_failure is None
                     and factory.server.requests.cancelled_turn is None):
-                text = chars.decode('utf-8', 'replace') if type(chars) is bytes else ''
-                fixture.spawned[0].stdout.put({'method': 'item/started', 'params': {
-                    'threadId': thread_id, 'turnId': turn_id,
-                    'item': {'id': approval_id, 'type': 'dynamicToolCall', 'status': 'inProgress',
-                             'tool': 'finite_poll', 'namespace': None,
-                             'arguments': {'commandCallId': item_id, 'chars': text}}}})
-                self.assertTrue(self._wait(lambda: key in factory.server._items, 2))
+                observe_poll_item(key, item_id, chars)
             return original_reserve(chars, thread_id=thread_id, turn_id=turn_id,
                                     item_id=item_id, approval_id=approval_id, deadline=deadline)
 
+        if prepared_poll_approval is not None:
+            # Let the original reader settle the item before the caller opens its ticket window.
+            observe_poll_item((case.scenario.thread_id, case.scenario.turn_id, prepared_poll_approval),
+                              'EXAMPLE-command-call', b'')
         gate_patch = patch.object(gate, 'reserve', observed_reserve)
         gate_patch.start()
         self.addCleanup(gate_patch.stop)
@@ -542,7 +552,8 @@ class FiniteInputTests(unittest.TestCase):
         self.assertEqual(attempt['charge'], attempt['amount'], event)
 
     def _concurrent_cleanup_owner_schedule(self, *, uncertain):
-        case, factory, tool, _stream, read, release_turn, result = self._active()
+        case, factory, tool, _stream, read, release_turn, result = self._active(
+            allow_original_turn_response=True)
         gate = factory.server.finite_input
         primary = RuntimeError('EXAMPLE original transport failure')
         entered, release_owner, waiter_entered = (threading.Event() for _ in range(3))
@@ -1042,7 +1053,8 @@ class FiniteInputTests(unittest.TestCase):
         original_wait.assert_called_once_with(8)
 
     def _late_owner_observation(self, *, gate_owner):
-        case, factory, tool, _stream, read, release_turn, result = self._active()
+        case, factory, tool, _stream, read, release_turn, result = self._active(
+            allow_original_turn_response=gate_owner)
         gate = factory.server.finite_input
         primary = RuntimeError('EXAMPLE original observer-edge fault')
         owner_entered, release_owner = threading.Event(), threading.Event()
@@ -1683,25 +1695,30 @@ class FiniteInputTests(unittest.TestCase):
         self.assertIsInstance(result[0], dict)
 
     def test_deadline_crossing_at_pipe_wait_fails_without_stale_read(self):
-        case, factory, tool, _stream, read, release, result = self._active()
+        approval = 'EXAMPLE-deadline-cross'
+        case, factory, tool, _stream, read, release, result = self._active(prepared_poll_approval=approval)
         gate = factory.server.finite_input
+        original = finite.select.select
+        entered = threading.Event()
+        before_bytes = gate.output_bytes_seen
         deadline = time.monotonic() + 1.5
         ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
             turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
-            approval_id='EXAMPLE-deadline-cross', deadline=deadline)
-        original = finite.select.select
-        entered = threading.Event()
+            approval_id=approval, deadline=deadline)
 
         def late(reads, writes, errors, timeout=None):
             if len(reads) == 1 and gate._pipe_stat(reads[0]) == gate.output_stat:
+                self.assertGreater(deadline, time.monotonic(), 'the original ticket must be live at pipe entry')
                 entered.set()
                 time.sleep(max(0, deadline - time.monotonic()) + .05)
                 return [], [], []
             return original(reads, writes, errors, timeout)
 
-        with patch.object(finite.select, 'select', late), self.assertRaises(finite.FiniteInputError):
+        with patch.object(finite.select, 'select', late), self.assertRaisesRegex(
+                finite.FiniteInputError, 'The poll deadline expired during pipe observation.'):
             gate.poll(ticket, timeout=.1)
         self.assertTrue(entered.is_set(), 'the deadline schedule must cross the original pipe wait')
+        self.assertEqual(gate.output_bytes_seen, before_bytes)
         self.assertTrue(tool._termination_finished.wait(8),
                         'the off-reader owned cleanup must finish')
         self.assertTrue(tool.contained and tool.termination_recorded)
@@ -1789,7 +1806,8 @@ class FiniteInputTests(unittest.TestCase):
         self.assertTrue(self._wait(lambda: bool(result), 8))
 
     def test_close_during_pipe_wait_revokes_next_ticket(self):
-        case, factory, tool, _stream, read, release, result = self._active(hold_admission=True)
+        case, factory, tool, _stream, read, release, result = self._active(
+            hold_admission=True, allow_original_turn_response=True)
         gate = factory.server.finite_input
         ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
             turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',

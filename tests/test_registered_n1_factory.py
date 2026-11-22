@@ -326,6 +326,7 @@ class RpcProcess(children.FakeChild):
         self.stdout.on_line = self.read_line
         self.methods, self.replies = [], []
         self.pending = None
+        self.turn_start_request_id = None
 
     def read_line(self, value):
         if value.startswith('EXAMPLE-oversized-frame'):
@@ -427,8 +428,9 @@ class RpcProcess(children.FakeChild):
         if method == 'initialized':
             return
         if method == 'thread/start' and not getattr(case, 'no_fake_scheduler', False):
-            self.before_consumption(self.settled, armed=lambda: self.pending is not None)
+            self.before_consumption(self.settled, armed=self.progress_wait_armed)
         if method == 'turn/start':
+            self.turn_start_request_id = message['id']
             self.pending = 'requested'
         result = self.result(method, params)
         if not self.process.alive:
@@ -441,16 +443,14 @@ class RpcProcess(children.FakeChild):
             self.before_consumption(lambda: not case.factory.server._reader_threads[0].is_alive())
             self.stdout.lines.put('EXAMPLE-oversized-frame' + 'x' * 65536 + '\n')
         if method == 'turn/start':
-            # Approval arrives after the turn response has been installed. Use
-            # the next original thread/read RPC as its actual request boundary.
-            # Bound the fake child scheduler at the original Condition wait.
-            # The original reader and real input pipe keep running; no validator
-            # or decision is replaced. Waiting for the real child completion
-            # avoids spending the fixture's accelerated host ticks on a callback.
+            # Put the approval after the turn response on the same stream.
             self.approve()
         if method == 'thread/read' and self.pending is True:
             self.pending = 'requested'
             self.approve()
+
+    def progress_wait_armed(self):
+        return self.pending is not None
 
     def settled(self):
         release = getattr(self.case, 'release_turn_response', False)

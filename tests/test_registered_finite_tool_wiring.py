@@ -172,6 +172,17 @@ class DynamicRpcProcess(family.RpcProcess):
             scenario.complete_turn()
         self.pending = None
 
+    def progress_wait_armed(self):
+        armed = super().progress_wait_armed()
+        if not armed or not getattr(self.case, 'allow_original_turn_response', False):
+            return armed
+        server = self.case.factory.server
+        request_id = self.turn_start_request_id
+        # The reader retires the observer when it queues the response.
+        # Leave that response available to the original caller.
+        return (request_id not in server._pending_turn_start_response_observers
+                and request_id not in server._responses)
+
     def approve(self):
         if not self.process.alive:
             return
@@ -1142,8 +1153,13 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
                                  tool_exit_before_poll=0, no_fake_scheduler=True)
         factory = self.fixture.factory(case)
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self._positive_finite_completion(case):
-            result = factory.run()
+        try:
+            with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
+                    self._positive_finite_completion(case), _fixture_poll_ticket_clock(factory):
+                result = factory.run()
+        except BaseException as failure:
+            _note_original_poll_refusal(factory, failure)
+            raise
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertEqual(factory.server.finite_input.terminal_code, 0)
         self.assertEqual(self.fixture.spawned[0].replies[0]['result']['contentItems'][0]['text'],
@@ -2917,10 +2933,17 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             finally:
                 writer.release()
             thread.join(12)
+        self.assertFalse(thread.is_alive())
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], BaseException)
-        self.assertEqual(len(self.fixture.spawned[0].replies), 1)
-        self.assertIn('error', self.fixture.spawned[0].replies[0])
+        process = self.fixture.spawned[0]
+        process.stdin.stream.require_healthy()
+        self.assertIs(type(factory.server.transport_failure), finite_tools.FiniteToolError)
+        self.assertEqual(str(factory.server.transport_failure),
+                         'Captured fake-server catalog changed after registration.')
+        self.assertEqual(len(process.replies), 1)
+        self.assertEqual(process.replies[0], {'id': 'EXAMPLE-request-EXAMPLE-command-call',
+            'error': {'code': -32602, 'message': 'Registered finite tool refused.'}})
         attempt = self.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])
@@ -3489,9 +3512,12 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 finally:
                     family.cleanup_helper(self, fixture)
 
-    def _split_reply_publication_schedule(self, tool, stage, *, exceptional=False):
+    def _split_reply_publication_schedule(self, tool, stage, *, exceptional=False,
+                                          allow_original_turn_response=False,
+                                          observe_reply_entry=None):
         case = self.fixture.case(archive_schedule='concurrent', finite_tool_mode='captured-host-tools',
-                                 materialize_on_turn_start=True)
+                                 materialize_on_turn_start=True,
+                                 allow_original_turn_response=allow_original_turn_response)
         factory = self.fixture.factory(case)
         entered, stage_release = threading.Event(), threading.Event()
         fact, fact_release = threading.Event(), threading.Event()
@@ -3602,6 +3628,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             self.addCleanup(family.finish_worker, self, worker, stage_release, fact_release)
             worker.start()
             self.assertTrue(self.wait_for_startup(entered, worker, outcome), (tool, stage))
+            if observe_reply_entry is not None:
+                observe_reply_entry(factory.server)
             gate = factory.server.finite_input
             charged_before = gate.output_bytes_seen
             reads_before = list(reads)
@@ -3737,7 +3765,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 gate_module.RegisteredFiniteInput, method, reply), patch.object(
                 family.runtime._CoherentServerRequests, '_publish_progress', publish):
             try:
-                fixture._split_reply_publication_schedule(tool, stage, exceptional=exceptional)
+                fixture._split_reply_publication_schedule(
+                    tool, stage, exceptional=exceptional, allow_original_turn_response=True)
             finally:
                 resume.set()
                 try:
@@ -3762,6 +3791,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         fixture.setUp()
         fault, reply_release, response_release = (threading.Event(), threading.Event(),
                                                   threading.Event())
+        reply_entered = threading.Event()
         cancel_requested, cancel_acquired = threading.Event(), threading.Event()
         reply_acquired, fence_requested = threading.Event(), threading.Event()
         selected, cancelling = threading.local(), threading.local()
@@ -3808,11 +3838,18 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
             producer.lock = ProducerLock()
 
+        def observe_reply_entry(server):
+            with server._condition:
+                reply_entered.set()
+                server._condition.notify_all()
+
         def response(server, *args):
-            # Keep the actual turn-start response check behind the projection
-            # fault. Its real Condition wait releases the reader lock so tool
-            # requests can reach the selected stage in either ordering.
+            # Allow the original producer to enter the selected reply fence
+            # before starting the bounded wait for the projection fault.
             servers.append(server)
+            self.assertTrue(server._condition.wait_for(
+                lambda: reply_entered.is_set() or response_release.is_set(),
+                timeout=family.STARTUP_OBSERVATION_SECONDS))
             self.assertTrue(server._condition.wait_for(response_release.is_set, timeout=3))
             result = original_response(server, *args)
             responses.append(result)
@@ -3872,7 +3909,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 gate_module.RegisteredFiniteInput, method, reply), patch.object(
                 family.runtime._CoherentServerRequests, '_publish_progress', publish):
             try:
-                fixture._split_reply_publication_schedule(tool, stage, exceptional=True)
+                fixture._split_reply_publication_schedule(
+                    tool, stage, exceptional=True, allow_original_turn_response=True,
+                    observe_reply_entry=observe_reply_entry)
             finally:
                 response_release.set()
                 reply_release.set()

@@ -43,8 +43,7 @@ DEDICATED_PARALLEL_TEST_FILES = frozenset({
 # them concurrently creates false containment drift, so they retain one lane.
 # Continuation tests use separate temporary Beads databases and read-only source;
 # their content-drift assertions do not require distinct wall-clock timestamps.
-# Supervision tests also read source; receipts/state/registry live in private temp roots.
-# Retry supervision uses the same private roots.
+# Supervision and retry tests keep receipts, state and registries in private temporary roots.
 # Worker planning also confines receipts, registry and sequence specs to private roots.
 SERIAL_TEST_FILES = frozenset(
     {
@@ -53,6 +52,7 @@ SERIAL_TEST_FILES = frozenset(
         "test_native_precommit_packet.py",
         "test_native_recovery.py",
         "test_native_release.py",
+        "test_stage_completion.py",  # Writes temporary evidence under the source root.
     }
 )
 # Measured case seconds for costly, currently parallel families.

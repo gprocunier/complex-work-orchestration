@@ -247,6 +247,7 @@ class Case(unittest.TestCase):
             "test_native_precommit_packet.py",
             "test_native_recovery.py",
             "test_native_release.py",
+            "test_stage_completion.py",
         }))
 
     def test_build_shards_is_deterministic_and_complete(self) -> None:

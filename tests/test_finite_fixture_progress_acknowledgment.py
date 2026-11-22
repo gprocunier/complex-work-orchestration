@@ -363,12 +363,11 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                             completion.set()
 
                 with ExitStack() as patches:
-                    if not hold_intent or hold_consumer_return:
-                        # These positive witnesses spend the ticket at the
-                        # original pipe observation. Keep the RPC, lifecycle
-                        # and observation clocks real during fixture preparation.
-                        patches.enter_context(original_poll_ticket_clock(
-                            lambda: cases[0].factory.server.finite_tools if cases else None))
+                    # All these positive witnesses prepare the poll before
+                    # spending its ticket at the original pipe observation.
+                    # RPC and lifecycle deadlines use real time throughout.
+                    patches.enter_context(original_poll_ticket_clock(
+                        lambda: cases[0].factory.server.finite_tools if cases else None))
                     patches.enter_context(patch.object(family.runtime._RegisteredServer,
                                                       'start_turn', start_turn))
                     patches.enter_context(patch.object(threading.Condition, 'wait', wait))
