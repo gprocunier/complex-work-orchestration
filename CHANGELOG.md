@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.7.0 - 2026-11-22
+
 - Native qualification command replies change from raw stdout to JSON with `commandCallId`, `stdout` and `running`. Use `commandCallId` from the reply to poll the original command.
 
 ## 1.6.3 - 2026-11-22
