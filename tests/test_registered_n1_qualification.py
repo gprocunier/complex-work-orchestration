@@ -1,6 +1,7 @@
 """Offline qualification authority and campaign accounting fixtures."""
 
 from concurrent.futures import ThreadPoolExecutor
+import os
 from pathlib import Path
 import tempfile
 import time
@@ -78,8 +79,8 @@ class CampaignTests(unittest.TestCase):
 class FactoryQualificationTests(unittest.TestCase):
     def setUp(self):
         self.fixture = family.FactoryTests(methodName='runTest')
+        self.addCleanup(family.cleanup_helper, self, self.fixture)
         self.fixture.setUp()
-        self.addCleanup(self.fixture.doCleanups)
 
     def test_qualification_requires_permit_and_does_not_open_production(self):
         case = self.fixture.case(qualification=True)
@@ -156,3 +157,16 @@ class FactoryQualificationTests(unittest.TestCase):
         self.assertEqual(len(self.fixture.spawned), 1)
         self.assertNotIn('turn/start', self.fixture.spawned[0].methods)
         self.assertTrue(factory.server.lifetime.contained)
+
+    def test_composed_fixture_restores_process_denial(self):
+        original_kill = os.kill
+        try:
+            self.fixture.case(qualification=True)
+            self.assertIsNot(os.kill, original_kill)
+        finally:
+            self.doCleanups()
+            restored_kill = os.kill
+            # Keep a failing cleanup witness from leaking its own fixture.
+            family.cleanup_helper(self, self.fixture.processes)
+            family.cleanup_helper(self, self.fixture.authority)
+        self.assertIs(restored_kill, original_kill)

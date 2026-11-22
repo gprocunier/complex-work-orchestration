@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve a bounded repository capture failure category in offline native host diagnostics.
+- Restore the original process functions after offline native qualification tests finish.
+
 ## 1.6.1 - 2026-11-22
 
 - Wait for the original archive result in the finite empty-poll test before consuming close steps.

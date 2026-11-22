@@ -604,6 +604,28 @@ class OfflineN1HostTests(unittest.TestCase):
         self.assertEqual(adapter.callback_latencies, {})
         self.assertFalse((host.state / "operation.json").exists())
 
+    def test_capture_refusal_preserves_only_bounded_failure_category(self):
+        private_detail = "EXAMPLE private repository capture detail"
+        capture_results = (
+            ({"complete": False, "error": private_detail, "error_kind": "budget"}, "budget"),
+            ({"complete": False, "error": private_detail, "error_kind": "git-failed"}, "git-failed"),
+            ({"complete": False, "error": private_detail, "error_kind": private_detail}, "capture-error"),
+            ({"complete": False, "error": private_detail, "error_kind": [private_detail]}, "capture-error"),
+            ({"complete": False, "error": None}, "incomplete"),
+            ({"complete": True, "error": None, "head_commit": None}, "missing-head"),
+        )
+        for result, category in capture_results:
+            with self.subTest(category=category):
+                result["incomplete_reasons"] = [private_detail]
+                with patch.object(HOST.workspace_capture, "capture", return_value=result), \
+                     patch.object(HOST, "_commit_head") as verify_head:
+                    with self.assertRaises(HOST.OfflineHostError) as caught:
+                        HOST._capture(self.target, (self.target, self.worker))
+                self.assertEqual(str(caught.exception), "A complete repository capture with an actual commit is required.")
+                self.assertEqual(getattr(caught.exception, "__notes__", []),
+                                 [f"Repository capture failure category: {category}"])
+                verify_head.assert_not_called()
+
     def test_detached_commit_heads_allow_real_fake_completion(self):
         commit = self.git(self.source, "rev-parse", "HEAD").stdout.decode("ascii").strip()
         for root in (self.target, self.worker):
