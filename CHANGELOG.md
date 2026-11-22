@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Return the command call ID with native qualification tool output so the worker can poll the original command.
+
 ## 1.6.3 - 2026-11-22
 
 - Keep the invocation open until the finite poll test verifies that cancellation blocks a fresh request.

@@ -35,6 +35,12 @@ _DESCRIPTIONS = {
     _COMMAND: 'Run the one registered finite command in its owned worktree.',
     _POLL: 'Poll with exactly empty input; returns JSON stdout and running status. Nonempty input is refused.',
 }
+_QUALIFICATION_DESCRIPTIONS = {
+    _COMMAND: 'Run the one registered finite command in its owned worktree. '
+              'Returns JSON with commandCallId, stdout, and running.',
+    _POLL: 'Poll using commandCallId from the finite_command result and chars set to an empty string. '
+           'Returns JSON stdout and running status. Nonempty input is refused.',
+}
 _SCHEMAS = {_COMMAND: _COMMAND_SCHEMA, _POLL: _POLL_SCHEMA}
 _CAPTURE_NAME = 'finite-tool-capture.json'
 _CAPTURE_TOKEN = object()
@@ -53,8 +59,9 @@ def _digest(value):
     return hashlib.sha256(_canonical(value)).hexdigest()
 
 
-def _tool_specs():
-    return [{'type': 'function', 'name': name, 'description': _DESCRIPTIONS[name],
+def _tool_specs(*, live_capture=False):
+    descriptions = _QUALIFICATION_DESCRIPTIONS if live_capture else _DESCRIPTIONS
+    return [{'type': 'function', 'name': name, 'description': descriptions[name],
              'inputSchema': copy.deepcopy(_SCHEMAS[name])} for name in (_COMMAND, _POLL)]
 
 
@@ -218,9 +225,9 @@ class RegisteredFiniteToolCalls:
         self.launch_decision = None
 
     @staticmethod
-    def thread_parameters():
+    def thread_parameters(*, live_capture=False):
         """The pinned experimental thread/start.dynamicTools wire field."""
-        return {'dynamicTools': _tool_specs()}
+        return {'dynamicTools': _tool_specs(live_capture=live_capture)}
 
     def _require_capture_source(self):
         if self.live_capture:
@@ -252,7 +259,7 @@ class RegisteredFiniteToolCalls:
 
     def _catalog_digest(self, start, payload):
         if self.live_capture:
-            if start.get('dynamicTools') != _tool_specs():
+            if start.get('dynamicTools') != _tool_specs(live_capture=True):
                 raise FiniteToolError('The original app-server tool registration differs.')
             return _digest(start['dynamicTools'])
         return require_exact_capture(self.factory.spec['model'], payload['request'])
@@ -555,7 +562,7 @@ class RegisteredFiniteToolCalls:
             self._require_call_current(params)
             self._require_capture_current()
             return {'id': request.request_id, 'result': {
-                'contentItems': [{'type': 'inputText', 'text': self._output_text(params['tool'], data)}],
+                'contentItems': [{'type': 'inputText', 'text': self._output_text(params, data)}],
                 'success': True}}
         except (FiniteToolError, ValueError) as failure:
             self._cleanup_failed_call(params['tool'], failure)
@@ -581,10 +588,17 @@ class RegisteredFiniteToolCalls:
             if self.state != 'closed':
                 self.state = 'failed'
 
-    @staticmethod
-    def _output_text(tool, data):
+    def _command_output_text(self, call, data):
+        stdout = data.decode('utf-8', 'strict')
+        if not self.live_capture:
+            return stdout
+        return _canonical({'commandCallId': call, 'stdout': stdout,
+                           'running': self.server.finite_input.terminal_code is None}).decode('utf-8')
+
+    def _output_text(self, params, data):
+        tool = params['tool']
         if tool == _COMMAND and type(data) is bytes:
-            return data.decode('utf-8', 'strict')
+            return self._command_output_text(params['callId'], data)
         if (tool == _POLL and type(data) is dict and type(data.get('stdout')) is bytes
                 and data.get('stdin_bytes') == b'' and type(data.get('running')) is bool):
             return _canonical({'stdout': data['stdout'].decode('utf-8', 'strict'),
@@ -604,22 +618,32 @@ class RegisteredFiniteToolCalls:
             raise FiniteToolError('The original finite reply changed before commit.')
         tail = self.server.finite_input.drain_terminal_output(
             self.process.stdout.fileno(), b'', deadline, params=params)
-        if tool == _COMMAND:
-            original = item['text']
-        elif tool == _POLL:
-            payload = json.loads(item['text'])
-            if (type(payload) is not dict or set(payload) != {'running', 'stdout'}
-                    or type(payload['running']) is not bool or type(payload['stdout']) is not str):
-                raise FiniteToolError('The original finite poll result changed before commit.')
-            original = payload['stdout']
-        else:
-            raise FiniteToolError('Only the selected finite reply can be refreshed.')
+        payload = self._terminal_reply_payload(tool, params, item['text'])
+        original = item['text'] if payload is None else payload['stdout']
         merged = original.encode('utf-8') + tail
         if len(merged) > 4096:
             raise FiniteToolError('The naturally completed tool output exceeded its bound.')
         text = merged.decode('utf-8', 'strict')
-        item['text'] = text if tool == _COMMAND else _canonical(
-            {'stdout': text, 'running': False}).decode('utf-8')
+        if payload is not None:
+            payload.update(stdout=text, running=False)
+            text = _canonical(payload).decode('utf-8')
+        item['text'] = text
+
+    def _terminal_reply_payload(self, tool, params, text):
+        if tool == _COMMAND and not self.live_capture:
+            return None
+        if tool not in {_COMMAND, _POLL}:
+            raise FiniteToolError('Only the selected finite reply can be refreshed.')
+        fields = {'running', 'stdout'}
+        if tool == _COMMAND:
+            fields.add('commandCallId')
+        payload = json.loads(text)
+        if (type(payload) is not dict or set(payload) != fields
+                or (tool == _COMMAND and payload['commandCallId'] != params['callId'])
+                or type(payload['running']) is not bool or type(payload['stdout']) is not str):
+            description = 'command' if tool == _COMMAND else 'poll'
+            raise FiniteToolError(f'The original finite {description} result changed before commit.')
+        return payload
 
     def _command(self, params, deadline, decision):
         if (self.state != 'registered' or self.lifetime is not None

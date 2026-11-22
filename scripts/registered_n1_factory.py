@@ -1682,8 +1682,11 @@ def _check_response(factory, params, response):
         qualification.check_thread_model(params, response)
     _need(set(params) == set(factory._thread_start_parameters()),
           "Mixed or unbound thread selectors.")
-    if spec.get('finite_tool_mode') in finite_calls.CAPTURE_MODES:
-        _need(params['dynamicTools'] == finite_calls.RegisteredFiniteToolCalls.thread_parameters()['dynamicTools'],
+    mode = spec.get('finite_tool_mode')
+    if mode in finite_calls.CAPTURE_MODES:
+        tools = finite_calls.RegisteredFiniteToolCalls.thread_parameters(
+            live_capture=mode == finite_calls.LIVE_CAPTURE_MODE)
+        _need(params['dynamicTools'] == tools['dynamicTools'],
               "The selected finite tool definitions differ.")
     thread = response.get('thread', {})
     _need(type(thread.get('id')) is str and bool(thread['id']) and thread.get('turns') == [], "A fresh actual thread is required.")
@@ -2077,8 +2080,10 @@ class RegisteredN1Factory:
         params = dict(self.spec['thread_start'], model=self.spec['model'],
                       allowProviderModelFallback=False, cwd=str(self.host.worker),
                       runtimeWorkspaceRoots=[str(self.host.worker)])
-        if self.spec.get('finite_tool_mode') in finite_calls.CAPTURE_MODES:
-            params.update(finite_calls.RegisteredFiniteToolCalls.thread_parameters())
+        mode = self.spec.get('finite_tool_mode')
+        if mode in finite_calls.CAPTURE_MODES:
+            params.update(finite_calls.RegisteredFiniteToolCalls.thread_parameters(
+                live_capture=mode == finite_calls.LIVE_CAPTURE_MODE))
         if self.qualification is not None:
             params.update(qualification.thread_selectors())
         return params

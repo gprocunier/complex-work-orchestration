@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from typing import Callable, NamedTuple
 import unittest
 from unittest.mock import patch
+from uuid import uuid4
 
 from tests import test_registered_n1_factory as family
 from tests.test_registered_finite_input import ToolLines
@@ -100,6 +101,12 @@ def _note_typed_startup_failure(factory, failure):
 
 
 class DynamicRpcProcess(family.RpcProcess):
+    command_call_id = 'EXAMPLE-command-call'
+
+    @property
+    def command_request_id(self):
+        return getattr(self.case, 'command_request_id', 'EXAMPLE-request-EXAMPLE-command-call')
+
     def __init__(self, process, case, validator=False):
         super().__init__(process, case, validator=validator)
         self.is_tool = not validator and bool(case.test.spawned)
@@ -150,9 +157,9 @@ class DynamicRpcProcess(family.RpcProcess):
             for item in params['dynamicTools']:
                 tools.append({'type': item['type'], 'name': item['name'],
                               'description': item['description'], 'parameters': item['inputSchema']})
-            self.case.test.assertEqual(tools, finite_tools._response_tools())
             if self.case.spec['finite_tool_mode'] != 'captured-host-tools':
                 return response
+            self.case.test.assertEqual(tools, finite_tools._response_tools())
             capture = {'start': params, 'response': response,
                        'request': {'model': params['model'], 'tools': tools}}
             if getattr(self.case, 'catalog_drift', False):
@@ -198,7 +205,7 @@ class DynamicRpcProcess(family.RpcProcess):
             original_put = pending.put_nowait
             pending.put_nowait = lambda entry: original_put((entry[0], time.monotonic() + .05))
             self.case.test.addCleanup(setattr, pending, 'put_nowait', original_put)
-        self._send_tool('EXAMPLE-command-call', getattr(self.case, 'command_tool', 'finite_command'),
+        self._send_tool(self.command_call_id, getattr(self.case, 'command_tool', 'finite_command'),
                         {'command': self.case.spec['command']}, scenario)
         if getattr(self.case, 'flood_tool_queue', False):
             self.case.flood_ready.wait(5)
@@ -217,8 +224,7 @@ class DynamicRpcProcess(family.RpcProcess):
                 'threadId': scenario.thread_id, 'turnId': scenario.turn_id, 'item': item}},
                 process=self.process) is False:
             return
-        request_id = (getattr(self.case, 'command_request_id', 'EXAMPLE-request-' + call)
-                      if call == 'EXAMPLE-command-call' else 'EXAMPLE-request-' + call)
+        request_id = self.command_request_id if call == self.command_call_id else 'EXAMPLE-request-' + call
         if call == 'EXAMPLE-command-call' and (getattr(self.case, 'colliding_permission_before_command', False)
                                                or getattr(self.case, 'typed_distinct_request_ids', False)):
             permission_id = 7 if getattr(self.case, 'typed_distinct_request_ids', False) else request_id
@@ -247,8 +253,7 @@ class DynamicRpcProcess(family.RpcProcess):
         super().receive(message)
         if not self.process.alive:
             return
-        if message.get('id') == getattr(self.case, 'command_request_id',
-                                       'EXAMPLE-request-EXAMPLE-command-call'):
+        if message.get('id') == self.command_request_id:
             if message.get('result', {}).get('success') is not True:
                 return
             scenario = self.case.scenario
@@ -267,7 +272,7 @@ class DynamicRpcProcess(family.RpcProcess):
             if not getattr(self.case, 'poll_before_command_completed', False):
                 self.stdout.put({'method': 'item/completed', 'params': {
                     'threadId': scenario.thread_id, 'turnId': scenario.turn_id,
-                    'item': {'id': 'EXAMPLE-command-call', 'status': 'completed'}}})
+                    'item': {'id': self.command_call_id, 'status': 'completed'}}})
                 if hasattr(self.case, 'completion_emitted'):
                     self.case.completion_emitted.set()
             if getattr(self.case, 'tool_eof_after_command', False):
@@ -295,7 +300,7 @@ class DynamicRpcProcess(family.RpcProcess):
             if getattr(self.case, 'poll_epoch_drift', False):
                 self.case.factory.server.connection_epoch_sha256 = 'EXAMPLE-foreign-epoch'
             self._send_tool('EXAMPLE-poll-call', 'finite_poll',
-                            {'commandCallId': 'EXAMPLE-command-call',
+                            {'commandCallId': self._poll_command_call_id(message),
                              'chars': getattr(self.case, 'poll_chars', '')}, scenario)
         elif message.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call':
             if getattr(self.case, 'replay_poll', False):
@@ -315,6 +320,23 @@ class DynamicRpcProcess(family.RpcProcess):
                 self.complete()
             elif getattr(self.case, 'complete_after_refusal', False):
                 self.complete()
+
+    def _poll_command_call_id(self, _reply):
+        return self.command_call_id
+
+
+class DiscoveringDynamicRpcProcess(DynamicRpcProcess):
+    def __init__(self, process, case, validator=False):
+        self.command_call_id = uuid4().hex
+        super().__init__(process, case, validator=validator)
+
+    @staticmethod
+    def _poll_command_call_id(reply):
+        text = reply['result']['contentItems'][0]['text']
+        try:
+            return json.loads(text)['commandCallId']
+        except (ValueError, TypeError, KeyError) as failure:
+            raise AssertionError('The qualification command reply did not expose its poll handle.') from failure
 
 
 class RegisteredFiniteToolWiringTests(unittest.TestCase):
@@ -486,8 +508,11 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         return case, factory, result
 
     def _exit_between_command_read_and_reply(self, *, trailing, close_output=True,
-                                             command_output=None, no_fake_scheduler=False):
-        case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools', natural_tool_exit=True,
+                                             command_output=None, no_fake_scheduler=False,
+                                             qualification=False):
+        mode = finite_tools.LIVE_CAPTURE_MODE if qualification else finite_tools.FAKE_CAPTURE_MODE
+        case = self.fixture.case(archive_schedule='settled', finite_tool_mode=mode, natural_tool_exit=True,
+                                 qualification=qualification,
                                  no_fake_scheduler=no_fake_scheduler,
                                  **({} if command_output is None else {'command_output': command_output}))
         factory = self.fixture.factory(case)
@@ -507,7 +532,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             return original(server, message, response, deadline, refusal=refusal)
 
         progress = self._positive_finite_completion(case) if no_fake_scheduler else nullcontext()
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), progress, \
+        rpc_type = DiscoveringDynamicRpcProcess if qualification else DynamicRpcProcess
+        with patch.object(family, 'RpcProcess', rpc_type), progress, \
                 patch.object(family.runtime._RegisteredServer, '_commit_tool_reply', commit):
             try:
                 result = factory.run()
@@ -556,6 +582,35 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                          'EXAMPLE finite command output\nEXAMPLE late tail\n')
         self.assertEqual(case.poll_observation, {'stdout': '', 'running': False})
         self.assertIsNotNone(factory.issued_artifact())
+
+    def test_qualification_command_reply_keeps_poll_handle_when_draining_late_tail(self):
+        case, factory, result = self._exit_between_command_read_and_reply(
+            trailing='EXAMPLE late tail\n', no_fake_scheduler=True, qualification=True)
+        if isinstance(result, BaseException):
+            raise result
+        rpc = self.fixture.spawned[0]
+        command_reply = json.loads(rpc.replies[0]['result']['contentItems'][0]['text'])
+        stdout = 'EXAMPLE finite command output\nEXAMPLE late tail\n'
+        self.assertEqual(command_reply, {'commandCallId': rpc.command_call_id,
+                                         'stdout': stdout, 'running': False})
+        self.assertEqual(case.poll_observation, {'stdout': '', 'running': False})
+        self.assertEqual(factory.server.finite_input.output_bytes_seen, len(stdout.encode('utf-8')))
+        self.assertEqual(result['attempt']['outcome'], 'completed')
+
+    def test_qualification_command_envelope_remains_subject_to_atomic_reply_bound(self):
+        tail = 'X' * 3880
+        case, factory, result = self._exit_between_command_read_and_reply(
+            trailing=tail, qualification=True)
+        self.assertIsInstance(result, ValueError)
+        self.assertEqual(str(factory.server.transport_failure),
+                         'The finite tool reply exceeds the atomic pipe bound.')
+        self.assertFalse(any(reply.get('result', {}).get('success') is True
+                             for reply in self.fixture.spawned[0].replies))
+        self.assertEqual(factory.server.finite_input.output_bytes_seen,
+                         len('EXAMPLE finite command output\n' + tail))
+        attempt = self.fixture.attempt(case)
+        self.assertEqual(attempt['outcome'], 'unknown')
+        self.assertEqual(attempt['charge'], attempt['amount'])
 
     def test_failed_poll_reservation_does_not_start_success_completion_join(self):
         primary = OSError('EXAMPLE original poll intent persistence failed')
@@ -1388,15 +1443,22 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                                  poll_chars=chars, complete_after_refusal=True)
         factory = self.fixture.factory(case)
         progress = self._positive_finite_completion(case) if not chars else nullcontext()
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), progress:
+        with patch.object(family, 'RpcProcess', DiscoveringDynamicRpcProcess), progress:
             result = factory.run()
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertFalse((case.home / 'finite-tool-capture.json').exists())
         rows = [json.loads(path.read_bytes()) for path in
                 (factory.records / 'transport-observations').glob('observation-*.json')]
         refusals = [row['observation'] for row in rows if row['stage'] == 'finite-tool-refusal']
-        self.assertEqual([reply['result']['success'] for reply in self.fixture.spawned[0].replies],
-                         [True, not chars], refusals)
+        rpc = self.fixture.spawned[0]
+        self.assertEqual([reply['result']['success'] for reply in rpc.replies], [True, not chars], refusals)
+        command_reply = json.loads(rpc.replies[0]['result']['contentItems'][0]['text'])
+        self.assertEqual(command_reply, {'commandCallId': rpc.command_call_id,
+                                         'stdout': 'EXAMPLE finite command output\n', 'running': True})
+        exchange = factory.server._effective_thread_start_evidence[case.scenario.thread_id]
+        descriptions = {tool['name']: tool['description'] for tool in exchange['request']['dynamicTools']}
+        self.assertIn('commandCallId', descriptions['finite_command'])
+        self.assertIn('commandCallId from the finite_command result', descriptions['finite_poll'])
         intents = [row for row in rows if row['stage'] == 'finite-poll-intent']
         self.assertEqual(len(intents), 0 if chars else 1)
         with self.assertRaises(BlockingIOError):
@@ -1411,7 +1473,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(observation['thread'], case.scenario.thread_id)
         self.assertEqual(observation['turn'], case.scenario.turn_id)
         self.assertEqual(observation['call'], 'EXAMPLE-poll-call')
-        self.assertEqual(observation['command_call'], 'EXAMPLE-command-call')
+        self.assertEqual(observation['command_call'], rpc.command_call_id)
         self.assertEqual(observation['epoch'], catalog['epoch'])
         self.assertEqual(observation['tool_session'], factory.operation_id + '-tool')
         self.assertEqual(observation['stdin_pipe'][1], os.fstat(case.tool_read).st_ino)
@@ -1419,7 +1481,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             'id': 'EXAMPLE-request-EXAMPLE-poll-call', 'method': 'item/tool/call', 'params': {
                 'threadId': case.scenario.thread_id, 'turnId': case.scenario.turn_id,
                 'callId': 'EXAMPLE-poll-call', 'tool': 'finite_poll',
-                'arguments': {'commandCallId': 'EXAMPLE-command-call', 'chars': chars}}})
+                'arguments': {'commandCallId': rpc.command_call_id, 'chars': chars}}})
         self.assertEqual(observation['request_params_sha256'],
                          hashlib.sha256(request.params_json.encode()).hexdigest())
         submitted = chars.encode('utf-8')
