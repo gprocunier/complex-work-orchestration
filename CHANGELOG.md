@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Wait for the original archive result in the finite empty-poll test before consuming close steps.
+
 ## 1.6.0 - 2026-11-22
 
 - Add bounded host qualification for the registered native single-worker factory, with signed launch permits, provider-only egress, fixed run-local model selection, and finite-input observations.

@@ -56,10 +56,11 @@ class FiniteInputTests(unittest.TestCase):
         self.addCleanup(family.cleanup_helper, self, self.fixture)
 
     def _active(self, *, hold_admission=False, no_fake_scheduler=False, prepared_poll_approval=None,
-                allow_original_turn_response=False):
+                allow_original_turn_response=False, archive_schedule='concurrent'):
         from tests.test_registered_finite_tool_wiring import DynamicRpcProcess
         fixture = self.fixture
-        case = fixture.case(finite_tool_mode='captured-host-tools', complete_after_refusal=True,
+        case = fixture.case(archive_schedule=archive_schedule, finite_tool_mode='captured-host-tools',
+                            complete_after_refusal=True,
                             no_fake_scheduler=no_fake_scheduler,
                             allow_original_turn_response=allow_original_turn_response)
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
@@ -139,7 +140,7 @@ class FiniteInputTests(unittest.TestCase):
         return case, factory, tool, stream, read, case.poll_release, result
 
     def test_exact_empty_poll_reads_real_tool_pipe_and_preserves_useful_n1(self):
-        case, factory, tool, stream, read, release, result = self._active()
+        case, factory, tool, stream, read, release, result = self._active(archive_schedule='settled')
         stream.put('EXAMPLE tool progress\n')
         gate = factory.server.finite_input
         self.assertTrue(factory.adapter._effective_boundary_armed, 'original send boundary not armed')
