@@ -16,6 +16,15 @@ from cwo_core.maintenance_authority import MaintenanceAuthorityError
 from cwo_core.supervision.transport.app_server import AppServer
 
 runtime = family.runtime
+_EXAMPLE_ACCESS_TOKEN = 'at-EXAMPLE-offline-qualification'
+
+
+def _fd_identity(descriptor):
+    try:
+        info = os.fstat(descriptor)
+    except OSError:
+        return None
+    return info.st_dev, info.st_ino
 
 
 class CampaignTests(unittest.TestCase):
@@ -93,6 +102,76 @@ class FactoryQualificationTests(unittest.TestCase):
                       runtime.live_availability.require_campaign_live):
             with self.assertRaises(runtime.live_availability.NativeLiveUnavailable):
                 guard()
+        self.assertEqual(qualification.campaign_usage()['total'], 0)
+        self.assertEqual(self.fixture.spawned, [])
+
+    def test_access_token_requires_signed_qualification_before_effect(self):
+        case = self.fixture.case()
+        factory = self.fixture.factory(case)
+        with patch.object(runtime.live_availability, 'N1_LIVE_AVAILABLE', True):
+            with self.assertRaisesRegex(ValueError, 'signed qualification'):
+                factory.run(provider_access_token=_EXAMPLE_ACCESS_TOKEN)
+        self.assertFalse((case.home / 'config.toml').exists())
+        self.assertEqual(self.fixture.spawned, [])
+
+    def test_malformed_access_tokens_refuse_before_effect(self):
+        case = self.fixture.case(qualification=True)
+        factory = self.fixture.factory(case)
+        for token in ('', 'EXAMPLE-jwt', 'at-', 'at-EXAMPLE\nvalue', 'at-EXAMPLE\0value',
+                      'at-EXAMPLEé', 'at-' + 'x' * 4096, _EXAMPLE_ACCESS_TOKEN.encode()):
+            with self.subTest(token_type=type(token).__name__):
+                with self.assertRaisesRegex(ValueError, 'personal access token'):
+                    factory.run(provider_access_token=token)
+        self.assertEqual(qualification.campaign_usage()['total'], 0)
+        self.assertFalse((case.home / 'config.toml').exists())
+        self.assertEqual(self.fixture.spawned, [])
+
+    def test_access_token_handoff_is_bounded_to_the_original_appserver_birth(self):
+        case = self.fixture.case(qualification=True, drift=True)
+        factory = self.fixture.factory(case)
+        lifetimes = []
+        launch = runtime._Containment._provider_network_fds
+
+        def capture(lifetime):
+            descriptors = launch(lifetime)
+            lifetimes.append((lifetime, {fd: _fd_identity(fd) for fd in descriptors}))
+            return descriptors
+
+        with patch.object(runtime._Containment, '_provider_network_fds', capture):
+            with self.assertRaisesRegex(ValueError, 'profile readback'):
+                factory.run(provider_access_token=_EXAMPLE_ACCESS_TOKEN)
+            with self.assertRaisesRegex(ValueError, 'one original launch'):
+                factory.run(provider_access_token=_EXAMPLE_ACCESS_TOKEN)
+        [(lifetime, descriptors)] = lifetimes
+        self.assertEqual(lifetime.role, 'appserver')
+        control, attachment = descriptors
+        self.assertNotEqual(control, attachment)
+        self.assertNotIn(_EXAMPLE_ACCESS_TOKEN, repr(self.fixture.tables[0].spawn_calls))
+        self.assertNotIn(_EXAMPLE_ACCESS_TOKEN.encode(), (case.home / 'config.toml').read_bytes())
+        for descriptor, identity in descriptors.items():
+            self.assertIsNotNone(identity)
+            self.assertNotEqual(_fd_identity(descriptor), identity)
+        self.assertEqual(qualification.campaign_usage()['total'], 1)
+        self.assertEqual(len(self.fixture.spawned), 1)
+
+    def test_early_launch_refusal_releases_the_staged_attachment(self):
+        case = self.fixture.case(qualification=True)
+        factory = self.fixture.factory(case)
+        lifetimes = []
+
+        def refuse(lifetime, *_args):
+            descriptor = lifetime._access_token_fd
+            lifetimes.append((lifetime, descriptor, _fd_identity(descriptor)))
+            raise runtime.native.OfflineHostError('EXAMPLE launcher refusal')
+
+        with patch.object(runtime._Containment, '_command', refuse):
+            with self.assertRaisesRegex(ValueError, 'EXAMPLE launcher refusal'):
+                factory.run(provider_access_token=_EXAMPLE_ACCESS_TOKEN)
+        [(lifetime, descriptor, identity)] = lifetimes
+        self.assertIsNotNone(identity)
+        self.assertNotEqual(_fd_identity(descriptor), identity)
+        self.assertEqual(lifetime.provider_network.child_socket.fileno(), -1)
+        self.assertIsNone(factory._provider_access_token)
         self.assertEqual(qualification.campaign_usage()['total'], 0)
         self.assertEqual(self.fixture.spawned, [])
 

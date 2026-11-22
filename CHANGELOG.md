@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Allow a trusted controller to attach a Codex personal access token for one signed native single-worker qualification launch.
+
 ## 1.7.0 - 2026-11-22
 
 - Native qualification command replies change from raw stdout to JSON with `commandCallId`, `stdout` and `running`. Use `commandCallId` from the reply to poll the original command.
