@@ -172,6 +172,16 @@ class DynamicRpcProcess(family.RpcProcess):
             scenario.complete_turn()
         self.pending = None
 
+    def progress_wait_armed(self):
+        if not super().progress_wait_armed():
+            return False
+        server = self.case.factory.server
+        request_id = self.turn_start_request_id
+        # The reader retires the observer when it queues the response.
+        # Leave that response available to the original caller.
+        return (request_id not in server._pending_turn_start_response_observers
+                and request_id not in server._responses)
+
     def approve(self):
         if not self.process.alive:
             return
@@ -1142,8 +1152,13 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
                                  tool_exit_before_poll=0, no_fake_scheduler=True)
         factory = self.fixture.factory(case)
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self._positive_finite_completion(case):
-            result = factory.run()
+        try:
+            with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
+                    self._positive_finite_completion(case), _fixture_poll_ticket_clock(factory):
+                result = factory.run()
+        except BaseException as failure:
+            _note_original_poll_refusal(factory, failure)
+            raise
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertEqual(factory.server.finite_input.terminal_code, 0)
         self.assertEqual(self.fixture.spawned[0].replies[0]['result']['contentItems'][0]['text'],
@@ -2917,10 +2932,17 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             finally:
                 writer.release()
             thread.join(12)
+        self.assertFalse(thread.is_alive())
         self.assertEqual(len(result), 1)
         self.assertIsInstance(result[0], BaseException)
-        self.assertEqual(len(self.fixture.spawned[0].replies), 1)
-        self.assertIn('error', self.fixture.spawned[0].replies[0])
+        process = self.fixture.spawned[0]
+        process.stdin.stream.require_healthy()
+        self.assertIs(type(factory.server.transport_failure), finite_tools.FiniteToolError)
+        self.assertEqual(str(factory.server.transport_failure),
+                         'Captured fake-server catalog changed after registration.')
+        self.assertEqual(len(process.replies), 1)
+        self.assertEqual(process.replies[0], {'id': 'EXAMPLE-request-EXAMPLE-command-call',
+            'error': {'code': -32602, 'message': 'Registered finite tool refused.'}})
         attempt = self.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])

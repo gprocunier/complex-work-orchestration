@@ -12,6 +12,33 @@ from tests import test_registered_finite_tool_wiring as wiring
 from tests.test_finite_fixture_progress_acknowledgment import original_poll_ticket_clock
 
 
+def _note_publication_phase(factory, failure, *, stage, acknowledgments, poll_prepared):
+    """Retain a bounded observation of the original caller after a failure."""
+    add_note = family.runtime.admission.ledger_api.add_failure_note
+    try:
+        server = getattr(factory, 'server', None)
+        adapter = getattr(factory, 'adapter', None)
+        lifecycle = getattr(getattr(server, 'finite_input', None), 'lifecycle', None)
+        archive = getattr(adapter, '_staged_archive', None)
+        receipt = (getattr(failure, 'native_report', None) or {}).get('receipt') or {}
+        fields = {
+            'stage': stage,
+            'acknowledgments': acknowledgments,
+            'poll_prepared': poll_prepared,
+            'adapter_phase': str(getattr(adapter, '_boundary_phase', None))[:80],
+            'finite_phase': str(getattr(lifecycle, 'phase', None))[:80],
+            'archive_started': archive is not None and archive._started,
+            'archive_done': archive is not None and archive._done.is_set(),
+            'archived': getattr(server, 'archived', False),
+            'validated_artifact_issued': factory.token is not None,
+            'result_returned': factory.result is not None,
+            'last_actions': [str(action)[:80] for action in receipt.get('actions', [])[-4:]],
+        }
+        add_note(failure, 'Original startup publication phase: ' + json.dumps(fields, sort_keys=True))
+    except Exception:
+        add_note(failure, 'Original startup publication phase observation unavailable.')
+
+
 class StartupPublicationTests(unittest.TestCase):
     def setUp(self):
         self.helper = wiring.RegisteredFiniteToolWiringTests('runTest')
@@ -21,38 +48,25 @@ class StartupPublicationTests(unittest.TestCase):
     def test_session_precedes_turn_response_and_completion_preserves_identity(self):
         case = self.helper.fixture.case(archive_schedule='settled',
             finite_tool_mode='captured-host-tools', no_fake_scheduler=True)
-        case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
+        case.poll_prepared = threading.Event()
         original_request = case.receipt.request_bytes
         factory = self.helper.fixture.factory(case)
-        result, published = [], []
-        acknowledged = threading.Event()
+        published, verified, consumer_failures = [], [], []
         original_put = family.Lines.put
 
         def put(stream, frame, **kwargs):
-            if frame.get('result') == {'turn': {'id': case.scenario.turn_id}}:
+            if (frame.get('result') == {'turn': {'id': case.scenario.turn_id}}
+                    and stream is self.helper.fixture.spawned[0].stdout):
                 path = case.scenario.path
                 published.append((path.stat(), path.read_bytes()) if path.exists() else None)
-                acknowledged.set()
             return original_put(stream, frame, **kwargs)
 
-        def run():
+        def verify_prepared_poll(timeout):
+            # DynamicRpcProcess calls this after it consumes the original
+            # command reply and before it creates the finite poll request.
             try:
-                result.append(factory.run())
-            except BaseException as failure:
-                wiring._note_original_poll_refusal(factory, failure)
-                result.append(failure)
-
-        with (
-            original_poll_ticket_clock(lambda: getattr(factory.server, 'finite_tools', None)),
-            self.helper._positive_finite_completion(case),
-            patch.object(family, 'RpcProcess', wiring.DynamicRpcProcess),
-            patch.object(family.Lines, 'put', put),
-        ):
-            worker = threading.Thread(target=run, daemon=True)
-            self.addCleanup(family.finish_worker, self, worker, case.poll_release)
-            worker.start()
-            try:
-                family.wait_for_startup(self, acknowledged, worker, result)
+                self.assertEqual(timeout, 15)
+                self.assertTrue(case.poll_prepared.is_set())
                 self.assertEqual(len(published), 1)
                 self.assertIsNotNone(published[0], 'trusted session must precede turn/start acknowledgment')
                 identity, prefix = published[0]
@@ -67,26 +81,49 @@ class StartupPublicationTests(unittest.TestCase):
                                  json.loads(case.receipt.selected_node_bytes))
                 self.assertEqual(binding['adapter_boundary']['adapter']['registered_task'],
                                  factory.model_task_binding())
-                family.wait_for_startup(self, case.poll_prepared, worker, result)
                 path = case.scenario.path
-                self.assertEqual((path.stat().st_dev, path.stat().st_ino, path.read_bytes()),
+                current = path.stat()
+                self.assertEqual((current.st_dev, current.st_ino, path.read_bytes()),
                                  (identity.st_dev, identity.st_ino, prefix))
-                self.assertTrue(worker.is_alive())
+                self.assertIsNone(factory.result)
                 self.assertEqual(self.helper.fixture.attempt(case)['state'], 'invocation-intent')
-            finally:
-                case.poll_release.set()
-                worker.join(12)
-            self.assertFalse(worker.is_alive())
-            self.assertEqual(len(result), 1)
-            if isinstance(result[0], BaseException):
-                raise result[0]
-            self.assertIsInstance(result[0], dict)
-            self.assertEqual(result[0]['attempt']['outcome'], 'completed')
-            self.assertEqual(case.poll_observation, {'stdout': 'EXAMPLE finite poll output\n', 'running': True})
-            archived = case.scenario.archive / path.name
-            self.assertEqual((archived.stat().st_dev, archived.stat().st_ino),
-                             (identity.st_dev, identity.st_ino))
-            self.assertTrue(archived.read_bytes().startswith(prefix))
+                verified.append((identity, prefix, path.name))
+                return True
+            except BaseException as failure:
+                _note_publication_phase(factory, failure, stage='before poll creation',
+                                        acknowledgments=len(published), poll_prepared=case.poll_prepared.is_set())
+                consumer_failures.append(failure)
+                raise
+
+        case.poll_release = SimpleNamespace(wait=verify_prepared_poll)
+        with (
+            original_poll_ticket_clock(lambda: getattr(factory.server, 'finite_tools', None)),
+            self.helper._positive_finite_completion(case),
+            patch.object(family, 'RpcProcess', wiring.DynamicRpcProcess),
+            patch.object(family.Lines, 'put', put),
+        ):
+            # Run the original owner through its archive, validation and
+            # settlement. The fixture's ordering assertions run in the consumer.
+            try:
+                result = factory.run()
+            except BaseException as failure:
+                wiring._note_original_poll_refusal(factory, failure)
+                _note_publication_phase(factory, failure, stage='original caller returned',
+                                        acknowledgments=len(published), poll_prepared=case.poll_prepared.is_set())
+                if consumer_failures and consumer_failures[0] is not failure:
+                    family.runtime.admission.ledger_api.add_failure_note(
+                        failure, 'Original pre-poll consumer error: ' + str(consumer_failures[0])[:512])
+                raise
+        self.assertEqual(consumer_failures, [])
+        self.assertEqual(len(verified), 1)
+        identity, prefix, session_name = verified[0]
+        self.assertEqual(result['attempt']['outcome'], 'completed')
+        self.assertEqual(result['attempt']['charge'], result['attempt']['amount'])
+        self.assertEqual(case.poll_observation, {'stdout': 'EXAMPLE finite poll output\n', 'running': True})
+        archived = case.scenario.archive / session_name
+        current = archived.stat()
+        self.assertEqual((current.st_dev, current.st_ino), (identity.st_dev, identity.st_ino))
+        self.assertTrue(archived.read_bytes().startswith(prefix))
 
     def test_explicit_absent_telemetry_still_refuses_before_poll(self):
         case = self.helper.fixture.case(finite_tool_mode='captured-host-tools', no_fake_scheduler=True,
