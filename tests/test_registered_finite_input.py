@@ -417,11 +417,6 @@ class FiniteInputTests(unittest.TestCase):
         """Revocation during readiness consumes zero bytes."""
         case, factory, tool, stream, read, release, result = self._active()
         gate = factory.server.finite_input
-        ticket_deadline = time.monotonic() + (1 if event == 'deadline' else 3)
-        ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
-            turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
-            approval_id='EXAMPLE-read-race-' + event.replace('/', '-'),
-            deadline=ticket_deadline)
         stream.put('EXAMPLE unread after revocation')
         before_bytes = gate.output_bytes_seen
         before_success = sum(reply.get('result', {}).get('success') is True
@@ -434,6 +429,7 @@ class FiniteInputTests(unittest.TestCase):
         termination_entered, finish_termination = threading.Event(), threading.Event()
         termination_calls = []
         original_terminate = tool.controller.terminate
+        ticket_deadline = None
 
         def paused_terminate(*args, **kwargs):
             termination_calls.append(threading.current_thread())
@@ -460,7 +456,14 @@ class FiniteInputTests(unittest.TestCase):
             return original_read(fd, count)
 
         def poll():
+            nonlocal ticket_deadline
             try:
+                # Issue the real ticket in its consumer after fixture setup.
+                ticket_deadline = time.monotonic() + (1 if event == 'deadline' else 3)
+                ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
+                    turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
+                    approval_id='EXAMPLE-read-race-' + event.replace('/', '-'),
+                    deadline=ticket_deadline)
                 outcome.append(gate.poll(ticket, timeout=.1))
             except BaseException as error:
                 outcome.append(error)
@@ -471,7 +474,8 @@ class FiniteInputTests(unittest.TestCase):
             worker = threading.Thread(target=poll, daemon=True)
             worker.start()
             try:
-                self.assertTrue(entered.wait(3), event)
+                self._wait(lambda: entered.is_set() or bool(outcome), 3)
+                self.assertTrue(entered.is_set(), (event, outcome))
                 if terminal:
                     params = {'threadId': case.scenario.thread_id}
                     if event.startswith('turn/'):

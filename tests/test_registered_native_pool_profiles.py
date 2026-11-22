@@ -6,6 +6,7 @@ TestCase becomes a module global or contributes tests to this family.
 from __future__ import annotations
 
 import copy
+from contextlib import nullcontext
 import json
 import os
 from pathlib import Path
@@ -70,9 +71,20 @@ class PoolProfileTests(unittest.TestCase):
     def test_r2_pool_members_use_selected_finite_empty_poll_and_deny_nonempty(self):
         """Full-load acceptance: materialized member startup, signed tools and real byte gate."""
         original_case = F.N.FactoryTests.case
+        host_type = F.P.RegisteredNativePoolHost
+        original_run_member = host_type._run_member
+
         def selected_case(fixture, **changes):
             return original_case(fixture, finite_tool_mode='captured-host-tools',
                                  materialize_on_turn_start=True, no_fake_scheduler=True, **changes)
+
+        def run_member(workflow, *, controlled=False):
+            fixture = next(member for member in self.fixtures if member.workflow is workflow)
+            # The host calls members serially. Bind each original worker to
+            # its own fixture clock and completion before the next starts.
+            with F.F.original_finite_completion(self, fixture.case, workflow):
+                return original_run_member(workflow, controlled=controlled)
+
         with F.F.WorkflowTests.read_only_source_family(self) as source:
             for chars in ('', 'EXAMPLE_TOKEN_0001'):
                 with self.subTest(chars=chars), patch.object(F.N.FactoryTests, 'case', selected_case):
@@ -82,7 +94,9 @@ class PoolProfileTests(unittest.TestCase):
                         for fixture in self.fixtures:
                             fixture.case.poll_chars = chars
                             fixture.case.complete_after_refusal = True
-                        with patch.object(F.N, 'RpcProcess', tools.DynamicRpcProcess):
+                        join = (nullcontext() if chars else
+                                patch.object(host_type, '_run_member', staticmethod(run_member)))
+                        with patch.object(F.N, 'RpcProcess', tools.DynamicRpcProcess), join:
                             self.assertEqual(self.execute()['states'], ['validated', 'validated'])
                         self.assert_admitted_accounting(2)
                         for fixture in self.fixtures:
@@ -101,18 +115,26 @@ class PoolProfileTests(unittest.TestCase):
                             observations = [json.loads(path.read_bytes()) for path in
                                             (factory.records / 'transport-observations').iterdir()]
                             self.assertEqual(any(row['stage'] == 'finite-poll-intent' for row in observations), not chars)
+                            refusals = [row['observation'] for row in observations
+                                        if row['stage'] == 'finite-tool-refusal']
                             self.assertEqual(factory.server.finite_input.dynamic_command[:3],
                                              (case.scenario.thread_id, case.scenario.turn_id, 'EXAMPLE-command-call'))
                             replies = fixture.fixture.spawned[0].replies
                             self.assertEqual([r['result']['success'] for r in replies], [True, chars == ''],
-                                msg=[row['observation'] for row in observations
-                                     if row['stage'] == 'finite-tool-refusal'])
+                                             msg=refusals)
                             self.assertEqual(replies[0]['result']['contentItems'][0]['text'],
                                              'EXAMPLE finite command output\n')
                             if chars:
+                                self.assertEqual(refusals, [{
+                                    'tool': 'finite_poll',
+                                    'call': 'EXAMPLE-poll-call',
+                                    'reason': 'FiniteInputError',
+                                    'message': 'The finite profile refuses nonempty input before process delivery.',
+                                }])
                                 self.assertEqual(replies[1]['result']['contentItems'][0]['text'],
                                                  'finite-tool-request-refused')
                             else:
+                                self.assertEqual(refusals, [])
                                 observed = json.loads(replies[1]['result']['contentItems'][0]['text'])
                                 self.assertIs(type(observed), dict)
                                 self.assertEqual(set(observed), {'running', 'stdout'})
