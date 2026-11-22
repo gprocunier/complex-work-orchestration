@@ -3,6 +3,7 @@ import hashlib
 import os
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from pathlib import Path
 
@@ -17,6 +18,7 @@ QUALIFIED_E_PROMPT = ROOT / "prompts" / "archive" / "cwo-sol-operator-e-v5-quali
 LAUNCHER = ROOT / "scripts" / "cwo-codex"
 CWO_SKILL = ROOT / "SKILL.md"
 README = ROOT / "README.md"
+ROUTING_POLICY = Path("policy/execution-environments.yaml")
 
 
 class InstructionProfileTests(unittest.TestCase):
@@ -46,9 +48,18 @@ class InstructionProfileTests(unittest.TestCase):
             )
             self.assertFalse(installed["default_profile_changed"])
             self.assertFalse((home / "config.toml").exists())
-            self.assertTrue((home / "cwo-sol-overlay-experimental.config.toml").is_file())
+            overlay = home / "cwo-sol-overlay-experimental.config.toml"
+            self.assertEqual(tomllib.loads(overlay.read_text()), {
+                "model": "gpt-5.6-sol",
+                "model_reasoning_effort": "max",
+                "developer_instructions": (ROOT / "prompts" / "cwo-sol-overlay.md").read_text(),
+            })
             operator = home / "cwo-sol-operator-experimental.config.toml"
-            self.assertIn(str((home / "prompts" / "cwo-sol-operator.md").resolve()), operator.read_text())
+            self.assertEqual(tomllib.loads(operator.read_text()), {
+                "model": "gpt-5.6-sol",
+                "model_reasoning_effort": "max",
+                "model_instructions_file": str((home / "prompts" / "cwo-sol-operator.md").resolve()),
+            })
 
             verified = json.loads(
                 self.run_cli(
@@ -142,7 +153,7 @@ class InstructionProfileTests(unittest.TestCase):
             self.assertIn(command, guide)
         self.assertIn("at the start of a new Codex session", guide)
         self.assertIn("does not edit `config.toml`", guide)
-        self.assertIn("trusted CWO enforcement", guide)
+        self.assertIn("trusted cwo enforcement", guide.lower())
         self.assertIn(
             "[CWO system prompt](references/cwo-system-prompt.md)",
             README.read_text(encoding="utf-8"),
@@ -153,6 +164,10 @@ class InstructionProfileTests(unittest.TestCase):
             root = Path(directory)
             home = root / ".codex"
             launcher_dir = root / ".local" / "bin"
+            home.mkdir()
+            config = home / "config.toml"
+            defaults = 'model_reasoning_effort = "high"\n'
+            config.write_text(defaults)
             common = (
                 "--profile",
                 "operator-e",
@@ -165,37 +180,91 @@ class InstructionProfileTests(unittest.TestCase):
             installed = json.loads(self.run_cli("install", *common).stdout)
             self.assertEqual(installed["profiles"], ["operator-e"])
             self.assertFalse(installed["default_profile_changed"])
-            self.assertFalse((home / "config.toml").exists())
+            self.assertEqual(config.read_text(), defaults)
             self.assertFalse((home / "cwo-sol-operator-experimental.config.toml").exists())
 
             prompt = home / "prompts" / "cwo-sol-operator-e.md"
             profile = home / "cwo-sol-operator-e.config.toml"
             self.assertEqual(prompt.read_bytes(), E_PROMPT.read_bytes())
-            self.assertIn('model = "gpt-5.6-sol"', profile.read_text(encoding="utf-8"))
-            self.assertNotIn("model_reasoning_effort", profile.read_text(encoding="utf-8"))
-            self.assertIn(str(prompt.resolve()), profile.read_text(encoding="utf-8"))
+            routing = json.loads((ROOT / ROUTING_POLICY).read_bytes())
+            model = routing["profiles"]["connected-codex"]["role_bindings"]["architect"]["model"]
+            self.assertEqual(tomllib.loads(profile.read_text()), {
+                "model": model,
+                "model_instructions_file": str(prompt.resolve()),
+            })
             self.assertEqual((launcher_dir / "cwo-codex").read_bytes(), LAUNCHER.read_bytes())
 
             verified = json.loads(self.run_cli("verify", *common).stdout)
             self.assertTrue(verified["ok"])
             self.assertTrue(all(check["ok"] for check in verified["checks"]))
+            installed_files = {file["path"]: file for file in installed["files"]}
+            prompt_check = next(check for check in verified["checks"] if check["path"] == str(prompt))
+            digest = hashlib.sha256(E_PROMPT.read_bytes()).hexdigest()
+            self.assertEqual(installed_files[str(prompt)]["sha256"], digest)
+            self.assertEqual(prompt_check["expected_sha256"], digest)
+            self.assertEqual(prompt_check["actual_sha256"], digest)
+
+            prompt.write_bytes(E_PROMPT.read_bytes() + b"\n")
+            drift = json.loads(self.run_cli("verify", *common, expected=2).stdout)
+            self.assertFalse(drift["ok"])
+            self.assertEqual([check["path"] for check in drift["checks"] if not check["ok"]], [str(prompt)])
+            prompt.write_bytes(E_PROMPT.read_bytes())
 
             removed = json.loads(self.run_cli("remove", *common).stdout)
             self.assertEqual(removed["profiles"], ["operator-e"])
             self.assertFalse(prompt.exists())
             self.assertFalse(profile.exists())
             self.assertFalse((launcher_dir / "cwo-codex").exists())
+            self.assertEqual(config.read_text(), defaults)
+
+    def test_operator_e_uses_selected_source_routing_policy_and_refuses_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            for original in (ROOT / ROUTING_POLICY, E_PROMPT, LAUNCHER):
+                target = source / original.relative_to(ROOT)
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(original.read_bytes())
+            home = root / "codex"
+            launcher_dir = root / "bin"
+            args = ("--profile", "operator-e", "--source-root", str(source),
+                    "--codex-home", str(home), "--launcher-dir", str(launcher_dir))
+            path = source / ROUTING_POLICY
+            policy = json.loads(path.read_bytes())
+            architect = policy["profiles"]["connected-codex"]["role_bindings"]["architect"]
+            original_model = architect.pop("model")
+            path.write_text(json.dumps(policy))
+
+            self.run_cli("install", *args, expected=2)
+            self.assertFalse(home.exists())
+            self.assertFalse(launcher_dir.exists())
+
+            architect["model"] = original_model
+            path.write_text(json.dumps(policy))
+            self.run_cli("install", *args)
+            profile = home / "cwo-sol-operator-e.config.toml"
+            self.assertEqual(tomllib.loads(profile.read_text())["model"], original_model)
+
+            architect["model"] = "gpt-9.9-sol"
+            path.write_text(json.dumps(policy))
+            stale = json.loads(self.run_cli("verify", *args, expected=2).stdout)
+            self.assertEqual([check["path"] for check in stale["checks"] if not check["ok"]], [str(profile)])
+            self.run_cli("install", *args, expected=2)
+            self.assertEqual(tomllib.loads(profile.read_text())["model"], original_model)
+            self.run_cli("install", *args, "--force")
+            self.assertEqual(tomllib.loads(profile.read_text())["model"], architect["model"])
+            self.run_cli("verify", *args)
 
     def test_candidate_e_profile_is_interactive_and_documented(self) -> None:
         prompt = E_PROMPT.read_text(encoding="utf-8")
+        normalized = " ".join(prompt.split())
         for expected in (
-            "Acceptance closure",
-            "Semantic and decision closure",
-            "Complete change transactions",
-            "Finite execution and recovery",
-            "Distinguish candidate or product failure from harness",
+            "Start with the next useful action.",
+            "correct recoverable failures within the recorded scope and allowance.",
+            "Diagnose whether a failure came from the product, harness, transport, or verifier.",
+            "Continue independent authorized work",
         ):
-            self.assertIn(expected, prompt)
+            self.assertIn(expected, normalized)
         for evaluation_only in (
             "Return exactly one JSON object",
             "Do not call tools",
@@ -228,24 +297,20 @@ class InstructionProfileTests(unittest.TestCase):
         self.assertIn("optimized for complex project work", combined)
         self.assertNotIn("fewest recorded tokens", combined)
 
-    def test_candidate_e_protocol_repair_preserves_qualified_prompt_evidence(self) -> None:
+    def test_frozen_protocol_guidance_preserves_qualified_prompt_evidence(self) -> None:
         qualified = QUALIFIED_E_PROMPT.read_bytes()
-        active = E_PROMPT.read_text(encoding="utf-8")
+        active = E_PROMPT.read_bytes()
         self.assertEqual(
             hashlib.sha256(qualified).hexdigest(),
             "75b3bdf7624d7e3913f2879f4a20306c74805ad8409ce785597da67e1011c3f8",
         )
-        self.assertNotEqual(E_PROMPT.read_bytes(), qualified)
-        normalized = " ".join(active.split())
+        self.assertNotEqual(active, qualified)
+        normalized = " ".join(active.decode().split())
         for expected in (
-            "Frozen protocol fidelity",
-            "For experiments these bound fields are scope boundaries, not summaries.",
-            "does not authorize a replacement benchmark",
-            "Explicit replacement authority starts a new protocol",
-            "Revalidate the protocol lock before every candidate or model call",
-            "End the parent objective only when no useful, independently authorized action remains",
-            "A spent child remains terminal and cannot be resumed or retried",
-            "do not ask for generic “proceed” or reapproval of unchanged adopted work",
+            "frozen protocol lock before every candidate or model call and after steering, interruption, or compaction.",
+            "Continue or repair mechanics within those bindings.",
+            "`new-protocol-required` result requires explicitly authorized replacement scope and a new lock",
+            "Keep terminal attempts terminal",
             "--require-scoped-continuation",
         ):
             self.assertIn(expected, normalized)
@@ -253,29 +318,36 @@ class InstructionProfileTests(unittest.TestCase):
         history = " ".join(
             (ROOT / "references/candidate-e-qualification-summary.md").read_text().split()
         )
-        self.assertIn("post-v5 repair", history)
+        self.assertIn("Post-v5 repair", history)
         self.assertIn("No new model comparison has qualified", history)
         self.assertIn("frozen-protocol-lock.md", guide)
         self.assertIn("does not set `model_reasoning_effort`", guide)
         self.assertIn("default OpenAI system prompt", README.read_text(encoding="utf-8"))
-        # Active source after the issue #44 wording revision. Earlier active bytes
-        # (post-v5 repair, scoped continuation) are listed in the qualification
-        # summary; this assertion does not claim the installed profile has reloaded.
-        self.assertEqual(
-            hashlib.sha256(E_PROMPT.read_bytes()).hexdigest(),
-            "78a322fe1b5e72ba7f1d1a4253230f90fef37a372ed1334ec00c1e20647874b8",
+        self.assertIn(
+            f"| `prompts/cwo-sol-operator-e.md` | `{hashlib.sha256(active).hexdigest()}` | Active prompt",
+            history,
         )
 
-    def test_issue_44_passages_name_the_permitted_action(self) -> None:
+    def test_active_prompt_keeps_routing_closure_and_evidence_boundaries(self) -> None:
         normalized = " ".join(E_PROMPT.read_text(encoding="utf-8").split())
-        self.assertNotIn("blocking ceremony", normalized)
-        self.assertNotIn("already-authorized bypass", normalized)
-        self.assertNotIn("If ceremony blocks", normalized)
+        self.assertNotRegex(normalized, r"(?i)\bgpt[ -]+\d")
+        self.assertNotRegex(normalized, r"(?i)\b(?:stop|halt|pause|reapproval)\b")
         for expected in (
-            "Use an alternative workflow only when the applicable CWO contract already authorizes it within the existing task scope.",
-            "Provider safeguards, security and access gates, required validation, and frozen protocol bindings are not optional workflow steps.",
-            "authorizes continuation within the lock; it does not authorize a replacement benchmark",
-            "Do not request another user authorization for routine same-scope repair already covered by the request.",
+            "Use the routing configuration to resolve current model identities.",
+            "`sol` for the lead and architecture",
+            "`astra` for stronger independent review",
+            "`luna` for primary worker tasks",
+            "`terra` for a documented worker escalation",
+            "live activation preview, new worker-surface qualification",
+            "profile selection cannot clear a source hold",
+            "keep the exact prompt SHA-256 and session evidence",
+            "Record delivered work awaiting verified acceptance as `pending-acceptance` and leave the Bead open.",
+            "current, single-use host acceptance",
+            "every blocker and child closed",
+            "consumption intent before its first Beads write",
+            "Failed writes and reopened tasks leave that acceptance spent.",
+            "The shipped review-host producer remains under a source hold.",
+            "The narrative CLI records the delivery summary and refuses successful closure.",
         ):
             self.assertIn(expected, normalized)
 

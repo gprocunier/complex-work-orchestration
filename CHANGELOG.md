@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refresh the opt-in CWO operator prompt to advance authorized work, use configured model roles, and record evidence for verified acceptance.
+
 ## 1.1.1 - 2026-11-16
 
 - Isolate partial-frame EOF from child exit in the transport fixture, preserving the original refusal and owned cleanup checks.

@@ -2,14 +2,16 @@
 
 For the complete current setup/continuation/removal journey, use
 [Start Here](../docs/get-started.html). This page retains exact operator-profile
-reference, not a second novice tutorial. The normal route uses the
+reference, not a second novice tutorial. For the current action-first
+instructions and role-based routing, install `operator-e` with the profile
+manager and launch a fresh session with `cwo-codex`. See the
 [CWO system prompt](cwo-system-prompt.md).
-
 
 This compact compatibility profile remains opt-in.
 `cwo-sol-operator-experimental` is retained as the installed profile name for
 compatibility. It replaces the model instruction file only when the profile is
-selected at the start of a new Codex session.
+selected at the start of a new Codex session. It retains its original model
+setting and explicit `max` reasoning effort.
 
 The profile manager does not edit `config.toml`, so ordinary Codex sessions
 launched without this named profile remain unchanged. CWO policy,
@@ -41,8 +43,8 @@ python3 scripts/manage_instruction_profile.py verify --profile operator
 ```
 
 Success exits with status 0, reports `"ok": true`, and shows matching expected
-and actual SHA-256 hashes for the profile and prompt. A missing or changed file
-exits with status 2; do not launch the profile until that drift is understood.
+and actual SHA-256 hashes for the profile and prompt. Status 2 identifies missing
+or changed files to inspect before launching.
 
 ## Launch a fresh session
 

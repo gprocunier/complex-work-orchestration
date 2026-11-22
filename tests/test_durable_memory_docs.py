@@ -55,8 +55,9 @@ class DurableMemoryDocumentationTests(unittest.TestCase):
         for event in ('SessionStart','UserPromptSubmit','PreCompact','PostCompact'):
             self.assertIn(f'"{event}"',hooks)
         prompt = (ROOT/'prompts/cwo-sol-operator-e.md').read_text()
-        self.assertIn('After interruption or compaction,',prompt)
-        self.assertIn('reconcile the checkout, tracker, accepted evidence, remaining scope, and budget',prompt)
+        normalized = ' '.join(prompt.split())
+        self.assertIn('After interruption or compaction,', normalized)
+        self.assertIn('reconcile the checkout, tracker, accepted evidence, remaining scope, and budget', normalized)
 
     def test_recovery_graph_keeps_both_stores_and_requires_verification_before_continuation(self):
         config = json.loads((ROOT/'docs/diagrams/flows.json').read_text())['durable-recovery']

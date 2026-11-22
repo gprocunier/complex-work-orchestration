@@ -70,10 +70,9 @@ cwo-codex -C "$PWD"
 CWO uses a system prompt optimized for complex project work rather than the
 default OpenAI system prompt; the [CWO system prompt](references/cwo-system-prompt.md)
 explains its intended behavior, setup and limits, not measured superiority.
-The profile requests model `gpt-5.6-sol` and inherits reasoning effort from the
-host or user. The architect executor in `policy/execution-environments.yaml`
-binds `gpt-6.1-sol`; that route binding is separate from the bundled profile.
-Check the selected route and actual model/effort in the running session.
+The profile requests the configured Sol model and inherits reasoning effort
+from the host or user. Check the selected route and actual model and effort
+in the running session.
 Resuming an older conversation does not load that profile. Default profile
 settings remain intact; the installed CWO skill remains available in ordinary
 sessions until disabled or removed.
@@ -271,11 +270,10 @@ its mechanism and limit. [Understand these limits](https://gprocunier.github.io/
   requirements. `pending-acceptance` means delivered and not yet accepted.
 - **Operator continuation packet:** the handoff block every closeout includes,
   from `templates/operator-handoff-packet.md`.
-- **Luna, Terra, Sol, Spark:** model names in the routing policy.
-  `gpt-5.6-luna` is the first choice for native workers, `gpt-5.6-terra` needs a
-  recorded escalation, the bundled profile requests `gpt-5.6-sol` while the policy architect executor
-  binds `gpt-6.1-sol`, and
-  `gpt-5.3-codex-spark` appears only in historical records.
+- **Model roles:** Sol leads and handles architecture, Astra handles stronger
+  independent review or unresolved architecture, Luna handles primary native
+  work, and Terra handles documented escalation. Spark appears in historical
+  records.
 
 ## More detail
 

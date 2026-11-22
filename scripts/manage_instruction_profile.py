@@ -9,6 +9,9 @@ import os
 import sys
 from pathlib import Path
 
+from cwo_core.policy import load_json_compatible_yaml
+from cwo_core.policy_schema import validate_policy_document
+from cwo_core.routing import DEFAULT_EXECUTION_ENVIRONMENT, execution_environment_role_binding
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE_NAMES = {
@@ -22,6 +25,7 @@ PROMPT_FILENAMES = {
 }
 LAUNCHER_NAME = "cwo-codex"
 LAUNCHER_PROFILE = "operator-e"
+LEGACY_MODEL = "gpt-5.6-sol"
 
 
 def _sha256(data: bytes) -> str:
@@ -56,13 +60,28 @@ def _launcher_path(launcher_dir: Path) -> Path:
     return launcher_dir / LAUNCHER_NAME
 
 
+def _operator_model(source_root: Path) -> str:
+    path = source_root / "policy" / "execution-environments.yaml"
+    try:
+        policy = load_json_compatible_yaml(path)
+        validate_policy_document(path.name, policy)
+    except SystemExit as exc:
+        raise ValueError(str(exc)) from exc
+    environment = policy["profiles"].get(DEFAULT_EXECUTION_ENVIRONMENT, {})
+    architect = execution_environment_role_binding(environment, "architect")
+    model = architect.get("model")
+    if architect.get("variant") != "sol" or not model or model != model.strip():
+        raise ValueError("policy/execution-environments.yaml requires a model for the connected-codex sol architect")
+    return model
+
+
 def _expected(source_root: Path, codex_home: Path, key: str) -> bytes:
     sources = _source_paths(source_root)
+    model = _operator_model(source_root) if key == "operator-e" else LEGACY_MODEL
+    common = f"model = {json.dumps(model)}\n"
     if key == "overlay":
-        common = 'model = "gpt-5.6-sol"\nmodel_reasoning_effort = "max"\n'
         overlay = sources["overlay"].read_text(encoding="utf-8")
-        return (common + f"developer_instructions = {json.dumps(overlay)}\n").encode()
-    common = 'model = "gpt-5.6-sol"\n'
+        return (common + 'model_reasoning_effort = "max"\n' + f"developer_instructions = {json.dumps(overlay)}\n").encode()
     if key == "operator":
         common += 'model_reasoning_effort = "max"\n'
     target = str(_prompt_path(codex_home, key).resolve())
@@ -101,6 +120,7 @@ def install(
     for source in selected_sources:
         if not source.is_file():
             raise ValueError(f"missing profile source: {source}")
+    profiles = {key: _expected(source_root, codex_home, key) for key in keys}
     files: list[dict[str, str]] = []
     for key in keys:
         if key not in PROMPT_FILENAMES:
@@ -110,7 +130,7 @@ def install(
         files.append({"path": str(prompt), "status": _write_exact(prompt, data, force=force), "sha256": _sha256(data)})
     for key in keys:
         profile = _profile_path(codex_home, key)
-        data = _expected(source_root, codex_home, key)
+        data = profiles[key]
         files.append({"path": str(profile), "status": _write_exact(profile, data, force=force), "sha256": _sha256(data)})
     if LAUNCHER_PROFILE in keys:
         launcher = _launcher_path(launcher_dir)
@@ -173,10 +193,11 @@ def remove(
     *,
     force: bool,
 ) -> dict:
+    profiles = {key: _expected(source_root, codex_home, key) for key in keys}
     files: list[dict[str, str]] = []
     for key in keys:
         profile = _profile_path(codex_home, key)
-        files.append({"path": str(profile), "status": _remove_exact(profile, _expected(source_root, codex_home, key), force=force)})
+        files.append({"path": str(profile), "status": _remove_exact(profile, profiles[key], force=force)})
     for key in keys:
         if key not in PROMPT_FILENAMES:
             continue

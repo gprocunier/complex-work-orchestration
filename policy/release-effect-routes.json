@@ -640,7 +640,7 @@
 
 "p147":[38,1576,"context = dict(runtime.prepare(plan))"],
 
-"p148":[52,164,"path.unlink()"],
+"p148":[52,184,"path.unlink()"],
 
 "p149":[42,252,{"$":13}],
 
@@ -738,7 +738,7 @@
 
 "p175":[70,101,"if hashlib.sha256(source).hexdigest() != descriptor:"],
 
-"p176":[52,"remove",168,"8a31fad3d92b791fbe661c1b9fb1b5440c16ce311b9bf2ca479ef99ee6661e97"],
+"p176":[52,"remove",188,"937eb7e03d17741746789d6a341c6bbe7209c31516933d8aae67c39629063b01"],
 
 "p177":[8,1563,{"$":228}],
 
@@ -968,7 +968,7 @@
 
 "p1c9":[123,"RegisteredTransportF2Tests.test_f2_base_transport_refuses_before_any_launch",87,"6cb7531c86ed17fb79f98e162413b52fea93cce600f67ccd9ce187e233e71fe4"],
 
-"p1ca":[52,"main",209,"e56ea6c25847fc9979bcd96ba3e5817085b188e5b77f1f0fe36c623d21017c7f"],
+"p1ca":[52,"main",230,"e56ea6c25847fc9979bcd96ba3e5817085b188e5b77f1f0fe36c623d21017c7f"],
 
 "p1cb":[11,46,"if initial.ruff_version() != RUFF:"],
 
@@ -1032,7 +1032,7 @@
 
 "p1e7":[50,298,"quote_cmd \"${cmd[@]}\""],
 
-"p1e8":[104,"InstructionProfileTests.test_install_verify_remove_does_not_create_default_config",34,"6e06f00fe0f999fe80813feb412e35553056519e827a4d87cfbbb8769b374acb"],
+"p1e8":[104,"InstructionProfileTests.test_install_verify_remove_does_not_create_default_config",36,"24bf55e0dc8bdc16deeee64e4471fdf062461ba13dde0d03c9298fe610a53610"],
 
 "p1e9":[71,"main",17,"be95fbea7c6a9ff47cac7b6482403c8acaa0fcc93d2b9e30a1508fe8766de1fd"],
 
@@ -1274,7 +1274,7 @@
 
 "p245":[49,375,"if ! mv -- \"$INSTALL_STAGE_DIR\" \"$target_dir\"; then"],
 
-"p246":[52,78,"if not force:"],
+"p246":[52,97,"if not force:"],
 
 "p247":[83,"AtomicSpawnTests.test_native_errno_is_used_and_all_initialized_resources_are_destroyed",50,"af1bf89f3e0293d657dbd66681f2523ad7d7196af8b1bdd27eae5724e9e2bfaf"],
 
@@ -1282,7 +1282,7 @@
 
 "p249":[59,"_ProductionBeadsBridge.__call__",133,"c369d07ed9b38933226144bf027863c3e9749567af9639161ae6ecd44edd8ad2"],
 
-"p24a":[104,"InstructionProfileTests.test_default_e_launcher_selects_profile_and_forwards_arguments",282,"280765088e8d48ba646ecad4821581e221382d550e33d39d379276b55187dc0e"],
+"p24a":[104,"InstructionProfileTests.test_default_e_launcher_selects_profile_and_forwards_arguments",354,"280765088e8d48ba646ecad4821581e221382d550e33d39d379276b55187dc0e"],
 
 "p24b":[95,"ConfigureCodexBeadsHooksTests.test_valid_preview_never_writes_and_apply_persists_exact_managed_commands",27,"c9c7fb25ca6f07ac45e5920ac3598ace943bf8be4702ed3890487a5d113bea9a"],
 
@@ -1296,7 +1296,7 @@
 
 "p25":[10,161,"AppServer(requested_model=requested_model,\n                           tool_surface_probe_binding=binding)",17,162,62],
 
-"p250":[52,73,"if path.exists():"],
+"p250":[52,92,"if path.exists():"],
 
 "p251":[23,76,"if not actor_value:"],
 
@@ -1324,7 +1324,7 @@
 
 "p25d":[60,229,"if not dispatch.LOCAL_INVOCATION_AVAILABLE:"],
 
-"p25e":[52,85,"temporary.replace(path)"],
+"p25e":[52,104,"temporary.replace(path)"],
 
 "p25f":[35,43,"if profile == \"n2-read-only\":"],
 
@@ -1812,7 +1812,7 @@
 
 "p316":[50,199,{"$":245}],
 
-"p317":[52,162,"if path.read_bytes() != expected and not force:"],
+"p317":[52,182,"if path.read_bytes() != expected and not force:"],
 
 "p318":[60,"RegisteredReviewHost.dispatch",227,"f52b608fbfbf5fa2b8dcd957ec3494093145da05dbf930b86981f552a38dbf9b"],
 
@@ -1832,7 +1832,7 @@
 
 "p32":[16,379,{"$":257},4,379,61],
 
-"p320":[104,"InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove",77,"60018279e964d501d580cddaa6c7832d625db36ad83bd44e6c123c1832ba82b8"],
+"p320":[104,"InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove",88,"60018279e964d501d580cddaa6c7832d625db36ad83bd44e6c123c1832ba82b8"],
 
 "p321":[27,"prepare_capture_binding",541,"62a8d76d6644a62380eb684c818896f7370da7ee4b7c7186ab6013bd79e4d252"],
 
@@ -2628,7 +2628,7 @@
 
 "pd9":[44,"PinnedHTTPConnection.connect",370,"84a7a9b040e01a2f4af5be355ac688cf2f85ac542d5e83802bb8006a7acdd506"],
 
-"pda":[52,"install",89,"6f707ee8911d5413232e27aeab435fc4da28302aa1a2ef8838f9fce9f891b1ce"],
+"pda":[52,"install",108,"6fa657d1b5bf338ab4529facfd19142d916dd8225a1da5b1c2d4fccc515a64ac"],
 
 "pdb":[61,217,"raise AppServerError("],
 
@@ -5516,7 +5516,7 @@
 
 "143":"self.assertIs(caught.exception, primary)",
 
-"144":"self.assertTrue((home / \"cwo-sol-overlay-experimental.config.toml\").is_file())",
+"144":"self.assertEqual(tomllib.loads(overlay.read_text()), {",
 
 "145":"self.assertTrue(closure.execute_qualified_completed(host)[\"completed\"])",
 
@@ -6080,7 +6080,7 @@
 
 "references/claims-register.md":["ffa26c330bcb752e1aa2545bb0026d791269edc39f62b348e3d15922f4f8226b",420,7624],
 
-"references/cwo-system-prompt.md":["ea1aff306808c7c2a390011ad35e35d5eb7f65e31e568cd746dbd89704fd60dc",420,4391],
+"references/cwo-system-prompt.md":["30ef3ecd58a3adefffc26d2748d08c326a0c47f2ac831b3c3e39ff976248996b",420,5879],
 
 "references/release-effect-routes.md":["cbd67546525d7664893bc15b76d3c13b04d0fd1446934e1bd771196e39f950ee",420,20671],
 
@@ -6450,7 +6450,7 @@
 
 "scripts/linux_owned_children.py":["288e7b58debf019fe3290493bf199512863954be6fc065f148c18606fc0a4fb0",420,37132],
 
-"scripts/manage_instruction_profile.py":["40ba429a160733b1069a7abd7a544d5d2780af708d77e439095ae130c2a867e0",420,8996],
+"scripts/manage_instruction_profile.py":["f997c1bafb7abf4d507e48377371ecc650210bff9ce9a611893fdd22e3187fde",420,10092],
 
 "scripts/manage_native_release.py":["c16422aad6f989641900121a237f75a3cb7813f01467a1ce70d6537ec6ece428",420,5614],
 
@@ -6616,7 +6616,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["e78d279ae1f6f2d66baad49a842b9f6f18165006c6d0daf228fd812bc36eb8ad",420,128180],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2176c8525781529ed936561ac029db9734f8eea08eb14d8940db6a4d9306f772",420,128180],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -6678,7 +6678,7 @@
 
 "tests/test_install_projection.py":["42b3b8f0cf7710370b82899410ac4fcddaabccadd4435a8069e69b8c14746bf2",420,43442],
 
-"tests/test_instruction_profiles.py":["7ba2829a0fc4feb585ae0e26fab0d25fe39c631330f731880a0de5157ec4a13e",420,14595],
+"tests/test_instruction_profiles.py":["422427a54088aaf8770170587bbf261e79d4832270ae2d51d9a414568bf119c6",420,18326],
 
 "tests/test_invocation_containment.py":["54422bae5d800553cb04c3629785c52138817f4c9010baa25bf75fa6310ecfe7",420,12880],
 

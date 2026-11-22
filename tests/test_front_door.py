@@ -159,7 +159,7 @@ class FrontDoorTests(unittest.TestCase):
         positions = [README.index(marker) for marker in order]
         self.assertEqual(positions, sorted(positions))
 
-    def test_exact_commands_profile_and_models_stay_searchable_and_match_the_source(self) -> None:
+    def test_exact_commands_and_configured_model_roles_stay_searchable(self) -> None:
         for identity in (
             "./scripts/install.sh --yes",
             "python3 scripts/check_installed_skill.py --check",
@@ -169,19 +169,14 @@ class FrontDoorTests(unittest.TestCase):
             'codex --profile cwo-sol-operator-e -C "$PWD"',
             "python3 scripts/scaffold_workgraph.py",
             "--scaffold-size tight",
-            "gpt-5.6-sol",
-            "gpt-5.6-luna",
-            "gpt-5.6-terra",
-            "gpt-5.3-codex-spark",
         ):
             with self.subTest(identity=identity):
                 self.assertIn(identity, README)
-        profile = (ROOT / "scripts/manage_instruction_profile.py").read_text(encoding="utf-8")
-        self.assertIn("cwo-sol-operator-e", profile)
-        self.assertIn('model = "gpt-5.6-sol"', profile)
-        routing = (ROOT / "policy/native-worker-execution.yaml").read_text(encoding="utf-8")
-        for model in ("gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.3-codex-spark"):
-            self.assertIn(f'"{model}"', routing)
+        self.assertIn("the configured Sol model", section("Setup"))
+        for role in ("Sol", "Astra", "Luna", "Terra"):
+            self.assertIn(role, section("Glossary"))
+        reference = (ROOT / "docs/reference.html").read_text(encoding="utf-8")
+        self.assertIn("profile requests the configured Sol model", reference)
 
     def test_disabled_routes_are_described_as_disabled(self) -> None:
         limits = section("Limits")

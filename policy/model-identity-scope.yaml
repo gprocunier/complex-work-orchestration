@@ -276,9 +276,9 @@
     {
       "path": "scripts/manage_instruction_profile.py",
       "literal": "gpt-5.6-sol",
-      "count": 2,
+      "count": 1,
       "class": "unadjudicated",
-      "reason": "Current runtime default or requirement that names a model task_selected_routing v3 does not select. Not adjudicated or centralized in policy validation; frozen against growth until policy validation decides whether it is a historical verifier or a current default to replace. (model written into generated Codex profile configs; the connected-Codex architect binding names gpt-6.1-sol)."
+      "reason": "Preserves the model for the opt-in compatibility operator and overlay profiles. The active operator profile uses the connected-codex architect binding from execution-environments.yaml."
     },
     {
       "path": "scripts/cwo_core/supervision/transport/app_server.py",
