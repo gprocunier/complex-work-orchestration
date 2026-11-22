@@ -2678,19 +2678,19 @@
 
 "pH":[137,"WatchdogObjectIdentityTests.test_watchdog_stable_field_substitution_closes_unretained_handle",1176,"6c050c72b6d94e05214381a7080f157d9ae3684bcbbd638636613dbf0d88ddb7"],
 
-"pI":[129,"FiniteReplyWireTests.test_original_clean_useful_reply_writes_identical_bytes_once",91,"c59ca5e2b7143d7726543fb1ec5a402429238c1d3bd20305a925735e278da275"],
+"pI":[129,"FiniteReplyWireTests.test_original_clean_useful_reply_writes_identical_bytes_once",92,"c59ca5e2b7143d7726543fb1ec5a402429238c1d3bd20305a925735e278da275"],
 
-"pJ":[129,"FiniteReplyWireTests.test_final_injected_frame_cannot_borrow_an_earlier_clean_source_scan",115,"1ec33677cdb22d150271156f4f4918fc129c69044a5c617888cb036d21b1974b"],
+"pJ":[129,"FiniteReplyWireTests.test_final_injected_frame_cannot_borrow_an_earlier_clean_source_scan",116,"1ec33677cdb22d150271156f4f4918fc129c69044a5c617888cb036d21b1974b"],
 
-"pK":[129,"FiniteReplyWireTests.test_accounting_failure_cannot_replace_the_outbound_refusal",172,"7bd01d7323b63de491916fd8c038dd790a0dfabb0a4a4ca17c9ff983ef76d384"],
+"pK":[129,"FiniteReplyWireTests.test_accounting_failure_cannot_replace_the_outbound_refusal",173,"7bd01d7323b63de491916fd8c038dd790a0dfabb0a4a4ca17c9ff983ef76d384"],
 
 "pL":[62,"RegisteredFiniteInput._record_reply_failure",1565,"8e817905b0d44a1f24ef2c9ea95e46503d669108d9cd474729351b095712a8de"],
 
-"pM":[129,"FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write",105,"6678e3521f8a26f0fd32f8868769d1577896cde3a682b42517a56d15c1ede64d"],
+"pM":[129,"FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write",106,"6678e3521f8a26f0fd32f8868769d1577896cde3a682b42517a56d15c1ede64d"],
 
-"pN":[129,"FiniteReplyWireTests.test_flush_source_mutation_refuses_instead_of_sending_an_unbound_frame",130,"6a15ba3165814c1fca7c3551f1bff41c13ecde0435e492d5d8897e63ddfcd6f1"],
+"pN":[129,"FiniteReplyWireTests.test_flush_source_mutation_refuses_instead_of_sending_an_unbound_frame",131,"6a15ba3165814c1fca7c3551f1bff41c13ecde0435e492d5d8897e63ddfcd6f1"],
 
-"pO":[129,"FiniteReplyWireTests.test_flush_or_scan_crossing_original_deadline_cannot_write",137,"13db522ce4edb84fb9a70b89c19ae9e35ec880fdecee4692a96fc188a91e8203"],
+"pO":[129,"FiniteReplyWireTests.test_flush_or_scan_crossing_original_deadline_cannot_write",138,"13db522ce4edb84fb9a70b89c19ae9e35ec880fdecee4692a96fc188a91e8203"],
 
 "pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1797,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
 
@@ -6926,7 +6926,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["67e7e1c88fc3208af24c9060abba09a687325ea9f7c2c207dd582e402aa3e57e",420,133311],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["7395c7eed40528209b18143b263b123d6369450c60149d0e78464d2e776b87f8",420,133311],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7046,7 +7046,7 @@
 
 "tests/test_registered_native_pool_host.py":["25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",420,39405],
 
-"tests/test_registered_outbound_screen.py":["87e86d8309131cdaaecca36ec16c9a7719c4def40862ceecfec97138b68fef74",420,10224],
+"tests/test_registered_outbound_screen.py":["de9f7f9b071365afef9236a20fbeef321d55cbdf941a4c3673646612a7b5949c",420,10270],
 
 "tests/test_registered_provider_network.py":["69b2da31a020c5f2bbc9ee42512c7b60289777ea20115d1577ea5cedc3be14b6",420,21057],
 
@@ -7068,7 +7068,7 @@
 
 "tests/test_selected_native_containment.py":["8228c514ddbfe1078c23b6b703941dd20b5346860af9d4f978946a1b6f688c2e",420,92596],
 
-"tests/test_turn_observations.py":["c714cba87a9b0c73a974278bdb77d4d8fc69ba92621689c2cd06e8b532f9368b",420,20598],
+"tests/test_turn_observations.py":["9b6df5f09e4e8728943714c5c13aa41adc678c013282abd832caaf2eaf032f08",420,24093],
 
 "tests/test_validate_repository.py":["a5f473d434cbe4902bca3b9eef1ac8ae8d6df357f9514c2751278e4781b54cb4",420,37813],
 

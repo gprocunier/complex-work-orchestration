@@ -101,6 +101,7 @@ class F9FactoryBoundaries(unittest.TestCase):
         lifecycle = finite_input._FiniteLifecycle(clock=lambda: 0)
         lifecycle.turn, lifecycle.command, lifecycle.phase = turn, command, 'command-effect'
         server.finite_tools = SimpleNamespace(command_call_id=command)
+        server.qualified_tool_evidence = None
         server.finite_input = SimpleNamespace(lifecycle=lifecycle)
         server.transport_failure, server._wire_turn = None, (*turn, 1)
         server.requests = SimpleNamespace(closed=False, terminals=set(), trusted_terminals=set(), cancelled_turn=None,

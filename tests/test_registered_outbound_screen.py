@@ -42,6 +42,7 @@ class FiniteReplyWireTests(unittest.TestCase):
             epoch=server.connection_epoch_sha256, _current=lambda params: True,
             refresh_terminal_reply=lambda *args: None)
         server.finite_tools = producer
+        server.qualified_tool_evidence = None
         gate = finite.RegisteredFiniteInput(factory, server)
         server.finite_input = gate
         server._sync_finite_progress_locked = Mock()

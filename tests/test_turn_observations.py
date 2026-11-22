@@ -131,16 +131,82 @@ class TurnObservationTests(unittest.TestCase):
                 if expected_turn is not None:
                     self.assertIsNot(items, expected_turn.get("items"))
 
+    def _facade_before_registered_finite_evidence(self, source):
+        additions = (
+            (inspect.getsource(self.facade._bind_receipt_workdirs) + "\n\n", 1),
+            ("    registered_tool_projector: Callable[..., None] | None = None,\n", 2),
+            ("    tool_records = records[start_index + 1 : end_index]\n", 1),
+            (
+                "    if registered_tool_projector is not None:\n"
+                "        registered_tool_projector(turn_id, tool_records, calls, terminal_event is not None)\n",
+                1,
+            ),
+            (
+                '        and (not receipt.get("_registered_finite")\n'
+                '             or receipt["typed_result"]["kind"] == "paired-success")\n',
+                1,
+            ),
+            ("        registered_tool_projector=registered_tool_projector,\n", 1),
+            (inspect.getsource(self.facade.LiveThreadAdapter._registered_tool_projector) + "\n", 1),
+            ("                registered_tool_projector=self._registered_tool_projector(),\n", 2),
+        )
+        for addition, count in additions:
+            self.assertEqual(source.count(addition), count)
+            source = source.replace(addition, "")
+
+        replacements = (
+            ("        tool_records,\n", "        records[start_index + 1 : end_index],\n", 2),
+            (
+                "    _bind_receipt_workdirs(calls, controller_workdir)\n",
+                "    for receipt in calls:\n"
+                "        binding = _exec_workdir_binding(receipt, controller_workdir)\n"
+                '        receipt["_workdir_binding"] = binding\n'
+                '        typed_result = receipt.get("typed_result")\n'
+                "        if (\n"
+                "            isinstance(typed_result, dict)\n"
+                '            and typed_result.get("kind") == "paired-input-error"\n'
+                "            and isinstance(binding, Mapping)\n"
+                '            and binding.get("disposition") == "recoverable-nonexistent-workdir"\n'
+                "        ):\n"
+                '            typed_result["kind"] = "paired-recoverable-workdir-input-error"\n',
+                1,
+            ),
+            (
+                "        activity = {\n"
+                '            "tool": tool,\n'
+                '            "evidence_sha256": canonical_sha256(activity_payload),\n'
+                '            "pairing_status": receipt.get("pairing_status"),\n'
+                '            "result_kind": result_kind,\n'
+                "        }\n"
+                '        if receipt.get("_registered_finite") is True:\n'
+                '            activity["registered_finite"] = True\n'
+                "        trusted_activity.append(activity)\n",
+                "        trusted_activity.append(\n"
+                "            {\n"
+                '                "tool": tool,\n'
+                '                "evidence_sha256": canonical_sha256(activity_payload),\n'
+                '                "pairing_status": receipt.get("pairing_status"),\n'
+                '                "result_kind": result_kind,\n'
+                "            }\n"
+                "        )\n",
+                1,
+            ),
+        )
+        for current, previous, count in replacements:
+            self.assertEqual(source.count(current), count)
+            source = source.replace(current, previous)
+        return source
+
     def test_f5_current_facade_source_and_archived_helper_syntax_are_pinned(self):
         source = Path(self.facade.__file__).read_bytes()
         self.assertEqual(
             hashlib.sha256(source).hexdigest(),
-            "d31f812a4adea3083223b1d9771a35a6a2901e5d8b05128b63cf9a524709e158",
+            "8e828c470f95f69ad0becc2a81c63307f36472ebc57fc90eaee403181adc50c6",
         )
+        historical = self._facade_before_registered_finite_evidence(source.decode())
         # Reconstruct the original facade from exact campaign-adapter
         # additions and the single docstring-line change, retaining occurrence
         # checks before comparing the preserved historical digest.
-        historical = source.decode()
         for addition in (
             "        campaign_live_route: bool = True,\n",
             "        self.campaign_live_route = campaign_live_route\n",
