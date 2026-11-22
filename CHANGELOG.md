@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.8.0 - 2026-11-22
+
 - Allow a trusted controller to attach a Codex personal access token for one signed native single-worker qualification launch.
 - Preserve fake namespace readiness when a finite-tool test reuses a file descriptor.
 - Wait for the original archive before charging close steps in the finite poll test for a just-drained pipe.
