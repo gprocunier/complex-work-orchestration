@@ -43,6 +43,14 @@ maintenance-unbounded budget mode with bounded individual operations. Serialized
 authority snapshots never authenticate themselves. Normal unauthorized requests
 and finite budgets retain their ordinary behavior.
 
+When a registered single-worker failure summary is available, it records
+`terminal_blockers.provider-safety-policy-refusal` if the durable turn has
+failed and its exact `turn/completed` notification carries `cyberPolicy` or
+`misalignmentPolicyViolation` in `error.codexErrorInfo`. The report keeps the
+original failure, charge and cleanup outcome. Missing, ambiguous and other
+codes keep the ordinary failure classification. The blocker is terminal for
+that attempt.
+
 ## Current host tool profiles
 
 Tool policy version 2 explicitly binds the current core-resource profiles.

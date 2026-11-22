@@ -1701,6 +1701,62 @@ class FactoryTests(unittest.TestCase):
         self.assertEqual([event[0] for event in self.events], ['spawn', 'observe', 'spawn', 'observe'])
         self.assertTrue(factory.server.lifetime.termination['child_reaped'])
 
+    def assert_terminal_worker_failure(self, error):
+        case = self.case(archive_schedule='settled')
+        scenario = case.scenario
+        factory = self.factory(case)
+
+        def complete_failure():
+            scenario.set_boundary('valid')
+            scenario.append_terminal('task_failed')
+            scenario.status = 'failed'
+
+        def send_terminal(rpc):
+            rpc.stdout.put({'method': 'turn/completed', 'params': {
+                'threadId': scenario.thread_id,
+                'turn': {'id': scenario.turn_id, 'status': 'failed', 'items': [], 'error': error},
+            }})
+            rpc.complete()
+
+        with (patch.object(scenario, 'complete_turn', side_effect=complete_failure),
+              patch.object(RpcProcess, 'approve', send_terminal),
+              self.assertRaises(runtime.native.OfflineHostError) as raised):
+            factory.run()
+
+        report = factory.execution
+        self.assertEqual(report, raised.exception.native_report)
+        self.assertEqual(report, case.host.status(factory.operation_id))
+        self.assertEqual(report['status'], 'reconciliation-required')
+        self.assertIsNone(report['artifact'])
+        self.assertEqual(report['receipt']['submission_id'], scenario.turn_id)
+        self.assertEqual(report['summary']['adapter_evidence']['reasons'], ['trusted-turn-failed'])
+        self.assertIn('A completed native receipt and actual archive observation are required.', report['error'])
+        self.assertTrue(factory.server.lifetime.termination['child_reaped'])
+        self.assertTrue(report['summary']['archived'])
+        with self.assertRaisesRegex(runtime.native.OfflineHostError, 'never redispatch'):
+            factory.run()
+        with self.assertRaisesRegex(runtime.native.OfflineHostError, 'No accepted output'):
+            factory.issued_artifact()
+        self.assertEqual(len(self.spawned), 1)
+        self.assertEqual(self.spawned[0].methods.count('turn/start'), 1)
+        self.assertEqual(self.spawned[0].methods.count('thread/archive'), 1)
+        attempt = self.attempt(case)
+        self.assertEqual(attempt['outcome'], 'unknown')
+        self.assertEqual(attempt['charge'], attempt['amount'])
+        return report
+
+    def test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure(self):
+        sentinel = 'EXAMPLE private provider text'
+        report = self.assert_terminal_worker_failure({
+            'message': sentinel, 'additionalDetails': sentinel, 'codexErrorInfo': 'cyberPolicy',
+        })
+        self.assertEqual(report['summary']['terminal_blockers'], {'provider-safety-policy-refusal': 'cyberPolicy'})
+        self.assertNotIn(sentinel, json.dumps(report))
+
+    def test_worker_overload_with_policy_wording_keeps_ordinary_failure(self):
+        report = self.assert_terminal_worker_failure({'message': 'cyberPolicy', 'codexErrorInfo': 'serverOverloaded'})
+        self.assertNotIn('terminal_blockers', report['summary'])
+
     def test_same_rpc_denies_grants_stdin_and_unknown_context_before_useful_command(self):
         case = self.case(archive_schedule='settled', probe_approvals=[
             {'additionalPermissions': {'network': {'enabled': True}}, 'reason': 'EXAMPLE ordinary retry'},

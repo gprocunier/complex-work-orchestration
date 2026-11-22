@@ -242,6 +242,67 @@ class TurnObservationTests(unittest.TestCase):
                         getattr(self.owner, name)(thread, "EXAMPLE turn")
                     self.assertEqual(moved.exception.args, original.exception.args)
 
+    def test_provider_blocker_uses_only_one_exact_failed_completion(self):
+        for category in ("cyberPolicy", "misalignmentPolicyViolation"):
+            with self.subTest(category=category):
+                notice = {
+                    "method": "turn/completed",
+                    "params": {"threadId": "worker", "turn": {
+                        "id": "turn", "status": "failed", "items": [],
+                        "error": {"message": "", "codexErrorInfo": category},
+                    }},
+                }
+                self.assertEqual(
+                    self.owner.provider_policy_blocker([notice], thread_id="worker", turn_id="turn"),
+                    {"provider-safety-policy-refusal": category},
+                )
+                for thread_id, turn_id in (("other", "turn"), ("worker", "other"), ("worker", None)):
+                    self.assertEqual(
+                        self.owner.provider_policy_blocker([notice], thread_id=thread_id, turn_id=turn_id),
+                        {},
+                    )
+                self.assertEqual(
+                    self.owner.provider_policy_blocker([notice, notice], thread_id="worker", turn_id="turn"),
+                    {},
+                )
+
+    def test_ordinary_and_ambiguous_reports_do_not_add_a_provider_blocker(self):
+        cases = {
+            "quota": {"message": "", "codexErrorInfo": "usageLimitExceeded"},
+            "rate-limit": {"message": "", "codexErrorInfo": "rateLimitExceeded"},
+            "transport": {"message": "", "codexErrorInfo": {"responseStreamDisconnected": {"httpStatusCode": 502}}},
+            "invalid": {"message": "", "codexErrorInfo": ["cyberPolicy"]},
+            "invalid-message-shape": {"message": 1, "codexErrorInfo": "cyberPolicy"},
+            "wording": {"message": "cyberPolicy", "codexErrorInfo": "other"},
+            "text-only": {"message": "cyberPolicy"},
+            "unknown-category": {"message": "", "codexErrorInfo": "unknown"},
+            "missing": None,
+        }
+        turn = {"id": "turn", "status": "failed", "items": [],
+                "error": {"message": "", "codexErrorInfo": "cyberPolicy"}}
+        notices = {
+            name: {"method": "turn/completed", "params": {"threadId": "worker", "turn": {**turn, "error": error}}}
+            for name, error in cases.items()
+        }
+        notices.update({
+            "warning": {"method": "error", "params": {"threadId": "worker", "turn": turn}},
+            "conflicting-turn": {"method": "turn/completed", "params": {
+                "threadId": "worker", "turnId": "other", "turn": turn,
+            }},
+            "invalid-items-shape": {"method": "turn/completed", "params": {
+                "threadId": "worker", "turn": {**turn, "items": {}},
+            }},
+            "success": {"method": "turn/completed", "params": {
+                "threadId": "worker", "turn": {**turn, "status": "completed"},
+            }},
+        })
+        for name, notice in notices.items():
+            with self.subTest(name=name):
+                self.assertEqual(
+                    self.owner.provider_policy_blocker([notice], thread_id="worker", turn_id="turn"),
+                    {},
+                )
+
 
 class TurnObservationImportTests(unittest.TestCase):
     def test_fresh_owner_import_never_imports_facade(self):

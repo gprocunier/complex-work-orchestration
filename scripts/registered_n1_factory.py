@@ -41,6 +41,7 @@ from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import record_received_return
 from cwo_core.process_identity import parse_proc_stat
 from cwo_core.supervision.transport.app_server import AppServerError
+from cwo_core.supervision.turn_observations import provider_policy_blocker
 from registered_app_server_transport import RegisteredAppServer
 from registered_host_root_boundary import require_private_roots
 
@@ -1615,7 +1616,15 @@ class RegisteredAdapter(native.LiveThreadAdapter):
 
     def final_summary(self):
         _require_summary_primary(self)
-        return super().final_summary()
+        summary = super().final_summary()
+        if summary['turn_status'] == 'failed':
+            blocker = provider_policy_blocker(
+                self.server.notifications(self.thread_id, 'turn/completed'),
+                thread_id=self.thread_id, turn_id=self.turn_id,
+            )
+            if blocker:
+                summary['terminal_blockers'] = blocker
+        return summary
 
     def _validate_effective_boundary(self, boundary):
         factory = _ADAPTERS.get(self)

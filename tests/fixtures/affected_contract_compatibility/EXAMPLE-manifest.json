@@ -473,7 +473,7 @@
     "scripts/cwo_core/supervision/transport/app_server.py": "7d913be46b88060fe7b86456a84a02ccd13e525d67ee668daae05bdd41d9645b",
     "scripts/cwo_core/supervision/transport/errors.py": "066b654ae6e7e8257801dd0f6e3957410671a207c54009a9a885523a8ebd75b9",
     "scripts/cwo_core/supervision/transport/private_io.py": "d86d07198b90557152fb19d4ec826a50b38c499ff8c2fdffdd94c4227917135f",
-    "scripts/cwo_core/supervision/turn_observations.py": "51692167b2cd81f6083e5e168f748ab26439623ed9607cdb5fc8158c2ef9cb59",
+    "scripts/cwo_core/supervision/turn_observations.py": "1e28ced04c8a439287179e18a683e4be076d22ec23ed6ca5bbd09bcbc5c206f2",
     "scripts/cwo_core/synthesis.py": "ee57a7db005f5bab572d145e6e326e4867c0601e9188c96fb052307601f66591",
     "scripts/cwo_core/synthesis_inputs.py": "1ab5c6c75540c0d022df3151750d7fad8b4d523d0fa8ca1776f1f587679ebaeb",
     "scripts/cwo_core/telemetry.py": "0de39ed344e27d05ffdaaf450a4fbd0bb49fe785b8583c3556b4746a2f4fe2e1",
@@ -522,7 +522,7 @@
     "scripts/registered_finite_input.py": "79132259051f67f4db05c88f5af205bd1e306466413e5cda6cdc76ebd582c55f",
     "scripts/registered_finite_tool_calls.py": "1a1781ffabf01bc4441108ca4d6d9f410026344e65cb7412cdf44827d123567a",
     "scripts/registered_host_root_boundary.py": "615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",
-    "scripts/registered_n1_factory.py": "742c3e900d88d7e7533281659f9099a359b8fcfc98e2ceabc9e05888bf841d77",
+    "scripts/registered_n1_factory.py": "7698c7726ff99d4a5438076e18ee8ed15142f5a87af8524af9b38175bded1070",
     "scripts/registered_n1_workflow.py": "15eedf06ec1e643be1c3d5a10d528c3dcc54d1f16705cab9297f6bf6e14b3a7f",
     "scripts/registered_native_pool_client.py": "cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",
     "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
@@ -575,7 +575,7 @@
     "tests/test_registered_finite_input.py": "d04d99a4cd211eda3dabbc9fb0f36fcc9bb837176d83a75d0e5cd0b8d717926b",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
     "tests/test_registered_finite_tool_wiring.py": "81e5f0c809333543a98caf2f9c7fc8b79a0509dd943bd52d93315856c881f00c",
-    "tests/test_registered_n1_factory.py": "898158f4e6f6240913208655465cfcc199a8ae81e4b18ffd1a517fa7a39e72ba",
+    "tests/test_registered_n1_factory.py": "650c6bdf83d5a272b9953e504ecafe74bb661df59ced4d40eeac2f8344e5fe15",
     "tests/test_registered_n1_workflow.py": "94d4de5b25c5e986311ebec6c55eb91b143dcf60080e84130748f8a290f35ed7",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
@@ -2408,7 +2408,7 @@
   "registered_current_scope": "Current imports, source bytes/modes and neutral offline compatibility inputs are independently bound. verify_fixture_checkpoint is explicitly fixture-only: archived IDs are non-reverified metadata, historical_artifacts_verified=false and all effect/current/semantic authority is false. verify_checkpoint and the process entry remain strict original Git verification without fixture fallback.",
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
-    "tests/test_registered_n1_factory.py": "898158f4e6f6240913208655465cfcc199a8ae81e4b18ffd1a517fa7a39e72ba",
+    "tests/test_registered_n1_factory.py": "650c6bdf83d5a272b9953e504ecafe74bb661df59ced4d40eeac2f8344e5fe15",
     "tests/test_registered_server_requests.py": "1339fd305c7267d3b7d7fef24453268c8180c1090ae20122f430ad675b3a07f5"
   },
   "roots": [

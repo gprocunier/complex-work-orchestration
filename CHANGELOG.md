@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Deploy GitHub Pages after a separate job validates and uploads the site.
+- Report structured provider safety refusals as terminal blockers in registered native worker failure records.
 
 ## 1.3.0 - 2026-11-22
 
