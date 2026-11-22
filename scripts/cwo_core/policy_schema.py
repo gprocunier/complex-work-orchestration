@@ -70,6 +70,7 @@ POLICY_SCHEMAS = {'acceptance-policy.yaml': 'acceptance-policy.schema.json',
  'harness-registry.yaml': 'harness-registry.schema.json',
  'model-identity-scope.yaml': 'model-identity-scope.schema.json',
  'model-profiles.yaml': 'model-profiles.schema.json',
+ 'model-roles.yaml': 'model-roles.schema.json',
  'native-worker-execution.yaml': 'native-worker-execution-policy.schema.json',
  'outbound-screening.yaml': 'outbound-screening.schema.json',
  'peer-review-policy.yaml': 'peer-review-policy.schema.json',
@@ -139,6 +140,11 @@ POLICY_VALIDATION_BOUNDARIES = {
     "model-profiles.yaml": (
         "schema",
         'schemas/model-profiles.schema.json validates current configuration shape at load; typed profile validation, selection and access-profile lookups remain additional contracts; descriptive model data is not qualification',
+    ),
+    "model-roles.yaml": (
+        "schema",
+        "schemas/model-roles.schema.json validates role configuration shape at load. "
+        "The role resolver additionally checks exact identity family, pin and reviewer ordering.",
     ),
     "native-worker-execution.yaml": (
         "schema",

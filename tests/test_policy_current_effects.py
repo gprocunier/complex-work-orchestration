@@ -452,7 +452,7 @@ class HistoricalRecordTests(RefusalAssertions):
         self.addCleanup(clock.stop)
 
     def v2_record(self) -> tuple[dict[str, Any], dict[str, Any]]:
-        """A genuine v2 fallback route record, produced under the historical (inactive v3) policy."""
+        """A genuine v2 fallback route record, produced under the historical fixture policy."""
         with historical_v2_policy():
             plan, route, _ = release_tests.NativeReleaseTests.fallback_canary_bundle(self)
         return plan, route
@@ -466,7 +466,8 @@ class HistoricalRecordTests(RefusalAssertions):
     def test_policy_digests_bound_by_records_are_unchanged(self) -> None:
         policy.clear_policy_cache()
         self.assertEqual(operative_routing.operative_policy_sha256("connected-codex"), BASE_OPERATIVE_POLICY_SHA256)
-        self.assertEqual(operative_routing.task_selected_policy_sha256("connected-codex"), BASE_TASK_SELECTED_POLICY_SHA256)
+        self.assertEqual(operative_routing.task_selected_policy_sha256("connected-codex", version=3),
+                         BASE_TASK_SELECTED_POLICY_SHA256)
 
     def test_v2_record_is_historically_valid_and_promotable_only_under_its_historical_policy(self) -> None:
         plan, route = self.v2_record()
@@ -499,6 +500,7 @@ class HistoricalRecordTests(RefusalAssertions):
         plan, route = self.v2_record()
         relabels: dict[str, Callable[[dict[str, Any]], None]] = {
             "version relabelled to 3": lambda r: r.update(version=3),
+            "version relabelled to 4": lambda r: r.update(version=4),
             "version relabelled to legacy 1": lambda r: r.update(version=1),
             "rebound to the current task-selected digest": lambda r: r.update(
                 policy_sha256=operative_routing.task_selected_policy_sha256("connected-codex")),

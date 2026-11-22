@@ -417,7 +417,7 @@
         "history_append_only": {"type": "boolean"}, "critic_and_peer_routes_orthogonal": {"type": "boolean"}
       }
     },
-    "task_selected_routing": {
+    "historical_task_selected_routing_v3": {
       "type": "object", "additionalProperties": false,
       "properties": {
         "version": {"type": "integer"}, "status": {"type": "string"},
@@ -426,6 +426,30 @@
         "operative_roles": {"type": "object", "additionalProperties": {"type": "string"}},
         "historical_v2": {"type": "object", "additionalProperties": false, "properties": {"readable": {"type": "boolean"}, "nonoperative_for_v3": {"type": "boolean"}, "new_dispatch_authority": {"type": "boolean"}}},
         "attempt_binding": {"type": "object", "additionalProperties": false, "properties": {"exact_identity_required": {"type": "boolean"}, "qualification_required": {"type": "boolean"}, "provenance_required": {"type": "boolean"}, "scope_required": {"type": "boolean"}, "budget_required": {"type": "boolean"}, "stopped_session_reuse": {"type": "string"}, "session_substitution": {"type": "string"}}},
+        "bounded_semantic_readonly": {"type": "object", "additionalProperties": false, "properties": {"enabled": {"type": "boolean"}, "task_class": {"type": "string"}, "required_fit_mode": {"type": "string"}, "max_context_reads": {"type": "integer"}, "max_tool_calls_p90": {"type": "integer"}, "max_runtime_seconds_p90": {"type": "integer"}, "command_complexity_max": {"type": "integer"}, "test_construction_complexity_max": {"type": "integer"}, "self_hosting_risk_max": {"type": "integer"}, "live_control_risk_max": {"type": "integer"}}}
+      }
+    },
+    "task_selected_routing": {
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "version": {"type": "integer", "const": 4}, "status": {"type": "string"},
+        "activation": {"type": "object", "additionalProperties": false, "properties": {"active": {"type": "boolean"}, "dispatch_authority": {"type": "boolean"}, "requires_complete_candidate_acceptance": {"type": "boolean"}}},
+        "selection": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "sizing": {"type": "string"},
+            "approved_roles": {"type": "array", "items": {"enum": ["luna", "terra"]}, "minItems": 2, "uniqueItems": true},
+            "primary_role": {"const": "luna"},
+            "terra_selection": {"type": "string"},
+            "model_substitution": {"type": "string"}
+          }
+        },
+        "operative_roles": {
+          "type": "object", "additionalProperties": false, "required": ["luna", "terra"],
+          "properties": {"luna": {"type": "string"}, "terra": {"type": "string"}}
+        },
+        "historical_versions": {"const": [2, 3]},
+        "attempt_binding": {"type": "object", "additionalProperties": false, "properties": {"exact_identity_required": {"type": "boolean"}, "provenance_required": {"type": "boolean"}, "scope_required": {"type": "boolean"}, "budget_required": {"type": "boolean"}, "stopped_session_reuse": {"type": "string"}, "session_substitution": {"type": "string"}}},
         "bounded_semantic_readonly": {"type": "object", "additionalProperties": false, "properties": {"enabled": {"type": "boolean"}, "task_class": {"type": "string"}, "required_fit_mode": {"type": "string"}, "max_context_reads": {"type": "integer"}, "max_tool_calls_p90": {"type": "integer"}, "max_runtime_seconds_p90": {"type": "integer"}, "command_complexity_max": {"type": "integer"}, "test_construction_complexity_max": {"type": "integer"}, "self_hosting_risk_max": {"type": "integer"}, "live_control_risk_max": {"type": "integer"}}}
       }
     }

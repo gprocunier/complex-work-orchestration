@@ -34,6 +34,7 @@
                 "harness": {"type": "string"},
                 "executor": {"type": "string"},
                 "agent": {"type": "string"},
+                "model_role": {"enum": ["sol", "astra", "luna", "terra"]},
                 "model_profile": {"type": "string"}
               }
             }

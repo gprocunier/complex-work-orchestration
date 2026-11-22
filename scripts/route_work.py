@@ -12,6 +12,7 @@ from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_nar
 from cwo_core.routing import classify_work, experts_with_required, unmet_required_experts
 from cwo_core.util import read_text_segments
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
+from model_catalog_startup import configure_cli_model_catalog
 
 
 def _load_optional_json(path: str | None) -> dict[str, object] | None:
@@ -208,11 +209,12 @@ def main() -> None:
     parser.add_argument("--operative-evaluated-at", help="ISO-8601 routing evaluation time for deterministic automation.")
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     add_waiver_reason_argument(parser)
-    parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    parser.add_argument("--current-authority", help="Trusted task-fit and allocation evidence JSON for current routing.")
     add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
     refuse_risk_narrowing_arguments(args, source="route_work.py")
     require_waiver_reason(args, ["allow_disclosure_escalation"])
+    configure_cli_model_catalog()
 
     text_segments = read_text_segments(" ".join(args.text).strip() or None, args.file)
     text = "\n\n".join(text_segments)

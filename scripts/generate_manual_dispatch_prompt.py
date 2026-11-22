@@ -388,6 +388,9 @@ def _main() -> None:
 
     task_segments = read_task_segments(" ".join(args.text).strip() or None, args.file, captures=files)
     task = "\n\n".join(task_segments)
+    from model_catalog_startup import configure_cli_model_catalog
+
+    configure_cli_model_catalog()
     try:
         route = classify_work(
             task,

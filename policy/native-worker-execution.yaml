@@ -1405,7 +1405,7 @@
     "history_append_only": true,
     "critic_and_peer_routes_orthogonal": true
   },
-  "task_selected_routing": {
+  "historical_task_selected_routing_v3": {
     "version": 3,
     "status": "active",
     "activation": {
@@ -1438,6 +1438,47 @@
     "attempt_binding": {
       "exact_identity_required": true,
       "qualification_required": true,
+      "provenance_required": true,
+      "scope_required": true,
+      "budget_required": true,
+      "stopped_session_reuse": "forbidden",
+      "session_substitution": "forbidden"
+    },
+    "bounded_semantic_readonly": {
+      "enabled": true,
+      "task_class": "diagnosis",
+      "required_fit_mode": "semantic",
+      "max_context_reads": 12,
+      "max_tool_calls_p90": 12,
+      "max_runtime_seconds_p90": 300,
+      "command_complexity_max": 1,
+      "test_construction_complexity_max": 1,
+      "self_hosting_risk_max": 2,
+      "live_control_risk_max": 2
+    }
+  },
+  "task_selected_routing": {
+    "version": 4,
+    "status": "active",
+    "activation": {
+      "active": true,
+      "dispatch_authority": true,
+      "requires_complete_candidate_acceptance": true
+    },
+    "selection": {
+      "sizing": "neutral-before-exact-model-selection",
+      "approved_roles": ["luna", "terra"],
+      "primary_role": "luna",
+      "terra_selection": "recorded-fit-risk-or-economics-escalation-only",
+      "model_substitution": "forbidden"
+    },
+    "operative_roles": {
+      "luna": "luna-first-operative-worker",
+      "terra": "escalation-only-operative-worker"
+    },
+    "historical_versions": [2, 3],
+    "attempt_binding": {
+      "exact_identity_required": true,
       "provenance_required": true,
       "scope_required": true,
       "budget_required": true,

@@ -3,7 +3,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .model_identities import SPARK_MODEL
+from .model_identities import SPARK_MODEL, resolve_model
+from .operative_routing import TASK_SELECTED_VERSION
 from .routing import (
     classify_work,
     expert_uses_external_contract,
@@ -17,6 +18,8 @@ from .util import term_hits
 _COACH_AUTHORITY_OMITTED = object()
 
 SPARK_MODEL_ALIAS = SPARK_MODEL
+TASK_SELECTED_ROUTE_VERSIONS = (3, TASK_SELECTED_VERSION)
+TASK_SELECTED_DISPATCH_STATUSES = tuple(f"task-selected-v{version}" for version in TASK_SELECTED_ROUTE_VERSIONS)
 
 
 PROMPT_COACH_RESULT_REQUIRED_FIELDS = [
@@ -827,11 +830,26 @@ def selection_before_plan_gate(text: str, interactive_questions: list[dict[str, 
     }
 
 
+def _workerbee_recommendation(
+    mode: str, hard_stop: bool, operative: dict[str, Any], *, authoritative: bool, default_model: str,
+) -> str | None:
+    if hard_stop:
+        return None
+    if operative.get("dispatch_authorized") is True:
+        return operative.get("selected_model")
+    if mode != "none" and not authoritative:
+        return default_model
+    return None
+
+
 def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[str, Any]) -> dict[str, Any]:
     lower = text.lower()
     explicit_workerbee = prompt_coach_has_explicit_workerbee_request(lower)
     review_only_intent = prompt_coach_has_review_only_workerbee_signal(lower)
-    spark_operational_pairing = prompt_coach_has_spark_operational_architect_pairing(lower)
+    operative_route = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
+    route_version = operative_route.get("version")
+    default_model = SPARK_MODEL_ALIAS if route_version == 2 else resolve_model("luna")
+    spark_operational_pairing = route_version == 2 and prompt_coach_has_spark_operational_architect_pairing(lower)
     explicit_operative_authority = prompt_coach_has_explicit_operative_authority(lower)
     provider_scoped_spark_failure = prompt_coach_has_provider_scoped_spark_failure(lower)
     direct_spark_tooling_request = prompt_coach_has_direct_spark_tooling_request(lower)
@@ -914,8 +932,7 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     }
 
     native_dispatch = route.get("native_operative_dispatch")
-    operative_route = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
-    operative_route_authoritative = operative_route.get("version") == 3 or bool(operative_route.get("availability_evidence"))
+    operative_route_authoritative = route_version in TASK_SELECTED_ROUTE_VERSIONS or bool(operative_route.get("availability_evidence"))
     operative_status = str(operative_route.get("stop_reason") or operative_route.get("availability_status") or "unknown")
     native_precommit_contained = bool(
         isinstance(native_dispatch, dict)
@@ -935,7 +952,7 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
         spark_dispatch.update(
             {
                 "status": "hard-stop",
-                "requested_model": SPARK_MODEL_ALIAS,
+                "requested_model": operative_route.get("selected_model") or default_model,
                 "requested_route": mode,
                 "failed_native_capability_check": failed_check,
                 "failed_native_capability_check_justification": failed_check_justification,
@@ -1019,7 +1036,7 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             selected_model = str(operative_route.get("selected_model") or "")
             spark_dispatch.update(
                 {
-                    "status": ("task-selected-v3" if operative_route.get("version") == 3 else
+                    "status": (f"task-selected-v{route_version}" if route_version in TASK_SELECTED_ROUTE_VERSIONS else
                                "native-first" if selected_model == SPARK_MODEL_ALIAS else "not-applicable"),
                     "requested_model": selected_model,
                     "requested_route": mode,
@@ -1070,8 +1087,8 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     if mode != "none" and not hard_stop and not operative_route_authoritative:
         spark_dispatch.update(
             {
-                "status": "native-first",
-                "requested_model": SPARK_MODEL_ALIAS,
+                "status": "native-first" if default_model == SPARK_MODEL_ALIAS else "not-applicable",
+                "requested_model": default_model,
                 "requested_route": mode,
             }
         )
@@ -1083,14 +1100,10 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
 
     return {
         "recommended_mode": mode,
-        "recommended_model": (
-            None if hard_stop
-            else operative_route.get("selected_model") if operative_route.get("dispatch_authorized") is True
-            else SPARK_MODEL_ALIAS
-            if mode != "none" and not hard_stop and not operative_route_authoritative
-            else None
+        "recommended_model": _workerbee_recommendation(
+            mode, hard_stop, operative_route, authoritative=operative_route_authoritative, default_model=default_model,
         ),
-        "spark_operational_worker": spark_operational_pairing and not review_only_intent and mode == "implementation-capable",
+        "spark_operational_worker": spark_operational_pairing and mode == "implementation-capable",
         "hard_stop": hard_stop,
         "hard_stop_reason": hard_stop_reason,
         "registry_tool_mismatch": registry_tool_mismatch,
@@ -1382,12 +1395,12 @@ def prompt_coach_missing_questions(
             default = "Use implementation subagents only for disjoint file scopes, with main-thread integration and acceptance."
         elif mode == "review-only":
             worker_dispatch_status = str(spark_dispatch.get("status") or "")
-            if worker_dispatch_status == "task-selected-v3":
-                default = f"Use qualified exact {workerbee_parallelism['recommended_model']} for the current admitted native work; keep integration and acceptance in the main thread."
+            if worker_dispatch_status in TASK_SELECTED_DISPATCH_STATUSES:
+                default = f"Use exact model {workerbee_parallelism['recommended_model']} for the admitted native work. Keep integration and acceptance in the main thread."
             elif worker_dispatch_status == "native-first":
                 default = "Use Codex 5.3 Spark for native workerbee dispatch; keep implementation authority in the main thread."
             else:
-                default = "Use Codex 5.3 Spark for workerbee review sidecars and keep implementation authority in the main thread."
+                default = "Use bounded workerbee reviews and keep implementation authority in the main thread."
             if registry_tool_mismatch:
                 default += (
                     " If Spark is unavailable, execution stops and a registry/tool mismatch record must be written before dispatch."
@@ -1462,14 +1475,14 @@ def prompt_coach_missing_questions(
 def workerbee_route_model(workerbee_parallelism: dict[str, Any] | None) -> str | None:
     """The operative route subagents would use, as a noun phrase for a sentence, or None when none is available."""
     if not workerbee_parallelism:
-        return "Codex 5.3 Spark as the default operative route"
+        return f"{resolve_model('luna')} as the default operative model"
     if workerbee_parallelism.get("registry_tool_mismatch") or workerbee_parallelism.get("hard_stop"):
         return None
     dispatch = workerbee_parallelism.get("spark_dispatch")
     if not isinstance(dispatch, dict):
-        return "Codex 5.3 Spark as the default operative route"
-    if dispatch.get("status") == "task-selected-v3":
-        return f"qualified exact {workerbee_parallelism['recommended_model']} on the current task-selected route"
+        return f"{resolve_model('luna')} as the default operative model"
+    if dispatch.get("status") in TASK_SELECTED_DISPATCH_STATUSES:
+        return f"exact {workerbee_parallelism['recommended_model']} on the current task-selected route"
     if workerbee_parallelism.get("recommended_model") == SPARK_MODEL_ALIAS:
         return "Codex 5.3 Spark natively"
     return None
@@ -1920,8 +1933,8 @@ def prompt_coach_enabled_levers(
         spark_dispatch = workerbee_parallelism.get("spark_dispatch")
         if isinstance(spark_dispatch, dict):
             status = str(spark_dispatch.get("status") or "")
-            if status == "task-selected-v3":
-                levers.append("workerbee-dispatch-route=task-selected-v3")
+            if status in TASK_SELECTED_DISPATCH_STATUSES:
+                levers.append(f"workerbee-dispatch-route={status}")
             elif status == "native-first":
                 levers.append("workerbee-dispatch-route=native-spark")
             elif status == "hard-stop":
@@ -2109,8 +2122,8 @@ def prompt_coach_warnings(
                         "Native operative dispatch remains contained until fsh.3 releases validated precommit supervision; "
                         "do not substitute another operative model."
                     )
-                elif route.get("operative_route", {}).get("version") == 3:
-                    warnings.append("Current task-selected operative routing is unavailable; diagnose the failed gate without substituting an unqualified model.")
+                elif route.get("operative_route", {}).get("version") in TASK_SELECTED_ROUTE_VERSIONS:
+                    warnings.append("Current task-selected operative routing is unavailable. Diagnose the failed gate before retrying.")
                 else:
                     warnings.append(
                         "Native Spark is hard-stopped; do not substitute Sol or another model unless native capability is re-proven."
@@ -2179,8 +2192,8 @@ def workerbee_prompt_line(workerbee_parallelism: dict[str, Any] | None) -> str:
         return "The affected operative dispatch is suspended until its actual route gate passes; continue authorized independent diagnosis and repair.\n"
     dispatch_notice = ""
     dispatch = workerbee_parallelism.get("spark_dispatch")
-    if isinstance(dispatch, dict) and dispatch.get("status") == "task-selected-v3":
-        dispatch_notice = "Use the qualified exact task-selected model; do not revive historical routing.\n"
+    if isinstance(dispatch, dict) and dispatch.get("status") in TASK_SELECTED_DISPATCH_STATUSES:
+        dispatch_notice = "Use the exact model selected for this task.\n"
     elif isinstance(dispatch, dict) and str(dispatch.get("status") or "") == "native-first":
         dispatch_notice = "Native Spark dispatch is the preferred route.\n"
     lanes = workerbee_parallelism.get("suggested_lanes") or ["bounded sidecar review"]

@@ -19,7 +19,7 @@
   "role_substitution_matrix": [
     {
       "cwo_role": "architect",
-      "connected_default": "GPT-6.1-Sol architect; Astra/max for unresolved architecture",
+      "connected_default": "Sol for architecture. Astra at max effort for unresolved architecture.",
       "airgapped_profile": "rhoai-architect-mistral-small-4-119b-nvfp4",
       "enterprise_profiles": [
         "rhoai-architect-nemotron-3-ultra-550b-a55b-fp8",
@@ -43,7 +43,7 @@
     },
     {
       "cwo_role": "workerbee",
-      "connected_default": "Qualified exact GPT-5.6-Luna first; GPT-5.6-Terra for documented nonfit or escalation",
+      "connected_default": "Configured Luna first, with Terra for documented escalation.",
       "airgapped_profile": "rhoai-worker-qwen2-5-coder-32b-fp8",
       "enterprise_profiles": [
         "rhoai-worker-qwen2-5-coder-32b-fp8",
@@ -54,7 +54,7 @@
     },
     {
       "cwo_role": "review_worker",
-      "connected_default": "Qualified exact GPT-5.6-Luna enforced read-only reviewer; Terra for documented nonfit or escalation",
+      "connected_default": "Configured Luna for enforced read-only review, with Terra for documented escalation.",
       "airgapped_profile": "rhoai-reviewer-nemotron-3-nano-30b-fp8",
       "enterprise_profiles": [
         "rhoai-reviewer-nemotron-3-nano-30b-fp8",

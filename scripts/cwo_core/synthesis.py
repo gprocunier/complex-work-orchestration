@@ -14,6 +14,7 @@ from .adjudication import (
     load_registries,
     resolve_adjudication,
 )
+from .model_identities import resolve_model
 from .policy import load_policy
 from .synthesis_inputs import (
     UNRESOLVED,
@@ -214,6 +215,13 @@ def _contract_panel_entry(
     return entry
 
 
+def _panel_entry(item: dict[str, Any]) -> dict[str, Any]:
+    entry = dict(item)
+    if entry.get("executor") == "frontier_architect" and entry.get("effort") == "configured":
+        entry["effort"] = resolve_model("sol")
+    return entry
+
+
 def synthesis_panel_for_route(
     policy: dict[str, Any],
     route: dict[str, Any],
@@ -241,11 +249,11 @@ def synthesis_panel_for_route(
                 "executor": counter_review,
                 "role": "architecture-counter-review",
                 "provider_camp": "codex",
-                "effort": "codex-5.6-sol",
+                "effort": resolve_model("astra"),
                 "external": False,
             },
         ]
-    default_panel = [dict(item) for item in policy.get("default_panel", [])]
+    default_panel = [_panel_entry(item) for item in policy.get("default_panel", [])]
     excluded_camps = set(excluded_provider_camps(text, policy))
     contracts = [
         contract

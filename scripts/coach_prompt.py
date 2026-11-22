@@ -147,6 +147,8 @@ def print_brief(result: dict[str, object]) -> None:
 
 
 def main() -> None:
+    from model_catalog_startup import configure_cli_model_catalog
+
     parser = argparse.ArgumentParser(
         description="Compile a right-sized prompt for complex-work-orchestration before launching the harness."
     )
@@ -200,11 +202,12 @@ def main() -> None:
     parser.add_argument("--operative-evaluated-at", help="ISO-8601 routing evaluation time for deterministic automation.")
     parser.add_argument("--brief", action="store_true", help="Print a compact human summary instead of the launch prompt.")
     add_waiver_reason_argument(parser)
-    parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    parser.add_argument("--current-authority", help="Trusted task-fit and allocation evidence JSON for current routing.")
     add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
     refuse_risk_narrowing_arguments(args, source="coach_prompt.py")
     require_waiver_reason(args, ["allow_disclosure_escalation"])
+    configure_cli_model_catalog()
 
     text_segments = read_text_segments(" ".join(args.text).strip() or None, args.file)
     text = "\n\n".join(text_segments)

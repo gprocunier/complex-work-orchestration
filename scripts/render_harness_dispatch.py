@@ -10,6 +10,7 @@ from cwo_core.policy import provider_profile
 from cwo_core.telemetry import telemetry_fields
 from cwo_core.util import make_dispatch_id, read_text_arg
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
+from model_catalog_startup import configure_cli_model_catalog
 
 
 def main() -> None:
@@ -37,6 +38,7 @@ def main() -> None:
     add_waiver_reason_argument(parser)
     args = parser.parse_args()
     require_waiver_reason(args, ["audit"])
+    configure_cli_model_catalog()
 
     task = read_text_arg(" ".join(args.text).strip() or None, args.file)
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead or "harness")

@@ -21,7 +21,8 @@ from cwo_core.native_precommit import (
     reserve_precommit_receipt,
     validate_precommit_receipt,
 )
-from cwo_core.operative_routing import SPARK_MODEL, nonoperative_model_refusal, validate_operative_route_for_model
+from cwo_core.model_identities import OPERATIVE_ROLES, SPARK_MODEL, model_family_role, operative_models
+from cwo_core.operative_routing import TASK_SELECTED_VERSION, nonoperative_model_refusal, validate_operative_route_for_model
 from cwo_core.native_release import validate_native_release_evidence
 from cwo_core.native_tool_isolation import (
     NativeToolIsolationError,
@@ -68,7 +69,6 @@ from cwo_core.work_sizing import (
     validate_worker_commitment,
 )
 
-REQUESTED_MODEL = SPARK_MODEL
 NATIVE_WORKER_POLICY_PATH = "policy/native-worker-execution.yaml"
 NATIVE_WORKER_PACKET_SCHEMA = "schemas/native-worker-packet.schema.json"
 NATIVE_WORKER_RETURN_SCHEMA = "schemas/native-worker-return.schema.json"
@@ -127,6 +127,9 @@ def _policy_model_config() -> dict[str, Any]:
     if not isinstance(worker, dict):
         raise SystemExit("policy missing governance.native_operative_worker")
     current = policy.get("task_selected_routing", {})
+    if current.get("version") == TASK_SELECTED_VERSION and current.get("status") == "active":
+        models = list(operative_models())
+        return {"preferred_model": models[0], "authorized_models": models}
     preferred = (current.get("selection", {}).get("primary_model")
         if current.get("status") == "active" else worker.get("preferred_model"))
     preferred = str(preferred or "").strip()
@@ -143,20 +146,28 @@ def _policy_model_config() -> dict[str, Any]:
     return {"preferred_model": preferred, "authorized_models": models}
 
 
-def _policy_models() -> list[str]:
-    return list(_policy_model_config()["authorized_models"])
+def _is_known_packet_model(model: str) -> bool:
+    policy = load_policy("native-worker-execution")
+    historical = policy["governance"]["native_operative_worker"]["authorized_models"]
+    return model in historical or model_family_role(model) in OPERATIVE_ROLES
 
 
 def _policy_model(requested_model: str | None = None) -> str:
     config = _policy_model_config()
-    selected = str(requested_model or config["preferred_model"]).strip()
-    if selected not in config["authorized_models"]:
-        allowed = ", ".join(config["authorized_models"])
-        raise SystemExit(f"requested native operative model {selected!r} is not authorized; allowed: {allowed}")
+    selected = config["preferred_model"] if requested_model is None else requested_model
     refusal = nonoperative_model_refusal(selected)
     if refusal is not None:
         raise SystemExit(refusal)
+    if type(selected) is not str or selected not in config["authorized_models"]:
+        allowed = ", ".join(config["authorized_models"])
+        raise SystemExit(f"requested native operative model {selected!r} is not authorized; allowed: {allowed}")
     return selected
+
+
+def _policy_model_for_plan(requested_model: str | None, work_plan: Mapping[str, Any] | None) -> str:
+    if requested_model is None and work_plan is not None:
+        requested_model = work_plan.get("requested_model")
+    return _policy_model(requested_model)
 
 
 def _policy_lanes() -> list[str]:
@@ -581,8 +592,7 @@ def _build_native_worker_packet_unreserved(
     if work_plan is not None and worker_commitment is None:
         try:
             if (work_plan.get("fit_mode") == "deterministic"
-                    and precommit_receipt.get("submission_id") == "deterministic-policy"
-                    and precommit_receipt.get("requested_model") == SPARK_MODEL):
+                    and precommit_receipt.get("submission_id") == "deterministic-policy"):
                 worker_commitment = build_policy_fit_commitment(
                     work_plan,
                     precommit_receipt=precommit_receipt,
@@ -606,7 +616,7 @@ def _build_native_worker_packet_unreserved(
             raise SystemExit("packet_id must match the preallocated precommit receipt packet_id")
         packet_id = receipt_packet_id
     packet_id = packet_id or make_dispatch_id(bead_id)
-    selected_model = _policy_model(requested_model)
+    selected_model = _policy_model_for_plan(requested_model, work_plan)
     if selected_model != SPARK_MODEL:
         routing_errors = validate_operative_route_for_model(
             operative_routing,
@@ -615,7 +625,7 @@ def _build_native_worker_packet_unreserved(
             current_authority=current_authority,
         )
         if routing_errors:
-            raise SystemExit("fallback operative routing validation failed:\n- " + "\n- ".join(routing_errors))
+            raise SystemExit("operative routing validation failed:\n- " + "\n- ".join(routing_errors))
     budget, overridden_fields = _effective_budget(lane, budget_overrides)
     policy = load_policy("native-worker-execution")
     if validation_attempt not in {0, 1}:
@@ -762,7 +772,7 @@ def _build_native_worker_packet_unreserved(
 def build_native_worker_packet(**kwargs: Any) -> dict[str, Any]:
     # Resolve the current model before reserving any one-use receipt. Historical
     # artifact validation remains separate and does not call this builder.
-    _policy_model(kwargs.get("requested_model"))
+    _policy_model_for_plan(kwargs.get("requested_model"), kwargs.get("work_plan"))
     precommit_receipt = kwargs.get("precommit_receipt")
     if precommit_receipt is None:
         return _build_native_worker_packet_unreserved(**kwargs)
@@ -937,14 +947,24 @@ def _packet_route_errors(payload: dict[str, Any], requested_model: str, dispatch
                 requested_model,
                 work_estimate=payload.get("work_plan"),
                 current_authority=current_authority,
+                historical_parse=not dispatchable,
             )
         )
     elif requested_model and requested_model != SPARK_MODEL:
-        errors.append("fallback packet requires explicit operative_routing provenance")
+        errors.append("worker packet requires explicit operative_routing provenance")
     if dispatchable and (refusal := nonoperative_model_refusal(requested_model)) is not None:
         errors.append(refusal)
 
     return errors
+
+
+def _is_active_packet_model(model: Any) -> bool:
+    current = load_policy("native-worker-execution").get("task_selected_routing", {})
+    if current.get("status") != "active":
+        return True
+    if current.get("version") == TASK_SELECTED_VERSION:
+        return model in operative_models()
+    return model in current.get("selection", {}).get("approved_portfolio", [])
 
 
 def validate_native_worker_packet(
@@ -958,12 +978,10 @@ def validate_native_worker_packet(
     maintenance_verifier: Any = None,
 ) -> list[str]:
     errors: list[str] = []
-    if dispatchable and isinstance(payload, dict):
-        current = load_policy("native-worker-execution").get("task_selected_routing", {})
-        if current.get("status") == "active" and payload.get("requested_model") not in current.get("selection", {}).get("approved_portfolio", []):
-            errors.append("historical model records cannot authorize current dispatch")
     if not isinstance(payload, dict):
         return ["packet is not a JSON object"]
+    if dispatchable and not _is_active_packet_model(payload.get("requested_model")):
+        errors.append("historical model records cannot authorize current dispatch")
     if dispatchable:
         work_plan_binding = payload.get("work_plan")
         if containment := containment_error(
@@ -1017,7 +1035,7 @@ def validate_native_worker_packet(
 
     if (error := _required_nonempty_str(payload.get("requested_model"), "requested_model")) is not None:
         errors.append(error)
-    elif payload["requested_model"] not in _policy_models():
+    elif not _is_known_packet_model(payload["requested_model"]):
         errors.append("requested_model must be an authorized native operative model")
     requested_model = str(payload.get("requested_model") or "")
     errors.extend(_packet_route_errors(payload, requested_model, dispatchable, current_authority))
@@ -2067,7 +2085,7 @@ def _parse_args() -> argparse.Namespace:
     build.add_argument("--trusted-session-id")
     build.add_argument("--attested-model")
     build.add_argument("--requested-model")
-    build.add_argument("--operative-routing", help="Resolved operative route JSON with explicit fallback provenance.")
+    build.add_argument("--operative-routing", help="Resolved operative route JSON for the exact selected model.")
     build.add_argument("--permitted-tool", action="append", dest="permitted_tools")
     build.add_argument("--tool-profile", choices=["mutating-core-resources-v2", "read-only-core-resources-v2"])
     build.add_argument("--forbidden-tool", action="append", dest="forbidden_tools")
@@ -2103,6 +2121,8 @@ def main(
 ) -> None:
     args = _parse_args()
     from cwo_core.private_authority_input import private_authority_arguments
+    from model_catalog_startup import configure_cli_model_catalog
+
     try:
         supplied = private_authority_arguments(args.current_authority_file, args.current_authority_sha256)
     except ValueError as exc:
@@ -2116,6 +2136,7 @@ def main(
         raise SystemExit(errors[0])
 
     if args.command == "build":
+        configure_cli_model_catalog(OPERATIVE_ROLES)
         overrides = {
             field: getattr(args, field)
             for field in ALLOWED_BUDGET_FIELDS
@@ -2186,6 +2207,7 @@ def main(
                 else None
             ),
         )
+        configure_cli_model_catalog(OPERATIVE_ROLES)
         errors = validate_native_worker_packet(packet, dispatchable=True, current_authority=current_authority)
         if errors:
             raise SystemExit("packet validation failed:\n- " + "\n- ".join(errors))

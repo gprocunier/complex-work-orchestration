@@ -28,6 +28,7 @@ import test_linux_owned_children as children  # noqa: E402
 import test_offline_admitted_n1 as fixtures  # noqa: E402
 import test_maintenance_authority as authorities  # noqa: E402
 from cwo_core.host_records import HostRecordStore, using_test_store  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
 from test_offline_host_crash_matrix import cleanup_helper  # noqa: E402
 from test_local_admission_preparation import example_route  # noqa: E402
 from test_route_feasibility_preparation import bind  # noqa: E402
@@ -1392,7 +1393,7 @@ class FactoryTests(unittest.TestCase):
             'path': 'result.txt', 'validator': 'bytes', 'size': len(fixtures.host_fixtures.OUTPUT),
             'sha256': hashlib.sha256(fixtures.host_fixtures.OUTPUT).hexdigest()}]})
         spec = {'launcher': '/usr/bin/bwrap', 'executable': str(Path(sys.executable).resolve()),
-                'validator': str(Path(sys.executable).resolve()), 'model': 'gpt-6.1-sol',
+                'validator': str(Path(sys.executable).resolve()), 'model': resolve_model('sol'),
                 'provider': changes.pop('provider', 'EXAMPLE-provider'), 'effort': 'xhigh',
                 'thread_start': {'permissions': 'EXAMPLE_ROOT_DENY', 'approvalPolicy': 'untrusted', 'approvalsReviewer': 'user', 'ephemeral': True},
                 'profile_readback': {'activePermissionProfile': {'id': 'EXAMPLE_ROOT_DENY', 'extends': None}, 'approvalPolicy': 'untrusted', 'approvalsReviewer': 'user'},
@@ -1408,7 +1409,7 @@ class FactoryTests(unittest.TestCase):
             spec['finite_tool_mode'] = finite_tool_mode
         spec['configuration_files'] = {'rules/default.rules': '', 'config.toml':
             'default_permissions = "EXAMPLE_ROOT_DENY"\napproval_policy = "untrusted"\napprovals_reviewer = "user"\n'
-            'model = "gpt-6.1-sol"\nmodel_reasoning_effort = "xhigh"\nservice_tier = "default"\n'
+            f'model = "{spec["model"]}"\nmodel_reasoning_effort = "xhigh"\nservice_tier = "default"\n'
             '[permissions.EXAMPLE_ROOT_DENY.filesystem]\n"/" = "deny"\n'
             + json.dumps(str(host.worker)) + ' = "write"\n[permissions.EXAMPLE_ROOT_DENY.network]\nenabled = false\n'}
         for key in ('executable', 'launcher', 'validator'):

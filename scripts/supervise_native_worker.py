@@ -24,7 +24,7 @@ from cwo_core.audit import acquire_audit_lock, record_audit_event, release_audit
 from cwo_core.native_disposition import derive_disposition
 from cwo_core.native_containment import require_native_operative_dispatch
 from cwo_core.native_precommit import canonical_sha256
-from cwo_core.operative_routing import validate_operative_route_for_model
+from cwo_core.operative_routing import TASK_SELECTED_VERSION, validate_operative_route_for_model
 from cwo_core.private_authority_input import private_authority_arguments
 from cwo_core.native_retry import (
     build_retry_authorization,
@@ -1922,9 +1922,8 @@ def _load_control_state(path_value: str) -> tuple[Path, dict[str, Any]]:
 
 def _require_current_packet_authority(packet: dict[str, Any], current_authority: object) -> None:
     route = packet.get("operative_routing")
-    # Historical v2 remains parseable. A selected v3 route requires the actual
-    # current producer's evidence, never a self-authorizing packet snapshot.
-    if isinstance(route, dict) and route.get("version") == 3:
+    # Validate the route against the current producer's evidence at dispatch.
+    if isinstance(route, dict) and route.get("version") in {3, TASK_SELECTED_VERSION}:
         errors = validate_operative_route_for_model(route, packet.get("requested_model"),
             work_estimate=packet.get("work_plan"), current_authority=current_authority)
         if errors:
@@ -2547,6 +2546,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    from model_catalog_startup import configure_cli_model_catalog
+
+    configure_cli_model_catalog(("luna", "terra"))
     try:
         authority_args = private_authority_arguments(args.current_authority_file, args.current_authority_sha256)
     except ValueError as exc:

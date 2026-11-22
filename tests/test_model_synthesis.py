@@ -11,6 +11,7 @@ from tests.structural_assertions import Check, assert_checks
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from cwo_core.model_identities import resolve_model  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.synthesis import (  # noqa: E402
     evaluate_synthesis_inputs,
@@ -398,7 +399,7 @@ def _synthesis_route_rows() -> Iterator[SynthesisRouteCase]:
 
     yield SynthesisRouteCase('test_default_codex_synthesis_owner_uses_sol_label', "Use model synthesis with Codex 5.6 Sol, Claude Opus, and Gemini.", {'external_ok': True, 'share_boundary': "redacted-packet", 'requested_roles': ["architecture"]}, (
         Check(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['frontier_architect']['role'], 'synthesis-owner'),
-        Check(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['frontier_architect']['effort'], 'codex-5.6-sol'),
+        Check(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['frontier_architect']['effort'], resolve_model('sol')),
     ))
 
     yield SynthesisRouteCase('test_explicit_critic_contracts_constrain_synthesis_panel', "Use Claude Opus and GLM as architecture critics. "

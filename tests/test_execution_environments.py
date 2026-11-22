@@ -17,9 +17,32 @@ from cwo_core.harness import (  # noqa: E402
     validate_harness_dispatch_envelope,
     validate_model_profile_registry,
 )
+from cwo_core.model_identities import resolve_model  # noqa: E402
+from tests.test_policy_schema import malformed_policy  # noqa: E402
 
 
 class ExecutionEnvironmentTests(unittest.TestCase):
+    def test_connected_worker_resolves_only_the_configured_model_for_its_role(self) -> None:
+        def model_change(document):
+            document["roles"]["luna"]["current"] = "gpt-9.9-luna"
+
+        with malformed_policy("model-roles", model_change):
+            dispatch = {"task": "Implement a bounded packet", "dispatch_id": "placeholder-model",
+                        "environment_key": "connected-codex", "role": "worker"}
+            current = resolve_model("luna")
+            self.assertEqual(build_harness_dispatch(**dispatch)["model"], current)
+            self.assertEqual(build_harness_dispatch(**dispatch, model=current)["model"], current)
+            for invalid in ("gpt-9.8-luna", resolve_model("terra")):
+                with self.subTest(model=invalid), self.assertRaisesRegex(SystemExit, "configured Codex model"):
+                    build_harness_dispatch(**dispatch, model=invalid)
+
+    def test_hidden_codex_ids_are_refused_by_both_harnesses(self) -> None:
+        for environment in ("connected-codex", "connected-opencode-exemplar"):
+            for model in ("gpt-reserve", "codex-auto-review"):
+                with self.subTest(environment=environment, model=model), self.assertRaisesRegex(SystemExit, "hidden Codex model"):
+                    build_harness_dispatch(task="Review the packet", dispatch_id="hidden-model",
+                                           environment_key=environment, role="worker", model=model)
+
     def test_model_profile_registry_is_consistent(self) -> None:
         self.assertEqual(validate_model_profile_registry(), [])
         registry = model_profile_registry()
@@ -29,7 +52,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         self.assertIn("rhoai-architect-glm-5-2-fp8", registry["profiles"])
         self.assertIn("rhoai-architect-glm-5-2-bf16-thinking", registry["profiles"])
         architect_row = next(row for row in registry["role_substitution_matrix"] if row["cwo_role"] == "architect")
-        self.assertEqual(architect_row["connected_default"], "GPT-6.1-Sol architect; Astra/max for unresolved architecture")
+        self.assertEqual(architect_row["connected_default"], "Sol for architecture. Astra at max effort for unresolved architecture.")
         self.assertEqual(
             architect_row["enterprise_profiles"],
             [
@@ -130,7 +153,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         binding = environment["role_bindings"]["architect"]
 
         self.assertEqual(binding["executor"], "frontier_architect")
-        self.assertEqual(binding["model"], "gpt-6.1-sol")
+        self.assertEqual(binding["model_role"], "sol")
         self.assertEqual(binding["variant"], "sol")
 
         envelope = build_harness_dispatch(
@@ -141,7 +164,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             bead_id="cwo-test",
         )
         self.assertEqual(envelope["harness"], "codex_cli")
-        self.assertEqual(envelope["model"], "gpt-6.1-sol")
+        self.assertEqual(envelope["model"], resolve_model("sol"))
         self.assertEqual(envelope["variant"], "sol")
         self.assertIsNone(envelope["model_profile"])
         self.assertEqual(envelope["access_profile"], "codex-connected-shell")
@@ -153,7 +176,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
         binding = environment["role_bindings"]["worker"]
 
         self.assertEqual(binding["executor"], "internal_worker_luna")
-        self.assertEqual(binding["model"], "gpt-5.6-luna")
+        self.assertEqual(binding["model_role"], "luna")
         self.assertEqual(binding["variant"], "luna")
 
         envelope = build_harness_dispatch(
@@ -164,7 +187,7 @@ class ExecutionEnvironmentTests(unittest.TestCase):
             bead_id="cwo-luna-test",
         )
         self.assertEqual(envelope["harness"], "codex_cli")
-        self.assertEqual(envelope["model"], "gpt-5.6-luna")
+        self.assertEqual(envelope["model"], resolve_model("luna"))
         self.assertEqual(envelope["variant"], "luna")
         self.assertEqual(envelope["access_profile"], "codex-connected-shell")
         self.assertEqual(validate_harness_dispatch_envelope(envelope), [])

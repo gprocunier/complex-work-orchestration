@@ -10,6 +10,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
+from cwo_core.model_identities import resolve_model  # noqa: E402
 from cwo_core.errors import CWOPolicyError  # noqa: E402
 from cwo_core.host_acceptance import HostAcceptancePipeline, HostAdjudicationDecision, require_acceptance, _verified_evaluation, _verified_receipts, _required_clearances  # noqa: E402
 from cwo_core.host_records import HostRecordStore, using_test_store  # noqa: E402
@@ -83,10 +84,10 @@ class HostAcceptanceTests(unittest.TestCase):
         with self.assertRaisesRegex(CWOPolicyError, 'adjudication identity'):
             HostAcceptancePipeline(decide).accept(self.text, dispatch_id=dispatch_id, **self.beacon)
         self.assertEqual(self.store.audit_events(), before)
-        identity = dict(provider='openai', model_family='gpt', model_id='gpt-6-astra',
+        identity = dict(provider='openai', model_family='gpt', model_id=resolve_model("astra"),
             reasoning_effort='xhigh', dispatch_id='EXAMPLE_ADJUDICATION', session_id='EXAMPLE_ADJUDICATOR')
         for changes in ({'dispatch_id': dispatch_id}, {'session_id': 'EXAMPLE_EXECUTOR'},
-                        {'model_id': 'gpt-6.1-sol', 'reasoning_effort': 'low'}):
+                        {'model_id': resolve_model("sol"), 'reasoning_effort': 'low'}):
             with self.subTest(changes=changes), self.assertRaises(CWOPolicyError):
                 HostAcceptancePipeline(decide, adjudication_identity={**identity, **changes}).accept(
                     self.text, dispatch_id=dispatch_id, **self.beacon)
@@ -194,7 +195,7 @@ class HostAcceptanceTests(unittest.TestCase):
 
     def dispatch(self, **changes):
         fields = dict(dispatch_id='EXAMPLE_PIPELINE_EXECUTOR_' + str(len(self.store.find('dispatch'))), dispatch_role='executor', provider='openai',
-            model_family='gpt', model_id='gpt-6.1-sol', reasoning_effort='xhigh', session_id='EXAMPLE_EXECUTOR',
+            model_family='gpt', model_id=resolve_model("sol"), reasoning_effort='xhigh', session_id='EXAMPLE_EXECUTOR',
             request_sha256='1' * 64, bead_id=self.beacon['bead_id'], executor='codex_architecture_critic')
         fields.update(changes)
         self.store.write_dispatch(**fields)
@@ -320,10 +321,10 @@ class HostAcceptanceTests(unittest.TestCase):
         target = {'dispatch_id': dispatch_id, 'return_sha256': returned,
                   'evaluation_sha256': pending_evaluation_sha256(pending)}
         self.store.write_dispatch(dispatch_id='EXAMPLE_PIPELINE_REVIEW', dispatch_role='peer-review', provider='openai',
-            model_family='gpt', model_id='gpt-6-astra', reasoning_effort='max', session_id='EXAMPLE_REVIEWER',
+            model_family='gpt', model_id=resolve_model("astra"), reasoning_effort='max', session_id='EXAMPLE_REVIEWER',
             request_sha256='2' * 64, review_target=target, executor='codex_architecture_critic')
         record = {'record_type': 'cwo-peer-review', 'version': 2, 'decision': 'passed',
-            'reviewer_identity': {'provider': 'openai', 'model_family': 'gpt', 'model_id': 'gpt-6-astra',
+            'reviewer_identity': {'provider': 'openai', 'model_family': 'gpt', 'model_id': resolve_model("astra"),
                 'reasoning_effort': 'max', 'dispatch_id': 'EXAMPLE_PIPELINE_REVIEW'},
             'return_sha256': returned, 'evaluation_sha256': target['evaluation_sha256']}
         pipeline = HostAcceptancePipeline(lambda observed: HostAdjudicationDecision('accepted', 'Yes', 'HOST'),

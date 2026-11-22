@@ -20,7 +20,7 @@ from tests.real_beads_fixture import configure_git_fixture
 
 def _copy_checkpoint(root):
     manifest = json.loads((ROOT / checkpoint.MANIFEST).read_bytes())
-    for name in [*manifest["files"], checkpoint.MANIFEST]:
+    for name in [*manifest["files"], checkpoint.MODEL_ROLE_POLICY, checkpoint.MANIFEST]:
         destination = root / name
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / name, destination)
@@ -415,6 +415,31 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
                 with self.assertRaisesRegex(checkpoint.CompatibilityRefusal, "dependency/artifact missing"):
                     checkpoint.verify_files(root, manifest["files"])
                 changed.write_bytes(original)
+
+    def test_model_version_rotates_within_the_bound_policy_contract(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest = _copy_checkpoint(root)
+            path = root / checkpoint.MODEL_ROLE_POLICY
+            self.assertNotIn(checkpoint.MODEL_ROLE_POLICY, manifest["files"])
+            document = json.loads(path.read_bytes())
+            luna = document["roles"]["luna"]
+            luna["current"] = "gpt-9.99-luna" if luna["current"] == "gpt-9.9-luna" else "gpt-9.9-luna"
+            path.write_text(json.dumps(document), encoding="utf-8")
+            checkpoint._checkpoint_bindings(root, None)
+
+            for change, message in (({"current": document["roles"]["terra"]["current"]}, "exact model in its family"),
+                                    ({"selection": ["explicit"]}, "model-roles policy schema mismatch")):
+                with self.subTest(change=change):
+                    invalid = deepcopy(document)
+                    invalid["roles"]["luna"].update(change)
+                    path.write_text(json.dumps(invalid), encoding="utf-8")
+                    with self.assertRaisesRegex(ValueError, message):
+                        checkpoint.verify_fixture_checkpoint(root=root)
+            path.write_text(json.dumps(document), encoding="utf-8")
+            path.chmod(0o755)
+            with self.assertRaisesRegex(checkpoint.CompatibilityRefusal, "dependency mode drift: policy/model-roles.yaml"):
+                checkpoint.verify_fixture_checkpoint(root=root)
 
     def test_f5_retired_surface_mechanics_keep_current_hold_after_scoped_fake_controls(self):
         # Intentionally repeats only the existing affected transport surface section.

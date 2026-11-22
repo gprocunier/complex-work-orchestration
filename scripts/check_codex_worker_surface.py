@@ -38,10 +38,10 @@ from codex_tool_surface import (  # noqa: E402
 )
 from cwo_core.supervision.transport.app_server import AppServer  # noqa: E402
 from cwo_core.supervision.transport.errors import AppServerError as AppServerError  # noqa: E402
-from cwo_core.model_identities import SPARK_MODEL  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
+from model_catalog_startup import configure_cli_model_catalog  # noqa: E402
 
 
-DEFAULT_MODEL = SPARK_MODEL
 EXACT_TOOLS = ["apply_patch", "exec_command", "write_stdin"]
 
 
@@ -318,7 +318,7 @@ def main() -> int:
         type=Path,
         default=Path(os.environ.get("CODEX_HOME", Path.home() / ".codex")),
     )
-    parser.add_argument("--model", default=DEFAULT_MODEL)
+    parser.add_argument("--model")
     parser.add_argument("--timeout-seconds", type=float, default=15.0)
     args = parser.parse_args()
     if args.timeout_seconds <= 0 or args.timeout_seconds > 120:
@@ -329,6 +329,9 @@ def main() -> int:
     if (not tools_are_mutable(tools)) != (args.catalog_projection is not None):
         parser.error("read-only requires --catalog-projection; mutating forbids it")
     live_availability.require_n1_live()
+    if args.model is None:
+        configure_cli_model_catalog(("luna",), codex_home=args.codex_home)
+        args.model = resolve_model("luna")
     evidence: dict[str, Any] = {"qualification": False, "provider_model_calls": 0}
     try:
         if args.catalog_projection is not None:

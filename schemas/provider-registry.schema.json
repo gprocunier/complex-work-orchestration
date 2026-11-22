@@ -78,7 +78,7 @@
     },
     "review_models": {
       "type": "object",
-      "description": "Recorded model family and explicit escalation edges by registry-derived provider family. Configuration is not dispatch proof.",
+      "description": "Exact model evidence grouped by registry-derived provider family. The OpenAI entries preserve historical review evidence. Current Codex reviewer ordering comes from model roles.",
       "additionalProperties": {
         "type": "object",
         "additionalProperties": {

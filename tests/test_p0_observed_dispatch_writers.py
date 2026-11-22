@@ -15,6 +15,7 @@ sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tests')]
 import dispatch_work as dispatch  # noqa: E402
 import qualified_review_dispatch as review  # noqa: E402
 import test_qualified_review_dispatch as fixtures  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
 from cwo_core.host_records import HostRecordStore, configured_store, using_test_store  # noqa: E402
 from cwo_core.host_return_intake import record_received_return  # noqa: E402
 
@@ -106,7 +107,7 @@ class ObservedWriterChecks(unittest.TestCase):
                 old_receipt = record_received_return(store, 'work', raw)
                 current = store.write_observed_dispatch('work', prepared_record_sha256=prepared,
                     observation_sha256=sha(b'original host completion'), provider='openai', model_family='gpt',
-                    model_id='gpt-6.1-sol', reasoning_effort='xhigh', session_id='original-session')
+                    model_id=resolve_model("sol"), reasoning_effort='xhigh', session_id='original-session')
                 with self.assertRaisesRegex(ValueError, 'receipt is missing'):
                     store.require_return('work', sha(raw))
                 receipt = record_received_return(store, 'work', raw)

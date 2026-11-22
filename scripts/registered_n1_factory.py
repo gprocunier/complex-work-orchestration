@@ -39,7 +39,6 @@ from cwo_core import server_request_preparation as protocol
 from cwo_core import native_live_availability as live_availability
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import record_received_return
-from cwo_core.policy import load_policy
 from cwo_core.process_identity import parse_proc_stat
 from cwo_core.supervision.transport.app_server import AppServerError
 from registered_app_server_transport import RegisteredAppServer
@@ -1834,9 +1833,10 @@ class RegisteredN1Factory:
 
     def record_dispatch(self, session_id):
         """Persist the checked actual thread identity before the first task turn."""
+        from cwo_core.peer_review_identity import registered_review_model
+
         self.guard()
-        registered = load_policy('provider-registry').get('review_models', {}).get(
-            self.spec['provider'], {}).get(self.spec['model'], {})
+        registered = registered_review_model(self.spec['provider'], self.spec['model']) or {}
         self.dispatch_record_sha256 = self.host_records.write_dispatch(
             dispatch_id=self.dispatch_id,
             dispatch_role='peer-review' if self.review_target is not None else 'executor',

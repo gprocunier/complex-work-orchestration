@@ -7,6 +7,8 @@ import tempfile
 from cwo_core.adjudication import dispatch_provenance
 from cwo_core.host_return_intake import record_received_return
 from cwo_core.host_records import HostRecordStore, using_test_store
+from cwo_core.model_identities import resolve_model
+from cwo_core.peer_review_identity import registered_review_model
 from cwo_core.policy import load_policy
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.peer_review import pending_evaluation_sha256
@@ -23,7 +25,9 @@ def review_binding(case, text, *, own_changes=None, review_changes=None,
     vendor = dispatch_provenance({"record_type": "cwo-dispatch-record", "version": 1,
         "dispatch_id": dispatch_id, "executor": executor, "candidate": "EXAMPLE_OFFLINE_CANDIDATE",
         "return_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()})["provider_family"]
-    model_id, model = next(iter(load_policy("provider-registry")["review_models"][vendor].items()))
+    model_id = (resolve_model("sol") if vendor == "openai"
+                else next(iter(load_policy("provider-registry")["review_models"][vendor])))
+    model = registered_review_model(vendor, model_id)
     own = dict(dispatch_id=dispatch_id, dispatch_role="executor", provider=vendor,
         model_family=model["model_family"], model_id=model_id, reasoning_effort="xhigh",
         session_id="EXAMPLE_EXECUTOR_SESSION", packet_sha256="1" * 64, executor=executor)
@@ -35,7 +39,7 @@ def review_binding(case, text, *, own_changes=None, review_changes=None,
     context = {} if inputs.get("dispatch_id") else {"dispatch_id": dispatch_id}
     pending = make_acceptance_decision(text, peer_review_status="pending", **{**inputs, **context})
     review = dict(dispatch_id="EXAMPLE_REVIEW_DISPATCH", dispatch_role="peer-review", provider="openai",
-        model_family="gpt", model_id="gpt-6-astra", reasoning_effort="max", session_id="EXAMPLE_REVIEW_SESSION",
+        model_family="gpt", model_id=resolve_model("astra"), reasoning_effort="max", session_id="EXAMPLE_REVIEW_SESSION",
         packet_sha256="2" * 64, executor="codex_architecture_critic",
         review_target={"dispatch_id": dispatch_id, "return_sha256": own_return(text),
                        "evaluation_sha256": pending_evaluation_sha256(pending)})

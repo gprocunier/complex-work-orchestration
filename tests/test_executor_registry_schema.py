@@ -225,7 +225,7 @@ class ExecutorRegistrySchemaTests(unittest.TestCase):
                 self.assertEqual(policy.load_policy("executor-registry"), self.document)
                 for key, entry in self.document["executors"].items():
                     self.assertIs(policy.executor_external(key), entry["external"])
-                    self.assertEqual(policy.executor_config(key)["display_name"], entry["display_name"])
+                    self.assertEqual(policy.executor_config(key, self.document)["display_name"], entry["display_name"])
                 malformed = copy.deepcopy(self.document)
                 key = next(iter(malformed["executors"]))
                 malformed["executors"][key]["external"] = "false"

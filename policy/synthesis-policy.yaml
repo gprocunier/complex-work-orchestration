@@ -120,11 +120,11 @@
       "executor": "frontier_architect",
       "role": "synthesis-owner",
       "provider_camp": "codex",
-      "effort": "codex-5.6-sol",
+      "effort": "configured",
       "external": false
     },
     {
-      "executor": "internal_worker",
+      "executor": "internal_worker_luna",
       "role": "codex-review-workerbee",
       "provider_camp": "codex",
       "effort": "review-only",

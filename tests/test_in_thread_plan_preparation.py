@@ -25,6 +25,7 @@ import prepare_in_thread_plan as preview  # noqa: E402
 from cwo_core import candidate_identity as ci  # noqa: E402
 from cwo_core import requirement_baseline as rb  # noqa: E402
 from cwo_core import beads, policy, policy_schema, routing, workspace_capture  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
 
 READ_ONLY_POLICY_PATHS = frozenset(
     ROOT / "policy" / name for name in policy_schema.POLICY_VALIDATION_BOUNDARIES
@@ -301,10 +302,13 @@ class PreparationTests(unittest.TestCase):
             self.assertEqual(expert["executor_policy_violations"], [])
             selected = expert["selected_executor"]
             self.assertEqual(selected["key"], "internal_worker")
+            self.assertEqual(selected["model_label"], resolve_model("luna"))
             self.assertEqual(selected["dispatch_mode"], "codex_worker")
             self.assertIs(selected["external"], False)
             self.assertEqual(selected["codex_pickup"], "allowed")
             self.assertIs(selected["acceptance_required"], True)
+        self.assertFalse(expected["operative_route"]["dispatch_authorized"])
+        self.assertIsNone(expected["operative_route"]["selected_executor"])
         self.assertFalse(any(
             value is not False
             for key, value in expected.items()

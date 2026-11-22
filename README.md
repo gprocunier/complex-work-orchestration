@@ -70,10 +70,9 @@ cwo-codex -C "$PWD"
 CWO uses a system prompt optimized for complex project work rather than the
 default OpenAI system prompt; the [CWO system prompt](references/cwo-system-prompt.md)
 explains its intended behavior, setup and limits, not measured superiority.
-The profile requests model `gpt-5.6-sol` and inherits reasoning effort from the
-host or user. The architect executor in `policy/execution-environments.yaml`
-binds `gpt-6.1-sol`; that route binding is separate from the bundled profile.
-Check the selected route and actual model/effort in the running session.
+The profile requests the configured Sol model and inherits reasoning effort from
+the host or user. Check the selected route and actual model and effort in the
+running session.
 Resuming an older conversation does not load that profile. Default profile
 settings remain intact; the installed CWO skill remains available in ordinary
 sessions until disabled or removed.
@@ -114,9 +113,10 @@ contributions still need evidence checks and permitted access.
 [Explore the interactive architecture and zero-trust Review note](https://gprocunier.github.io/complex-work-orchestration/#ecosystem).
 The logos show model options, not endorsements or a qualification matrix.
 
-The next layer turns the plan into bounded assignments. The native
-delegation contract sizes the task first and then selects a qualified exact worker:
-`gpt-5.6-luna` first, `gpt-5.6-terra` only with a recorded escalation.
+The next layer turns the plan into bounded assignments. The native delegation
+contract sizes the task first and then selects the exact model configured for
+Luna. Terra requires a recorded escalation. `policy/model-roles.yaml` defines
+the current and previous model for each role.
 Parallel work requires independent tasks, separate write ownership and an
 approved, qualified environment.
 
@@ -124,10 +124,10 @@ approved, qualified environment.
 
 [Read the delegation guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html).
 The registered single-worker route, concurrent pools and live campaigns are
-unavailable in this release under default-off source holds. A qualified worker
-means an exact model, executable, configuration and enforced tool profile with
-matching observed capability evidence for the selected assignment. New worker-
-surface qualification is also held; existing receipts cannot restore a route.
+unavailable in this release under default-off source holds. A host needs
+observed capability evidence for its executable, configuration and enforced
+tool profile. The worker's actual model must match the selected assignment.
+New worker-surface qualification is also held.
 The pool contract bounds groups to three and additionally requires a trusted
 controller, which is not shipped.
 
@@ -275,11 +275,9 @@ its mechanism and limit. [Understand these limits](https://gprocunier.github.io/
   requirements. `pending-acceptance` means delivered and not yet accepted.
 - **Operator continuation packet:** the handoff block every closeout includes,
   from `templates/operator-handoff-packet.md`.
-- **Luna, Terra, Sol, Spark:** model names in the routing policy.
-  `gpt-5.6-luna` is the first choice for native workers, `gpt-5.6-terra` needs a
-  recorded escalation, the bundled profile requests `gpt-5.6-sol` while the policy architect executor
-  binds `gpt-6.1-sol`, and
-  `gpt-5.3-codex-spark` appears only in historical records.
+- **Model roles:** Sol leads and adjudicates, Astra reviews unresolved
+  architecture, Luna handles primary native work, and Terra handles documented
+  escalation. Spark appears in historical records.
 
 ## More detail
 

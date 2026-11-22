@@ -736,6 +736,20 @@ def _session_source_topologies() -> Iterator[SessionTopologyCase]:
 
 
 class CheckNativeWorkerSessionTests(unittest.TestCase):
+    def test_default_inspects_the_configured_primary_worker(self) -> None:
+        roles = json.loads((ROOT / "policy/model-roles.yaml").read_text(encoding="utf-8"))["roles"]
+        model = roles["luna"]["current"]
+        with tempfile.TemporaryDirectory() as tmp:
+            session_file = Path(tmp) / "rollout-current.jsonl"
+            write_records(session_file, [
+                spark_record("2026-07-10T21:00:00Z", "current", "task_started", model=model),
+                spark_record("2026-07-10T21:00:30Z", "current", "task_complete", model=model),
+            ])
+            result = run_cli("--session-id", "current", "--budget-profile", "implementation",
+                             "--session-file", str(session_file), "--json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["requested_model"], model)
+
     def test_explicit_native_session_file_matches_session_meta_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             session_file = Path(tmpdir) / "session.jsonl"

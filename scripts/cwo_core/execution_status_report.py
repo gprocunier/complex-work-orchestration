@@ -10,7 +10,7 @@ from typing import Any
 
 from .audit import iter_audit_events
 from .epic_convergence import CALL_CATEGORIES, GRAPH_COUNTER_FIELDS
-from .model_identities import SPARK_MODEL
+from .model_identities import OPERATIVE_ROLES, SPARK_MODEL, model_family_role
 from .execution_enhancement_metrics import checked_command_details, checked_command_summary, native_progress_details, native_progress_summary
 
 UNAVAILABLE = "?"
@@ -1692,7 +1692,7 @@ def _is_native_disposition_record(record: dict[str, Any]) -> bool:
     if isinstance(record.get("artifact_validation"), dict):
         return True
     model = _clean(record.get("model")) or _clean(record.get("workerbee_actual_model"))
-    return model == SPARK_MODEL
+    return model == SPARK_MODEL or model_family_role(model) in OPERATIVE_ROLES
 
 
 def _sol_breakfix_summary(records: list[dict[str, Any]]) -> dict[str, Any]:

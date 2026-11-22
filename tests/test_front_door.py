@@ -5,6 +5,7 @@ docs describe it as unavailable and both the planner and the CLI refuse it.
 """
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -159,7 +160,7 @@ class FrontDoorTests(unittest.TestCase):
         positions = [README.index(marker) for marker in order]
         self.assertEqual(positions, sorted(positions))
 
-    def test_exact_commands_profile_and_models_stay_searchable_and_match_the_source(self) -> None:
+    def test_commands_profile_and_model_roles_are_discoverable(self) -> None:
         for identity in (
             "./scripts/install.sh --yes",
             "python3 scripts/check_installed_skill.py --check",
@@ -169,19 +170,15 @@ class FrontDoorTests(unittest.TestCase):
             'codex --profile cwo-sol-operator-e -C "$PWD"',
             "python3 scripts/scaffold_workgraph.py",
             "--scaffold-size tight",
-            "gpt-5.6-sol",
-            "gpt-5.6-luna",
-            "gpt-5.6-terra",
-            "gpt-5.3-codex-spark",
+            "configured Sol model",
+            "policy/model-roles.yaml",
+            "Spark appears in historical records.",
         ):
             with self.subTest(identity=identity):
                 self.assertIn(identity, README)
-        profile = (ROOT / "scripts/manage_instruction_profile.py").read_text(encoding="utf-8")
-        self.assertIn("cwo-sol-operator-e", profile)
-        self.assertIn('model = "gpt-5.6-sol"', profile)
-        routing = (ROOT / "policy/native-worker-execution.yaml").read_text(encoding="utf-8")
-        for model in ("gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.3-codex-spark"):
-            self.assertIn(f'"{model}"', routing)
+        role_policy = json.loads((ROOT / "policy/model-roles.yaml").read_text(encoding="utf-8"))
+        for role in role_policy["roles"]:
+            self.assertIn(role.capitalize(), README)
 
     def test_disabled_routes_are_described_as_disabled(self) -> None:
         limits = section("Limits")

@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from tests import test_host_acceptance as acceptance_fixtures
 from tests import test_host_records as record_fixtures
+from cwo_core.model_identities import resolve_model
 from cwo_core import host_acceptance as acceptance, host_records as records
 from cwo_core.errors import CWOPolicyError
 from cwo_core.host_return_intake import record_received_return
@@ -52,7 +53,7 @@ class F9HostProvenanceGuards(unittest.TestCase):
 
     @staticmethod
     def reviewer(store, dispatch_id, target):
-        identity = dict(provider='openai', model_family='gpt', model_id='gpt-6-astra', reasoning_effort='max', dispatch_id=dispatch_id)
+        identity = dict(provider='openai', model_family='gpt', model_id=resolve_model("astra"), reasoning_effort='max', dispatch_id=dispatch_id)
         store.write_dispatch(**identity, dispatch_role='peer-review', session_id=dispatch_id,
             request_sha256='2' * 64, review_target=target, executor='codex_architecture_critic')
         return dict(record_type='cwo-peer-review', version=2, decision='passed', reviewer_identity=identity,

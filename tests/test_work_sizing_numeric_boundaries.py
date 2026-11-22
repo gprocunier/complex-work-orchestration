@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from cwo_core.model_identities import SPARK_MODEL  # noqa: E402
+from cwo_core.model_identities import SPARK_MODEL, resolve_model  # noqa: E402
 from cwo_core.work_sizing import (  # noqa: E402
     DIMENSIONS,
     build_policy_fit_commitment,
@@ -18,7 +18,7 @@ from cwo_core.work_sizing import (  # noqa: E402
 HUGE = 10**4000
 
 
-def _raw_estimate(reads=1, mutations=1, ratio=1):
+def _raw_estimate(reads=1, mutations=1, ratio=1, *, requested_model=None):
     estimates = {
         "tool_calls_p50": 3,
         "tool_calls_p90": 4,
@@ -31,7 +31,7 @@ def _raw_estimate(reads=1, mutations=1, ratio=1):
         "estimate_contract_version": 2,
         "work_unit_id": "wu-work-sizing-numeric-boundaries",
         "bead_id": "bead-work-sizing-numeric-boundaries",
-        "requested_model": SPARK_MODEL,
+        "requested_model": resolve_model("luna") if requested_model is None else requested_model,
         "primary_outcome": "exercise work-sizing numeric boundaries",
         "expected_artifacts": ["numeric-boundary-evidence"],
         "expert_profiles": [],
@@ -164,12 +164,11 @@ class TestWorkSizingNumericBoundaries(unittest.TestCase):
 
     def test_model_refusal_survives_huge_counter_normalization(self):
         for model, refusal in (
-            ("unsupported-model", f"requires requested_model {SPARK_MODEL}"),
-            (SPARK_MODEL, "requires work_estimate.fit_mode deterministic"),
+            ("unsupported-model", "requires a configured operative model"),
+            (resolve_model("luna"), r"requires work_estimate\.fit_mode deterministic"),
         ):
             with self.subTest(model=model):
-                source = _raw_estimate(HUGE, HUGE, 1)
-                source["requested_model"] = model
+                source = _raw_estimate(HUGE, HUGE, 1, requested_model=model)
                 estimate = evaluate_work_estimate(source)
                 self.assertEqual(estimate["requested_model"], model)
                 self.assertEqual(estimate["route"], "split")
@@ -178,7 +177,7 @@ class TestWorkSizingNumericBoundaries(unittest.TestCase):
                     build_policy_fit_commitment(estimate, precommit_receipt={})
 
     def test_historical_confidence_uses_controlled_numeric_refusals(self):
-        estimate = evaluate_work_estimate(_raw_estimate(HUGE, HUGE, 1))
+        estimate = evaluate_work_estimate(_raw_estimate(HUGE, HUGE, 1, requested_model=SPARK_MODEL))
         for confidence in (0.91, 1):
             with self.subTest(confidence=confidence):
                 record = _historical_commitment(estimate, confidence)

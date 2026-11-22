@@ -9,6 +9,7 @@ import os
 import sys
 from pathlib import Path
 
+from cwo_core.model_identities import resolve_model
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PROFILE_NAMES = {
@@ -58,11 +59,10 @@ def _launcher_path(launcher_dir: Path) -> Path:
 
 def _expected(source_root: Path, codex_home: Path, key: str) -> bytes:
     sources = _source_paths(source_root)
+    common = f"model = {json.dumps(resolve_model('sol'))}\n"
     if key == "overlay":
-        common = 'model = "gpt-5.6-sol"\nmodel_reasoning_effort = "max"\n'
         overlay = sources["overlay"].read_text(encoding="utf-8")
-        return (common + f"developer_instructions = {json.dumps(overlay)}\n").encode()
-    common = 'model = "gpt-5.6-sol"\n'
+        return (common + 'model_reasoning_effort = "max"\n' + f"developer_instructions = {json.dumps(overlay)}\n").encode()
     if key == "operator":
         common += 'model_reasoning_effort = "max"\n'
     target = str(_prompt_path(codex_home, key).resolve())
@@ -208,6 +208,9 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    from model_catalog_startup import configure_cli_model_catalog
+
+    configure_cli_model_catalog(("sol",), codex_home=args.codex_home)
     source_root = args.source_root.expanduser().resolve()
     codex_home = args.codex_home.expanduser().resolve()
     launcher_dir = args.launcher_dir.expanduser().resolve()

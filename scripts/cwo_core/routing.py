@@ -12,6 +12,7 @@ from .access_profiles import (
     sanitized_access_profile,
 )
 from .errors import CWOPolicyError, CWOValidationError
+from .harness import binding_model
 from .native_containment import native_operative_containment
 from .operative_routing import NONOPERATIVE_ROLE, nonoperative_model_refusal, resolve_operative_route
 from .risk_features import (RiskAssessment, assess_risk_features, refuse_risk_narrowing,
@@ -32,6 +33,7 @@ from .policy import (
     executor_config,
     load_policy,
     peer_review_policy,
+    project_executor_model,
     provider_metadata_for_executor,
     provider_profile,
     route_requires_peer_review,
@@ -214,10 +216,12 @@ def _binding_summary(binding: dict[str, Any]) -> dict[str, Any]:
     summary = {
         key: value
         for key, value in binding.items()
-        if key in {"harness", "executor", "agent", "model", "variant", "model_profile"}
+        if key in {"harness", "executor", "agent", "model", "model_role", "variant", "model_profile"}
     }
-    if nonoperative_model_refusal(binding.get("model")):
-        # The recorded binding stays inspectable; the general v3 rule marks it nonoperative.
+    model = binding_model(binding)
+    if model is not None:
+        summary["model"] = model
+    if nonoperative_model_refusal(model):
         summary["model_status"] = NONOPERATIVE_ROLE
     return summary
 
@@ -817,6 +821,20 @@ def executor_policy_violations(
     return violations
 
 
+def _scoring_executors() -> dict[str, dict[str, Any]]:
+    registry = load_policy("executor-registry")["executors"]
+    routing = load_policy("native-worker-execution")["task_selected_routing"]
+    if routing["status"] != "active":
+        return registry
+    # The generic planning key retains its acceptance semantics. Role projection
+    # supplies current metadata here while the operative selector binds its own executor.
+    return {
+        key: project_executor_model("internal_worker_luna" if key == "internal_worker" else key, executor)
+        for key, executor in registry.items()
+        if key != "internal_worker_gpt55"
+    }
+
+
 def score_executors(
     *,
     task_class: str,
@@ -833,7 +851,6 @@ def score_executors(
     unattended: bool = False,
     provider_conflict_domains: list[str] | None = None,
 ) -> list[dict[str, Any]]:
-    registry = load_policy("executor-registry").get("executors", {})
     scoring = load_policy("routing-policy").get("scoring", {}).get("executor", {})
     preferred: set[str] = set()
     for expert in experts:
@@ -843,7 +860,7 @@ def score_executors(
     need_shell = bool(term_hits(text, ["shell", "repo", "patch", "command", "test", "ci", "script"]))
     results: list[dict[str, Any]] = []
 
-    for key, executor in registry.items():
+    for key, executor in _scoring_executors().items():
         capabilities = executor.get("capabilities", [])
         access_profile_key = access_profile_for_executor({**executor, "key": key})
         score = 0

@@ -10,7 +10,7 @@ broker require a version 2 peer-review record for `peer_review_status="passed"`:
   "reviewer_identity": {
     "provider": "openai",
     "model_family": "gpt",
-    "model_id": "gpt-6-astra",
+    "model_id": "<resolved-astra-model>",
     "reasoning_effort": "max",
     "dispatch_id": "review-dispatch-id"
   },
@@ -45,8 +45,11 @@ the host's received-return receipt for the exact evaluated bytes. An asserted
 executor alias must agree with the recorded alias. When a host records an executor
 alias, its provider is also checked against the executor/provider registries.
 
-The reviewer declaration must match every recorded identity component. Both model
-IDs and families must occur in `provider-registry.yaml`'s `review_models` table.
+The reviewer declaration must match every recorded identity component. Use the
+exact observed ID for the configured model. `policy/model-roles.yaml` defines
+the OpenAI reviewer roles. The `review_models` table in
+`policy/provider-registry.yaml` supplies identities for other providers and
+retains historical records.
 `provider` names the underlying vendor/family, rather than an access-channel key:
 `internal_codex` and `openai_manual` both resolve to `openai`. A caller-written
 dispatch sidecar or a declaration in the peer-review JSON establishes no authority.
@@ -73,9 +76,9 @@ Separation is evaluated in this order:
    never makes the same model independent.
 2. A different derived provider or registered model family is `cross-family`,
    the preferred separation.
-3. Otherwise, the reviewer model must explicitly list the executor model in its
-   `stronger_than` policy entry. This is `escalation`. No code ranks model names
-   or reasoning efforts. Missing policy edges refuse.
+3. Otherwise, the review requires a stronger model in the same family. The
+   routing policy ranks Astra above Sol. Other providers use their recorded
+   `stronger_than` policy entries. The evaluator records this as `escalation`.
 
 Escalation is accepted when another family is unavailable. It is weaker than
 cross-family review because both models share a provider and training lineage.

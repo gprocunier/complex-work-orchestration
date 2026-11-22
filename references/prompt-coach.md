@@ -310,9 +310,9 @@ Pages copy.
 
 ## Current operative model choice
 
-The active `task_selected_routing` version 3 sizes work before selecting a
-qualified exact Luna worker; Terra requires recorded fit/qualification/risk or
-economics escalation. Spark and GPT-5.5 version-2 routes remain readable but
+The active `task_selected_routing` policy sizes work before selecting the
+configured Luna model. Terra requires a recorded fit, risk or cost reason.
+Spark and GPT-5.5 version-2 routes remain readable but
 cannot authorize new dispatch. The coach/renderer is not admission authority;
 qualification, source/scope/attempt and unchanged budget bindings still apply.
 Consult [the current native overview](native-supervision.md) and active policy.
@@ -350,7 +350,7 @@ implementation when disjoint write scopes are clear.
 The conservative default for narrow work is no subagents. The default for broad
 docs, Pages, policy, routing, tests, validation, and publish-sanitization work
 is `review-only` when an actually authorized qualified review route is available.
-Native operative worker model selection still follows active v3 policy; adviser
+Native worker model selection follows the active routing policy. Adviser
 and peer routes are separate and never grant operative substitution. Heavy review parallelism uses separate bounded
 tracks for docs flow, terminology, web-design, validation, and publish checks.
 Implementation-capable subagents require explicit disjoint write scopes;

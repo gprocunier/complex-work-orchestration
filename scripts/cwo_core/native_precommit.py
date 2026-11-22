@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping
 
 from .audit import record_audit_event
-from .model_identities import SPARK_MODEL
+from .model_identities import OPERATIVE_ROLES, SPARK_MODEL, model_family_role
 from .native_session import (
     COMPACTION_EVENT,
     SEGMENT_END_EVENT,
@@ -41,7 +41,6 @@ STATE_SCHEMA = "schemas/native-precommit-state.schema.json"
 RECEIPT_SCHEMA = "schemas/native-precommit-receipt.schema.json"
 VALIDATION_RULE_VERSION = "native-precommit-receipt:v2"
 TRUSTED_ATTESTATION_SOURCE = "trusted-control-plane-session-metadata"
-REQUIRED_MODEL = SPARK_MODEL
 FINAL_STATE = "closed"
 ACTIVE_STATES = {
     "created",
@@ -329,7 +328,7 @@ def _policy() -> dict[str, Any]:
         "state_schema": STATE_SCHEMA,
         "receipt_schema": RECEIPT_SCHEMA,
         "validation_rule_version": VALIDATION_RULE_VERSION,
-        "required_model": REQUIRED_MODEL,
+        "required_model": SPARK_MODEL,
         "attestation_source": TRUSTED_ATTESTATION_SOURCE,
         "packet_stage": "precommit-validated",
         "operative_dispatch_authorized": False,
@@ -342,7 +341,7 @@ def _policy() -> dict[str, Any]:
             raise ValueError(f"precommit_supervision.{field} must equal {expected_value!r}")
     authorized_models = source.get("authorized_models")
     governance_models = load_policy("native-worker-execution").get("governance", {}).get("native_operative_worker", {}).get("authorized_models")
-    if authorized_models != governance_models or not isinstance(authorized_models, list) or REQUIRED_MODEL not in authorized_models:
+    if authorized_models != governance_models or not isinstance(authorized_models, list) or SPARK_MODEL not in authorized_models:
         raise ValueError("precommit_supervision.authorized_models must match native operative governance")
     for field, minimum in (
         ("poll_interval_ms", 100),
@@ -353,6 +352,10 @@ def _policy() -> dict[str, Any]:
         if isinstance(current, bool) or not isinstance(current, int) or current < minimum:
             raise ValueError(f"precommit_supervision.{field} must be an integer >= {minimum}")
     return source
+
+
+def _is_precommit_model(model: Any, policy: Mapping[str, Any]) -> bool:
+    return model in policy["authorized_models"] or model_family_role(model) in OPERATIVE_ROLES
 
 
 def render_fit_prompt(work_plan: Mapping[str, Any]) -> str:
@@ -1148,7 +1151,7 @@ def create_precommit_state(
     attempt_nonce: str | None = None,
     owner_pid: int | None = None,
     control_execution_handle: str | None = None,
-    requested_model: str = REQUIRED_MODEL,
+    requested_model: str | None = None,
     audit_file: str | Path | None = None,
     now: str | None = None,
     current_authority: Any = None,
@@ -1159,16 +1162,17 @@ def create_precommit_state(
     packet_id = _require_string(packet_id, "packet_id")
     session_id = _require_string(session_id, "session_id")
     agent_id = _require_string(agent_id, "agent_id")
-    requested_model = _require_string(requested_model, "requested_model")
-    if requested_model not in policy["authorized_models"]:
-        raise ValueError("precommit requested model must be authorized by native operative policy")
     plan = dict(work_plan)
+    requested_model = plan.get("requested_model") if requested_model is None else requested_model
+    _require_string(requested_model, "requested_model")
+    if not _is_precommit_model(requested_model, policy):
+        raise ValueError("precommit requested model must be authorized by native operative policy")
     work_unit_id = _require_string(plan.get("work_unit_id"), "work_plan.work_unit_id")
     bead_id = _require_string(plan.get("bead_id"), "work_plan.bead_id")
     if plan.get("requested_model") != requested_model:
         raise ValueError("work plan requested_model does not match precommit requested model")
     routing_sha256: str | None = None
-    if requested_model != REQUIRED_MODEL:
+    if requested_model != SPARK_MODEL or operative_routing is not None:
         # Local import preserves the native_precommit -> work_sizing dependency
         # boundary while still validating the final route at this decision site.
         from .operative_routing import validate_operative_route_for_model
@@ -1181,22 +1185,10 @@ def create_precommit_state(
         )
         if routing_errors:
             raise ValueError(
-                "fallback precommit requires valid operative routing: "
+                "precommit requires valid operative routing: "
                 + "; ".join(routing_errors)
             )
         routing_sha256 = canonical_sha256(dict(operative_routing or {}))
-    elif operative_routing is not None:
-        from .operative_routing import validate_operative_route_for_model
-
-        routing_errors = validate_operative_route_for_model(
-            operative_routing,
-            requested_model,
-            work_estimate=plan,
-            current_authority=current_authority,
-        )
-        if routing_errors:
-            raise ValueError("Spark precommit operative routing is invalid: " + "; ".join(routing_errors))
-        routing_sha256 = canonical_sha256(dict(operative_routing))
     prompt = render_fit_prompt(plan)
     session_path = _secure_input_file(session_file, "session file")
     workspace = Path(workdir).expanduser().resolve()
@@ -1525,7 +1517,7 @@ def _expected_accepting(receipt: Mapping[str, Any]) -> bool:
         and receipt.get("semantic_status") == "valid"
         and fit_result.get("decision") == "accept"
         and receipt.get("attested_model") == receipt.get("requested_model")
-        and receipt.get("requested_model") in _policy()["authorized_models"]
+        and _is_precommit_model(receipt.get("requested_model"), _policy())
         and receipt.get("attestation_source") == TRUSTED_ATTESTATION_SOURCE
         and observed.get("function_calls") == 0
         and observed.get("custom_tool_calls") == 0
@@ -1780,7 +1772,7 @@ def validate_precommit_state(value: Any) -> list[str]:
             _require_string(state.get(field), field)
         _require_hash(state.get("work_plan_sha256"), "work_plan_sha256")
         routing_sha = state.get("operative_routing_sha256")
-        if state.get("requested_model") == REQUIRED_MODEL:
+        if state.get("requested_model") == SPARK_MODEL:
             if routing_sha is not None:
                 _require_hash(routing_sha, "operative_routing_sha256")
         else:
@@ -1898,7 +1890,7 @@ def validate_precommit_receipt(
         for field in ("state_sha256", "work_plan_sha256", "fit_prompt_sha256", "final_response_sha256", "receipt_sha256"):
             _require_hash(receipt.get(field), field)
         routing_sha = receipt.get("operative_routing_sha256")
-        if receipt.get("requested_model") == REQUIRED_MODEL:
+        if receipt.get("requested_model") == SPARK_MODEL:
             if routing_sha is not None:
                 _require_hash(routing_sha, "operative_routing_sha256")
         else:
@@ -1911,6 +1903,7 @@ def validate_precommit_receipt(
                     str(receipt.get("requested_model") or ""),
                     work_estimate=work_plan,
                     current_authority=current_authority,
+                    historical_parse=not live,
                 )
                 if route_errors:
                     raise ValueError(
@@ -1964,7 +1957,7 @@ def validate_precommit_receipt(
             raise ValueError("precommit receipt provenance is invalid")
         if expected_packet_id is not None and receipt["packet_id"] != expected_packet_id:
             raise ValueError("precommit receipt packet_id does not match preallocated packet_id")
-        if receipt["requested_model"] not in _policy()["authorized_models"] or receipt["attested_model"] != receipt["requested_model"]:
+        if not _is_precommit_model(receipt["requested_model"], _policy()) or receipt["attested_model"] != receipt["requested_model"]:
             raise ValueError("precommit receipt does not bind an exact authorized model attestation")
         if receipt["attestation_source"] != TRUSTED_ATTESTATION_SOURCE:
             raise ValueError("precommit receipt attestation source is not trusted control-plane metadata")
@@ -2046,7 +2039,7 @@ def make_deterministic_receipt(
     normalized = parse_fit_result(json.dumps(flat, sort_keys=True))
     state_result = create_precommit_state(
         packet_id=packet_id,
-        requested_model=requested_model or str(work_plan.get("requested_model") or REQUIRED_MODEL),
+        requested_model=requested_model,
         work_plan=work_plan,
         session_id=session_id,
         session_file=session_file,

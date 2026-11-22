@@ -56,7 +56,7 @@ class NativePolicyRuntimeValidationTests(unittest.TestCase):
         return message
 
     def assert_current_policy(self):
-        self.assertEqual(len(self.document), 43)
+        self.assertEqual(len(self.document), 44)
         self.assertEqual(policy.load_policy("native-worker-execution"), self.document)
         self.assertEqual(policy.load_policy(FILENAME), self.document)
         self.assertEqual(release._policy(), release._policy(self.document))
@@ -167,7 +167,7 @@ class NativePolicyRuntimeValidationTests(unittest.TestCase):
             "packet_v3": {"phases": {"other-phase": {"mutation_deadline_seconds": None}}},
             "lane_budgets": {"other-lane": {}},
             "work_sizing": {"enforcement": {"other-variant": {"task_class_policy": {"other-class": {}}}}},
-            "task_selected_routing": {"operative_roles": {"other-model": "metadata-only"}},
+            "historical_task_selected_routing_v3": {"operative_roles": {"other-model": "metadata-only"}},
             "required_capabilities": [],
             "scope": "",
         }

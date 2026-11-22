@@ -16,6 +16,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core.audit import record_audit_event, iter_audit_events  # noqa: E402
 from cwo_core.errors import CWOPolicyError  # noqa: E402
 from cwo_core.host_records import configured_store  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
 from cwo_core.peer_review import pending_evaluation_sha256  # noqa: E402
 from cwo_core.peer_review_identity import _recorded_dispatch, review_identity, separation_level  # noqa: E402
 from cwo_core.returns import make_acceptance_decision  # noqa: E402
@@ -37,32 +38,46 @@ class R6ReviewerIndependenceTests(unittest.TestCase):
     def evaluate(self, binding):
         return make_acceptance_decision(self.text, peer_review_status="passed", **binding, **self.inputs)
 
+    def test_current_reviewer_ids_follow_config_and_rank(self):
+        def model_change(document):
+            document["roles"]["sol"].update(current="gpt-9.9-sol", reviewer_rank=2)
+            document["roles"]["astra"].update(current="gpt-9.9-astra", reviewer_rank=4)
+
+        with current_policy("model-roles", model_change):
+            own = {"provider": "openai", "model_family": "gpt", "model_id": "gpt-9.9-sol",
+                   "reasoning_effort": "max", "dispatch_id": "EXECUTOR"}
+            reviewer = {**own, "model_id": "gpt-9.9-astra", "dispatch_id": "REVIEWER"}
+            self.assertEqual(separation_level(own, reviewer, "S1", "S2"), "escalation")
+            with self.assertRaisesRegex(CWOPolicyError, "stronger model"):
+                separation_level(reviewer, own, "S2", "S1")
+            for invalid in ("gpt-9.8-astra", "gpt-reserve", "codex-auto-review"):
+                with self.subTest(model=invalid), self.assertRaisesRegex(CWOPolicyError, "not registered"):
+                    separation_level(own, {**reviewer, "model_id": invalid}, "S1", "S2")
+
     def dispatch_path(self, binding, *, own=False):
         dispatch_id = binding["dispatch_id"] if own else binding["peer_review_reviewer"]["dispatch_id"]
         record = configured_store().require_dispatch(dispatch_id)
         return configured_store().root / (record["_record_sha256"] + ".json")
 
     def test_p0_r6_same_dispatch_session_model_effort_alias_and_weaker_review_refuse(self):
-        def self_edge(document):
-            document["review_models"]["openai"]["gpt-6.1-sol"]["stronger_than"] = ["gpt-6.1-sol"]
-        self.enterContext(current_policy("provider-registry", self_edge))
+        sol, astra = resolve_model("sol"), resolve_model("astra")
         for name, own, review, message in (
             ("same-session", {}, {"session_id": "EXAMPLE_EXECUTOR_SESSION"}, "same session"),
-            ("same-model-effort", {}, {"model_id": "gpt-6.1-sol", "reasoning_effort": "max"}, "same model"),
-            ("same-model", {}, {"model_id": "gpt-6.1-sol", "reasoning_effort": "xhigh"}, "same model"),
-            ("alias", {}, {"model_id": "gpt-6.1-sol", "executor": "chatgpt_pro_browser_master_reviewer"}, "same model"),
-            ("weaker", {"model_id": "gpt-6-astra"}, {"model_id": "gpt-6.1-sol"}, "stronger model")):
+            ("same-model-effort", {}, {"model_id": sol, "reasoning_effort": "max"}, "same model"),
+            ("same-model", {}, {"model_id": sol, "reasoning_effort": "xhigh"}, "same model"),
+            ("alias", {}, {"model_id": sol, "executor": "chatgpt_pro_browser_master_reviewer"}, "same model"),
+            ("weaker", {"model_id": astra}, {"model_id": sol}, "stronger model")):
             with self.subTest(check=name):
                 binding = self.binding(own_changes=own, review_changes=review)
                 with self.assertRaisesRegex(CWOPolicyError, message):
                     self.evaluate(binding)
-        own = {"provider": "openai", "model_family": "gpt", "model_id": "gpt-6.1-sol",
+        own = {"provider": "openai", "model_family": "gpt", "model_id": sol,
                "reasoning_effort": "xhigh", "dispatch_id": "EXAMPLE_SAME"}
         with self.assertRaisesRegex(CWOPolicyError, "same dispatch"):
-            separation_level(own, {**own, "model_id": "gpt-6-astra"}, "SESSION1", "SESSION2")
+            separation_level(own, {**own, "model_id": astra}, "SESSION1", "SESSION2")
 
     def test_r6_review_identity_matches_each_recorded_component(self):
-        for field, value in {"provider": "anthropic", "model_family": "claude", "model_id": "gpt-6.1-sol",
+        for field, value in {"provider": "anthropic", "model_family": "claude", "model_id": resolve_model("sol"),
                              "reasoning_effort": "high"}.items():
             with self.subTest(component=field):
                 binding = self.binding()
@@ -176,18 +191,13 @@ class R6ReviewerIndependenceTests(unittest.TestCase):
                 self.assertEqual(saved["peer_review_separation"], passed["peer_review_separation"])
                 self.assertEqual(saved["peer_review_reviewer"], passed["peer_review_reviewer"])
 
-    def test_r6_family_escalation_and_registration_are_driven_by_provider_registry(self):
-        def policy_change(document):
-            document["review_models"]["openai"]["gpt-6-astra"]["stronger_than"] = []
-        with current_policy("provider-registry", policy_change):
-            with self.assertRaisesRegex(CWOPolicyError, "stronger model"):
-                self.evaluate(self.binding())
-        def cross_family(document):
-            document["review_models"]["openai"]["gpt-6-astra"].update(model_family="EXAMPLE_SEPARATE_FAMILY", stronger_than=[])
-        with current_policy("provider-registry", cross_family):
-            binding = self.binding(review_changes={"model_family": "EXAMPLE_SEPARATE_FAMILY"})
-            self.assertEqual(self.evaluate(binding)["peer_review_separation"]["level"], "cross-family")
+    def test_r6_current_openai_roles_do_not_depend_on_the_historical_registry(self):
+        def remove_historical_openai(document):
+            document["review_models"].pop("openai")
+        with current_policy("provider-registry", remove_historical_openai):
+            self.assertEqual(self.evaluate(self.binding())["peer_review_separation"]["level"], "escalation")
         for changes in ({"model_id": "EXAMPLE_UNREGISTERED"}, {"model_family": "EXAMPLE_OTHER_FAMILY"},
+                        {"model_id": resolve_model("luna")},
                         {"executor": "EXAMPLE_UNREGISTERED"}, {"provider": "anthropic"}):
             with self.subTest(changes=changes):
                 binding = self.binding(review_changes=changes)

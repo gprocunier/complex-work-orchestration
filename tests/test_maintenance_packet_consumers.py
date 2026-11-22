@@ -7,6 +7,7 @@ import unittest
 from unittest import mock
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'scripts'))
 import prepare_native_worker as packet_module
+from cwo_core.model_identities import resolve_model
 from tests.historical_policy_fixtures import historical_v2_policy
 from tests.test_prepare_native_worker import set_disposition
 
@@ -51,7 +52,7 @@ class ActualReceiptCommitmentSelection(unittest.TestCase):
  def test_deterministic_luna_selects_live_receipt_builder(self):
   with tempfile.TemporaryDirectory() as workdir,mock.patch.object(packet_module,'build_policy_fit_commitment') as policy_builder,mock.patch.object(packet_module,'build_worker_commitment_from_receipt',side_effect=ValueError('actual-live-selector')) as live_builder:
    with self.assertRaisesRegex(SystemExit,'actual-live-selector'):
-    packet_module._build_native_worker_packet_unreserved(bead_id='live-selector',lane='implementation',workdir=workdir,allowed_paths=['.'],acceptance_checks=['check'],work_plan={'fit_mode':'deterministic'},precommit_receipt={'submission_id':'live-provider-turn','requested_model':'gpt-5.6-luna'})
+    packet_module._build_native_worker_packet_unreserved(bead_id='live-selector',lane='implementation',workdir=workdir,allowed_paths=['.'],acceptance_checks=['check'],work_plan={'fit_mode':'deterministic'},precommit_receipt={'submission_id':'live-provider-turn','requested_model':resolve_model('luna')})
    live_builder.assert_called_once();policy_builder.assert_not_called()
  def test_historical_zero_length_policy_receipt_retains_policy_builder(self):
   with tempfile.TemporaryDirectory() as workdir,mock.patch.object(packet_module,'build_policy_fit_commitment',side_effect=ValueError('actual-policy-selector')) as policy_builder,mock.patch.object(packet_module,'build_worker_commitment_from_receipt') as live_builder:

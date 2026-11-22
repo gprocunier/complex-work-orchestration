@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/model-roles:v1",
+  "title": "CWO Codex Model Role Configuration",
+  "description": "Exact identities and selection modes for Codex roles. Configured identity families, pin selection and reviewer ordering are checked by the role resolver.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "roles"],
+  "properties": {
+    "version": {"type": "integer", "const": 1},
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sol", "astra", "luna", "terra"],
+      "properties": {
+        "sol": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["current", "previous", "selection", "reviewer_rank"],
+          "properties": {
+            "current": {"type": "string", "minLength": 1},
+            "previous": {"type": ["string", "null"], "minLength": 1},
+            "selection": {"enum": ["explicit", "latest-in-family"]},
+            "pin": {"type": "string", "minLength": 1},
+            "reviewer_rank": {"type": "integer", "minimum": 1}
+          }
+        },
+        "astra": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["current", "previous", "selection", "reviewer_rank"],
+          "properties": {
+            "current": {"type": "string", "minLength": 1},
+            "previous": {"type": ["string", "null"], "minLength": 1},
+            "selection": {"enum": ["explicit", "latest-in-family"]},
+            "pin": {"type": "string", "minLength": 1},
+            "reviewer_rank": {"type": "integer", "minimum": 1}
+          }
+        },
+        "luna": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["current", "previous", "selection"],
+          "properties": {
+            "current": {"type": "string", "minLength": 1},
+            "previous": {"type": ["string", "null"], "minLength": 1},
+            "selection": {"enum": ["explicit", "latest-in-family"]},
+            "pin": {"type": "string", "minLength": 1}
+          }
+        },
+        "terra": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["current", "previous", "selection"],
+          "properties": {
+            "current": {"type": "string", "minLength": 1},
+            "previous": {"type": ["string", "null"], "minLength": 1},
+            "selection": {"enum": ["explicit", "latest-in-family"]},
+            "pin": {"type": "string", "minLength": 1}
+          }
+        }
+      }
+    }
+  }
+}

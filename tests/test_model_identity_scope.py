@@ -36,6 +36,10 @@ NATIVE = {
     "version": 1,
     "operative_routing": {"primary_model": SPARK},
     "task_selected_routing": {
+        "selection": {"approved_roles": ["luna", "terra"], "primary_role": "luna"},
+        "operative_roles": {"luna": "luna-first-operative-worker", "terra": "escalation-only-operative-worker"},
+    },
+    "historical_task_selected_routing_v3": {
         "selection": {"approved_portfolio": [LUNA, TERRA], "primary_model": LUNA},
         "operative_roles": {
             LUNA: "luna-first-operative-worker",
@@ -50,18 +54,15 @@ REGISTER = {
     "name": "model-identity-scope",
     "authority": "none",
     "scope": "test register",
-    "current_models": [LUNA, TERRA],
     "policy_locations": [
-        {"file": "native-worker-execution.yaml", "pointer": "/task_selected_routing", "class": "current",
-         "literals": {LUNA: 3, TERRA: 2}, "reason": "active v3"},
-        {"file": "native-worker-execution.yaml", "pointer": f"/task_selected_routing/operative_roles/{SPARK}",
-         "class": "historical", "literals": {SPARK: 1}, "reason": "historical-nonoperative"},
+        {"file": "native-worker-execution.yaml", "pointer": "/historical_task_selected_routing_v3", "class": "historical",
+         "literals": {LUNA: 3, TERRA: 2, SPARK: 1}, "reason": "historical v3"},
         {"file": "native-worker-execution.yaml", "pointer": "/operative_routing", "class": "historical",
          "literals": {SPARK: 1}, "reason": "v2"},
     ],
     "source_literals": [
         {"path": "scripts/legacy.py", "literal": SPARK, "count": 1, "class": "unadjudicated", "reason": "legacy"},
-        {"path": "scripts/current.py", "literal": LUNA, "count": 1, "class": "current", "reason": "current"},
+        {"path": "scripts/historical.py", "literal": LUNA, "count": 1, "class": "historical", "reason": "v3"},
     ],
 }
 
@@ -75,8 +76,9 @@ class LintUnitTests(unittest.TestCase):
         (self.root / "scripts").mkdir()
         self.native = copy.deepcopy(NATIVE)
         self.register = copy.deepcopy(REGISTER)
+        self.roles = json.loads((ROOT / "policy" / "model-roles.yaml").read_text(encoding="utf-8"))
         (self.root / "scripts" / "legacy.py").write_text(f'MODEL = "{SPARK}"\n', encoding="utf-8")
-        (self.root / "scripts" / "current.py").write_text(f'MODEL = "{LUNA}"\n', encoding="utf-8")
+        (self.root / "scripts" / "historical.py").write_text(f'MODEL = "{LUNA}"\n', encoding="utf-8")
         self.write()
 
     def tearDown(self) -> None:
@@ -85,6 +87,7 @@ class LintUnitTests(unittest.TestCase):
     def write(self) -> None:
         (self.root / "policy" / "native-worker-execution.yaml").write_text(json.dumps(self.native), encoding="utf-8")
         (self.root / "policy" / "model-identity-scope.yaml").write_text(json.dumps(self.register), encoding="utf-8")
+        (self.root / "policy" / "model-roles.yaml").write_text(json.dumps(self.roles), encoding="utf-8")
 
     def errors(self) -> list[str]:
         self.write()
@@ -95,6 +98,10 @@ class LintUnitTests(unittest.TestCase):
         self.assertTrue(any(fragment in error for error in errors), errors)
 
     def test_classified_tree_passes(self) -> None:
+        self.assertEqual(self.errors(), [])
+
+    def test_model_role_version_is_config_only(self) -> None:
+        self.roles["roles"]["luna"]["current"] = "gpt-9.9-luna"
         self.assertEqual(self.errors(), [])
 
     def test_new_runtime_literal_must_be_classified(self) -> None:
@@ -113,9 +120,9 @@ class LintUnitTests(unittest.TestCase):
         (self.root / "scripts" / "legacy.py").write_text("MODEL = None\n", encoding="utf-8")
         self.assert_error(f"scripts/legacy.py '{SPARK}': '{SPARK}' found 0 time(s), register pins 1")
 
-    def test_current_policy_location_cannot_name_a_historical_model(self) -> None:
+    def test_current_policy_location_cannot_name_an_exact_model(self) -> None:
         self.native["task_selected_routing"]["selection"]["fallback"] = SPARK
-        self.assert_error(f"current location names '{SPARK}', which is not a current model")
+        self.assert_error(f"unclassified model identity '{SPARK}'")
 
     def test_historical_policy_location_is_frozen(self) -> None:
         self.native["operative_routing"]["primary_model"] = LUNA
@@ -135,15 +142,16 @@ class LintUnitTests(unittest.TestCase):
         self.native["roles"] = {SPARK: "worker"}
         self.assert_error(f"#/roles/{SPARK}")
 
-    def test_current_set_must_agree_with_active_routing(self) -> None:
-        self.register["current_models"] = [LUNA, TERRA, SPARK]
-        self.assert_error(f"current_models lists '{SPARK}', which task_selected_routing marks historical-nonoperative")
-        self.register["current_models"] = [LUNA]
-        self.assert_error(f"current_models omits '{TERRA}'")
+    def test_exempt_model_role_policy_rejects_wrong_role_and_hidden_identities(self) -> None:
+        wrong_role = self.roles["roles"]["terra"]["current"]
+        for invalid in (wrong_role, SPARK, "gpt-reserve", "codex-auto-review"):
+            with self.subTest(invalid=invalid):
+                self.roles["roles"]["luna"]["current"] = invalid
+                self.assert_error("model-roles luna current must be an exact model in its family")
 
-    def test_current_source_entry_cannot_name_a_historical_model(self) -> None:
+    def test_current_source_entry_cannot_be_exempted(self) -> None:
         self.register["source_literals"][0]["class"] = "current"
-        self.assert_error(f"current location names '{SPARK}'")
+        self.assert_error("$.source_literals[0].class: must be one of")
 
     def test_nonoperative_entry_may_name_only_a_historical_nonoperative_model(self) -> None:
         # a current binding to a model the active v3 policy marks historical-nonoperative.
@@ -155,9 +163,9 @@ class LintUnitTests(unittest.TestCase):
         self.native["environments"]["glm"]["worker"]["model"] = LUNA
         self.register["policy_locations"][-1]["literals"] = {LUNA: 1}
         self.assert_error(
-            f"nonoperative location names '{LUNA}', which task_selected_routing does not mark historical-nonoperative")
+            f"nonoperative location names '{LUNA}', which archived v3 routing does not mark historical-nonoperative")
         self.register["source_literals"][1]["class"] = "nonoperative"
-        self.assert_error(f"scripts/current.py '{LUNA}': nonoperative location names '{LUNA}'")
+        self.assert_error(f"scripts/historical.py '{LUNA}': nonoperative location names '{LUNA}'")
 
     def test_register_is_schema_checked(self) -> None:
         self.register["source_literals"][0]["class"] = "currentish"
@@ -176,7 +184,7 @@ class LintUnitTests(unittest.TestCase):
         self.assert_error("names a source outside scripts/")
         self.register = copy.deepcopy(REGISTER)
         self.register["policy_locations"].append(
-            {"file": "model-identity-scope.yaml", "pointer": "", "class": "current", "literals": {LUNA: 1}, "reason": "x"}
+            {"file": "model-identity-scope.yaml", "pointer": "", "class": "historical", "literals": {LUNA: 1}, "reason": "x"}
         )
         self.assert_error("names a policy file that is not scanned")
 
@@ -277,12 +285,15 @@ class RepositoryValidatorCopyTests(unittest.TestCase):
 
     def test_current_policy_binding_to_a_historical_model_fails(self) -> None:
         def change(root: Path) -> None:
-            self.edit(root, "policy/execution-environments.yaml", '"model": "gpt-6.1-sol"', f'"model": "{SPARK}"')
+            path = root / "policy" / "execution-environments.yaml"
+            document = json.loads(path.read_text(encoding="utf-8"))
+            document["profiles"]["connected-codex"]["role_bindings"]["architect"]["model"] = SPARK
+            path.write_text(json.dumps(document), encoding="utf-8")
 
         result = self.run_validator(change)
         self.assertEqual(result.returncode, 1, result.stdout[-2000:])
         self.assertIn(
-            f"policy/execution-environments.yaml#/profiles/connected-codex/role_bindings: current location names '{SPARK}'",
+            f"unclassified model identity '{SPARK}' at policy/execution-environments.yaml#/profiles/connected-codex/role_bindings/architect/model",
             result.stderr,
         )
 

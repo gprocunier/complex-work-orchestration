@@ -1,8 +1,7 @@
 """The GLM-primary worker binding follows the general deprecated-model path.
 
 Operator decision 2026-10-22: Spark is deprecated, and the connected-codex-glm-primary
-worker binding (gpt-5.3-codex-spark) gets exactly the outcome the general path gives any
-model the active task_selected_routing v3 marks historical-nonoperative. No special case,
+worker binding (gpt-5.3-codex-spark) gets the current retirement outcome. No special case,
 no substitute model, no new authority. These tests drive real entry points
 (``render_harness_dispatch.main``, ``route_work.main``, ``coach_prompt``) with spies on
 their effect boundaries:
@@ -36,19 +35,20 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import render_harness_dispatch  # noqa: E402
 import route_work  # noqa: E402
-from cwo_core import audit, harness, operative_routing, policy  # noqa: E402
+from cwo_core import audit, harness, operative_routing, policy, policy_schema  # noqa: E402
 from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
 
 from tests.historical_policy_fixtures import historical_v2_policy  # noqa: E402
 
 GLM = "connected-codex-glm-primary"
 CONNECTED = "connected-codex"
 SPARK = "gpt-5.3-codex-spark"
-LUNA = "gpt-5.6-luna"
-CURRENT_MODELS = ("gpt-5.6-luna", "gpt-5.6-terra", "gpt-6.1-sol")
+LUNA = resolve_model("luna")
+CURRENT_MODELS = tuple(resolve_model(role) for role in ("luna", "terra", "sol"))
 GENERAL_OUTCOME = (
-    f"model {SPARK!r} is historical-nonoperative under task_selected_routing v3: historical records stay "
-    "readable, but it is nonoperative for v3 and has no new dispatch authority; no other model is substituted"
+    f"model {SPARK!r} is historical-nonoperative under task_selected_routing v4: historical records stay "
+    "readable and the model has no new dispatch authority"
 )
 # The two digests v2 and v3 route records bind for each environment, recorded on fa6f604.
 BASE_DIGESTS = {
@@ -115,8 +115,8 @@ class GeneralNonoperativeOutcomeTests(unittest.TestCase):
             with self.subTest(model=model):
                 self.assertIsNone(operative_routing.nonoperative_model_refusal(model))
 
-    def test_general_rule_follows_the_v3_policy_activation(self) -> None:
-        # The inactive (historical) policy gives the historical v2 behavior: no v3 refusal.
+    def test_general_rule_follows_the_current_policy_activation(self) -> None:
+        # The inactive policy preserves historical inspection.
         with historical_v2_policy():
             self.assertIsNone(operative_routing.nonoperative_model_refusal(SPARK))
         native = json.loads((ROOT / "policy" / "native-worker-execution.yaml").read_text(encoding="utf-8"))
@@ -127,9 +127,9 @@ class GeneralNonoperativeOutcomeTests(unittest.TestCase):
             (policy_dir / "native-worker-execution.yaml").write_text(json.dumps(native), encoding="utf-8")
             policy.clear_policy_cache()
             with mock.patch.object(policy, "POLICY_DIR", policy_dir):
-                with self.assertRaisesRegex(ValueError, "operative roles"):
+                with self.assertRaisesRegex(policy_schema.PolicySchemaError, "operative_roles"):
                     operative_routing.nonoperative_model_refusal(SPARK)
-                with self.assertRaisesRegex(SystemExit, "cannot check the task selected routing policy"):
+                with self.assertRaisesRegex(policy_schema.PolicySchemaError, "operative_roles"):
                     harness.build_harness_dispatch(task="t", dispatch_id="d", environment_key=GLM, role="worker")
 
 
@@ -201,17 +201,17 @@ class HarnessRenderTests(unittest.TestCase):
 
 
 class RouteAndCoachTests(unittest.TestCase):
-    """Operative selection never reads the binding: both environments get the same v3 outcome."""
+    """Operative selection has the same outcome in both environments."""
 
     def tearDown(self) -> None:
         policy.clear_policy_cache()
 
-    def test_route_work_gives_the_glm_primary_environment_the_general_v3_route(self) -> None:
+    def test_route_work_gives_the_glm_primary_environment_the_current_route(self) -> None:
         routes = {environment: run_route(environment) for environment in (CONNECTED, GLM)}
         operative = {environment: route["operative_route"] for environment, route in routes.items()}
         for environment, value in operative.items():
             with self.subTest(environment=environment):
-                self.assertEqual(value["version"], 3)
+                self.assertEqual(value["version"], 4)
                 self.assertIsNone(value["selected_model"])
                 self.assertFalse(value["dispatch_authorized"])
                 self.assertTrue(value["protected_stop"])
@@ -259,7 +259,7 @@ class RouteAndCoachTests(unittest.TestCase):
                 self.assertNotEqual(parallelism["spark_dispatch"]["requested_model"], SPARK)
                 operative = result["route"]["operative_route"]
                 self.assertEqual((operative["version"], operative["selected_model"], operative["dispatch_authorized"]),
-                                 (3, None, False))
+                                 (4, None, False))
                 self.assertNotIn(SPARK, json.dumps(operative))
 
 
@@ -271,7 +271,7 @@ class HistoricalIdentityTests(unittest.TestCase):
         for environment, (v2, v3) in BASE_DIGESTS.items():
             with self.subTest(environment=environment):
                 self.assertEqual(operative_routing.operative_policy_sha256(environment), v2)
-                self.assertEqual(operative_routing.task_selected_policy_sha256(environment), v3)
+                self.assertEqual(operative_routing.task_selected_policy_sha256(environment, version=3), v3)
 
     def test_the_recorded_binding_is_unchanged(self) -> None:
         environments = json.loads((ROOT / "policy" / "execution-environments.yaml").read_text(encoding="utf-8"))

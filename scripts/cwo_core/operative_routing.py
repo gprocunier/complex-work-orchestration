@@ -6,8 +6,11 @@ import json
 from copy import deepcopy
 from typing import Any, Mapping
 
-from .model_identities import GPT55_MODEL, LUNA_MODEL, SPARK_MODEL, TERRA_MODEL
-from .policy import RISK_ORDER, load_policy
+from .model_identities import (
+    GPT55_MODEL, LUNA_MODEL, OPERATIVE_ROLES, SPARK_MODEL, TERRA_MODEL,
+    model_family_role, operative_models,
+)
+from .policy import RISK_ORDER, load_policy, project_executor_model
 
 
 FALLBACK_MODELS = (GPT55_MODEL, TERRA_MODEL, LUNA_MODEL)
@@ -75,12 +78,16 @@ TASK_SELECTED_FIT_FIELDS = {
     "candidates",
     "fit_sha256",
 }
-TASK_SELECTED_PORTFOLIO = (LUNA_MODEL, TERRA_MODEL)
+_HISTORICAL_TASK_SELECTED_PORTFOLIO = (LUNA_MODEL, TERRA_MODEL)
 NONOPERATIVE_ROLE = "historical-nonoperative"
 TASK_SELECTED_ROLES = {
-    LUNA_MODEL: "luna-first-operative-worker",
-    TERRA_MODEL: "escalation-only-operative-worker",
+    "luna": "luna-first-operative-worker",
+    "terra": "escalation-only-operative-worker",
 }
+TASK_SELECTED_EXECUTORS = {role: f"internal_worker_{role}" for role in OPERATIVE_ROLES}
+TASK_SELECTED_VERSION = 4
+_TASK_SELECTED_ESCALATION_KINDS = {"fit", "risk", "economics"}
+_HISTORICAL_ESCALATION_KINDS = _TASK_SELECTED_ESCALATION_KINDS | {"qualification"}
 
 
 def _canonical_sha256(value: Any) -> str:
@@ -193,92 +200,81 @@ def operative_policy_sha256(execution_environment: str = "connected-codex") -> s
 
 
 def _task_selected_policy(
-    native: Mapping[str, Any],
+    native: Mapping[str, Any], *, version: int = TASK_SELECTED_VERSION,
 ) -> tuple[dict[str, Any], dict[str, str]]:
-    routing = native.get("task_selected_routing")
+    key = "task_selected_routing" if version == TASK_SELECTED_VERSION else "historical_task_selected_routing_v3"
+    routing = native.get(key)
     if not isinstance(routing, Mapping):
         raise ValueError("task selected routing policy must be an object")
     source = deepcopy(dict(routing))
+    historical = version == 3
+    history_key = "historical_v2" if historical else "historical_versions"
     if set(source) != {
-        "version",
-        "status",
-        "activation",
-        "selection",
-        "operative_roles",
-        "historical_v2",
-        "attempt_binding",
-        "bounded_semantic_readonly",
+        "version", "status", "activation", "selection", "operative_roles", history_key,
+        "attempt_binding", "bounded_semantic_readonly",
     }:
         raise ValueError("task selected routing policy fields are invalid")
-    if type(source.get("version")) is not int or source["version"] != 3:
-        raise ValueError("task selected routing policy version 3 is required")
-    if type(source.get("status")) is not str or source["status"] not in {
-        "inactive-prospective",
-        "active",
-    }:
+    if type(source.get("version")) is not int or source["version"] != version:
+        raise ValueError(f"task selected routing policy version {version} is required")
+    if source.get("status") not in ("inactive-prospective", "active"):
         raise ValueError("task selected routing policy status is invalid")
     activation = source.get("activation")
     if not isinstance(activation, Mapping) or set(activation) != {
-        "active",
-        "dispatch_authority",
-        "requires_complete_candidate_acceptance",
+        "active", "dispatch_authority", "requires_complete_candidate_acceptance",
     } or any(type(activation[key]) is not bool for key in activation):
         raise ValueError("task selected routing activation is invalid")
-    selection = source.get("selection")
-    if not isinstance(selection, Mapping) or set(selection) != {
-        "sizing",
-        "approved_portfolio",
-        "primary_model",
-        "terra_selection",
-        "spark_dispatch",
-        "gpt55_dispatch",
-        "model_substitution",
-    }:
-        raise ValueError("task selected routing selection must be an object")
-    portfolio = selection.get("approved_portfolio")
-    if type(portfolio) is not list or portfolio != list(TASK_SELECTED_PORTFOLIO):
-        raise ValueError("task selected routing approved portfolio must be Luna then Terra")
-    expected_selection = {
-        "sizing": "neutral-before-exact-model-selection",
-        "primary_model": LUNA_MODEL,
-        "terra_selection": "recorded-fit-qualification-risk-or-economics-escalation-only",
-        "spark_dispatch": "prohibited",
-        "gpt55_dispatch": "prohibited",
-        "model_substitution": "forbidden",
-    }
-    if any(selection.get(key) != value for key, value in expected_selection.items()):
-        raise ValueError("task selected routing selection values are invalid")
-    roles = source.get("operative_roles")
-    expected_roles = {
-        **TASK_SELECTED_ROLES,
-        SPARK_MODEL: NONOPERATIVE_ROLE,
-    }
-    if not isinstance(roles, Mapping) or dict(roles) != expected_roles:
-        raise ValueError("task selected routing operative roles must be an object")
-    selected_roles: dict[str, str] = {}
-    for model, expected_role in TASK_SELECTED_ROLES.items():
-        if type(roles.get(model)) is not str or roles[model] != expected_role:
-            raise ValueError(f"task selected routing role for {model} is invalid")
-        selected_roles[model] = roles[model]
-    historical = source.get("historical_v2")
-    if historical != {
-        "readable": True,
-        "nonoperative_for_v3": True,
-        "new_dispatch_authority": False,
-    }:
-        raise ValueError("task selected routing historical policy is invalid")
-    attempt = source.get("attempt_binding")
-    if attempt != {
+    _validate_task_selected_rules(source, historical, history_key)
+    _validate_bounded_semantic_readonly(source.get("bounded_semantic_readonly"))
+    return source, dict(source["operative_roles"])
+
+
+def _validate_task_selected_rules(source: Mapping[str, Any], historical: bool, history_key: str) -> None:
+    attempt = {
         "exact_identity_required": True,
-        "qualification_required": True,
         "provenance_required": True,
         "scope_required": True,
         "budget_required": True,
         "stopped_session_reuse": "forbidden",
         "session_substitution": "forbidden",
-    }:
+    }
+    selection = {
+        "sizing": "neutral-before-exact-model-selection",
+        "model_substitution": "forbidden",
+    }
+    if historical:
+        selection.update(
+            approved_portfolio=list(_HISTORICAL_TASK_SELECTED_PORTFOLIO),
+            primary_model=LUNA_MODEL,
+            terra_selection="recorded-fit-qualification-risk-or-economics-escalation-only",
+            spark_dispatch="prohibited", gpt55_dispatch="prohibited",
+        )
+        roles = {
+            LUNA_MODEL: TASK_SELECTED_ROLES["luna"],
+            TERRA_MODEL: TASK_SELECTED_ROLES["terra"],
+            SPARK_MODEL: NONOPERATIVE_ROLE,
+        }
+        history = {"readable": True, "nonoperative_for_v3": True, "new_dispatch_authority": False}
+        attempt["qualification_required"] = True
+    else:
+        selection.update(
+            approved_roles=list(OPERATIVE_ROLES), primary_role="luna",
+            terra_selection="recorded-fit-risk-or-economics-escalation-only",
+        )
+        roles = TASK_SELECTED_ROLES
+        history = [2, 3]
+    if source.get("selection") != selection:
+        raise ValueError("task selected routing selection values are invalid")
+    if source.get("operative_roles") != roles:
+        raise ValueError("task selected routing operative roles are invalid")
+    if source.get(history_key) != history:
+        raise ValueError("task selected routing historical policy is invalid")
+    if source.get("attempt_binding") != attempt or any(
+        type(source["attempt_binding"][key]) is not bool for key, value in attempt.items() if type(value) is bool
+    ):
         raise ValueError("task selected routing attempt binding is invalid")
-    readonly = source.get("bounded_semantic_readonly")
+
+
+def _validate_bounded_semantic_readonly(readonly: Any) -> None:
     readonly_limits = {
         "max_context_reads", "max_tool_calls_p90", "max_runtime_seconds_p90",
         "command_complexity_max", "test_construction_complexity_max",
@@ -296,55 +292,44 @@ def _task_selected_policy(
         minimum = 1 if field.startswith("max_") else 0
         if type(readonly.get(field)) is not int or readonly[field] < minimum:
             raise ValueError("task selected bounded semantic readonly policy limit is invalid")
-    return source, selected_roles
 
 
-def task_selected_policy_sha256(execution_environment: str = "connected-codex") -> str:
+def _task_selected_portfolio(version: int) -> tuple[str, str]:
+    return _HISTORICAL_TASK_SELECTED_PORTFOLIO if version == 3 else operative_models()
+
+
+def task_selected_policy_sha256(
+    execution_environment: str = "connected-codex", *, version: int = TASK_SELECTED_VERSION,
+) -> str:
     native, _, registry, environments = _policy_bundle()
-    routing, _ = _task_selected_policy(native)
+    routing, _ = _task_selected_policy(native, version=version)
     _, _, approved = _environment_contract(execution_environment, environments)
     portfolio_executors = {
         key: _mapping(registry.get(key))
         for key in approved
-        if _string(_mapping(registry.get(key)).get("model_label")) in TASK_SELECTED_PORTFOLIO
+        if (key in TASK_SELECTED_EXECUTORS.values() if version == TASK_SELECTED_VERSION else
+            _string(_mapping(registry.get(key)).get("model_label")) in _HISTORICAL_TASK_SELECTED_PORTFOLIO)
     }
-    return _canonical_sha256(
-        {
-            "task_selected_routing": routing,
-            "environment": _mapping(
-                _mapping(environments.get(execution_environment)).get("operative_routing")
-            ),
-            "executors": portfolio_executors,
-        }
-    )
+    projection = {
+        "task_selected_routing": routing,
+        "environment": _mapping(_mapping(environments.get(execution_environment)).get("operative_routing")),
+        "executors": portfolio_executors,
+    }
+    if version == TASK_SELECTED_VERSION:
+        projection["model_roles"] = dict(zip(OPERATIVE_ROLES, _task_selected_portfolio(version)))
+    return _canonical_sha256(projection)
 
 
 def nonoperative_model_refusal(model: Any) -> str | None:
-    """The general v3 outcome for an exact model the task-selected policy marks historical-nonoperative.
-
-    This is the same rule the operative route applies to every model outside
-    the approved portfolio, stated for a consumer that resolves an exact model
-    by itself (an environment role binding or an explicit model argument)
-    instead of through ``resolve_operative_route``. While the v3 policy is
-    active (the condition under which ``validate_operative_route_for_model``
-    refuses historical v2 routes), a model whose operative role is
-    ``historical-nonoperative`` is nonoperative for v3 and has no new dispatch
-    authority. The refusal names no replacement: no other model is substituted.
-    Every other model, and every model while the policy is inactive, gets None.
-    The comparison ignores case and surrounding whitespace, so a respelling of
-    the identity is refused as well. Canonical shape errors raise ``PolicySchemaError(SystemExit)`` before typed ``ValueError``
-    from ``_task_selected_policy``.
-    """
-    if not isinstance(model, str) or not model.strip():
+    """Refuse the retired Spark identity when the current role policy is active."""
+    if not isinstance(model, str) or model.strip().lower() != SPARK_MODEL:
         return None
     routing, _ = _task_selected_policy(load_policy("native-worker-execution"))
-    roles = {str(key).lower(): role for key, role in routing["operative_roles"].items()}
-    if routing["status"] != "active" or roles.get(model.strip().lower()) != NONOPERATIVE_ROLE:
+    if routing["status"] != "active":
         return None
     return (
         f"model {model!r} is {NONOPERATIVE_ROLE} under task_selected_routing v{routing['version']}: "
-        "historical records stay readable, but it is nonoperative for v3 and has no new dispatch "
-        "authority; no other model is substituted"
+        "historical records stay readable and the model has no new dispatch authority"
     )
 
 
@@ -621,6 +606,12 @@ def _model_record(evidence: Mapping[str, Any], executor: str, model: str) -> dic
         if _string(record.get("executor")) == executor and _string(record.get("model")) == model:
             return record
     return {}
+
+
+def _exact_model_record(evidence: Mapping[str, Any], executor: str, model: str) -> dict[str, Any]:
+    matches = [record for record in _live_model_records(evidence)
+               if record.get("executor") == executor and record.get("model") == model]
+    return matches[0] if len(matches) == 1 else {}
 
 
 def _domain_independent(
@@ -1029,6 +1020,8 @@ def _task_selected_candidate_fit(
     executor_key: str,
     executor: Mapping[str, Any],
     model: str,
+    role: str,
+    version: int,
     base_rank: int,
     evidence: Mapping[str, Any],
     work_estimate: Mapping[str, Any],
@@ -1039,8 +1032,9 @@ def _task_selected_candidate_fit(
     risk_level: str,
     data_sensitivity: str,
 ) -> dict[str, Any]:
-    """Build inert candidate evidence for the v3 Luna/Terra portfolio only."""
-    record = _model_record(evidence, executor_key, model)
+    """Build inert fit evidence for an exact model under its operative role."""
+    find_record = _exact_model_record if version == TASK_SELECTED_VERSION else _model_record
+    record = find_record(evidence, executor_key, model)
     exclusions: list[str] = []
     trusted_sources = set(_string_list(policy.get("trusted_evidence_sources")))
     record_source = _string(record.get("source")) or _string(evidence.get("source"))
@@ -1105,13 +1099,15 @@ def _task_selected_candidate_fit(
         exclusions.append("model-headroom-insufficient")
     if not aggregate_budget_sufficient:
         exclusions.append("aggregate-budget-insufficient")
-    if model == LUNA_MODEL and classifications.get("luna_fit") is not True:
+    is_luna = role == "luna"
+    luna_fit = classifications.get("luna_fit") is True
+    if is_luna and not luna_fit:
         exclusions.append("luna-fit-required")
 
     eligible = not exclusions
-    task_fit = "preferred" if model == LUNA_MODEL and classifications.get("luna_fit") is True else "compatible"
-    if model == LUNA_MODEL and classifications.get("luna_fit") is not True:
-        task_fit = "ineligible"
+    task_fit = "compatible"
+    if is_luna:
+        task_fit = "preferred" if luna_fit else "ineligible"
     inclusions = []
     if eligible:
         inclusions = [
@@ -1119,16 +1115,16 @@ def _task_selected_candidate_fit(
             "operative-controls-valid",
             "executor-risk-and-sensitivity-eligible",
             "headroom-and-aggregate-budget-sufficient",
-            "luna-fit-work" if model == LUNA_MODEL else "terra-escalation-portfolio-member",
+            "luna-fit-work" if is_luna else "terra-escalation-portfolio-member",
         ]
         if maintenance:
             inclusions.append("fresh-context-window-covers-estimate")
-        if model == LUNA_MODEL and classifications.get("bounded_semantic_readonly") is True:
+        if is_luna and classifications.get("bounded_semantic_readonly") is True:
             inclusions.append("bounded-semantic-readonly-fit")
     return {
         "executor": executor_key,
         "model": model,
-        "display_name": _string(executor.get("display_name")) or executor_key,
+        "display_name": _task_selected_display_name(executor_key, executor, version),
         "policy_rank": base_rank,
         "rank": base_rank,
         "task_fit": task_fit,
@@ -1153,6 +1149,11 @@ def _task_selected_candidate_fit(
     }
 
 
+def _task_selected_display_name(executor_key: str, executor: Mapping[str, Any], version: int) -> str:
+    value = project_executor_model(executor_key, dict(executor)) if version == TASK_SELECTED_VERSION else executor
+    return _string(value.get("display_name")) or executor_key
+
+
 def build_task_selected_fit(
     *,
     work_estimate: Mapping[str, Any],
@@ -1164,10 +1165,11 @@ def build_task_selected_fit(
     risk_level: str = "medium",
     data_sensitivity: str = "internal",
     evaluated_at: str | None = None,
+    version: int = TASK_SELECTED_VERSION,
 ) -> dict[str, Any]:
-    """Construct sealed, non-authorizing v3 task-selected fit evidence."""
+    """Construct sealed, non-authorizing task-selected fit evidence."""
     native, policy, registry, environments = _policy_bundle()
-    task_policy, _ = _task_selected_policy(native)
+    task_policy, _ = _task_selected_policy(native, version=version)
     if policy.get("version") != 2:
         raise ValueError("operative routing policy version 2 is required")
     estimate, estimate_sha = _validated_work_estimate(work_estimate)
@@ -1191,18 +1193,18 @@ def build_task_selected_fit(
     except (TypeError, ValueError) as exc:
         raise ValueError(f"invalid neutral work estimate: {exc}") from exc
     neutral_sha = canonical_work_estimate_sha256(neutral)
-    policy_sha = task_selected_policy_sha256(execution_environment)
+    policy_sha = task_selected_policy_sha256(execution_environment, version=version)
     classifications = _classify_task_selected_fit(estimate, cache, policy, task_policy, evaluated)
     _, _, approved_executors = _environment_contract(execution_environment, environments)
-    executor_by_model = {
-        _string(_mapping(registry.get(key)).get("model_label")): key
-        for key in approved_executors
-    }
+    role_models = _task_selected_portfolio(version)
+    executor_by_role = _task_selected_executor_map(version, approved_executors, registry)
     candidates = [
         _task_selected_candidate_fit(
-            executor_key=executor_by_model.get(model, ""),
-            executor=_mapping(registry.get(executor_by_model.get(model, ""))),
+            executor_key=executor_by_role.get(role, ""),
+            executor=_mapping(registry.get(executor_by_role.get(role, ""))),
             model=model,
+            role=role,
+            version=version,
             base_rank=rank,
             evidence=evidence,
             work_estimate=estimate,
@@ -1213,11 +1215,11 @@ def build_task_selected_fit(
             risk_level=risk_level,
             data_sensitivity=data_sensitivity,
         )
-        for rank, model in enumerate(TASK_SELECTED_PORTFOLIO, start=1)
+        for rank, (role, model) in enumerate(zip(OPERATIVE_ROLES, role_models), start=1)
     ]
     fit: dict[str, Any] = {
         "fit_type": "cwo-task-selected-fit",
-        "version": 3,
+        "version": version,
         "binding_rule_version": 1,
         "evaluated_at": evaluated,
         "work_estimate_sha256": estimate_sha,
@@ -1233,6 +1235,14 @@ def build_task_selected_fit(
     }
     fit["fit_sha256"] = _canonical_sha256(fit)
     return fit
+
+
+def _task_selected_executor_map(version: int, approved: list[str], registry: Mapping[str, Any]) -> dict[str, str]:
+    if version == TASK_SELECTED_VERSION:
+        return {role: key for role, key in TASK_SELECTED_EXECUTORS.items() if key in approved}
+    executor_by_model = {_string(_mapping(registry.get(key)).get("model_label")): key for key in approved}
+    return {role: executor_by_model.get(model, "")
+            for role, model in zip(OPERATIVE_ROLES, _HISTORICAL_TASK_SELECTED_PORTFOLIO)}
 
 
 def validate_task_selected_fit(
@@ -1257,7 +1267,8 @@ def validate_task_selected_fit(
             return [f"task selected fit evidence fields are invalid; missing={missing}; unknown={extras}"]
         if source.get("fit_type") != "cwo-task-selected-fit":
             return ["task selected fit evidence type is invalid"]
-        if type(source.get("version")) is not int or source["version"] != 3:
+        version = source.get("version")
+        if type(version) is not int or version not in (3, TASK_SELECTED_VERSION):
             return ["task selected fit evidence version is invalid"]
         if type(source.get("binding_rule_version")) is not int or source["binding_rule_version"] != 1:
             return ["task selected fit evidence binding rule version is invalid"]
@@ -1271,7 +1282,7 @@ def validate_task_selected_fit(
             "fit_sha256",
         ):
             _sha256(source.get(field), field)
-        if type(source.get("policy_version")) is not int or source["policy_version"] != 3:
+        if type(source.get("policy_version")) is not int or source["policy_version"] != version:
             return ["task selected fit policy version is invalid"]
         expected = build_task_selected_fit(
             work_estimate=work_estimate,
@@ -1283,6 +1294,7 @@ def validate_task_selected_fit(
             risk_level=risk_level,
             data_sensitivity=data_sensitivity,
             evaluated_at=_string(source.get("evaluated_at")),
+            version=version,
         )
         if _canonical_sha256(source) != _canonical_sha256(expected):
             return ["task selected fit evidence does not match deterministic evaluation"]
@@ -1346,7 +1358,14 @@ def _route_shape_time(value: Any, field: str, errors: list[str]) -> dt.datetime 
         return None
 
 
-def _validate_task_selected_route_fit_shape(value: Any, errors: list[str]) -> None:
+def _shape_model_role(model: Any, version: int) -> str | None:
+    if version == 3 and model not in _HISTORICAL_TASK_SELECTED_PORTFOLIO:
+        return None
+    role = model_family_role(model)
+    return role if role in OPERATIVE_ROLES else None
+
+
+def _validate_task_selected_route_fit_shape(value: Any, version: int, errors: list[str]) -> None:
     if not isinstance(value, Mapping):
         errors.append("fit_evidence must be an object")
         return
@@ -1355,9 +1374,9 @@ def _validate_task_selected_route_fit_shape(value: Any, errors: list[str]) -> No
         errors.append("fit_evidence fields are invalid")
         return
     _route_shape_error(errors, fit.get("fit_type") == "cwo-task-selected-fit", "fit_evidence type is invalid")
-    _route_shape_error(errors, type(fit.get("version")) is int and fit["version"] == 3, "fit_evidence version is invalid")
+    _route_shape_error(errors, type(fit.get("version")) is int and fit["version"] == version, "fit_evidence version is invalid")
     _route_shape_error(errors, type(fit.get("binding_rule_version")) is int and fit["binding_rule_version"] == 1, "fit_evidence binding rule version is invalid")
-    _route_shape_error(errors, type(fit.get("policy_version")) is int and fit["policy_version"] == 3, "fit_evidence policy version is invalid")
+    _route_shape_error(errors, type(fit.get("policy_version")) is int and fit["policy_version"] == version, "fit_evidence policy version is invalid")
     _route_shape_time(fit.get("evaluated_at"), "fit_evidence evaluated_at", errors)
     for field in (
         "work_estimate_sha256",
@@ -1383,15 +1402,65 @@ def _validate_task_selected_route_fit_shape(value: Any, errors: list[str]) -> No
     }
     if type(candidates) is list:
         for candidate in candidates:
-            _route_shape_error(errors, isinstance(candidate, Mapping) and set(candidate) == candidate_fields, "fit_evidence candidate is invalid")
+            if not isinstance(candidate, Mapping) or set(candidate) != candidate_fields:
+                errors.append("fit_evidence candidate is invalid")
+                continue
+            role = _shape_model_role(candidate.get("model"), version)
+            _route_shape_error(errors, role is not None and candidate.get("executor") == TASK_SELECTED_EXECUTORS[role],
+                               "fit_evidence candidate model or executor is invalid")
+
+
+def _validate_route_qualification(route: Mapping[str, Any], version: int, errors: list[str]) -> None:
+    qualification = route.get("qualification")
+    if qualification is None:
+        return
+    if not isinstance(qualification, Mapping) or set(qualification) != _CURRENT_AUTHORITY_QUALIFICATION_FIELDS:
+        errors.append("qualification fields are invalid")
+        return
+    issued = _route_shape_time(qualification.get("origin_issued_at"), "qualification origin_issued_at", errors)
+    expires = _route_shape_time(qualification.get("origin_expires_at"), "qualification origin_expires_at", errors)
+    if issued is not None and expires is not None and expires <= issued:
+        errors.append("qualification expiry must follow issuance")
+    _route_shape_error(errors, _shape_model_role(qualification.get("model"), version) is not None,
+                       "qualification model is invalid")
+    for field in set(qualification) - {"model", "origin_issued_at", "origin_expires_at"}:
+        _route_shape_sha256(qualification.get(field), f"qualification {field}", errors)
+
+
+def _validate_authorized_route_shape(route: Mapping[str, Any], version: int, errors: list[str]) -> None:
+    _route_shape_error(errors, route.get("protected_stop") is False, "authorized route must not be protected_stop")
+    _route_shape_error(errors, route.get("stop_reason") is None, "authorized route stop_reason must be null")
+    _route_shape_error(errors, route.get("policy_active") is True, "authorized route policy must be active")
+    role = _shape_model_role(route.get("selected_model"), version)
+    _route_shape_error(errors, role is not None, "authorized route model is invalid")
+    _route_shape_error(errors, route.get("selected_executor") == TASK_SELECTED_EXECUTORS.get(role),
+                       "authorized route executor does not match model")
+    _route_shape_error(errors, route.get("role") == TASK_SELECTED_ROLES.get(role),
+                       "authorized route role does not match model")
+    _route_shape_error(errors, route.get("reasoning_effort") == "high", "authorized route reasoning_effort is invalid")
+    required = {"work_estimate_sha256", "neutral_work_estimate_sha256", "fit_evidence", "fit_sha256",
+                "capability_evidence_sha256", "provenance", "attempt"}
+    if version == TASK_SELECTED_VERSION:
+        required.add("identity")
+    qualification = route.get("qualification")
+    if version == 3 or _mapping(route.get("aggregate_budget")).get("mode") == "maintenance-unbounded":
+        required.add("qualification")
+    else:
+        _route_shape_error(errors, qualification is None, "ordinary route qualification must be null")
+    for field in sorted(required):
+        _route_shape_error(errors, route.get(field) is not None, f"authorized route requires {field}")
+    if isinstance(qualification, Mapping):
+        _route_shape_error(errors, qualification.get("model") == route.get("selected_model"),
+                           "qualification model does not match selected_model")
+    if isinstance(route.get("attempt"), Mapping):
+        _route_shape_error(errors, route["attempt"].get("fresh_segment") is True,
+                           "authorized route requires a fresh attempt")
 
 
 def validate_task_selected_route_shape(value: Any) -> list[str]:
-    """Validate the closed v3 route representation without authorizing dispatch.
+    """Read closed v3 and v4 exact evidence without authorizing dispatch.
 
-    This deliberately checks only serialized shape and internal consistency.
-    Current qualification, policy activation, and live dispatch authority belong
-    to the later selector and must not be inferred from this result.
+    Current role membership and live dispatch authority are evaluated separately.
     """
     if not isinstance(value, Mapping):
         return ["task selected route must be an object"]
@@ -1401,17 +1470,20 @@ def validate_task_selected_route_shape(value: Any) -> list[str]:
         return ["task selected route cannot be copied"]
 
     errors: list[str] = []
-    if set(route) != _TASK_SELECTED_ROUTE_FIELDS:
-        missing = sorted(_TASK_SELECTED_ROUTE_FIELDS - set(route))
-        extras = sorted(set(route) - _TASK_SELECTED_ROUTE_FIELDS)
+    version = route.get("version")
+    if type(version) is not int or version not in (3, TASK_SELECTED_VERSION):
+        return ["version is invalid"]
+    fields = _TASK_SELECTED_ROUTE_FIELDS | ({"identity"} if version == TASK_SELECTED_VERSION else set())
+    if set(route) != fields:
+        missing = sorted(fields - set(route))
+        extras = sorted(set(route) - fields)
         return [f"task selected route fields are invalid; missing={missing}; unknown={extras}"]
     _route_shape_error(errors, route.get("route_type") == "cwo-operative-route", "route_type is invalid")
-    _route_shape_error(errors, type(route.get("version")) is int and route["version"] == 3, "version is invalid")
     _route_shape_error(errors, isinstance(route.get("execution_environment"), str) and bool(route["execution_environment"].strip()), "execution_environment is invalid")
     _route_shape_error(errors, type(route.get("risk_level")) is str and route["risk_level"] in RISK_ORDER, "risk_level is invalid")
     _route_shape_error(errors, type(route.get("data_sensitivity")) is str and route["data_sensitivity"] in DATA_SENSITIVITY_ORDER, "data_sensitivity is invalid")
     _route_shape_time(route.get("evaluated_at"), "evaluated_at", errors)
-    for field, expected in (("portfolio_version", 3), ("selector_version", 1), ("binding_rule_version", 1)):
+    for field, expected in (("portfolio_version", version), ("selector_version", 1), ("binding_rule_version", 1)):
         _route_shape_error(errors, type(route.get(field)) is int and route[field] == expected, f"{field} is invalid")
     for field in ("dispatch_authorized", "protected_stop", "policy_active"):
         _route_shape_error(errors, type(route.get(field)) is bool, f"{field} must be a boolean")
@@ -1425,34 +1497,19 @@ def validate_task_selected_route_shape(value: Any) -> list[str]:
         _route_shape_error(errors, item is None or (type(item) is str and bool(item.strip())), f"{field} is invalid")
     _route_shape_error(errors, type(route.get("selection_reason")) is str and bool(route["selection_reason"].strip()), "selection_reason is invalid")
     selected_model = route.get("selected_model")
-    _route_shape_error(errors, selected_model is None or (type(selected_model) is str and selected_model in TASK_SELECTED_PORTFOLIO), "selected_model is invalid")
-
-    qualification = route.get("qualification")
-    qualification_times: tuple[dt.datetime | None, dt.datetime | None] = (None, None)
-    if qualification is not None:
-        if not isinstance(qualification, Mapping) or set(qualification) != {
-            "model", "receipt_sha256", "canary_sha256", "origin_issued_at", "origin_expires_at",
-            "tool_profile_sha256", "control_image_sha256", "host_provenance_sha256",
-            "command_sha256", "execution_sha256", "runner_sha256",
-        }:
-            errors.append("qualification fields are invalid")
-        else:
-            qualification_times = (
-                _route_shape_time(qualification.get("origin_issued_at"), "qualification origin_issued_at", errors),
-                _route_shape_time(qualification.get("origin_expires_at"), "qualification origin_expires_at", errors),
-            )
-            _route_shape_error(errors, qualification.get("model") in TASK_SELECTED_PORTFOLIO and type(qualification.get("model")) is str, "qualification model is invalid")
-            for field in set(qualification) - {"model", "origin_issued_at", "origin_expires_at"}:
-                _route_shape_sha256(qualification.get(field), f"qualification {field}", errors)
+    _route_shape_error(errors, selected_model is None or _shape_model_role(selected_model, version) is not None,
+                       "selected_model is invalid")
+    _validate_route_qualification(route, version, errors)
     for group, fields in (
-        ("provenance", {"source_sha256", "context_sha256", "scope_sha256", "candidate_sha256"}),
-        ("attempt", {"attempt_id", "bead_id", "work_lineage_id", "ownership_sha256", "fresh_segment"}),
+        ("provenance", _CURRENT_AUTHORITY_PROVENANCE_FIELDS),
+        ("attempt", _CURRENT_AUTHORITY_ATTEMPT_FIELDS),
+        ("identity", _CURRENT_AUTHORITY_IDENTITY_FIELDS),
     ):
         item = route.get(group)
         if item is not None:
             if not isinstance(item, Mapping) or set(item) != fields:
                 errors.append(f"{group} fields are invalid")
-            elif group == "provenance":
+            elif group != "attempt":
                 for field in fields:
                     _route_shape_sha256(item.get(field), f"{group} {field}", errors)
             else:
@@ -1485,7 +1542,7 @@ def validate_task_selected_route_shape(value: Any) -> list[str]:
                 errors.append("candidate_exclusions item is invalid")
                 continue
             model = item.get("model")
-            if type(model) is not str or model not in TASK_SELECTED_PORTFOLIO or model in seen_models:
+            if _shape_model_role(model, version) is None or model in seen_models:
                 errors.append("candidate_exclusions model is invalid")
             if type(model) is str:
                 seen_models.add(model)
@@ -1495,35 +1552,14 @@ def validate_task_selected_route_shape(value: Any) -> list[str]:
 
     fit = route.get("fit_evidence")
     if fit is not None:
-        _validate_task_selected_route_fit_shape(fit, errors)
-    issued, expires = qualification_times
-    if issued is not None and expires is not None and expires <= issued:
-        errors.append("qualification expiry must follow issuance")
+        _validate_task_selected_route_fit_shape(fit, version, errors)
 
-    authorized = route.get("dispatch_authorized") is True
-    blocked = route.get("dispatch_authorized") is False
-    if authorized:
-        _route_shape_error(errors, route.get("protected_stop") is False, "authorized route must not be protected_stop")
-        _route_shape_error(errors, route.get("stop_reason") is None, "authorized route stop_reason must be null")
-        _route_shape_error(errors, route.get("policy_active") is True, "authorized route policy must be active")
-        aliases = {LUNA_MODEL: "internal_worker_luna", TERRA_MODEL: "internal_worker_terra"}
-        model = route.get("selected_model")
-        expected_executor = aliases.get(model) if type(model) is str else None
-        expected_role = TASK_SELECTED_ROLES.get(model) if type(model) is str else None
-        _route_shape_error(errors, expected_executor is not None, "authorized route model is invalid")
-        _route_shape_error(errors, route.get("selected_executor") == expected_executor, "authorized route executor does not match model")
-        _route_shape_error(errors, route.get("role") == expected_role, "authorized route role does not match model")
-        _route_shape_error(errors, route.get("reasoning_effort") == "high", "authorized route reasoning_effort is invalid")
-        for field in ("work_estimate_sha256", "neutral_work_estimate_sha256", "fit_evidence", "fit_sha256", "capability_evidence_sha256", "qualification", "provenance", "attempt"):
-            _route_shape_error(errors, route.get(field) is not None, f"authorized route requires {field}")
-        if isinstance(qualification, Mapping):
-            _route_shape_error(errors, qualification.get("model") == route.get("selected_model"), "qualification model does not match selected_model")
-        if isinstance(route.get("attempt"), Mapping):
-            _route_shape_error(errors, route["attempt"].get("fresh_segment") is True, "authorized route requires a fresh attempt")
-    elif blocked:
+    if route.get("dispatch_authorized") is True:
+        _validate_authorized_route_shape(route, version, errors)
+    elif route.get("dispatch_authorized") is False:
         _route_shape_error(errors, route.get("protected_stop") is True, "blocked route must be protected_stop")
         _route_shape_error(errors, type(route.get("stop_reason")) is str and bool(route["stop_reason"].strip()), "blocked route requires stop_reason")
-        for field in ("selected_model", "selected_executor", "role", "reasoning_effort"):
+        for field in ("selected_model", "selected_executor", "role", "reasoning_effort", "identity"):
             _route_shape_error(errors, route.get(field) is None, f"blocked route {field} must be null")
     else:
         errors.append("dispatch_authorized must be a boolean")
@@ -1682,7 +1718,7 @@ def _recommendation(candidates: list[dict[str, Any]]) -> tuple[str | None, str |
 
 _CURRENT_AUTHORITY_FIELDS = {
     "version", "fit_inputs", "provenance", "attempt", "attempt_state",
-    "bound_model", "identity", "qualifications", "escalation",
+    "bound_model", "identity", "escalation",
 }
 _CURRENT_AUTHORITY_FIT_INPUT_FIELDS = {
     "work_estimate", "cache_profile", "capability_evidence", "context",
@@ -1775,7 +1811,10 @@ def _normalize_current_authority(value: Any) -> dict[str, Any]:
     every nested type before any membership, time, or hash operation so a
     malformed controller claim cannot become usable authority by coercion.
     """
-    source = _exact_mapping(value, _CURRENT_AUTHORITY_FIELDS, "current authority")
+    if not isinstance(value, Mapping):
+        raise ValueError("current authority must be an object")
+    fields = _CURRENT_AUTHORITY_FIELDS | ({"qualifications"} if "qualifications" in value else set())
+    source = _exact_mapping(value, fields, "current authority")
     if type(source.get("version")) is not int or source["version"] != 1:
         raise ValueError("current authority version is invalid")
     fit_inputs = _exact_mapping(
@@ -1800,17 +1839,22 @@ def _normalize_current_authority(value: Any) -> dict[str, Any]:
     if type(source.get("attempt_state")) is not str or source["attempt_state"] not in {"ready", "stopped"}:
         raise ValueError("current authority attempt_state is invalid")
     bound_model = source.get("bound_model")
-    if bound_model is not None and (type(bound_model) is not str or bound_model not in TASK_SELECTED_PORTFOLIO):
+    if bound_model is not None and (type(bound_model) is not str or bound_model not in operative_models()):
         raise ValueError("current authority bound_model is invalid")
     identity = _exact_mapping(source.get("identity"), _CURRENT_AUTHORITY_IDENTITY_FIELDS, "current authority identity")
     for field in _CURRENT_AUTHORITY_IDENTITY_FIELDS:
         _sha256(identity.get(field), f"current authority identity {field}")
-    qualifications = source.get("qualifications")
-    if not isinstance(qualifications, Mapping) or set(qualifications) != set(TASK_SELECTED_PORTFOLIO):
+    if "qualifications" in source:
+        _validate_authority_qualifications(source["qualifications"])
+    _validate_authority_escalation(source.get("escalation"), attempt["attempt_id"])
+    return source
+
+
+def _validate_authority_qualifications(qualifications: Any) -> None:
+    portfolio = operative_models()
+    if not isinstance(qualifications, Mapping) or set(qualifications) != set(portfolio):
         raise ValueError("current authority qualifications are invalid")
-    for model in TASK_SELECTED_PORTFOLIO:
-        # An unqualified portfolio alternative is recorded honestly as absent.
-        # Selection still requires an exact, current qualification below.
+    for model in portfolio:
         if qualifications.get(model) is None:
             continue
         qualification = _exact_mapping(
@@ -1823,16 +1867,17 @@ def _normalize_current_authority(value: Any) -> dict[str, Any]:
         _parse_time(qualification.get("origin_expires_at"), "current authority qualification origin_expires_at")
         for field in _CURRENT_AUTHORITY_QUALIFICATION_FIELDS - {"model", "origin_issued_at", "origin_expires_at"}:
             _sha256(qualification.get(field), f"current authority qualification {field}")
-    escalation = source.get("escalation")
+
+
+def _validate_authority_escalation(escalation: Any, attempt_id: str) -> None:
     if escalation is not None:
         escalation = _exact_mapping(escalation, _CURRENT_AUTHORITY_ESCALATION_FIELDS, "current authority escalation")
-        if type(escalation.get("kind")) is not str or escalation["kind"] not in {"fit", "qualification", "risk", "economics"}:
+        if type(escalation.get("kind")) is not str or escalation["kind"] not in _HISTORICAL_ESCALATION_KINDS:
             raise ValueError("current authority escalation kind is invalid")
-        if not _string(escalation.get("reason")) or escalation.get("attempt_id") != attempt["attempt_id"]:
+        if not _string(escalation.get("reason")) or escalation.get("attempt_id") != attempt_id:
             raise ValueError("current authority escalation is invalid")
         _sha256(escalation.get("evidence_sha256"), "current authority escalation evidence_sha256")
         _sha256(escalation.get("fit_sha256"), "current authority escalation fit_sha256")
-    return source
 
 
 def _blocked_task_selected_route(
@@ -1847,7 +1892,7 @@ def _blocked_task_selected_route(
 ) -> dict[str, Any]:
     route = {
         "route_type": "cwo-operative-route",
-        "version": 3,
+        "version": TASK_SELECTED_VERSION,
         "execution_environment": execution_environment,
         "risk_level": risk_level,
         "data_sensitivity": data_sensitivity,
@@ -1859,7 +1904,7 @@ def _blocked_task_selected_route(
         "stop_reason": stop_reason,
         "policy_active": policy_active,
         "policy_sha256": task_selected_policy_sha256(execution_environment),
-        "portfolio_version": 3,
+        "portfolio_version": TASK_SELECTED_VERSION,
         "selector_version": 1,
         "binding_rule_version": 1,
         "work_estimate_sha256": None,
@@ -1868,6 +1913,7 @@ def _blocked_task_selected_route(
         "fit_sha256": None,
         "capability_evidence_sha256": None,
         "qualification": None,
+        "identity": None,
         "provenance": None,
         "attempt": None,
         "aggregate_budget": deepcopy(dict(aggregate_budget)) if aggregate_budget is not None else None,
@@ -1903,6 +1949,30 @@ def _current_authority_inputs(
     return deepcopy(inputs), None
 
 
+def _current_route_qualification(
+    authority: Mapping[str, Any], model: Any, current: dt.datetime,
+) -> tuple[dict[str, Any] | None, str | None]:
+    """Enforce the independent maintenance release receipt for this operation."""
+    qualification = _mapping(_mapping(authority.get("qualifications")).get(model))
+    try:
+        issued = _parse_time(qualification.get("origin_issued_at"), "qualification origin_issued_at")
+        expires = _parse_time(qualification.get("origin_expires_at"), "qualification origin_expires_at")
+    except ValueError:
+        return None, "current-authority-qualification-invalid"
+    if qualification.get("model") != model or not issued <= current < expires:
+        return None, "current-authority-qualification-not-current"
+    identity = _mapping(authority.get("identity"))
+    if any(qualification.get(field) != identity.get(field) for field in _CURRENT_AUTHORITY_IDENTITY_FIELDS):
+        return None, "current-authority-identity-mismatch"
+    return qualification, None
+
+
+def _task_policy_active(task_policy: Mapping[str, Any]) -> bool:
+    return (task_policy["status"] == "active"
+            and task_policy["activation"]["active"] is True
+            and task_policy["activation"]["dispatch_authority"] is True)
+
+
 def _selected_task_route(
     *,
     authority: Mapping[str, Any],
@@ -1913,19 +1983,15 @@ def _selected_task_route(
     data_sensitivity: str,
     evaluated_at: str,
 ) -> tuple[dict[str, Any] | None, str]:
-    """Build a sealed v3 route only from one exact current-authority claim."""
-    active = (
-        task_policy.get("status") == "active"
-        and _mapping(task_policy.get("activation")).get("active") is True
-        and _mapping(task_policy.get("activation")).get("dispatch_authority") is True
-    )
-    if not active:
+    """Build a sealed route only from one exact current-authority claim."""
+    if not _task_policy_active(task_policy):
         return None, "task-selected-policy-inactive"
     attempt = _mapping(authority.get("attempt"))
     if authority.get("attempt_state") != "ready" or attempt.get("fresh_segment") is not True:
         return None, "current-authority-attempt-not-ready"
     model = authority.get("bound_model")
-    if model not in TASK_SELECTED_PORTFOLIO:
+    primary_model, escalation_model = operative_models()
+    if model not in (primary_model, escalation_model):
         return None, "current-authority-bound-model-missing-or-invalid"
     fit = build_task_selected_fit(
         work_estimate=_mapping(inputs.get("work_estimate")),
@@ -1940,28 +2006,18 @@ def _selected_task_route(
     )
     candidate = next((item for item in fit["candidates"] if item.get("model") == model), None)
     if not isinstance(candidate, Mapping) or candidate.get("eligible") is not True:
-        return None, "current-authority-bound-model-not-qualified"
+        return None, "current-authority-bound-model-ineligible"
     escalation = authority.get("escalation")
-    if model == TERRA_MODEL:
-        if not isinstance(escalation, Mapping) or escalation.get("kind") not in {"fit", "qualification", "risk", "economics"}:
+    if model == escalation_model:
+        if not isinstance(escalation, Mapping) or escalation.get("kind") not in _TASK_SELECTED_ESCALATION_KINDS:
             return None, "terra-selection-requires-recorded-escalation"
         if escalation.get("fit_sha256") != fit["fit_sha256"]:
             return None, "terra-escalation-fit-mismatch"
-    qualification = _mapping(_mapping(authority.get("qualifications")).get(model))
-    try:
-        issued = _parse_time(qualification.get("origin_issued_at"), "qualification origin_issued_at")
-        expires = _parse_time(qualification.get("origin_expires_at"), "qualification origin_expires_at")
-        current = _parse_time(evaluated_at, "evaluated_at")
-    except ValueError:
-        return None, "current-authority-qualification-invalid"
-    if qualification.get("model") != model or not issued <= current < expires:
-        return None, "current-authority-qualification-not-current"
-    identity = _mapping(authority.get("identity"))
-    if any(
-        qualification.get(field) != identity.get(field)
-        for field in _CURRENT_AUTHORITY_IDENTITY_FIELDS
-    ):
-        return None, "current-authority-identity-mismatch"
+    qualification = None
+    if _mapping(inputs.get("aggregate_budget")).get("mode") == "maintenance-unbounded":
+        qualification, error = _current_route_qualification(authority, model, _parse_time(evaluated_at, "evaluated_at"))
+        if error is not None:
+            return None, error
     fit_context = _mapping(inputs.get("context"))
     if (
         attempt.get("bead_id") != fit_context.get("bead_id")
@@ -1970,7 +2026,7 @@ def _selected_task_route(
         return None, "current-authority-attempt-context-mismatch"
     route = {
         "route_type": "cwo-operative-route",
-        "version": 3,
+        "version": TASK_SELECTED_VERSION,
         "execution_environment": execution_environment,
         "risk_level": risk_level,
         "data_sensitivity": data_sensitivity,
@@ -1982,7 +2038,7 @@ def _selected_task_route(
         "stop_reason": None,
         "policy_active": True,
         "policy_sha256": fit["policy_sha256"],
-        "portfolio_version": 3,
+        "portfolio_version": TASK_SELECTED_VERSION,
         "selector_version": 1,
         "binding_rule_version": 1,
         "work_estimate_sha256": fit["work_estimate_sha256"],
@@ -1991,15 +2047,16 @@ def _selected_task_route(
         "fit_sha256": fit["fit_sha256"],
         "capability_evidence_sha256": fit["capability_evidence_sha256"],
         "qualification": deepcopy(qualification),
+        "identity": deepcopy(authority["identity"]),
         "provenance": deepcopy(_mapping(authority.get("provenance"))),
         "attempt": deepcopy(attempt),
         "aggregate_budget": deepcopy(_mapping(inputs.get("aggregate_budget"))),
         "budget_reset": False,
-        "role": TASK_SELECTED_ROLES[model],
+        "role": TASK_SELECTED_ROLES["luna" if model == primary_model else "terra"],
         "reasoning_effort": "high",
         "selection_reason": (
-            "Qualified Luna-first current selection."
-            if model == LUNA_MODEL else "Qualified Terra selection with recorded escalation."
+            "Luna-first current selection."
+            if model == primary_model else "Terra selection with recorded escalation."
         ),
         "candidate_exclusions": [
             {"model": item["model"], "exclusion_reasons": deepcopy(item["exclusion_reasons"])}
@@ -2025,7 +2082,7 @@ def resolve_operative_route(
     evaluated_at: str | None = None,
     current_authority: Any = _UNSET,
 ) -> dict[str, Any]:
-    # An activated v3 policy never falls back to historical dispatch merely
+    # An activated task-selected policy never falls back to historical dispatch merely
     # because a wrapper omitted its authority argument. Omission still differs
     # from explicit invalid values while historical/inactive records are read.
     if current_authority is _UNSET:
@@ -2301,6 +2358,64 @@ def resolve_operative_route(
     }
 
 
+def _validate_current_route_freshness(
+    route: Mapping[str, Any], authority: Mapping[str, Any], model: str, current: dt.datetime,
+) -> str | None:
+    inputs = _mapping(authority.get("fit_inputs"))
+    capability = _mapping(inputs.get("capability_evidence"))
+    record = _exact_model_record(capability, _string(route.get("selected_executor")), model)
+    _, routing_policy, _, _ = _policy_bundle()
+    if not _fresh(record.get("observed_at"), current.isoformat(), routing_policy):
+        return "task selected route exact-model capability evidence is stale or missing"
+    if _mapping(inputs.get("aggregate_budget")).get("mode") == "maintenance-unbounded":
+        _, error = _current_route_qualification(authority, model, current)
+        if error is not None:
+            return f"task selected route qualification refused: {error}"
+    return None
+
+
+def _validate_current_task_route(
+    route: Mapping[str, Any], requested_model: str, work_estimate: Mapping[str, Any] | None,
+    now: str | None, current_authority: Any,
+) -> list[str]:
+    if current_authority is _UNSET or current_authority is None:
+        return ["task selected route requires current authority"]
+    try:
+        authority = _normalize_current_authority(current_authority)
+    except (TypeError, ValueError, OverflowError):
+        return ["task selected route current authority is invalid"]
+    try:
+        current_time = _parse_time(now or _now_iso(), "now")
+        route_time = _parse_time(route.get("evaluated_at"), "evaluated_at")
+    except (TypeError, ValueError, OverflowError):
+        return ["task selected route current time is invalid"]
+    if route_time > current_time:
+        return ["task selected route was evaluated after current validation time"]
+    if requested_model != route.get("selected_model"):
+        return ["task selected route selected_model does not match requested model"]
+    inputs = _mapping(authority.get("fit_inputs"))
+    if work_estimate is not None and _canonical_sha256(work_estimate) != _canonical_sha256(inputs.get("work_estimate")):
+        return ["task selected route work estimate does not match current authority"]
+    freshness_error = _validate_current_route_freshness(route, authority, requested_model, current_time)
+    if freshness_error is not None:
+        return [freshness_error]
+    try:
+        expected = resolve_operative_route(
+            execution_environment=_string(route.get("execution_environment")),
+            risk_level=_string(route.get("risk_level")),
+            data_sensitivity=_string(route.get("data_sensitivity")),
+            current_authority=authority,
+            evaluated_at=_string(route.get("evaluated_at")),
+        )
+    except (TypeError, ValueError, OverflowError) as exc:
+        return [f"task selected route current evaluation failed: {exc}"]
+    if expected.get("dispatch_authorized") is not True:
+        return [f"task selected route is not currently authorized: {expected.get('stop_reason')}"]
+    if _canonical_sha256(route) != _canonical_sha256(expected):
+        return ["task selected route does not match current authority evaluation"]
+    return []
+
+
 def validate_operative_route_for_model(
     route: Any,
     requested_model: str,
@@ -2319,62 +2434,19 @@ def validate_operative_route_for_model(
         policy = native.get("task_selected_routing", {})
         if isinstance(policy, Mapping) and policy.get("status") == "active":
             return ["historical v2 route is parseable but cannot authorize new dispatch"]
-    if value.get("route_type") == "cwo-operative-route" and value.get("version") == 3:
+    if value.get("version") in (3, TASK_SELECTED_VERSION):
         shape_errors = validate_task_selected_route_shape(value)
         if shape_errors:
             return [f"task selected route shape: {error}" for error in shape_errors]
-        if current_authority is _UNSET or current_authority is None:
-            return ["task selected route requires current authority"]
-        try:
-            authority = _normalize_current_authority(current_authority)
-        except (TypeError, ValueError, OverflowError):
-            return ["task selected route current authority is invalid"]
-        try:
-            current_time = _parse_time(now or _now_iso(), "now")
-            route_time = _parse_time(value.get("evaluated_at"), "evaluated_at")
-        except (TypeError, ValueError, OverflowError):
-            return ["task selected route current time is invalid"]
-        if route_time > current_time:
-            return ["task selected route was evaluated after current validation time"]
-        if work_estimate is not None and _canonical_sha256(work_estimate) != _canonical_sha256(
-            _mapping(authority.get("fit_inputs")).get("work_estimate")
-        ):
-            return ["task selected route work estimate does not match current authority"]
-        selected_qualification = _mapping(
-            _mapping(authority.get("qualifications")).get(value.get("selected_model"))
-        )
-        try:
-            issued = _parse_time(
-                selected_qualification.get("origin_issued_at"),
-                "current authority qualification origin_issued_at",
-            )
-            expires = _parse_time(
-                selected_qualification.get("origin_expires_at"),
-                "current authority qualification origin_expires_at",
-            )
-        except (TypeError, ValueError, OverflowError):
-            return ["task selected route current qualification is invalid"]
-        if not issued <= current_time < expires:
-            return ["task selected route qualification is not current"]
-        try:
-            expected = resolve_operative_route(
-                execution_environment=_string(value.get("execution_environment")) or "connected-codex",
-                risk_level=_string(value.get("risk_level")) or "medium",
-                data_sensitivity=_string(value.get("data_sensitivity")) or "internal",
-                current_authority=authority,
-                evaluated_at=_string(value.get("evaluated_at")),
-            )
-        except (TypeError, ValueError, OverflowError) as exc:
-            return [f"task selected route current evaluation failed: {exc}"]
-        if expected.get("dispatch_authorized") is not True:
-            return [f"task selected route is not currently authorized: {expected.get('stop_reason')}"]
-        if requested_model != value.get("selected_model"):
-            return ["task selected route selected_model does not match requested model"]
-        if _canonical_sha256(value) != _canonical_sha256(expected):
-            return ["task selected route does not match current authority evaluation"]
-        return []
+        if historical_parse:
+            if value.get("selected_model") != requested_model:
+                return ["task selected route selected_model does not match requested model"]
+            return []
+        if value.get("version") == 3:
+            return ["historical v3 route is parseable but cannot authorize new dispatch"]
+        return _validate_current_task_route(value, requested_model, work_estimate, now, current_authority)
     if value.get("route_type") != "cwo-operative-route" or value.get("version") != 2:
-        return ["operative routing metadata must be cwo-operative-route version 2"]
+        return ["operative routing metadata must be a supported cwo-operative-route"]
     if value.get("dispatch_authorized") is not True or value.get("protected_stop") is not False:
         errors.append("operative routing metadata does not authorize dispatch")
     if value.get("selected_model") != requested_model:
