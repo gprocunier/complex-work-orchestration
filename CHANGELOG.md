@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.0 - 2026-11-22
+
 - Reject release versions outside the 1.x series while preserving published 0.x changelog history.
 
 ## 1.2.0 - 2026-11-22
