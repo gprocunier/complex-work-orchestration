@@ -1518,9 +1518,9 @@
 
 "p2X":[137,"PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace",498,"b8120a7d82448bf0702110c6216fa39662d2019ca1ec9c7489fff5c05c94d280"],
 
-"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",3943,"bee956e48ee61608f34128e97ee77d0811a9a6ef7a3133ca9f6e857d58572d4e"],
+"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",3943,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
 
-"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4065,"61d9c23c4e5361f18f4618a53e571e49a7ed9350ff8a25315545499956b8a08a"],
+"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4106,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
 
 "p2a":[36,14407,"subprocess.run(\n                [\"git\", \"apply\", \"--index\", \"-\"],\n                cwd=worktree,\n                check=True,\n                capture_output=True,\n                input=patch_bytes,\n            )",12,14413,13],
 
@@ -6642,7 +6642,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2b3b12bd4c6a2e0d8e3c39487ba4b8e16887323d145618d5b69633d26744b1fe",420,128440],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["847ea9474a421053548c774db44907be02f814c4cd9619bf32547847ca0bbde8",420,128440],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -6750,7 +6750,7 @@
 
 "tests/test_registered_finite_input.py":["b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684",420,127597],
 
-"tests/test_registered_finite_tool_wiring.py":["a0de36226f07cc2bd19214d1237c5102672e24025d403adb05da831e1c97e25e",420,237557],
+"tests/test_registered_finite_tool_wiring.py":["13d4c810eb24aae39696edf149cacc8e56570bd9893447eb793c4bf298d740d0",420,240312],
 
 "tests/test_registered_n1_factory.py":["9673224ae7ca19c36a5d3d87f245a057919c324735849d438c044660694d35ce",420,128147],
 

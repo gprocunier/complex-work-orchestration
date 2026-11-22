@@ -3944,15 +3944,37 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         """Prior 7e2 finding: count intents, physical reads and replies, not only stdin."""
         case = self.fixture.case(finite_tool_mode='captured-host-tools',
                                  poll_chars='EXAMPLE nonempty', complete_after_refusal=False,
-                                 materialize_on_turn_start=True)
+                                 materialize_on_turn_start=True, no_fake_scheduler=True)
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
+        case.first_refusal_seen = threading.Event()
         factory = self.fixture.factory(case)
         decision_entered, release_decision = threading.Event(), threading.Event()
-        refusal_seen, release_refusal = threading.Event(), threading.Event()
+        release_refusal, release_driver = threading.Event(), threading.Event()
+        driver_waiting = threading.Event()
+        third_published, third_consumed = threading.Event(), threading.Event()
+        third_id = 'EXAMPLE-request-EXAMPLE-third-poll'
+        refusal_deadline = None
         result, physical_reads = [], []
         original_record = factory.record
         original_receive = DynamicRpcProcess.receive
         original_read = os.read
+        server_type = family.runtime._RegisteredServer
+        original_commit, original_progress = server_type._commit_tool_reply, server_type.await_finite_progress
+
+        def commit(server, message, response, deadline, **kwargs):
+            value = original_commit(server, message, response, deadline, **kwargs)
+            if message['id'] == third_id and response.get('result', {}).get('success') is False:
+                third_published.set()
+            return value
+
+        def progress(server, **kwargs):
+            value = original_progress(server, **kwargs)
+            if refusal_deadline is not None and server.finite_input.lifecycle.phase == 'refused':
+                # Hold the fixture driver at its real progress boundary while
+                # the original reader and writer settle the late refusal.
+                driver_waiting.set()
+                family.wait_for_release(self, release_driver, max(0, refusal_deadline + 3 - time.monotonic()))
+            return value
 
         def record(stage, observation):
             if (stage == 'finite-tool-decision' and observation.get('tool') == 'finite_poll'
@@ -3965,9 +3987,12 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             if (not process.is_tool and message.get('id') ==
                     'EXAMPLE-request-EXAMPLE-poll-call'
                     and message.get('result', {}).get('success') is False):
-                refusal_seen.set()
+                case.first_refusal_seen.set()
                 release_refusal.wait(5)
-            return original_receive(process, message)
+            value = original_receive(process, message)
+            if message.get('id') == third_id and message.get('result', {}).get('success') is False:
+                third_consumed.set()
+            return value
 
         def read(fd, count):
             server = factory.server
@@ -3991,10 +4016,13 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             return key in factory.server._request_ids
 
         with patch.object(family, 'RpcProcess', DynamicRpcProcess), patch.object(
-                DynamicRpcProcess, 'receive', receive):
+                DynamicRpcProcess, 'receive', receive), patch.object(
+                server_type, '_commit_tool_reply', commit), patch.object(
+                server_type, 'await_finite_progress', progress):
             worker = threading.Thread(target=run, daemon=True)
             worker.start()
-            self.addCleanup(family.finish_worker, self, worker, case.poll_release, release_decision, release_refusal)
+            self.addCleanup(family.finish_worker, self, worker,
+                            case.poll_release, release_decision, release_refusal, release_driver)
             self.addCleanup(release_refusal.set)
             self.addCleanup(release_decision.set)
             try:
@@ -4008,14 +4036,13 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     before_bytes, before_reads = gate.output_bytes_seen, len(physical_reads)
                     self.fixture.spawned[0]._send_tool('EXAMPLE-second-poll', 'finite_poll',
                         {'commandCallId': 'EXAMPLE-command-call', 'chars': ''}, case.scenario)
-                    end = time.monotonic() + 3
-                    while not received('EXAMPLE-second-poll'):
-                        self.assertLess(time.monotonic(), end)
-                        time.sleep(.001)
-                    self.assertEqual(len(gate.lifecycle.pending), 2)
+                    with gate.lifecycle.condition:
+                        self.assertTrue(gate.lifecycle.condition.wait_for(
+                            lambda: received('EXAMPLE-second-poll') and len(gate.lifecycle.pending) == 2,
+                            timeout=3), 'the first two polls must be queued before the refusal')
                     refusal_deadline = time.monotonic() + 5
                     release_decision.set()
-                    self.assertTrue(refusal_seen.wait(max(0, refusal_deadline - time.monotonic())))
+                    self.assertTrue(case.first_refusal_seen.wait(max(0, refusal_deadline - time.monotonic())))
                     # Receiving the frame precedes the sender's lifecycle
                     # commit. Observe that commit within the same five-second
                     # bound before testing a request made after refusal.
@@ -4024,16 +4051,27 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                             lambda: gate.lifecycle.phase in gate.lifecycle.TERMINAL,
                             timeout=max(0, refusal_deadline - time.monotonic())))
                     self.assertEqual(gate.lifecycle.phase, 'refused')
-                    self.fixture.spawned[0]._send_tool('EXAMPLE-third-poll', 'finite_poll',
+                    self.assertTrue(driver_waiting.wait(max(0, refusal_deadline - time.monotonic())),
+                                    'host driver did not observe the committed refusal')
+                    process = self.fixture.spawned[0]
+                    process._send_tool('EXAMPLE-third-poll', 'finite_poll',
                         {'commandCallId': 'EXAMPLE-command-call', 'chars': ''}, case.scenario)
                     end = time.monotonic() + 3
-                    while not received('EXAMPLE-third-poll'):
-                        self.assertLess(time.monotonic(), end)
-                        time.sleep(.001)
+                    release_refusal.set()
+                    self.assertTrue(third_published.wait(max(0, end - time.monotonic())),
+                                    'late refusal did not commit')
+                    self.assertTrue(third_consumed.wait(max(0, end - time.monotonic())),
+                                    'fake child did not consume the late refusal')
+                    self.assertTrue(received('EXAMPLE-third-poll'))
+                    # The fake scenario supplies no successful terminal. Close
+                    # its original output after the three refusal replies.
+                    self.assertTrue(process.process.alive)
+                    process.stdout.close()
             finally:
                 case.poll_release.set()
                 release_decision.set()
                 release_refusal.set()
+                release_driver.set()
                 worker.join(12)
                 if 'read_patcher' in locals():
                     read_patcher.stop()
@@ -4058,6 +4096,9 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         with self.assertRaises(BlockingIOError):
             os.read(case.tool_read, 1)
         self.assertIsInstance(result[0], BaseException)
+        self.assertEqual(str(factory.server.transport_failure),
+                         'The registered protocol ended before controlled termination.')
+        self.assertTrue(factory.server.lifetime.contained)
         self.assertEqual(self.fixture.attempt(case)['outcome'], 'unknown')
         self.assertEqual(self.fixture.attempt(case)['charge'],
                          self.fixture.attempt(case)['amount'])
@@ -4071,13 +4112,13 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             if (source.get('id') == 'EXAMPLE-request-EXAMPLE-poll-call'
                     and source.get('result', {}).get('success') is False):
                 self.assertTrue(sent)
-                lifecycle = self.fixture.spawned[0].case.factory.server.finite_input.lifecycle
+                case = self.fixture.spawned[0].case
+                # The fake child consumes while the real writer is held before
+                # publication. Keep the same bounded observation, without a sleep.
+                family.wait_for_release(self, case.first_refusal_seen, min(5, max(0, deadline - time.monotonic())))
+                lifecycle = case.factory.server.finite_input.lifecycle
                 with lifecycle.condition:
                     phases.append(lifecycle.phase)
-                # The actual child may consume this full refusal before the
-                # sender returns to publish it. Keep that reachable gap open
-                # within the original test's five-second observation bound.
-                threading.Event().wait(1)
             return sent
 
         with patch.object(gate_module.RegisteredFiniteInput, '_write_reply_frame',
