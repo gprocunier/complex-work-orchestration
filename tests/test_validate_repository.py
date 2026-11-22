@@ -23,6 +23,7 @@ from validate_repository import (  # noqa: E402
     validate_native_pool_capacity_invariants,
     validate_native_supervision_tech_preview_copy,
     validate_public_docs_do_not_expose_hardware_categories,
+    validate_release_version,
     validate_repository,
     validate_retired_beads_context_aliases,
     validate_waiver_conventions,
@@ -72,6 +73,68 @@ class ValidateRepositoryTests(unittest.TestCase):
 
     def test_repository_control_plane_is_consistent(self) -> None:
         self.assertEqual(validate_repository(), [])
+
+    def test_repository_rejects_versions_outside_major_one(self) -> None:
+        version_path = ROOT / "VERSION"
+        changelog_path = ROOT / "CHANGELOG.md"
+        headings = (
+            "## 2.0 - 2026-11-21",
+            "## 2.0.0 - 2026-11-21",
+            "## 0.9.0 - 2026-11-21",
+            "## [v3.1.0-rc.1] - 2026-11-21",
+            "## 0.8.0 - 2026-11-21",
+            "## 0.8.0 - 2026-11-15",
+        )
+        read_text = Path.read_text
+
+        def read_release_metadata(path: Path, *args: object, **kwargs: object) -> str:
+            if path == version_path:
+                return "2.0.0\n"
+            contents = read_text(path, *args, **kwargs)
+            if path == changelog_path:
+                new_entries = (
+                    "## Unreleased",
+                    "- Preserve upgrades from 0.8.0.",
+                    "## 1.2 - 2026-11-21",
+                    "## 1.2.0 - 2026-11-21",
+                    "## [v1.2.0-rc.1] - 2026-11-21",
+                    *headings,
+                )
+                return contents.replace("## Unreleased", "\n\n".join(new_entries), 1)
+            return contents
+
+        with (
+            mock.patch.object(Path, "read_text", read_release_metadata),
+            mock.patch.object(validate_repository_module, "validate_release_effect_inventory"),
+        ):
+            errors = validate_repository()
+
+        version_errors = [error for error in errors if error.startswith("VERSION ")]
+        heading_errors = [error for error in errors if error.startswith("CHANGELOG.md:")]
+        with self.subTest(source="VERSION"):
+            self.assertEqual(len(version_errors), 1, errors)
+            self.assertIn("2.0.0", version_errors[0])
+        with self.subTest(source="CHANGELOG.md"):
+            self.assertEqual(len(heading_errors), len(headings), errors)
+        for heading in headings:
+            with self.subTest(heading=heading):
+                self.assertTrue(any(heading in error for error in heading_errors), errors)
+
+    def test_release_version_file_accepts_major_one(self) -> None:
+        cases = (("1.2.0", True), ("1.20.3-rc.1+build.2", True), ("0.8.0", False), ("1.2", False))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            shutil.copyfile(ROOT / "CHANGELOG.md", root / "CHANGELOG.md")
+            for version, accepted in cases:
+                with self.subTest(version=version):
+                    (root / "VERSION").write_text(version + "\n", encoding="utf-8")
+                    errors: list[str] = []
+                    validate_release_version(errors, root)
+                    if accepted:
+                        self.assertEqual(errors, [])
+                    else:
+                        self.assertEqual(len(errors), 1, errors)
+                        self.assertIn(f"VERSION must contain a 1.x version, found {version!r}", errors)
 
     def test_real_validator_rejects_stale_release_inventory_source(self) -> None:
         """Real copied validator refuses drift; healthy and restored copies pass."""

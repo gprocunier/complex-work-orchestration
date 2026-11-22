@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Reject release versions outside the 1.x series while preserving published 0.x changelog history.
+
 ## 1.2.0 - 2026-11-22
 
 - Check native app-server compatibility against the installed Codex CLI's protocol capabilities, with 0.163.0 as the tested support floor. Preserve exact version and digest records as fixture and historical evidence.

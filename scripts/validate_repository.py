@@ -798,8 +798,49 @@ def validate_release_effect_inventory(errors: list[str]) -> None:
         errors.append(f"release effect inventory refused: {exc}")
 
 
+_MAJOR_ONE_VERSION = re.compile(
+    r"1\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+    r"(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
+)
+_CHANGELOG_RELEASE_HEADING = re.compile(r"^ {0,3}#{1,6}[ \t]+\[?[vV]?(?P<major>[0-9]+)\.[0-9]+")
+_PUBLISHED_ZERO_MAJOR_HEADINGS = (
+    "## 0.8.0 - 2026-11-15",
+    "## 0.7.0 - 2026-11-15",
+    "## 0.6.0 - 2026-11-14",
+    "## 0.5.0 - 2026-11-14",
+    "## 0.4.0 - 2026-11-14",
+    "## 0.3.1 - 2026-11-14",
+    "## 0.3.0 - 2026-11-14",
+    "## 0.2.1 - 2026-11-14",
+    "## 0.2.0 - 2026-11-11",
+)
+
+
+def validate_release_version(errors: list[str], repo_root: Path) -> None:
+    try:
+        version = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
+        changelog = (repo_root / "CHANGELOG.md").read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        errors.append(f"Could not read release metadata ({exc})")
+        return
+    if _MAJOR_ONE_VERSION.fullmatch(version) is None:
+        errors.append(f"VERSION must contain a 1.x version, found {version!r}")
+
+    # Each published heading can appear once at its original version and date.
+    remaining_history = set(_PUBLISHED_ZERO_MAJOR_HEADINGS)
+    for number, heading in enumerate(changelog.splitlines(), 1):
+        if heading in remaining_history:
+            remaining_history.remove(heading)
+            continue
+        release = _CHANGELOG_RELEASE_HEADING.match(heading)
+        if release is not None and release["major"] != "1":
+            errors.append(f"CHANGELOG.md:{number} release heading {heading.strip()!r} must use major version 1")
+
+
 def validate_repository() -> list[str]:
     errors: list[str] = []
+    validate_release_version(errors, REPO_ROOT)
     validate_qualification_target(errors)
     validate_release_effect_inventory(errors)
     validate_cwo_core_contract(errors)
