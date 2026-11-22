@@ -184,12 +184,19 @@ class PacketValidationTests(unittest.TestCase):
         custom_alias = "vaultcache"
         custom_value = "vaultSecret01"
         load_policy_mock.return_value = policy_with_secret_aliases([custom_alias])
-        with tempfile.TemporaryDirectory(dir=ROOT) as tmpdir:
-            snippet_path = Path(tmpdir) / "snippet.md"
+        with tempfile.TemporaryDirectory() as tmpdir:
+            fixture_root = Path(tmpdir).resolve()
+            snippet_path = fixture_root / "snippets" / "snippet.md"
+            profile_path = fixture_root / "experts" / "profile.md"
+            snippet_path.parent.mkdir()
+            profile_path.parent.mkdir()
             snippet_path.write_text(f"{custom_alias}: {custom_value}\n", encoding="utf-8")
-            with tempfile.TemporaryDirectory(dir=ROOT / "experts") as profile_dir:
-                profile_path = Path(profile_dir) / "profile.md"
-                profile_path.write_text(f"{custom_alias}: {custom_value}\n", encoding="utf-8")
+            profile_path.write_text(f"{custom_alias}: {custom_value}\n", encoding="utf-8")
+            with (
+                patch("build_contractor_packet.REPO_ROOT", fixture_root),
+                patch("cwo_core.packets.REPO_ROOT", fixture_root),
+                patch("cwo_core.paths.REPO_ROOT", fixture_root),
+            ):
                 packet = build_packet(
                     bead_id="cwo-1",
                     bead_json={
@@ -202,9 +209,9 @@ class PacketValidationTests(unittest.TestCase):
                     job_description_label="contract-jd-security-reasoning",
                     allowed_files=[],
                     inline_snippets=[f"{custom_alias}: {custom_value}"],
-                    snippet_files=[snippet_path.relative_to(ROOT).as_posix()],
+                    snippet_files=[snippet_path.relative_to(fixture_root).as_posix()],
                     dispatch_id="dispatch-validation",
-                    expert_profile_path=profile_path.relative_to(ROOT).as_posix(),
+                    expert_profile_path=profile_path.relative_to(fixture_root).as_posix(),
                     external_opt_in=True,
                     opt_in_basis="cli-flag",
                 )
