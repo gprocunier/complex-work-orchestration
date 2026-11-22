@@ -29,6 +29,12 @@ class SelectedFlowRow(NamedTuple):
     oracle: Callable[[], None]
 
 
+def _fixture_poll_ticket_clock(factory):
+    from tests.test_finite_fixture_progress_acknowledgment import original_poll_ticket_clock
+
+    return original_poll_ticket_clock(lambda: getattr(factory.server, 'finite_tools', None))
+
+
 def _note_typed_startup_failure(factory, failure):
     """One bounded observation after original cleanup; never execution authority."""
     def exception(error):
@@ -305,6 +311,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         original_receive = DynamicRpcProcess.receive
         original_progress = family.runtime._RegisteredServer.await_finite_progress
         original_reserve = gate_module.RegisteredFiniteInput.reserve
+        command_id = getattr(case, 'command_request_id', 'EXAMPLE-request-EXAMPLE-command-call')
 
         def reserve(gate, *args, **kwargs):
             ticket = original_reserve(gate, *args, **kwargs)
@@ -314,7 +321,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
         def receive(process, message):
             selected = process.case is case and not process.is_tool and not process.validator
-            expected = {'EXAMPLE-request-EXAMPLE-command-call': 'command-replied',
+            expected = {command_id: 'command-replied',
                         'EXAMPLE-request-EXAMPLE-poll-call': 'poll-replied'}
             if (selected and message.get('id') in expected
                     and message.get('result', {}).get('success') is True):
@@ -362,6 +369,36 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 patch.object(family.runtime._RegisteredServer, 'await_finite_progress', progress), \
                 patch.object(gate_module.RegisteredFiniteInput, 'reserve', reserve):
             yield
+
+    @contextmanager
+    def _join_selected_terminal_failure(self, factory, driver):
+        """Let the original selected tool publish its fault before host cleanup."""
+        server_type = family.runtime._RegisteredServer
+        original_publish = server_type._publish_transport_failure
+        original_health = server_type._require_healthy
+        fault_observed = threading.Event()
+
+        def publish(server, failure):
+            result = original_publish(server, failure)
+            if server is factory.server:
+                fault_observed.set()
+            return result
+
+        def health(server):
+            if server is factory.server and threading.current_thread() is driver:
+                lifecycle = server.finite_input.lifecycle
+                with lifecycle.condition:
+                    terminal = lifecycle.phase == 'terminal'
+                if terminal:
+                    family.wait_for_release(self, fault_observed, 5)
+            return original_health(server)
+
+        with patch.object(server_type, '_publish_transport_failure', publish), \
+                patch.object(server_type, '_require_healthy', health):
+            try:
+                yield fault_observed
+            finally:
+                fault_observed.set()
 
     def _run_tool_exit(self, *, output=True, status=0, pid_exited=True,
                        trailing='', close_output=True):
@@ -1088,9 +1125,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(case.poll_observation, {'stdout': '', 'running': False})
 
     def test_running_empty_poll_is_distinct_from_clean_empty_poll(self):
-        case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools', poll_empty_running=True)
+        case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
+                                 poll_empty_running=True, no_fake_scheduler=True)
         factory = self.fixture.factory(case)
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess):
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self._positive_finite_completion(case):
             result = factory.run()
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertEqual(case.poll_observation, {'stdout': '', 'running': True})
@@ -1454,7 +1492,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     pass
                 outcome.append(failure)
         with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
-                patch.object(gate_module._FiniteLifecycle, 'wait', wait):
+                patch.object(gate_module._FiniteLifecycle, 'wait', wait), \
+                self._positive_finite_completion(case), _fixture_poll_ticket_clock(factory):
             worker = threading.Thread(target=run, daemon=True)
             self.addCleanup(family.finish_worker, self, worker, case.tool_spawn_release, join_seconds=20)
             self.addCleanup(case.tool_spawn_release.set)
@@ -1686,6 +1725,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
     def _poll_wait_schedule(self, action, *, record_hook=None):
         case = self.fixture.case(archive_schedule='concurrent', finite_tool_mode='captured-host-tools')
+        if action in {'terminal', 'exceptional'}:
+            # The selected poll wait, rather than a fake startup timeout, owns
+            # the arrival of terminal evidence for these fixtures.
+            case.no_fake_scheduler = True
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
         factory = self.fixture.factory(case)
         result = []
@@ -1720,10 +1763,15 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 return [], [], []
             return original(reads, writes, errors, timeout)
 
+        clock = (_fixture_poll_ticket_clock(factory)
+                 if action in {'terminal', 'exceptional'} else nullcontext())
+        thread = threading.Thread(target=run, daemon=True)
+        completion = (self._join_selected_terminal_failure(factory, thread)
+                      if action == 'terminal' else nullcontext())
         with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
                 patch.object(gate_module.select, 'select', paused), \
-                patch.object(finite_tools.RegisteredFiniteToolCalls, '_poll', prepare_poll):
-            thread = threading.Thread(target=run, daemon=True)
+                patch.object(finite_tools.RegisteredFiniteToolCalls, '_poll', prepare_poll), \
+                clock, completion as stop_join:
             self.addCleanup(family.finish_worker, self, thread, case.poll_release, release)
             self.addCleanup(case.poll_release.set)
             case.poll_release.set()
@@ -1731,7 +1779,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             try:
                 self.assertTrue(self.wait_for_startup(prepared, thread, result))
                 self.assertTrue(case.poll_prepared.is_set())
-                self.assertTrue(entered.wait(5))
+                self.assertTrue(entered.wait(5), 'the original poll must reach its owned pipe wait')
+                self.assertIsNone(factory.server.transport_failure)
                 gate = factory.server.finite_input
                 charged_before = charged[0]
                 if action in {'terminal', 'exceptional'}:
@@ -1761,6 +1810,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                     closer.join(3)
                 time.sleep(1.1)
                 release.set()
+            except BaseException:
+                if stop_join is not None:
+                    stop_join.set()
+                raise
             finally:
                 case.poll_release.set()
                 release.set()
@@ -1985,7 +2038,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self._bad_poll_identity('replay_poll')
 
     def _terminal_during_command(self, stage, *, exceptional=False):
-        case = self.fixture.case(finite_tool_mode='captured-host-tools')
+        case = self.fixture.case(finite_tool_mode='captured-host-tools', no_fake_scheduler=stage == 'launch')
         case.command_prepared, case.command_release = threading.Event(), threading.Event()
         factory = self.fixture.factory(case)
         result = []
@@ -2025,8 +2078,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             patcher = (patch.object(factory, 'record', blocked_record) if stage in {'before-intent', 'during-intent', 'intent', 'gate'}
                        else patch.object(family.runtime._Containment, 'launch', blocked_launch))
             with ExitStack() as stage_hooks:
+                stop_join = None
                 if stage == 'launch':
                     stage_hooks.enter_context(patcher)
+                    stop_join = stage_hooks.enter_context(self._join_selected_terminal_failure(factory, thread))
                     case.command_release.set()
                 thread.start()
                 try:
@@ -2054,6 +2109,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                         self.assertLess(time.monotonic(), deadline, 'reader blocked during command callout')
                         time.sleep(.01)
                     release.set()
+                except BaseException:
+                    if stop_join is not None:
+                        stop_join.set()
+                    raise
                 finally:
                     case.command_release.set()
                     release.set()

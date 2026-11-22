@@ -9,6 +9,24 @@ from unittest.mock import patch
 
 from tests import test_registered_n1_factory as family
 from tests import test_registered_finite_tool_wiring as wiring
+from tests.test_finite_fixture_progress_acknowledgment import original_poll_ticket_clock
+
+
+def _note_original_poll_refusal(factory, failure):
+    """Keep the first recorded poll refusal alongside the worker exception."""
+    add_note = family.runtime.admission.ledger_api.add_failure_note
+    try:
+        directory = factory.records / 'transport-observations'
+        for path in sorted(directory.glob('observation-*.json'))[:256]:
+            with path.open('rb') as stream:
+                row = json.loads(stream.read(16384))
+            if row['stage'] == 'finite-tool-refusal' and row['observation']['call'] == 'EXAMPLE-poll-call':
+                observed = row['observation']
+                add_note(failure, 'Original finite poll refusal: '
+                         + str(observed['reason'])[:100] + ': ' + str(observed['message'])[:512])
+                break
+    except Exception:
+        add_note(failure, 'Original finite poll refusal observation unavailable.')
 
 
 class StartupPublicationTests(unittest.TestCase):
@@ -38,9 +56,15 @@ class StartupPublicationTests(unittest.TestCase):
             try:
                 result.append(factory.run())
             except BaseException as failure:
+                _note_original_poll_refusal(factory, failure)
                 result.append(failure)
 
-        with patch.object(family, 'RpcProcess', wiring.DynamicRpcProcess), patch.object(family.Lines, 'put', put):
+        with (
+            original_poll_ticket_clock(lambda: getattr(factory.server, 'finite_tools', None)),
+            self.helper._positive_finite_completion(case),
+            patch.object(family, 'RpcProcess', wiring.DynamicRpcProcess),
+            patch.object(family.Lines, 'put', put),
+        ):
             worker = threading.Thread(target=run, daemon=True)
             self.addCleanup(family.finish_worker, self, worker, case.poll_release)
             worker.start()
@@ -70,8 +94,12 @@ class StartupPublicationTests(unittest.TestCase):
                 case.poll_release.set()
                 worker.join(12)
             self.assertFalse(worker.is_alive())
-            self.assertIsInstance(result[0], dict, repr(result))
+            self.assertEqual(len(result), 1)
+            if isinstance(result[0], BaseException):
+                raise result[0]
+            self.assertIsInstance(result[0], dict)
             self.assertEqual(result[0]['attempt']['outcome'], 'completed')
+            self.assertEqual(case.poll_observation, {'stdout': 'EXAMPLE finite poll output\n', 'running': True})
             archived = case.scenario.archive / path.name
             self.assertEqual((archived.stat().st_dev, archived.stat().st_ino),
                              (identity.st_dev, identity.st_ino))

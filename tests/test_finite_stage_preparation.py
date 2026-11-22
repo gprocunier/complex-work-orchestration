@@ -46,7 +46,7 @@ class FixturePreparationTests(unittest.TestCase):
         return result
 
     def stage_schedule(self, operation, kind, name, expected):
-        cases, facts, faults = [], [], []
+        cases, arrivals, facts, faults = [], [], [], []
         release, prepared, held = (threading.Event() for _ in range(3))
         selected = {}
         original_case = family.FactoryTests.case
@@ -104,6 +104,7 @@ class FixturePreparationTests(unittest.TestCase):
             if operation != 'launch' or subject.role == 'tool':
                 held.set()
                 self.assertTrue(release.wait(12), 'original operation was not released')
+                arrivals.append(prepared.is_set())
             return original_operation(subject, *args, **kwargs)
 
         with ExitStack() as patches:
@@ -119,6 +120,7 @@ class FixturePreparationTests(unittest.TestCase):
         self.assertTrue(result.wasSuccessful(), (result.failures, result.errors))
         self.assertTrue(held.is_set())
         self.assertTrue(prepared.is_set(), 'owner did not observe original preparation')
+        self.assertEqual(arrivals, [True], 'selected operation did not follow owner preparation')
         self.assertTrue(facts)
         self.assertTrue(all(holding and locked for holding, locked, _bytes in facts))
         self.assertEqual(faults, [expected])

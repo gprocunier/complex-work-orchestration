@@ -202,7 +202,7 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                     return value
 
                 def refused(producer, tool, failure):
-                    if (hold_intent and cases and tool == 'finite_poll'
+                    if (cases and tool == 'finite_poll'
                             and producer is cases[0].factory.server.finite_tools):
                         poll_refusals.append(failure)
                     return original_refusal(producer, tool, failure)
@@ -363,9 +363,10 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                             completion.set()
 
                 with ExitStack() as patches:
-                    if hold_consumer_return:
-                        # Keep the independent RPC, lifecycle and observation
-                        # clocks real while the test parks this one producer.
+                    if not hold_intent or hold_consumer_return:
+                        # These positive witnesses spend the ticket at the
+                        # original pipe observation. Keep the RPC, lifecycle
+                        # and observation clocks real during fixture preparation.
                         patches.enter_context(original_poll_ticket_clock(
                             lambda: cases[0].factory.server.finite_tools if cases else None))
                     patches.enter_context(patch.object(family.runtime._RegisteredServer,
@@ -406,8 +407,9 @@ class FiniteFixtureProgressTests(unittest.TestCase):
                 except self.failureException as failure:
                     replies = [case.test.spawned[0].replies for case in cases if case.test.spawned]
                     failure.add_note(f'Original tool reply frames: {replies!r}')
-                    if hold_intent:
-                        failure.add_note(f'Original finite-poll refusals: {poll_refusals!r}')
+                    if poll_refusals:
+                        primary = poll_refusals[0]
+                        failure.add_note(f'First finite-poll refusal: {type(primary).__name__}: {str(primary)[:512]}')
                     raise
                 self.assertEqual(held, [True])
                 self.assertEqual(len(acknowledged), 1, 'original post-start waiter was not acknowledged')
