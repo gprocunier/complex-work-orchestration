@@ -707,6 +707,39 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(factory.server.finite_input.output_bytes_seen, len(stdout.encode('utf-8')))
         self.assertEqual(result['attempt']['outcome'], 'completed')
 
+    def test_qualification_terminal_rollout_waits_for_enqueued_poll_item(self):
+        emit_item = NamespacedFiniteRpcProcess._item
+        project = finite_tools.QualifiedToolEvidence._project
+        held, pending = [], []
+
+        def defer_poll_item(process, method, item):
+            if method == 'item/completed' and item.get('tool') == 'finite_poll':
+                held.append((process, method, item))
+                return
+            return emit_item(process, method, item)
+
+        def project_terminal(evidence, thread, turn, records, receipts, terminal):
+            if terminal and held:
+                process, method, item = held.pop()
+                call = evidence.calls[thread, turn, item['id']]
+                receipt, = [row for row in receipts if row['call_id'] == item['id']]
+                pending.append((item['id'], call.reply_sent, call.completed, receipt['pairing_status'] == 'paired'))
+                # The original reader can accept this frame when projection releases the request lock.
+                self.assertIsNot(emit_item(process, method, item), False)
+            return project(evidence, thread, turn, records, receipts, terminal)
+
+        with (patch.object(NamespacedFiniteRpcProcess, '_item', defer_poll_item),
+              patch.object(finite_tools.QualifiedToolEvidence, '_project', project_terminal)):
+            case, factory, result = self._exit_between_command_read_and_reply(
+                trailing='EXAMPLE late tail\n', no_fake_scheduler=True, qualification=True)
+        self.assertEqual(held, [])
+        self.assertEqual(pending, [('EXAMPLE-poll-call', True, False, True)])
+        if isinstance(result, BaseException):
+            raise result
+        self.assertEqual(result['attempt']['outcome'], 'completed')
+        self.assertEqual(case.poll_observation, {'stdout': '', 'running': False})
+        self.assertTrue(factory.server.archived)
+
     def test_qualification_command_envelope_remains_subject_to_atomic_reply_bound(self):
         tail = 'X' * 3880
         case, factory, result = self._exit_between_command_read_and_reply(
@@ -1806,9 +1839,11 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                         registered_tool_projector=projector)
 
     def test_qualification_refuses_rollout_output_drift_and_projected_only_completion(self):
-        controls = ({'rollout_poll_output': 'EXAMPLE wrong output'}, {'projection_only_poll': True})
+        controls = ({'rollout_poll_output': 'EXAMPLE wrong output'},
+                    {'projection_only_poll': True},
+                    {'projection_only_poll': True, 'terminal_before_poll_item': True})
         for control in controls:
-            with self.subTest(control=next(iter(control))):
+            with self.subTest(control=control):
                 self._refuse_qualification_rollout(control)
 
     def _refuse_qualification_rollout(self, control):

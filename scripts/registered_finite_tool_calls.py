@@ -205,9 +205,9 @@ class QualifiedToolEvidence:
         if turn.get('status') == 'completed' and self._completion_turn_open(identity):
             self.completed_turn = identity
 
-    def can_settle_terminal_reply(self, call, binding):
+    def can_settle_terminal_reply(self, call, turn):
         return (call is not None and call.completed and not call.reply_failed
-                and self.completed_turn == binding[2:4]
+                and self.completed_turn == turn
                 and self.server.transport_failure is None and not self.server.requests.closed
                 and self.server.requests.cancelled_turn != self.completed_turn)
 
@@ -231,6 +231,7 @@ class QualifiedToolEvidence:
                 or call.completed or call.reply != reply):
             raise FiniteToolError('Qualification completion differs from the original finite reply attempt.')
         call.completed = True
+        self.settlement.notify_all()
 
     def completion(self, identity):
         call = self.calls.get(identity)
@@ -262,7 +263,7 @@ class QualifiedToolEvidence:
                     else self.calls.get(identity))
             result = self._result(raw, output, call)
             if result == 'paired-pending' and terminal:
-                self._wait_terminal_reply(call, output)
+                self._wait_terminal_reply(identity[:2], call, output)
                 result = self._result(raw, output, call)
             receipt['typed_result']['kind'] = result
             receipt['_registered_finite'] = True
@@ -286,15 +287,19 @@ class QualifiedToolEvidence:
                     timeout=max(0, min(deadlines) - time.monotonic()))
         return self.calls.get(identity)
 
-    def _wait_terminal_reply(self, call, output):
-        # The trusted terminal may be durable before the in-flight writer
-        # publishes its full result. No later action reads this condition.
-        if output is not None and call.completed and call.reply_deadline is not None:
-            self.settlement.wait_for(lambda: call.reply_sent or call.reply_failed,
+    def _wait_terminal_reply(self, turn, call, output):
+        # The durable terminal can precede original item intake or full-write
+        # reconciliation. Release the request lock within the original bound.
+        if output is not None and call.reply_deadline is not None:
+            self.settlement.wait_for(lambda: self._reply_settled_or_unavailable(turn, call),
                                      timeout=max(0, call.reply_deadline - time.monotonic()))
-            if call.reply_sent:
+            if call.completed and call.reply_sent:
                 return
         raise FiniteToolError('Qualification turn ended before original finite evidence settled.')
+
+    def _reply_settled_or_unavailable(self, turn, call):
+        return (call.reply_failed or (call.completed and call.reply_sent)
+                or not (self._completion_turn_open(turn) or self.can_settle_terminal_reply(call, turn)))
 
     def _result(self, raw, output, call):
         if call is None:

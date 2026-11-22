@@ -1549,7 +1549,7 @@ class RegisteredFiniteInput:
                     evidence.cancel_reply(qualified)
                 return False
             if dispatch is not None and not self.lifecycle.authority_reply_finishable(binding):
-                if (evidence is not None and evidence.can_settle_terminal_reply(qualified, binding)
+                if (evidence is not None and evidence.can_settle_terminal_reply(qualified, binding[2:4])
                         and self.lifecycle.authority_terminal_reply_sent(dispatch, binding)):
                     evidence.finish_reply(qualified, True)
                     return True

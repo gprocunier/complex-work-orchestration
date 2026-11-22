@@ -200,7 +200,7 @@
 
 "M35":{"conclusion":"The qualification app-server broker permits HTTPS port 443 for chatgpt.com and api.openai.com. A signed launch with an attached Codex personal access token also permits auth.openai.com at that port. The app-server workspace is read-only. Tool and validator namespaces receive neither the token nor the proxy.","evidence_contracts":["N3","N9"],"external_trust_limit":"The controller provisions and manages its credential. The encrypted tunnel checks names and port without inspecting HTTP paths or bodies. Namespace isolation blocks direct traffic outside the explicit proxy audit. Local TLS tests use the bundled self-signed certificate and deliberately public fixture key. Real tokens, public provider connectivity and live Codex model behavior are unverified.","reason":"The original factory checks the signed launch before staging an explicit controller attachment in a private anonymous pipe. Only the app-server bootstrap inherits the read end. The parent releases its copy after owned spawn, the relay closes its copy before serving, and the bootstrap consumes the token after the trusted start gate and closes the pipe before exec. The existing datagram pair transfers bounded stream descriptors to the parent. Exact CONNECT authority and TLS SNI, including refusal of encrypted ClientHello, precede parent DNS and a bounded public-address dial. Denials are scrubbed. Record failure revokes the broker.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead"]},
 
-"M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts.","review_evidence":{"$":7},"source":["p25LiveInput","p36DirectCatalog","p36FiniteAdmit","p36FiniteItem","p36FiniteCommit","p36FiniteReplyDispatch","p36FiniteHistorical","p36FiniteMatch","p36FiniteAwaitOriginal","p36FiniteHistory","p36FiniteBoundary"]},
+"M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts. A terminal rollout may await original typed item intake until the reply deadline while the wire turn stays open.","review_evidence":{"$":7},"source":["p25LiveInput","p36DirectCatalog","p36FiniteAdmit","p36FiniteItem","p36FiniteCommit","p36FiniteReplyDispatch","p36FiniteHistorical","p36FiniteMatch","p36FiniteAwaitOriginal","p36FiniteHistory","p36FiniteBoundary","p36FiniteWaitTerminal","p36FiniteTypedComplete"]},
 
 "M37":{"conclusion":"The registered launcher may complete cleanup after a natural exit removed the original monitor executable link. The raw original controller report stays unchanged.","evidence_contracts":["N3","N9"],"external_trust_limit":"Only the exact retained original monitor and its existing PIDFD waitid accounting can establish exit and reaping. A disappearing proc link alone grants no effect authority. Namespace containment still requires its own retained evidence. The generic controller and private watchdog retain their original outcomes and wait budget.","reason":"Only an identity-unavailable report with the exact original monitor executable ENOENT, same PID and receipt, retired registration, positive original reaping and exit facts, and no signal can resolve the registered cleanup exception. It does not add a poll, change generic termination outcomes or retry cleanup.","review_evidence":{"$":7},"source":["p25MonitorTerminate","p25MonitorRecovery","p25MonitorReason"]}
 },
@@ -648,7 +648,7 @@
 
 "p13e":[61,57,"self._launch_registered_transport(home, binding, startup_config)",12,57,76],
 
-"p13f":[63,"RegisteredFiniteToolCalls.receive",808,"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36"],
+"p13f":[63,"RegisteredFiniteToolCalls.receive",813,"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36"],
 
 "p14":[8,726,"sync_playwright()",18,726,35],
 
@@ -942,7 +942,7 @@
 
 "p1b":[48,94,"subprocess.run(\n            # Run the verified bytes themselves, not the path, which could be replaced.\n            [sys.executable, \"-I\", \"-c\", code.decode(\"utf-8\"), source, \"--timeout\", str(timeout), \"--format\", \"json\"],\n            check=False,\n            capture_output=True,\n            text=True,\n            timeout=timeout,\n        )",17,101,9],
 
-"p1b0":[63,937,{"$":148}],
+"p1b0":[63,942,{"$":148}],
 
 "p1b1":[70,98,"if any(q.is_symlink() for q in (path, *path.parents)) or not path.is_file():"],
 
@@ -1076,7 +1076,7 @@
 
 "p1ef":[99,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",182,"9cb07ef63abb416ca4f820ef25ca157065bc40b1118b69f5b65a254df7a46959"],
 
-"p1f":[63,965,"lifetime.launch(['/usr/bin/sh', '-c', self.factory.spec['command']],\n                                      self.factory.home, tool_call=params, deadline=deadline,\n                                      tool_decision=decision)",22,967,61],
+"p1f":[63,970,"lifetime.launch(['/usr/bin/sh', '-c', self.factory.spec['command']],\n                                      self.factory.home, tool_call=params, deadline=deadline,\n                                      tool_decision=decision)",22,972,61],
 
 "p1f0":[43,"trusted_git_completed",554,"adcb7ccb6ef4d12b2231b9ee79fa364d50360a4ab300fa645fdcdccf7b2d32b7"],
 
@@ -1372,11 +1372,11 @@
 
 "p25ExpirySupport0":[148,{"$":330},232,"d59b8417182e03f93912a075fb0195169ace16aa8a875be7e4a8b0f35023bd8a"],
 
-"p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1607,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
+"p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1640,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
-"p25FiniteSupport0":[126,"RegisteredFiniteToolWiringTests._run_live_capture_with_fake_rpc",1551,"90e5ba2bbf14be9d942b9950ad2593935b448ed9da7b2a19376a12d12c4a3b44"],
+"p25FiniteSupport0":[126,"RegisteredFiniteToolWiringTests._run_live_capture_with_fake_rpc",1584,"90e5ba2bbf14be9d942b9950ad2593935b448ed9da7b2a19376a12d12c4a3b44"],
 
-"p25FiniteSupport1":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1611,"ac7a86cf6e8372e4423e16990665e7dcf40b121ce5771ff91e21b941127c2c62"],
+"p25FiniteSupport1":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1644,"ac7a86cf6e8372e4423e16990665e7dcf40b121ce5771ff91e21b941127c2c62"],
 
 "p25Handoff":[146,"_handoff",285,"236a2ea21b94e94b272ec672da0334240167ce3f74b3e318fb120a0796c2dea3"],
 
@@ -1660,9 +1660,9 @@
 
 "p2X":[137,"PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace",498,"b8120a7d82448bf0702110c6216fa39662d2019ca1ec9c7489fff5c05c94d280"],
 
-"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4527,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
+"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4562,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
 
-"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4690,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
+"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4725,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
 
 "p2a":[36,14407,"subprocess.run(\n                [\"git\", \"apply\", \"--index\", \"-\"],\n                cwd=worktree,\n                check=True,\n                capture_output=True,\n                input=patch_bytes,\n            )",12,14413,13],
 
@@ -2000,7 +2000,7 @@
 
 "p329":[43,"WorktreeCapture._git",1542,"957bbafc0ae3a4261e504991fcbd97b3bade28080c0065c3e78da2eba25e419c"],
 
-"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2927,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
+"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2962,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
 
 "p32b":[31,"MaintenanceAuthorityVerifier.__init__",344,"03802d0590db57d2c1f457a056a7a56ee8a0e0ffce20be5e4abbad96ece2eb34"],
 
@@ -2158,33 +2158,39 @@
 
 "p36DirectCatalog":[63,"_tool_specs",65,"2c6a335dbd49bb39bc92a1c9d26eb45ecb50011b6521291b4e5f7bef36a0d7c0"],
 
-"p36FiniteAdmit":[63,"RegisteredFiniteToolCalls.receive",808,"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36"],
+"p36FiniteAdmit":[63,"RegisteredFiniteToolCalls.receive",813,"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36"],
 
-"p36FiniteArchive":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1666,"b4040d8e51171b1d374a9e26e8da3dc1db6782adb39699fd4fe6e7756c86e45f"],
+"p36FiniteArchive":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1699,"b4040d8e51171b1d374a9e26e8da3dc1db6782adb39699fd4fe6e7756c86e45f"],
 
-"p36FiniteAwaitOriginal":[63,"QualifiedToolEvidence._wait_original_call",273,"59a9947e5dd6e73e752297b46b397830f3707faefb15b4e094294cb270746464"],
+"p36FiniteAwaitOriginal":[63,"QualifiedToolEvidence._wait_original_call",274,"59a9947e5dd6e73e752297b46b397830f3707faefb15b4e094294cb270746464"],
 
 "p36FiniteBoundary":[74,"trusted_tool_evidence_summary",2509,"56d4955b4154e1bb15326d974731fdcf9c300e22317b9b1dde175665251b6b01"],
 
-"p36FiniteCommit":[62,"RegisteredFiniteInput._finish_reply_publication",1544,"695e8b8de17fca5093a8c234d188d71f7b2a2d149fbf373df087cb4b95765e14"],
+"p36FiniteCommit":[62,"RegisteredFiniteInput._finish_reply_publication",1544,"96ac55ffc34cc0a6f8655a5d39341190898eee8da9e93eff05e49eb99b8d1d8d"],
 
 "p36FiniteHistorical":[62,"_FiniteLifecycle.authority_terminal_reply_sent",201,"19d0a893f391688ae41aa53ebddb84acd66495a201bada1ddf4471fb2c2c4faa"],
 
-"p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",1779,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
+"p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",1812,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
 
 "p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1217,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
 
-"p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1728,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
+"p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1761,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
 
-"p36FiniteLateSupport":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",1734,"4b3433322987eb6e977148d15383aeb667f1b0076c53aa6d85abbaaf03d7c024"],
+"p36FiniteLateSupport":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",1767,"4b3433322987eb6e977148d15383aeb667f1b0076c53aa6d85abbaaf03d7c024"],
 
-"p36FiniteMatch":[63,"QualifiedToolEvidence._project",247,"8246f8675dd41cf3fadf25e7c3cebead5813beabbcc7835fef26c44e00042111"],
+"p36FiniteMatch":[63,"QualifiedToolEvidence._project",248,"47c1685ecf94998ddcbc1fe5b42d57b582ab58efd882b80837a4b0620782ee59"],
 
-"p36FiniteRaceSupport":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1672,"0002d7ec83ef1635dd516baed13c367b00a43a2d66d6c1d094cb26a319b0f561"],
+"p36FiniteQueuedItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item",710,"bec49dd2a00880480b7dca477f2941ac5a9a375367eb601dfc4377b6f381c171"],
 
-"p36FiniteRefusal":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1669,"7e884980369353800a945bedcd95102665f6500f2ff57dc3de0685ceb894f837"],
+"p36FiniteRaceSupport":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1705,"0002d7ec83ef1635dd516baed13c367b00a43a2d66d6c1d094cb26a319b0f561"],
+
+"p36FiniteRefusal":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1702,"7e884980369353800a945bedcd95102665f6500f2ff57dc3de0685ceb894f837"],
 
 "p36FiniteReplyDispatch":[62,"RegisteredFiniteInput._dispatch_tool_reply",1533,"b349f67c3b8d5d09650e9cada2e715ad0c6ecb701a6b2ebeeaa75a644397bc4a"],
+
+"p36FiniteTypedComplete":[63,"QualifiedToolEvidence.complete",222,"2d6e65e556ee39ec6ca644e1a1927a657747e198b2c82598b6181ef48342916d"],
+
+"p36FiniteWaitTerminal":[63,"QualifiedToolEvidence._wait_terminal_reply",290,"973c5918e118ac096cbd002a96985f71117cae708efb850b19f6ae9695ae7a8e"],
 
 "p36SchemaContract":[141,"_check_n1_qualification",432,"f89a627ce9bff40376f19f9fd0fadf4d2c2460326a4a4f6004ee2928acc4709f"],
 
@@ -2366,19 +2372,19 @@
 
 "p3a1":[88,"ShareConsentTests",140,"856b0ba17280a32f78af37a6c37edfb30e42b19f2f547f0c5817e8f176e27006"],
 
-"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2501,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
+"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2536,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
 
-"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2437,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
+"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2472,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
 
-"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2412,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
+"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2447,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
 
-"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2349,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
+"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2384,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
 
-"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2375,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
+"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2410,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
 
-"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",2228,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
+"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",2263,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
 
-"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2340,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
+"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2375,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
 
 "p3a9":[42,600,{"$":333},16,600,49],
 
@@ -2672,7 +2678,7 @@
 
 "pF4":[140,"FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent",106,"efa6e0d1fcd29deb977e3108cf6cc1cd8dbaa68fac4d7ade0f27643d2f12d15d"],
 
-"pF5":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",725,"416ec88722887755694115c4962bc03b5d5389870d4db51db7490c12923201ff"],
+"pF5":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",758,"416ec88722887755694115c4962bc03b5d5389870d4db51db7490c12923201ff"],
 
 "pG":[137,"WatchdogObjectIdentityTests.test_watchdog_scheduler_state_change_preserves_birth",1171,"c6d92df5a37bafb76c911fbe6a4a08fe926d716a4ee7b6de542ac59fba59d9a2"],
 
@@ -4995,7 +5001,7 @@
 
 [70,1741,23,1741,75,"dynamic","2f9e0c2f2e7129d58e0d405a7dec095263c214aee9d3c0ea3dcca33814aaa24f",[{"$":9},"XR355"]],
 
-[71,965,22,967,61,"browser","d39ca2356bd7c0ee0bff23fe2688fb58023545c8242e0c9a3ec791566ad3f5b7",["route","N9.1","p1f"]],
+[71,970,22,972,61,"browser","d39ca2356bd7c0ee0bff23fe2688fb58023545c8242e0c9a3ec791566ad3f5b7",["route","N9.1","p1f"]],
 
 [72,105,14,105,61,"dynamic",{"$":241},[{"$":9},"XR428b"]],
 
@@ -5476,7 +5482,7 @@
 
 {"contract":"N8","effect_points":["p37b"],"entrypoint":"p2ff","gate_limits":"Campaign-server admission belongs to a separate constructor. The helper campaign selector is conditional; actual action calls recheck it before the turn, with noncampaign False still an explicit manual selection limit.","gates":["p224","p238"],"id":"N8.7","ordering":"Campaign adapter omission defaults True: three holds before reservation and after callouts before supplied-server turn. Explicit noncampaign False constructors retain their own N1, preview, maintenance or offline admission contract.","review_gates":["p13d","p108"],"witnesses":["w68"]},
 
-{"contract":"N9","effect_points":["p343","p1f"],"entrypoint":"p13f","id":"N9.1","limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. Cleanup publication is separately observed: physical completion can precede the original immutable gate acknowledgement. The fixture spends the remainder of its original eight-second completion budget on that aggregate classification; timeout stays unknown with full charge. This inspection grants no command release, acceptance or native qualification. Physical-event, direct-close-event, two-closer-join and failed-result completion fences all share their original remaining eight-second budget and atomic gate-condition classification. Queued archive acknowledgement retains original output rejection/full charge. Only exact pre-bootstrap READY bypasses JSON parsing; late/malformed RPCs still fail, and cleanup preserves the primary plus owned workers. Prequeued-poll fixtures wait for original refusal publication within the shared original5s bound after full-frame consumption; third-poll no-effect/full-charge checks remain. Holding real-write return supplies fixture evidence only. Finite success fixtures join completion only after original poll reservation returns; failed reservation never starts the success join. This is fixture ordering evidence, not historical startup attribution. Signed live-mode selection adds actual registered RPC and owned pipe evidence of submitted and delivered UTF-8 byte counts and digests for finite polls. Nonempty input refuses before delivery, while an empty poll writes zero bytes. The synthetic RPC witness leaves live provider turns unmeasured. Only exact original typed completion and a fully written reply qualify the matching retained rollout text. Terminal settlement is historical and does not permit another effect.","manual_decisions":["M08","M10","M12","M26","M34","M35","M36","M37"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":71},{"$":10},{"$":24},{"$":328},{"$":329},{"$":116}],"witnesses":["w83","w89","w36","w3a","wT","wF0","wF1","w25Finite",{"$":340},"w36FiniteArchive","w36FiniteLateItem","w36FiniteHistory","w36FiniteRefusal"]},
+{"contract":"N9","effect_points":["p343","p1f"],"entrypoint":"p13f","id":"N9.1","limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. Cleanup publication is separately observed: physical completion can precede the original immutable gate acknowledgement. The fixture spends the remainder of its original eight-second completion budget on that aggregate classification; timeout stays unknown with full charge. This inspection grants no command release, acceptance or native qualification. Physical-event, direct-close-event, two-closer-join and failed-result completion fences all share their original remaining eight-second budget and atomic gate-condition classification. Queued archive acknowledgement retains original output rejection/full charge. Only exact pre-bootstrap READY bypasses JSON parsing; late/malformed RPCs still fail, and cleanup preserves the primary plus owned workers. Prequeued-poll fixtures wait for original refusal publication within the shared original5s bound after full-frame consumption; third-poll no-effect/full-charge checks remain. Holding real-write return supplies fixture evidence only. Finite success fixtures join completion only after original poll reservation returns; failed reservation never starts the success join. This is fixture ordering evidence, not historical startup attribution. Signed live-mode selection adds actual registered RPC and owned pipe evidence of submitted and delivered UTF-8 byte counts and digests for finite polls. Nonempty input refuses before delivery, while an empty poll writes zero bytes. The synthetic RPC witness leaves live provider turns unmeasured. Only exact original typed completion and a fully written reply qualify the matching retained rollout text. Terminal settlement is historical and does not permit another effect.","manual_decisions":["M08","M10","M12","M26","M34","M35","M36","M37"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":71},{"$":10},{"$":24},{"$":328},{"$":329},{"$":116}],"witnesses":["w83","w89","w36","w3a","wT","wF0","wF1","w25Finite",{"$":340},"w36FiniteArchive","w36FiniteLateItem","w36FiniteHistory","w36FiniteRefusal","w36FiniteQueuedItem"]},
 
 {"contract":"N9","effect_points":["p343"],"entrypoint":"p1bd","gate_limits":"Isolated validation reaches the actual containment require_effect check before owned spawn. Sibling finite tool validation and receiver selection remain manual context.","gates":["p222"],"id":"N9.2","limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. The isolated validator invokes a constructed lifetime.launch before its internal admission. The selected containment launch binds the actual owned spawn; callback/lifetime identity and validator code remain manual trust. Qualification validates under its current signed selection and uses a separate namespace without the app-server provider broker.","manual_decisions":["M08","M10","M12","M26","M34","M35","M36","M37"],"review_gates":["p1b0","p2f8"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":71},{"$":10},{"$":328},{"$":329},{"$":24}],"witnesses":["w83","w89","w25Finite",{"$":340}]},
 
@@ -6828,9 +6834,9 @@
 
 "scripts/registered_app_server_transport.py":["91fb0184a5e45ad64047f69c43c39b64895c04dbcedaa6e2ea44696bfdc128dd",420,19058],
 
-"scripts/registered_finite_input.py":["63435f503a194f9544279dd6e7f9f9b912a332fb97a1ea8be088704a2f872699",420,89110],
+"scripts/registered_finite_input.py":["5c09f1a354de6e06f52df4af6c209554460f434ad41565ca3ec89f625c72bce4",420,89115],
 
-"scripts/registered_finite_tool_calls.py":["f56c9008ca5195f9d7a2fde0327c3633c5b9836cff3ec20ae26792bc4c401231",420,52577],
+"scripts/registered_finite_tool_calls.py":["a92bd96bcc4ebb34718949191841ee50b13f72e85ac6ad08940bfcc015a79b16",420,52877],
 
 "scripts/registered_host_root_boundary.py":["615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",420,1303],
 
@@ -6926,7 +6932,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["7395c7eed40528209b18143b263b123d6369450c60149d0e78464d2e776b87f8",420,133311],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["a6afd6b0e3712424ca2c677314c21b2b48bbdc8a851487cf6778a7b9c88b3250",420,133311],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7038,7 +7044,7 @@
 
 "tests/test_registered_finite_input.py":["6caf393f9f91e4cab0851b7be4ff28dd500ab3fc28277a1d2ed2928639fe0fe6",420,129664],
 
-"tests/test_registered_finite_tool_wiring.py":["8901e9d9608eacb163a75059d83d6991dc35ea3f368d815ea893b37fbbbeeb7f",420,274015],
+"tests/test_registered_finite_tool_wiring.py":["174d83ea15fa167674872eaea495a4e8ced83f4754aa1e7145dbd3bfa0078876",420,276023],
 
 "tests/test_registered_n1_factory.py":["4dea4c67e0f4f75b7e24f76c9f9cf6778fba1ce3e41273682b23ab2eb9e1ef2c",420,134701],
 
@@ -7203,6 +7209,8 @@
 "w36FiniteHistory":{"assertion":"with self.assertRaisesRegex(finite_tools.FiniteToolError,","body":"p36FiniteHistory","kind":{"$":0},"positive":"self.assertEqual(factory.run()['attempt']['outcome'], 'completed')","support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout"},
 
 "w36FiniteLateItem":{"assertion":"self.assertIsNone(factory.token)","body":"p36FiniteLateItem","kind":{"$":0},"positive":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})","support":["p36FiniteLateSupport","p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal"},
+
+"w36FiniteQueuedItem":{"assertion":"self.assertEqual(pending, [('EXAMPLE-poll-call', True, False, True)])","body":"p36FiniteQueuedItem","kind":{"$":6},"positive":"self.assertTrue(factory.server.archived)","support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item"},
 
 "w36FiniteRefusal":{"assertion":"self.assertEqual(poll['delivered_bytes'], 0)","body":"p36FiniteRefusal","kind":{"$":0},"positive":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})","support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal"},
 
