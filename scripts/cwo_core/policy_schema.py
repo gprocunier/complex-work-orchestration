@@ -90,9 +90,8 @@ POLICY_SCHEMAS = {'acceptance-policy.yaml': 'acceptance-policy.schema.json',
 POLICY_VALIDATION_BOUNDARIES = {
     "qualification-target.yaml": (
         "schema",
-        "schemas/qualification-target.schema.json fixes the selected target and labels every property; "
-        "cwo_core.qualification_target.selected_target additionally resolves the existing executable/package pin; "
-        "target_for rejects observed identity, profile and configuration drift without granting execution authority",
+        "schemas/qualification-target.schema.json validates the support floor, fixed profile and configuration, "
+        "and historical evidence; target_for rejects profile and configuration drift without granting execution authority",
     ),
     "acceptance-policy.yaml": (
         "schema",

@@ -49,13 +49,16 @@ class F5NativeLiveHoldTests(unittest.TestCase):
 
     def test_r5_f5_held_n1_raw_library_zero_launch_and_patched_fake_launch(self):
         with mock.patch.object(T, '_codex_binary', return_value=Path('/EXAMPLE/fake-codex')) as binary, \
+             mock.patch.object(T, 'check_codex_capabilities') as capabilities, \
              mock.patch.object(T.subprocess, 'Popen', side_effect=FakeLaunchReached) as launch:
             with self.assertRaisesRegex(A.NativeLiveUnavailable, 'native-n1-live-unavailable'):
                 T.AppServer()
             self.assertEqual((binary.call_count, launch.call_count), (0, 0))
+            capabilities.assert_not_called()
             with mock.patch.object(A, 'N1_LIVE_AVAILABLE', True), self.assertRaises(FakeLaunchReached):
                 T.AppServer(executable='/EXAMPLE/fake-codex', codex_home='/EXAMPLE/home')
             self.assertEqual(launch.call_count, 1)
+            capabilities.assert_called_once_with('/EXAMPLE/fake-codex')
             def hold_after_lookup(*args):
                 A.N1_LIVE_AVAILABLE = False
                 return Path('/EXAMPLE/home')
@@ -64,6 +67,7 @@ class F5NativeLiveHoldTests(unittest.TestCase):
                  self.assertRaises(A.NativeLiveUnavailable):
                 T.AppServer(executable='/EXAMPLE/fake-codex', codex_home='/EXAMPLE/home')
             self.assertEqual(launch.call_count, 1)
+            capabilities.assert_called_once()
 
     def test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control(self):
         fixture = NF.FactoryTests('runTest')

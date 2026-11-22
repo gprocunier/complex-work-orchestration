@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Check native app-server compatibility against the installed Codex CLI's protocol capabilities, with 0.163.0 as the tested support floor. Preserve exact version and digest records as fixture and historical evidence.
+- Run offline protocol contracts for Codex 0.163.0 and 0.171.0 in the required CI check and for the current stable release every week.
+
 ## 1.1.1 - 2026-11-16
 
 - Isolate partial-frame EOF from child exit in the transport fixture, preserving the original refusal and owned cleanup checks.

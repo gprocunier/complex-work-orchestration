@@ -15718,15 +15718,22 @@ class ProfileThreadBoundaryTests(unittest.TestCase):
     def test_proof_startup_is_forwarded_and_home_drift_closes(self):
         proof={'requested_tools':['exec_command','write_stdin']}
         verified={'startup_config':{'model_catalog_json':'/fixture/catalog.json'},'codex_home':'/fixture/home','codex_binary':'/fixture/codex','capture_binding':{'fixture':True}}
-        with mock.patch.object(TRANSPORT,'require_surface_proof',return_value=verified),mock.patch.object(TRANSPORT,'require_capture_binding',return_value=verified),mock.patch.object(LIVE.subprocess,'Popen') as process,mock.patch.object(LIVE.threading,'Thread'),mock.patch.object(LIVE.AppServer,'request',return_value=({'codexHome':'/different/home'},0)),mock.patch.object(LIVE.AppServer,'close',return_value={'all_contained':True,'resources_closed':True,'errors':[]}) as close:
+        with mock.patch.object(TRANSPORT, 'check_codex_capabilities') as capabilities, \
+                mock.patch.object(TRANSPORT,'require_surface_proof',return_value=verified),mock.patch.object(TRANSPORT,'require_capture_binding',return_value=verified),mock.patch.object(LIVE.subprocess,'Popen') as process,mock.patch.object(LIVE.threading,'Thread'),mock.patch.object(LIVE.AppServer,'request',return_value=({'codexHome':'/different/home'},0)),mock.patch.object(LIVE.AppServer,'close',return_value={'all_contained':True,'resources_closed':True,'errors':[]}) as close:
             with self.assertRaisesRegex(LIVE.AppServerError,'codex-tool-surface-home-drift'):
                 LIVE.AppServer(requested_model='gpt-5.6-luna',tool_surface_proof=proof)
+            capabilities.assert_called_once_with('/fixture/codex')
             self.assertEqual(process.call_args.args[0],['/fixture/codex','-c','model_catalog_json="/fixture/catalog.json"','app-server','--stdio'])
             close.assert_called_once()
 
 
 class StartupLifecycleTests(unittest.TestCase):
     """No provider: fake RPCs plus a bounded, real owned Python child."""
+    def setUp(self):
+        capabilities = mock.patch.object(TRANSPORT, 'check_codex_capabilities')
+        self.addCleanup(capabilities.stop)
+        capabilities.start()
+
     def construct(self, *, failure=None, process=None, callback=None):
         """Startup failure checks use an explicit disposable home/executable."""
         import io,os

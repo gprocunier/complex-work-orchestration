@@ -55,6 +55,7 @@ CI_UNIT_TEST_COMMAND = (
     'python scripts/run_parallel_unittest.py --workers 4 --verbose '
     '--shard-index "${CWO_TEST_SHARD_INDEX:-0}" --shard-count "${CWO_TEST_SHARD_COUNT:-1}"'
 )
+CI_CODEX_CONTRACT_COMMAND = "python scripts/check_codex_protocol_capabilities.py"
 CI_REQUIRED_COMMANDS = [
     "timeout --kill-after=10 300 python -B scripts/check_release_filesystem.py",
     "python -m compileall -j 8 -x '(^|/)(\\.git|\\.beads|\\.orchestration-audit|__pycache__|\\.ruff_cache)(/|$)' .",
@@ -64,6 +65,7 @@ CI_REQUIRED_COMMANDS = [
     "python scripts/validate_site.py",
     "python scripts/generate_site.py --check",
     CI_UNIT_TEST_COMMAND,
+    CI_CODEX_CONTRACT_COMMAND,
     "bash examples/sample-prompt-coach-command.sh",
     "python scripts/validate_run_readiness_plan.py examples/sample-run-readiness-plan.json",
     "python scripts/render_run_projection.py examples/sample-run-readiness-plan.json --projection run-sheet",
@@ -82,13 +84,13 @@ APPROVED_ACTION_PINS = {
     "ludeeus/action-shellcheck": ("00cae500b08a931fb5698e11e79bfbd38e612a38", "2.0.0"),
 }
 CWO_CORE_ALLOWED_IMPORTS = {
-    "qualification_target": {"codex_protocol_pin", "policy", "policy_schema"},
+    "qualification_target": {"policy", "policy_schema"},
     "release_effect_routes": set(),
     "atomic_spawn": set(),
     "ownership_producer": {"process_identity"},
     "server_request_preparation": set(),
     "access_profiles": {"codex_hook_enforcement", "policy"},
-    "codex_hook_enforcement": {"codex_protocol_pin", "errors"},
+    "codex_hook_enforcement": {"errors"},
     "paths": set(),
     "util": set(),
     "chatgpt_urls": set(),
@@ -323,6 +325,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_progress": {"native_authority", "native_stop_scope", "policy"},
     "checked_command": {"path_contract"},
     "checked_command_sequence": {"checked_command"},
+    "codex_protocol_capabilities": set(),
     "codex_protocol_pin": {"policy"},
     "codex_tool_surface": {"native_tool_isolation"},
     "supervision": set(),
@@ -332,6 +335,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "supervision.transport.private_io": {"native_live_campaign_contracts", "supervision.transport.errors"},
     "supervision.transport.app_server": {
         "native_live_availability",
+        "codex_protocol_capabilities",
         "codex_tool_surface",
         "native_canary_contracts",
         "native_live_allocation_ledger",
@@ -2280,14 +2284,56 @@ def _validate_ci_unit_shards(errors: list[str], ci: str) -> None:
 def _validate_ci_test_aggregate(errors: list[str], ci: str) -> None:
     job = _ci_job_block(ci, "test-result")
     required = (
-        "    name: test", "    needs: [test]", "    if: ${{ always() }}",
-        "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}",
+        "    name: test", "    needs: [test, codex-protocol-contract]", "    if: ${{ always() }}",
+        "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}\n"
+        "      CODEX_PROTOCOL_RESULT: ${{ needs.codex-protocol-contract.result }}",
     )
-    steps = ('    steps:\n      - name: Require all unit test shards\n'
-             '        run: test "$UNIT_TEST_RESULT" = success')
+    steps = ('    steps:\n      - name: Require all unit test shards and Codex protocol contracts\n'
+             '        run: test "$UNIT_TEST_RESULT" = success && test "$CODEX_PROTOCOL_RESULT" = success')
     if (not _ci_required_lines(job, required) or not job.rstrip().endswith(steps)
             or re.search(r"^    continue-on-error:", job, re.MULTILINE)):
-        errors.append("CI test aggregate must always require success from every unit shard")
+        errors.append("CI test aggregate must always require success from every unit shard and Codex protocol contract")
+
+
+def _ci_top_level_section(workflow: str, name: str) -> list[str]:
+    pattern = rf"^{re.escape(name)}:\n(.*?)(?=^\S|\Z)"
+    return [section.strip() for section in re.findall(pattern, workflow, re.MULTILINE | re.DOTALL)]
+
+
+def _ci_codex_contract_steps(job: str, package: str) -> bool:
+    install = rf"^(?: {{6}}- run: | {{10}})npm install\b[^\n]* {re.escape(package)}(?: +\#.*)?$"
+    return (_ci_required_lines(job, (f"        run: {CI_CODEX_CONTRACT_COMMAND}",))
+            and re.search(install, job, re.MULTILINE) is not None
+            and not re.search(r"^ +(?:if|continue-on-error|permissions):", job, re.MULTILINE))
+
+
+def _validate_ci_codex_contracts(errors: list[str], ci: str) -> None:
+    job = _ci_job_block(ci, "codex-protocol-contract")
+    strategy = ("    strategy:\n      fail-fast: false\n      matrix:\n"
+                "        codex-version: ['0.163.0', '0.171.0']\n")
+    env = "    env:\n      CODEX_VERSION: ${{ matrix.codex-version }}\n"
+    if (not re.search(r"^  pull_request:\s*$", ci, re.MULTILINE)
+            or _ci_top_level_section(ci, "permissions") != ["contents: read"]
+            or not _ci_exact_job_section(job, "strategy", strategy)
+            or not _ci_exact_job_section(job, "env", env)
+            or not _ci_codex_contract_steps(job, '"@openai/codex@$CODEX_VERSION"')):
+        errors.append("CI Codex protocol contract must run for released 0.163.0 and 0.171.0")
+
+
+def _validate_weekly_codex_contract(errors: list[str]) -> None:
+    path = REPO_ROOT / ".github" / "workflows" / "codex-protocol-latest.yml"
+    if not path.is_file():
+        errors.append("Weekly Codex protocol contract workflow is missing")
+        return
+    workflow = path.read_text(encoding="utf-8")
+    events = _ci_top_level_section(workflow, "on")
+    week = r"schedule:\n    - cron: '[0-5]?\d (?:[01]?\d|2[0-3]) \* \* [0-6]'"
+    job = _ci_job_block(workflow, "codex-protocol-contract")
+    if (len(events) != 1 or re.fullmatch(week, events[0]) is None
+            or _ci_top_level_section(workflow, "permissions") != ["contents: read"]
+            or not _ci_required_lines(job, ("          persist-credentials: false",))
+            or not _ci_codex_contract_steps(job, "@openai/codex@latest")):
+        errors.append("Weekly Codex protocol contract must use the scheduled, read-only latest release check")
 
 
 def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None:
@@ -2297,6 +2343,8 @@ def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None
     ci = path.read_text(encoding="utf-8")
     _validate_ci_unit_shards(errors, ci)
     _validate_ci_test_aggregate(errors, ci)
+    _validate_ci_codex_contracts(errors, ci)
+    _validate_weekly_codex_contract(errors)
     for term in CI_REQUIRED_COMMANDS:
         if term not in ci:
             errors.append(f"CI workflow is missing required command: {term}")

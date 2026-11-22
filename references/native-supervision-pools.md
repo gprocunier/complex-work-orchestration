@@ -10,9 +10,11 @@ receipt cannot override the source holds. Start with
 [the delegation guide](../docs/native-supervision.html), then use this reference
 for admission, monitoring, interruption and cleanup.
 
-For 1.0, the selected Codex 0.163.0 `constrained-integrity` target and the native
-pool remain unqualified. Pool qualification is planned for 1.1;
-`POOL_LIVE_AVAILABLE` stays `False`. Confidential operation remains unsupported.
+The selected `constrained-integrity` profile and the native pool remain
+unqualified. `POOL_LIVE_AVAILABLE` stays `False`. Confidential operation
+remains unsupported. The app-server integration supports Codex CLI 0.163.0 and
+later releases whose schemas provide the required protocol capabilities.
+See the [protocol compatibility and qualification evidence](codex-protocol-capability-matrix.md).
 
 Current v3 routing selects a qualified exact Luna worker first. Historical Spark
 receipts apply only to their recorded contracts and cannot approve new dispatch.

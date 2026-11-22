@@ -25,12 +25,15 @@ import time
 
 import linux_owned_children as owned
 from registered_n1_factory import _PipeBackend, _argument_file
-from cwo_core.qualification_target import selected_target
+from cwo_core.codex_protocol_capabilities import CapabilityError, check_codex_capabilities
 from cwo_core.process_identity import parse_proc_stat
+from cwo_core.qualification_target import selected_target
 
 PROBE_KINDS = frozenset({'useful', 'denials', 'waiting', 'appserver'})
 CONFIG_METHODS = ('initialize', 'config/read', 'configRequirements/read')
 _RUNTIME = ('/usr', '/lib', '/lib64')
+_FILE_IDENTITY_FIELDS = ('st_dev', 'st_ino', 'st_mode', 'st_nlink', 'st_uid', 'st_gid', 'st_size',
+                         'st_mtime_ns', 'st_ctime_ns')
 _LIMIT = 131072
 _WRITE_TIMEOUT = 5
 _CONFIG = 'sandbox_mode = "workspace-write"\napproval_policy = "never"\n[sandbox_workspace_write]\nnetwork_access = false\n'
@@ -45,6 +48,21 @@ print(json.dumps({'command':r.stdout,'patch':(root/'result.txt').read_text(),
  'independent_git':(root/common).resolve()==root/'.git'}),flush=True)
 '''
 _BOOTSTRAP = "import os,sys; print('boundary-ready',flush=True); gate=os.read(0,1); gate==b'1' or sys.exit(73); os.execv(sys.argv[1],sys.argv[1:])"
+_SCHEMA_EXEC = r'''
+import hashlib, json, os, stat, sys
+fields, expected = json.loads(sys.argv[1])
+command = sys.argv[2:]
+descriptor = os.open(command[0], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+with os.fdopen(descriptor, 'rb') as stream:
+    before = os.fstat(descriptor)
+    observed = [getattr(before, name) for name in fields]
+    if stat.S_ISREG(before.st_mode) and observed == expected[1]:
+        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        after = os.fstat(descriptor)
+        if digest == expected[0] and [getattr(after, name) for name in fields] == observed:
+            os.execv(command[0], command)
+sys.exit('The mounted executable changed before schema generation.')
+'''
 _EXEC_CONTEXT = r'''
 import json,pathlib
 status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines() if ':' in line)
@@ -124,17 +142,22 @@ def _pid_owning_user_namespace(pid):
         os.close(descriptor)
 
 
-def _regular(path):
-    _need(path.is_absolute() and path.resolve() == path and not path.is_symlink(), 'A direct absolute regular file is required.')
-    info = path.stat(follow_symlinks=False)
-    _need(stat.S_ISREG(info.st_mode) and info.st_nlink == 1, 'A distinct regular file is required.')
-    with path.open('rb') as stream:
+def _file_identity(path):
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC)
+    with os.fdopen(descriptor, 'rb') as stream:
+        before = os.fstat(descriptor)
+        _need(stat.S_ISREG(before.st_mode) and before.st_nlink == 1, 'A distinct regular file is required.')
         digest = hashlib.file_digest(stream, 'sha256').hexdigest()
-    after = path.stat(follow_symlinks=False)
-    fields = ('st_dev', 'st_ino', 'st_mode', 'st_nlink', 'st_uid', 'st_gid', 'st_size', 'st_mtime_ns', 'st_ctime_ns')
-    _need(all(getattr(info, name) == getattr(after, name) for name in fields),
+        after = path.stat(follow_symlinks=False)
+    identity = [getattr(before, name) for name in _FILE_IDENTITY_FIELDS]
+    _need(identity == [getattr(after, name) for name in _FILE_IDENTITY_FIELDS],
           'The selected file changed during identity observation.')
-    return digest
+    return [digest, identity]
+
+
+def _regular(path):
+    _need(path.is_absolute() and path.resolve() == path, 'A direct absolute regular file is required.')
+    return _file_identity(path)[0]
 
 
 def _executable_object(path):
@@ -145,18 +168,44 @@ def _executable_object(path):
     return str(canonical), (info.st_dev, info.st_ino)
 
 
-def _package(package):
-    package = Path(package)
-    _need(package.is_absolute() and package.resolve() == package, 'Select a canonical absolute package directory.')
-    target = selected_target()['selection']
-    binary = package / target['package']['entrypoint']
+def _codex_path(package, codex):
+    _need((package is None) != (codex is None), 'Select one Codex executable or standalone package directory.')
+    if package is not None:
+        directory = Path(package)
+        _need(directory.is_absolute() and directory.resolve() == directory,
+              'Select a canonical absolute package directory.')
+        return directory / 'bin/codex'
+    path = Path(codex)
+    _need(path.is_absolute(), 'Select an absolute Codex executable path.')
+    return path.resolve()
+
+
+def _observe_binary(binary):
     try:
-        matched = (_regular(binary) == target['executable_sha256']
-                   and _regular(package / target['package']['manifest']) == target['package']['sha256'])
+        _need(binary.resolve() == binary and os.access(binary, os.X_OK),
+              'A direct, executable Codex regular file is required.')
+        return _file_identity(binary)
     except OSError as exc:
-        raise SelectedProbeError('The exact standalone package is unavailable.') from exc
-    _need(matched, 'The executable or standalone package differs from the selected target.')
-    return target, binary
+        raise SelectedProbeError('The selected Codex executable is unavailable.') from exc
+
+
+def _fixed_launcher():
+    launcher = Path('/usr/bin/bwrap').resolve()
+    try:
+        _regular(launcher)
+    except OSError as exc:
+        raise SelectedProbeError('The fixed namespace launcher is unavailable.') from exc
+    return launcher
+
+
+def _schema_launcher(workspace, binary, identity):
+    argv = [str(_fixed_launcher()), '--unshare-all', '--die-with-parent', '--new-session', '--cap-drop', 'ALL']
+    for directory in _RUNTIME:
+        argv += ['--ro-bind', directory, directory]
+    return [*argv, '--symlink', 'usr/bin', '/bin', '--proc', '/proc', '--dev', '/dev',
+            '--ro-bind', str(binary), str(binary), '--bind', str(workspace), str(workspace),
+            '--chdir', str(workspace), '--remount-ro', '/', '--', '/usr/bin/python3', '-I', '-S',
+            '-c', _SCHEMA_EXEC, json.dumps([_FILE_IDENTITY_FIELDS, identity])]
 
 
 def disposition(observations):
@@ -192,16 +241,23 @@ class SelectedNativeProbe:
     Empty polling has no input delivery operation. This is not a tool adapter.
     """
 
-    def __init__(self, package):
-        self.target, self.binary = _package(package)
+    def __init__(self, package=None, *, codex=None, _expected_identity=None):
+        self.target = selected_target()['selection']
+        self.binary = _codex_path(package, codex)
+        self._binary_identity = _observe_binary(self.binary)
+        _need(_expected_identity is None or self._binary_identity == _expected_identity,
+              'The selected Codex executable changed before the diagnostic child started.')
+        try:
+            check_codex_capabilities(
+                self.binary, launcher=lambda workspace: _schema_launcher(workspace, self.binary, self._binary_identity)
+            )
+        except CapabilityError as exc:
+            raise SelectedProbeError(str(exc)) from exc
+        self._check_identity()
         self._initialize()
 
     def _initialize(self):
-        self.launcher = Path('/usr/bin/bwrap').resolve()
-        try:
-            _regular(self.launcher)
-        except OSError as exc:
-            raise SelectedProbeError('The fixed namespace launcher is unavailable.') from exc
+        self.launcher = _fixed_launcher()
         try:
             self._watchdog_object = _executable_object('/usr/bin/timeout')
         except OSError as exc:
@@ -316,7 +372,12 @@ class SelectedNativeProbe:
         return facts
 
     def _check_identity(self):
-        _package(self.binary.parent.parent)
+        _need(_observe_binary(self.binary) == self._binary_identity,
+              'The selected Codex executable changed during the diagnostic.')
+
+    def _check_mounted_identity(self, root):
+        _need(_file_identity(root / self.binary.relative_to('/')) == self._binary_identity,
+              'The mounted Codex executable changed before release.')
 
     def _native_command(self, kind, code):
         if kind == 'appserver':
@@ -379,6 +440,7 @@ class SelectedNativeProbe:
             _need(not (root / str(path).lstrip('/')).exists(), 'Controller custody is child-visible after setup.')
         _need((root / 'home/worker/.codex/config.toml').read_text() == _CONFIG,
               'The mounted diagnostic configuration differs.')
+        self._check_mounted_identity(root)
         _need(not select.select([self.namespace_handle], [], [], 0)[0], 'The inspected namespace exited.')
         _need(self._namespace_identity(self._namespace_pid).start_ticks == self._namespace_start,
               'The namespace identity changed after filesystem setup.')
@@ -787,6 +849,10 @@ class OuterBoundaryControl(SelectedNativeProbe):
     def _check_identity(self):
         _need(_regular(self.binary) == self._runtime_digest, 'The outer control interpreter changed.')
 
+    def _check_mounted_identity(self, root):
+        _need(_file_identity(root / self.binary.relative_to('/'))[0] == self._runtime_digest,
+              'The mounted outer control interpreter changed before release.')
+
     def _native_command(self, kind, code):
         _need(kind in {'useful', 'denials', 'waiting'} and code is not None,
               'Only fixed Python outer-boundary controls are supported.')
@@ -946,11 +1012,12 @@ def _reuse_selected_ready(probe):
             return
     raise SelectedProbeError('The selected fixed command did not acknowledge startup.')
 
-def _reuse_original(root, package):
-    if not package:
+def _reuse_original(root, selection):
+    if not selection:
         controller, receipt, birth = _reuse_spawn(root / 'original')
         return controller, receipt, birth, None
-    probe = SelectedNativeProbe(Path(package))
+    binary, identity = json.loads(selection)
+    probe = SelectedNativeProbe(codex=Path(binary), _expected_identity=identity)
     try:
         probe.start_waiting(detached=True)
         _reuse_selected_ready(probe)
@@ -1008,8 +1075,8 @@ def _finish_pid_reuse(actions, primary):
     _need(not errors, 'Private PID-reuse cleanup failed: ' + str(errors))
 
 
-def _reuse_case(root, package, host_namespaces):
-    original, receipt, birth, probe = _reuse_original(root, package)
+def _reuse_case(root, selection, host_namespaces):
+    original, receipt, birth, probe = _reuse_original(root, selection)
     fresh = primary = None
     try:
         selected_context = _reuse_exec_context(probe.worker) if probe is not None else None
@@ -1027,14 +1094,15 @@ def _reuse_case(root, package, host_namespaces):
         result = {'original_pid': birth.pid, 'sentinel_pid': sentinel.pid,
                   'sentinel_heartbeat_grew': grew, 'sentinel_reaped_by_stale_owner': False,
                   'stale': stale, 'fresh_cleanup': cleanup,
-                  'scope': 'selected-runner-launcher-pid-reuse' if package else 'primitive-controller-pid-reuse',
+                  'scope': 'selected-runner-launcher-pid-reuse' if selection else 'primitive-controller-pid-reuse',
                   'sentinel_context': sentinel_context, 'profile_status': 'selected-unqualified',
                   'confidential': 'unsupported', 'model_calls': False, 'thread_or_turn_started': False,
                   'accepted_output': False, 'execution_authorized': False}
         if probe is not None:
+            probe._check_identity()
             result['selected_context'] = selected_context
             result['selected_target_id'] = probe.target['id']
-            result['selected_executable_sha256'] = _regular(probe.binary)
+            result['selected_executable_sha256'] = probe._binary_identity[0]
             result['configuration'] = {'sandbox_mode': 'workspace-write', 'approval_policy': 'never', 'network_access': False}
         return result
     except BaseException as failure:
@@ -1111,7 +1179,7 @@ def _pid_reuse_failure(failure):
 
 
 def _pid_reuse_entry(arguments):
-    descriptor, root, host_namespaces, package = arguments
+    descriptor, root, host_namespaces, selection = arguments
     with socket.socket(fileno=int(descriptor)) as channel:
         try:
             facts = _private_pid_scope(json.loads(host_namespaces))
@@ -1127,7 +1195,7 @@ def _pid_reuse_entry(arguments):
             channel.settimeout(_PID_REUSE_SECONDS)
             _need(channel.recv(1) == b'1', 'The independent parent did not release the private diagnostic.')
             _drop_reuse_inheritance(json.loads(host_namespaces))
-            report = _reuse_case(Path(root), package, json.loads(host_namespaces))
+            report = _reuse_case(Path(root), selection, json.loads(host_namespaces))
         except BaseException as failure:
             report = _pid_reuse_failure(failure)
         channel.sendall(json.dumps(report, default=str).encode())
@@ -1136,11 +1204,15 @@ def _pid_reuse_entry(arguments):
 class _PrivatePidReuseOwner:
     """One fixed, independently gated PID-namespace diagnostic; no native admission."""
 
-    def __init__(self, package):
-        self.package = str(Path(package)) if package is not None else ''
+    def __init__(self, package, *, codex=None):
+        self.selection = ''
+        self.package = bool(package is not None or codex is not None)
         self.target = None
-        if package is not None:
-            self.target, _binary = _package(Path(package))
+        if self.package:
+            self.target = selected_target()['selection']
+            self.binary = _codex_path(package, codex)
+            self._binary_identity = _observe_binary(self.binary)
+            self.selection = json.dumps([str(self.binary), self._binary_identity])
         supported, reason = owned.atomic_spawn.supported()
         _need(supported, reason)
         self.timeout = _executable_object('/usr/bin/timeout')
@@ -1160,7 +1232,7 @@ class _PrivatePidReuseOwner:
     def _command(self, descriptor):
         entry = [self.python[0], '-I', '-S', '-c', _PID_REUSE_ENTRY,
                  str(Path(__file__).resolve().parent), str(descriptor), str(self.root),
-                 json.dumps(self.host_namespaces), self.package]
+                 json.dumps(self.host_namespaces), self.selection]
         # Use fixed device nodes without requesting devpts: the driver must stay
         # in the user namespace that owns its PID namespace and private cursor.
         command = [self.bwrap[0], '--unshare-user', '--uid', str(os.getuid()), '--gid', str(os.getgid()),
@@ -1269,10 +1341,16 @@ class _PrivatePidReuseOwner:
               and result.get('profile_status') == 'selected-unqualified'
               and result.get('confidential') == 'unsupported', 'PID-reuse observations grant no authority or qualification.')
         if self.package:
-            _need(result.get('selected_executable_sha256') == self.target['executable_sha256']
-                  and result.get('selected_target_id') == self.target['id'], 'The selected result has another identity.')
-            _need(result.get('configuration') == {'sandbox_mode': 'workspace-write', 'approval_policy': 'never',
-                                                 'network_access': False}, 'The selected result has another configuration.')
+            self._verify_selected_result(result)
+
+    def _verify_selected_result(self, result):
+        _need(result.get('selected_executable_sha256') == self._binary_identity[0]
+              and result.get('selected_target_id') == self.target['id']
+              and _observe_binary(self.binary) == self._binary_identity, 'The selected result has another identity.')
+        configuration = result.get('configuration')
+        _need(type(configuration) is dict and configuration.get('network_access') is False
+              and configuration == {'sandbox_mode': 'workspace-write', 'approval_policy': 'never',
+                                    'network_access': False}, 'The selected result has another configuration.')
 
     def run(self):
         parent, child = socket.socketpair()
@@ -1369,23 +1447,30 @@ class _PrivatePidReuseOwner:
 
 
 
-def probe_pid_reuse(package=None):
-    """Exercise one private numeric PID reuse, separately scoped to the exact target."""
-    return _PrivatePidReuseOwner(package).run()
+def probe_pid_reuse(package=None, *, codex=None):
+    """Exercise one private numeric PID reuse, optionally with a selected executable."""
+    return _PrivatePidReuseOwner(package, codex=codex).run()
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--package', type=Path, required=True, help='Exact selected standalone package directory')
+    executable = parser.add_mutually_exclusive_group(required=True)
+    executable.add_argument('--codex', type=Path, help='Absolute path to the installed Codex executable')
+    executable.add_argument('--package', type=Path, help='Standalone package directory containing bin/codex')
     args = parser.parse_args()
-    observations = {}
+    observations, identity = {}, None
     for kind in ('useful', 'denials', 'appserver'):
-        probe = SelectedNativeProbe(args.package)
+        probe = SelectedNativeProbe(args.package, codex=args.codex, _expected_identity=identity)
+        identity = probe._binary_identity
         try:
             observations[kind] = probe.read_configuration() if kind == 'appserver' else probe.run(kind)
+            probe._check_identity()
         finally:
             probe.close()
-    print(json.dumps(disposition(observations), sort_keys=True, indent=2))
+    result = disposition(observations)
+    result['selected_target_id'] = probe.target['id']
+    result['selected_executable_sha256'] = identity[0]
+    print(json.dumps(result, sort_keys=True, indent=2))
 
 
 if __name__ == '__main__':

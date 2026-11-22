@@ -220,16 +220,17 @@ class Codex0164PinProposalTests(unittest.TestCase):
                     with self.assertRaises(pins.PinError):
                         pins.pin_for("0.164.0")
 
-    def test_hook_enforcement_consumer_still_refuses_prospective_pin(self) -> None:
-        with patch.object(pins, "load_policy", return_value=self.prospective_policy()):
+    def test_hook_enforcement_refuses_without_consulting_prospective_pin(self) -> None:
+        with patch.object(pins, "load_policy", return_value=self.prospective_policy()) as load_pin_policy:
             self.assertEqual(pins.pin_for("0.164.0")["executable"]["sha256"], EXECUTABLE)
+            load_pin_policy.reset_mock()
             for event in ("PreToolUse", "PermissionRequest"):
                 with self.subTest(event=event):
                     with self.assertRaises(CWOValidationError) as raised:
                         hooks.validate_advisory_hook_configuration({"hooks": {event: []}})
-                    self.assertIn("0.164.0", str(raised.exception))
+                    self.assertIn(f"hook event(s) {[event]} refused", str(raised.exception))
                     self.assertIn("enforcement mode refused", str(raised.exception))
-                    self.assertIn("should_block=false", str(raised.exception))
+            load_pin_policy.assert_not_called()
 
     def test_canonical_selected_positive_precedes_full_raw_mismatch(self) -> None:
         wrapper = {"manifest": "manifest.json", "bundles": deepcopy(self.capture["canonical_corpus"])}

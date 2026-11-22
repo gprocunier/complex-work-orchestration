@@ -1,9 +1,11 @@
 # Server request transport boundaries
 
 The [selected qualification target](codex-protocol-capability-matrix.md#selected-qualification-target)
-uses Codex 0.163.0 with `workspace-write`, `approvalPolicy: never`, no network,
-and a bwrap host. The profile remains unqualified. This selection does not
-enable approval-dependent execution or change a live-route hold.
+uses the `constrained-integrity` profile with `workspace-write`,
+`approvalPolicy: never`, no network, and a bwrap host. Codex CLI 0.163.0 is the
+tested support floor. Startup checks the installed CLI for the required
+app-server protocol capabilities. The profile remains unqualified and the
+live routes remain held.
 
 The shared `AppServer` implementation lives in
 `scripts/cwo_core/supervision/transport/`; the former canary module still
@@ -38,8 +40,7 @@ decisions. A failed approval path remains unavailable without fallback.
 
 `tests/test_registered_transport_contract.py` checks actual registered-reader
 replies for useful command acceptance, file refusal, permission refusal and
-command cancellation against the pinned 0.163.0 stable and experimental
-response schemas. The additional schemas match the existing complete bundle
-manifests; no pin or historical contract hash changes. These are schema and
-fake-child witnesses. Effective configuration, legacy transport limits and
-physical containment still need qualification before stronger runtime claims.
+command cancellation against the historical 0.163.0 stable and experimental
+response fixtures. Those schemas match the retained complete bundle manifests.
+The tests witness schema and fake-child behavior. Effective configuration,
+legacy transport limits and physical containment still need qualification.

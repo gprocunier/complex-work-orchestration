@@ -33,6 +33,16 @@ from tests.real_beads_fixture import configure_git_fixture
 
 
 class ValidateRepositoryTests(unittest.TestCase):
+    WEEKLY_CODEX_WORKFLOW = (
+        "name: Weekly stable Codex\non:\n  schedule:\n    - cron: '41 4 * * 2'\n"
+        "permissions:\n  contents: read\njobs:\n  codex-protocol-contract:\n"
+        "    runs-on: ubuntu-latest\n    timeout-minutes: 8\n    steps:\n"
+        "      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6\n"
+        "        with:\n          persist-credentials: false\n"
+        "      - run: npm install --global --ignore-scripts @openai/codex@latest\n"
+        "      - name: Check schema\n        run: python scripts/check_codex_protocol_capabilities.py\n"
+    )
+
     # Independent golden fixture: the positive test is not allowed to read the
     # page that the production validator checks.
     NATIVE_SUPERVISION_TECH_PREVIEW_COPY = """
@@ -247,9 +257,10 @@ class ValidateRepositoryTests(unittest.TestCase):
         unit_command = ('python scripts/run_parallel_unittest.py --workers 4 --verbose '
                         '--shard-index "${CWO_TEST_SHARD_INDEX:-0}" '
                         '--shard-count "${CWO_TEST_SHARD_COUNT:-1}"')
+        codex_command = 'python scripts/check_codex_protocol_capabilities.py'
         commands = "".join(f"      - run: {command}\n" for command in CI_REQUIRED_COMMANDS
-                           if "run_parallel_unittest.py" not in command)
-        return ("permissions:\n  contents: read\nconcurrency:\n  cancel-in-progress: true\n"
+                           if command not in (unit_command, codex_command))
+        return ("on:\n  pull_request:\npermissions:\n  contents: read\nconcurrency:\n  cancel-in-progress: true\n"
                 "jobs:\n  test:\n    name: unit-tests (${{ matrix.shard }}/4)\n"
                 "    runs-on: ubuntu-latest\n    timeout-minutes: 90\n"
                 "    strategy:\n      fail-fast: false\n      matrix:\n        shard: [0, 1, 2, 3]\n"
@@ -258,20 +269,29 @@ class ValidateRepositoryTests(unittest.TestCase):
                 "      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6\n"
                 "        with:\n          persist-credentials: false\n" + commands +
                 "      - name: Unit tests\n        run: " + unit_command + "\n"
+                "  codex-protocol-contract:\n    runs-on: ubuntu-latest\n    timeout-minutes: 8\n"
+                "    strategy:\n      fail-fast: false\n      matrix:\n"
+                "        codex-version: ['0.163.0', '0.171.0']\n"
+                "    env:\n      CODEX_VERSION: ${{ matrix.codex-version }}\n    steps:\n"
+                '      - run: npm install --global --ignore-scripts "@openai/codex@$CODEX_VERSION"\n'
+                "      - name: Check schema\n        run: " + codex_command + "\n"
                 "  test-result:\n    name: test\n    runs-on: ubuntu-latest\n"
-                "    timeout-minutes: 5\n    needs: [test]\n    if: ${{ always() }}\n"
-                "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}\n    steps:\n"
-                "      - name: Require all unit test shards\n"
-                '        run: test "$UNIT_TEST_RESULT" = success\n'
+                "    timeout-minutes: 5\n    needs: [test, codex-protocol-contract]\n    if: ${{ always() }}\n"
+                "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}\n"
+                "      CODEX_PROTOCOL_RESULT: ${{ needs.codex-protocol-contract.result }}\n    steps:\n"
+                "      - name: Require all unit test shards and Codex protocol contracts\n"
+                '        run: test "$UNIT_TEST_RESULT" = success && test "$CODEX_PROTOCOL_RESULT" = success\n'
                 "  codeql:\n    timeout-minutes: 15\n  shellcheck:\n    timeout-minutes: 10\n")
 
     @staticmethod
-    def _ci_errors(content: str) -> list[str]:
+    def _ci_errors(content: str, weekly: str | None = WEEKLY_CODEX_WORKFLOW) -> list[str]:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             path = root / ".github/workflows/ci.yml"
             path.parent.mkdir(parents=True)
             path.write_text(content, encoding="utf-8")
+            if weekly is not None:
+                path.with_name("codex-protocol-latest.yml").write_text(weekly, encoding="utf-8")
             errors: list[str] = []
             with mock.patch.object(validate_repository_module, "REPO_ROOT", root):
                 validate_ci_workflow(errors, path)
@@ -319,12 +339,13 @@ class ValidateRepositoryTests(unittest.TestCase):
         fixture = self._ci_fixture()
         changes = (
             ("    name: test\n", "    name: summary\n"),
-            ("    needs: [test]\n", "    needs: [codeql]\n"),
+            ("    needs: [test, codex-protocol-contract]\n", "    needs: [test]\n"),
             ("    if: ${{ always() }}\n", ""),
             ("${{ needs.test.result }}", "success"),
-            ('run: test "$UNIT_TEST_RESULT" = success', "run: true"),
-            ("      - name: Require all unit test shards\n",
-             "      - name: Require all unit test shards\n        if: false\n"),
+            ("${{ needs.codex-protocol-contract.result }}", "success"),
+            (' && test "$CODEX_PROTOCOL_RESULT" = success', ""),
+            ("      - name: Require all unit test shards and Codex protocol contracts\n",
+             "      - name: Require all unit test shards and Codex protocol contracts\n        if: false\n"),
             ("    timeout-minutes: 5\n", "    timeout-minutes: 5\n    continue-on-error: true\n"),
         )
         for old, new in changes:
@@ -337,11 +358,46 @@ class ValidateRepositoryTests(unittest.TestCase):
         aggregate = content.split("  test-result:\n", 1)[1].split("\n  debian-filesystem:", 1)[0]
         command = next(line.removeprefix("        run: ") for line in aggregate.splitlines()
                        if line.startswith("        run: "))
-        for result in ("success", "failure", "cancelled", "skipped", "", "unknown"):
-            with self.subTest(result=result):
-                process = subprocess.run(["/bin/sh", "-c", command],
-                                         env=dict(os.environ, UNIT_TEST_RESULT=result), check=False)
-                self.assertEqual(process.returncode, int(result != "success"))
+        for name in ("UNIT_TEST_RESULT", "CODEX_PROTOCOL_RESULT"):
+            for result in ("success", "failure", "cancelled", "skipped", "", "unknown"):
+                with self.subTest(name=name, result=result):
+                    env = dict(os.environ, UNIT_TEST_RESULT="success", CODEX_PROTOCOL_RESULT="success")
+                    env[name] = result
+                    process = subprocess.run(["/bin/sh", "-c", command], env=env, check=False)
+                    self.assertEqual(process.returncode, int(result != "success"))
+
+    def test_pr_codex_contract_requires_both_release_witnesses_and_a_mandatory_check(self) -> None:
+        fixture = self._ci_fixture()
+        changes = (
+            ("  pull_request:\n", "  push:\n"),
+            ("['0.163.0', '0.171.0']", "['0.171.0']"),
+            ("${{ matrix.codex-version }}", "0.171.0"),
+            ("        run: python scripts/check_codex_protocol_capabilities.py", "        run: true"),
+            ("      - name: Check schema\n", "      - name: Check schema\n        if: false\n"),
+            ("  codex-protocol-contract:\n", "  codex-protocol-contract:\n    continue-on-error: true\n"),
+        )
+        for old, new in changes:
+            with self.subTest(change=new):
+                errors = self._ci_errors(fixture.replace(old, new))
+                self.assertTrue(any(error.startswith("CI Codex protocol contract") for error in errors), errors)
+
+    def test_weekly_codex_contract_requires_schedule_latest_and_mandatory_check(self) -> None:
+        workflow = self.WEEKLY_CODEX_WORKFLOW
+        changes = (
+            ("  schedule:\n    - cron: '41 4 * * 2'", "  workflow_dispatch:"),
+            ("41 4 * * 2", "41 4 * * *"),
+            ("41 4 * * 2", "41 4 2 * 2"),
+            ("contents: read", "contents: write"),
+            ("@openai/codex@latest", "@openai/codex@0.171.0"),
+            ("        run: python scripts/check_codex_protocol_capabilities.py", "        run: true"),
+            ("      - name: Check schema\n", "      - name: Check schema\n        if: false\n"),
+            ("  codex-protocol-contract:\n", "  codex-protocol-contract:\n    continue-on-error: true\n"),
+        )
+        for old, new in changes:
+            with self.subTest(change=new):
+                errors = self._ci_errors(self._ci_fixture(), workflow.replace(old, new))
+                self.assertTrue(any(error.startswith("Weekly Codex protocol contract") for error in errors), errors)
+        self.assertIn("Weekly Codex protocol contract workflow is missing", self._ci_errors(self._ci_fixture(), None))
 
     def test_workflow_controls_accept_independent_positive_fixture(self) -> None:
         errors: list[str] = []
@@ -355,6 +411,7 @@ class ValidateRepositoryTests(unittest.TestCase):
             validate_repository_module.REPO_ROOT = root
             try:
                 (workflow_dir / "ci.yml").write_text("uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6\n" + fixture.read_text(), encoding="utf-8")
+                (workflow_dir / "codex-protocol-latest.yml").write_text(self.WEEKLY_CODEX_WORKFLOW, encoding="utf-8")
                 validate_ci_workflow(errors, fixture)
             finally:
                 validate_repository_module.REPO_ROOT = original

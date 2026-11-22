@@ -81,17 +81,43 @@ jobs:
       - name: Installer dry run
         run: ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run
 
+  codex-protocol-contract:
+    name: Codex protocol contract (${{ matrix.codex-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        codex-version: ['0.163.0', '0.171.0']
+    env:
+      CODEX_VERSION: ${{ matrix.codex-version }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+      - name: Install the released Codex CLI
+        run: |
+          npm install --global --prefix "$RUNNER_TEMP/cwo-codex" --ignore-scripts --no-audit --no-fund --include=optional "@openai/codex@$CODEX_VERSION"
+          npm list --global --prefix "$RUNNER_TEMP/cwo-codex" --depth 0 @openai/codex
+          echo "$RUNNER_TEMP/cwo-codex/bin" >> "$GITHUB_PATH"
+      - name: Verify the offline app-server protocol contract
+        run: python scripts/check_codex_protocol_capabilities.py
+
   test-result:
     name: test
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [test]
+    needs: [test, codex-protocol-contract]
     if: ${{ always() }}
     env:
       UNIT_TEST_RESULT: ${{ needs.test.result }}
+      CODEX_PROTOCOL_RESULT: ${{ needs.codex-protocol-contract.result }}
     steps:
-      - name: Require all unit test shards
-        run: test "$UNIT_TEST_RESULT" = success
+      - name: Require all unit test shards and Codex protocol contracts
+        run: test "$UNIT_TEST_RESULT" = success && test "$CODEX_PROTOCOL_RESULT" = success
 
   debian-filesystem:
     name: Required Debian 13 filesystem release gate

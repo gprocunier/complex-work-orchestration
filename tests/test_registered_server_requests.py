@@ -885,7 +885,7 @@ class RegisteredRequestsTests(unittest.TestCase):
     def test_thread_archived_before_turn_response_refuses_later_approval(self):
         self.early_thread_terminal_refusal('thread/archived')
 
-    def delayed_terminal_intent_refusal(self, method, selector):
+    def delayed_terminal_intent_refusal(self, method, exercise):
         terminal, saved = threading.Event(), threading.Event()
         order = []
         original_result = family.RpcProcess.result
@@ -928,7 +928,7 @@ class RegisteredRequestsTests(unittest.TestCase):
         # Own release and original factory/input drains before starting anything.
         self.addCleanup(saved.set)
         try:
-            getattr(self, selector)()
+            exercise()
         finally:
             saved.set()
         process = self.fixture.spawned[0]
@@ -938,8 +938,8 @@ class RegisteredRequestsTests(unittest.TestCase):
         self.assertLess(order.index('intent-prepared'), order.index('terminal'))
         self.assertTrue(all(index > order.index('terminal') for index, event in enumerate(order)
                             if event == 'turn-response'), order)
-        expected = ('registered-terminal-before-bound-turn' if method == 'turn/completed'
-                    else 'registered-thread-terminal-before-bound-turn')
+        expected = ('registered-thread-terminal-before-bound-turn' if method in {'thread/archived', 'thread/closed'}
+                    else 'registered-terminal-before-bound-turn')
         self.assertEqual(str(process.case.factory.server.transport_failure), expected)
         self.assertTrue(process.case.factory.server.lifetime.contained)
         self.assertEqual(self.fixture.attempt(process.case)['charge'],
@@ -947,15 +947,15 @@ class RegisteredRequestsTests(unittest.TestCase):
 
     def test_archived_terminal_waits_for_original_intent_preparation(self):
         self.delayed_terminal_intent_refusal('thread/archived',
-            'test_thread_archived_before_turn_response_refuses_later_approval')
+            self.test_thread_archived_before_turn_response_refuses_later_approval)
 
     def test_closed_terminal_waits_for_original_intent_preparation(self):
         self.delayed_terminal_intent_refusal('thread/closed',
-            'test_thread_closed_before_turn_response_refuses_later_approval')
+            self.test_thread_closed_before_turn_response_refuses_later_approval)
 
     def test_turn_terminal_waits_for_original_intent_preparation(self):
         self.delayed_terminal_intent_refusal('turn/completed',
-            'test_turn_completion_before_actual_turn_response_refuses_later_approval')
+            self.test_turn_completion_before_actual_turn_response_refuses_later_approval)
 
     def test_terminal_turn_start_response_refuses_later_approval(self):
         original = family.RpcProcess.result
@@ -1435,16 +1435,19 @@ class RegisteredRequestsTests(unittest.TestCase):
                 done.wait(12)
 
     def terminal_start_notification_refusal(self, method):
-        original = family.RpcProcess.receive
-        def receive(process, message):
-            if message.get('method') == 'turn/start':
+        original = family.RpcProcess.result
+        def result(process, rpc_method, rpc_params):
+            # Check the durable intent before the terminal can reach the parent.
+            # The ordinary receive path still publishes any turn response later.
+            value = original(process, rpc_method, rpc_params)
+            if rpc_method == 'turn/start':
                 scenario = process.case.scenario
                 turn = {'id': scenario.turn_id, 'status': 'completed', 'items': []}
                 params = ({'threadId': scenario.thread_id, 'turn': turn} if method == 'turn/started'
                           else {'thread': {'id': scenario.thread_id, 'turns': [turn]}})
                 process.stdout.put({'method': method, 'params': params})
-            return original(process, message)
-        with patch.object(family.RpcProcess, 'receive', receive):
+            return value
+        with patch.object(family.RpcProcess, 'result', result):
             case = self.pipe_case()
             factory = self.fixture.factory(case)
             with self.assertRaises((ValueError, runtime.AppServerError)):
@@ -1454,10 +1457,12 @@ class RegisteredRequestsTests(unittest.TestCase):
                                  for r in self.fixture.spawned[0].replies))
 
     def test_terminal_turn_data_in_started_notification_refuses_later_approval(self):
-        self.terminal_start_notification_refusal('turn/started')
+        self.delayed_terminal_intent_refusal('turn/started',
+            lambda: self.terminal_start_notification_refusal('turn/started'))
 
     def test_terminal_turn_data_in_thread_started_notification_refuses_later_approval(self):
-        self.terminal_start_notification_refusal('thread/started')
+        self.delayed_terminal_intent_refusal('thread/started',
+            lambda: self.terminal_start_notification_refusal('thread/started'))
 
 
 if __name__ == '__main__':
