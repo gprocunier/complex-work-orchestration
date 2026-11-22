@@ -460,6 +460,20 @@ class ValidateRepositoryTests(unittest.TestCase):
                 self.assertTrue(any(error.startswith("Weekly Codex protocol contract") for error in errors), errors)
         self.assertIn("Weekly Codex protocol contract workflow is missing", self._ci_errors(self._ci_fixture(), None))
 
+    def test_pages_deploy_waits_for_the_artifact_upload_job(self) -> None:
+        workflow = (ROOT / ".github/workflows/pages.yml").read_text(encoding="utf-8")
+        build = validate_repository_module._ci_job_block(workflow, "build")
+        deploy = validate_repository_module._ci_job_block(workflow, "deploy")
+        upload_action = "uses: actions/upload-pages-artifact@"
+        deploy_action = "uses: actions/deploy-pages@"
+
+        self.assertIn(upload_action, build)
+        self.assertIn(deploy_action, deploy)
+        self.assertIn("    needs: build", deploy.splitlines())
+        self.assertNotRegex(deploy, r"(?m)^    if:")
+        self.assertEqual(workflow.count(upload_action), 1)
+        self.assertEqual(workflow.count(deploy_action), 1)
+
     def test_workflow_controls_accept_independent_positive_fixture(self) -> None:
         errors: list[str] = []
         with tempfile.TemporaryDirectory() as tmpdir:
