@@ -12,23 +12,6 @@ from tests import test_registered_finite_tool_wiring as wiring
 from tests.test_finite_fixture_progress_acknowledgment import original_poll_ticket_clock
 
 
-def _note_original_poll_refusal(factory, failure):
-    """Keep the first recorded poll refusal alongside the worker exception."""
-    add_note = family.runtime.admission.ledger_api.add_failure_note
-    try:
-        directory = factory.records / 'transport-observations'
-        for path in sorted(directory.glob('observation-*.json'))[:256]:
-            with path.open('rb') as stream:
-                row = json.loads(stream.read(16384))
-            if row['stage'] == 'finite-tool-refusal' and row['observation']['call'] == 'EXAMPLE-poll-call':
-                observed = row['observation']
-                add_note(failure, 'Original finite poll refusal: '
-                         + str(observed['reason'])[:100] + ': ' + str(observed['message'])[:512])
-                break
-    except Exception:
-        add_note(failure, 'Original finite poll refusal observation unavailable.')
-
-
 class StartupPublicationTests(unittest.TestCase):
     def setUp(self):
         self.helper = wiring.RegisteredFiniteToolWiringTests('runTest')
@@ -56,7 +39,7 @@ class StartupPublicationTests(unittest.TestCase):
             try:
                 result.append(factory.run())
             except BaseException as failure:
-                _note_original_poll_refusal(factory, failure)
+                wiring._note_original_poll_refusal(factory, failure)
                 result.append(failure)
 
         with (

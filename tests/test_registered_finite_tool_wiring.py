@@ -35,6 +35,23 @@ def _fixture_poll_ticket_clock(factory):
     return original_poll_ticket_clock(lambda: getattr(factory.server, 'finite_tools', None))
 
 
+def _note_original_poll_refusal(factory, failure):
+    """Keep the first recorded poll refusal alongside the worker exception."""
+    add_note = family.runtime.admission.ledger_api.add_failure_note
+    try:
+        directory = factory.records / 'transport-observations'
+        for path in sorted(directory.glob('observation-*.json'))[:256]:
+            with path.open('rb') as stream:
+                row = json.loads(stream.read(16384))
+            if row['stage'] == 'finite-tool-refusal' and row['observation']['call'] == 'EXAMPLE-poll-call':
+                observed = row['observation']
+                add_note(failure, 'Original finite poll refusal: '
+                         + str(observed['reason'])[:100] + ': ' + str(observed['message'])[:512])
+                break
+    except Exception:
+        add_note(failure, 'Original finite poll refusal observation unavailable.')
+
+
 def _note_typed_startup_failure(factory, failure):
     """One bounded observation after original cleanup; never execution authority."""
     def exception(error):
@@ -302,8 +319,12 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         return family.wait_for_startup(self, event, worker, outcome)
 
     @contextmanager
-    def _positive_finite_completion(self, case):
+    def _positive_finite_completion(self, case, *, selected_factory=None):
         """Join the original poll consumer and accept its actual terminal records."""
+        if selected_factory is None:
+            def selected_factory():
+                return case.factory
+
         poll_intent_recorded = threading.Event()
         case._finite_success_consumed = threading.Event()
         self.addCleanup(case._finite_success_consumed.set)
@@ -315,12 +336,14 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
         def reserve(gate, *args, **kwargs):
             ticket = original_reserve(gate, *args, **kwargs)
-            if gate.factory is case.factory:
+            if gate.factory is selected_factory():
                 poll_intent_recorded.set()
             return ticket
 
         def receive(process, message):
-            selected = process.case is case and not process.is_tool and not process.validator
+            factory = selected_factory()
+            selected = (factory is not None and process.case is case
+                        and not process.is_tool and not process.validator)
             expected = {command_id: 'command-replied',
                         'EXAMPLE-request-EXAMPLE-poll-call': 'poll-replied'}
             if (selected and message.get('id') in expected
@@ -328,7 +351,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 # Physical delivery precedes the writer's original authority
                 # reconciliation. Do not publish the next request or terminal
                 # records until that original reply bookkeeping is visible.
-                lifecycle = case.factory.server.finite_input.lifecycle
+                lifecycle = factory.server.finite_input.lifecycle
                 key = family.runtime.protocol._id_key(message['id'])
                 self.assertTrue(lifecycle.condition.acquire(timeout=3))
                 try:
@@ -347,11 +370,12 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
         def settle(server):
             nonlocal settled
-            if server.factory is not case.factory or settled or not poll_intent_recorded.is_set():
+            factory = selected_factory()
+            if factory is None or server.factory is not factory or settled or not poll_intent_recorded.is_set():
                 return
             family.wait_for_release(self, case._finite_success_consumed, 3)
             self.assertEqual(poll_success, [True])
-            boundary = case.factory.adapter._capture_trusted_boundary(allow_pending=False)
+            boundary = factory.adapter._capture_trusted_boundary(allow_pending=False)
             self.assertEqual(boundary['terminal_event']['status'], 'completed')
             thread, _latency = server.read_thread(case.scenario.thread_id)
             self.assertEqual(thread['turns'][0]['status'], 'completed')
@@ -401,9 +425,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 fault_observed.set()
 
     def _run_tool_exit(self, *, output=True, status=0, pid_exited=True,
-                       trailing='', close_output=True):
+                       trailing='', close_output=True, expect_success=False):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
-                                 command_no_output=not output, natural_tool_exit=True)
+                                 command_no_output=not output, natural_tool_exit=True,
+                                 no_fake_scheduler=expect_success)
         factory = self.fixture.factory(case)
         original_read = os.read
         observed = []
@@ -426,11 +451,22 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 observed.append(data)
             return data
 
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), patch.object(os, 'read', side_effect=read):
+        progress = self._positive_finite_completion(case) if expect_success else nullcontext()
+        with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
+                patch.object(os, 'read', side_effect=read), progress:
             try:
                 result = factory.run()
             except BaseException as failure:
                 result = failure
+        if expect_success and isinstance(result, BaseException):
+            try:
+                _note_original_poll_refusal(factory, result)
+                note = family._wrong_bytes_diagnostic(factory, result)
+            except BaseException:
+                pass
+            else:
+                family.runtime.admission.ledger_api.add_failure_note(result, 'Natural tool exit: ' + note)
+            raise result
         self.assertEqual(len(observed), 1, 'the original tool pipe must be observed')
         self.assertEqual(observed[0], b'EXAMPLE finite command output\n' if output else b'')
         return case, factory, result
@@ -467,7 +503,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         return case, factory, result
 
     def test_naturally_completed_tool_with_output_replies_and_polls_empty(self):
-        case, factory, result = self._run_tool_exit()
+        case, factory, result = self._run_tool_exit(expect_success=True)
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertEqual(factory.server.finite_input.terminal_code, 0)
         self.assertEqual(self.fixture.spawned[0].replies[0]['result']['contentItems'][0]['text'],
@@ -479,7 +515,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             os.read(case.tool_read, 1)
 
     def test_naturally_completed_tool_without_output_replies_and_polls_empty(self):
-        case, factory, result = self._run_tool_exit(output=False)
+        case, factory, result = self._run_tool_exit(output=False, expect_success=True)
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertEqual(factory.server.finite_input.terminal_code, 0)
         self.assertEqual(self.fixture.spawned[0].replies[0]['result']['contentItems'][0]['text'], '')
@@ -487,7 +523,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertIsNotNone(factory.issued_artifact())
 
     def test_natural_exit_drains_buffered_tail_before_command_reply(self):
-        _case, factory, result = self._run_tool_exit(trailing='EXAMPLE buffered tail\n')
+        _case, factory, result = self._run_tool_exit(trailing='EXAMPLE buffered tail\n', expect_success=True)
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertEqual(factory.server.finite_input.terminal_code, 0)
         self.assertEqual(self.fixture.spawned[0].replies[0]['result']['contentItems'][0]['text'],

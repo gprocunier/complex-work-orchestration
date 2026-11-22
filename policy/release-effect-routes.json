@@ -1518,9 +1518,9 @@
 
 "p2X":[137,"PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace",498,"b8120a7d82448bf0702110c6216fa39662d2019ca1ec9c7489fff5c05c94d280"],
 
-"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4002,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
+"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4038,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
 
-"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4165,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
+"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4201,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
 
 "p2a":[36,14407,"subprocess.run(\n                [\"git\", \"apply\", \"--index\", \"-\"],\n                cwd=worktree,\n                check=True,\n                capture_output=True,\n                input=patch_bytes,\n            )",12,14413,13],
 
@@ -1822,7 +1822,7 @@
 
 "p318":[60,"RegisteredReviewHost.dispatch",227,"f52b608fbfbf5fa2b8dcd957ec3494093145da05dbf930b86981f552a38dbf9b"],
 
-"p319":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",469,"99cc7956cef56b6f6f3eaf05f025fb18cab8ced1c5c3831c06f01e7d3eeb9a85"],
+"p319":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",505,"45d33cd966384729b74c39b88b42952a8373ff629909d0012379628c6c8fac3f"],
 
 "p31a":[74,7467,"campaign_live_route=True,"],
 
@@ -1858,7 +1858,7 @@
 
 "p329":[43,"WorktreeCapture._git",1542,"957bbafc0ae3a4261e504991fcbd97b3bade28080c0065c3e78da2eba25e419c"],
 
-"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2425,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
+"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2461,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
 
 "p32b":[31,"MaintenanceAuthorityVerifier.__init__",344,"03802d0590db57d2c1f457a056a7a56ee8a0e0ffce20be5e4abbad96ece2eb34"],
 
@@ -2166,19 +2166,19 @@
 
 "p3a1":[88,"ShareConsentTests",140,"856b0ba17280a32f78af37a6c37edfb30e42b19f2f547f0c5817e8f176e27006"],
 
-"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",1999,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
+"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2035,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
 
-"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",1935,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
+"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",1971,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
 
-"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",1910,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
+"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",1946,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
 
-"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",1847,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
+"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",1883,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
 
-"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1873,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
+"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",1909,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
 
-"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1726,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
+"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1762,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
 
-"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",1838,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
+"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",1874,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
 
 "p3a9":[42,581,{"$":59},16,581,43],
 
@@ -2296,7 +2296,7 @@
 
 "p58":[124,"_archive_frame",15,"f1d92efb4c95190f2cbe4c6fde08a4fdd20886514b978091c52bc853e9245455"],
 
-"p59":[125,"FiniteInputTests.test_selected_original_output_rejection_is_failed_and_fully_charged",1926,"6b8024f7080517f1f847acacc3ddecf25fdcfd959a4d4f826dbd2dfcf0477172"],
+"p59":[125,"FiniteInputTests.test_selected_original_output_rejection_is_failed_and_fully_charged",1930,"6b8024f7080517f1f847acacc3ddecf25fdcfd959a4d4f826dbd2dfcf0477172"],
 
 "p5a":[124,"ControlledOutputScheduleTests.test_partial_construction_cleanup_preserves_primary_and_owned_workers",60,"8efc41baeae179dc60b726aadfe0056c766f5c72bfefc3ee40ec14d770ee3111"],
 
@@ -2458,17 +2458,17 @@
 
 "pF":[77,230,"os.read(descriptor, 4096)",21,230,46],
 
-"pF0":[126,"RegisteredFiniteToolWiringTests._positive_finite_completion",304,"123c40c34338ece00fe76fa0b976a874fbb7bd9bc66734014cd3ed030554a457"],
+"pF0":[126,"RegisteredFiniteToolWiringTests._positive_finite_completion",321,"49c467673946ade1a5d86c6129deccca5c424a1b3a29eec6de1bcbeeabcf34c4"],
 
-"pF1":[126,"RegisteredFiniteToolWiringTests._exit_between_command_read_and_reply",438,"f3df21f8aef898d6bd37c1e07396d3a8eb8d9223b7d50d98420b7d8c2730a87f"],
+"pF1":[126,"RegisteredFiniteToolWiringTests._exit_between_command_read_and_reply",474,"f3df21f8aef898d6bd37c1e07396d3a8eb8d9223b7d50d98420b7d8c2730a87f"],
 
-"pF2":[126,"RegisteredFiniteToolWiringTests.test_exit_between_initial_read_and_reply_drains_tail_atomically",496,"e89024b485b277239d541ed51ab4c96ee76b83d24a92e4b07012477345084e6b"],
+"pF2":[126,"RegisteredFiniteToolWiringTests.test_exit_between_initial_read_and_reply_drains_tail_atomically",532,"e89024b485b277239d541ed51ab4c96ee76b83d24a92e4b07012477345084e6b"],
 
 "pF3":[140,"FiniteFixtureProgressTests.success_consumers",123,"d0514f6b8440e0750f29162aedee144eed9708492520650b352db7c22bad31ac"],
 
 "pF4":[140,"FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent",106,"efa6e0d1fcd29deb977e3108cf6cc1cd8dbaa68fac4d7ade0f27643d2f12d15d"],
 
-"pF5":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",510,"416ec88722887755694115c4962bc03b5d5389870d4db51db7490c12923201ff"],
+"pF5":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",546,"416ec88722887755694115c4962bc03b5d5389870d4db51db7490c12923201ff"],
 
 "pG":[137,"WatchdogObjectIdentityTests.test_watchdog_scheduler_state_change_preserves_birth",1171,"c6d92df5a37bafb76c911fbe6a4a08fe926d716a4ee7b6de542ac59fba59d9a2"],
 
@@ -2550,27 +2550,27 @@
 
 "pad":[62,"RegisteredFiniteInput._publish_cleanup_observation",1597,"651db3ee5f962a20679e71e3c7388591952f434350e69692d254060840044a88"],
 
-"pae":[125,"FiniteInputTests.test_denied_read_result_precedes_original_cleanup_publication",1568,"b24c36ba885b316c883a080c63d49a2eb87a998177cd9a71705893360a9ad8a9"],
+"pae":[125,"FiniteInputTests.test_denied_read_result_precedes_original_cleanup_publication",1572,"b24c36ba885b316c883a080c63d49a2eb87a998177cd9a71705893360a9ad8a9"],
 
-"paf":[125,"FiniteInputTests._denied_physical_read_schedule",416,"3de8fb1c511c7d8d9e9f77cc449eef825ccb3ef0bb9a401d391ecf9ebc5a97b4"],
+"paf":[125,"FiniteInputTests._denied_physical_read_schedule",416,"9f38c0e93d86aa48a23ac62873806e754835de2d19bd2b7c91608bc17df7350b"],
 
 "pb":[78,281,"create_bead(\n            review[\"title\"],\n            parent=args.parent,\n            priority=1,\n            labels=review[\"labels\"],\n            skills=review[\"skills\"],\n            description=review[\"description\"],\n            acceptance=str(review[\"acceptance\"]),\n            design=str(review[\"design\"]),\n            notes=str(review[\"notes\"]),\n            metadata=review[\"metadata\"],\n        )",15,292,9],
 
-"pb0":[125,"FiniteInputTests.test_direct_termination_owner_is_observed_by_off_reader_gate_close",1343,"6b240a0e3146746bcd673401b75be98ebf1755d067e4d95a4a3bef86316f1383"],
+"pb0":[125,"FiniteInputTests.test_direct_termination_owner_is_observed_by_off_reader_gate_close",1347,"6b240a0e3146746bcd673401b75be98ebf1755d067e4d95a4a3bef86316f1383"],
 
-"pb1":[125,"FiniteInputTests.test_direct_owner_peer_wait_includes_original_observer_publication",1412,"80fc3a2d7af2929451f3c82f87d436488fb45c4e24d045557cc863ab020c0757"],
+"pb1":[125,"FiniteInputTests.test_direct_owner_peer_wait_includes_original_observer_publication",1416,"80fc3a2d7af2929451f3c82f87d436488fb45c4e24d045557cc863ab020c0757"],
 
-"pb2":[125,"FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication",1232,"49da7fb33d9669e453cbff026f3f5a7039e27888af3ad234c7c554fa07ccb85a"],
+"pb2":[125,"FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication",1236,"49da7fb33d9669e453cbff026f3f5a7039e27888af3ad234c7c554fa07ccb85a"],
 
-"pb3":[125,"FiniteInputTests._gate_owned_concurrent_closer",1137,"5343f40c1fee9d12a1706c0436c0d34a51d27cf3eb35b993db60ba463a2a1efb"],
+"pb3":[125,"FiniteInputTests._gate_owned_concurrent_closer",1141,"5343f40c1fee9d12a1706c0436c0d34a51d27cf3eb35b993db60ba463a2a1efb"],
 
-"pb4":[125,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_joins_one_owner",1226,"5468ed0c611a1d06c77cae9a8c4a42aa80ed604773424d8538469965aa0e4cdc"],
+"pb4":[125,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_joins_one_owner",1230,"5468ed0c611a1d06c77cae9a8c4a42aa80ed604773424d8538469965aa0e4cdc"],
 
-"pb5":[125,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_times_out_before_owner_release",1229,"3b6be899c8d612e03b52b6223d2a3326a1725be42e7923029af618e1359c9ab9"],
+"pb5":[125,"FiniteInputTests.test_gate_owned_transport_fault_second_closer_times_out_before_owner_release",1233,"3b6be899c8d612e03b52b6223d2a3326a1725be42e7923029af618e1359c9ab9"],
 
-"pb6":[125,"FiniteInputTests._await_cleanup_publication",1127,"ab6f3fd5daf99f6324e26bf8b2f5a8765c56aba604f8e5de998b4021c6261794"],
+"pb6":[125,"FiniteInputTests._await_cleanup_publication",1131,"ab6f3fd5daf99f6324e26bf8b2f5a8765c56aba604f8e5de998b4021c6261794"],
 
-"pb7":[125,"FiniteInputTests.test_two_finite_tool_closers_observe_one_inflight_owner",1274,"691ac855a05c3354245554524cfff5e93481d31dd4698ba8a35e1ebdc705cb16"],
+"pb7":[125,"FiniteInputTests.test_two_finite_tool_closers_observe_one_inflight_owner",1278,"691ac855a05c3354245554524cfff5e93481d31dd4698ba8a35e1ebdc705cb16"],
 
 "pb8":[53,547,"os.replace(self.state / \"operation.next\", self.state / \"operation.json\")",8,547,80],
 
@@ -6666,7 +6666,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["4f450afabbac6455cc46e92ecb9df26955ef616a50a4280663c37be35426cab8",420,130781],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2250ef3f9c8b64af9b0161e55cc74dc570c3b2691642de04dc4a4b555d3f9c81",420,130781],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -6772,9 +6772,9 @@
 
 "tests/test_registered_controlled_output_schedule.py":["2cdd3d39ead6c089a9aa1aa594f8817c62fadda752e5ef60da614ca034d7139d",420,7844],
 
-"tests/test_registered_finite_input.py":["b9ed783ae3e631b1403e9c9cdd61da13a7af2cb25c23c4524593ca8bdcedf684",420,127597],
+"tests/test_registered_finite_input.py":["fab6dc9b7ddc2e993015eb47f9bea2f32e3b41edda05a0c1fb3474b8f7e5a2a9",420,127867],
 
-"tests/test_registered_finite_tool_wiring.py":["80ddd56bc881152fe45d9d9fcc3accec50923d5cbace9c38ad1e9665c0a7b3e0",420,243211],
+"tests/test_registered_finite_tool_wiring.py":["1cd3eba521a6652797e74b10da9e7b54f8ee47d22b1f76bcc4952b37e0645ba9",420,245068],
 
 "tests/test_registered_n1_factory.py":["b8dafd5545d2c231353c8e4f34cdd3ba4c1164e12ec2d5ea3ad67420f1b62d0e",420,128225],
 
@@ -6782,7 +6782,7 @@
 
 "tests/test_registered_outbound_screen.py":["87e86d8309131cdaaecca36ec16c9a7719c4def40862ceecfec97138b68fef74",420,10224],
 
-"tests/test_registered_startup_publication.py":["e8205a1e42d07b4d347cc552e7e4495125b2f00d643ac8536242118ede03577e",420,11932],
+"tests/test_registered_startup_publication.py":["c479e6209ff83f1e35586b987444641c86b92763fe855b27e76102bbd92a7585",420,11052],
 
 "tests/test_release_effect_routes.py":["07107c0ed844c94abdeb8598aca9d426ed0c43d3a8a60a5eeb2131e57ab932a5",420,96749],
 

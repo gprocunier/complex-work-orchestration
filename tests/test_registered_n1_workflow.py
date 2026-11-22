@@ -22,6 +22,7 @@ import registered_n1_workflow as W  # noqa: E402
 from tests import test_registered_n1_factory as F  # noqa: E402
 import tests.test_workflow_adjudication as E  # noqa: E402
 import tests.test_registered_finite_tool_wiring as tools  # noqa: E402
+from tests.test_finite_fixture_progress_acknowledgment import original_poll_ticket_clock  # noqa: E402
 
 
 def read_only_evidence(method):
@@ -74,6 +75,24 @@ def c1_failure_note(workflow):
     encoded = json.dumps(snapshot, sort_keys=True)
     suffix = ' [diagnostic JSON truncated]' if len(encoded) > 32768 else ''
     return 'EXAMPLE C1 failure observation: ' + encoded[:32768] + suffix
+
+
+@contextmanager
+def original_finite_completion(test, case, workflow):
+    """Join the admitted fake producer to its original pipe and terminal checks."""
+    def selected_factory():
+        factory = workflow.factory
+        return factory if factory is not None and factory.host is case.host else None
+
+    def selected_producer():
+        return getattr(getattr(selected_factory(), 'server', None), 'finite_tools', None)
+
+    with (
+        original_poll_ticket_clock(selected_producer),
+        tools.RegisteredFiniteToolWiringTests._positive_finite_completion(
+            test, case, selected_factory=selected_factory),
+    ):
+        yield
 
 
 class WorkflowTests(unittest.TestCase):
@@ -264,7 +283,11 @@ class WorkflowTests(unittest.TestCase):
                 self.case.tool_stream.put('')
                 observed.append(data)
             return data
-        with patch.object(F, 'RpcProcess', tools.DynamicRpcProcess), patch.object(os, 'read', side_effect=natural_exit):
+        with (
+            patch.object(F, 'RpcProcess', tools.DynamicRpcProcess),
+            patch.object(os, 'read', side_effect=natural_exit),
+            original_finite_completion(self, self.case, self.workflow),
+        ):
             try:
                 result = self.run_native(archive_schedule='settled', expected_children=3)
             except BaseException as failure:
@@ -278,6 +301,8 @@ class WorkflowTests(unittest.TestCase):
                         pass
                 raise
         self.assertEqual(observed, [b'EXAMPLE finite command output\n'])
+        attempt = self.fixture.attempt(self.case)
+        self.assertEqual(attempt['charge'], attempt['amount'])
         factory = self.workflow.factory
         self.assertEqual(factory.spec['finite_tool_mode'], 'captured-host-tools')
         self.assertEqual(factory.server.finite_input.terminal_code, 0)
