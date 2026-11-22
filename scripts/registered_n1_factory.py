@@ -543,6 +543,20 @@ class _Containment:
         self._fds.remove(descriptor)
         os.close(descriptor)
 
+    def _launch_pipes(self):
+        gate = self._pipe()
+        try:
+            info = self._pipe()
+        except BaseException as failure:
+            for descriptor in gate:
+                try:
+                    self._close_fd(descriptor)
+                except OSError as secondary:
+                    admission.ledger_api.add_failure_note(
+                        failure, 'Prelaunch pipe cleanup failed: ' + type(secondary).__name__)
+            raise
+        return (*gate, *info)
+
     def _stage_access_token(self, token):
         self._access_token_fd, writer = self._pipe()
         try:
@@ -623,9 +637,8 @@ class _Containment:
               "The trusted containment role has no other executable allowance.")
         self._preflight_tool_launch(tool_call, deadline, tool_decision)
         self.command = tuple(command)
+        read_gate, write_gate, read_info, write_info = self._launch_pipes()
         try:
-            read_gate, write_gate = self._pipe()
-            read_info, write_info = self._pipe()
             network_fds = self._provider_network_fds()
             argv = self._command(command, home, read_gate, write_info)
             arguments = _argument_file()

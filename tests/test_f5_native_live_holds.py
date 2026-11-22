@@ -98,6 +98,22 @@ class F5NativeLiveHoldTests(unittest.TestCase):
                 lifetime.launch(['/EXAMPLE/fake-codex', 'app-server', '--stdio'], None)
             self.assertEqual((factory.require_effect.call_count, pipe.call_count), (1, 1))
 
+    def test_partial_launch_pipe_allocation_closes_both_descriptors_and_keeps_primary(self):
+        factory = SimpleNamespace(spec={'executable': '/EXAMPLE/fake-codex'}, require_effect=mock.Mock())
+        lifetime = N._Containment(factory)
+        failure = OSError('EXAMPLE namespace info pipe allocation failed')
+        with mock.patch.object(A, 'N1_LIVE_AVAILABLE', True), \
+             mock.patch.object(N.os, 'pipe', side_effect=[(51, 52), failure]) as pipe, \
+             mock.patch.object(N.os, 'close') as close, \
+             mock.patch.object(lifetime, '_provider_network_fds') as provider:
+            with self.assertRaises(OSError) as raised:
+                lifetime.launch(['/EXAMPLE/fake-codex', 'app-server', '--stdio'], None)
+        self.assertIs(raised.exception, failure)
+        self.assertEqual(pipe.call_count, 2)
+        self.assertCountEqual(close.call_args_list, [mock.call(51), mock.call(52)])
+        self.assertEqual(lifetime._fds, [])
+        provider.assert_not_called()
+
     def test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write(self):
         workflow = W.RegisteredN1Workflow.__new__(W.RegisteredN1Workflow)
         workflow._locked = mock.Mock(side_effect=FakeLaunchReached)
