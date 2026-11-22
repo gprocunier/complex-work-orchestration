@@ -1671,7 +1671,7 @@ class FiniteInputTests(unittest.TestCase):
         self.assertTrue(self._wait(lambda: bool(result), 8))
 
     def test_ready_pipe_drained_between_select_and_read_is_empty_poll(self):
-        case, factory, tool, stream, read, release, result = self._active()
+        case, factory, tool, stream, read, release, result = self._active(archive_schedule='settled')
         gate = factory.server.finite_input
         ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
             turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
