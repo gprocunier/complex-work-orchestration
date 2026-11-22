@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.8.0 - 2026-11-22
+
 - Allow a trusted controller to attach a Codex personal access token for one signed native single-worker qualification launch.
 
 ## 1.7.0 - 2026-11-22
