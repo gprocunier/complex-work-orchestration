@@ -31,6 +31,12 @@ CAPTURE_LIMITS = {
     "max_files": 4096, "max_bytes": 16 * 1024 * 1024,
     "max_seconds": 10.0, "max_entries": 20_000,
 }
+# Only fixed workspace_capture failure kinds may leave the capture boundary.
+_CAPTURE_ERROR_KINDS = frozenset({
+    "budget", "git-failed", "git-unavailable", "identity-changed", "io-failed",
+    "malformed-data", "not-a-worktree", "not-top-level", "repository-unqualified",
+    "root-unreadable", "scratch-relocated", "scratch-unavailable",
+})
 _FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 _CALLBACK_FACTORY = LiveThreadAdapter.callbacks
 _METHODS = {
@@ -230,12 +236,25 @@ def _commit_head(value, budget):
         store.close()
 
 
+def _capture_failure_category(value):
+    kind = value.get("error_kind")
+    if isinstance(kind, str) and kind in _CAPTURE_ERROR_KINDS:
+        return kind
+    if value.get("error"):
+        return "capture-error"
+    if value.get("complete") is not True:
+        return "incomplete"
+    return "missing-head"
+
+
 def _capture(root, repositories):
     _validate_scratch(repositories)
     budget = workspace_capture.Budget.start(**CAPTURE_LIMITS)
     value = _freeze(workspace_capture.capture(root, **CAPTURE_LIMITS))
     if value.get("complete") is not True or value.get("error") or not value.get("head_commit"):
-        raise OfflineHostError("A complete repository capture with an actual commit is required.")
+        failure = OfflineHostError("A complete repository capture with an actual commit is required.")
+        failure.add_note(f"Repository capture failure category: {_capture_failure_category(value)}")
+        raise failure
     if value["dirs"] != [str(root / ".git"), str(root / ".git"), str(root)]:
         raise OfflineHostError("An ordinary repository with its own Git directory is required.")
     _commit_head(value, budget)

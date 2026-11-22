@@ -1702,7 +1702,7 @@
 
 "p2b0":[44,"PinnedHTTPSConnection.connect",385,"5b1495139c3e265020d03743ce299640eea81bc397d87db4c4d7dc2ec9c9e529"],
 
-"p2b1":[53,"OfflineN1Host.run_registered",571,"27e3c0d796d213023974c150562417b12089e78a73c7b2a673fdb1b61a54e426"],
+"p2b1":[53,"OfflineN1Host.run_registered",590,"27e3c0d796d213023974c150562417b12089e78a73c7b2a673fdb1b61a54e426"],
 
 "p2b2":[8,837,{"$":287},16,837,123],
 
@@ -2726,17 +2726,17 @@
 
 "pb7":[125,"FiniteInputTests.test_two_finite_tool_closers_observe_one_inflight_owner",1291,"691ac855a05c3354245554524cfff5e93481d31dd4698ba8a35e1ebdc705cb16"],
 
-"pb8":[53,547,"os.replace(self.state / \"operation.next\", self.state / \"operation.json\")",8,547,80],
+"pb8":[53,566,"os.replace(self.state / \"operation.next\", self.state / \"operation.json\")",8,566,80],
 
-"pb9":[53,546,"self._require_lock()",8,546,28],
+"pb9":[53,565,"self._require_lock()",8,565,28],
 
-"pba":[53,537,"self._require_lock()",8,537,28],
+"pba":[53,556,"self._require_lock()",8,556,28],
 
-"pbb":[53,"OfflineN1Host._require_lock",515,"77b65d91bfc6b2da91dc6709c26eb5ac30d6129ce9ceaff4a92f66671c5db0ee"],
+"pbb":[53,"OfflineN1Host._require_lock",534,"77b65d91bfc6b2da91dc6709c26eb5ac30d6129ce9ceaff4a92f66671c5db0ee"],
 
-"pbc":[53,520,"_identity(self.state) != self._state_identity\n                or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1\n                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)",12,522,81],
+"pbc":[53,539,"_identity(self.state) != self._state_identity\n                or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1\n                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)",12,541,81],
 
-"pbd":[53,516,"self._lock_descriptor is None",11,516,40],
+"pbd":[53,535,"self._lock_descriptor is None",11,535,40],
 
 "pbe":[114,"OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent",470,"c85d27dc5727262a7c0951269eb16cd682ffd03bbcb31a6aacc978f3c238bdee"],
 
@@ -2744,7 +2744,7 @@
 
 "pc":[14,67,"subprocess.check_output(\n                ['stat', '-f', '-c', '%T', tempfile.gettempdir()], text=True)",34,68,77],
 
-"pc0":[53,"OfflineN1Host._save",536,"6e7216e282650023d4bb4b4f7b16948829eea27c4efef01d4e7a4fc9154e6b88"],
+"pc0":[53,"OfflineN1Host._save",555,"6e7216e282650023d4bb4b4f7b16948829eea27c4efef01d4e7a4fc9154e6b88"],
 
 "pc1":[82,"AcceptanceProductFlowTests.test_native_consumer_refuses_changed_original_delivery_review_before_effects",82,"c07f00ff5764ff8662944df7e39f0625a93ddc25799448c2e91c65d8b00f15ee"],
 
@@ -4825,25 +4825,25 @@
 
 [58,64,11,64,42,"dynamic","7c5a13fe7a7ecbf69f42c7a09ef01227c01c0bd7e71d6ad80068dde7355fd492",[{"$":9},"XR310"]],
 
-[59,37,11,37,43,"dynamic",{"$":220},[{"$":9},"XR311"]],
+[59,43,11,43,43,"dynamic",{"$":220},[{"$":9},"XR311"]],
 
-[59,39,16,39,48,"dynamic",{"$":220},[{"$":9},"XR312"]],
+[59,45,16,45,48,"dynamic",{"$":220},[{"$":9},"XR312"]],
 
-[59,255,21,255,69,"dynamic",{"$":54},[{"$":9},"XR436"]],
+[59,274,21,274,69,"dynamic",{"$":54},[{"$":9},"XR436"]],
 
-[59,259,18,259,66,"dynamic","d4c3d4c373ef9b020a9222cb7a73fa9413252ad717fcc36321d51716d6e5c079",[{"$":9},"XR437"]],
+[59,278,18,278,66,"dynamic","d4c3d4c373ef9b020a9222cb7a73fa9413252ad717fcc36321d51716d6e5c079",[{"$":9},"XR437"]],
 
-[59,266,16,266,38,"dynamic",{"$":52},[{"$":9},"XR313"]],
+[59,285,16,285,38,"dynamic",{"$":52},[{"$":9},"XR313"]],
 
-[59,267,40,267,72,"dynamic",{"$":88},[{"$":9},"XR314"]],
+[59,286,40,286,72,"dynamic",{"$":88},[{"$":9},"XR314"]],
 
-[59,268,55,268,87,"dynamic",{"$":83},[{"$":9},"XR315"]],
+[59,287,55,287,87,"dynamic",{"$":83},[{"$":9},"XR315"]],
 
-[59,274,17,274,65,"dynamic",{"$":54},[{"$":9},"XR438"]],
+[59,293,17,293,65,"dynamic",{"$":54},[{"$":9},"XR438"]],
 
-[59,573,21,573,69,"dynamic",{"$":54},[{"$":9},"XR439"]],
+[59,592,21,592,69,"dynamic",{"$":54},[{"$":9},"XR439"]],
 
-[59,639,12,639,60,"dynamic",{"$":54},[{"$":9},"XR440"]],
+[59,658,12,658,60,"dynamic",{"$":54},[{"$":9},"XR440"]],
 
 [60,36,32,36,53,"dynamic","e84f8ad946b634c11eaebe0107dea01b49ab67cb15c5c73710454306dbfc60b4",[{"$":9},"XR316"]],
 
@@ -6714,7 +6714,7 @@
 
 "scripts/offline_fake_artifact_promotion.py":["cb211328fb54cd56054422dfe1fdafca446277665354ebef2669fcef36b1351c",420,38543],
 
-"scripts/offline_n1_host.py":["84e3a83e9b0c6689f41ae52624464681341a61b9dfd209ad9f5ae582fdf224dc",420,33992],
+"scripts/offline_n1_host.py":["15b8d89e834284869c1e8922cba523c0c43db0d6ec488bf7ef7206eaa936a9fd",420,34776],
 
 "scripts/offline_native_adjudication.py":["261f83c85996dfa831a2842e75ffecef2b0d831eadf7bc143f1203bbeda6caaa",420,25338],
 
@@ -6870,7 +6870,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["c9550613affe8727a32294983ece7195d0e4e228b2867a217474ccd528f9ada5",420,133062],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["bf659065b16106e2cd2db5248ee3d9a6a9a1a417954d5ff03ba067d9e7863584",420,133062],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -6958,7 +6958,7 @@
 
 "tests/test_native_pool_transaction.py":["900a96b34727a7aeabfe8fdbb203d8aec313fe9d08102008c21ca1f4654bac82",420,89715],
 
-"tests/test_offline_n1_host.py":["64a4f905653e22682ec732aa76ad6bf0c0159ea893e8e0c27fd7c662f40794b3",420,34521],
+"tests/test_offline_n1_host.py":["174a256a57bcea9ed2245de693af31f11847b3a3699f68f1f22bb821a7bc3ea4",420,36087],
 
 "tests/test_offline_profile_input.py":["c87cb4b7ad0e04b0547636e50e80e482ccbeb787e23bac597b9b5412ba5968ed",420,34065],
 
