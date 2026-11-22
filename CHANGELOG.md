@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.4.0 - 2026-11-22
+
 - Report structured provider safety refusals as terminal blockers in registered native worker failure records.
 
 ## 1.3.1 - 2026-11-22
