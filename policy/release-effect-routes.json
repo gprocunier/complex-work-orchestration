@@ -6648,7 +6648,7 @@
 
 "scripts/validate_public_copy.py":["e63be9d1068501c22640263a71725c5d2743679ac61908334a0b8a7b71fcb7ca",420,63926],
 
-"scripts/validate_repository.py":["d2ee83cf8518f6c06afb127d7d2ac5484980c562802baa9ba4714022934aa76c",420,113031],
+"scripts/validate_repository.py":["badd0cdab3ac9cfd997028020213d7bb1d0f3f03b2db9a80cfa81a84633af66f",420,114697],
 
 "scripts/validate_run_readiness_plan.py":["4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",493,21103],
 
@@ -6802,7 +6802,7 @@
 
 "tests/test_turn_observations.py":["fcbf803eb912648bf787ef485d1a147b867a46849940561a3f960fda04186d2e",420,17380],
 
-"tests/test_validate_repository.py":["cf4c4b83c851e8682bd6a0b14cd65394be96c5260a6e264618cd582a4391b583",420,34123],
+"tests/test_validate_repository.py":["ff3ea2726176ee7c4d3cba830eed4864c0c0002df849d133b825e9f1295c657f",420,37056],
 
 "tests/test_w20_affected_contract_w13.py":["221da12194b6ede308aca865b40d962096e2c74d63fa0a11ae47d4817bbd679c",420,91073],
 
