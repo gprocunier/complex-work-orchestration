@@ -2438,7 +2438,7 @@
 
 "p58":[124,"_archive_frame",15,"f1d92efb4c95190f2cbe4c6fde08a4fdd20886514b978091c52bc853e9245455"],
 
-"p59":[125,"FiniteInputTests.test_selected_original_output_rejection_is_failed_and_fully_charged",1949,"6b8024f7080517f1f847acacc3ddecf25fdcfd959a4d4f826dbd2dfcf0477172"],
+"p59":[125,"FiniteInputTests.test_selected_original_output_rejection_is_failed_and_fully_charged",1958,"6b8024f7080517f1f847acacc3ddecf25fdcfd959a4d4f826dbd2dfcf0477172"],
 
 "p5a":[124,"ControlledOutputScheduleTests.test_partial_construction_cleanup_preserves_primary_and_owned_workers",60,"8efc41baeae179dc60b726aadfe0056c766f5c72bfefc3ee40ec14d770ee3111"],
 
@@ -6870,7 +6870,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["02124eb7400f7841f98103abe4a884dca398f7061f1e9688de7f77b13d85be17",420,133062],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["8befee2803efd1b1fe090a59b224be3e00eda782beca6aeef4b9acebddafb347",420,133062],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -6980,7 +6980,7 @@
 
 "tests/test_registered_controlled_output_schedule.py":["2cdd3d39ead6c089a9aa1aa594f8817c62fadda752e5ef60da614ca034d7139d",420,7844],
 
-"tests/test_registered_finite_input.py":["e5cdf590353145af78afed90ce7cd135ab894592437a1d06b3bf3e522cff8e67",420,129095],
+"tests/test_registered_finite_input.py":["06534a65b87aff259a90f0a24228a5f70e59f0d0b642ee8b2aa8f22e39cf92cc",420,129638],
 
 "tests/test_registered_finite_tool_wiring.py":["f257188ff86df5b6c30a222d91e940a43255822deeadb45ad9181b5c5bde2fa9",420,251122],
 
