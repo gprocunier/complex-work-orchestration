@@ -55,11 +55,13 @@ class FiniteInputTests(unittest.TestCase):
         self.fixture.setUp()
         self.addCleanup(family.cleanup_helper, self, self.fixture)
 
-    def _active(self, *, hold_admission=False, no_fake_scheduler=False, prepared_poll_approval=None):
+    def _active(self, *, hold_admission=False, no_fake_scheduler=False, prepared_poll_approval=None,
+                allow_original_turn_response=False):
         from tests.test_registered_finite_tool_wiring import DynamicRpcProcess
         fixture = self.fixture
         case = fixture.case(finite_tool_mode='captured-host-tools', complete_after_refusal=True,
-                            no_fake_scheduler=no_fake_scheduler)
+                            no_fake_scheduler=no_fake_scheduler,
+                            allow_original_turn_response=allow_original_turn_response)
         case.poll_prepared, case.poll_release = threading.Event(), threading.Event()
         if hold_admission:
             # A poll fault otherwise releases the host's Condition scheduler
@@ -550,7 +552,8 @@ class FiniteInputTests(unittest.TestCase):
         self.assertEqual(attempt['charge'], attempt['amount'], event)
 
     def _concurrent_cleanup_owner_schedule(self, *, uncertain):
-        case, factory, tool, _stream, read, release_turn, result = self._active()
+        case, factory, tool, _stream, read, release_turn, result = self._active(
+            allow_original_turn_response=True)
         gate = factory.server.finite_input
         primary = RuntimeError('EXAMPLE original transport failure')
         entered, release_owner, waiter_entered = (threading.Event() for _ in range(3))
@@ -1050,7 +1053,8 @@ class FiniteInputTests(unittest.TestCase):
         original_wait.assert_called_once_with(8)
 
     def _late_owner_observation(self, *, gate_owner):
-        case, factory, tool, _stream, read, release_turn, result = self._active()
+        case, factory, tool, _stream, read, release_turn, result = self._active(
+            allow_original_turn_response=gate_owner)
         gate = factory.server.finite_input
         primary = RuntimeError('EXAMPLE original observer-edge fault')
         owner_entered, release_owner = threading.Event(), threading.Event()
@@ -1802,7 +1806,8 @@ class FiniteInputTests(unittest.TestCase):
         self.assertTrue(self._wait(lambda: bool(result), 8))
 
     def test_close_during_pipe_wait_revokes_next_ticket(self):
-        case, factory, tool, _stream, read, release, result = self._active(hold_admission=True)
+        case, factory, tool, _stream, read, release, result = self._active(
+            hold_admission=True, allow_original_turn_response=True)
         gate = factory.server.finite_input
         ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
             turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
