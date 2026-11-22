@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.3.1 - 2026-11-22
+
 - Deploy GitHub Pages after a separate job validates and uploads the site.
 
 ## 1.3.0 - 2026-11-22
