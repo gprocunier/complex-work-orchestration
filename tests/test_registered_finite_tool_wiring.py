@@ -4432,22 +4432,23 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             self.assertEqual(sum(bool(getattr(child, 'is_tool', False))
                                  for child in self.fixture.spawned), 0)
             self.assertEqual(server.finite_input.cleanup_phase(), 'unselected')
-            records = [json.loads(path.read_text()) for path in
-                       (factory.records / 'transport-observations').iterdir()]
-            self.assertFalse(any(row['stage'] in {
-                'finite-tool-command-intent', 'finite-poll-intent'}
-                for row in records))
             server._fail_transport(errors[0])
             decision_release.set()
             case.command_release.set()
             worker.join(12)
+        self.assertFalse(worker.is_alive())
         self.assertEqual(len(outcome), 1)
         attempt = self.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])
         self.assertTrue(factory.server.lifetime.contained)
+        # The original writers can open a record before its contents are ready.
+        # The append-only history still includes any intent from before cleanup.
         records = [json.loads(path.read_text()) for path in
                    (factory.records / 'transport-observations').iterdir()]
+        self.assertFalse(any(row['stage'] in {
+            'finite-tool-command-intent', 'finite-poll-intent'}
+            for row in records))
         self.assertEqual(sum(row['stage'] == 'appserver-terminated'
                              for row in records), 1)
 
