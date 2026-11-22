@@ -6890,7 +6890,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["5557577009692cdb65372d705b8cdeddcde706483fd6d681d848ab9dacef7e5c",420,133062],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["3965fa139744075bce3138f96dde74d99706ba46022dd8346df8bc2ef2ed97a5",420,133062],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7000,7 +7000,7 @@
 
 "tests/test_registered_controlled_output_schedule.py":["2cdd3d39ead6c089a9aa1aa594f8817c62fadda752e5ef60da614ca034d7139d",420,7844],
 
-"tests/test_registered_finite_input.py":["06534a65b87aff259a90f0a24228a5f70e59f0d0b642ee8b2aa8f22e39cf92cc",420,129638],
+"tests/test_registered_finite_input.py":["6caf393f9f91e4cab0851b7be4ff28dd500ab3fc28277a1d2ed2928639fe0fe6",420,129664],
 
 "tests/test_registered_finite_tool_wiring.py":["4048359aa19b09ad075a7a3053956292823c0e9145f71ebc1a25f773fd9d45b6",420,254582],
 

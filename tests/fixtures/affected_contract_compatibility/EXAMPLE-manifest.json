@@ -580,7 +580,7 @@
     "tests/test_ownership_producer.py": "14d7a0ec68767275fd1e96daca77e524bf0dee174e108fe033c0dcb8f8c81c60",
     "tests/test_policy_current_effects.py": "aff88225c96e9e34fab721deba77aab604ac31c3491da2e2eb9535468ad65122",
     "tests/test_qualified_review_dispatch.py": "51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c",
-    "tests/test_registered_finite_input.py": "06534a65b87aff259a90f0a24228a5f70e59f0d0b642ee8b2aa8f22e39cf92cc",
+    "tests/test_registered_finite_input.py": "6caf393f9f91e4cab0851b7be4ff28dd500ab3fc28277a1d2ed2928639fe0fe6",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
     "tests/test_registered_finite_tool_wiring.py": "4048359aa19b09ad075a7a3053956292823c0e9145f71ebc1a25f773fd9d45b6",
     "tests/test_registered_n1_factory.py": "8039e92694159a12f5c8ccc695360e495b2b2e04a1a156079928c391a098bedb",
