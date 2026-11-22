@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Deploy GitHub Pages after a separate job validates and uploads the site.
+
 ## 1.3.0 - 2026-11-22
 
 - Reject release versions outside the 1.x series while preserving published 0.x changelog history.

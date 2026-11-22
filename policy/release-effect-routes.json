@@ -6802,7 +6802,7 @@
 
 "tests/test_turn_observations.py":["fcbf803eb912648bf787ef485d1a147b867a46849940561a3f960fda04186d2e",420,17380],
 
-"tests/test_validate_repository.py":["ff3ea2726176ee7c4d3cba830eed4864c0c0002df849d133b825e9f1295c657f",420,37056],
+"tests/test_validate_repository.py":["a5f473d434cbe4902bca3b9eef1ac8ae8d6df357f9514c2751278e4781b54cb4",420,37813],
 
 "tests/test_w20_affected_contract_w13.py":["221da12194b6ede308aca865b40d962096e2c74d63fa0a11ae47d4817bbd679c",420,91073],
 
