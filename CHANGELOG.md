@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.6.2 - 2026-11-22
+
 - Preserve a bounded repository capture failure category in offline native host diagnostics.
 - Restore the original process functions after offline native qualification tests finish.
 
