@@ -85,6 +85,18 @@ _REQUESTS = {
     ),
 }
 
+_N1_QUALIFICATION_THREAD_START = {
+    **_THREAD_START_COMMON,
+    "modelProvider": "openai", "serviceTier": "default",
+    "permissions": "profile", "approvalPolicy": "never", "approvalsReviewer": "user",
+    "ephemeral": False,
+    "dynamicTools": [{
+        "type": "namespace", "name": "cwo_finite", "description": "Registered finite tools",
+        "tools": [{"type": "function", "name": name, "description": name, "inputSchema": {}}
+                  for name in ("finite_command", "finite_poll")],
+    }],
+}
+
 # Paths follow the declared schema. `[]` is an array item, and `@type=value`
 # selects a tagged union branch before testing its fields. A tuple requires the
 # listed wire enum values, a string is a JSON type, and None requires presence.
@@ -417,6 +429,26 @@ def _check_protocol(protocol: _Schema, v2: _Schema, experimental: bool) -> None:
     }, "JSONRPCError")
 
 
+def _check_n1_qualification(protocol: _Schema) -> None:
+    thread_start = protocol.method("ClientRequest", "thread/start")
+    protocol.require_shape(thread_start, {
+        "params.dynamicTools.[].@type=namespace.tools.[].@type=function.inputSchema": None,
+    }, "thread/start qualification request")
+    protocol.require_value(
+        thread_start, {"id": 1, "method": "thread/start", "params": _N1_QUALIFICATION_THREAD_START},
+        "thread/start qualification request",
+    )
+    protocol.require_shape(protocol.method("ServerRequest", "item/tool/call"),
+                           {"params.namespace": "string"}, "item/tool/call qualification request")
+    protocol.require_value(protocol.definition("DynamicToolCallResponse"),
+                           {"success": False, "contentItems": [{"type": "inputText", "text": "refused"}]},
+                           "item/tool/call qualification reply")
+    _check_notifications(protocol, {"item/completed": {
+        "item.@type=dynamicToolCall.success": "boolean",
+        "item.@type=dynamicToolCall.contentItems.[].@type=inputText.text": "string",
+    }})
+
+
 def _generate_schema(
     executable: Path, root: Path, launcher: Callable[[Path], Sequence[str]] | None, experimental: bool,
 ) -> Path:
@@ -441,7 +473,7 @@ def _generate_schema(
     return output
 
 
-def _check_generated_schemas(output: Path, experimental: bool) -> None:
+def _check_generated_schemas(output: Path, experimental: bool, *, n1_qualification: bool) -> None:
     try:
         directory_fd = os.open(output, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
     except OSError as error:
@@ -450,6 +482,8 @@ def _check_generated_schemas(output: Path, experimental: bool) -> None:
         protocol = _Schema(_read_schema(directory_fd, _PROTOCOL))
         v2 = _Schema(_read_schema(directory_fd, _PROTOCOL_V2))
         _check_protocol(protocol, v2, experimental)
+        if experimental and n1_qualification:
+            _check_n1_qualification(protocol)
     except (AttributeError, KeyError, RecursionError, TypeError) as error:
         raise CapabilityError("invalid generated Codex App Server schema structure") from error
     finally:
@@ -458,12 +492,15 @@ def _check_generated_schemas(output: Path, experimental: bool) -> None:
 
 def check_codex_capabilities(
     executable: str | os.PathLike[str], *, launcher: Callable[[Path], Sequence[str]] | None = None,
+    n1_qualification: bool = False,
 ) -> None:
     """Require the used protocol of a trusted executable without starting a model.
 
     A containment caller can supply a prefix to run the generator inside its
     boundary. Each schema mode gets a private workspace with new homes and a
-    fresh output directory. This check grants no launch authority.
+    fresh output directory. The N1 qualification opt-in checks the extra
+    experimental wire shapes for registered finite tool evidence. The check
+    verifies only schema compatibility.
     """
     path = shutil.which(executable)
     if path is None:
@@ -472,4 +509,4 @@ def check_codex_capabilities(
     for experimental in (False, True):
         with tempfile.TemporaryDirectory(prefix="cwo-codex-schema-") as temporary:
             output = _generate_schema(resolved, Path(temporary).resolve(), launcher, experimental)
-            _check_generated_schemas(output, experimental)
+            _check_generated_schemas(output, experimental, n1_qualification=n1_qualification)

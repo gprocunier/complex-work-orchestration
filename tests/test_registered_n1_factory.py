@@ -1425,7 +1425,9 @@ class FactoryTests(unittest.TestCase):
             + json.dumps(str(host.worker)) + f' = "{access}"\n[permissions.EXAMPLE_ROOT_DENY.network]\nenabled = false\n'}
         if is_qualification:
             spec['configuration_files']['config.toml'] += ('[features]\n'
-                + ''.join(f'{feature} = false\n' for feature in runtime.qualification.disabled_features()))
+                + ''.join(f'{feature} = false\n' for feature in runtime.qualification.disabled_features())
+                + '[features.code_mode]\nenabled = true\ndirect_only_tool_namespaces = '
+                + json.dumps([runtime.qualification.FINITE_TOOL_NAMESPACE]) + '\n')
         for key in ('executable', 'launcher', 'validator'):
             spec[key + '_sha256'] = runtime._file(spec[key])[1]
         spec['custody'] = {'state': str(host.state), 'worker': str(host.worker), 'target': str(host.target),
@@ -1498,7 +1500,10 @@ class FactoryTests(unittest.TestCase):
         case.verifier = a.verifier
 
     def _prepare_qualification(self, case):
+        import selected_native_containment as selected
+
         self.enterContext(patch.object(runtime.live_availability, 'N1_LIVE_AVAILABLE', False))
+        case.schema_check = self.enterContext(patch.object(selected, 'check_codex_capabilities'))
         directory = case.host.state.parent / runtime.qualification.CAMPAIGN
         self.enterContext(patch.object(runtime.qualification, '_campaign_directory', return_value=directory))
         runtime.qualification.initialize_campaign()

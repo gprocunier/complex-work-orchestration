@@ -76,9 +76,34 @@ def thread_selectors():
     return {'modelProvider': PROVIDER, 'serviceTier': TIER}
 
 
+FINITE_TOOL_NAMESPACE = 'cwo_finite'
+
+
 def disabled_features():
     """Remove built-in shell and exec from the qualification thread configuration."""
-    return dict.fromkeys(('shell_tool', 'unified_exec', 'unified_exec_tty'), False)
+    return dict.fromkeys(('shell_tool', 'unified_exec', 'unified_exec_tty',
+                          'code_mode_only_strict_3p_tools'), False)
+
+
+def configuration_features():
+    return {**disabled_features(),
+            'code_mode': {'enabled': True, 'direct_only_tool_namespaces': [FINITE_TOOL_NAMESPACE]}}
+
+
+def require_executable_schema(executable, digest):
+    """Check the original signed executable in the fixed offline schema namespace."""
+    # The selected probe imports the registered pipe backend for its other
+    # operations. Import it only after the factory module has initialized.
+    import selected_native_containment as containment
+
+    binary = Path(executable)
+    try:
+        identity = containment._observe_binary(binary)
+        _need(identity[0] == digest, 'The qualification schema executable differs from the signed binary.')
+        containment.check_codex_capabilities(binary, n1_qualification=True,
+            launcher=lambda workspace: containment._schema_launcher(workspace, binary, identity))
+    except (containment.CapabilityError, containment.SelectedProbeError) as exc:
+        raise QualificationError(str(exc)) from exc
 
 
 def check_thread_model(params, response):

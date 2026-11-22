@@ -61,6 +61,54 @@ class CodexProtocolCapabilitiesTests(unittest.TestCase):
         with mock.patch.dict("os.environ", {"OPENAI_API_KEY": "unused-fixture-value"}):
             check_codex_capabilities(self.binary)
 
+    def test_n1_qualification_schema_is_supported(self):
+        check_codex_capabilities(self.binary, n1_qualification=True)
+
+    def test_n1_qualification_requires_namespace_registration(self):
+        def remove_namespace(schema):
+            schema["oneOf"] = [
+                branch for branch in schema["oneOf"]
+                if branch["properties"]["type"]["enum"] != ["namespace"]
+            ]
+
+        self.edit_schema(PROTOCOL, "v2.DynamicToolSpec", remove_namespace)
+        check_codex_capabilities(self.binary)
+        with self.assertRaisesRegex(CapabilityError, r"thread/start.*dynamicTools"):
+            check_codex_capabilities(self.binary, n1_qualification=True)
+
+    def test_n1_qualification_keeps_the_original_history_contract(self):
+        self.edit_schema(PROTOCOL, "v2.ThreadHistoryMode",
+                         lambda schema: schema["enum"].remove("paginated"))
+        self.edit_schema(PROTOCOL_V2, "Thread",
+                         lambda schema: schema["properties"].pop("historyMode"))
+        check_codex_capabilities(self.binary)
+        check_codex_capabilities(self.binary, n1_qualification=True)
+
+    def test_n1_qualification_requires_string_request_namespace(self):
+        self.edit_schema(PROTOCOL, "DynamicToolCallParams.properties.namespace",
+                         lambda schema: schema["type"].remove("string"))
+        check_codex_capabilities(self.binary)
+        with self.assertRaisesRegex(CapabilityError, r"item/tool/call.*params\.namespace"):
+            check_codex_capabilities(self.binary, n1_qualification=True)
+
+    def test_n1_qualification_requires_typed_completion(self):
+        def remove_success(schema):
+            completion, = (branch for branch in schema["oneOf"]
+                           if branch["properties"]["type"]["enum"] == ["dynamicToolCall"])
+            completion["properties"].pop("success")
+
+        self.edit_schema(PROTOCOL, "v2.ThreadItem", remove_success)
+        check_codex_capabilities(self.binary)
+        with self.assertRaisesRegex(CapabilityError, r"item/completed.*dynamicToolCall\.success"):
+            check_codex_capabilities(self.binary, n1_qualification=True)
+
+    def test_n1_qualification_requires_a_refused_tool_result(self):
+        self.edit_schema(PROTOCOL, "DynamicToolCallResponse.properties.success",
+                         lambda schema: schema.update(const=True))
+        check_codex_capabilities(self.binary)
+        with self.assertRaisesRegex(CapabilityError, r"item/tool/call.*success"):
+            check_codex_capabilities(self.binary, n1_qualification=True)
+
     def test_missing_method_names_the_capability(self):
         check_codex_capabilities(self.binary)
 

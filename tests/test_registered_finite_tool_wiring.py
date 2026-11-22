@@ -133,11 +133,15 @@ class DynamicRpcProcess(family.RpcProcess):
             if not gate:
                 return
             self.case.test.assertEqual(gate, b'1')
+            self._perform_tool_effect()
             self.bootstrap_released.set()
             self.stdout.put('' if getattr(self.case, 'command_eof', False)
                             or getattr(self.case, 'command_no_output', False)
                             else getattr(self.case, 'command_output', 'EXAMPLE finite command output\n'))
             return
+
+    def _perform_tool_effect(self):
+        pass
 
     def result(self, method, params):
         response = super().result(method, params)
@@ -153,12 +157,12 @@ class DynamicRpcProcess(family.RpcProcess):
                                              effort=self.case.spec['effort'])
             scenario.path.write_text(''.join(json.dumps(record) + '\n' for record in records))
         if method == 'thread/start':
+            if self.case.spec['finite_tool_mode'] != 'captured-host-tools':
+                return response
             tools = []
             for item in params['dynamicTools']:
                 tools.append({'type': item['type'], 'name': item['name'],
                               'description': item['description'], 'parameters': item['inputSchema']})
-            if self.case.spec['finite_tool_mode'] != 'captured-host-tools':
-                return response
             self.case.test.assertEqual(tools, finite_tools._response_tools())
             capture = {'start': params, 'response': response,
                        'request': {'model': params['model'], 'tools': tools}}
@@ -270,9 +274,7 @@ class DynamicRpcProcess(family.RpcProcess):
                 tool.process.alive = False
                 self.case.tool_stream.put('')
             if not getattr(self.case, 'poll_before_command_completed', False):
-                self.stdout.put({'method': 'item/completed', 'params': {
-                    'threadId': scenario.thread_id, 'turnId': scenario.turn_id,
-                    'item': {'id': self.command_call_id, 'status': 'completed'}}})
+                self._emit_command_completion(message)
                 if hasattr(self.case, 'completion_emitted'):
                     self.case.completion_emitted.set()
             if getattr(self.case, 'tool_eof_after_command', False):
@@ -317,9 +319,20 @@ class DynamicRpcProcess(family.RpcProcess):
                 self.case.test.assertIs(type(observed['stdout']), str)
                 self.case.poll_observation = observed
                 self.case.poll_state = 'running' if observed['running'] else 'clean-exited'
+                self._emit_poll_completion(message)
                 self.complete()
             elif getattr(self.case, 'complete_after_refusal', False):
+                self._emit_poll_completion(message)
                 self.complete()
+
+    def _emit_command_completion(self, _message):
+        scenario = self.case.scenario
+        self.stdout.put({'method': 'item/completed', 'params': {
+            'threadId': scenario.thread_id, 'turnId': scenario.turn_id,
+            'item': {'id': self.command_call_id, 'status': 'completed'}}})
+
+    def _emit_poll_completion(self, _message):
+        pass
 
     def _poll_command_call_id(self, _reply):
         return self.command_call_id
@@ -337,6 +350,102 @@ class DiscoveringDynamicRpcProcess(DynamicRpcProcess):
             return json.loads(text)['commandCallId']
         except (ValueError, TypeError, KeyError) as failure:
             raise AssertionError('The qualification command reply did not expose its poll handle.') from failure
+
+
+class NamespacedFiniteRpcProcess(DiscoveringDynamicRpcProcess):
+    """Codex 0.171 direct dynamic wire and rollout driven by actual host replies."""
+
+    def __init__(self, process, case, validator=False):
+        self.started_items = {}
+        self.finished_items = []
+        self.rollout_ordinal = 0
+        super().__init__(process, case, validator=validator)
+
+    def _perform_tool_effect(self):
+        # Model the useful command only after the original owned pipe unlocks.
+        (self.case.host.worker / 'result.txt').write_bytes(family.fixtures.host_fixtures.OUTPUT)
+
+    def _item(self, method, item):
+        scenario = self.case.scenario
+        return self.stdout.put({'method': method, 'params': {
+            'threadId': scenario.thread_id, 'turnId': scenario.turn_id, 'item': item}}, process=self.process)
+
+    def _append_finite_rollout(self, item):
+        scenario = self.case.scenario
+        self.rollout_ordinal += 1
+        ordinal = self.rollout_ordinal
+        output = item['type'] == 'function_call_output'
+        prefix = 'fco' if output else 'fc'
+        item.update(id=f'{prefix}_EXAMPLE-{ordinal}',
+                    id_allocation={'prefix': prefix, 'salt': 'item', 'ordinal': ordinal, 'value': ordinal},
+                    internal_chat_message_metadata_passthrough={'turn_id': scenario.turn_id})
+        record = {'type': 'response_item', 'ordinal': ordinal,
+                  'timestamp': '2026-11-22T00:00:00.000Z', 'payload': item,
+                  'metadata': {'client_authored': False}}
+        if output:
+            item['internal_chat_message_metadata_passthrough']['create_time'] = 1780000000.125
+            record['metadata']['fallback_token_limit_override'] = 4096
+        else:
+            record['metadata']['user_input_order'] = 1
+        with scenario.path.open('a', encoding='utf-8') as stream:
+            stream.write(json.dumps(record) + '\n')
+
+    def _send_tool(self, call, tool, arguments, scenario):
+        if not self.process.alive:
+            return
+        item = {'id': call, 'type': 'dynamicToolCall', 'status': 'inProgress',
+                'tool': tool, 'namespace': 'cwo_finite', 'arguments': arguments,
+                'contentItems': None, 'success': None, 'durationMs': None}
+        request_id = self.command_request_id if call == self.command_call_id else 'EXAMPLE-request-' + call
+        self.started_items[request_id] = item
+        self._append_finite_rollout({'type': 'function_call', 'call_id': call,
+            'name': tool, 'namespace': 'cwo_finite', 'arguments': json.dumps(arguments)})
+        if self._item('item/started', item) is False:
+            return
+        self.stdout.put({'id': request_id, 'method': 'item/tool/call', 'params': {
+            'threadId': scenario.thread_id, 'turnId': scenario.turn_id, 'callId': call,
+            'namespace': getattr(self.case, 'finite_callback_namespace', 'cwo_finite'),
+            'tool': tool, 'arguments': arguments}}, process=self.process)
+
+    def _emit_finite_completion(self, message):
+        if 'result' not in message:
+            return
+        item = self.started_items[message['id']]
+        result = message['result']
+        output, = result['contentItems']
+        self._append_finite_rollout({'type': 'function_call_output',
+            'call_id': item['id'], 'output': (getattr(self.case, 'rollout_poll_output', output['text'])
+                                            if item['tool'] == 'finite_poll' else output['text'])})
+        success = result['success']
+        completed = dict(item, status='completed' if success else 'failed',
+                         contentItems=[output], success=success, durationMs=1)
+        self.finished_items.append(completed)
+        if item['tool'] == 'finite_poll' and getattr(self.case, 'terminal_before_poll_item', False):
+            self._emit_turn_terminal()
+        if item['tool'] != 'finite_poll' or not getattr(self.case, 'projection_only_poll', False):
+            self._item('item/completed', completed)
+
+    _emit_command_completion = _emit_finite_completion
+    _emit_poll_completion = _emit_finite_completion
+
+    def _emit_turn_terminal(self):
+        scenario = self.case.scenario
+        self.stdout.put({'method': 'turn/completed', 'params': {'threadId': scenario.thread_id,
+            'turn': {'id': scenario.turn_id, 'status': 'completed', 'items': []}}}, process=self.process)
+
+    def complete(self):
+        scenario = self.case.scenario
+        if getattr(self.case, 'race_poll_completion', False):
+            if getattr(self.case, 'terminal_during_poll_write', False):
+                self._emit_turn_terminal()
+            lifecycle = self.case.factory.server.finite_input.lifecycle
+            with lifecycle.condition:
+                self.case.test.assertTrue(lifecycle.condition.wait_for(
+                    lambda: lifecycle.phase in {'poll-replied', 'terminal', 'fault'}, timeout=3))
+        scenario.append_terminal('task_complete')
+        scenario.status = 'completed'
+        scenario.items = [*self.finished_items, {'type': 'agentMessage', 'text': self.case.spec['expected_token']}]
+        self.pending = None
 
 
 class RegisteredFiniteToolWiringTests(unittest.TestCase):
@@ -383,7 +492,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             expected = {command_id: 'command-replied',
                         'EXAMPLE-request-EXAMPLE-poll-call': 'poll-replied'}
             if (selected and message.get('id') in expected
-                    and message.get('result', {}).get('success') is True):
+                    and message.get('result', {}).get('success') is True
+                    and not (message['id'] != command_id and getattr(case, 'race_poll_completion', False))):
                 # Physical delivery precedes the writer's original authority
                 # reconciliation. Do not publish the next request or terminal
                 # records until that original reply bookkeeping is visible.
@@ -532,14 +642,14 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             return original(server, message, response, deadline, refusal=refusal)
 
         progress = self._positive_finite_completion(case) if no_fake_scheduler else nullcontext()
-        rpc_type = DiscoveringDynamicRpcProcess if qualification else DynamicRpcProcess
+        rpc_type = NamespacedFiniteRpcProcess if qualification else DynamicRpcProcess
         with patch.object(family, 'RpcProcess', rpc_type), progress, \
                 patch.object(family.runtime._RegisteredServer, '_commit_tool_reply', commit):
             try:
                 result = factory.run()
             except BaseException as failure:
                 result = failure
-        self.assertEqual(observed, [True])
+        self.assertEqual(observed, [True], (repr(result), repr(factory.server.transport_failure)))
         return case, factory, result
 
     def test_naturally_completed_tool_with_output_replies_and_polls_empty(self):
@@ -1443,9 +1553,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                                  poll_chars=chars, complete_after_refusal=True)
         factory = self.fixture.factory(case)
         progress = self._positive_finite_completion(case) if not chars else nullcontext()
-        with patch.object(family, 'RpcProcess', DiscoveringDynamicRpcProcess), progress:
+        with patch.object(family, 'RpcProcess', NamespacedFiniteRpcProcess), progress:
             result = factory.run()
         self.assertEqual(result['attempt']['outcome'], 'completed')
+        self.assertEqual(factory.execution['summary']['completed_tool_calls'], 1 if chars else 2)
         self.assertFalse((case.home / 'finite-tool-capture.json').exists())
         rows = [json.loads(path.read_bytes()) for path in
                 (factory.records / 'transport-observations').glob('observation-*.json')]
@@ -1456,7 +1567,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(command_reply, {'commandCallId': rpc.command_call_id,
                                          'stdout': 'EXAMPLE finite command output\n', 'running': True})
         exchange = factory.server._effective_thread_start_evidence[case.scenario.thread_id]
-        descriptions = {tool['name']: tool['description'] for tool in exchange['request']['dynamicTools']}
+        namespace, = exchange['request']['dynamicTools']
+        descriptions = {tool['name']: tool['description'] for tool in namespace['tools']}
         self.assertIn('commandCallId', descriptions['finite_command'])
         self.assertIn('commandCallId from the finite_command result', descriptions['finite_poll'])
         intents = [row for row in rows if row['stage'] == 'finite-poll-intent']
@@ -1480,7 +1592,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         request = family.runtime.protocol.classify_message({
             'id': 'EXAMPLE-request-EXAMPLE-poll-call', 'method': 'item/tool/call', 'params': {
                 'threadId': case.scenario.thread_id, 'turnId': case.scenario.turn_id,
-                'callId': 'EXAMPLE-poll-call', 'tool': 'finite_poll',
+                'callId': 'EXAMPLE-poll-call', 'tool': 'finite_poll', 'namespace': 'cwo_finite',
                 'arguments': {'commandCallId': rpc.command_call_id, 'chars': chars}}})
         self.assertEqual(observation['request_params_sha256'],
                          hashlib.sha256(request.params_json.encode()).hexdigest())
@@ -1501,6 +1613,222 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(observation['outcome'], 'empty-poll')
         self.assertEqual(case.poll_observation,
                          {'stdout': 'EXAMPLE finite poll output\n', 'running': True})
+
+    def test_qualification_accepts_paired_namespaced_finite_rollout_and_actual_empty_poll(self):
+        case = self.fixture.case(qualification=True, archive_schedule='settled')
+        factory = self.fixture.factory(case)
+        with (patch.object(family, 'RpcProcess', NamespacedFiniteRpcProcess),
+              self._positive_finite_completion(case)):
+            try:
+                result = factory.run()
+            except Exception as failure:
+                _note_typed_startup_failure(factory, failure)
+                raise
+        self.assertEqual(result['attempt']['outcome'], 'completed')
+        case.schema_check.assert_called_once()
+        exchange = factory.server._effective_thread_start_evidence[case.scenario.thread_id]
+        namespace, = exchange['request']['dynamicTools']
+        self.assertNotIn('historyMode', exchange['request'])
+        self.assertEqual((namespace['type'], namespace['name']), ('namespace', 'cwo_finite'))
+        self.assertEqual([tool['name'] for tool in namespace['tools']], ['finite_command', 'finite_poll'])
+        self.assertEqual((case.host.state / 'artifact/file-0000').read_bytes(), family.fixtures.host_fixtures.OUTPUT)
+        peer = self.fixture.spawned[0]
+        command, poll = peer.finished_items
+        self.assertEqual(command['id'], peer.command_call_id)
+        self.assertEqual(poll['arguments'], {'commandCallId': command['id'], 'chars': ''})
+        self.assertEqual(case.poll_observation, {'stdout': 'EXAMPLE finite poll output\n', 'running': True})
+        with self.assertRaises(BlockingIOError):
+            os.read(case.tool_read, 1)
+        rows = [json.loads(path.read_bytes()) for path in
+                (factory.records / 'transport-observations').glob('observation-*.json')]
+        receipt, = [row['observation'] for row in rows if row['stage'] == 'finite-tool-input']
+        self.assertEqual(receipt['request_id'], 'EXAMPLE-request-EXAMPLE-poll-call')
+        self.assertEqual(receipt['command_call'], command['id'])
+        self.assertEqual(receipt['delivered_bytes'], 0)
+        records = [json.loads(line)['payload'] for line in case.scenario.path.read_text().splitlines()]
+        calls = [(row['type'], row['call_id']) for row in records
+                 if row.get('type') in {'function_call', 'function_call_output'}]
+        self.assertEqual(calls, [('function_call', command['id']), ('function_call_output', command['id']),
+                                 ('function_call', poll['id']), ('function_call_output', poll['id'])])
+
+    def test_qualification_refuses_callback_namespace_before_owned_effect(self):
+        case = self.fixture.case(qualification=True, finite_callback_namespace='functions')
+        factory = self.fixture.factory(case)
+        with patch.object(family, 'RpcProcess', NamespacedFiniteRpcProcess), self.assertRaises(ValueError):
+            factory.run()
+        self.assertIn('Dynamic tool identity or fields differ', str(factory.server.transport_failure))
+        self.assertEqual(len(self.fixture.spawned), 1)
+        self.assertFalse((case.host.worker / 'result.txt').exists())
+        self.assertTrue(factory.server.lifetime.contained)
+        attempt = self.fixture.attempt(case)
+        self.assertEqual(attempt['charge'], attempt['amount'])
+
+    def test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation(self):
+        self._qualification_terminal_during_poll_write('')
+
+    def test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal(self):
+        self._qualification_terminal_during_poll_write('EXAMPLE withheld input')
+
+    def _qualification_terminal_during_poll_write(self, chars):
+        case = self.fixture.case(qualification=True, archive_schedule='settled', race_poll_completion=True,
+                                 terminal_during_poll_write=True, poll_chars=chars,
+                                 complete_after_refusal=bool(chars))
+        factory = self.fixture.factory(case)
+        physical = gate_module.RegisteredFiniteInput._write_reply_frame
+        observed, archived = [], []
+        read_boundary = live.session_boundary_summary
+
+        def observe_archive(*args, **kwargs):
+            result = read_boundary(*args, **kwargs)
+            if case.scenario.archived and result.get('available'):
+                archived.append((result['trusted_completed_tool_calls'],
+                                 result['trusted_tool_activity'][-1]['result_kind']))
+            return result
+
+        def held_after_real_write(writer, frame, source, deadline):
+            sent = physical(writer, frame, source, deadline)
+            if source['id'] == 'EXAMPLE-request-EXAMPLE-poll-call' and sent:
+                identity = case.scenario.thread_id, case.scenario.turn_id, 'EXAMPLE-poll-call'
+                server = factory.server
+                end = time.monotonic() + 3
+                while True:
+                    with server.requests.lock:
+                        phase = server.qualified_tool_evidence.completion(identity)
+                        terminal = identity[:2] in server.requests.terminals
+                    if phase is not None and terminal:
+                        records = [json.loads(line) for line in case.scenario.path.read_text().splitlines()]
+                        summary = live.trusted_tool_evidence_summary(records, turn_id=case.scenario.turn_id,
+                            registered_tool_projector=factory.adapter._registered_tool_projector())
+                        observed.append((phase, summary['trusted_completed_tool_calls'],
+                                         summary['trusted_tool_activity'][-1]['result_kind']))
+                        break
+                    self.assertLess(time.monotonic(), end, 'poll completion was blocked behind reply reconciliation')
+                    time.sleep(.001)
+            return sent
+
+        with (patch.object(family, 'RpcProcess', NamespacedFiniteRpcProcess),
+              patch.object(gate_module.RegisteredFiniteInput, '_write_reply_frame', staticmethod(held_after_real_write)),
+              patch.object(live, 'session_boundary_summary', observe_archive),
+              self._positive_finite_completion(case)):
+            result = factory.run()
+        self.assertEqual(observed, [('pending', 1, 'paired-pending')])
+        self.assertEqual(result['attempt']['outcome'], 'completed')
+        self.assertTrue(factory.server.archived)
+        self.assertEqual(case.scenario.path.parent, case.scenario.archive)
+        self.assertTrue(archived)
+        self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})
+        with self.assertRaises(BlockingIOError):
+            os.read(case.tool_read, 1)
+        rows = [json.loads(path.read_bytes()) for path in
+                (factory.records / 'transport-observations').glob('observation-*.json')]
+        poll, = [row['observation'] for row in rows if row['stage'] == 'finite-tool-input']
+        self.assertEqual(poll['outcome'], 'refused-nonempty' if chars else 'empty-poll')
+        self.assertEqual(poll['delivered_bytes'], 0)
+
+    def test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal(self):
+        self._refuse_qualification_poll_completed_after_terminal('')
+
+    def test_qualification_refuses_a_failed_poll_item_completed_after_the_original_turn_terminal(self):
+        self._refuse_qualification_poll_completed_after_terminal('EXAMPLE withheld input')
+
+    def _refuse_qualification_poll_completed_after_terminal(self, chars):
+        case = self.fixture.case(qualification=True, archive_schedule='settled',
+                                 race_poll_completion=True, terminal_before_poll_item=True,
+                                 poll_chars=chars, complete_after_refusal=bool(chars))
+        factory = self.fixture.factory(case)
+        physical = gate_module.RegisteredFiniteInput._write_reply_frame
+
+        def hold_after_write(writer, frame, source, deadline):
+            sent = physical(writer, frame, source, deadline)
+            if source['id'] == 'EXAMPLE-request-EXAMPLE-poll-call' and sent:
+                end = time.monotonic() + 3
+                while factory.server.transport_failure is None:
+                    self.assertLess(time.monotonic(), end, 'expected refusal of the late item')
+                    time.sleep(.001)
+            return sent
+
+        with (patch.object(family, 'RpcProcess', NamespacedFiniteRpcProcess),
+              patch.object(gate_module.RegisteredFiniteInput, '_write_reply_frame', staticmethod(hold_after_write)),
+              self._positive_finite_completion(case), self.assertRaises(ValueError)):
+            factory.run()
+        self.assertIn('Qualification completion differs', str(factory.server.transport_failure))
+        self.assertIsNone(factory.token)
+        with self.assertRaises(BlockingIOError):
+            os.read(case.tool_read, 1)
+        attempt = self.fixture.attempt(case)
+        self.assertEqual(attempt['charge'], attempt['amount'])
+
+    def test_qualification_terminal_receipt_requires_the_same_full_write(self):
+        turn = ('EXAMPLE-thread', 'EXAMPLE-turn')
+        binding = ('EXAMPLE-epoch', 7, *turn, 'EXAMPLE-poll-call', 'EXAMPLE-poll-call')
+        for result in ('wire-sent', 'not-sent', 'wire-partial', 'unknown-send'):
+            with self.subTest(result=result):
+                owner = gate_module._FiniteLifecycle()
+                owner.select(binding[0], turn, time.monotonic() + 3)
+                attempt = owner.authority_dispatch('tool-reply', binding)
+                owner.authority_revoke('item', binding[2:5])
+                self.assertTrue(owner.finish('terminal', turn=turn))
+                self.assertFalse(owner.authority_terminal_reply_sent(attempt, binding))
+                owner.authority_result(attempt, result)
+                self.assertIs(owner.authority_terminal_reply_sent(attempt, binding), result == 'wire-sent')
+                self.assertIsNone(owner.authority_dispatch('tool-reply', binding))
+                self.assertFalse(owner.authority_terminal_reply_sent(attempt, (binding[0], 8, *binding[2:])))
+                owner.finish('fault')
+                self.assertFalse(owner.authority_terminal_reply_sent(attempt, binding))
+
+    def test_qualification_refuses_unbound_direct_and_general_wrapper_rollout(self):
+        case = self.fixture.case(qualification=True, archive_schedule='settled')
+        factory = self.fixture.factory(case)
+        with patch.object(family, 'RpcProcess', NamespacedFiniteRpcProcess), self._positive_finite_completion(case):
+            self.assertEqual(factory.run()['attempt']['outcome'], 'completed')
+        def projector(turn, records, receipts, terminal):
+            factory.server.qualified_tool_evidence.project(case.scenario.thread_id, turn, records, receipts, terminal)
+        for control in ('unbound', 'wrapper', 'foreign-turn', 'unrelated-key'):
+            with self.subTest(control=control):
+                records = [json.loads(line) for line in case.scenario.path.read_text().splitlines()]
+                for record in records:
+                    item = record['payload']
+                    if item.get('call_id') != 'EXAMPLE-poll-call':
+                        continue
+                    if control == 'unbound':
+                        item['call_id'] = 'EXAMPLE-unbound-poll'
+                    elif control == 'foreign-turn':
+                        item['internal_chat_message_metadata_passthrough']['turn_id'] = 'EXAMPLE-foreign-turn'
+                    elif control == 'unrelated-key':
+                        item['unexpected'] = 'EXAMPLE'
+                    elif item['type'] == 'function_call':
+                        item.update(type='custom_tool_call', name='exec', namespace='functions', input='EXAMPLE')
+                    else:
+                        item['type'] = 'custom_tool_call_output'
+                with self.assertRaisesRegex(finite_tools.FiniteToolError,
+                        'no original finite callback|unregistered|rollout (metadata|call is outside)'):
+                    live.trusted_tool_evidence_summary(records, turn_id=case.scenario.turn_id,
+                        registered_tool_projector=projector)
+
+    def test_qualification_refuses_rollout_output_drift_and_projected_only_completion(self):
+        controls = ({'rollout_poll_output': 'EXAMPLE wrong output'}, {'projection_only_poll': True})
+        for control in controls:
+            with self.subTest(control=next(iter(control))):
+                self._refuse_qualification_rollout(control)
+
+    def _refuse_qualification_rollout(self, control):
+        fixture = family.FactoryTests(methodName='runTest')
+        fixture.setUp()
+        try:
+            case = fixture.case(qualification=True, archive_schedule='settled', **control)
+            factory = fixture.factory(case)
+            with (patch.object(family, 'RpcProcess', NamespacedFiniteRpcProcess),
+                  self._positive_finite_completion(case), self.assertRaises(ValueError)):
+                factory.run()
+            cause = str(factory.server.transport_failure)
+            self.assertRegex(cause, 'rollout output differs|ended before original finite evidence settled')
+            self.assertIsNone(factory.token)
+            with self.assertRaises(BlockingIOError):
+                os.read(case.tool_read, 1)
+            attempt = fixture.attempt(case)
+            self.assertEqual(attempt['charge'], attempt['amount'])
+        finally:
+            family.cleanup_helper(self, fixture)
 
     def test_poll_before_original_command_completion_refuses_without_input(self):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',

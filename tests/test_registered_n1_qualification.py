@@ -11,6 +11,8 @@ from unittest.mock import patch
 from tests import test_registered_n1_factory as family
 
 import registered_n1_qualification as qualification
+import selected_native_containment as selected
+from cwo_core.codex_protocol_capabilities import CapabilityError
 from cwo_core import model_identities
 from cwo_core.maintenance_authority import MaintenanceAuthorityError
 from cwo_core.supervision.transport.app_server import AppServer
@@ -232,10 +234,55 @@ class FactoryQualificationTests(unittest.TestCase):
         factory = self.fixture.factory(case)
         with self.assertRaisesRegex(ValueError, 'profile readback'):
             factory.run()
+        case.schema_check.assert_called_once()
+        self.assertIs(case.schema_check.call_args.kwargs['n1_qualification'], True)
         self.assertEqual(qualification.campaign_usage()['total'], 1)
         self.assertEqual(len(self.fixture.spawned), 1)
         self.assertNotIn('turn/start', self.fixture.spawned[0].methods)
         self.assertTrue(factory.server.lifetime.contained)
+
+    def test_schema_refusal_precedes_appserver_birth_and_campaign_start(self):
+        case = self.fixture.case(qualification=True, drift=True)
+        factory = self.fixture.factory(case)
+        scratch = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        checked_binary = Path(case.spec['executable'])
+
+        def refuse(binary, *, launcher, n1_qualification):
+            self.assertEqual(binary, checked_binary)
+            self.assertIs(n1_qualification, True)
+            self.assertEqual(qualification.campaign_usage()['total'], 0)
+            self.assertEqual(self.fixture.spawned, [])
+            argv = launcher(scratch)
+            self.assertIn('--unshare-all', argv)
+            self.assertEqual(argv[argv.index('--chdir') + 1], str(scratch))
+            self.assertNotIn(str(case.home), argv)
+            raise CapabilityError('EXAMPLE missing qualification namespace')
+
+        with patch.object(selected, 'check_codex_capabilities', side_effect=refuse) as check:
+            with self.assertRaisesRegex(ValueError, 'missing qualification namespace'):
+                factory.run()
+        check.assert_called_once()
+        self.assertEqual(self.fixture.spawned, [])
+        self.assertEqual(qualification.campaign_usage()['total'], 0)
+
+    def test_ordinary_registered_launch_does_not_require_qualification_schema(self):
+        case = self.fixture.case(drift=True)
+        factory = self.fixture.factory(case)
+        with patch.object(selected, 'check_codex_capabilities') as check:
+            with self.assertRaisesRegex(ValueError, 'profile readback'):
+                factory.run()
+        check.assert_not_called()
+        self.assertEqual(len(self.fixture.spawned), 1)
+
+    def test_schema_executable_must_match_the_signed_digest(self):
+        directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        binary = directory / 'codex'
+        binary.write_bytes(b'EXAMPLE different executable')
+        binary.chmod(0o700)
+        with patch.object(selected, 'check_codex_capabilities') as check:
+            with self.assertRaisesRegex(qualification.QualificationError, 'differs from the signed binary'):
+                qualification.require_executable_schema(str(binary), '0' * 64)
+        check.assert_not_called()
 
     def test_composed_fixture_restores_process_denial(self):
         original_kill = os.kill

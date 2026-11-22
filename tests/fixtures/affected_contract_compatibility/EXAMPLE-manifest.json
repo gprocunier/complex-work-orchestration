@@ -384,7 +384,7 @@
     "scripts/cwo_core/checked_command_sequence.py": "ba99b618d548ff236de1735127a4cbc5370f5f554d9ea21c696171841e0d6f3b",
     "scripts/cwo_core/coach.py": "e5b7dd17d5273d0a7b4883b901a673b30535bffc87115fb8471a011700e086dc",
     "scripts/cwo_core/codex_hook_enforcement.py": "b988f0062b354cf193ec3528462168cb828f2721d29d046573c78f69ee1685a0",
-    "scripts/cwo_core/codex_protocol_capabilities.py": "2e088d9fc1cae5987132754853fc1c7b7d7425defddaf1bc0a089191625362c0",
+    "scripts/cwo_core/codex_protocol_capabilities.py": "126ddd4bfbcc7b3349db604da4829a1cb9a7584cd1729cdcf1d6f4a8c41e96d1",
     "scripts/cwo_core/codex_protocol_pin.py": "5f65e2bfedc3ccbb1f5248c63fa17c4d7b60a6586bf93044741e157a35c94bbd",
     "scripts/cwo_core/codex_tool_surface.py": "e315a29dc6a5667eab1fa89a00f231bbe9ca085b7e3743ea253edeb64ef4eb18",
     "scripts/cwo_core/epic_convergence.py": "5646a96f5a39242e265e9cbf1dfdc29c4d67b3854eb94aa0d2370191c56193e5",
@@ -524,11 +524,11 @@
     "scripts/qualified_risk_use.py": "f89225010b9e0b35842c3cb21e6d5ec17f0a6c0055adbaf80751e6af0839dd54",
     "scripts/qualified_workflow_adjudication.py": "caa8e81acffd83f43242ec50e63d6f4c9ec490491091e71db51d98c10f6c93e1",
     "scripts/registered_app_server_transport.py": "91fb0184a5e45ad64047f69c43c39b64895c04dbcedaa6e2ea44696bfdc128dd",
-    "scripts/registered_finite_input.py": "1ad3dd1af24dca68349eca1e359f3f3b9e56c99440285fe463c2aba47af707cf",
-    "scripts/registered_finite_tool_calls.py": "46caef3a43dee2649a94ec34aa56e7748eed8e934b1eed2414bd4aa6bff4bfc7",
+    "scripts/registered_finite_input.py": "63435f503a194f9544279dd6e7f9f9b912a332fb97a1ea8be088704a2f872699",
+    "scripts/registered_finite_tool_calls.py": "f56c9008ca5195f9d7a2fde0327c3633c5b9836cff3ec20ae26792bc4c401231",
     "scripts/registered_host_root_boundary.py": "615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",
-    "scripts/registered_n1_factory.py": "0146512009efadb412bccac820c232ee4a1cd602bdff7395fbaa57dc482aa95b",
-    "scripts/registered_n1_qualification.py": "dacc43c5e722159bb0a1a3bfe89c9f023280dc890f1f52d521ae661cef4b2fea",
+    "scripts/registered_n1_factory.py": "a5bba431d4cde633ba0af8762a508bf1e8a7d44a779efff74a2d266bac75e031",
+    "scripts/registered_n1_qualification.py": "01f69bc668b866a24679ad061b492ce210447a63421e3206919d0a8ee3e8d815",
     "scripts/registered_n1_workflow.py": "ab229624003f1d516d1831703aea8ecff27b5cb992b24106f66ac831adb60439",
     "scripts/registered_native_pool_client.py": "cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",
     "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
@@ -539,7 +539,7 @@
     "scripts/route_work.py": "df875375e2611c71775dbca6ab20fab7daece7ddb9f8f74cfdf45a705ec73b66",
     "scripts/run_admitted_native_pool_transaction.py": "41a760ee30302f9d67a9a9e86001f2fbf1f64c4d67ad9bd9abf98c1fbae160f5",
     "scripts/run_native_pool_activation_preview.py": "ba8d6118af6dba182381e69f7354cd743434f320e678253e5ae0d36e42307b94",
-    "scripts/run_native_pool_live_canaries.py": "d31f812a4adea3083223b1d9771a35a6a2901e5d8b05128b63cf9a524709e158",
+    "scripts/run_native_pool_live_canaries.py": "8e828c470f95f69ad0becc2a81c63307f36472ebc57fc90eaee403181adc50c6",
     "scripts/scaffold_workgraph.py": "fe6fc0c20566c9425bf5e6fee261d028410d56596806fd924cb21f01d481152f",
     "scripts/setup_workspace_database.py": "f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd",
     "scripts/validate_run_readiness_plan.py": "4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",
@@ -582,9 +582,9 @@
     "tests/test_qualified_review_dispatch.py": "51728ca953553d7190cddbf11e9baab629f6ccfbdf10a0950a84d6ccab39fc1c",
     "tests/test_registered_finite_input.py": "6caf393f9f91e4cab0851b7be4ff28dd500ab3fc28277a1d2ed2928639fe0fe6",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
-    "tests/test_registered_finite_tool_wiring.py": "4048359aa19b09ad075a7a3053956292823c0e9145f71ebc1a25f773fd9d45b6",
-    "tests/test_registered_n1_factory.py": "8039e92694159a12f5c8ccc695360e495b2b2e04a1a156079928c391a098bedb",
-    "tests/test_registered_n1_qualification.py": "95209f04c79a6fb1166aaf3e9921f1d3ca245f4464e182e7d9719bd8e6b23239",
+    "tests/test_registered_finite_tool_wiring.py": "8901e9d9608eacb163a75059d83d6991dc35ea3f368d815ea893b37fbbbeeb7f",
+    "tests/test_registered_n1_factory.py": "4dea4c67e0f4f75b7e24f76c9f9cf6778fba1ce3e41273682b23ab2eb9e1ef2c",
+    "tests/test_registered_n1_qualification.py": "25d4de70698c14439e45c4076e2bdedd3570756a1c1371e86f00fdd831c2b0d1",
     "tests/test_registered_n1_workflow.py": "94d4de5b25c5e986311ebec6c55eb91b143dcf60080e84130748f8a290f35ed7",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
@@ -1754,7 +1754,8 @@
     "scripts/registered_finite_tool_calls.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/server_request_preparation.py",
-      "scripts/registered_n1_factory.py"
+      "scripts/registered_n1_factory.py",
+      "scripts/registered_n1_qualification.py"
     ],
     "scripts/registered_host_root_boundary.py": [
       "scripts/offline_n1_host.py"
@@ -1789,7 +1790,8 @@
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/host_records.py",
       "scripts/cwo_core/maintenance_authority.py",
-      "scripts/cwo_core/model_identities.py"
+      "scripts/cwo_core/model_identities.py",
+      "scripts/selected_native_containment.py"
     ],
     "scripts/registered_n1_workflow.py": [
       "scripts/cwo_core/__init__.py",
@@ -2211,6 +2213,7 @@
       "scripts/cwo_core/host_records.py",
       "scripts/cwo_core/model_identities.py",
       "scripts/registered_n1_factory.py",
+      "scripts/selected_native_containment.py",
       "tests/test_linux_owned_children.py",
       "tests/test_local_admission_preparation.py",
       "tests/test_maintenance_authority.py",
@@ -2220,10 +2223,12 @@
     ],
     "tests/test_registered_n1_qualification.py": [
       "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/codex_protocol_capabilities.py",
       "scripts/cwo_core/maintenance_authority.py",
       "scripts/cwo_core/model_identities.py",
       "scripts/cwo_core/supervision/transport/app_server.py",
       "scripts/registered_n1_qualification.py",
+      "scripts/selected_native_containment.py",
       "tests/test_registered_n1_factory.py"
     ],
     "tests/test_registered_n1_workflow.py": [
@@ -2441,8 +2446,8 @@
   "registered_current_scope": "Current imports, source bytes/modes and neutral offline compatibility inputs are independently bound. verify_fixture_checkpoint is explicitly fixture-only: archived IDs are non-reverified metadata, historical_artifacts_verified=false and all effect/current/semantic authority is false. verify_checkpoint and the process entry remain strict original Git verification without fixture fallback. Signed qualification permit and provider relay dependencies and their offline witnesses are separately bound current source; fixture mode confers no qualification or live effect authority.",
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
-    "tests/test_registered_n1_factory.py": "8039e92694159a12f5c8ccc695360e495b2b2e04a1a156079928c391a098bedb",
-    "tests/test_registered_n1_qualification.py": "95209f04c79a6fb1166aaf3e9921f1d3ca245f4464e182e7d9719bd8e6b23239",
+    "tests/test_registered_n1_factory.py": "4dea4c67e0f4f75b7e24f76c9f9cf6778fba1ce3e41273682b23ab2eb9e1ef2c",
+    "tests/test_registered_n1_qualification.py": "25d4de70698c14439e45c4076e2bdedd3570756a1c1371e86f00fdd831c2b0d1",
     "tests/test_registered_provider_network.py": "69b2da31a020c5f2bbc9ee42512c7b60289777ea20115d1577ea5cedc3be14b6",
     "tests/test_registered_server_requests.py": "1339fd305c7267d3b7d7fef24453268c8180c1090ae20122f430ad675b3a07f5"
   },

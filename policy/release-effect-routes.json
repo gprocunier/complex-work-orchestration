@@ -194,13 +194,13 @@
 
 "M32":{"conclusion":"The original registered task is projected completely into bounded immutable model data while original admission, reservations, custody and first failure remain authoritative.","evidence_contracts":["N3","N5","N10"],"external_trust_limit":"Only original protected registered receiver/parent consumers are covered. Pure getters, digests and serialized bindings grant no opaque authority, adoption, model execution, publication or restart. Direct N3.1-.3, inherited N5.3-.6 and registered N10.2/.5/.6/.9 consume this change; N1 raw launch, containment N3.4-.6, adoption/save/ingress, unrelated notify/guarded/raw-thread/finite-reply/denial paths gain no grant. Named untrusted/user fake-native fixtures do not qualify the distinct selected legacy workspace-write/never/network-off identity. Builtin/provider/helper context, live model work, native recovery and confidentiality remain unknown/unsupported; selected-unqualified remains.","reason":"After original receipt validation, pure projection revalidates complete typed input, exact original rendered request/execution and both original/MAX_TASK_BYTES size bounds. All prompt/wrappers/attachments/sources and command/completion/output/expected-artifact/acceptance context are copied; private operational manifests remain outside model prose. Current guards recompute exact bytes. Original request and model bytes have distinct bound digests in actual adapter boundary/control/report and protected dispatch metadata; original receipt, execution options, amounts, expiry, reservations and replay are unchanged. Exact registered receiver and method objects, factory guard and original boundary/profile/workspace checks remain before actual prompt/control checks. First action failure is retained with safe type-only later notes; original transport fault/cleanup facts remain separate. Final summary raises that first primary before success-only session capture, preserving original OutboundRefused cause, partial receipt, unknown/full charge and no artifact/token. Existing final byte scan/hold/deadline is still required, without detector/corpus/threshold exemptions. The registered failure summary passively reads the bounded original worker connection history after the first-failure check. The durable failed turn and one exact matching failed terminal notification are required. Only the allowlisted provider policy category is reported. The original failure, full charge and owned cleanup remain authoritative.","review_evidence":"Accepted concrete factory/offline-host source delta, exact data/receiver/size/dual binding checks, original cleanup/provenance effect linkage, matched complete/drift/useful/sensitive-primary controls and original delivery consumer reviewed; no new authority inferred.","source":["p3q","p3S","p3x","p3V","p3t","p3w","p3n","p3Y","p3W","p3U","p3T","p3g","p3k","p3m","p3s","p3Z","p3r","p3u","p3j","p3R","p3h","p2b1","pRefusalClass"]},
 
-"M33":{"conclusion":"Required request, reply and event shapes gate compatibility for the selected app-server executable.","evidence_contracts":["N11","N1","N13"],"external_trust_limit":"Direct contract-check and raw transport callers select a trusted installed executable and PATH. The fixed diagnostic binds its selected executable and runtime read-only in a private network and process namespace with only temporary output writable. Schema declarations do not prove effective security policy, execution identity outside the observed run, or live behavior.","reason":"Two bounded app-server schema exports use separate private homes and disposable outputs. The stable export checks fixed diagnostics. The experimental export checks native transport methods and callbacks. Reads use bounded regular files without symlink traversal. The raw live constructor checks the existing native hold before and after compatibility. The fixed diagnostic verifies the executable object and bytes before selected effects, and verifies the mounted copy before opening the execution gate.","review_evidence":"Both supported executables passed the same offline contract. The copied schema mutation removes a required method and names it on refusal. Selected diagnostic controls distinguish capability refusal, binary replacement and actual containment observations.","source":["pSchemaEntry","pSchemaProcess","p28f","pSchemaDiagnostic","pSchemaLauncher"]},
+"M33":{"conclusion":"Required request, reply and event shapes gate compatibility for the selected app-server executable.","evidence_contracts":["N11","N1","N13","N3"],"external_trust_limit":"Direct contract-check and raw transport callers select a trusted installed executable and PATH. The fixed diagnostic binds its selected executable and runtime read-only in a private network and process namespace with only temporary output writable. Schema declarations do not prove effective security policy, execution identity outside the observed run, or live behavior.","reason":"Two bounded app-server schema exports use separate private homes and disposable outputs. The stable export checks fixed diagnostics. The experimental export checks native transport methods and callbacks. Reads use bounded regular files without symlink traversal. The raw live constructor checks the existing native hold before and after compatibility. The fixed diagnostic verifies the executable object and bytes before selected effects, and verifies the mounted copy before opening the execution gate. The signed N1 qualification calls the same fixed launcher before app-server birth and campaign start. It pins the approved executable identity and checks the namespaced tool, string callback namespace, typed completion and refusal result used on that route.","review_evidence":"Both supported executables passed the same offline contract. The copied schema mutation removes a required method and names it on refusal. Selected diagnostic controls distinguish capability refusal, binary replacement and actual containment observations. The signed fixture refuses a missing namespace before birth or start accounting. The ordinary factory skips the qualification preflight.","source":["pSchemaEntry","pSchemaProcess","p28f","pSchemaDiagnostic","pSchemaLauncher","p36SchemaPreflight","p36SchemaSelect","p36SchemaContract"]},
 
 "M34":{"conclusion":"The registered qualification route is a bounded exception under the production hold for disposable workers. Ordinary N1, pool and campaign gates and shipped role defaults remain in force.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Trusted original signer, registry, factory, campaign custody and journal implementation remain prerequisites. An issued permit alone does not authorize alternate clients, host intake, publication or promotion. Synthetic starts and wire responses supply offline evidence only.","reason":"A signed HMAC qualification permit binds the exact claimed operation digest and signed model plan. Current permit, source, intent and campaign accounting precede launch. An owned private journal checks expiry, replay and budgets under a lock, and fsyncs each start before the app-server gate. The registered wire lookup binds the original receiver and restricts it to exact one-use thread/start and turn/start payloads. The signed selection uses OpenAI gpt-6.2-sol, xhigh and default tier.","review_evidence":{"$":7},"source":["p25PermitVerify","p25CampaignStart","p25Enroll","p25RequireSelected","p25RecordStart","p25WireRegistry","p25WireCheck","p25WireTurn","p25RpcGate"]},
 
 "M35":{"conclusion":"The qualification app-server broker permits HTTPS port 443 for chatgpt.com and api.openai.com. A signed launch with an attached Codex personal access token also permits auth.openai.com at that port. The app-server workspace is read-only. Tool and validator namespaces receive neither the token nor the proxy.","evidence_contracts":["N3","N9"],"external_trust_limit":"The controller provisions and manages its credential. The encrypted tunnel checks names and port without inspecting HTTP paths or bodies. Namespace isolation blocks direct traffic outside the explicit proxy audit. Local TLS tests use the bundled self-signed certificate and deliberately public fixture key. Real tokens, public provider connectivity and live Codex model behavior are unverified.","reason":"The original factory checks the signed launch before staging an explicit controller attachment in a private anonymous pipe. Only the app-server bootstrap inherits the read end. The parent releases its copy after owned spawn, the relay closes its copy before serving, and the bootstrap consumes the token after the trusted start gate and closes the pipe before exec. The existing datagram pair transfers bounded stream descriptors to the parent. Exact CONNECT authority and TLS SNI, including refusal of encrypted ClientHello, precede parent DNS and a bounded public-address dial. Denials are scrubbed. Record failure revokes the broker.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead"]},
 
-"M36":{"conclusion":"Live-mode capture is tied to the original registered app-server RPC and owned pipe. The existing offline fixture remains a separate source.","evidence_contracts":["N9"],"external_trust_limit":"The exact finite host tools and sealed children are scoped. Synthetic RPC witnesses exercise real-mapped finite input mechanics; no provider-native tool catalog or model turn was observed.","reason":"Qualification checks the actual registered dynamic tool request, thread and turn, original call and owned command stdin before admitting a poll. The evidence stores request and submitted and delivered UTF-8 byte counts and digests, with no raw input text. Nonempty polls are refused before delivery and empty polls write zero bytes.","review_evidence":{"$":7},"source":["p25LiveInput"]},
+"M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts.","review_evidence":{"$":7},"source":["p25LiveInput","p36DirectCatalog","p36FiniteAdmit","p36FiniteItem","p36FiniteCommit","p36FiniteReplyDispatch","p36FiniteHistorical","p36FiniteMatch","p36FiniteAwaitOriginal","p36FiniteHistory","p36FiniteBoundary"]},
 
 "M37":{"conclusion":"The registered launcher may complete cleanup after a natural exit removed the original monitor executable link. The raw original controller report stays unchanged.","evidence_contracts":["N3","N9"],"external_trust_limit":"Only the exact retained original monitor and its existing PIDFD waitid accounting can establish exit and reaping. A disappearing proc link alone grants no effect authority. Namespace containment still requires its own retained evidence. The generic controller and private watchdog retain their original outcomes and wait budget.","reason":"Only an identity-unavailable report with the exact original monitor executable ENOENT, same PID and receipt, retired registration, positive original reaping and exit facts, and no signal can resolve the registered cleanup exception. It does not add a poll, change generic termination outcomes or retry cleanup.","review_evidence":{"$":7},"source":["p25MonitorTerminate","p25MonitorRecovery","p25MonitorReason"]}
 },
@@ -524,7 +524,7 @@
 
 "p103":[42,2490,"self.request(\n            \"turn/interrupt\",\n            {\"threadId\": thread_id, \"turnId\": turn_id},\n            timeout=timeout,\n        )",27,2494,9],
 
-"p104":[74,"run_pool_canary",7541,"fbef9e42927f0837bfd34712b2caba4408bc3b143578d4a27b6d9ef53e42e928"],
+"p104":[74,"run_pool_canary",7559,"fbef9e42927f0837bfd34712b2caba4408bc3b143578d4a27b6d9ef53e42e928"],
 
 "p105":[80,"captured_result",197,"d516f6e3e686562e513bb9d56ac4388df5f430be3348b7250960603b5329af00"],
 
@@ -532,7 +532,7 @@
 
 "p107":[73,1081,{"$":210}],
 
-"p108":[74,3722,"if self.campaign_live_route:"],
+"p108":[74,3735,"if self.campaign_live_route:"],
 
 "p109":[19,"create",12,"290388ca5042a9f44116454a7f77464f1ca2d661f6d2b46ebb52a86734438122"],
 
@@ -556,7 +556,7 @@
 
 "p112":[120,"QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments",186,"32b00495d71f94381e4f8d4ca4ebc76fd51abd6c9443a3a4509c0640bc5c1d25"],
 
-"p113":[64,"_Containment.launch",631,"e330284e6c18239265878493cf49293fcd65e0b3708d8faaebcc6c6935194794"],
+"p113":[64,"_Containment.launch",637,"44b2f2960e6f7aecd67047dc1ca7e4edad0fbab3697ba53f9fd6d02bbcd59652"],
 
 "p114":[116,"OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared",389,"ba6ba5e3d23da891f8d3c7d03cfbd3bcc4d1526f1bacc1b9ccf6b359ada6177a"],
 
@@ -602,7 +602,7 @@
 
 "p128":[120,"QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects",393,"a63d2bb00010aa6934f214366f0757e49ab68d4d1a3fae4bb2af298baeaf93d5"],
 
-"p129":[74,"LiveThreadAdapter._require_campaign_live_route",3719,"63d9f444ea86780e5fbca4cb5cec1bb25dd48b768e0d255d18f5e18fe982d7cd"],
+"p129":[74,"LiveThreadAdapter._require_campaign_live_route",3732,"63d9f444ea86780e5fbca4cb5cec1bb25dd48b768e0d255d18f5e18fe982d7cd"],
 
 "p12a":[110,"NativeActivationPreviewTests.test_prepare_root_refuses_before_graph_and_private_graph_uses_only_fake_bd",264,"4e633c0c3c290ec94c46b1501288693e85aebd3c6c095ac3e8dff4a798cf8b18"],
 
@@ -644,11 +644,11 @@
 
 "p13c":[8,{"$":197},1060,{"$":188}],
 
-"p13d":[74,12814,{"$":43}],
+"p13d":[74,12832,{"$":43}],
 
 "p13e":[61,57,"self._launch_registered_transport(home, binding, startup_config)",12,57,76],
 
-"p13f":[63,"RegisteredFiniteToolCalls.receive",525,"4301f60a492f74597f0c4e5f7556213373b6ffa09f57f18932fe7173ed5b5957"],
+"p13f":[63,"RegisteredFiniteToolCalls.receive",808,"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36"],
 
 "p14":[8,726,"sync_playwright()",18,726,35],
 
@@ -686,13 +686,13 @@
 
 "p15":[23,291,"run_bd(args)",17,291,29],
 
-"p150":[74,7561,{"$":43}],
+"p150":[74,7579,{"$":43}],
 
 "p151":[50,297,{"$":245}],
 
-"p152":[74,12816,{"$":13}],
+"p152":[74,12834,{"$":13}],
 
-"p153":[74,"validate_and_acquire_global_campaign_claim",12416,"951df786887d39a5bc9139e6eef6b5723a2f9f2173286cf122ad76d3f3d51ee5"],
+"p153":[74,"validate_and_acquire_global_campaign_claim",12434,"951df786887d39a5bc9139e6eef6b5723a2f9f2173286cf122ad76d3f3d51ee5"],
 
 "p154":[50,217,"write_config \"$CONFIG_PATH\" \"$PORT\""],
 
@@ -728,7 +728,7 @@
 
 "p163":[39,128,"if (registration.pid, registration.session_id, registration.workspace) != (pid, session_id, workspace):"],
 
-"p164":[74,12440,{"$":35}],
+"p164":[74,12458,{"$":35}],
 
 "p165":[78,272,"if unmet:"],
 
@@ -932,7 +932,7 @@
 
 "p1ab":[44,1806,"pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get(\"allow_private_dns\")))"],
 
-"p1ac":[64,"_RegisteredServer.request",1407,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
+"p1ac":[64,"_RegisteredServer.request",1451,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
 
 "p1ad":[3,538,"method(argument, submission, **options)",19,538,58],
 
@@ -942,7 +942,7 @@
 
 "p1b":[48,94,"subprocess.run(\n            # Run the verified bytes themselves, not the path, which could be replaced.\n            [sys.executable, \"-I\", \"-c\", code.decode(\"utf-8\"), source, \"--timeout\", str(timeout), \"--format\", \"json\"],\n            check=False,\n            capture_output=True,\n            text=True,\n            timeout=timeout,\n        )",17,101,9],
 
-"p1b0":[63,652,{"$":148}],
+"p1b0":[63,937,{"$":148}],
 
 "p1b1":[70,98,"if any(q.is_symlink() for q in (path, *path.parents)) or not path.is_file():"],
 
@@ -962,13 +962,13 @@
 
 "p1b9":[38,"execute_native_pool_transaction",1474,"c96e27a1ac159baa75913f95b063a2d8494debcc01e923ba8b09bb1696c296e0"],
 
-"p1ba":[74,7097,{"$":43}],
+"p1ba":[74,7115,{"$":43}],
 
 "p1bb":[131,"ReleaseFilesystemTests.test_actual_source_snapshot_and_runtime_identities_are_bound",110,"ba8924f1e501934a6afa151250c9226bd5527451e89ef65fa3338b32962bf5f8"],
 
 "p1bc":[90,"ChatGPTBrowserReviewTests._browser_result",1326,"a9058beb7012505459ffa69a75cc7039ed1546464c2942732822fd7a6a3fd485"],
 
-"p1bd":[64,"RegisteredN1Factory._isolated_validation",2318,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
+"p1bd":[64,"RegisteredN1Factory._isolated_validation",2386,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
 
 "p1be":[8,685,{"$":285},12,685,84],
 
@@ -1000,7 +1000,7 @@
 
 "p1cb":[11,46,"if initial.ruff_version() != RUFF:"],
 
-"p1cc":[74,12815,{"$":35}],
+"p1cc":[74,12833,{"$":35}],
 
 "p1cd":[8,753,"self._confirm_configured_labels(page, timeout_ms)",36,753,85],
 
@@ -1076,7 +1076,7 @@
 
 "p1ef":[99,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",182,"9cb07ef63abb416ca4f820ef25ca157065bc40b1118b69f5b65a254df7a46959"],
 
-"p1f":[63,680,"lifetime.launch(['/usr/bin/sh', '-c', self.factory.spec['command']],\n                                      self.factory.home, tool_call=params, deadline=deadline,\n                                      tool_decision=decision)",22,682,61],
+"p1f":[63,965,"lifetime.launch(['/usr/bin/sh', '-c', self.factory.spec['command']],\n                                      self.factory.home, tool_call=params, deadline=deadline,\n                                      tool_decision=decision)",22,967,61],
 
 "p1f0":[43,"trusted_git_completed",554,"adcb7ccb6ef4d12b2231b9ee79fa364d50360a4ab300fa645fdcdccf7b2d32b7"],
 
@@ -1092,7 +1092,7 @@
 
 "p1f6":[8,1162,"self._submit_guarded(page, prompt, request_id, timeout_ms, guard)",19,1162,84],
 
-"p1f7":[74,13438,"capture_input_source_identities(paths)",28,13438,66],
+"p1f7":[74,13456,"capture_input_source_identities(paths)",28,13456,66],
 
 "p1f8":[8,1036,{"$":283},20,1036,95],
 
@@ -1162,13 +1162,13 @@
 
 "p203":[87,"BrowserProvenanceTests.setUp",36,"190d1c43dd16d017fc1abfdbd8d609372a4df212e28f324a6d680a02008fdd3b"],
 
-"p204":[74,13105,{"$":43}],
+"p204":[74,13123,{"$":43}],
 
 "p205":[8,"PlaywrightChatGPTRunner._page_snapshot",872,"e996eb4f5cfa69c743c945503ee54f1674812a8ead1ae9cd90100b3fc822e5a4"],
 
 "p206":[87,"BrowserProvenanceTests.test_real_preparation_and_persisted_sanitizer_positive",93,"f6c3ccbc74fbca7f793188c178e1de8adb81f377b0284d120fb0f69a12108484"],
 
-"p207":[74,7098,{"$":35}],
+"p207":[74,7116,{"$":35}],
 
 "p208":[80,"packet_input",105,"80a92a01f4a209b535af916df0ee9d3fba1f5297bb50d945c47a8269916b15cd"],
 
@@ -1176,7 +1176,7 @@
 
 "p20a":[37,1502,"if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:"],
 
-"p20b":[64,"_RegisteredServer._launch_process",1437,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
+"p20b":[64,"_RegisteredServer._launch_process",1481,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
 
 "p20c":[78,"main",218,"4b19f823bfd6636d1a333dfc6aff0b26e633136bec98d21ff065260472d805a5"],
 
@@ -1224,13 +1224,13 @@
 
 "p220":[55,"main",2118,"160f4c8bc9c5f0c58aa7d3c9021637cbc9ad76a1951f90f4f0213c957117267b"],
 
-"p221":[74,"_run_calibration",5061,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
+"p221":[74,"_run_calibration",5079,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
 
-"p222":[64,633,{"$":148}],
+"p222":[64,639,{"$":148}],
 
 "p223":[43,"run_git",434,{"$":213}],
 
-"p224":[74,3625,{"$":284}],
+"p224":[74,3638,{"$":284}],
 
 "p225":[59,485,{"$":57}],
 
@@ -1256,11 +1256,11 @@
 
 "p23":[32,783,"subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,\n                    timeout=command.timeout_seconds, env={**os.environ, \"PYTHONDONTWRITEBYTECODE\": \"1\"}, check=False)",28,784,117],
 
-"p230":[74,7348,"result, _latency = server.start_thread(worktree, **start_kwargs)"],
+"p230":[74,7366,"result, _latency = server.start_thread(worktree, **start_kwargs)"],
 
 "p231":[2,31,"if not args.allow_sol_breakfix:"],
 
-"p232":[74,12441,{"$":13}],
+"p232":[74,12459,{"$":13}],
 
 "p233":[86,"ConnectedBrowserTests.test_share_wrong_content_conversation_purpose_and_expiry_refuse_before_effect",262,"db6685805c939106a917251e2a955d8869bb556189e61449aea6bf0ae5a123a5"],
 
@@ -1272,9 +1272,9 @@
 
 "p237":[44,754,"records = socket.getaddrinfo(host, port or 0, type=socket.SOCK_STREAM)"],
 
-"p238":[74,3693,{"$":284}],
+"p238":[74,3706,{"$":284}],
 
-"p239":[64,"RegisteredN1Factory.run",2351,"0c790d6e416d303ed88a40e93573bcef26abdbd681e7e4b37a0555487e95262d"],
+"p239":[64,"RegisteredN1Factory.run",2419,"0c790d6e416d303ed88a40e93573bcef26abdbd681e7e4b37a0555487e95262d"],
 
 "p23a":[99,"F5NativeLiveHoldTests.test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control",72,"f207bc2f8e9c15178d0dcbfdf180602184543c6047821684826e1ff49456edea"],
 
@@ -1336,7 +1336,7 @@
 
 "p255":[54,242,{"$":230}],
 
-"p256":[74,7562,{"$":35}],
+"p256":[74,7580,{"$":35}],
 
 "p257":[43,462,{"$":256}],
 
@@ -1354,35 +1354,35 @@
 
 "p25BrokerPair":[146,314,"socket.socketpair(type=socket.SOCK_DGRAM)",43,314,84],
 
-"p25Budget":[148,"CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks",44,"8527c5eb6394a4a05df33b729c116e774e00420a465d8034c5653cdab392e1a6"],
+"p25Budget":[148,"CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks",46,"8527c5eb6394a4a05df33b729c116e774e00420a465d8034c5653cdab392e1a6"],
 
-"p25CampaignStart":[149,"_campaign_start",249,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
+"p25CampaignStart":[149,"_campaign_start",274,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
 
 "p25Dial":[146,"_dial_provider",188,"52fe6a0ece405aa8a79d44bfe33af8eef31e92faa0fc915a65aa287fd780a70a"],
 
 "p25Egress":[146,"ProviderBroker._handle",341,"55dca3e7fb430ad940cc66430d944423566f8882b05f2fefa3f6d243e5158fe7"],
 
-"p25Enroll":[149,"initialize_campaign",158,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
+"p25Enroll":[149,"initialize_campaign",183,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
 
-"p25EnrollHeader":[149,169,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
+"p25EnrollHeader":[149,194,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
 
-"p25EnrollMkdir":[149,163,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
+"p25EnrollMkdir":[149,188,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
 
-"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",178,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
+"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",180,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
 
-"p25ExpirySupport0":[148,{"$":330},230,{"$":331}],
+"p25ExpirySupport0":[148,{"$":330},232,"d59b8417182e03f93912a075fb0195169ace16aa8a875be7e4a8b0f35023bd8a"],
 
-"p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1495,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
+"p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1607,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
-"p25FiniteSupport0":[126,"RegisteredFiniteToolWiringTests._run_live_capture_with_fake_rpc",1441,"59d6ef140a156a5c772d6098e6a0928c73fe742a93ad9c3085bc4378e5c7f077"],
+"p25FiniteSupport0":[126,"RegisteredFiniteToolWiringTests._run_live_capture_with_fake_rpc",1551,"90e5ba2bbf14be9d942b9950ad2593935b448ed9da7b2a19376a12d12c4a3b44"],
 
-"p25FiniteSupport1":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1499,"ac7a86cf6e8372e4423e16990665e7dcf40b121ce5771ff91e21b941127c2c62"],
+"p25FiniteSupport1":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1611,"ac7a86cf6e8372e4423e16990665e7dcf40b121ce5771ff91e21b941127c2c62"],
 
 "p25Handoff":[146,"_handoff",285,"236a2ea21b94e94b272ec672da0334240167ce3f74b3e318fb120a0796c2dea3"],
 
 "p25HostResolve":[146,178,"answers = socket.getaddrinfo(host + '.', 443, type=socket.SOCK_STREAM,"],
 
-"p25LiveInput":[62,"RegisteredFiniteInput.capture_poll_input",838,"741d0ee6da07e322fc782e67fce1b594af5ccc3fd648e603a20b1d9038354d67"],
+"p25LiveInput":[62,"RegisteredFiniteInput.capture_poll_input",848,"741d0ee6da07e322fc782e67fce1b594af5ccc3fd648e603a20b1d9038354d67"],
 
 "p25LoopbackBind":[146,419,"listener.bind(('127.0.0.1', PROXY_PORT))"],
 
@@ -1390,27 +1390,27 @@
 
 "p25LoopbackSocket":[146,416,"socket.socket()",54,416,69],
 
-"p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",75,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
+"p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",77,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
 
-"p25MonitorCall":[64,843,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
+"p25MonitorCall":[64,850,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
 
 "p25MonitorProof":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",402,"7f29094575111853598e0e11ee85153f695cff96a2ea2d2f8c0d0212bfb5e19c"],
 
-"p25MonitorReason":[64,864,"return report.get('reason') == str(missing)"],
+"p25MonitorReason":[64,871,"return report.get('reason') == str(missing)"],
 
-"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",854,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
+"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",861,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
 
-"p25MonitorTerminate":[64,"_Containment._terminate_monitor",840,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
+"p25MonitorTerminate":[64,"_Containment._terminate_monitor",847,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
 
 "p25Names":[146,"_validate_tls_name",143,"272a7c111ff2ec2d2ef0a20a2ac6bd8a5ce14842ac146273067bdc26f739516d"],
 
 "p25OriginalWatchdog":[117,"PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence",684,"03c80a17c82bad214cde5e29feb81bcc65e11e6704ad5daac3b03b09fc6f8fba"],
 
-"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",94,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
+"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",96,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
 
-"p25PermitSupport0":[148,{"$":330},230,{"$":331}],
+"p25PermitSupport0":[148,{"$":330},232,"d59b8417182e03f93912a075fb0195169ace16aa8a875be7e4a8b0f35023bd8a"],
 
-"p25PermitVerify":[149,"verify_qualification_permit",131,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
+"p25PermitVerify":[149,"verify_qualification_permit",156,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
 
 "p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",358,"8a5c03a7dbf20a8094ccea57838b1f8d023d68885d38d877308b4f60e39b19d5"],
 
@@ -1434,7 +1434,7 @@
 
 "p25Receive":[146,"_receive_handoff",298,"bd7ae12514a91ea23c0045a0956835e9a282eeadac62dab106a0e90426f1414d"],
 
-"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2079,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
+"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2147,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
 
 "p25RelayFork":[146,404,"if os.fork() != 0:"],
 
@@ -1442,27 +1442,27 @@
 
 "p25RelaySendFD":[146,290,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
 
-"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2068,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
+"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2136,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
 
 "p25Resolve":[146,"_resolved_provider",176,"2cab59725dc7236d4551ce9000244baf36f857ed37c2e0cfa6b7329514c51aec"],
 
 "p25RpcGate":[42,"_require_native_rpc",212,{"$":336}],
 
-"p25StartAppend":[149,258,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
+"p25StartAppend":[149,283,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
 
-"p25StartSync":[149,259,"os.fsync(descriptor)"],
+"p25StartSync":[149,284,"os.fsync(descriptor)"],
 
 "p25StreamPair":[146,287,"socket.socketpair()",21,287,40],
 
-"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",215,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
+"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",217,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
 
-"p25TransportScopeSupport0":[148,{"$":330},230,{"$":331}],
+"p25TransportScopeSupport0":[148,{"$":330},232,"d59b8417182e03f93912a075fb0195169ace16aa8a875be7e4a8b0f35023bd8a"],
 
-"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1145,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
+"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1154,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
 
-"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1135,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
+"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1144,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
 
-"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1155,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
+"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1164,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
 
 "p25a":[116,{"$":56},260,{"$":49}],
 
@@ -1486,7 +1486,7 @@
 
 "p263":[46,"main",189,"5d709ef39400e6bf0f9dcb41d08b235ef6193e291f2a59e1d2810a2bb86c134f"],
 
-"p264":[74,5186,{"$":13}],
+"p264":[74,5204,{"$":13}],
 
 "p265":[76,1660,{"$":95}],
 
@@ -1504,13 +1504,13 @@
 
 "p26c":[43,"WorktreeCapture._resolve_dirs",1934,"759407e0fb8121a074f72d098a7827e410ecd9e99fc1ebc27a5f29ad4bcf5b0b"],
 
-"p26d":[64,"_RegisteredServer.__init__",1109,"6882e0d7b41c6b4c87d271ccd75ea504b474de5cdfd1a96826df60df2d4b41e6"],
+"p26d":[64,"_RegisteredServer.__init__",1116,"455086f7a62609952269401d68a0d894ebb4a3ed70fbb12fd0666cb3c469d0eb"],
 
 "p26e":[30,329,"self._handle.require_intent()"],
 
 "p26f":[32,783,"completed = subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,"],
 
-"p27":[64,1510,"self.request('thread/start', params, timeout=10)",29,1510,77],
+"p27":[64,1554,"self.request('thread/start', params, timeout=10)",29,1554,77],
 
 "p270":[73,706,"_require_live_activation(profile)"],
 
@@ -1520,7 +1520,7 @@
 
 "p273":[16,379,{"$":257}],
 
-"p274":[62,"RegisteredFiniteInput._write_reply_frame",1577,"75b4b4860fff3e9cc3d72835220eef0d2044dc09859d27c57e7a6fc55bb92e8a"],
+"p274":[62,"RegisteredFiniteInput._write_reply_frame",1617,"75b4b4860fff3e9cc3d72835220eef0d2044dc09859d27c57e7a6fc55bb92e8a"],
 
 "p275":[23,"add_dependency",347,{"$":177}],
 
@@ -1546,9 +1546,9 @@
 
 "p28":[42,374,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,385,13],
 
-"p280":[64,"_CoherentServerRequests",986,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
+"p280":[64,"_CoherentServerRequests",993,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
 
-"p281":[74,"main",12820,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
+"p281":[74,"main",12838,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
 
 "p282":[23,"run_bd_structured",58,"d781473c3e5561ed87b7858716b135c9f398f6ad814100d5468acc378a0dad62"],
 
@@ -1582,7 +1582,7 @@
 
 "p290":[25,327,"if not result[\"hash_match\"]:"],
 
-"p291":[74,"build_pool_inputs",7071,{"$":170}],
+"p291":[74,"build_pool_inputs",7089,{"$":170}],
 
 "p292":[23,72,"if not target.is_dir():"],
 
@@ -1606,7 +1606,7 @@
 
 "p29c":[73,175,{"$":58}],
 
-"p29d":[74,12817,"return AppServer()"],
+"p29d":[74,12835,"return AppServer()"],
 
 "p29e":[8,{"$":87},1024,{"$":81}],
 
@@ -1660,13 +1660,13 @@
 
 "p2X":[137,"PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace",498,"b8120a7d82448bf0702110c6216fa39662d2019ca1ec9c7489fff5c05c94d280"],
 
-"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4199,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
+"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4527,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
 
-"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4362,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
+"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4690,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
 
 "p2a":[36,14407,"subprocess.run(\n                [\"git\", \"apply\", \"--index\", \"-\"],\n                cwd=worktree,\n                check=True,\n                capture_output=True,\n                input=patch_bytes,\n            )",12,14413,13],
 
-"p2a0":[74,5078,{"$":13}],
+"p2a0":[74,5096,{"$":13}],
 
 "p2a1":[32,"_Runtime.validate",748,"a54caf7ba867af4a54cb5fb6020a38e4b5ab50668a3509cd2d41439b2c378047"],
 
@@ -1674,7 +1674,7 @@
 
 "p2a3":[33,521,{"$":13}],
 
-"p2a4":[74,13107,{"$":13}],
+"p2a4":[74,13125,{"$":13}],
 
 "p2a5":[73,707,"return AppServer()"],
 
@@ -1682,7 +1682,7 @@
 
 "p2a7":[50,242,"if [[ \"$REPLACE\" -eq 1 && \"$DRY_RUN\" -eq 0 ]]; then"],
 
-"p2a8":[64,1439,"self.lifetime.launch(command, self.factory.home)",18,1439,66],
+"p2a8":[64,1483,"self.lifetime.launch(command, self.factory.home)",18,1483,66],
 
 "p2a9":[2,34,"if args.expires_after_bead.strip() != args.bead.strip():"],
 
@@ -1738,7 +1738,7 @@
 
 "p2c1":[27,147,{"$":61}],
 
-"p2c2":[62,1586,"count = os.write(descriptor, payload)"],
+"p2c2":[62,1626,"count = os.write(descriptor, payload)"],
 
 "p2c3":[42,2224,"_require_native_rpc(\"turn/start\", self)"],
 
@@ -1780,7 +1780,7 @@
 
 "p2d5":[68,314,"R.live_availability.require_pool_live()"],
 
-"p2d6":[74,13106,{"$":35}],
+"p2d6":[74,13124,{"$":35}],
 
 "p2d7":[112,"NativePoolAdmissionTests.test_concurrent_duplicate_consume_has_one_winner",664,"c8146754d52b045ac3dbdd2c6d2806b4398ac9342368aa16be2ce7a2d8cfcbc4"],
 
@@ -1806,7 +1806,7 @@
 
 "p2e1":[73,1086,"approval = read_private_json("],
 
-"p2e2":[74,5161,"pre_allocation_check()"],
+"p2e2":[74,5179,"pre_allocation_check()"],
 
 "p2e3":[59,"consume",706,"fe5417f6e0cb00188ea30f1968f50174330043a4fd014fb75a2bf1606f47578d"],
 
@@ -1830,7 +1830,7 @@
 
 "p2ed":[59,415,{"$":57}],
 
-"p2ee":[64,2323,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2323,99],
+"p2ee":[64,2391,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2391,99],
 
 "p2ef":[8,{"$":197},1060,{"$":188}],
 
@@ -1852,7 +1852,7 @@
 
 "p2f7":[48,"require_trusted_reader",63,{"$":243}],
 
-"p2f8":[64,638,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
+"p2f8":[64,644,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
 
 "p2f9":[70,87,"require_v8_live_routes(plan)"],
 
@@ -1866,7 +1866,7 @@
 
 "p2fe":[49,375,{"$":246}],
 
-"p2ff":[74,"LiveThreadAdapter.send_input",3623,"6629bc95143371952140cd5ccea76cc27eb435057e63356520ae85689443a8e3"],
+"p2ff":[74,"LiveThreadAdapter.send_input",3636,"6629bc95143371952140cd5ccea76cc27eb435057e63356520ae85689443a8e3"],
 
 "p2g":[67,253,"workflow._commit_execution(commit)",16,253,50],
 
@@ -1964,9 +1964,9 @@
 
 "p318":[60,"RegisteredReviewHost.dispatch",227,"f52b608fbfbf5fa2b8dcd957ec3494093145da05dbf930b86981f552a38dbf9b"],
 
-"p319":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",545,"45d33cd966384729b74c39b88b42952a8373ff629909d0012379628c6c8fac3f"],
+"p319":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",655,"45d33cd966384729b74c39b88b42952a8373ff629909d0012379628c6c8fac3f"],
 
-"p31a":[74,7467,"campaign_live_route=True,"],
+"p31a":[74,7485,"campaign_live_route=True,"],
 
 "p31b":[8,{"$":200},1011,{"$":224}],
 
@@ -1974,7 +1974,7 @@
 
 "p31d":[99,"F5NativeLiveHoldTests.test_r5_f5_held_n1_raw_library_zero_launch_and_patched_fake_launch",50,"9406a16a58b02b11a4c290b4f125f441f7f181cf605d43f85e72c5700a575ce7"],
 
-"p31e":[74,"build_pool_inputs",7071,{"$":170}],
+"p31e":[74,"build_pool_inputs",7089,{"$":170}],
 
 "p31f":[73,212,{"$":211}],
 
@@ -1984,7 +1984,7 @@
 
 "p321":[27,"prepare_capture_binding",541,"62a8d76d6644a62380eb684c818896f7370da7ee4b7c7186ab6013bd79e4d252"],
 
-"p322":[74,12480,"reservation = acquire_global_campaign_claim("],
+"p322":[74,12498,"reservation = acquire_global_campaign_claim("],
 
 "p323":[17,400,{"$":324}],
 
@@ -1992,7 +1992,7 @@
 
 "p325":[2,54,"if not all((payload[\"operator_approval_ref\"], payload[\"sol_breakfix_scope\"], payload[\"sol_breakfix_expiry\"])):"],
 
-"p326":[64,2063,{"$":13}],
+"p326":[64,2131,{"$":13}],
 
 "p327":[23,"create_bead",231,"86b606298bf0b24b6e2416b45f7d92a832c408aea4f2ae0d10b3dbd65245b079"],
 
@@ -2000,7 +2000,7 @@
 
 "p329":[43,"WorktreeCapture._git",1542,"957bbafc0ae3a4261e504991fcbd97b3bade28080c0065c3e78da2eba25e419c"],
 
-"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2599,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
+"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",2927,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
 
 "p32b":[31,"MaintenanceAuthorityVerifier.__init__",344,"03802d0590db57d2c1f457a056a7a56ee8a0e0ffce20be5e4abbad96ece2eb34"],
 
@@ -2052,9 +2052,9 @@
 
 "p341":[34,"_run",251,"043c67cecbd88fe946f19837214aba0a39406c62d7280a03e49f76226ca692af"],
 
-"p342":[64,"RegisteredN1Factory._effect",2206,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
+"p342":[64,"RegisteredN1Factory._effect",2274,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
 
-"p343":[64,658,"result = self.controller.spawn_owned("],
+"p343":[64,665,"result = self.controller.spawn_owned("],
 
 "p344":[8,{"$":199},705,{"$":168}],
 
@@ -2102,17 +2102,17 @@
 
 "p359":[51,"_LinuxEngine._capability",658,"b13ee7b85d401e179654e9581e68990fa87794af4c3884d10b2c348d19984466"],
 
-"p35AttachmentAdmission":[64,"RegisteredN1Factory._claim_run",2332,"018670080eb357ad844d59b5fb7e8b13bf6e6906d2e4ca47bf3870f7408001e5"],
+"p35AttachmentAdmission":[64,"RegisteredN1Factory._claim_run",2400,"018670080eb357ad844d59b5fb7e8b13bf6e6906d2e4ca47bf3870f7408001e5"],
 
 "p35AttachmentRead":[146,"_read_access_token",426,"bfcc5ecf74d7f2ae741fe437bd7821bc1e03556fee0712797d4d80e6bedc7a2a"],
 
-"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",704,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
+"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",711,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
 
 "p35AttachmentStaging":[64,"_Containment._stage_access_token",560,"ac3682a1f98321bd9215d8ce36a135638d34c0b0d820026ae7904b43963a5072"],
 
 "p35AuthAbsent":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",85,"286440c9d6e1457ac6b74f25862849cd2d29a19d093692fc22fbe76153d001a0"],
 
-"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",157,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
+"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",159,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
 
 "p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",216,"9d49cbff7cef5e78c2f32e4ce3d50f2d2483dc636827c42edb332215bc575254"],
 
@@ -2126,7 +2126,7 @@
 
 "p35b":[11,39,"if lane not in CONTRACT[\"interpreters\"]:"],
 
-"p35c":[74,7570,"build_pool_inputs(\n        server,\n        capability_receipt,\n        campaign_manifest,\n        root=root,\n        integration=integration,\n        pool_name=pool_name,\n        worktrees=worktrees,\n        mutable=mutable,\n        prompts=prompts,\n        expected_tokens=expected_tokens,\n        completion_evidence_policies=completion_evidence_policies,\n        tool_policies=tool_policies,\n        read_only_command_authorities=read_only_command_authorities,\n        pre_thread_start_check=pre_thread_start_check,\n        pre_allocation_check=pre_allocation_check,\n        expected_bound_manifest_validation=expected_bound_manifest_validation,\n        interrupt_after=interrupt_after,\n    )",8,7588,5],
+"p35c":[74,7588,"build_pool_inputs(\n        server,\n        capability_receipt,\n        campaign_manifest,\n        root=root,\n        integration=integration,\n        pool_name=pool_name,\n        worktrees=worktrees,\n        mutable=mutable,\n        prompts=prompts,\n        expected_tokens=expected_tokens,\n        completion_evidence_policies=completion_evidence_policies,\n        tool_policies=tool_policies,\n        read_only_command_authorities=read_only_command_authorities,\n        pre_thread_start_check=pre_thread_start_check,\n        pre_allocation_check=pre_allocation_check,\n        expected_bound_manifest_validation=expected_bound_manifest_validation,\n        interrupt_after=interrupt_after,\n    )",8,7606,5],
 
 "p35d":[67,353,{"$":35}],
 
@@ -2155,6 +2155,44 @@
 "p368":[34,883,"_bd(\n            beads_directory,\n            \"show\",\n            \"--json\",\n            \"--\",\n            _bead_id(epic_id),\n            *map(_bead_id, issue_ids),\n        )",8,890,9],
 
 "p369":[34,839,"_bd(\n            beads_directory,\n            \"update\",\n            \"--metadata\",\n            json.dumps(\n                {\"cwo_ready_set_admission\": metadata},\n                sort_keys=True,\n                separators=(\",\", \":\"),\n            ),\n            \"--json\",\n            \"--\",\n            issue_id,\n        )",8,851,9],
+
+"p36DirectCatalog":[63,"_tool_specs",65,"2c6a335dbd49bb39bc92a1c9d26eb45ecb50011b6521291b4e5f7bef36a0d7c0"],
+
+"p36FiniteAdmit":[63,"RegisteredFiniteToolCalls.receive",808,"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36"],
+
+"p36FiniteArchive":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1666,"b4040d8e51171b1d374a9e26e8da3dc1db6782adb39699fd4fe6e7756c86e45f"],
+
+"p36FiniteAwaitOriginal":[63,"QualifiedToolEvidence._wait_original_call",273,"59a9947e5dd6e73e752297b46b397830f3707faefb15b4e094294cb270746464"],
+
+"p36FiniteBoundary":[74,"trusted_tool_evidence_summary",2509,"56d4955b4154e1bb15326d974731fdcf9c300e22317b9b1dde175665251b6b01"],
+
+"p36FiniteCommit":[62,"RegisteredFiniteInput._finish_reply_publication",1544,"695e8b8de17fca5093a8c234d188d71f7b2a2d149fbf373df087cb4b95765e14"],
+
+"p36FiniteHistorical":[62,"_FiniteLifecycle.authority_terminal_reply_sent",201,"19d0a893f391688ae41aa53ebddb84acd66495a201bada1ddf4471fb2c2c4faa"],
+
+"p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",1779,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
+
+"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1217,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
+
+"p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1728,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
+
+"p36FiniteLateSupport":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",1734,"4b3433322987eb6e977148d15383aeb667f1b0076c53aa6d85abbaaf03d7c024"],
+
+"p36FiniteMatch":[63,"QualifiedToolEvidence._project",247,"8246f8675dd41cf3fadf25e7c3cebead5813beabbcc7835fef26c44e00042111"],
+
+"p36FiniteRaceSupport":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1672,"0002d7ec83ef1635dd516baed13c367b00a43a2d66d6c1d094cb26a319b0f561"],
+
+"p36FiniteRefusal":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1669,"7e884980369353800a945bedcd95102665f6500f2ff57dc3de0685ceb894f837"],
+
+"p36FiniteReplyDispatch":[62,"RegisteredFiniteInput._dispatch_tool_reply",1533,"b349f67c3b8d5d09650e9cada2e715ad0c6ecb701a6b2ebeeaa75a644397bc4a"],
+
+"p36SchemaContract":[141,"_check_n1_qualification",432,"f89a627ce9bff40376f19f9fd0fadf4d2c2460326a4a4f6004ee2928acc4709f"],
+
+"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",244,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
+
+"p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",631,"a7f87b36be3adf54b0d4000b3199ebada174ff892595c40d7b388dec3f044192"],
+
+"p36SchemaSelect":[149,"require_executable_schema",93,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
 
 "p36a":[47,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -2192,7 +2230,7 @@
 
 "p37a":[42,978,{"$":288},23,978,83],
 
-"p37b":[74,3694,"turn, _latency = self.server.start_turn(self.thread_id, message)"],
+"p37b":[74,3707,"turn, _latency = self.server.start_turn(self.thread_id, message)"],
 
 "p37c":[8,734,{"$":225}],
 
@@ -2214,7 +2252,7 @@
 
 "p384":[64,"_Containment._command",484,"d461594250385ae5be10beeeaa01395173a07e042fe6ed27084ff3ece287ae19"],
 
-"p385":[64,738,"os.pidfd_open(pid, 0)",21,738,42],
+"p385":[64,745,"os.pidfd_open(pid, 0)",21,745,42],
 
 "p386":[64,"_namespace_info",158,"4bdd5337d0bd5be726aad740b60874887dcd4cda504fd993a8099cf78f0fc851"],
 
@@ -2226,17 +2264,17 @@
 
 "p38a":[64,"_Containment._release_command",606,"d5476cbe24d8e3de83f9106100989cd4bd675c8b133ada088bcfb31cf8722ec6"],
 
-"p38b":[64,"_Containment._retain_namespace",736,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
+"p38b":[64,"_Containment._retain_namespace",743,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
 
-"p38c":[64,782,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,782,75],
+"p38c":[64,789,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,789,75],
 
 "p38d":[64,609,{"$":249},8,609,34],
 
-"p38e":[64,"_Containment._terminate_claimed",881,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
+"p38e":[64,"_Containment._terminate_claimed",888,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
 
 "p38f":[79,165,"bd_json(command)",42,165,58],
 
-"p39":[74,12817,"AppServer()",11,12817,22],
+"p39":[74,12835,"AppServer()",11,12835,22],
 
 "p390":[39,135,"binding.terminate_method(binding.issuer, binding.receipt, grace_seconds=grace_seconds,\n                                    min_age_seconds=min_age_seconds, allow_kill=allow_kill)",11,136,91],
 
@@ -2308,19 +2346,19 @@
 
 "p3S":[64,"_observe_adapter_failure",104,"869cdfc10f26047f7317a60cd6ace3e5842a732b4918a543b1f6af4c8ce05c9c"],
 
-"p3T":[64,"RegisteredN1Factory._make_adapter",2183,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
+"p3T":[64,"RegisteredN1Factory._make_adapter",2251,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
 
-"p3U":[64,"RegisteredN1Factory.model_task_binding",1990,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
+"p3U":[64,"RegisteredN1Factory.model_task_binding",2058,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
 
-"p3V":[64,"RegisteredAdapter._current_effective_boundary",1756,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
+"p3V":[64,"RegisteredAdapter._current_effective_boundary",1820,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
 
-"p3W":[64,"RegisteredN1Factory.model_task_bytes",1986,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
+"p3W":[64,"RegisteredN1Factory.model_task_bytes",2054,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
 
 "p3X":[111,"NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance",279,"f72d7a5e54a472bcac0502f46b639be46bf7b8a49fc39fad2f28e3f6720eab89"],
 
-"p3Y":[64,"RegisteredN1Factory._require_model_task",1981,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
+"p3Y":[64,"RegisteredN1Factory._require_model_task",2049,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
 
-"p3Z":[64,1982,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,1984,74],
+"p3Z":[64,2050,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2052,74],
 
 "p3a":[8,739,{"$":254},26,743,17],
 
@@ -2328,19 +2366,19 @@
 
 "p3a1":[88,"ShareConsentTests",140,"856b0ba17280a32f78af37a6c37edfb30e42b19f2f547f0c5817e8f176e27006"],
 
-"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2173,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
+"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2501,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
 
-"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2109,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
+"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2437,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
 
-"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2084,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
+"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2412,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
 
-"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2021,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
+"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2349,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
 
-"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2047,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
+"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2375,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
 
-"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",1900,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
+"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",2228,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
 
-"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2012,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
+"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2340,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
 
 "p3a9":[42,600,{"$":333},16,600,49],
 
@@ -2364,39 +2402,39 @@
 
 "p3f":[76,1488,{"$":217},8,1492,9],
 
-"p3g":[64,"RegisteredN1Factory.record_dispatch",2022,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
+"p3g":[64,"RegisteredN1Factory.record_dispatch",2090,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
 
-"p3h":[64,2030,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2039,9],
+"p3h":[64,2098,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2107,9],
 
 "p3i":[111,"NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority",301,"7bf973b3e6e53c0e6c5fe7171dead072a12556ad50a9ab58ea29e5bc3cfbbd64"],
 
-"p3j":[64,1785,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1787,93],
+"p3j":[64,1849,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1851,93],
 
-"p3k":[64,"RegisteredN1Factory.guard",1952,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
+"p3k":[64,"RegisteredN1Factory.guard",2020,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
 
 "p3l":[111,"NativeOutboundScreenTests.registered_fixture",37,"2cc9dcf7da58c4f77b488c6c3a7dce0e94203e087fa5a2b9acff27ac22cf0842"],
 
 "p3m":[64,89,"_need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes\n          and _snapshot(selected['execution']) == receipt.execution_bytes,\n          'The model task requires the exact original admitted request and execution.')",4,91,87],
 
-"p3n":[64,"_registered_adapter_method",1834,"65f0aa90a1062c65317a448359206cf122af538de2c8bbf95c7e8b4737b2f5b8"],
+"p3n":[64,"_registered_adapter_method",1900,"8b37de2cb04b07183fa7c73e71cb2265f80a9c089336d5cc0d55cead8a95fbfc"],
 
-"p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1721,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
+"p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1726,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
 
 "p3p":[111,"NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session",249,"5dd5476b4d34a47fc1794f47311d7c3308fbb73caa72b0b7869ea9b710863f65"],
 
 "p3q":[64,"_model_task",86,"1e7f83afba24a773dbce985590786eb56a82c0c5f30d40e24cb25deeefab38f1"],
 
-"p3r":[64,1758,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1758,99],
+"p3r":[64,1822,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1822,99],
 
 "p3s":[64,99,"_need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),\n          'The complete model task exceeds its original admitted byte allowance.')",4,100,82],
 
-"p3t":[64,"RegisteredAdapter.final_summary",1763,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
+"p3t":[64,"RegisteredAdapter.final_summary",1827,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
 
-"p3u":[64,1783,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1784,80],
+"p3u":[64,1847,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1848,80],
 
 "p3v":[111,"NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent",313,"448bff8184737597bf2cf9104a880623c7f0c7b36d91472f0423f5c5adecb5ed"],
 
-"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1775,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
+"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1839,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
 
 "p3x":[64,"_require_summary_primary",116,"ee253260a8982eca8f9b9b7617ac6dbdbdf49dcfb656ae4790273801f3e9cde6"],
 
@@ -2442,7 +2480,7 @@
 
 "p50":[8,1057,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1057,72],
 
-"p51":[64,1409,"super().request(*args, **kwargs)",17,1409,49],
+"p51":[64,1453,"super().request(*args, **kwargs)",17,1453,49],
 
 "p52":[50,202,{"$":315}],
 
@@ -2624,17 +2662,17 @@
 
 "pF":[77,230,"os.read(descriptor, 4096)",21,230,46],
 
-"pF0":[126,"RegisteredFiniteToolWiringTests._positive_finite_completion",357,"49c467673946ade1a5d86c6129deccca5c424a1b3a29eec6de1bcbeeabcf34c4"],
+"pF0":[126,"RegisteredFiniteToolWiringTests._positive_finite_completion",466,"ae05021db3d72c6e9d5d69291e5468b6084fb366023384192640c1f952dca9d2"],
 
-"pF1":[126,"RegisteredFiniteToolWiringTests._exit_between_command_read_and_reply",510,"72fac31f7d6d4af780c31d1add279d151ed94e0837fa092b8a6aa14545f8ca01"],
+"pF1":[126,"RegisteredFiniteToolWiringTests._exit_between_command_read_and_reply",620,"ad8529115ccfe6cb97b5693b2d7e98f98e9361afadb630e59937837fc50b4934"],
 
-"pF2":[126,"RegisteredFiniteToolWiringTests.test_exit_between_initial_read_and_reply_drains_tail_atomically",572,"e89024b485b277239d541ed51ab4c96ee76b83d24a92e4b07012477345084e6b"],
+"pF2":[126,"RegisteredFiniteToolWiringTests.test_exit_between_initial_read_and_reply_drains_tail_atomically",682,"e89024b485b277239d541ed51ab4c96ee76b83d24a92e4b07012477345084e6b"],
 
 "pF3":[140,"FiniteFixtureProgressTests.success_consumers",123,"6512505989b3603a07d4d766589b7439fe5a2396b1ba2fc69c6fdbb144502bc9"],
 
 "pF4":[140,"FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent",106,"efa6e0d1fcd29deb977e3108cf6cc1cd8dbaa68fac4d7ade0f27643d2f12d15d"],
 
-"pF5":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",615,"416ec88722887755694115c4962bc03b5d5389870d4db51db7490c12923201ff"],
+"pF5":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",725,"416ec88722887755694115c4962bc03b5d5389870d4db51db7490c12923201ff"],
 
 "pG":[137,"WatchdogObjectIdentityTests.test_watchdog_scheduler_state_change_preserves_birth",1171,"c6d92df5a37bafb76c911fbe6a4a08fe926d716a4ee7b6de542ac59fba59d9a2"],
 
@@ -2646,7 +2684,7 @@
 
 "pK":[129,"FiniteReplyWireTests.test_accounting_failure_cannot_replace_the_outbound_refusal",172,"7bd01d7323b63de491916fd8c038dd790a0dfabb0a4a4ca17c9ff983ef76d384"],
 
-"pL":[62,"RegisteredFiniteInput._record_reply_failure",1525,"8e817905b0d44a1f24ef2c9ea95e46503d669108d9cd474729351b095712a8de"],
+"pL":[62,"RegisteredFiniteInput._record_reply_failure",1565,"8e817905b0d44a1f24ef2c9ea95e46503d669108d9cd474729351b095712a8de"],
 
 "pM":[129,"FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write",105,"6678e3521f8a26f0fd32f8868769d1577896cde3a682b42517a56d15c1ede64d"],
 
@@ -2654,9 +2692,9 @@
 
 "pO":[129,"FiniteReplyWireTests.test_flush_or_scan_crossing_original_deadline_cannot_write",137,"13db522ce4edb84fb9a70b89c19ae9e35ec880fdecee4692a96fc188a91e8203"],
 
-"pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1792,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
+"pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1797,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
 
-"pP":[62,1583,"if time.monotonic() >= deadline:"],
+"pP":[62,1623,"if time.monotonic() >= deadline:"],
 
 "pQ":[65,"RegisteredN1Workflow._commit_execution",446,"3c21388b1aa970860dd77173b36f27bf03c3ad13ae77cf7c7d4fafe8a1ef01f8"],
 
@@ -2664,21 +2702,21 @@
 
 "pRefusalClass":[143,"provider_policy_blocker",24,"4602fc7f3eac31aa4a2ba9ae0e9437d3d649c4b5c88b7f92e55ae862e061410f"],
 
-"pRefusalFixture":[127,"FactoryTests.assert_terminal_worker_failure",1740,"a2c1f9ba507243b1d4eb9d526fbc01358e34da2abc07abf54ead6836eb658bad"],
+"pRefusalFixture":[127,"FactoryTests.assert_terminal_worker_failure",1745,"a2c1f9ba507243b1d4eb9d526fbc01358e34da2abc07abf54ead6836eb658bad"],
 
-"pRefusalTest":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1784,"d25bd981c37a3d70434db9139eb0683a106c182dd635e4eaad9024a83f0ce81a"],
+"pRefusalTest":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1789,"d25bd981c37a3d70434db9139eb0683a106c182dd635e4eaad9024a83f0ce81a"],
 
 "pS":[65,"RegisteredN1Workflow._validate_execution",432,"9de7b62e0f7fdca9d868e2d5d7c98b9bad4eeadccca416586a9461d417690e7e"],
 
 "pSchemaDiagnostic":[77,"SelectedNativeProbe.__init__",244,"d85d59ea250d08417882d99f7d004e780ea1e4a0b5466456e89e7a1c7998a23c"],
 
-"pSchemaEntry":[141,"check_codex_capabilities",459,"cd6a305545fce7bda352fe13a27c5134c18187e55c29822c1104d820f639b030"],
+"pSchemaEntry":[141,"check_codex_capabilities",493,"8c590668816022869d0d77cc19b7ce0e900be39e8b88d7bb2d4529fc6378f95a"],
 
 "pSchemaLauncher":[77,"_schema_launcher",201,"86292ca77a2e901c641725c7543a1da1eeabd17b06a4f4cbacf9cfd608fd11f2"],
 
-"pSchemaProcess":[141,432,"subprocess.run(command, cwd=root, env=env, check=True, timeout=_SCHEMA_SECONDS,\n                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,\n                       umask=0o077)",8,434,35],
+"pSchemaProcess":[141,464,"subprocess.run(command, cwd=root, env=env, check=True, timeout=_SCHEMA_SECONDS,\n                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,\n                       umask=0o077)",8,466,35],
 
-"pSchemaWitness":[142,"CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability",64,"ce899572e6383c6b926850bb133274971386859b7cd3a734e0bce1b58b8443f6"],
+"pSchemaWitness":[142,"CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability",112,"ce899572e6383c6b926850bb133274971386859b7cd3a734e0bce1b58b8443f6"],
 
 "pT":[42,"AppServer._raise_failed_turn_start",2199,"8f2bd370b7c95ad75ce0faff59bb4489fc1a454114e155c953f20091bd6fa1c7"],
 
@@ -2720,9 +2758,9 @@
 
 "pab":[77,634,"os.write(descriptor, pending)",28,634,57],
 
-"pac":[62,"RegisteredFiniteInput.cleanup_phase",699,"fc5f125f858f2cc459e847e5b525a3dff22406e6f97d5367a06ff176cda7852e"],
+"pac":[62,"RegisteredFiniteInput.cleanup_phase",709,"fc5f125f858f2cc459e847e5b525a3dff22406e6f97d5367a06ff176cda7852e"],
 
-"pad":[62,"RegisteredFiniteInput._publish_cleanup_observation",1626,"651db3ee5f962a20679e71e3c7388591952f434350e69692d254060840044a88"],
+"pad":[62,"RegisteredFiniteInput._publish_cleanup_observation",1666,"651db3ee5f962a20679e71e3c7388591952f434350e69692d254060840044a88"],
 
 "pae":[125,"FiniteInputTests.test_denied_read_result_precedes_original_cleanup_publication",1585,"b24c36ba885b316c883a080c63d49a2eb87a998177cd9a71705893360a9ad8a9"],
 
@@ -2778,7 +2816,7 @@
 
 "pc6":[37,505,"if (\n            pre_hash != expected_pre_show_sha256\n            or pre.get(\"status\") != \"in_progress\"\n            or pre.get(\"assignee\") != self.actor\n        ):"],
 
-"pc7":[74,5187,"result, preallocation_latency = server.start_thread(cwd, **start_kwargs)"],
+"pc7":[74,5205,"result, preallocation_latency = server.start_thread(cwd, **start_kwargs)"],
 
 "pc8":[12,"write_install_manifest",726,"8f21f11005f4682849ec64a1810d70c2399137ff1e28cab60f0839170145b1cc"],
 
@@ -2794,7 +2832,7 @@
 
 "pce":[12,"main",846,"d0017093d8849ce4efedc6c4462bee8f1bcbdd348d8f24efcf40614272f997e6"],
 
-"pcf":[64,633,{"$":148}],
+"pcf":[64,639,{"$":148}],
 
 "pd":[8,876,"page.evaluate(_SNAPSHOT_SCRIPT, [marker])",20,876,61],
 
@@ -2808,9 +2846,9 @@
 
 "pd4":[41,1482,"return {\"contract_valid\": True, \"complete_effect_trace\": True, \"f8_complete\": False,"],
 
-"pd5":[74,7099,{"$":13}],
+"pd5":[74,7117,{"$":13}],
 
-"pd6":[74,7563,{"$":13}],
+"pd6":[74,7581,{"$":13}],
 
 "pd7":[49,363,"copy_projection \"$INSTALL_STAGE_DIR\" \"$directories\" \"$files\""],
 
@@ -2838,7 +2876,7 @@
 
 "pe2":[73,1073,{"$":58}],
 
-"pe3":[74,12439,{"$":43}],
+"pe3":[74,12457,{"$":43}],
 
 "pe4":[41,"_review",1435,{"$":155}],
 
@@ -2878,7 +2916,7 @@
 
 "pf5":[90,"ChatGPTBrowserReviewTests.test_selection_does_not_click_loose_text_when_confirmation_required",807,"a47c6f340f774a016b7df19dd2b26d960379080cab002ba9fc79002eff3c7597"],
 
-"pf6":[74,"_start_campaign_server",12813,"b2c94a55a0619f4b136b62fd5ed155fc9454987024cc6dbfdd801b1ee6e8f165"],
+"pf6":[74,"_start_campaign_server",12831,"b2c94a55a0619f4b136b62fd5ed155fc9454987024cc6dbfdd801b1ee6e8f165"],
 
 "pf7":[48,219,"directory.read(response_file)",29,219,58],
 
@@ -4301,7 +4339,7 @@
 
 [17,334,24,334,180,"process","0318cdc4a67405070420233f967833b92593b974af59cca55e64031469568a0e",["route","X1.2","p2b"]],
 
-[86,432,8,434,35,"process","18ebe3f1df7b8c2416e17cfef42ffaddd4e79ccdd47a478ee8dfa937f3a02744",["route","N11.4","pSchemaProcess"]],
+[86,464,8,466,35,"process","18ebe3f1df7b8c2416e17cfef42ffaddd4e79ccdd47a478ee8dfa937f3a02744",["route","N11.4","pSchemaProcess"]],
 
 [18,147,16,155,5,"process","2df2658aff0a84b558f3627dcc1eaa8546bb56a519fe87af202ec28bb8de19af",["route","N11.2","p26"]],
 
@@ -4951,13 +4989,13 @@
 
 [69,395,8,395,85,"dynamic","ea5252ae79ee7202099728c900aea8f0f5599ab64628d656497c031f3e715ae8",[{"$":9},"XR352"]],
 
-[70,720,23,720,65,"dynamic",{"$":151},[{"$":9},"XR353"]],
+[70,730,23,730,65,"dynamic",{"$":151},[{"$":9},"XR353"]],
 
-[70,1007,19,1007,61,"dynamic",{"$":151},[{"$":9},"XR354"]],
+[70,1018,19,1018,61,"dynamic",{"$":151},[{"$":9},"XR354"]],
 
-[70,1701,23,1701,75,"dynamic","2f9e0c2f2e7129d58e0d405a7dec095263c214aee9d3c0ea3dcca33814aaa24f",[{"$":9},"XR355"]],
+[70,1741,23,1741,75,"dynamic","2f9e0c2f2e7129d58e0d405a7dec095263c214aee9d3c0ea3dcca33814aaa24f",[{"$":9},"XR355"]],
 
-[71,680,22,682,61,"browser","d39ca2356bd7c0ee0bff23fe2688fb58023545c8242e0c9a3ec791566ad3f5b7",["route","N9.1","p1f"]],
+[71,965,22,967,61,"browser","d39ca2356bd7c0ee0bff23fe2688fb58023545c8242e0c9a3ec791566ad3f5b7",["route","N9.1","p1f"]],
 
 [72,105,14,105,61,"dynamic",{"$":241},[{"$":9},"XR428b"]],
 
@@ -4965,39 +5003,39 @@
 
 [72,127,13,127,51,"dynamic","634fa128c02d9c9ccbe9f792b9c0cec527c554c3b64f8f3f7218f32b4bc5985f",[{"$":9},"XR357"]],
 
-[72,680,25,680,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
+[72,687,25,687,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
 
-[72,845,31,845,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
+[72,852,31,852,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
 
-[72,962,12,962,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
+[72,969,12,969,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
 
-[72,1020,15,1020,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
+[72,1027,15,1027,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
 
-[72,1353,20,1353,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
+[72,1397,20,1397,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
 
-[72,1409,17,1409,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
+[72,1453,17,1453,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
 
-[72,1419,49,1419,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
+[72,1463,49,1463,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
 
-[72,1439,18,1439,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
+[72,1483,18,1483,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
 
-[72,1510,29,1510,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
+[72,1554,29,1554,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
 
-[72,1678,16,1678,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
+[72,1722,16,1722,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
 
-[72,1803,17,1803,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
+[72,1867,17,1867,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
 
-[72,1804,39,1804,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
+[72,1868,39,1868,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
 
-[72,1823,15,1823,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
+[72,1887,15,1887,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
 
-[72,1848,16,1848,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
+[72,1916,16,1916,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
 
-[72,1850,18,1850,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
+[72,1918,18,1918,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
 
-[72,2214,29,2214,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
+[72,2282,29,2282,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
 
-[72,2323,22,2323,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
+[72,2391,22,2391,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
 
 [73,38,7,38,42,"dynamic","f6934272bce56a1ce7cebbe4386aacc09a74f1141872418c5f0b7011111d7163",[{"$":9},"XR373"]],
 
@@ -5043,45 +5081,45 @@
 
 [77,1482,13,1482,61,"dynamic","5e7ed076b031b0a542f52258c8ac036571f237f953f79ef200304f2ff23b3f83",[{"$":9},"XR384"]],
 
-[77,2941,27,2941,81,"dynamic","6e55cb7cc81c1ee445d21d86cf99892af983ef91bdef097ed18bb4b2d98fc027",[{"$":9},"XR385"]],
+[77,2954,27,2954,81,"dynamic","6e55cb7cc81c1ee445d21d86cf99892af983ef91bdef097ed18bb4b2d98fc027",[{"$":9},"XR385"]],
 
-[77,2956,23,2956,76,"dynamic","c0cee5eb40f487f01bf0ae0bfc0be62fbf7fea3d632849886f90c716a0824066",[{"$":9},"XR386"]],
+[77,2969,23,2969,76,"dynamic","c0cee5eb40f487f01bf0ae0bfc0be62fbf7fea3d632849886f90c716a0824066",[{"$":9},"XR386"]],
 
-[77,3042,27,3042,76,"dynamic",{"$":165},[{"$":9},"XR387"]],
+[77,3055,27,3055,76,"dynamic",{"$":165},[{"$":9},"XR387"]],
 
-[77,3190,29,3192,9,"dynamic","1baf00636febb9ba9493ef2e378ab72c92e5d8668176575495b214de822d6e90",[{"$":9},"XR388"]],
+[77,3203,29,3205,9,"dynamic","1baf00636febb9ba9493ef2e378ab72c92e5d8668176575495b214de822d6e90",[{"$":9},"XR388"]],
 
-[77,3210,35,3212,17,"dynamic","64f9f5390b0a8006ce88bca259996c2112338cd1a4f44329ad3d60b7d545d55c",[{"$":9},"XR389"]],
+[77,3223,35,3225,17,"dynamic","64f9f5390b0a8006ce88bca259996c2112338cd1a4f44329ad3d60b7d545d55c",[{"$":9},"XR389"]],
 
-[77,3288,26,3288,78,"dynamic",{"$":153},[{"$":9},"XR390"]],
+[77,3301,26,3301,78,"dynamic",{"$":153},[{"$":9},"XR390"]],
 
-[77,3605,60,3607,21,"dynamic","74db2e86e72ceee1de02f589b65574dfdee8f4b50c1f6dd97601c941888fbc4d",[{"$":9},"XR391"]],
+[77,3618,60,3620,21,"dynamic","74db2e86e72ceee1de02f589b65574dfdee8f4b50c1f6dd97601c941888fbc4d",[{"$":9},"XR391"]],
 
-[77,4288,19,4292,9,"dynamic","64354f5d83b89b89ad0f24a564ce95dd477c764d9863fbff8596c937189c09a9",[{"$":9},"XR392"]],
+[77,4301,19,4305,9,"dynamic","64354f5d83b89b89ad0f24a564ce95dd477c764d9863fbff8596c937189c09a9",[{"$":9},"XR392"]],
 
-[77,4634,26,4634,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
+[77,4652,26,4652,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
 
-[77,4635,27,4635,74,"dynamic","34d362c2675aabd307488cbaf647d2a1fa798c608ab4cc6876cf45df6b8db3d3",[{"$":9},"XR394"]],
+[77,4653,27,4653,74,"dynamic","34d362c2675aabd307488cbaf647d2a1fa798c608ab4cc6876cf45df6b8db3d3",[{"$":9},"XR394"]],
 
-[77,5091,21,5091,68,"dynamic","03e40f4dda5b35ca112a831de1f77842a598814b9f9383fce6f40887b4e9821d",[{"$":9},"XR395"]],
+[77,5109,21,5109,68,"dynamic","03e40f4dda5b35ca112a831de1f77842a598814b9f9383fce6f40887b4e9821d",[{"$":9},"XR395"]],
 
-[77,5095,23,5095,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
+[77,5113,23,5113,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
 
-[77,5326,11,5326,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
+[77,5344,11,5344,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
 
-[77,6742,34,6746,5,"dynamic","fefb0e9bd53942617672b1558d6239cbecd123c294d6e779e941da9ad197c82f",[{"$":9},"XR398"]],
+[77,6760,34,6764,5,"dynamic","fefb0e9bd53942617672b1558d6239cbecd123c294d6e779e941da9ad197c82f",[{"$":9},"XR398"]],
 
-[77,7867,13,7867,55,"dynamic","61bca7ab0dac507a1c9c5378e7c810774e7b56ceef4ea2af792a229df9863673",[{"$":9},"XR399"]],
+[77,7885,13,7885,55,"dynamic","61bca7ab0dac507a1c9c5378e7c810774e7b56ceef4ea2af792a229df9863673",[{"$":9},"XR399"]],
 
-[77,7900,8,7900,53,"dynamic","19abb82bb824a6cdbabdb32d1c7fbf62169141b3fea50e36c75059a1b5de4755",[{"$":9},"XR400"]],
+[77,7918,8,7918,53,"dynamic","19abb82bb824a6cdbabdb32d1c7fbf62169141b3fea50e36c75059a1b5de4755",[{"$":9},"XR400"]],
 
-[77,8249,14,8249,42,"dynamic",{"$":5},[{"$":9},"XR401"]],
+[77,8267,14,8267,42,"dynamic",{"$":5},[{"$":9},"XR401"]],
 
-[77,12817,11,12817,22,{"$":3},{"$":226},["route","N8.2","p39"]],
+[77,12835,11,12835,22,{"$":3},{"$":226},["route","N8.2","p39"]],
 
-[77,14376,41,14376,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
+[77,14394,41,14394,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
 
-[77,14390,33,14392,13,"dynamic","6b7fa6c77ed4f77cadde0bf89fd63cc7922b7c756c4adeac87ff0b1fd6131280",[{"$":9},"XR404"]],
+[77,14408,33,14410,13,"dynamic","6b7fa6c77ed4f77cadde0bf89fd63cc7922b7c756c4adeac87ff0b1fd6131280",[{"$":9},"XR404"]],
 
 [78,272,17,277,9,"process","9405fecd42b800855c9f82196989b9655d5394379f927ae9ea12d499a7ffbc67",["route","X6.4","p54"]],
 
@@ -5394,7 +5432,7 @@
 
 {"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},"scripts/cwo_core/supervision/turn_observations.py",{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models"]},
 
-{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. An original registered qualification permit is checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37"],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup"]},
+{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. An original registered qualification permit is checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before any worker birth or campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33"],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate"]},
 
 {"contract":"N4","entrypoint":"p2a6","gate_chains":[{"calls":[{"call":"p13e","direction":"into","target":"p30d"}],"effect":"p187","gate":"p34d"}],"id":"N4.1"},
 
@@ -5438,7 +5476,7 @@
 
 {"contract":"N8","effect_points":["p37b"],"entrypoint":"p2ff","gate_limits":"Campaign-server admission belongs to a separate constructor. The helper campaign selector is conditional; actual action calls recheck it before the turn, with noncampaign False still an explicit manual selection limit.","gates":["p224","p238"],"id":"N8.7","ordering":"Campaign adapter omission defaults True: three holds before reservation and after callouts before supplied-server turn. Explicit noncampaign False constructors retain their own N1, preview, maintenance or offline admission contract.","review_gates":["p13d","p108"],"witnesses":["w68"]},
 
-{"contract":"N9","effect_points":["p343","p1f"],"entrypoint":"p13f","id":"N9.1","limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. Cleanup publication is separately observed: physical completion can precede the original immutable gate acknowledgement. The fixture spends the remainder of its original eight-second completion budget on that aggregate classification; timeout stays unknown with full charge. This inspection grants no command release, acceptance or native qualification. Physical-event, direct-close-event, two-closer-join and failed-result completion fences all share their original remaining eight-second budget and atomic gate-condition classification. Queued archive acknowledgement retains original output rejection/full charge. Only exact pre-bootstrap READY bypasses JSON parsing; late/malformed RPCs still fail, and cleanup preserves the primary plus owned workers. Prequeued-poll fixtures wait for original refusal publication within the shared original5s bound after full-frame consumption; third-poll no-effect/full-charge checks remain. Holding real-write return supplies fixture evidence only. Finite success fixtures join completion only after original poll reservation returns; failed reservation never starts the success join. This is fixture ordering evidence, not historical startup attribution. Signed live-mode selection adds actual registered RPC and owned pipe evidence of submitted and delivered UTF-8 byte counts and digests for finite polls. Nonempty input refuses before delivery, while an empty poll writes zero bytes. The synthetic RPC witness leaves live provider turns unmeasured.","manual_decisions":["M08","M10","M12","M26","M34","M35","M36","M37"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":71},{"$":10},{"$":24},{"$":328},{"$":329}],"witnesses":["w83","w89","w36","w3a","wT","wF0","wF1","w25Finite",{"$":340}]},
+{"contract":"N9","effect_points":["p343","p1f"],"entrypoint":"p13f","id":"N9.1","limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. Cleanup publication is separately observed: physical completion can precede the original immutable gate acknowledgement. The fixture spends the remainder of its original eight-second completion budget on that aggregate classification; timeout stays unknown with full charge. This inspection grants no command release, acceptance or native qualification. Physical-event, direct-close-event, two-closer-join and failed-result completion fences all share their original remaining eight-second budget and atomic gate-condition classification. Queued archive acknowledgement retains original output rejection/full charge. Only exact pre-bootstrap READY bypasses JSON parsing; late/malformed RPCs still fail, and cleanup preserves the primary plus owned workers. Prequeued-poll fixtures wait for original refusal publication within the shared original5s bound after full-frame consumption; third-poll no-effect/full-charge checks remain. Holding real-write return supplies fixture evidence only. Finite success fixtures join completion only after original poll reservation returns; failed reservation never starts the success join. This is fixture ordering evidence, not historical startup attribution. Signed live-mode selection adds actual registered RPC and owned pipe evidence of submitted and delivered UTF-8 byte counts and digests for finite polls. Nonempty input refuses before delivery, while an empty poll writes zero bytes. The synthetic RPC witness leaves live provider turns unmeasured. Only exact original typed completion and a fully written reply qualify the matching retained rollout text. Terminal settlement is historical and does not permit another effect.","manual_decisions":["M08","M10","M12","M26","M34","M35","M36","M37"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":71},{"$":10},{"$":24},{"$":328},{"$":329},{"$":116}],"witnesses":["w83","w89","w36","w3a","wT","wF0","wF1","w25Finite",{"$":340},"w36FiniteArchive","w36FiniteLateItem","w36FiniteHistory","w36FiniteRefusal"]},
 
 {"contract":"N9","effect_points":["p343"],"entrypoint":"p1bd","gate_limits":"Isolated validation reaches the actual containment require_effect check before owned spawn. Sibling finite tool validation and receiver selection remain manual context.","gates":["p222"],"id":"N9.2","limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. The isolated validator invokes a constructed lifetime.launch before its internal admission. The selected containment launch binds the actual owned spawn; callback/lifetime identity and validator code remain manual trust. Qualification validates under its current signed selection and uses a separate namespace without the app-server provider broker.","manual_decisions":["M08","M10","M12","M26","M34","M35","M36","M37"],"review_gates":["p1b0","p2f8"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":71},{"$":10},{"$":328},{"$":329},{"$":24}],"witnesses":["w83","w89","w25Finite",{"$":340}]},
 
@@ -5464,7 +5502,7 @@
 
 {"admission":{"$":2},"authority":"Caller home/model/tools; expected_binary check before reads/probe.","contract":"N11","effect":"Guarded capture-binding version probe","effect_points":["p288"],"entrypoint":"p321","gates":["p2b8"],"id":"N11.3","limits":"Mismatch: zero config/catalog/fingerprint/version calls. Matching actual helper issues fake selected --version; captured output uncapped, child timeout10s only, no whole-programme or grandchild sandbox.","manual_decisions":["M02","M08"],"ordering":"Expected-binary mismatch before config/catalog/hash/version; matching caller probes selected home/PATH. Hook CLI pre-probe checks are a separate caller contract.","witnesses":["w5"]},
 
-{"authority":"Trusted installed Codex selection or explicit fixed diagnostic selection with a confined generator.","contract":"N11","effect":"Finite local app-server schema generation and compatibility check","effect_points":["pSchemaProcess"],"entrypoint":"pSchemaEntry","id":"N11.4","limits":"The exported schemas demonstrate protocol shape. The helper issues no model, thread or turn request and cannot authorize a runtime launch, qualify containment, or override any live hold.","manual_decisions":["M33"],"ordering":"Resolve the executable, create isolated home and output directories, run the bounded schema generator, then verify the required wire shapes.","trace_files":["scripts/cwo_core/codex_protocol_capabilities.py","scripts/check_codex_protocol_capabilities.py",{"$":29},{"$":74}],"witnesses":["wSchema"]},
+{"authority":"Trusted installed Codex selection or explicit fixed diagnostic selection with a confined generator.","contract":"N11","effect":"Finite local app-server schema generation and compatibility check","effect_points":["pSchemaProcess"],"entrypoint":"pSchemaEntry","id":"N11.4","limits":"The exported schemas demonstrate protocol shape. The helper issues no model, thread or turn request and cannot authorize a runtime launch, qualify containment, or override any live hold. The qualification opt-in checks the registered direct finite tool wire without selecting a new history mode.","manual_decisions":["M33"],"ordering":"Resolve the executable, create isolated home and output directories, run the bounded schema generator, then verify the required wire shapes.","trace_files":["scripts/cwo_core/codex_protocol_capabilities.py","scripts/check_codex_protocol_capabilities.py",{"$":29},{"$":74},{"$":328},{"$":10}],"witnesses":["wSchema","w36SchemaGate"]},
 
 {"contract":"N12","entrypoint":"p353","id":"N12.1"},
 
@@ -6164,8 +6202,6 @@
 
 "330":"FactoryQualificationTests.test_started_worker_failure_is_charged_at_release",
 
-"331":"147bd6b8ae1c73a2d6d3547037952c9b4b3895955eebeaba7aa23e145eefc991",
-
 "332":"self.assertEqual(len(self.fixture.spawned), 1)",
 
 "333":"_require_native_rpc(method, self)",
@@ -6436,7 +6472,7 @@
 
 "scripts/cwo_core/codex_hook_enforcement.py":["b988f0062b354cf193ec3528462168cb828f2721d29d046573c78f69ee1685a0",420,8633],
 
-"scripts/cwo_core/codex_protocol_capabilities.py":["2e088d9fc1cae5987132754853fc1c7b7d7425defddaf1bc0a089191625362c0",420,23294],
+"scripts/cwo_core/codex_protocol_capabilities.py":["126ddd4bfbcc7b3349db604da4829a1cb9a7584cd1729cdcf1d6f4a8c41e96d1",420,25240],
 
 "scripts/cwo_core/codex_protocol_pin.py":["5f65e2bfedc3ccbb1f5248c63fa17c4d7b60a6586bf93044741e157a35c94bbd",420,29437],
 
@@ -6792,15 +6828,15 @@
 
 "scripts/registered_app_server_transport.py":["91fb0184a5e45ad64047f69c43c39b64895c04dbcedaa6e2ea44696bfdc128dd",420,19058],
 
-"scripts/registered_finite_input.py":["1ad3dd1af24dca68349eca1e359f3f3b9e56c99440285fe463c2aba47af707cf",420,86736],
+"scripts/registered_finite_input.py":["63435f503a194f9544279dd6e7f9f9b912a332fb97a1ea8be088704a2f872699",420,89110],
 
-"scripts/registered_finite_tool_calls.py":["46caef3a43dee2649a94ec34aa56e7748eed8e934b1eed2414bd4aa6bff4bfc7",420,38077],
+"scripts/registered_finite_tool_calls.py":["f56c9008ca5195f9d7a2fde0327c3633c5b9836cff3ec20ae26792bc4c401231",420,52577],
 
 "scripts/registered_host_root_boundary.py":["615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",420,1303],
 
-"scripts/registered_n1_factory.py":["0146512009efadb412bccac820c232ee4a1cd602bdff7395fbaa57dc482aa95b",420,123065],
+"scripts/registered_n1_factory.py":["a5bba431d4cde633ba0af8762a508bf1e8a7d44a779efff74a2d266bac75e031",420,127131],
 
-"scripts/registered_n1_qualification.py":["dacc43c5e722159bb0a1a3bfe89c9f023280dc890f1f52d521ae661cef4b2fea",420,11004],
+"scripts/registered_n1_qualification.py":["01f69bc668b866a24679ad061b492ce210447a63421e3206919d0a8ee3e8d815",420,12123],
 
 "scripts/registered_n1_workflow.py":["ab229624003f1d516d1831703aea8ecff27b5cb992b24106f66ac831adb60439",420,32110],
 
@@ -6838,7 +6874,7 @@
 
 "scripts/run_native_pool_activation_preview.py":["ba8d6118af6dba182381e69f7354cd743434f320e678253e5ae0d36e42307b94",420,56364],
 
-"scripts/run_native_pool_live_canaries.py":["d31f812a4adea3083223b1d9771a35a6a2901e5d8b05128b63cf9a524709e158",420,610467],
+"scripts/run_native_pool_live_canaries.py":["8e828c470f95f69ad0becc2a81c63307f36472ebc57fc90eaee403181adc50c6",420,611327],
 
 "scripts/run_parallel_unittest.py":["2aa0756c9cf5543bb7c215a608574b3365b22991ccfe9e2d917ac05f31765576",493,27154],
 
@@ -6890,7 +6926,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["3965fa139744075bce3138f96dde74d99706ba46022dd8346df8bc2ef2ed97a5",420,133062],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["67e7e1c88fc3208af24c9060abba09a687325ea9f7c2c207dd582e402aa3e57e",420,133311],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -6930,7 +6966,7 @@
 
 "tests/test_code_health.py":["8f660ab109fdc51dacdd39350b79608d40b8af615bb2adc2ac127c5e8affbcba",420,142998],
 
-"tests/test_codex_protocol_capabilities.py":["b67a04902fd6c50fbaac2e8773c247c5918186f0637d14d73470a4d9b44fcbc5",420,6365],
+"tests/test_codex_protocol_capabilities.py":["1d95698661f8ad8878891121bc6f896aaf58881eafbe3e71d56e9f5a5afdbb97",420,8954],
 
 "tests/test_configure_codex_beads_hooks.py":["ab5965a39daa88368478bb6e0b95abf9ea8b4e177145722aea2d1a2aee311da1",420,9603],
 
@@ -7002,11 +7038,11 @@
 
 "tests/test_registered_finite_input.py":["6caf393f9f91e4cab0851b7be4ff28dd500ab3fc28277a1d2ed2928639fe0fe6",420,129664],
 
-"tests/test_registered_finite_tool_wiring.py":["4048359aa19b09ad075a7a3053956292823c0e9145f71ebc1a25f773fd9d45b6",420,254582],
+"tests/test_registered_finite_tool_wiring.py":["8901e9d9608eacb163a75059d83d6991dc35ea3f368d815ea893b37fbbbeeb7f",420,274015],
 
-"tests/test_registered_n1_factory.py":["8039e92694159a12f5c8ccc695360e495b2b2e04a1a156079928c391a098bedb",420,134375],
+"tests/test_registered_n1_factory.py":["4dea4c67e0f4f75b7e24f76c9f9cf6778fba1ce3e41273682b23ab2eb9e1ef2c",420,134701],
 
-"tests/test_registered_n1_qualification.py":["95209f04c79a6fb1166aaf3e9921f1d3ca245f4464e182e7d9719bd8e6b23239",420,13229],
+"tests/test_registered_n1_qualification.py":["25d4de70698c14439e45c4076e2bdedd3570756a1c1371e86f00fdd831c2b0d1",420,15745],
 
 "tests/test_registered_native_pool_host.py":["25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",420,39405],
 
@@ -7161,6 +7197,16 @@
 "w35AuthTls":{"assertion":"self.assertEqual(self._run_offline_child(role).stdout, b'EXAMPLE child isolated\\n')","body":"p35AuthTls","kind":{"$":0},"positive":"self.assertEqual(self.provider_request.get(timeout=3), b'Authorization: Bearer ' + _EXAMPLE_ACCESS_TOKEN)","support":["p25ProviderSupport0","p25ProviderTLSSupport"],"test_id":"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot"},
 
 "w36":{"assertion":"self.assertEqual(pending, ['cleanup-pending'])","body":"pb2","kind":{"$":1},"positive":"self.assertEqual(gate.cleanup_phase(), 'unknown' if time_out else 'contained')","support":["pb3","pb6","pb4","pb5","pac","pad","pb1","pb0","pb7","pae","paf"],"test_id":"tests.test_registered_finite_input.FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication"},
+
+"w36FiniteArchive":{"assertion":"self.assertEqual(observed, [('pending', 1, 'paired-pending')])","body":"p36FiniteArchive","kind":{"$":0},"positive":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})","support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation"},
+
+"w36FiniteHistory":{"assertion":"with self.assertRaisesRegex(finite_tools.FiniteToolError,","body":"p36FiniteHistory","kind":{"$":0},"positive":"self.assertEqual(factory.run()['attempt']['outcome'], 'completed')","support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout"},
+
+"w36FiniteLateItem":{"assertion":"self.assertIsNone(factory.token)","body":"p36FiniteLateItem","kind":{"$":0},"positive":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})","support":["p36FiniteLateSupport","p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal"},
+
+"w36FiniteRefusal":{"assertion":"self.assertEqual(poll['delivered_bytes'], 0)","body":"p36FiniteRefusal","kind":{"$":0},"positive":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})","support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal"},
+
+"w36SchemaGate":{"assertion":{"$":338},"body":"p36SchemaGate","kind":{"$":0},"positive":"case.schema_check.assert_called_once()","support":["p25PermitSupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start"},
 
 "w37":{"assertion":"self.assertFalse((host.state / \"artifact\").exists())","body":"pbe","kind":{"$":12},"positive":"self.assertEqual(report[\"status\"], \"artifact-ready\", report[\"error\"])","support":["pbf"],"test_id":"tests.test_offline_n1_host.OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent"},
 

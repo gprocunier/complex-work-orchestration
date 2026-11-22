@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Native single-worker qualification now requires the `cwo_finite` namespace for finite command and poll callbacks. Archived results are verified against the original replies and completions.
+
 ## 1.8.0 - 2026-11-22
 
 - Allow a trusted controller to attach a Codex personal access token for one signed native single-worker qualification launch.
