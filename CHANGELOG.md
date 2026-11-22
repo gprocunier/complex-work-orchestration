@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.0 - 2026-11-22
+
 - Check native app-server compatibility against the installed Codex CLI's protocol capabilities, with 0.163.0 as the tested support floor. Preserve exact version and digest records as fixture and historical evidence.
 - Run offline protocol contracts for Codex 0.163.0 and 0.171.0 in the required CI check and for the current stable release every week.
 - Configure Sol, Astra, Luna and Terra in one routing policy, with a rollback version for each role and opt-in selection from the visible Codex model catalog.
