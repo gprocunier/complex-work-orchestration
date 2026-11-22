@@ -246,6 +246,13 @@
       "reason": "Exact extraction of the existing historical transport constant from scripts/run_native_pool_live_canaries.py; same bytes/count/classification, no model selection or dispatch authority. Historical V1\u2013V6 path lists and evidence remain unchanged."
     },
     {
+      "path": "scripts/registered_n1_qualification.py",
+      "literal": "gpt-6.2-sol",
+      "count": 1,
+      "class": "qualification-pin",
+      "reason": "Fixed run-local model for the signed, capped native single-worker host qualification."
+    },
+    {
       "path": "scripts/validate_repository.py",
       "literal": "gpt-5.5",
       "count": 1,

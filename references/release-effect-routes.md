@@ -16,7 +16,7 @@ span can additionally select UTF-8 byte columns with `col`, `end_line` and
 `end_col`; its compact point is `[file_index, line, text, col, end_line, end_col]`.
 This represents assigned, nested and multiline calls without treating an entire
 statement or nearby gate as that primitive.
-The compact inventory has a finite 580 KiB (593,920 byte) limit. Complete script bindings and individual primitive dispositions share this
+The compact inventory has a finite 620 KiB (634,880 byte) limit. Complete script bindings and individual primitive dispositions share this
 capacity; source/file/count bounds and deadlines remain finite. Full traces, graphs and intermediates stay
 external; compression is not a substitute for compact authored installed data.
 
@@ -115,7 +115,7 @@ bytes, or whole shell line bytes without its newline. Columns remain UTF-8 byte
 offsets and the span end remains excluded. Trace evidence expands compact rows
 before applying the same exact hit, route and exclusion checks. Rebinding keeps
 the selected representation and canonical record layout, preserves all primitive decisions and
-is a byte-for-byte no-op when bindings are current. The 580 KiB inventory cap,
+is a byte-for-byte no-op when bindings are current. The 620 KiB inventory cap,
 all source/file/count bounds, alias budgets and deadlines are unchanged; source
 bindings, gates, manual decisions and named witnesses retain their full semantics.
 The observed and authored hit sets must match exactly,
@@ -146,9 +146,9 @@ width, nonstring/empty/duplicate/unused text entries, Boolean or invalid indices
 and unknown routes refuse. Text tables require declared columns; legacy named
 exclusion objects remain supported. Rebinding preserves the authored column
 rows, table order and text references, and an unchanged inventory is byte-identical.
-Each decoded text is bounded by the existing inventory byte cap before
-concatenation; all decoded exclusion reasons and conclusions together share
-the existing 2 MiB file byte bound. Expansion cannot amplify past those limits.
+Each decoded exclusion text is bounded at 580 KiB (593,920 bytes) before
+concatenation. All decoded exclusion reasons and conclusions together share
+the existing 2 MiB file byte bound.
 
 Gate points are checked against the complete bounded Python AST. They must
 anchor a conditional header/predicate, a Raise statement, or an exact reviewed
@@ -283,7 +283,7 @@ executed fake-effect refusal/positive pairs and stale/unrelated/missing/mismappe
 input cases. Coherently rebound primitive fixtures exercise direct, aliased,
 importlib/getattr calls and exact mapped/excluded positives without stale-file
 checks masking classifier failures. Capacity tests load valid data above the old
-cap and at 580 KiB, then refuse cap+1. No actual author approval is supplied. Without an explicitly
+cap and at 620 KiB, then refuse cap+1. No actual author approval is supplied. Without an explicitly
 selected independent acceptance the real CLI refuses release trace completion.
 Selected bounded completion still leaves milestone, platform and safety-slice
 work as separate obligations.

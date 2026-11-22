@@ -371,14 +371,15 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         return root, value, hits
 
     def test_inventory_headroom_is_bounded(self):
-        self.assertEqual(R.MAX_INVENTORY, 580 * 1024)
+        self.assertEqual(R.MAX_INVENTORY, 620 * 1024)
         root, _output, _review = self.example()
         path = root / R.INVENTORY
         value = json.loads(path.read_bytes())
         value["capacity_example"] = ""
         base = len(R.inventory_bytes(value))
         for size in (200001, 528 * 1024 + 1, 540 * 1024 + 1, 564 * 1024 + 1,
-                     568 * 1024 + 1, 576 * 1024 + 1, 580 * 1024 + 1, 612 * 1024 + 1, 624 * 1024 + 1, 644 * 1024 + 1):
+                     568 * 1024 + 1, 576 * 1024 + 1, 580 * 1024 + 1, 612 * 1024 + 1,
+                     620 * 1024 + 1, 624 * 1024 + 1, 644 * 1024 + 1):
             with self.subTest(previous_limit_positive=size):
                 value["capacity_example"] = "x" * (size - base)
                 path.write_bytes(R.inventory_bytes(value))
@@ -600,6 +601,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     R.trace(root)
 
     def test_compact_exclusion_fragments_preserve_exact_wording_and_bound_expansion(self):
+        self.assertEqual(R.MAX_DECODED_EXCLUSION_TEXT, 580 * 1024)
         root, value, _hits = self.primitive_example("import subprocess\nsubprocess.run(['true'])\n", "exclude")
         expanded = R.trace(root)["primitive_coverage"]
         coverage = value["primitive_coverage"]
@@ -618,9 +620,9 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     R.trace(root)
         coverage["exclusions"][key][0] = [0] * 12
         decoded = reason[10:] * 12
-        with patch.object(R, "MAX_INVENTORY", len(decoded.encode())):
+        with patch.object(R, "MAX_DECODED_EXCLUSION_TEXT", len(decoded.encode())):
             self.assertEqual(R._exclusion_text([0] * 12, coverage["exclusion_texts"], set()), decoded)
-        with patch.object(R, "MAX_INVENTORY", len(reason[10:]) * 12 - 1), \
+        with patch.object(R, "MAX_DECODED_EXCLUSION_TEXT", len(reason[10:]) * 12 - 1), \
              self.assertRaisesRegex(R.Refused, "decoded exclusion text length"):
             R._expanded_exclusions(coverage)
         coverage["exclusions"][key][0] = [0]
@@ -629,7 +631,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         with patch.object(R, "MAX_FILE", size * 2 - 1), \
              self.assertRaisesRegex(R.Refused, "decoded exclusion text budget"):
             R._expanded_exclusions(coverage)
-        with patch.object(R, "MAX_INVENTORY", 1), \
+        with patch.object(R, "MAX_DECODED_EXCLUSION_TEXT", 1), \
              self.assertRaisesRegex(R.Refused, "decoded exclusion text length"):
             R._exclusion_text(["é"], [], set())
 

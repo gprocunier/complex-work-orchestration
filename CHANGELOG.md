@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add bounded host qualification for the registered native single-worker factory, with signed launch permits, provider-only egress, fixed run-local model selection, and finite-input observations.
+- Reap an exited native worker when its original retained process descriptor confirms exit after its procfs links disappear.
+- Raise the encoded release-effect inventory limit to 620 KiB while preserving the 15% headroom check.
+
 ## 1.5.0 - 2026-11-22
 
 - Replace Candidate E with the opt-in CWO architect prompt and move the previous installer choices to history. The profile sets only the instruction file, and `cwo-codex` takes model, reasoning effort and service tier from the Sol routing role. In the 2026-11-22 small check, 11 of 12 cells passed. The twelfth behaved correctly and failed a hidden assertion about message wording that the contract did not specify.

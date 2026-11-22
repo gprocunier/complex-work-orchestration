@@ -7,6 +7,7 @@ controller state nor credentials. OS qualification is separate from this code.
 from __future__ import annotations
 
 import copy
+import errno
 import fcntl
 import hashlib
 import importlib
@@ -28,8 +29,11 @@ from typing import NamedTuple
 import linux_owned_children as owned
 import offline_admitted_n1 as admitted
 import offline_artifact_validation as validation
+import registered_n1_qualification as qualification
+import registered_provider_network as provider_network
 from registered_server_requests import RegisteredServerRequests
 from registered_finite_input import RegisteredFiniteInput
+import registered_finite_tool_calls as finite_calls
 from prepare_server_request_frames import _decode as decode_protocol_frame
 from cwo_core.maintenance_authority import require_maintenance_operation
 from cwo_core.maintenance_authority import MaintenanceStateStore
@@ -40,7 +44,7 @@ from cwo_core import native_live_availability as live_availability
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import record_received_return
 from cwo_core.process_identity import parse_proc_stat
-from cwo_core.supervision.transport.app_server import AppServerError
+from cwo_core.supervision.transport.app_server import AppServerError, _QUALIFICATION_RPC, domain_sha256
 from cwo_core.supervision.turn_observations import provider_policy_blocker
 from registered_app_server_transport import RegisteredAppServer
 from registered_host_root_boundary import require_private_roots
@@ -234,13 +238,15 @@ def _cold_spool(home, configured):
 
 def _profile(spec):
     start, observed = spec['thread_start'], spec['profile_readback']
+    is_qualification = qualification.MODEL_SELECTION in spec
+    policy = qualification.APPROVAL_POLICY if is_qualification else 'untrusted'
     _need(set(start) == {'permissions', 'approvalPolicy', 'approvalsReviewer', 'ephemeral'},
           "Only the named permissions selector is supported; legacy/mixed selectors refuse.")
     _need(type(start['permissions']) is str and bool(start['permissions']), "A named profile is required.")
-    _need(start['approvalPolicy'] == 'untrusted' and start['approvalsReviewer'] == 'user'
-          and start['ephemeral'] is True, "The finite no-grants approval profile is required.")
+    _need(start['approvalPolicy'] == policy and start['approvalsReviewer'] == 'user'
+          and start['ephemeral'] is (not is_qualification), "The finite no-grants approval profile is required.")
     expected = {'activePermissionProfile': {'id': start['permissions'], 'extends': None},
-                'approvalPolicy': 'untrusted', 'approvalsReviewer': 'user'}
+                'approvalPolicy': policy, 'approvalsReviewer': 'user'}
     _need(observed == expected, "Reported profile fallback or drift is refused.")
     facts = spec['pre_effect']
     _need(facts == {'profile': start['permissions'], 'policy_id': spec['configuration_pins']['w15'],
@@ -255,11 +261,15 @@ def _configuration(spec, worker):
     raw = files['config.toml']
     _need(type(raw) is str and len(raw.encode()) <= 32768, "Bounded registered configuration required.")
     config = tomllib.loads(raw)
-    expected = {'default_permissions': spec['thread_start']['permissions'], 'approval_policy': 'untrusted',
+    expected = {'default_permissions': spec['thread_start']['permissions'],
+                'approval_policy': spec['thread_start']['approvalPolicy'],
                 'approvals_reviewer': 'user', 'model': spec['model'],
                 'model_reasoning_effort': spec['effort'], 'service_tier': 'default',
                 'permissions': {spec['thread_start']['permissions']: {
                     'filesystem': {'/': 'deny', str(worker): 'write'}, 'network': {'enabled': False}}}}
+    if qualification.MODEL_SELECTION in spec:
+        expected['features'] = qualification.disabled_features()
+        expected['permissions'][spec['thread_start']['permissions']]['filesystem'][str(worker)] = 'read'
     _need(config == expected, "Registered configuration selectors, roots, hooks or network differ.")
 
 
@@ -468,10 +478,12 @@ class _Containment:
         self._observation_failed = False
         self._observation_listener = None
         self._fds = []
+        self.provider_network = None
 
     def _command(self, command, home, block, info):
         spec, host = self.factory.spec, self.factory.host
-        actual_writable = () if self.validator else (host.worker,)
+        worker_readonly = self.provider_network is not None
+        actual_writable = () if self.validator or worker_readonly else (host.worker,)
         if self.role == 'appserver':
             actual_writable += (home,)
         self.factory.host_records.assert_worker_roots_excluded(actual_writable)
@@ -494,14 +506,36 @@ class _Containment:
                 argv += ['--ro-bind', str(Path(scripts).parent / name), '/cwo/' + name]
         else:
             worker = str(host.worker)
-            argv += ['--bind', worker, worker, '--ro-bind', worker + '/.git', worker + '/.git',
+            argv += ['--ro-bind' if worker_readonly else '--bind', worker, worker,
+                     '--ro-bind', worker + '/.git', worker + '/.git',
                      '--chdir', worker]
             if self.role == 'appserver':
                 argv += ['--bind', str(home), str(home), '--setenv', 'CODEX_HOME', str(home)]
                 for name in self.factory.spec['configuration_files']:
                     argv += ['--ro-bind', str(home / name), str(home / name)]
+        argv += self._provider_network_mounts()
         argv += ['--remount-ro', '/']
         return argv
+
+    def _provider_network_selected(self):
+        return (self.role == 'appserver' and type(self.factory) is RegisteredN1Factory
+                and self.factory.qualification is not None)
+
+    def _provider_network_fds(self):
+        if not self._provider_network_selected():
+            return ()
+        self.provider_network = provider_network.ProviderBroker(self._record_provider_denial)
+        return (self.provider_network.child_socket.fileno(),)
+
+    def _record_provider_denial(self, reason):
+        self.factory.record('provider-network-denied', {'reason': reason})
+
+    def _provider_network_mounts(self):
+        if self.provider_network is None:
+            return []
+        return ['--ro-bind', str(provider_network.RELAY_SOURCE), provider_network.RELAY_MOUNT,
+                '--ro-bind-try', '/etc/ssl/certs/ca-certificates.crt', '/etc/ssl/certs/ca-certificates.crt',
+                '--ro-bind-try', '/etc/pki/tls/certs/ca-bundle.crt', '/etc/pki/tls/certs/ca-bundle.crt']
 
     def _release_gate(self, descriptor, tool_call, deadline):
         if self.role == 'tool':
@@ -515,7 +549,10 @@ class _Containment:
             os.write(descriptor, b'1')
 
     def _bootstrap_command(self, command):
-        return [self.factory.spec['validator'], '-I', '-S', '-c', _BOOTSTRAP, *command]
+        entry = [self.factory.spec['validator'], '-I', '-S']
+        if self.provider_network is not None:
+            return [*entry, provider_network.RELAY_MOUNT, str(self.provider_network.child_socket.fileno()), *command]
+        return [*entry, '-c', _BOOTSTRAP, *command]
 
     def _confirm_mounts(self):
         _need(select.select([self.process.stdout], [], [], 5)[0], "Trusted namespace bootstrap readiness timed out.")
@@ -539,21 +576,22 @@ class _Containment:
         if self.role == 'tool':
             self.factory.server.finite_input.lifecycle.move('gate-closed', call=tool_call['callId'])
         self.factory.require_effect()
+        _record_appserver_start(self.factory, self.role)
         self._release_gate(self.process.stdin.fileno(), tool_call, deadline)
 
     def _preflight_tool_launch(self, tool_call, deadline, tool_decision):
         if self.role != 'tool':
             return
         server = self.factory.server
-        _need(self.factory.spec.get('finite_tool_mode') == 'captured-host-tools'
+        _need(self.factory.spec.get('finite_tool_mode') in finite_calls.CAPTURE_MODES
               and server is not None and server.finite_tools is not None,
               "The original selected finite producer is required before tool spawn.")
-        self.factory.require_finite_fake_capture()
+        server.finite_tools._require_capture_source()
         server.finite_tools._require_capture_current()
         server.finite_tools.require_launch(tool_call, deadline, tool_decision)
 
     def launch(self, command, home, *, tool_call=None, deadline=None, tool_decision=None):
-        live_availability.require_n1_live()
+        _require_launch_selection(self.factory)
         self.factory.require_effect()
         _need((self.role == 'appserver' and command == [self.factory.spec['executable'], 'app-server', '--stdio'])
               or (self.role == 'tool' and command == ['/usr/bin/sh', '-c', self.factory.spec['command']])
@@ -565,6 +603,7 @@ class _Containment:
         read_info, write_info = os.pipe()
         self._fds = [read_gate, write_gate, read_info, write_info]
         try:
+            network_fds = self._provider_network_fds()
             argv = self._command(command, home, read_gate, write_info)
             arguments = _argument_file()
             self._fds.append(arguments)
@@ -576,7 +615,7 @@ class _Containment:
             # Some supported Python builds omit these exported C constants.
             fcntl.fcntl(arguments, 1033, 15)
             _need(fcntl.fcntl(arguments, 1034) & 15 == 15, "Immutable argument-file seals were not observed.")
-            backend = _PipeBackend((read_gate, write_info, arguments))
+            backend = _PipeBackend((read_gate, write_info, arguments, *network_fds))
             self.controller = owned.LinuxOwnedChildController(self.factory.spec['launcher'])
             self.controller._backend = backend
             self.controller._engine = owned._LinuxEngine(backend, self.factory.spec['launcher'])
@@ -585,6 +624,7 @@ class _Containment:
                                              'validator': '-validation'}[self.role],
                 _launcher_argv(argv[0], arguments, self._bootstrap_command(command)), str(self.factory.host.worker))
             self._retain(result)
+            self._release_provider_descriptor()
             _need(result.get('outcome') == 'registered' and self.receipt is not None,
                   "Retained-child registration is required before startup.")
             birth = next(item for item in backend.births if item.receipt is self.receipt)
@@ -622,7 +662,24 @@ class _Containment:
             if published:
                 gate.close(failure)
                 return
+        if self.receipt is None:
+            self._close_provider_network(failure)
         self.cleanup_failure(failure)
+
+    def _release_provider_descriptor(self):
+        if self.provider_network is not None:
+            self.provider_network.child_socket.close()
+
+    def _close_provider_network(self, primary=None):
+        if self.provider_network is None:
+            return
+        try:
+            self.provider_network.close()
+        except BaseException as secondary:
+            if primary is None:
+                raise
+            admission.ledger_api.add_failure_note(primary,
+                'Provider network cleanup failed: ' + type(secondary).__name__)
 
     def _retain(self, report):
         if type(report) is dict and report.get('receipt_available') is True:
@@ -735,6 +792,8 @@ class _Containment:
 
     def _revoke_before_ending(self):
         server = self.factory.server
+        if self.provider_network is not None:
+            self.provider_network.revoke()
         # A clean owned tool may still supply its final empty-poll output.
         # Transport ending is a connection-wide negative; tool reaping is not.
         if self.role == 'appserver' and server is not None:
@@ -748,10 +807,23 @@ class _Containment:
             self.termination = getattr(failure, 'ownership_report', None)
             raise
         report = self.termination
-        _need(report.get('outcome') in {'terminated', 'killed', 'already-exited', 'exited-before-signal'}
+        controlled = report.get('outcome') in {'terminated', 'killed', 'already-exited', 'exited-before-signal'}
+        _need((controlled or self._reaped_monitor_without_exe(report))
               and report.get('child_exit_confirmed') is True and report.get('child_reaped') is True,
               "Controlled termination and same-handle reaping are required before capture.")
         return report
+
+    def _reaped_monitor_without_exe(self, report):
+        """Use completed original custody when natural exit removed the proc link."""
+        birth = self.birth
+        if (report.get('outcome') != 'identity-unavailable' or report.get('signals') != []
+                or birth is None or birth.receipt is not self.receipt):
+            return False
+        if (not birth.exit_confirmed or not birth.reaped or report.get('child_pid') != birth.pid
+                or report.get('registration_committed') is not True or report.get('receipt_available') is not False):
+            return False
+        missing = FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), f'/proc/{birth.pid}/exe')
+        return report.get('reason') == str(missing)
 
     def _stop_namespace_preserving(self, primary):
         try:
@@ -777,12 +849,14 @@ class _Containment:
                 raise
             self._stop_namespace()
             self.contained = True
+            self._close_provider_network()
             self.factory.record(self.role + '-terminated',
                                 {key: value for key, value in report.items() if key != 'receipt'})
             self.termination_recorded = True
             return report
         except BaseException as failure:
             self._termination_error = failure
+            self._close_provider_network(failure)
             raise
         finally:
             self._termination_finished.set()
@@ -1013,11 +1087,43 @@ class _RegisteredServer(RegisteredAppServer):
         self._worker_lock = threading.Lock()
         self._workers = []
         self._workers_closed = False
-        if factory.spec.get('finite_tool_mode') == 'captured-host-tools':
-            producer = importlib.import_module('registered_finite_tool_calls')
-            self.finite_tools = producer.RegisteredFiniteToolCalls(self)
+        if factory.spec.get('finite_tool_mode') in finite_calls.CAPTURE_MODES:
+            self.finite_tools = finite_calls.RegisteredFiniteToolCalls(self)
             self._tool_queue = queue.Queue(maxsize=8)
-        super().__init__(requested_model=factory.spec['model'], reasoning_effort=factory.spec['effort'])
+        super().__init__(requested_model=factory.spec['model'], reasoning_effort=factory.spec['effort'],
+                         operation_metadata=_qualification_operation_metadata(factory))
+        self._register_qualification_rpc()
+
+    def _register_qualification_rpc(self):
+        factory = self.factory
+        if type(self) is _RegisteredServer and type(factory) is RegisteredN1Factory and factory.qualification is not None:
+            self._qualification_rpcs = set()
+            _QUALIFICATION_RPC.register(self, (
+                lambda: RegisteredN1Factory.require_qualification_rpc(factory),
+                lambda method, request: _RegisteredServer._check_qualification_wire(self, method, request),
+                qualification.TIER,
+            ))
+
+    def _check_qualification_wire(self, method, request):
+        _need(type(request.get('id')) is int and method not in self._qualification_rpcs,
+              "Only one registered qualification thread and turn may start.")
+        params = request['params']
+        if method == 'thread/start':
+            _need(params == self.factory._thread_start_parameters(), "Qualification thread selectors differ.")
+        else:
+            self._check_qualification_turn(request, params)
+        self._qualification_rpcs.add(method)
+
+    def _check_qualification_turn(self, request, params):
+        record = self._turn_dispatch_records.get(self.thread_id, {})
+        pins = {'threadId': self.thread_id, 'model': qualification.MODEL,
+                'effort': qualification.EFFORT, 'serviceTier': qualification.TIER,
+                'input': [{'type': 'text', 'text': self.factory.model_task_bytes().decode(), 'text_elements': []}]}
+        _need(self._qualification_rpcs == {'thread/start'}
+              and record.get('wire_request_sha256') == domain_sha256(request, domain='app-server-single-wire-request')
+              and set(params) == set(pins) | {'clientUserMessageId', 'responsesapiClientMetadata'}
+              and all(params.get(key) == value for key, value in pins.items()),
+              "Qualification turn differs from the registered model, effort, tier or original task.")
 
     def _default_executable(self):
         return self.factory.spec['executable']
@@ -1236,6 +1342,7 @@ class _RegisteredServer(RegisteredAppServer):
             started.set()
 
     def _begin_worker_shutdown(self):
+        _QUALIFICATION_RPC.pop(self, None)
         with self._worker_lock:
             self._workers_closed = True
 
@@ -1361,22 +1468,20 @@ class _RegisteredServer(RegisteredAppServer):
 
     def start_registered_thread(self):
         self.factory.require_effect()
-        params = dict(self.factory.spec['thread_start'], model=self.requested_model,
-                      allowProviderModelFallback=False, cwd=str(self.factory.host.worker),
-                      runtimeWorkspaceRoots=[str(self.factory.host.worker)])
-        if self.finite_tools is not None:
-            params.update(self.finite_tools.thread_parameters())
+        params = self.factory._thread_start_parameters()
         response, _latency = self.request('thread/start', params, timeout=10)
         _check_response(self.factory, params, response)
         self.thread_id = response['thread']['id']
-        self.factory.record_dispatch(self.thread_id)
+        if self.factory.qualification is None:
+            self.factory.record_dispatch(self.thread_id)
+        else:
+            self.factory._record_qualification_dispatch(self.thread_id, response)
         self.started_threads[self.thread_id] = None
         self._known_thread_turn_ids[self.thread_id] = set()
         self._profile_response = copy.deepcopy(response)
         self._effective_thread_start_evidence = {self.thread_id: {'request': params, 'response': copy.deepcopy(response)}}
         if self.finite_tools is not None:
-            producer = importlib.import_module('registered_finite_tool_calls')
-            self.finite_tools.register(params, response, producer.read_fake_server_capture(self))
+            self.finite_tools.register(params, response)
             self._start_worker(self._tool_loop, 'cwo-registered-tools')
         return response
 
@@ -1573,12 +1678,12 @@ def _check_response(factory, params, response):
     expected = {'model': spec['model'], 'modelProvider': spec['provider'],
                 'cwd': str(factory.host.worker), 'runtimeWorkspaceRoots': [str(factory.host.worker)]}
     _need(all(response.get(key) == value for key, value in expected.items()), "Actual thread identity differs.")
-    extra = {'dynamicTools'} if spec.get('finite_tool_mode') == 'captured-host-tools' else set()
-    _need(set(params) == set(spec['thread_start']) | {'model', 'allowProviderModelFallback', 'cwd', 'runtimeWorkspaceRoots'} | extra,
+    if factory.qualification is not None:
+        qualification.check_thread_model(params, response)
+    _need(set(params) == set(factory._thread_start_parameters()),
           "Mixed or unbound thread selectors.")
-    if extra:
-        producer = importlib.import_module('registered_finite_tool_calls')
-        _need(params['dynamicTools'] == producer.RegisteredFiniteToolCalls.thread_parameters()['dynamicTools'],
+    if spec.get('finite_tool_mode') in finite_calls.CAPTURE_MODES:
+        _need(params['dynamicTools'] == finite_calls.RegisteredFiniteToolCalls.thread_parameters()['dynamicTools'],
               "The selected finite tool definitions differ.")
     thread = response.get('thread', {})
     _need(type(thread.get('id')) is str and bool(thread['id']) and thread.get('turns') == [], "A fresh actual thread is required.")
@@ -1696,7 +1801,7 @@ class RegisteredN1Factory:
     """One parent-selected operation. Construction grants no effect authority."""
 
     def __init__(self, capability, verifier, *, receipt, route, node_id, ledger, host, policy,
-                 review_target=None):
+                 review_target=None, qualification_permit=None):
         self.capability, self.verifier = capability, verifier
         require_maintenance_operation(capability, verifier=verifier)
         store = getattr(verifier._state_reader, '__self__', None)
@@ -1710,7 +1815,8 @@ class RegisteredN1Factory:
         self.receipt = admitted._admission_snapshot(receipt)
         self.route, self.node_id, self.ledger, self.host = copy.deepcopy(route), node_id, ledger, host
         self.policy, self.policy_bytes = policy, _snapshot(policy.report)
-        self.operation_id = capability.evidence()['operation']['operation_id']
+        operation = capability.evidence()['operation']
+        self.operation_id = operation['operation_id']
         self.dispatch_id = 'n1-' + hashlib.sha256(_snapshot({
             'operation_id': self.operation_id, 'state': str(host.state)})).hexdigest()
         self.host_records = configured_store()
@@ -1729,6 +1835,9 @@ class RegisteredN1Factory:
         self._finite_approved_calls = set()
         self._host_bytes = admitted._host_snapshot(host)
         self._ledger_handles = admitted._ledger_handles(ledger)
+        self._qualification_start = None
+        self._qualification_permit = copy.deepcopy(qualification_permit)
+        self._qualification = self._authorize_qualification(self._qualification_permit, operation)
         self._validate()
         admitted._require_primary(self.receipt)
         self._model_task = _model_task(self.receipt, self.spec, self.policy.report)
@@ -1741,6 +1850,32 @@ class RegisteredN1Factory:
             _need(observed[1] == self.spec[key + '_sha256'], "Executable differs from independently registered bytes.")
         self._source = capability.read_adapter_source()
 
+    @property
+    def qualification(self):
+        return self._qualification
+
+    def _authorize_qualification(self, permit, operation):
+        if permit is None:
+            if qualification.MODEL_SELECTION in self.spec:
+                live_availability.require_n1_live()
+                raise qualification.QualificationError('Qualification launch requires a signed permit.')
+            return None
+        _need(self.review_target is None, "Qualification cannot select a peer-review dispatch.")
+        qualification.require_model_selection(self.spec, self.plan, operation)
+        authority = qualification.verify_qualification_permit(permit, self.capability, self.verifier)
+        _disjoint([qualification.campaign_directory(), self.host.worker, self.host.target,
+                   self.host.state, self.ledger.root, self._store.directory, self.host_records.state_root])
+        return authority
+
+    def _validate_spec_fields(self, spec, fields):
+        if self.qualification is not None:
+            _need(set(spec) == fields | {qualification.MODEL_SELECTION, 'finite_tool_mode'}
+                  and spec['finite_tool_mode'] == 'captured-live-host-tools',
+                  "Qualification requires the signed live finite tool mode.")
+        else:
+            _need(set(spec) == fields or (set(spec) == fields | {'finite_tool_mode'}
+                  and spec['finite_tool_mode'] == 'captured-host-tools'), "Unsupported factory input fields.")
+
     def _validate(self):
         spec = self.spec
         _profile(spec)
@@ -1748,8 +1883,7 @@ class RegisteredN1Factory:
                            'profile_readback', 'pre_effect', 'command', 'expected_token', 'configuration_pins',
                            'admission_sha256', 'validation_policy', 'max_steps', 'purpose', 'implementation_sha256',
                            'configuration_files', 'executable_sha256', 'launcher_sha256', 'validator_sha256', 'custody'}
-        _need(set(spec) == fields or (set(spec) == fields | {'finite_tool_mode'}
-              and spec['finite_tool_mode'] == 'captured-host-tools'), "Unsupported factory input fields.")
+        self._validate_spec_fields(spec, fields)
         _need(spec['custody'] == self._custody(), "Registered custody store, workspace or target binding differs.")
         _configuration(spec, self.host.worker)
         _need(spec['purpose'] == 'local-engineering', "External execution-purpose disclosure/adjudication is not wired.")
@@ -1821,8 +1955,11 @@ class RegisteredN1Factory:
                 'ledger': str(self.ledger.root), 'initial': self.host._initial, 'state_identity': self.host._state_identity}
 
     def _protected_roots(self):
-        return (self.host.target, self.host.state, self.ledger.root, self._store.directory,
-                self.host_records.root, self.host_records.audit_file)
+        roots = (self.host.target, self.host.state, self.ledger.root, self._store.directory,
+                 self.host_records.root, self.host_records.audit_file)
+        if self.qualification is not None:
+            return (*roots, qualification.campaign_directory())
+        return roots
 
     def _worker_writable_roots(self):
         return (self.host.worker, self.host.state / 'fake-server' / 'codex-home')
@@ -1845,6 +1982,8 @@ class RegisteredN1Factory:
         from cwo_core.peer_review_identity import registered_review_model
 
         self.guard()
+        _need(type(self) is not RegisteredN1Factory or self.qualification is None,
+              "Qualification dispatch evidence stays in disposable worker custody.")
         registered = registered_review_model(self.spec['provider'], self.spec['model']) or {}
         self.dispatch_record_sha256 = self.host_records.write_dispatch(
             dispatch_id=self.dispatch_id,
@@ -1857,15 +1996,48 @@ class RegisteredN1Factory:
                                  'registered_task': self.model_task_binding()},
         )
 
+    def _record_qualification_dispatch(self, session_id, response):
+        self.guard()
+        self.require_qualification_rpc()
+        self.record('qualification-dispatch', {'session_id': session_id,
+            'selection': self.spec[qualification.MODEL_SELECTION],
+            'actual_readback': {key: response[key] for key in (
+                'model', 'modelProvider', 'reasoningEffort', 'serviceTier')},
+            'operation_sha256': self.capability.operation_sha256,
+            'start': self._qualification_start})
+
     def _visible_mount_sources(self):
         scripts = Path(__file__).resolve().parent
         return (scripts, scripts.parent / 'policy', scripts.parent / 'schemas')
 
     def require_effect(self):
-        live_availability.require_n1_live()
+        self.require_launch_selection()
         attempt_id = admitted._intent(self.ledger, self.receipt)
         admission._graph_state(self.receipt, {}, self.ledger, attempt_id)
         self.guard()
+
+    def require_launch_selection(self):
+        if self.qualification is None:
+            live_availability.require_n1_live()
+            _need(qualification.MODEL_SELECTION not in self.spec, "Qualification requires its signed permit.")
+        else:
+            self._require_qualification_selection()
+
+    def _require_qualification_selection(self):
+        _need(qualification.MODEL_SELECTION in self.spec, "Qualification requires its signed model selection.")
+        request = qualification.verify_qualification_permit(self._qualification_permit, self.capability, self.verifier)
+        _need(request == self.qualification, "Qualification permit custody changed.")
+        qualification.require_available(request, self._qualification_start)
+
+    def require_qualification_rpc(self):
+        _need(self.qualification is not None and self._qualification_start is not None,
+              "The original qualification start receipt is required for model RPCs.")
+        self.require_launch_selection()
+
+    def record_qualification_start(self):
+        if self.qualification is not None:
+            _need(self._qualification_start is None, "Qualification already started this worker.")
+            self._qualification_start = qualification._campaign_start(self.qualification)
 
     def _check_configuration(self):
         for name, expected in self.spec['configuration_files'].items():
@@ -1901,16 +2073,36 @@ class RegisteredN1Factory:
                           _snapshot({'stage': stage, 'observation': observation}), 0o400)
         native._sync(directory)
 
-    def require_finite_fake_capture(self):
-        """Only the signed local fake-server mode may read captured catalog evidence."""
+    def _thread_start_parameters(self):
+        params = dict(self.spec['thread_start'], model=self.spec['model'],
+                      allowProviderModelFallback=False, cwd=str(self.host.worker),
+                      runtimeWorkspaceRoots=[str(self.host.worker)])
+        if self.spec.get('finite_tool_mode') in finite_calls.CAPTURE_MODES:
+            params.update(finite_calls.RegisteredFiniteToolCalls.thread_parameters())
+        if self.qualification is not None:
+            params.update(qualification.thread_selectors())
+        return params
+
+    def _require_finite_capture(self, mode):
         self.guard()
         server = self.server
-        _need(self.spec.get('finite_tool_mode') == 'captured-host-tools'
+        _need(self.spec.get('finite_tool_mode') == mode
               and server is not None and server.finite_tools is not None
               and server.transport_failure is None and server.connection_epoch_sha256 is not None
               and server.lifetime.receipt is not None and server.lifetime.birth is not None
               and server.lifetime.process is server.process,
               "No protected original finite capture selection is active.")
+
+    def require_finite_fake_capture(self):
+        """Require the signed local fake-server catalog selection."""
+        self._require_finite_capture(finite_calls.FAKE_CAPTURE_MODE)
+
+    def require_finite_live_capture(self):
+        """Require the signed live qualification and original app-server."""
+        _need(self.qualification is not None and type(self.server) is _RegisteredServer,
+              "Live finite capture requires the original qualification selection.")
+        self.require_launch_selection()
+        self._require_finite_capture(finite_calls.LIVE_CAPTURE_MODE)
 
     def decide_finite_tool(self, tool, params):
         """Fresh protected decision for each actual dynamic command or poll."""
@@ -1918,7 +2110,7 @@ class RegisteredN1Factory:
         server = self.server
         producer = None if server is None else server.finite_tools
         call = params.get('callId') if type(params) is dict else None
-        if (self.spec.get('finite_tool_mode') != 'captured-host-tools'
+        if (self.spec.get('finite_tool_mode') not in finite_calls.CAPTURE_MODES
                 or producer is None or producer.state not in {'registered', 'active'}
                 or type(call) is not str or call in self._finite_approved_calls
                 or len(self._finite_approved_calls) >= 256 or tool != params.get('tool')
@@ -1932,7 +2124,7 @@ class RegisteredN1Factory:
             if not producer._current(params):
                 raise native.OfflineHostError('Finite tool decision expired before issuance.')
             self._finite_approved_calls.add(call)
-        return importlib.import_module('registered_finite_tool_calls').issue_finite_tool_decision(self, tool, params)
+        return finite_calls.issue_finite_tool_decision(self, tool, params)
 
     def _finite_tool_shape(self, params):
         tool, args = params.get('tool'), params.get('arguments')
@@ -1996,6 +2188,9 @@ class RegisteredN1Factory:
         # exact bytes before validation can produce any authorization.
         return_bytes = native._read(self.host.state, 'operation.json', native.MAX_RECORD_BYTES)
         _need(json.loads(return_bytes) == report, "The received native return differs from host custody.")
+        if type(self) is RegisteredN1Factory and self.qualification is not None:
+            self.record('qualification-return', {'return_sha256': hashlib.sha256(return_bytes).hexdigest()})
+            return
         if self.review_target is None:
             self.return_record_sha256 = record_received_return(self.host_records, self.dispatch_id, return_bytes)
         else:
@@ -2091,7 +2286,7 @@ class RegisteredN1Factory:
         self.record('validated', {'artifact': report['artifact']['sha256'], 'policy': self.policy.report})
 
     def run(self):
-        live_availability.require_n1_live()
+        self.require_launch_selection()
         with self._lock:
             if self._started:
                 _need(self.result is not None, "Unknown execution requires reconciliation, never redispatch.")
@@ -2138,6 +2333,7 @@ class RegisteredN1Factory:
         _need(type(report) is dict, "The original invocation observation is required.")
 
     def issued_artifact(self):
+        _need(self.qualification is None, "Qualification output stays in disposable worker custody.")
         _need(self.result is not None and self.token is not None, "No accepted output is available.")
         self.guard()
         validation.consume_validated(self.host, self.token, self.execution, self.host._initial['target'], self.policy)
@@ -2173,6 +2369,25 @@ class RegisteredN1Factory:
 
 
 _FACTORY_METHODS = admitted._method_table(RegisteredN1Factory)
+
+
+def _require_launch_selection(factory):
+    if type(factory) is RegisteredN1Factory:
+        RegisteredN1Factory.require_launch_selection(factory)
+    else:
+        live_availability.require_n1_live()
+
+
+def _record_appserver_start(factory, role):
+    if role == 'appserver' and type(factory) is RegisteredN1Factory:
+        RegisteredN1Factory.record_qualification_start(factory)
+
+
+def _qualification_operation_metadata(factory):
+    if type(factory) is RegisteredN1Factory and factory.qualification is not None:
+        return {'cwo_bead': qualification.CAMPAIGN, 'cwo_mission': qualification.CAMPAIGN,
+                'cwo_control_turn': factory.operation_id}
+    return None
 
 
 def require_factory(factory, host):

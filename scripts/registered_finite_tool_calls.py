@@ -1,8 +1,8 @@
-"""Finite host-owned dynamic tools for the registered N=1 fake-server route.
+"""Finite host-owned dynamic tools for the registered N=1 transport.
 
-The app-server's native shell and write_stdin are not mediated here. A caller
-must provide an exact loopback Responses capture before a turn; any catalog
-containing those builtins refuses registration. Native tool qualification remains separate.
+Offline registration requires the fake server's exact Responses capture. Live
+qualification uses the original app-server exchange and records finite tool
+input at the owned pipe. Native builtin shell and write_stdin are separate.
 """
 from __future__ import annotations
 
@@ -39,6 +39,9 @@ _SCHEMAS = {_COMMAND: _COMMAND_SCHEMA, _POLL: _POLL_SCHEMA}
 _CAPTURE_NAME = 'finite-tool-capture.json'
 _CAPTURE_TOKEN = object()
 _DECISION_TOKEN = object()
+FAKE_CAPTURE_MODE = 'captured-host-tools'
+LIVE_CAPTURE_MODE = 'captured-live-host-tools'
+CAPTURE_MODES = frozenset({FAKE_CAPTURE_MODE, LIVE_CAPTURE_MODE})
 
 
 def _canonical(value):
@@ -88,11 +91,11 @@ def _unique_object(pairs):
 
 
 class CapturedToolSurface:
-    """One-use offline observation, issued from the owned fake server spool."""
+    """One-use observation bound to the selected owned app-server lifetime."""
 
     def __init__(self, token, server, lifetime, epoch, raw, identity):
         if token is not _CAPTURE_TOKEN:
-            raise FiniteToolError('A protected fake-server observation is required.')
+            raise FiniteToolError('A protected tool observation is required.')
         self.server, self.lifetime, self.epoch = server, lifetime, epoch
         self._raw = raw
         self.identity = identity
@@ -161,7 +164,7 @@ class _RegistrationObservation:
     source: object
     epoch: str
     raw: bytes
-    identity: tuple
+    identity: object
     catalog_sha256: str
     generation: int
 
@@ -199,6 +202,7 @@ class RegisteredFiniteToolCalls:
     def __init__(self, server):
         self.server = server
         self.factory = server.factory
+        self.live_capture = self.factory.spec.get('finite_tool_mode') == LIVE_CAPTURE_MODE
         self.lock = threading.RLock()
         self.state = 'unregistered'
         self.epoch = None
@@ -218,13 +222,40 @@ class RegisteredFiniteToolCalls:
         """The pinned experimental thread/start.dynamicTools wire field."""
         return {'dynamicTools': _tool_specs()}
 
-    def _expected_start(self):
-        expected = dict(self.factory.spec['thread_start'], model=self.factory.spec['model'],
-                        allowProviderModelFallback=False,
-                        cwd=str(self.factory.host.worker),
-                        runtimeWorkspaceRoots=[str(self.factory.host.worker)])
-        expected.update(self.thread_parameters())
-        return expected
+    def _require_capture_source(self):
+        if self.live_capture:
+            self.factory.require_finite_live_capture()
+        else:
+            self.factory.require_finite_fake_capture()
+
+    def _read_capture(self):
+        if not self.live_capture:
+            return _read_capture_file(Path(self.factory.home) / _CAPTURE_NAME)
+        server = self.server
+        evidence = server._effective_thread_start_evidence.get(server.thread_id)
+        if type(evidence) is not dict or set(evidence) != {'request', 'response'}:
+            raise FiniteToolError('The original app-server thread exchange is unavailable.')
+        raw = _canonical({'start': evidence['request'], 'response': evidence['response']})
+        if not 0 < len(raw) <= 65536:
+            raise FiniteToolError('The original app-server thread exchange exceeds its bound.')
+        return raw, evidence
+
+    def _same_capture_identity(self, left, right):
+        return left is right if self.live_capture else left == right
+
+    def _open_capture(self):
+        if not self.live_capture:
+            return read_fake_server_capture(self.server)
+        raw, identity = self._read_capture()
+        return CapturedToolSurface(_CAPTURE_TOKEN, self.server, self.server.lifetime,
+                                   self.server.connection_epoch_sha256, raw, identity)
+
+    def _catalog_digest(self, start, payload):
+        if self.live_capture:
+            if start.get('dynamicTools') != _tool_specs():
+                raise FiniteToolError('The original app-server tool registration differs.')
+            return _digest(start['dynamicTools'])
+        return require_exact_capture(self.factory.spec['model'], payload['request'])
 
     def _require_capture_binding(self, start, response, captured):
         # The bounded file read and JSON validation may block. Neither the
@@ -239,14 +270,15 @@ class RegisteredFiniteToolCalls:
             if gate.state != 'unselected' or gate.capture_phase != 'unselected':
                 raise FiniteToolError('Finite registration was revoked before capture observation.')
             generation = gate.generation
-        raw, identity = _read_capture_file(Path(self.factory.home) / _CAPTURE_NAME)
-        if (identity != captured.identity or hashlib.sha256(raw).hexdigest() != captured.raw_sha256
+        raw, identity = self._read_capture()
+        if (not self._same_capture_identity(identity, captured.identity)
+                or hashlib.sha256(raw).hexdigest() != captured.raw_sha256
                 or raw != captured._raw):
             raise FiniteToolError('The captured catalog changed before registration.')
         payload = captured.payload
         if payload['start'] != start or payload['response'] != response:
             raise FiniteToolError('Captured startup or source binding differs.')
-        catalog = require_exact_capture(self.factory.spec['model'], payload['request'])
+        catalog = self._catalog_digest(start, payload)
         return _RegistrationObservation(captured, self.server, self.factory,
                                         captured.lifetime, self.factory._source,
                                         captured.epoch, raw, identity, catalog, generation)
@@ -260,11 +292,12 @@ class RegisteredFiniteToolCalls:
                 and captured.server is self.server
                 and captured.lifetime is observed.lifetime
                 and captured.epoch == observed.epoch == self.server.connection_epoch_sha256
-                and captured._raw == observed.raw and captured.identity == observed.identity)
+                and captured._raw == observed.raw
+                and self._same_capture_identity(captured.identity, observed.identity))
 
     def _startup_current(self, observed, start, response):
         thread = response.get('thread') if type(response) is dict else None
-        return (start == self._expected_start()
+        return (start == self.factory._thread_start_parameters()
                 and response == self.server._profile_response
                 and type(thread) is dict and _text(thread.get('id'))
                 and thread.get('turns') == []
@@ -330,25 +363,30 @@ class RegisteredFiniteToolCalls:
                 and self._capture_observation_current(observed)
                 and self._startup_current(observed, start, response))
 
-    def register(self, start, response, captured_request):
+    def _record_catalog(self, observed):
+        detail = {'start_sha256': self.start_sha256, 'catalog_sha256': observed.catalog_sha256,
+                  'thread': self.thread, 'epoch': self.epoch}
+        if self.live_capture:
+            detail.update(source='registered-app-server', exchange_sha256=self.capture_sha256)
+        self.factory.record('finite-tool-catalog', detail)
+
+    def register(self, start, response):
         """Publish a real captured catalog only after the reader can still fault.
 
         File and original-authority observations happen outside both state
         locks. Each publication uses a short in-memory commit fence.
         """
-        self.factory.require_finite_fake_capture()
+        self._require_capture_source()
         self.factory.require_effect()
         self.factory.guard()
-        observed = self._require_capture_binding(start, response, captured_request)
-        self.factory.require_finite_fake_capture()
+        observed = self._require_capture_binding(start, response, self._open_capture())
+        self._require_capture_source()
         self.factory.require_effect()
         self.factory.guard()
         self._begin_registration(observed, start, response)
         try:
-            self.factory.record('finite-tool-catalog', {
-                'start_sha256': self.start_sha256, 'catalog_sha256': observed.catalog_sha256,
-                'thread': self.thread, 'epoch': self.epoch})
-            self.factory.require_finite_fake_capture()
+            self._record_catalog(observed)
+            self._require_capture_source()
             self.factory.require_effect()
             self.factory.guard()
         except BaseException:
@@ -456,11 +494,12 @@ class RegisteredFiniteToolCalls:
             self.launch_decision = None
 
     def _require_capture_current(self):
-        self.factory.require_finite_fake_capture()
-        raw, identity = _read_capture_file(Path(self.factory.home) / _CAPTURE_NAME)
-        if (identity != self.capture_identity
+        self._require_capture_source()
+        raw, identity = self._read_capture()
+        if (not self._same_capture_identity(identity, self.capture_identity)
                 or hashlib.sha256(raw).hexdigest() != self.capture_sha256):
-            raise FiniteToolError('Captured fake-server catalog changed after registration.')
+            surface = 'app-server exchange' if self.live_capture else 'fake-server catalog'
+            raise FiniteToolError(f'Captured {surface} changed after registration.')
 
     @staticmethod
     def _params(message):
@@ -509,6 +548,8 @@ class RegisteredFiniteToolCalls:
                 call=call)
             if params['tool'] == _COMMAND:
                 data = self._command(params, deadline, decision)
+            elif self.live_capture:
+                data = self._poll_input(params, deadline, request=request)
             else:
                 data = self._poll(params, deadline)
             self._require_call_current(params)
@@ -642,8 +683,12 @@ class RegisteredFiniteToolCalls:
             raise
 
     def _poll(self, params, deadline):
+        return self._poll_input(params, deadline)
+
+    def _poll_input(self, params, deadline, *, request=None):
         self._require_deadline(deadline)
-        self.server.finite_input.observe_process()
+        gate = self.server.finite_input
+        gate.observe_process()
         args = params['arguments']
         if (set(args) != {'commandCallId', 'chars'}
                 or args['commandCallId'] != self.command_call_id
@@ -652,14 +697,19 @@ class RegisteredFiniteToolCalls:
             raise FiniteToolError('Poll command or byte shape differs.')
         chars = args['chars'].encode('utf-8')
         # The exact original bytes reach the invocation gate before any process input.
-        ticket = self.server.finite_input.reserve(
+        capture_arguments = {}
+        if request is not None:
+            capture_arguments['captured'] = gate.capture_poll_input(request, params, chars)
+        ticket = gate.reserve(
             chars, thread_id=params['threadId'], turn_id=params['turnId'],
             item_id=self.command_call_id, approval_id=params['callId'],
-            deadline=min(deadline, time.monotonic() + 1))
-        self.server.finite_input.lifecycle.move('poll-observe', call=params['callId'])
-        observation = self.server.finite_input.poll(ticket)
+            deadline=min(deadline, time.monotonic() + 1), **capture_arguments)
+        gate.lifecycle.move('poll-observe', call=params['callId'])
+        observation = gate.poll(ticket)
         if observation['stdin_bytes'] != b'' or type(observation['running']) is not bool:
             raise FiniteToolError('Finite poll observation differs.')
+        if request is not None:
+            gate.record_poll_input(capture_arguments['captured'], 'empty-poll', observation['stdin_bytes'])
         return observation
 
     def _read_output(self, deadline, params):

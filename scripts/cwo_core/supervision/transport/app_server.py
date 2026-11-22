@@ -97,6 +97,8 @@ _HOST_MODEL_CONTEXT_METHODS = frozenset({
     "thread/fork", "thread/goal/set", "thread/inject_items", "thread/attachment/add",
     "thread/metadata/update",
 })
+_QUALIFICATION_RPC = _IdentityCapabilityRegistry()
+_QUALIFICATION_EFFECT_RPCS = frozenset({"thread/start", "turn/start"})
 
 
 def _prepare_native_frame(payload, method):
@@ -207,11 +209,28 @@ def _explicit_launch_home(executable, codex_home) -> Path:
     return Path(codex_home).resolve()
 
 
-def _require_native_rpc(method: str) -> None:
+def _require_native_rpc(method: str, transport=None) -> None:
     """Keep only the reviewed containment RPCs usable under the closed hold."""
     if method not in {"initialize", "initialized", "thread/read", "turn/interrupt", "thread/archive",
                       "thread/delete", "model/list", "mcpServerStatus/list"}:
-        live_availability.require_n1_live()
+        binding = _QUALIFICATION_RPC.get(transport)
+        if binding is None:
+            live_availability.require_n1_live()
+        elif method in _QUALIFICATION_EFFECT_RPCS:
+            binding[0]()
+        else:
+            raise live_availability.NativeLiveUnavailable("native-qualification-rpc-unavailable")
+
+
+def _qualification_wire_guard(transport, method, payload):
+    binding = _QUALIFICATION_RPC.get(transport)
+    if binding is not None and method in _QUALIFICATION_EFFECT_RPCS:
+        binding[1](method, payload)
+
+
+def _qualification_turn_options(transport):
+    binding = _QUALIFICATION_RPC.get(transport)
+    return {} if binding is None else {"serviceTier": binding[2]}
 
 
 def _explicit_probe_binding(executable, codex_home, requested_model, catalog):
@@ -578,7 +597,7 @@ class AppServer:
             if remaining <= 0:
                 self._write_fault("app-server-request-write-timeout:" + method)
             try:
-                _require_native_rpc(method)
+                _require_native_rpc(method, self)
             except live_availability.NativeLiveUnavailable as exc:
                 self._write_fault(str(exc))
             frame = self._checked_write_frame(binding, frame, deadline, method)
@@ -596,6 +615,7 @@ class AppServer:
     def _write_payload(self, payload, *, method, timeout):
         """Serialize frames while releasing the reader lock under backpressure."""
         deadline = time.monotonic() + timeout
+        _qualification_wire_guard(self, method, payload)
         frame, binding = _prepare_native_frame(payload, method)
         while getattr(self, "_wire_writing", False):
             self._raise_reader_fault()
@@ -931,7 +951,7 @@ class AppServer:
         assert self.process.stdin is not None
         with self._condition:
             self._raise_reader_fault()
-            _require_native_rpc(method)
+            _require_native_rpc(method, self)
             self._write_payload(payload, method=method, timeout=1)
 
     def request(
@@ -941,7 +961,7 @@ class AppServer:
         *,
         timeout: float = 30,
     ) -> tuple[dict[str, Any], float]:
-        _require_native_rpc(method)
+        _require_native_rpc(method, self)
         assert self.process.stdin is not None
         with self._condition:
             self._raise_reader_fault()
@@ -954,7 +974,7 @@ class AppServer:
                     self._mcp_endpoint_fault = "app-server-mcp-reload-forbidden"
                     raise AppServerError(self._mcp_endpoint_fault)
             started = time.monotonic_ns()
-            _require_native_rpc(method)
+            _require_native_rpc(method, self)
             deadline = self._write_payload(payload, method=method, timeout=timeout)
             while request_id not in self._responses:
                 remaining = deadline - time.monotonic()
@@ -1001,7 +1021,7 @@ class AppServer:
     ) -> tuple[dict[str, Any], float, dict[str, Any], int, str]:
         """Issue one non-replayable wire request after an in-lock guard."""
 
-        _require_native_rpc(method)
+        _require_native_rpc(method, self)
         assert self.process.stdin is not None
         with self._condition:
             if self.process.poll() is not None:
@@ -1026,7 +1046,7 @@ class AppServer:
             started = time.monotonic_ns()
             # There is one wire frame. Partial writes never become a replay,
             # reconnect, redirect or timeout retry.
-            _require_native_rpc(method)
+            _require_native_rpc(method, self)
             try:
                 deadline = self._write_payload(payload, method=method, timeout=timeout)
             except (OSError, AppServerError) as exc:
@@ -2201,7 +2221,7 @@ class AppServer:
     ) -> tuple[dict[str, Any], float]:
         """Write ``turn/start`` exactly once and contain uncertain outcomes."""
 
-        live_availability.require_n1_live()
+        _require_native_rpc("turn/start", self)
         if getattr(self, "_mcp_guard_required", False):
             self.require_zero_mcp_endpoints(thread_id)
             self._mcp_finalized_threads.discard(thread_id)
@@ -2237,6 +2257,7 @@ class AppServer:
                 "cwo_control_turn": CONTROL_TURN_ID,
             }),
         }
+        params.update(_qualification_turn_options(self))
         ledger_id, ledger_head, intent_entry = self._turn_intent_ledger_link(
             turn_intent_id
         )
@@ -2311,7 +2332,7 @@ class AppServer:
                     raise
             self._require_mcp_guard(thread_id)
             started = time.monotonic_ns()
-            live_availability.require_n1_live()
+            _require_native_rpc("turn/start", self)
             write_error = None
             try:
                 assert self.process.stdin is not None

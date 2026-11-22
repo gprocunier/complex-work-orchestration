@@ -506,6 +506,9 @@ class RpcProcess(children.FakeChild):
                 case.test.assertTrue(self.diagnostic_written.wait(2))
             response = scenario.thread_response(mutable=True)
             response.update(case.spec['profile_readback'], model=case.spec['model'], modelProvider=case.spec['provider'])
+            if runtime.qualification.MODEL_SELECTION in case.spec:
+                response.update(reasoningEffort=case.spec['effort'], serviceTier=params['serviceTier'])
+                response['thread']['ephemeral'] = params['ephemeral']
             response.pop('sandbox')
             if case.drift:
                 response['activePermissionProfile']['id'] = 'EXAMPLE_FALLBACK'
@@ -1404,14 +1407,25 @@ class FactoryTests(unittest.TestCase):
                 'configuration_pins': {'w14': 'EXAMPLE-reported-config', 'w15': 'EXAMPLE-reported-profile'},
                 'validation_policy': policy.report, 'max_steps': changes.pop('max_steps', 64), 'purpose': 'local-engineering',
                 'implementation_sha256': runtime.implementation_sha256()}
-        finite_tool_mode = changes.pop('finite_tool_mode', None)
+        is_qualification = changes.pop('qualification', False)
+        if is_qualification:
+            spec = runtime.qualification.bind_model_selection(spec)
+            spec['thread_start'].update(approvalPolicy='never', ephemeral=False)
+            spec['profile_readback']['approvalPolicy'] = 'never'
+        finite_tool_mode = changes.pop('finite_tool_mode',
+            'captured-live-host-tools' if is_qualification else None)
         if finite_tool_mode is not None:
             spec['finite_tool_mode'] = finite_tool_mode
+        approval = spec['thread_start']['approvalPolicy']
+        access = 'read' if is_qualification else 'write'
         spec['configuration_files'] = {'rules/default.rules': '', 'config.toml':
-            'default_permissions = "EXAMPLE_ROOT_DENY"\napproval_policy = "untrusted"\napprovals_reviewer = "user"\n'
+            f'default_permissions = "EXAMPLE_ROOT_DENY"\napproval_policy = "{approval}"\napprovals_reviewer = "user"\n'
             f'model = "{spec["model"]}"\nmodel_reasoning_effort = "xhigh"\nservice_tier = "default"\n'
             '[permissions.EXAMPLE_ROOT_DENY.filesystem]\n"/" = "deny"\n'
-            + json.dumps(str(host.worker)) + ' = "write"\n[permissions.EXAMPLE_ROOT_DENY.network]\nenabled = false\n'}
+            + json.dumps(str(host.worker)) + f' = "{access}"\n[permissions.EXAMPLE_ROOT_DENY.network]\nenabled = false\n'}
+        if is_qualification:
+            spec['configuration_files']['config.toml'] += ('[features]\n'
+                + ''.join(f'{feature} = false\n' for feature in runtime.qualification.disabled_features()))
         for key in ('executable', 'launcher', 'validator'):
             spec[key + '_sha256'] = runtime._file(spec[key])[1]
         spec['custody'] = {'state': str(host.state), 'worker': str(host.worker), 'target': str(host.target),
@@ -1442,13 +1456,16 @@ class FactoryTests(unittest.TestCase):
                                receipt=receipt, node_id=node['id'], ledger=ledger, policy=policy,
                                drift=False, bad_output=False, approval_change={}, probe_approvals=[], repeat_approval=False,
                                archive_fault=False, raced_approval=False, archive_frame_fault=False, on_startup=None,
-                               materialize_on_turn_start=finite_tool_mode == 'captured-host-tools',
+                               materialize_on_turn_start=finite_tool_mode is not None,
                                effect_schedule=effect_schedule, effect_spy=RegisteredEffectSpy(),
                                effect_responses={}, ordinary_error=None, useful_output_before_followup=None)
         for key, value in changes.items():
             setattr(case, key, value)
         self._boundaries(case)
         self._authority(case)
+        case.qualification_permit = None
+        if is_qualification:
+            self._prepare_qualification(case)
         if archive_schedule == 'settled':
             settle_original_archive(self, case)
         return case
@@ -1472,10 +1489,28 @@ class FactoryTests(unittest.TestCase):
         plan['selected_model'] = case.spec['model']
         plan['children'][0]['requested_model'] = case.spec['model']
         operation['model'] = case.spec['model']
+        if runtime.qualification.MODEL_SELECTION in case.spec:
+            plan['required_session_count'] = plan['budget']['reserved_sessions'] = 1
+            operation['reservation']['sessions'] = 1
         directive = a.reseal(plan, operation)
         case.capability = a.verifier.verify_operation(plan, operation, directive)
         case.capability.claim()
         case.verifier = a.verifier
+
+    def _prepare_qualification(self, case):
+        self.enterContext(patch.object(runtime.live_availability, 'N1_LIVE_AVAILABLE', False))
+        directory = case.host.state.parent / runtime.qualification.CAMPAIGN
+        self.enterContext(patch.object(runtime.qualification, '_campaign_directory', return_value=directory))
+        runtime.qualification.initialize_campaign()
+        case.qualification_permit = self.qualification_permit(case)
+
+    def qualification_permit(self, case, **kwargs):
+        a = self.authority
+        kwargs.setdefault('expires_at', int(time.time()) + 60)
+        return runtime.qualification.sign_qualification_permit(
+            operation_sha256=case.capability.operation_sha256,
+            verification_key=a.key, actor_id=a.actor, identity_source=a.identity,
+            mission_directive_sha256=authorities.canonical_authority_sha256(a.directive), **kwargs)
 
     def namespace_text(self, original_text, path, *args, **kwargs):
         if path.parent == Path('/proc/self/fdinfo') and int(path.name) in self.namespace_handles:
@@ -1609,6 +1644,7 @@ class FactoryTests(unittest.TestCase):
         self.enterContext(patch.object(runtime.select, 'select', select))
 
     def factory(self, case, **options):
+        options.setdefault('qualification_permit', case.qualification_permit)
         factory = runtime.RegisteredN1Factory(case.capability, case.verifier, receipt=case.receipt,
             route=case.route, node_id=case.node_id, ledger=case.ledger, host=case.host, policy=case.policy,
             **options)
