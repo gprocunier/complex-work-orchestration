@@ -18,7 +18,8 @@ from cwo_core.coach import coach_orchestration_prompt  # noqa: E402
 from cwo_core.errors import CWOPolicyError  # noqa: E402
 from tests.historical_policy_fixtures import historical_v2_policy  # noqa: E402
 from tests.test_routing_current_authority import synthetic_authority, NOW  # noqa: E402
-from cwo_core.operative_routing import TERRA_MODEL, build_task_selected_fit  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
+from cwo_core.operative_routing import TASK_SELECTED_VERSION, build_task_selected_fit  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 
 RETIRED_FIELD = "beads_" + "briefing_depth"
@@ -156,7 +157,7 @@ def qualified_current_coach(prompt: str, **kwargs):
     classification = classify_work(prompt, **kwargs)
     authority = synthetic_authority()
     if classification["risk_level"] == "high":
-        authority = synthetic_authority(TERRA_MODEL)
+        authority = synthetic_authority(resolve_model("terra"))
         fit = build_task_selected_fit(
             **authority["fit_inputs"], risk_level=classification["risk_level"],
             data_sensitivity=classification["data_sensitivity"], evaluated_at=NOW,
@@ -435,7 +436,7 @@ def _prompt_coach_rows() -> Iterator[PromptCoachCase]:
     ))
 
     yield PromptCoachCase('test_active_default_missing_authority_is_not_native_spark_advice', "Use Spark workerbees for docs and validation.", {}, (
-        Check(lambda result: result['operative_route']['version'], 3),
+        Check(lambda result: result['operative_route']['version'], TASK_SELECTED_VERSION),
         Check(lambda result: result['operative_route']['dispatch_authorized'], None, 'false'),
         Check(lambda result: result['operative_route']['stop_reason'], 'current-authority-missing'),
         Check(lambda result: result['workerbee_planned_delegation']['mode'], 'blocked'),
@@ -694,13 +695,13 @@ class PromptCoachTests(unittest.TestCase):
             "Do a deep second pass on docs, GitHub Pages flow, routing policy, and tests."
         )
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
-        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.6-luna")
+        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], resolve_model("luna"))
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
         self.assertNotIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
-        self.assertIn("workerbee-dispatch-route=task-selected-v3", result["enabled_levers"])
+        self.assertIn(f"workerbee-dispatch-route=task-selected-v{TASK_SELECTED_VERSION}", result["enabled_levers"])
         self.assertNotIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
-        self.assertIn("gpt-5.6-luna", result["paste_ready_prompt"])
+        self.assertIn(resolve_model("luna"), result["paste_ready_prompt"])
         self.assertNotIn("Codex 5.3 Spark", result["paste_ready_prompt"])
         worker_questions = [
             item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
@@ -730,7 +731,7 @@ class PromptCoachTests(unittest.TestCase):
         self.assertTrue(result["workerbee_parallelism"]["prompt_user_in_plan_mode"])
         self.assertIn("workerbee-parallelism=review-only", result["enabled_levers"])
         self.assertNotIn("workerbee-dispatch-route=native-spark", result["enabled_levers"])
-        self.assertIn("workerbee-dispatch-route=task-selected-v3", result["enabled_levers"])
+        self.assertIn(f"workerbee-dispatch-route=task-selected-v{TASK_SELECTED_VERSION}", result["enabled_levers"])
         self.assertNotIn("codex-5.3-spark-workerbees-native-first", result["enabled_levers"])
         worker_questions = [
             item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"
@@ -759,7 +760,7 @@ class PromptCoachTests(unittest.TestCase):
         )
         self.assertEqual(result["route"]["risk_level"], "high")
         self.assertEqual(result["operative_route"]["stop_reason"],
-                         "current-authority-bound-model-not-qualified")
+                         "current-authority-bound-model-ineligible")
         self.assertFalse(result["operative_route"]["dispatch_authorized"])
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "blocked")
         self.assertIsNone(result["workerbee_parallelism"]["recommended_model"])
@@ -1319,7 +1320,7 @@ class PromptCoachTests(unittest.TestCase):
             "Use review-only workerbees to inspect docs and run a second pass on GitHub Pages tests."
         )
         self.assertEqual(result["workerbee_parallelism"]["recommended_mode"], "review-only")
-        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], "gpt-5.6-luna")
+        self.assertEqual(result["workerbee_parallelism"]["recommended_model"], resolve_model("luna"))
         self.assertFalse(result["workerbee_parallelism"]["spark_operational_worker"])
         worker_questions = [item for item in result["interactive_questions"] if item["id"] == "workerbee_parallelism"]
         self.assertEqual(worker_questions[0]["options"][0]["value"], "review-subagents")

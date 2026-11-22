@@ -23,7 +23,7 @@ from .beads_ready_set import (
     build_ready_set_evidence,
     canonical_json_sha256,
 )
-from .model_identities import SPARK_MODEL
+from .model_identities import resolve_model
 from .native_activation_ledger import (
     NativeActivationLedgerError,
     activation_iso,
@@ -86,7 +86,6 @@ RESULT_TYPE = "cwo-native-tool-activation-result"
 RESULT_VERSION = 2
 RESULT_SCHEMA = "schemas/native-tool-activation-result-v2.schema.json"
 KEY_NAME = "activation-preview.key"
-MODEL = SPARK_MODEL
 MUTABLE_PATCH_INPUT = (
     "*** Begin Patch\n"
     "*** Update File: targets/activation.txt\n"
@@ -563,7 +562,7 @@ def _work_plan(
             "version": 1,
             "work_unit_id": f"activation-preview-{ordinal}-{bead_id}",
             "bead_id": bead_id,
-            "requested_model": MODEL,
+            "requested_model": resolve_model("luna"),
             "primary_outcome": "complete one fixed activation preview task",
             "expected_artifacts": ["trusted terminal evidence"],
             "expert_profiles": ["operative-certification"],
@@ -603,10 +602,10 @@ def _worker_commitment(plan: Mapping[str, Any], bead_id: str) -> dict[str, Any]:
         "version": 1,
         "work_unit_id": plan["work_unit_id"],
         "bead_id": bead_id,
-        "requested_model": MODEL,
+        "requested_model": plan["requested_model"],
         "session_id": f"activation-preview-plan-{bead_id}",
         "attestation_source": "trusted-session-jsonl",
-        "attested_model": MODEL,
+        "attested_model": plan["requested_model"],
         "work_estimate_sha256": canonical_work_estimate_sha256(plan),
         "decision": "accept",
         "confidence": 1.0,
@@ -639,6 +638,7 @@ def _admission_metadata(
         write_paths=write_paths,
         policy=policy,
     )
+    model = plan["requested_model"]
     mutable = bool(write_paths)
     tool_policy = default_tool_policy(
         mutable=mutable,
@@ -653,14 +653,14 @@ def _admission_metadata(
     )
     session_id = f"activation-preview-capability-{bead_id}"
     capability_evidence = {
-        "requested_model": MODEL,
-        "configured_model": MODEL,
+        "requested_model": model,
+        "configured_model": model,
         "advertised": True,
-        "advertised_models": [MODEL],
+        "advertised_models": [model],
         "spawn_accepted": True,
         "canary_session_id": session_id,
         "attestation_source": "trusted-session-jsonl",
-        "attested_model": MODEL,
+        "attested_model": model,
         "tool_calls": 0,
         "context_compactions": 0,
         "runtime_seconds": 0.001,
@@ -680,7 +680,7 @@ def _admission_metadata(
     expires = issued_at + dt.timedelta(minutes=30)
     capability_receipt = build_native_capability_receipt(
         capability_evidence,
-        [MODEL],
+        [model],
         activation_iso(issued_at),
         activation_iso(expires),
         session_authority=capability_authority,

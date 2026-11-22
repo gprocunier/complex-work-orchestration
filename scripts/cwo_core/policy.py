@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import UnknownExecutorError
+from .model_identities import resolve_model
 from .paths import POLICY_DIR
 from .policy_schema import canonical_policy_filename, strict_json_loads, validate_policy_document
 from .util import rank_allows, rank_max, term_hits
@@ -173,11 +174,29 @@ def executor_config(executor_key: str, registry: dict[str, Any] | None = None) -
     executor = data.get("executors", {}).get(canonical)
     if not isinstance(executor, dict):
         raise UnknownExecutorError(f"unknown executor {executor_key!r}; see policy/executor-registry.yaml")
-    value = dict(executor)
+    value = project_executor_model(canonical, executor) if registry is None else dict(executor)
     value.setdefault("key", canonical)
     if canonical != executor_key:
         value["requested_key"] = executor_key
         value["canonical_key"] = canonical
+    return value
+
+
+_EXECUTOR_CODEX_MODELS = {
+    "frontier_architect": ("sol", "Codex Sol main architect"),
+    "codex_architecture_critic": ("sol", "Codex Sol architecture critic"),
+    "internal_worker_luna": ("luna", "Codex Luna operative worker"),
+    "internal_worker_terra": ("terra", "Codex Terra escalation worker"),
+}
+
+
+def project_executor_model(executor_key: str, executor: dict[str, Any]) -> dict[str, Any]:
+    """Project current Codex metadata without replacing the recorded registry snapshot."""
+    value = dict(executor)
+    binding = _EXECUTOR_CODEX_MODELS.get(executor_key)
+    if binding is not None and value.get("provider_key") == "internal_codex":
+        role, display_name = binding
+        value.update(model_label=resolve_model(role), display_name=display_name)
     return value
 
 
@@ -390,10 +409,10 @@ def load_contracting_controls() -> dict[str, Any]:
 
 
 def executor_external(executor_key: str) -> bool:
-    executor = executor_config(executor_key)
+    executor = executor_config(executor_key, load_policy("executor-registry"))
     return bool(executor.get("external"))
 
 
 def executor_dispatch_mode(executor_key: str) -> str:
-    executor = executor_config(executor_key)
+    executor = executor_config(executor_key, load_policy("executor-registry"))
     return str(executor.get("dispatch_mode", ""))

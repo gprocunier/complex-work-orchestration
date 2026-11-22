@@ -12,6 +12,7 @@ from typing import Callable, Literal, NamedTuple
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from cwo_core.model_identities import resolve_model  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 from route_work import print_human  # noqa: E402
 
@@ -172,7 +173,7 @@ class RouteWorkTests(unittest.TestCase):
                         RouteCheck(lambda result: result['requested_architecture_critic_executors'], 'codex_architecture_critic', 'contains'),
                         RouteCheck(lambda result: result['model_synthesis']['synthesis_owner'], 'rhoai_glm_primary_architect'),
                         RouteCheck(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['codex_architecture_critic']['role'], 'architecture-counter-review'),
-                        RouteCheck(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['codex_architecture_critic']['effort'], 'codex-5.6-sol'),
+                        RouteCheck(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['codex_architecture_critic']['effort'], resolve_model('astra')),
                         RouteCheck(lambda result: {item['executor']: item for item in result['model_synthesis']['recommended_panel']}['rhoai_glm_primary_architect']['role'], 'primary-architect'),
                     )),
                 ),
@@ -185,8 +186,8 @@ class RouteWorkTests(unittest.TestCase):
                         RouteCheck(lambda result: result['execution_environment'], 'connected-codex'),
                         RouteCheck(lambda result: result['architecture_authority'], 'codex-frontier-architect'),
                         RouteCheck(lambda result: result['primary_architect_executor'], 'frontier_architect'),
-                        RouteCheck(lambda result: result['selected_executor']['model_label'], 'codex-5.6-sol'),
-                        RouteCheck(lambda result: result['execution_environment_profile']['role_bindings']['architect']['model'], 'gpt-6.1-sol'),
+                        RouteCheck(lambda result: result['selected_executor']['model_label'], resolve_model('sol')),
+                        RouteCheck(lambda result: result['execution_environment_profile']['role_bindings']['architect']['model'], resolve_model('sol')),
                         RouteCheck(lambda result: result['recommended_executor'], 'rhoai_glm_primary_architect', 'not-equal'),
                     )),
                 ),

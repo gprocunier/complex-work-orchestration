@@ -13,7 +13,7 @@
         "failed_native_capability_check_justification"
       ],
       "properties": {
-        "status": {"enum": ["not-applicable", "native-first", "task-selected-v3", "hard-stop"]},
+        "status": {"enum": ["not-applicable", "native-first", "task-selected-v3", "task-selected-v4", "hard-stop"]},
         "requested_model": {"type": "string"},
         "requested_route": {"type": "string"},
         "failed_native_capability_check": {"type": "string"},

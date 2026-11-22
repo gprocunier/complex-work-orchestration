@@ -1,12 +1,4 @@
-"""The exact model identities named by current runtime code are defined once.
-
-Current model aliases and defaults are centralized while recording resolved exact
-identities, without substituting a model for an exact request or renaming frozen literals.
-``cwo_core.model_identities`` holds each exact identity once; current runtime modules import it
-instead of repeating the literal. The values are unchanged, so no default, requirement or
-refusal changes. Frozen validator-contract files (their blobs are bound into historical evidence)
-keep their literals.
-"""
+"""Current worker policy uses roles and historical exact identity remains readable."""
 
 from __future__ import annotations
 
@@ -23,17 +15,6 @@ FROZEN_VALIDATOR_CONTRACT_FILES = {
     "scripts/cwo_core/native_live_campaign_contracts.py",
     "scripts/run_native_pool_live_canaries.py",
 }
-# Every current runtime name that used to hold its own copy of the Spark literal.
-SPARK_NAMES = {
-    "check_codex_worker_surface": "DEFAULT_MODEL",
-    "check_native_worker_session": "DEFAULT_REQUESTED_MODEL",
-    "prepare_native_worker": "REQUESTED_MODEL",
-    "scaffold_workgraph": "SPARK_WORKER_MODEL",
-    "cwo_core.coach": "SPARK_MODEL_ALIAS",
-    "cwo_core.native_precommit": "REQUIRED_MODEL",
-    "cwo_core.native_activation_preview": "MODEL",
-    "cwo_core.operative_routing": "SPARK_MODEL",
-}
 
 
 def string_literals(path: Path) -> list[str]:
@@ -42,7 +23,7 @@ def string_literals(path: Path) -> list[str]:
 
 
 class CentralModelIdentityTests(unittest.TestCase):
-    def test_identities_are_exact_and_unchanged(self) -> None:
+    def test_historical_identities_are_exact_and_unchanged(self) -> None:
         from cwo_core import model_identities
 
         self.assertEqual(model_identities.SPARK_MODEL, SPARK)
@@ -50,16 +31,26 @@ class CentralModelIdentityTests(unittest.TestCase):
         self.assertEqual(model_identities.TERRA_MODEL, "gpt-5.6-terra")
         self.assertEqual(model_identities.LUNA_MODEL, "gpt-5.6-luna")
 
-    def test_current_runtime_names_resolve_to_the_central_identity(self) -> None:
-        import importlib
+    def test_current_worker_consumes_the_configured_model_and_refuses_spark(self) -> None:
+        from cwo_core.model_identities import resolve_model
+        from prepare_native_worker import _policy_model
 
-        from cwo_core import model_identities
+        self.assertEqual(_policy_model(), resolve_model("luna"))
+        self.assertEqual(_policy_model(resolve_model("terra")), resolve_model("terra"))
+        with self.assertRaisesRegex(SystemExit, "historical-nonoperative"):
+            _policy_model(SPARK)
 
-        for module_name, attribute in SPARK_NAMES.items():
-            with self.subTest(module=module_name):
-                module = importlib.import_module(module_name)
-                self.assertEqual(getattr(module, attribute), SPARK)
-                self.assertIs(getattr(module, "SPARK_MODEL", None), model_identities.SPARK_MODEL)
+    def test_current_executor_metadata_projects_roles_from_policy(self) -> None:
+        from cwo_core.model_identities import resolve_model
+        from cwo_core.policy import executor_config, load_policy
+
+        snapshot = load_policy("executor-registry")
+        for executor, role in (("internal_worker_luna", "luna"), ("internal_worker_terra", "terra"),
+                               ("frontier_architect", "sol"), ("codex_architecture_critic", "sol")):
+            with self.subTest(executor=executor):
+                self.assertEqual(executor_config(executor)["model_label"], resolve_model(role))
+                self.assertEqual(executor_config(executor, snapshot)["model_label"],
+                                 snapshot["executors"][executor]["model_label"])
 
     def test_the_spark_literal_is_written_once_outside_historical_sources(self) -> None:
         holders = []
@@ -82,12 +73,6 @@ class CentralModelIdentityTests(unittest.TestCase):
             if any(SPARK in value for value in string_literals(path)):
                 holders.append(relative)
         self.assertEqual(holders, ["scripts/cwo_core/model_identities.py"])
-
-    def test_central_module_imports_nothing(self) -> None:
-        tree = ast.parse((ROOT / "scripts" / "cwo_core" / "model_identities.py").read_text(encoding="utf-8"))
-        imports = [node for node in ast.walk(tree) if isinstance(node, (ast.Import, ast.ImportFrom))]
-        self.assertEqual([ast.unparse(node) for node in imports], ["from __future__ import annotations"])
-
 
 class CentralPacketProvenanceTests(unittest.TestCase):
     """The production-packet rule is stated once and every consumer goes through it."""

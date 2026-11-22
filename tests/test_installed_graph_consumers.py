@@ -266,20 +266,22 @@ def exercise(graph):
 
 def bindings():
     found = 0
+    entrypoints = {"scaffold_workgraph", "check_installed_skill", "model_catalog_startup",
+                   "registered_app_server_transport"}
     for name, module in list(sys.modules.items()):
-        if not (name == "cwo_core" or name.startswith("cwo_core.") or
-                name in {"scaffold_workgraph", "check_installed_skill"}):
+        if not (name == "cwo_core" or name.startswith("cwo_core.") or name in entrypoints):
             continue
-        relative = "cwo_core/__init__.py" if name == "cwo_core" else name.replace(".", "/") + ".py"
-        path = scripts / relative
+        package = module.__spec__.submodule_search_locations is not None
+        path = scripts / name.replace(".", "/")
+        path = path / "__init__.py" if package else path.with_suffix(".py")
         assert Path(module.__file__).resolve() == path
         assert Path(module.__spec__.origin).resolve() == path
-        if hasattr(module, "__path__"):
+        if package:
             assert [Path(entry).resolve() for entry in module.__path__] == [path.parent]
             assert [Path(entry).resolve() for entry in module.__spec__.submodule_search_locations] == [path.parent]
         assert str(path) in reads["installed"]
         found += 1
-    assert {"scaffold_workgraph", "cwo_core", "cwo_core.beads", "check_installed_skill"} <= sys.modules.keys()
+    assert entrypoints | {"cwo_core", "cwo_core.beads", "cwo_core.supervision.transport"} <= sys.modules.keys()
     assert "tests" not in sys.modules
     return found
 

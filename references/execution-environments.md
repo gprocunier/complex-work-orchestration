@@ -9,8 +9,8 @@ require separate verification.
 ## Current use and historical boundary
 
 The standard beginner route is the [first-project tutorial](../docs/get-started.html).
-Current connected native worker selection uses active task-selected v3 policy:
-qualified exact Luna first, Terra for recorded escalation. Historical Spark/v2
+Current connected native worker selection uses the configured Luna model first
+and Terra for recorded escalation. See `policy/model-roles.yaml`. Historical Spark/v2
 role tables, native command recipes and fallback controls below are retained for
 interpreting old artifacts, not for fresh dispatch. Read the active policy and
 [current supervision overview](native-supervision.md) before selecting a worker.

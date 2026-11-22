@@ -25,14 +25,14 @@ For narrow fixes, work in-thread with one Bead; Beads tracking is mandatory for 
 ## Operating Defaults
 
 Registered native single-worker, pool and campaign live routes have default-off source holds in this
-release. Activation preview and new worker-surface qualification are held too. A qualified worker has
-matching observed capability evidence for its exact model, executable, configuration, enforced tool
-profile and selected assignment. Plans and receipts cannot override a source hold.
+release. Activation preview and new worker-surface qualification are held too.
+Use observed host capability evidence for the executable, configuration and tool
+profile. Check the actual model against the exact selection for each assignment.
 
 - CWO uses a system prompt optimized for complex project work rather than the default OpenAI system prompt (`prompts/cwo-sol-operator-e.md`; see `references/cwo-system-prompt.md`). Named-profile activation requires a fresh session. Reading it in an unprofiled thread is a fallback without profile-selection evidence. The main thread owns final decisions; instructions never override runtime authority.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
 - Prefer review-only workers before implementation unless write ownership is disjoint.
-- In connected Codex work, select a qualified exact Luna worker first after model-neutral sizing. Terra requires documented nonfit or justified escalation. Spark records remain historical, not authority for new routing. Sol handles architecture and adjudication; expressly authorized maintenance may be implemented directly.
+- In connected Codex work, select the exact model configured for Luna after model-neutral sizing. Terra requires documented nonfit or justified escalation. Sol handles architecture and adjudication. Astra handles unresolved architecture review. Spark records describe historical dispatches.
 - Default mode is conservative. Explicit coach requests present coach options before plan creation unless execution was requested; Plan mode asks only questions that change execution.
 - Keep model names and versions in policy and use executor aliases from `policy/executor-registry.yaml` in plans and docs.
 
@@ -103,8 +103,9 @@ three units or six reads warn; four or eleven require replanning.
 
 ## Routing and Maintenance Controls
 
-- Size work before selecting an exact model. Use the version-3 Luna-first portfolio
-  in `policy/native-worker-execution.yaml`; record justified Terra escalation.
+- Size work before selecting an exact model. The Luna-first portfolio in
+  `policy/native-worker-execution.yaml` uses the roles in `policy/model-roles.yaml`.
+  Record the reason for Terra escalation.
 - Current dispatch needs verified model, tool profile, workspace, ownership,
   qualification, source image and attempt bindings. Caller JSON is evidence,
   not a grant. Omitted authority must not revive historical Spark dispatch.
@@ -182,8 +183,8 @@ explicitly changes that requirement. Browser-plugin documentation is deferred;
 legacy browser configuration is not current setup guidance. Local inference requires `--local-ok`;
 use `--prefer-local` only for an intended low-risk local review lane.
 
-Current native workers use the qualified exact task-selected model from the version-3
-Luna-first route. The attested actual model must exactly match that immutable request;
+Current native workers use the exact configured model selected for the assignment.
+The attested actual model must exactly match that immutable request;
 missing or mismatched identity stops the affected dispatch. Do not substitute another model.
 Spark records are historical compatibility material, not a new dispatch route.
 

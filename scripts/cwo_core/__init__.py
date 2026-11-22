@@ -107,6 +107,7 @@ __all__ = [
     "policy_schema",
     "model_identity_scope",
     "model_identities",
+    "model_catalog_startup",
     "proportional_execution",
     "public_copy",
     "qualification_target",

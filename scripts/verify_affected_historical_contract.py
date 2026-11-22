@@ -16,6 +16,8 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = "tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json"
+MODEL_ROLE_POLICY = "policy/model-roles.yaml"
+MODEL_ROLE_SCHEMA = "schemas/model-roles.schema.json"
 SOURCE = "2432501363fdc60e6c56c4b4e4c9e108301244b5"
 BASE = "66dfb6bcb01e18bbd8e8911ffd211e51cacf1cbe"
 FIXTURE_PATH = "tests/fixtures/w20_affected_contract_w13/source-pins-2026-10-23.json"
@@ -148,6 +150,19 @@ def verify_modes(root, modes):
                 "checkpoint dependency mode drift: " + name)
 
 
+def _verify_model_role_policy(root):
+    """Validate the tunable policy against its byte-bound contract."""
+    from cwo_core.model_identities import validate_model_role_config
+    from cwo_core.policy_schema import policy_document_errors
+
+    raw, info = _regular_artifact(root, MODEL_ROLE_POLICY, "required dependency/artifact missing: " + MODEL_ROLE_POLICY)
+    require(stat.S_IMODE(info.st_mode) == 0o644, "checkpoint dependency mode drift: " + MODEL_ROLE_POLICY)
+    document = _json_document(raw)
+    errors = policy_document_errors(Path(MODEL_ROLE_POLICY).name, document)
+    require(not errors, "model-roles policy schema mismatch: " + "; ".join(errors))
+    validate_model_role_config(document)
+
+
 def verify_history(root, manifest):
     for revision, tree in HISTORY.items():
         observed = git_bytes(root, revision, tree=True)
@@ -182,12 +197,13 @@ def _checkpoint_bindings(root, interpreter):
     host_config = root / "policy/workspace-host-state.json"
     if host_config.is_file():
         policies.append(host_config)
-    require(sorted(str(p.relative_to(root)) for p in policies)
-            == sorted(n for n in manifest["registered_current_resources"] if n.startswith("policy/")),
+    expected_policies = [MODEL_ROLE_POLICY, *(n for n in manifest["registered_current_resources"] if n.startswith("policy/"))]
+    require(sorted(str(p.relative_to(root)) for p in policies) == sorted(expected_policies),
             "current policy roster drift")
     _current_rosters(manifest)
     verify_files(root, manifest["files"])
     verify_modes(root, manifest["current_file_modes"])
+    _verify_model_role_policy(root)
     return manifest, {"manifest_sha256": digest(raw),
             "dependency_count": len(manifest["files"]), "interpreter": sys.version,
             "executable_sha256": digest(Path(sys.executable).read_bytes())}
@@ -197,7 +213,7 @@ def _current_rosters(manifest):
     files = set(manifest["files"])
     require(files == set(manifest["current_file_modes"]), "current dependency/mode roster mismatch")
     required = {"tests/fixtures/affected_contract_compatibility/EXAMPLE-admission-v1.json",
-                FIXTURE_PATH, "tests/historical_policy_fixtures.py",
+                FIXTURE_PATH, MODEL_ROLE_SCHEMA, "tests/historical_policy_fixtures.py",
                 "scripts/verify_affected_historical_contract.py"}
     for key in ("roots", "registered_current_roots", "registered_current_consumers", "registered_current_resources"):
         required.update(manifest[key])

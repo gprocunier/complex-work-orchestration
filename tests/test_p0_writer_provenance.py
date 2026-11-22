@@ -23,6 +23,7 @@ import normalize_contractor_return as normalize  # noqa: E402
 import registered_n1_factory as native  # noqa: E402
 import test_registered_n1_factory as N  # noqa: E402
 import test_registered_native_pool_host as P  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
 from cwo_core.errors import CWOPolicyError  # noqa: E402
 from cwo_core.host_records import HostRecordStore, using_test_store  # noqa: E402
 from cwo_core.host_return_intake import MAX_RETURN_BYTES, record_received_return, _record_capture  # noqa: E402
@@ -44,7 +45,7 @@ class WriterChecks(unittest.TestCase):
     def dispatch(self, identity='executor', *, target=None):
         return self.store.write_dispatch(
             dispatch_id=identity, dispatch_role='peer-review' if target else 'executor',
-            provider='openai', model_family='gpt', model_id='gpt-6.1-sol',
+            provider='openai', model_family='gpt', model_id=resolve_model("sol"),
             reasoning_effort='xhigh', session_id=identity + '-session',
             request_sha256=sha(b'exact request'), review_target=target,
             evaluation_metadata={'dispatch_mode': 'manual_ui'})
@@ -255,12 +256,12 @@ class WriterChecks(unittest.TestCase):
         self.dispatch('reviewer', target=target)
         value = {'record_type': 'cwo-peer-review', 'version': 2, 'decision': 'passed',
                  'reviewer_identity': {'provider': 'openai', 'model_family': 'gpt',
-                     'model_id': 'gpt-6.1-sol', 'reasoning_effort': 'xhigh', 'dispatch_id': 'reviewer'},
+                     'model_id': resolve_model("sol"), 'reasoning_effort': 'xhigh', 'dispatch_id': 'reviewer'},
                  'return_sha256': target['return_sha256'], 'evaluation_sha256': target['evaluation_sha256']}
         for field in ('model_id', 'return_sha256', 'evaluation_sha256'):
             changed = json.loads(json.dumps(value))
             if field == 'model_id':
-                changed['reviewer_identity'][field] = 'gpt-6-astra'
+                changed['reviewer_identity'][field] = resolve_model("astra")
             else:
                 changed[field] = sha(b'wrong')
             with self.subTest(check=field), self.assertRaises(CWOPolicyError):
@@ -289,7 +290,7 @@ class WriterChecks(unittest.TestCase):
                 ('executor', 'future-host-mode'), ('executor', None))):
             identity = 'refusal-' + str(index)
             self.store.write_dispatch(dispatch_id=identity, dispatch_role=role,
-                provider='openai', model_family='gpt', model_id='gpt-6.1-sol',
+                provider='openai', model_family='gpt', model_id=resolve_model("sol"),
                 reasoning_effort='xhigh', session_id=identity, request_sha256=sha(b'request'),
                 review_target=target if role == 'peer-review' else None,
                 evaluation_metadata={'dispatch_mode': mode})
@@ -317,7 +318,7 @@ class WriterChecks(unittest.TestCase):
         self.dispatch('reviewer', target=target)
         value = {'record_type': 'cwo-peer-review', 'version': 2, 'decision': 'passed',
                  'reviewer_identity': {'provider': 'openai', 'model_family': 'gpt',
-                     'model_id': 'gpt-6.1-sol', 'reasoning_effort': 'xhigh', 'dispatch_id': 'reviewer'},
+                     'model_id': resolve_model("sol"), 'reasoning_effort': 'xhigh', 'dispatch_id': 'reviewer'},
                  'return_sha256': target['return_sha256'], 'evaluation_sha256': target['evaluation_sha256']}
         raw = (json.dumps(value, indent=2) + '\n').encode()
         first = record_received_return(self.store, 'reviewer', raw)
@@ -380,7 +381,7 @@ class WriterChecks(unittest.TestCase):
         for number, (role, mode, first, second) in enumerate(cases):
             identity = 'selector-' + str(number)
             self.store.write_dispatch(dispatch_id=identity, dispatch_role=role, provider='openai',
-                model_family='gpt', model_id='gpt-6.1-sol', reasoning_effort='xhigh', session_id=identity,
+                model_family='gpt', model_id=resolve_model("sol"), reasoning_effort='xhigh', session_id=identity,
                 request_sha256=sha(b'request'), review_target=target if role == 'peer-review' else None,
                 evaluation_metadata={'dispatch_mode': mode})
             self.store.write_return_received(identity, sha(b'first'), capture_provenance=first)
@@ -498,7 +499,7 @@ class WriterChecks(unittest.TestCase):
         self.addCleanup(N.cleanup_helper, self, fixture)
         store = fixture.host_records
         executor = dict(dispatch_id='original', dispatch_role='executor', provider='openai',
-                        model_family='gpt', model_id='gpt-6.1-sol', reasoning_effort='xhigh',
+                        model_family='gpt', model_id=resolve_model("sol"), reasoning_effort='xhigh',
                         session_id='original-session', request_sha256=sha(b'request'))
         store.write_dispatch(**executor)
         store.write_return_received('original', sha(b'work'))
@@ -565,6 +566,7 @@ class WriterChecks(unittest.TestCase):
         self.assertEqual(fixture.spawned[0].methods.count('thread/archive'), 1)
         observed = store.require_dispatch(factory.dispatch_id)
         self.assertEqual(observed['model_family'], 'gpt')
+        self.assertEqual(observed['model_id'], executor['model_id'])
         self.assertEqual(observed['review_target'], target)
         store.require_return(factory.dispatch_id, sha(raw))
         store.require_return(factory.dispatch_id, sha(json.dumps(

@@ -78,9 +78,13 @@ def _surface(executor: str, model: str) -> dict:
     }
 
 
-def capability_evidence(*, quota: str = "usable", capacity: str = "available") -> dict:
+def capability_evidence(
+    *, quota: str = "usable", capacity: str = "available",
+    operative_models: tuple[str, str] = (LUNA_MODEL, TERRA_MODEL),
+) -> dict:
     spark = _surface("internal_worker", SPARK_MODEL)
     spark.update(quota_status=quota, capacity_status=capacity)
+    luna, terra = operative_models
     return {
         "source": "trusted-control-plane-session-metadata",
         "observed_at": NOW,
@@ -88,8 +92,8 @@ def capability_evidence(*, quota: str = "usable", capacity: str = "available") -
         "spark": spark,
         "operative_models": [
             _surface(EXECUTORS[GPT55_MODEL], GPT55_MODEL),
-            _surface(EXECUTORS[TERRA_MODEL], TERRA_MODEL),
-            _surface(EXECUTORS[LUNA_MODEL], LUNA_MODEL),
+            _surface("internal_worker_terra", terra),
+            _surface("internal_worker_luna", luna),
             _surface("local_secure_review_worker", "local-secure-review-model"),
             _surface("claude_architecture_critic", "claude-opus-4-6"),
         ],
@@ -324,7 +328,7 @@ class CurrentPolicyHistoricalRouteTests(unittest.TestCase):
         route = resolve_operative_route(
             capability_evidence=capability_evidence(), evaluated_at=NOW,
         )
-        self.assertEqual(route["version"], 3)
+        self.assertEqual(route["version"], 4)
         self.assertFalse(route["dispatch_authorized"])
         self.assertIsNone(route["selected_model"])
         self.assertEqual(route["stop_reason"], "current-authority-missing")

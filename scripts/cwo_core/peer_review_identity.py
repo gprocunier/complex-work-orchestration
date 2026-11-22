@@ -7,6 +7,7 @@ from typing import Any
 
 from .adjudication import dispatch_provenance
 from .errors import CWOPolicyError
+from .model_identities import is_hidden_codex_model, reviewer_rank, role_for_model
 from .policy import load_policy
 from .host_records import configured_store
 
@@ -31,27 +32,55 @@ def review_identity(value: object) -> dict[str, str]:
     return identity
 
 
-def _registered_model(identity: dict[str, str]) -> dict[str, Any]:
+def registered_review_model(provider: str, model_id: str, *, historical: bool = False) -> dict[str, Any] | None:
+    """Resolve family and ordering metadata for a recorded exact model."""
+    if is_hidden_codex_model(model_id):
+        return None
     models = load_policy("provider-registry").get("review_models", {})
-    model = models.get(identity["provider"], {}).get(identity["model_id"])
+    recorded = models.get(provider, {}).get(model_id)
+    if provider != "openai":
+        return recorded
+    try:
+        role = role_for_model(model_id)
+        if historical and role is None:
+            if recorded is not None:
+                return recorded
+            role = role_for_model(model_id, include_previous=True)
+        rank = reviewer_rank(role) if role else None
+    except ValueError as exc:
+        if historical and recorded is not None:
+            return recorded
+        raise CWOPolicyError(f"peer-review model role resolution failed: {exc}") from exc
+    return {"model_family": "gpt", "reviewer_rank": rank} if rank is not None else None
+
+
+def _registered_model(identity: dict[str, str], *, historical: bool = False) -> dict[str, Any]:
+    model = registered_review_model(identity["provider"], identity["model_id"], historical=historical)
     if model is None or model["model_family"] != identity["model_family"]:
         raise CWOPolicyError("peer-review recorded model family is not registered for this provider/model")
     return model
 
 
+def _stronger_reviewer(executor_id: str, executor_model: dict[str, Any], reviewer_model: dict[str, Any]) -> bool:
+    executor_rank, reviewer_strength = executor_model.get("reviewer_rank"), reviewer_model.get("reviewer_rank")
+    if executor_rank is not None and reviewer_strength is not None:
+        return reviewer_strength > executor_rank
+    return executor_id in reviewer_model.get("stronger_than", [])
+
+
 def separation_level(executor: dict[str, str], reviewer: dict[str, str],
-                     executor_session: str, reviewer_session: str) -> str:
+                     executor_session: str, reviewer_session: str, *, historical: bool = False) -> str:
     if executor["dispatch_id"] == reviewer["dispatch_id"]:
         raise CWOPolicyError("peer-review same dispatch is refused")
     if executor_session == reviewer_session:
         raise CWOPolicyError("peer-review same session is refused")
     if executor["model_id"] == reviewer["model_id"]:
         raise CWOPolicyError("peer-review same model at any effort is refused")
-    _registered_model(executor)
-    model = _registered_model(reviewer)
+    executor_model = _registered_model(executor, historical=historical)
+    reviewer_model = _registered_model(reviewer, historical=historical)
     if (executor["provider"], executor["model_family"]) != (reviewer["provider"], reviewer["model_family"]):
         return "cross-family"
-    if executor["model_id"] not in model["stronger_than"]:
+    if not _stronger_reviewer(executor["model_id"], executor_model, reviewer_model):
         raise CWOPolicyError("peer-review same-family reviewer is not a policy-approved stronger model")
     return "escalation"
 
@@ -113,6 +142,6 @@ def validate_separation(reviewer: dict[str, str], value: object) -> dict[str, An
     for name in ("executor_dispatch_sha256", "reviewer_dispatch_sha256"):
         if type(value[name]) is not str or re.fullmatch(r"[0-9a-f]{64}", value[name]) is None:
             raise CWOPolicyError("peer-review separation requires dispatch SHA-256 digests")
-    if value["level"] != separation_level(executor, reviewer, *sessions):
+    if value["level"] != separation_level(executor, reviewer, *sessions, historical=True):
         raise CWOPolicyError("peer-review separation level mismatch")
     return value

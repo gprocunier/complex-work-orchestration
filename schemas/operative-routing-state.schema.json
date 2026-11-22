@@ -1,12 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "CWO Operative Route (v2 and v3)",
+  "title": "CWO Operative Route (v2, v3 and v4)",
   "oneOf": [
     {
       "$ref": "#/$defs/v2Route"
     },
     {
       "$ref": "#/$defs/v3Route"
+    },
+    {
+      "$ref": "#/$defs/v4Route"
     }
   ],
   "$defs": {
@@ -819,6 +822,57 @@
       }
     },
     "v3Route": {
+      "$ref": "#/$defs/taskSelectedRoute",
+      "not": {"required": ["identity"]},
+      "properties": {
+        "version": {"const": 3},
+        "portfolio_version": {"const": 3},
+        "selected_model": {"enum": [null, "gpt-5.6-luna", "gpt-5.6-terra"]},
+        "fit_evidence": {"properties": {"version": {"const": 3}}},
+        "qualification": {"properties": {"model": {"$ref": "#/$defs/v3WorkerModel"}}},
+        "candidate_exclusions": {
+          "items": {"properties": {"model": {"$ref": "#/$defs/v3WorkerModel"}}}
+        }
+      },
+      "if": {"properties": {"dispatch_authorized": {"const": true}}},
+      "then": {"properties": {"qualification": {"$ref": "#/$defs/qualification"}}}
+    },
+    "v4Route": {
+      "$ref": "#/$defs/taskSelectedRoute",
+      "required": ["identity"],
+      "properties": {
+        "version": {"const": 4},
+        "portfolio_version": {"const": 4},
+        "fit_evidence": {"properties": {"version": {"const": 4}, "policy_version": {"const": 4}}}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"dispatch_authorized": {"const": true}}},
+          "then": {"properties": {"identity": {"$ref": "#/$defs/identity"}}}
+        },
+        {
+          "if": {"properties": {"aggregate_budget": {"$ref": "#/$defs/maintenanceAggregateBudget"}}},
+          "else": {"properties": {"qualification": {"type": "null"}}}
+        }
+      ]
+    },
+    "v3WorkerModel": {"enum": ["gpt-5.6-luna", "gpt-5.6-terra"]},
+    "operativeModelIdentity": {
+      "type": "string",
+      "pattern": "^gpt-[1-9][0-9]*(\\.(0|[1-9][0-9]*))*-(luna|terra)$(?![\\s\\S])",
+      "description": "An exact Codex Luna or Terra identity. The route validator verifies the configured model for the operative role."
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_profile_sha256", "control_image_sha256", "host_provenance_sha256"],
+      "properties": {
+        "tool_profile_sha256": {"$ref": "#/$defs/sha256"},
+        "control_image_sha256": {"$ref": "#/$defs/sha256"},
+        "host_provenance_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "taskSelectedRoute": {
       "type": "object",
       "additionalProperties": false,
       "allOf": [
@@ -836,10 +890,7 @@
           "then": {
             "properties": {
               "selected_model": {
-                "enum": [
-                  "gpt-5.6-luna",
-                  "gpt-5.6-terra"
-                ]
+                "$ref": "#/$defs/operativeModelIdentity"
               },
               "selected_executor": {
                 "type": "string",
@@ -865,9 +916,6 @@
               },
               "capability_evidence_sha256": {
                 "$ref": "#/$defs/sha256"
-              },
-              "qualification": {
-                "$ref": "#/$defs/qualification"
               },
               "provenance": {
                 "$ref": "#/$defs/provenance"
@@ -927,7 +975,7 @@
           "const": "cwo-operative-route"
         },
         "version": {
-          "const": 3
+          "type": "integer"
         },
         "execution_environment": {
           "type": "string",
@@ -954,11 +1002,7 @@
           "format": "date-time"
         },
         "selected_model": {
-          "enum": [
-            null,
-            "gpt-5.6-luna",
-            "gpt-5.6-terra"
-          ]
+          "oneOf": [{"$ref": "#/$defs/operativeModelIdentity"}, {"type": "null"}]
         },
         "selected_executor": {
           "type": [
@@ -987,7 +1031,7 @@
           "$ref": "#/$defs/sha256"
         },
         "portfolio_version": {
-          "const": 3
+          "type": "integer"
         },
         "selector_version": {
           "const": 1
@@ -1054,6 +1098,9 @@
               "type": "null"
             }
           ]
+        },
+        "identity": {
+          "oneOf": [{"$ref": "#/$defs/identity"}, {"type": "null"}]
         },
         "provenance": {
           "oneOf": [
@@ -1136,10 +1183,7 @@
       ],
       "properties": {
         "model": {
-          "enum": [
-            "gpt-5.6-luna",
-            "gpt-5.6-terra"
-          ]
+          "$ref": "#/$defs/operativeModelIdentity"
         },
         "receipt_sha256": {
           "$ref": "#/$defs/sha256"
@@ -1249,10 +1293,7 @@
       ],
       "properties": {
         "model": {
-          "enum": [
-            "gpt-5.6-luna",
-            "gpt-5.6-terra"
-          ]
+          "$ref": "#/$defs/operativeModelIdentity"
         },
         "exclusion_reasons": {
           "type": "array",
@@ -1290,7 +1331,7 @@
           "const": "cwo-task-selected-fit"
         },
         "version": {
-          "const": 3
+          "type": "integer"
         },
         "binding_rule_version": {
           "const": 1

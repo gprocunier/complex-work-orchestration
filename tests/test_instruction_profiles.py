@@ -171,7 +171,9 @@ class InstructionProfileTests(unittest.TestCase):
             prompt = home / "prompts" / "cwo-sol-operator-e.md"
             profile = home / "cwo-sol-operator-e.config.toml"
             self.assertEqual(prompt.read_bytes(), E_PROMPT.read_bytes())
-            self.assertIn('model = "gpt-5.6-sol"', profile.read_text(encoding="utf-8"))
+            roles = json.loads((ROOT / "policy/model-roles.yaml").read_text(encoding="utf-8"))["roles"]
+            model = roles["sol"].get("pin", roles["sol"]["current"])
+            self.assertIn(f'model = "{model}"', profile.read_text(encoding="utf-8"))
             self.assertNotIn("model_reasoning_effort", profile.read_text(encoding="utf-8"))
             self.assertIn(str(prompt.resolve()), profile.read_text(encoding="utf-8"))
             self.assertEqual((launcher_dir / "cwo-codex").read_bytes(), LAUNCHER.read_bytes())

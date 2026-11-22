@@ -9,7 +9,7 @@ from fnmatch import fnmatch
 from math import isfinite
 from typing import Any
 
-from cwo_core.model_identities import SPARK_MODEL
+from cwo_core.model_identities import SPARK_MODEL, operative_models
 from cwo_core.policy import load_policy
 from cwo_core.native_authority import (
     OPERATOR_APPROVAL_FIELDS,
@@ -1953,8 +1953,8 @@ def build_policy_fit_commitment(
         raise ValueError("invalid work_estimate: " + "; ".join(estimate_errors))
     estimate = deepcopy(_ensure_mapping(work_estimate, label="work_estimate"))
     requested_model = _ensure_nonempty_str(estimate.get("requested_model"), path="work_estimate.requested_model")
-    if requested_model != SPARK_MODEL:
-        raise ValueError(f"policy-derived commitment requires requested_model {SPARK_MODEL}")
+    if requested_model not in (SPARK_MODEL, *operative_models()):
+        raise ValueError("policy-derived commitment requires a configured operative model")
     if estimate.get("fit_mode") != "deterministic":
         raise ValueError("policy-derived commitment requires work_estimate.fit_mode deterministic")
     if any(estimate.get(field) != "spark" for field in ("route", "authority_route", "operative_route")):

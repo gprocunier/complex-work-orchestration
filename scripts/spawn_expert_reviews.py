@@ -234,13 +234,16 @@ def main() -> None:
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--top-n", type=int, default=3)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    parser.add_argument("--current-authority", help="Trusted task-fit and allocation evidence JSON for current routing.")
     add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
     refuse_risk_narrowing_arguments(args, source="spawn_expert_reviews.py")
 
     text_segments = read_text_segments(" ".join(args.text).strip() or None, args.file)
     text = "\n\n".join(text_segments)
+    from model_catalog_startup import configure_cli_model_catalog
+
+    configure_cli_model_catalog()
     try:
         route = classify_work(
             text,

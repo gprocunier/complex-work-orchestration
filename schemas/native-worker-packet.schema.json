@@ -4,6 +4,21 @@
   "type": "object",
   "additionalProperties": false,
   "$defs": {
+    "historicalModelIdentity": {"enum": ["gpt-5.3-codex-spark", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"]},
+    "operativeModelIdentity": {
+      "type": "string",
+      "pattern": "^gpt-[1-9][0-9]*(\\.(0|[1-9][0-9]*))*-(luna|terra)$(?![\\s\\S])"
+    },
+    "modelIdentity": {
+      "anyOf": [{"$ref": "#/$defs/historicalModelIdentity"}, {"$ref": "#/$defs/operativeModelIdentity"}],
+      "description": "Recorded model identity. The packet validator checks current operative roles and exact equality with route and attestation."
+    },
+    "currentRouteBinding": {
+      "required": ["operative_routing"],
+      "properties": {
+        "operative_routing": {"required": ["version"], "properties": {"version": {"const": 4}}}
+      }
+    },
     "checkedCommandSpec": {
       "type": "object",
       "additionalProperties": false,
@@ -286,17 +301,11 @@
       ]
     },
     "requested_model": {
-      "type": "string",
-      "enum": [
-        "gpt-5.3-codex-spark",
-        "gpt-5.5",
-        "gpt-5.6-terra",
-        "gpt-5.6-luna"
-      ]
+      "$ref": "#/$defs/modelIdentity"
     },
     "operative_routing": {
       "type": "object",
-      "description": "Resolved Spark-first route and explicit fallback provenance when a fallback model is requested."
+      "description": "Resolved exact route bound to the packet. Historical fallback records retain their original route provenance."
     },
     "session_policy": {
       "type": "object",
@@ -344,13 +353,7 @@
               "const": "forbidden"
             },
             "required_actual_model": {
-              "type": "string",
-              "enum": [
-                "gpt-5.3-codex-spark",
-                "gpt-5.5",
-                "gpt-5.6-terra",
-                "gpt-5.6-luna"
-              ]
+              "$ref": "#/$defs/modelIdentity"
             }
           }
         },
@@ -1056,6 +1059,23 @@
     }
   },
   "allOf": [
+    {
+      "if": {"$ref": "#/$defs/currentRouteBinding"},
+      "then": {
+        "properties": {
+          "version": {"const": 2},
+          "requested_model": {"$ref": "#/$defs/operativeModelIdentity"},
+          "session_policy": {
+            "properties": {
+              "attestation": {
+                "properties": {"required_actual_model": {"$ref": "#/$defs/operativeModelIdentity"}}
+              }
+            }
+          }
+        }
+      },
+      "else": {"properties": {"requested_model": {"$ref": "#/$defs/historicalModelIdentity"}}}
+    },
     {
       "if": {
         "properties": {

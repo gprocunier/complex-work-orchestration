@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_pool_contracts import canonical_sha256  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
 from cwo_core.native_pool_leases import PoolLeaseRegistry  # noqa: E402
 from cwo_core.native_pool_preflight import run_pool_preflight  # noqa: E402
 from cwo_core.native_pool_transaction import (  # noqa: E402
@@ -55,7 +56,7 @@ from tests.test_native_pool import FakeClock  # noqa: E402
 
 
 NOW = dt.datetime(2026, 9, 7, 16, 0, tzinfo=dt.timezone.utc)
-MODEL = "gpt-5.6-luna"
+MODEL = resolve_model("luna")
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 
 
@@ -1256,7 +1257,7 @@ class NativePoolCampaignRecoveryTests(unittest.TestCase):
             for name, change in (
                 ("false-prior", lambda p: p["budget"].__setitem__("infrastructure_failures_before", 0)),
                 ("global-max", lambda p: p["budget"].__setitem__("maximum_infrastructure_failures", 5)),
-                ("wrong-model", lambda p: p["infrastructure_recovery"].__setitem__("selected_model", "gpt-5.6-terra")),
+                ("wrong-model", lambda p: p["infrastructure_recovery"].__setitem__("selected_model", resolve_model("terra"))),
                 ("changed-authority", lambda p: p["infrastructure_recovery"].__setitem__("authority_sha256", "0" * 64)),
                 ("extra-opportunity", lambda p: p["infrastructure_recovery"].__setitem__("additional_opportunities", 2)),
                 ("boolean-version", lambda p: p["infrastructure_recovery"].__setitem__("version", True)),

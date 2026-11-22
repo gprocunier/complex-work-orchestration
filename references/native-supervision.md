@@ -11,11 +11,22 @@ trusted controller unlocks these routes; plans, receipts, environment settings
 and CLI switches cannot override the holds.
 
 For a new assignment, estimate the whole task before selecting a worker. Current
-v3 policy selects a qualified exact Luna model first; Terra needs a recorded fit,
-qualification, risk or cost reason. A current launch must bind the qualified model,
+routing selects Luna first. Terra needs a recorded fit, risk or cost reason.
+A current launch must bind the exact selected model,
 source revision and context, task scope, candidate and attempt identities, and
 allowance through the fit check (`precommit`), scoped brief (`packet`) and exact
 launch approval (`release evidence`).
+
+`policy/model-roles.yaml` is the source for the current and previous model of
+each role. The default selection uses `current`. Set a role's `selection` to
+`latest-in-family` to resolve its newest visible model from the Codex catalog
+at startup. The optional `pin` takes precedence over discovery. The selected
+model stays fixed for that attempt. To roll back, select the explicit mode and
+use the model recorded in `previous`.
+
+OpenAI describes Terra as suited to writing, visual understanding and computer
+use. Terra remains the escalation role. A future policy may send escalations
+based on coding difficulty to Sol. [OpenAI model guide](https://learn.chatgpt.com/docs/models#recommended-models).
 
 The Spark/v2 examples below are retained to interpret historical artifacts. An
 old packet passing its format check does not approve a new dispatch. Start with

@@ -113,6 +113,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
+    from model_catalog_startup import configure_cli_model_catalog
+
     try:
         authority_arguments = private_authority_arguments(
             getattr(args,"current_authority_file",None),getattr(args,"current_authority_sha256",None))
@@ -122,6 +124,7 @@ def main() -> int:
             print(render_fit_prompt(_load(args.work_plan, "work plan")), end="")
             return 0
         if args.command == "create":
+            configure_cli_model_catalog(("luna", "terra"))
             result = create_precommit_state(
                 packet_id=args.packet_id,
                 attempt_nonce=args.attempt_nonce,
@@ -135,7 +138,10 @@ def main() -> int:
                 control_execution_handle=args.control_execution_handle,
                 audit_file=args.audit_file,
                 now=args.now,
-             requested_model=args.requested_model or _load(args.work_plan,"work plan").get("requested_model"), **authority_arguments, **route_arguments,)
+                requested_model=args.requested_model,
+                **authority_arguments,
+                **route_arguments,
+            )
             _emit(result, compact=args.compact)
             return 0
         if args.command == "arm":
@@ -184,6 +190,7 @@ def main() -> int:
             print("precommit receipt valid")
             return 0
         if args.command == "deterministic-receipt":
+            configure_cli_model_catalog(("luna", "terra"))
             result = make_deterministic_receipt(
                 packet_id=args.packet_id,
                 attempt_nonce=args.attempt_nonce,
@@ -200,7 +207,10 @@ def main() -> int:
                 control_execution_handle=args.control_execution_handle,
                 audit_file=args.audit_file,
                 now=args.now,
-             requested_model=args.requested_model or _load(args.work_plan,"work plan").get("requested_model"), **authority_arguments, **route_arguments,)
+                requested_model=args.requested_model,
+                **authority_arguments,
+                **route_arguments,
+            )
             _emit(result, compact=args.compact)
             return 0
     except ValueError as exc:

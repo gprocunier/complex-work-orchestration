@@ -22,7 +22,8 @@ from cwo_core.coach import (
 )
 from cwo_core.epic_convergence import CLOSURE_DISPOSITIONS, evaluate_closure_pressure
 from cwo_core.errors import CWOError
-from cwo_core.model_identities import LUNA_MODEL, SPARK_MODEL
+from cwo_core.model_identities import LUNA_MODEL, SPARK_MODEL, resolve_model, role_for_model
+from cwo_core.operative_routing import TASK_SELECTED_VERSION
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import (
     classify_work,
@@ -203,6 +204,15 @@ def _sanitize_workerbee_spark_dispatch(value: object) -> dict[str, Any]:
     }
 
 
+def _native_operational_owner(model: str | None, route: dict[str, Any]) -> str:
+    if model == SPARK_WORKER_MODEL:
+        return "spark"
+    operative = route.get("operative_route") or {}
+    if operative.get("version") == TASK_SELECTED_VERSION:
+        return role_for_model(model) or ""
+    return f"fallback:{operative.get('selected_executor') or model}"
+
+
 def _route_planned_workerbee_delegation(
     route: dict[str, Any], lane: str
 ) -> dict[str, Any]:
@@ -252,17 +262,7 @@ def _route_planned_workerbee_delegation(
         mode = SPARK_WORKER_MODE
         operative = route.get("operative_route")
         model = operative.get("selected_model") if isinstance(operative, dict) else SPARK_WORKER_MODEL
-    if model is None:
-        workerbee_operational_owner = ""
-    else:
-        if is_operative_lane and model == SPARK_WORKER_MODEL:
-            workerbee_operational_owner = "spark"
-        elif is_operative_lane:
-            operative = route.get("operative_route")
-            selected_executor = operative.get("selected_executor") if isinstance(operative, dict) else None
-            workerbee_operational_owner = f"fallback:{selected_executor or model}"
-        else:
-            workerbee_operational_owner = ""
+    workerbee_operational_owner = _native_operational_owner(model, route) if is_operative_lane else ""
     return {
         "workerbee_planned_delegation": {
             "mode": mode,
@@ -387,13 +387,14 @@ def _lane_metadata(
     merged["critic_route"] = route.get("critic_route", {})
     merged["peer_review_route"] = route.get("peer_review_route", {})
     operative = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
-    if operative.get("version") == 3:
+    if operative.get("version") in {3, TASK_SELECTED_VERSION}:
+        role_routing = operative["version"] == TASK_SELECTED_VERSION
         merged.update({
-            "operative_routing_version": 3,
+            "operative_routing_version": operative["version"],
             "operative_dispatch_authorized": operative.get("dispatch_authorized") is True,
-            "operative_primary_model": LUNA_MODEL,
+            "operative_primary_model": resolve_model("luna") if role_routing else LUNA_MODEL,
             "operative_selected_model": operative.get("selected_model"),
-            "operative_selection_source": "task-sized-qualified-luna-first",
+            "operative_selection_source": "task-selected" if role_routing else "task-sized-qualified-luna-first",
             "operative_recommended_model": operative.get("selected_model"),
             "operative_recommended_executor": operative.get("selected_executor"),
             "operative_work_estimate_sha256": operative.get("work_estimate_sha256"),
@@ -1517,6 +1518,8 @@ def recovery_summary(created: dict[str, str], failed_step: str, error: object) -
 
 
 def main() -> None:
+    from model_catalog_startup import configure_cli_model_catalog
+
     parser = argparse.ArgumentParser(description="Create a policy-shaped Beads graph for complex work.")
     parser.add_argument("--title", required=True)
     parser.add_argument("--description", default="")
@@ -1594,11 +1597,12 @@ def main() -> None:
         help="Closure disposition required when closure-pressure is active.",
     )
     add_waiver_reason_argument(parser)
-    parser.add_argument("--current-authority", help="Current v3 routing evidence JSON; not a dispatch grant.")
+    parser.add_argument("--current-authority", help="Trusted task-fit and allocation evidence JSON for current routing.")
     add_risk_narrowing_arguments(parser)
     args = parser.parse_args()
     refuse_risk_narrowing_arguments(args, source="scaffold_workgraph.py")
     require_waiver_reason(args, ["allow_disclosure_escalation"])
+    configure_cli_model_catalog()
 
     context = read_text_arg(f"{args.title}\n\n{args.description}".strip(), args.file)
     # The title, the description and any --file contents are separate segments for routing risk features.

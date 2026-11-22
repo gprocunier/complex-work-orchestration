@@ -187,7 +187,7 @@ def _record_host_source(producer, store):
     """Persist an original immutable HTTP completion, never caller dispatch JSON."""
     from cwo_core.adjudication import dispatch_provenance
     from cwo_core.host_return_intake import record_received_return
-    from cwo_core.policy import load_policy
+    from cwo_core.peer_review_identity import registered_review_model
     producer.current()
     observed = producer.host.observe_completion(producer.completion)
     _need(observed == producer.observed, 'Host source completion identity changed.')
@@ -196,7 +196,7 @@ def _record_host_source(producer, store):
     identity = dispatch_provenance(binding._parse(producer.dispatch_bytes))
     _need(identity['known'] is True, 'Host source provider provenance is unresolved.')
     provider, model_id = identity['provider_family'], envelope['model']
-    registered = load_policy('provider-registry').get('review_models', {}).get(provider, {}).get(model_id)
+    registered = registered_review_model(provider, model_id)
     _need(type(registered) is dict, 'Host source model family is not registered.')
     metadata = binding._parse(producer.metadata)
     metadata = {key: value for key, value in metadata.items()
@@ -233,12 +233,13 @@ def _record_host_source(producer, store):
 
 def _completed_adjudicator(host, ticket):
     """Identity comes from the designated original host request, never decision text."""
+    from cwo_core.peer_review_identity import registered_review_model
     from cwo_core.policy import load_policy
     observed = host.observe_completion(host.completed(ticket))
     envelope = binding._parse(observed.binding_bytes)['envelope']
     registry = load_policy('provider-registry')
     provider = registry['providers'][envelope['provider_key']]['family']
-    model = registry['review_models'].get(provider, {}).get(envelope['model'])
+    model = registered_review_model(provider, envelope['model'])
     _need(type(model) is dict, 'Host adjudication model family is not registered.')
     return dict(provider=provider, model_family=model['model_family'], model_id=envelope['model'],
         reasoning_effort=envelope['request_options'].get('reasoning_effort'),

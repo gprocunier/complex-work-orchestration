@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.beads_ready_set import build_ready_set_evidence  # noqa: E402
+from cwo_core.model_identities import resolve_model  # noqa: E402
 from cwo_core.native_authority import (  # noqa: E402
     OPERATOR_APPROVAL_TYPE,
     OperatorApprovalVerifier,
@@ -79,6 +80,7 @@ def _literal_item(bead_id: str, *, policy: dict) -> dict:
     source = _literal_command_payload()
     source["bead_id"] = bead_id
     source["work_unit_id"] = f"work-{bead_id}"
+    source["requested_model"] = admission["work_plan"]["requested_model"]
     plan = evaluate_work_estimate(source, policy=policy)
     admission["work_plan"] = plan
     admission["worker_commitment"] = worker_commitment(plan)
@@ -94,6 +96,7 @@ def _fixture(
     requested_model: str | None = None,
 ) -> tuple[dict, dict[str, dict], list[dict], dict]:
     document = deepcopy(policy or load_policy("native-worker-execution"))
+    model = resolve_model("luna") if requested_model is None else requested_model
     items: list[dict] = []
     for index, runtime in enumerate(runtimes):
         bead_id = f"bead-{chr(ord('a') + index)}"
@@ -101,7 +104,7 @@ def _fixture(
         item = ready_item(
             bead_id,
             write_paths=paths,
-            requested_model=requested_model or "gpt-5.3-codex-spark",
+            requested_model=model,
         )
         items.append(_set_runtime(item, runtime, policy=document))
     readiness = build_ready_set_evidence(

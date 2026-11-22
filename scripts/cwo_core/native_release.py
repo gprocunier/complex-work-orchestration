@@ -14,11 +14,11 @@ from pathlib import Path
 from typing import Any, Iterator, Mapping
 
 from .native_precommit import (
-    REQUIRED_MODEL,
     canonical_sha256,
     render_fit_prompt,
     validate_precommit_receipt,
 )
+from .model_identities import SPARK_MODEL as REQUIRED_MODEL
 from .paths import is_cwo_temp_path
 from .operative_routing import validate_operative_route_for_model
 from .policy import load_policy

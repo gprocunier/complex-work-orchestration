@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "roles": {
+    "sol": {"current": "gpt-6.1-sol", "previous": "gpt-5.6-sol", "selection": "explicit", "reviewer_rank": 1},
+    "astra": {"current": "gpt-6-astra", "previous": null, "selection": "explicit", "reviewer_rank": 2},
+    "luna": {"current": "gpt-5.6-luna", "previous": null, "selection": "explicit"},
+    "terra": {"current": "gpt-5.6-terra", "previous": null, "selection": "explicit"}
+  }
+}

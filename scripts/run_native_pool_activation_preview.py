@@ -1557,6 +1557,9 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "keygen":
             result = generate_activation_key(args.control_root)
         elif args.command == "prepare":
+            from model_catalog_startup import configure_cli_model_catalog
+
+            configure_cli_model_catalog(("luna", "terra"))
             path, plan = prepare_activation_plan(
                 args.control_root,
                 profile=args.profile,

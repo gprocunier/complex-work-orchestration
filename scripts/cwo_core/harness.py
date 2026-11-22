@@ -10,6 +10,7 @@ from .access_profiles import (
     sanitized_access_profile,
     validate_access_profile_registry,
 )
+from .model_identities import SPARK_MODEL, is_hidden_codex_model, resolve_model, role_for_model
 from .operative_routing import nonoperative_model_refusal
 from .policy import load_policy
 from .util import artifact_hash
@@ -387,7 +388,7 @@ def build_harness_prompt(
 
 
 def _refuse_nonoperative_model(model: Any) -> None:
-    """Apply the general v3 deprecated-model outcome to the exact model a dispatch would name.
+    """Apply the retired-model rule to the exact model a dispatch would name.
 
     The model may come from a role binding or from an explicit argument; either way
     a model the active task-selected policy marks historical-nonoperative stops the
@@ -399,6 +400,34 @@ def _refuse_nonoperative_model(model: Any) -> None:
         raise SystemExit(f"harness dispatch cannot check the task selected routing policy: {exc}") from exc
     if refusal:
         raise SystemExit(f"harness dispatch refused: {refusal}")
+
+
+def binding_model(binding: dict[str, Any]) -> str | None:
+    model_role = binding.get("model_role")
+    if model_role is None:
+        return binding.get("model")
+    if binding.get("harness") != "codex_cli" or binding.get("model") or binding.get("model_profile"):
+        raise ValueError("a Codex model role requires its own Codex CLI binding")
+    return resolve_model(model_role)
+
+
+def _dispatch_model(binding: dict[str, Any], role: str, harness: str,
+                    requested: str | None, profile: dict[str, Any]) -> str | None:
+    try:
+        bound = binding_model(binding)
+        model = requested or bound or profile.get("model_alias") or profile.get("huggingface_model_id")
+        if is_hidden_codex_model(model):
+            raise ValueError("a hidden Codex model is unavailable for harness rendering")
+        _refuse_nonoperative_model(model)
+        if harness != "codex_cli" or model is None or model == bound == SPARK_MODEL:
+            return model
+        expected_role = binding.get("model_role") or ("luna" if role == "worker" else None)
+        selected_role = role_for_model(model)
+        if selected_role is None or expected_role is not None and selected_role != expected_role:
+            raise ValueError("the request must name the configured Codex model for the binding role")
+        return model
+    except ValueError as exc:
+        raise SystemExit(f"harness dispatch refused: {exc}") from exc
 
 
 def build_harness_dispatch(
@@ -487,14 +516,8 @@ def build_harness_dispatch(
                 f"model profile {resolved_profile_key!r} uses provider {provider_key!r}, "
                 f"which is not allowed in environment {environment_key!r}"
             )
-    resolved_model = (
-        model
-        or binding.get("model")
-        or resolved_profile.get("model_alias")
-        or resolved_profile.get("huggingface_model_id")
-    )
+    resolved_model = _dispatch_model(binding, role, selected_harness, model, resolved_profile)
     resolved_variant = variant or binding.get("variant") or resolved_profile.get("default_variant")
-    _refuse_nonoperative_model(resolved_model)
 
     prompt = build_harness_prompt(
         task=task,

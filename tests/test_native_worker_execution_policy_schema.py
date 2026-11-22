@@ -62,24 +62,27 @@ def _locations(value, schema, path=()):
             if type(child) is not dict:
                 raise AssertionError(f"actual policy field lacks a value schema: {path + (key,)}")
             yield from _locations(item, child, path + (key,))
-    elif type(value) is list:
+    elif type(value) is list and "items" in schema:
         for index, item in enumerate(value):
             yield from _locations(item, schema["items"], path + (index,))
 
 
 def _types(node):
-    declared = node["type"]
+    declared = node.get("type", [])
     return {declared} if isinstance(declared, str) else set(declared)
 
 
 def _type_cases(node):
     types = _types(node)
+    if not types:
+        return
     primary = next(name for name in types if name != "null")
+    integral_sample = float(node.get("const", 1)) if primary == "integer" else 1.0
     wrong = {
         "object": (("array", []), ("string", "object"), ("boolean", True), ("integer", 7)),
         "array": (("object", {}), ("string", "array"), ("boolean", True), ("integer", 7)),
         "string": (("integer", 7), ("boolean", False), ("array", []), ("object", {})),
-        "integer": (("true", True), ("false", False), ("integral float", 1.0), ("fraction", 1.5), ("numeric string", "1"), ("array", []), ("object", {})),
+        "integer": (("true", True), ("false", False), ("integral float", integral_sample), ("fraction", 1.5), ("numeric string", "1"), ("array", []), ("object", {})),
         "number": (("true", True), ("false", False), ("numeric string", "0.5"), ("array", []), ("object", {})),
         "boolean": (("zero", 0), ("one", 1), ("string", "false"), ("array", []), ("object", {})),
     }
@@ -107,17 +110,29 @@ def _object_cases(value, node):
         yield f"omitted {name}", changed, name not in node.get("required", []), False
 
 def _array_cases(value, node):
-    yield "empty array", [], True, False
+    minimum = node.get("minItems", 0)
+    yield "empty array", [], minimum == 0, False
     if value:
-        yield "duplicate item", [copy.deepcopy(value[0]), copy.deepcopy(value[0])], True, False
+        yield "duplicate item", [value[0], value[0]], minimum <= 2 and not node.get("uniqueItems", False), False
     for label, replacement, expected, integral in _type_cases(node["items"]):
-        yield f"item {label}", [replacement], expected, integral
+        yield f"item {label}", [replacement, *value[1:]], expected, integral
+
+def _fixed_cases(value, node):
+    if "enum" in node:
+        yield "unknown enum member", "unsupported-member", False, False
+        yield "numeric enum member", 0, False, False
+        yield "null enum member", None, False, False
+        return
+    yield "changed constant", None, False, False
+    if type(value) is list:
+        yield "reversed constant", list(reversed(value)), False, False
+        yield "shortened constant", value[:-1], False, False
+    else:
+        replacement = 0 if type(value) is int else "unsupported-value"
+        yield "changed constant of matching type", replacement, False, False
+
 
 def _scalar_cases(node):
-    if "const" in node:
-        yield "changed constant", 0, False, False
-        yield "changed constant", 2, False, False
-        return
     types = _types(node)
     primary = next(name for name in types if name != "null")
     controls = {
@@ -137,7 +152,9 @@ def _matrix(document, schema):
         label = "/".join(map(str, path)) or "$"
         for mutation, replacement, expected, integral in _type_cases(node):
             yield f"{label}: {mutation}", _replace(document, path, replacement), expected, integral
-        if type(value) is dict:
+        if "const" in node or "enum" in node:
+            controls = _fixed_cases(value, node)
+        elif type(value) is dict:
             controls = _object_cases(value, node)
         elif type(value) is list:
             controls = _array_cases(value, node)
@@ -147,15 +164,15 @@ def _matrix(document, schema):
             yield f"{label}: {mutation}", _replace(document, path, replacement), expected, integral
 
 
-def _schema_nodes(node):
-    yield node
-    for child in node.get("properties", {}).values():
-        yield from _schema_nodes(child)
+def _schema_nodes(node, path=()):
+    yield path, node
+    for key, child in node.get("properties", {}).items():
+        yield from _schema_nodes(child, (*path, key))
     extra = node.get("additionalProperties")
     if type(extra) is dict:
-        yield from _schema_nodes(extra)
+        yield from _schema_nodes(extra, (*path, "*"))
     if "items" in node:
-        yield from _schema_nodes(node["items"])
+        yield from _schema_nodes(node["items"], (*path, "[]"))
 
 
 @contextmanager
@@ -186,18 +203,32 @@ class NativeWorkerExecutionPolicySchemaTests(unittest.TestCase):
                 ps.validate_policy_document(FILENAME, document)
             self.assertIn(f"policy/{FILENAME}", str(raised.exception))
 
-    def test_schema_covers_complete_current_document_without_new_value_limits(self):
-        self.assertEqual(len(self.document), 43)
+    def test_schema_covers_complete_document_and_limits_active_role_fields(self):
         self.assertEqual(set(self.document), set(self.schema["properties"]))
+        self.assertEqual(self.document["historical_task_selected_routing_v3"]["version"], 3)
+        self.assertEqual(self.document["task_selected_routing"]["version"], 4)
         for path, value, node in _locations(self.document, self.schema):
             with self.subTest(path=path):
-                self.assertIn("type", node)
+                self.assertTrue(set(node) & {"type", "enum", "const"})
                 self.assertEqual(ps.validate_instance(value, node), [])
-        for node in _schema_nodes(self.schema):
-            self.assertFalse(set(node) & {"minimum", "maximum", "minItems", "uniqueItems", "enum", "minLength"})
-            self.assertEqual(node.get("required", []), ["version"] if node is self.schema else [])
-            if "object" in _types(node):
-                self.assertIsNot(node["additionalProperties"], True)
+        active = ("task_selected_routing",)
+        approved_roles = (*active, "selection", "approved_roles")
+        expected_constraints = {
+            ("version",): {"const"},
+            (*active, "version"): {"const"},
+            (*active, "historical_versions"): {"const"},
+            (*active, "selection", "primary_role"): {"const"},
+            approved_roles: {"minItems", "uniqueItems"},
+            (*approved_roles, "[]"): {"enum"},
+        }
+        expected_required = {(): ["version"], (*active, "operative_roles"): ["luna", "terra"]}
+        constraints = {"minimum", "maximum", "minItems", "uniqueItems", "enum", "minLength", "const"}
+        for path, node in _schema_nodes(self.schema):
+            with self.subTest(schema_path=path):
+                self.assertEqual(set(node) & constraints, expected_constraints.get(path, set()))
+                self.assertEqual(node.get("required", []), expected_required.get(path, []))
+                if "object" in _types(node):
+                    self.assertIsNot(node["additionalProperties"], True)
         self.assertEqual(self.schema["properties"]["version"], {"type": "integer", "const": 1})
 
     def test_nullable_deadlines_and_dynamic_maps_are_shape_only(self):
@@ -208,7 +239,7 @@ class NativeWorkerExecutionPolicySchemaTests(unittest.TestCase):
             ("work_sizing", "enforcement", "foundation-canary", "task_class_policy"),
             ("work_sizing", "enforcement", "foundation-canary", "protected_surfaces"),
             ("work_sizing", "enforcement", "foundation-canary", "commitment", "normalization", "decision_aliases"),
-            ("task_selected_routing", "operative_roles"),
+            ("historical_task_selected_routing_v3", "operative_roles"),
         ]
         with _test_only_registration():
             for path in paths:
@@ -221,9 +252,38 @@ class NativeWorkerExecutionPolicySchemaTests(unittest.TestCase):
                 path = ("packet_v3", "phases", "implementation", "mutation_deadline_seconds")
                 self._check_bounded(str(deadline), _replace(self.document, path, deadline), True)
 
+    def test_current_role_selection_boundaries(self):
+        import jsonschema
+
+        from cwo_core.operative_routing import _task_selected_policy
+
+        reference = jsonschema.Draft202012Validator(self.schema)
+        active = ("task_selected_routing",)
+        roles = (*active, "selection", "approved_roles")
+        cases = (
+            (roles, ["luna", "terra"], True),
+            (roles, ["terra", "luna"], True),
+            (roles, ["luna"], False),
+            (roles, ["luna", "luna"], False),
+            (roles, ["luna", "sol"], False),
+            (roles, ["luna", "terra", "astra"], False),
+            (roles, ["luna", "terra", "luna"], False),
+            ((*active, "selection", "primary_role"), "terra", False),
+            ((*active, "operative_roles", "terra"), _DELETE, False),
+            ((*active, "historical_versions"), [3, 2], False),
+        )
+        for path, replacement, expected in cases:
+            with self.subTest(path=path, replacement=replacement):
+                document = _replace(self.document, path, replacement)
+                self._check_bounded(str(path), document, expected)
+                self.assertEqual(reference.is_valid(document), expected)
+        _task_selected_policy(self.document)
+        with self.assertRaisesRegex(ValueError, "selection values are invalid"):
+            _task_selected_policy(_replace(self.document, roles, ["terra", "luna"]))
+
     def test_component_is_registered_and_test_mapping_is_restored(self):
-        self.assertEqual(len(ps.POLICY_SCHEMAS), 20)
         self.assertEqual(ps.POLICY_SCHEMAS[FILENAME], SCHEMA_NAME)
+        self.assertEqual(ps.POLICY_SCHEMAS["model-roles.yaml"], "model-roles.schema.json")
         self.assertEqual(
             ps.POLICY_SCHEMAS["qualification-target.yaml"], "qualification-target.schema.json"
         )
@@ -259,6 +319,9 @@ class NativeWorkerExecutionPolicySchemaTests(unittest.TestCase):
             (("packet_v3", "phases", "review", "mutation_deadline_seconds"), "30"),
             (("work_sizing", "enforcement", "foundation-canary", "task_class_policy", "diagnosis", "tool_calls_p90"), False),
             (("task_selected_routing", "operative_roles"), {"new-model": False}),
+            (("task_selected_routing", "version"), 3),
+            (("task_selected_routing", "version"), 4.0),
+            (("task_selected_routing", "selection", "approved_roles"), ["luna", "luna"]),
         ]
         for path, replacement in variants:
             changed = _replace(self.document, path, replacement)

@@ -23,7 +23,7 @@
         "architect": {
           "harness": "codex_cli",
           "executor": "frontier_architect",
-          "model": "gpt-6.1-sol",
+          "model_role": "sol",
           "variant": "sol"
         },
         "project_manager": {
@@ -33,7 +33,7 @@
         "worker": {
           "harness": "codex_cli",
           "executor": "internal_worker_luna",
-          "model": "gpt-5.6-luna",
+          "model_role": "luna",
           "variant": "luna"
         },
         "local_worker": {
@@ -65,7 +65,7 @@
         "execution_lifecycle_owner": "CWO",
         "concurrent_bead_execution": "disabled-by-default"
       },
-      "notes": "Connected CWO: Sol owns architecture/integration, exact Luna is operative first choice after task sizing and qualification, Terra requires recorded nonfit/escalation. Legacy operative_routing describes historical v2 records only; current native-worker-execution task_selected_routing governs dispatch."
+      "notes": "Connected CWO: Sol owns architecture and integration. Luna is the operative first choice after task sizing. Terra requires recorded escalation. The operative_routing block describes historical v2 records. Current dispatch is governed by task_selected_routing in native-worker-execution."
     },
     "connected-codex-glm-primary": {
       "display_name": "Connected Codex PM plus GLM-5.2 Primary Architect",
@@ -96,7 +96,8 @@
         },
         "architecture_counter_review": {
           "harness": "codex_cli",
-          "executor": "codex_architecture_critic"
+          "executor": "codex_architecture_critic",
+          "model_role": "astra"
         },
         "worker": {
           "harness": "codex_cli",

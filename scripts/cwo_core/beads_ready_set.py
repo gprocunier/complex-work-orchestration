@@ -335,6 +335,11 @@ def _lease_scope(
 
 
 def _authorized_models(policy_document: Mapping[str, Any]) -> frozenset[str]:
+    from .model_identities import operative_models
+
+    role_routing = policy_document.get("task_selected_routing", {})
+    if role_routing.get("version") == 4 and role_routing.get("status") == "active":
+        return frozenset(operative_models())
     governance = policy_document.get("governance")
     native_worker = (
         governance.get("native_operative_worker")

@@ -15,12 +15,12 @@ from cwo_core.native_session import (
     _session_id_matches,
     _status_to_return_code,
 )
-from cwo_core.model_identities import SPARK_MODEL
+from cwo_core.model_identities import resolve_model
+from model_catalog_startup import configure_cli_model_catalog
 
 SCHEMA_PATH = "schemas/native-worker-session-check.schema.json"
 REPO_POLICY = "policy/native-worker-execution.yaml"
 SCHEMA_VERSION = 1
-DEFAULT_REQUESTED_MODEL = SPARK_MODEL
 SUPPORTED_BUDGET_PROFILES = (
     "implementation",
     "validation",
@@ -176,7 +176,10 @@ def main() -> int:
         interrupt_thresholds = packet.get("supervision", {}).get("interrupt_thresholds")
     else:
         policy = _load_policy(args.budget_profile)
-        requested_model = (args.requested_model or DEFAULT_REQUESTED_MODEL).strip() or DEFAULT_REQUESTED_MODEL
+        requested_model = (args.requested_model or "").strip()
+        if not requested_model:
+            configure_cli_model_catalog(("luna",), codex_home=args.codex_home)
+            requested_model = resolve_model("luna")
     sessions_root = Path(args.sessions_root).expanduser().resolve() if args.sessions_root else _sessions_root(args.codex_home)
     explicit = Path(args.session_file).expanduser().resolve() if args.session_file else None
     session_file = find_session_file(args.session_id, sessions_root, explicit)

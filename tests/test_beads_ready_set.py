@@ -23,6 +23,7 @@ from cwo_core.beads_ready_set import (  # noqa: E402
     canonical_json_sha256,
     evaluate_ready_candidate,
 )
+from cwo_core.model_identities import SPARK_MODEL, resolve_model  # noqa: E402
 from cwo_core.native_authority import (  # noqa: E402
     OPERATOR_APPROVAL_TYPE,
     OPERATOR_REQUIRED_CHANGE_TYPES,
@@ -47,7 +48,7 @@ from cwo_core.work_sizing import (  # noqa: E402
 )
 
 
-MODEL = "gpt-5.3-codex-spark"
+MODEL = resolve_model("luna")
 HAS_JSONSCHEMA = importlib.util.find_spec("jsonschema") is not None
 POOL_BUDGET = {
     "tool_calls": 12,
@@ -415,6 +416,13 @@ class BeadsReadySetTests(unittest.TestCase):
         Draft202012Validator(snapshot_schema).validate(
             result["beads_readiness_snapshot"]
         )
+
+    def test_retired_worker_is_ineligible_even_with_matching_candidate_evidence(self) -> None:
+        item = ready_item("bead-retired", write_paths=["src/a.py"], requested_model=SPARK_MODEL)
+        candidate, reasons = evaluate_ready_candidate(item, rank=1)
+
+        self.assertIsNone(candidate)
+        self.assertIn("unauthorized-model", {reason["code"] for reason in reasons})
 
     def test_actual_released_n3_policy_selects_n3_within_release(self) -> None:
         items = [

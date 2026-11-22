@@ -41,6 +41,7 @@ SCHEMA_POLICIES = ('qualification-target', 'contracting-controls',
  'executor-registry',
  'execution-environments',
  'model-profiles',
+ 'model-roles',
  'access-profiles',
  'native-worker-execution')
 
@@ -84,6 +85,20 @@ def malformed_policy(name: str, mutate: Callable[[dict[str, Any]], None] | None 
 
 class MalformedPolicyAtConsumersTests(unittest.TestCase):
     """Negative regressions: each malformed document must stop its consumer, not change its answer."""
+
+    def test_model_role_policy_refuses_unknown_selection_at_load(self) -> None:
+        document = {
+            "version": 1,
+            "roles": {
+                "sol": {"current": "gpt-9.9-sol", "previous": None, "selection": "explicit", "reviewer_rank": 1},
+                "astra": {"current": "gpt-9.9-astra", "previous": None, "selection": "explicit", "reviewer_rank": 2},
+                "luna": {"current": "gpt-9.9-luna", "previous": None, "selection": "beta"},
+                "terra": {"current": "gpt-9.9-terra", "previous": None, "selection": "explicit"},
+            },
+        }
+        with malformed_policy("model-roles", raw=json.dumps(document)):
+            with self.assertRaisesRegex(SystemExit, r"roles\.luna\.selection.*must be one of"):
+                policy.load_policy("model-roles")
 
     def tearDown(self) -> None:
         policy.clear_policy_cache()

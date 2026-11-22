@@ -53,9 +53,8 @@ class ValidateRepositoryTests(unittest.TestCase):
 <p>id="failure-recovery"</p>
 <p>id="concurrency-preview"</p>
 <p>no unsupervised opt-out</p>
-<p><code>task_selected_routing</code> v3</p>
-<p><code>gpt-5.6-luna</code></p>
-<p><code>gpt-5.6-terra</code></p>
+<p>configured Luna model</p>
+<p>Terra handles documented escalation</p>
 <p>Do not silently substitute an available model</p>
 <p>Save the control state and register monitoring before sending the assignment</p>
 <p>enforced filesystem/network boundaries</p>
@@ -200,9 +199,8 @@ class ValidateRepositoryTests(unittest.TestCase):
             'failure section anchor': ('id="failure-recovery"', 'REMOVED_CONTRACT'),
             'concurrency section anchor': ('id="concurrency-preview"', 'REMOVED_CONTRACT'),
             'mandatory supervision': ('no unsupervised opt-out', 'REMOVED_CONTRACT'),
-            'active routing version': ('<code>task_selected_routing</code> v3', 'REMOVED_CONTRACT'),
-            'exact Luna model': ('<code>gpt-5.6-luna</code>', 'REMOVED_CONTRACT'),
-            'exact Terra model': ('<code>gpt-5.6-terra</code>', 'REMOVED_CONTRACT'),
+            'configured Luna role': ('configured Luna model', 'REMOVED_CONTRACT'),
+            'Terra escalation role': ('Terra handles documented escalation', 'REMOVED_CONTRACT'),
             'no model substitution': ('Do not silently substitute an available model', 'REMOVED_CONTRACT'),
             'persistence before triggering': ('Save the control state and register monitoring before sending the assignment', 'REMOVED_CONTRACT'),
             'enforced effect boundary': ('enforced filesystem/network boundaries', 'REMOVED_CONTRACT'),

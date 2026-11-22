@@ -1,8 +1,9 @@
 """Scoped lint for model-identity literals in current runtime code and current policy.
 
 Scope. The lint reads every file under ``scripts/`` (current runtime code) and
-every ``policy/*.yaml`` document (current policy) except the register itself,
-``policy/model-identity-scope.yaml``. It does not read archived or historical
+every ``policy/*.yaml`` document (current policy) except the register itself
+and ``policy/model-roles.yaml``, the authority for configured model identities.
+The latter is checked by its closed schema and role validator. The lint does not read archived or historical
 records: ``schemas/`` (versioned record contracts, including frozen const
 identities), ``tests/`` and their fixtures, ``calibration/``, ``docs/``,
 ``references/``, ``examples/`` and ``CHANGELOG.md``. A historical record is
@@ -14,15 +15,14 @@ contains the finding), source literals by path and literal. Each entry pins the
 exact count of each literal, so a new literal, a removed literal and an edited
 frozen literal all fail until the register is changed in review. Classes:
 
-- ``current``: may name only a model in ``current_models``;
 - ``historical``: a record contract or section the code or policy itself marks
   historical, or a file whose blob is bound by historical evidence; frozen;
 - ``unadjudicated``: a pre-existing literal whose current or historical role
   this lint does not decide; frozen until a later change adjudicates it;
 - ``detection-term``: text-classification vocabulary, not an identity;
-- ``nonoperative``: a current binding that names a model the active
-  task_selected_routing marks historical-nonoperative. The binding is kept as
-  recorded and its consumers resolve it through the general v3 rule
+- ``nonoperative``: a binding that names a model archived task-selected
+  routing marks historical-nonoperative. The binding is kept as
+  recorded and its consumers resolve it through the model refusal rule
   (``operative_routing.nonoperative_model_refusal``), which refuses it without
   substituting another model. May name only such models.
 
@@ -40,16 +40,17 @@ import stat
 from pathlib import Path
 from typing import Any
 
+from .model_identities import validate_model_role_config
 from .policy import load_json_compatible_yaml
 from .policy_schema import policy_document_errors
 
 
 IDENTITY_PATTERN = re.compile(r"(?<![a-z0-9])gpt-[0-9]+(?:\.[0-9]+)*(?:-[a-z0-9]+)*", re.IGNORECASE)
 REGISTER_FILE = "model-identity-scope.yaml"
+ROLE_POLICY_FILE = "model-roles.yaml"
 SOURCE_ROOT = "scripts"
 POLICY_ROOT = "policy"
 OUT_OF_SCOPE = ("schemas", "tests", "calibration", "docs", "references", "examples", "CHANGELOG.md")
-CLASSES = ("current", "historical", "unadjudicated", "detection-term", "nonoperative")
 
 
 def find_identities(text: str) -> list[str]:
@@ -107,25 +108,19 @@ def _source_files(root: Path, errors: list[str]) -> list[Path]:
     return sorted(files)
 
 
-def _current_models_errors(register: dict[str, Any], native: dict[str, Any]) -> list[str]:
-    """The register's current set must agree with the active task-selected routing policy."""
-    current = set(register.get("current_models", []))
-    routing = native.get("task_selected_routing")
-    selection = routing.get("selection") if isinstance(routing, dict) else None
-    roles = routing.get("operative_roles") if isinstance(routing, dict) else None
-    if not isinstance(selection, dict) or not isinstance(roles, dict):
-        return ["model identity register cannot be checked: native-worker-execution task_selected_routing is malformed"]
-    errors: list[str] = []
-    portfolio = selection.get("approved_portfolio")
-    named = list(portfolio) if isinstance(portfolio, list) else []
-    named.append(selection.get("primary_model"))
-    for model in named:
-        if model not in current:
-            errors.append(f"current_models omits {model!r}, which task_selected_routing selects")
-    for model, role in roles.items():
-        if role == "historical-nonoperative" and model in current:
-            errors.append(f"current_models lists {model!r}, which task_selected_routing marks historical-nonoperative")
-    return errors
+def _lint_policy_errors(register: dict[str, Any], roles: dict[str, Any]) -> list[str]:
+    errors = [
+        f"policy/{filename}: {error}"
+        for filename, document in ((REGISTER_FILE, register), (ROLE_POLICY_FILE, roles))
+        for error in policy_document_errors(filename, document)
+    ]
+    if errors:
+        return errors
+    try:
+        validate_model_role_config(roles)
+    except ValueError as exc:
+        return [f"policy/{ROLE_POLICY_FILE}: {exc}"]
+    return []
 
 
 def lint_model_identities(repo_root: Path) -> list[str]:
@@ -135,14 +130,13 @@ def lint_model_identities(repo_root: Path) -> list[str]:
     errors: list[str] = []
     try:
         register = load_json_compatible_yaml(policy_dir / REGISTER_FILE)
+        roles = load_json_compatible_yaml(policy_dir / ROLE_POLICY_FILE)
         native = load_json_compatible_yaml(policy_dir / "native-worker-execution.yaml")
+        schema_errors = _lint_policy_errors(register, roles)
     except SystemExit as exc:
         return [f"model identity lint cannot load policy: {exc}"]
-    schema_errors = policy_document_errors(REGISTER_FILE, register)
     if schema_errors:
-        return [f"policy/{REGISTER_FILE}: {error}" for error in schema_errors]
-    current = set(register["current_models"])
-    errors.extend(_current_models_errors(register, native))
+        return schema_errors
     nonoperative = _nonoperative_models(native)
 
     locations: dict[tuple[str, str], dict[str, Any]] = {}
@@ -153,7 +147,7 @@ def lint_model_identities(repo_root: Path) -> list[str]:
         locations[key] = entry
     found: dict[tuple[str, str], dict[str, int]] = {key: {} for key in locations}
     for path in sorted(policy_dir.glob("*.yaml")):
-        if path.name == REGISTER_FILE:
+        if path.name in (REGISTER_FILE, ROLE_POLICY_FILE):
             continue
         try:
             document = load_json_compatible_yaml(path)
@@ -172,10 +166,10 @@ def lint_model_identities(repo_root: Path) -> list[str]:
             counts[literal] = counts.get(literal, 0) + 1
     for key, entry in locations.items():
         label = f"policy/{key[0]}#{key[1]}"
-        if not (policy_dir / key[0]).is_file() or key[0] == REGISTER_FILE:
+        if not (policy_dir / key[0]).is_file() or key[0] in (REGISTER_FILE, ROLE_POLICY_FILE):
             errors.append(f"model identity register names a policy file that is not scanned: {label}")
             continue
-        errors.extend(_count_errors(label, entry, found[key], current, nonoperative))
+        errors.extend(_count_errors(label, entry, found[key], nonoperative))
 
     sources: dict[tuple[str, str], dict[str, Any]] = {}
     for entry in register["source_literals"]:
@@ -201,21 +195,19 @@ def lint_model_identities(repo_root: Path) -> list[str]:
         if not relative.startswith(SOURCE_ROOT + "/"):
             errors.append(f"model identity register names a source outside {SOURCE_ROOT}/: {label}")
             continue
-        errors.extend(_count_errors(label, {**entry, "literals": {literal: entry["count"]}}, {literal: observed.get((relative, literal), 0)}, current, nonoperative))
+        errors.extend(_count_errors(label, {**entry, "literals": {literal: entry["count"]}}, {literal: observed.get((relative, literal), 0)}, nonoperative))
     return errors
 
 
 def _nonoperative_models(native: dict[str, Any]) -> set[str]:
-    routing = native.get("task_selected_routing")
+    routing = native.get("historical_task_selected_routing_v3")
     roles = routing.get("operative_roles") if isinstance(routing, dict) else None
     if not isinstance(roles, dict):
         return set()
     return {model for model, role in roles.items() if role == "historical-nonoperative"}
 
 
-def _count_errors(
-    label: str, entry: dict[str, Any], counts: dict[str, int], current: set[str], nonoperative: set[str]
-) -> list[str]:
+def _count_errors(label: str, entry: dict[str, Any], counts: dict[str, int], nonoperative: set[str]) -> list[str]:
     errors: list[str] = []
     declared: dict[str, int] = entry["literals"]
     for literal in sorted(set(declared) | set(counts)):
@@ -225,11 +217,9 @@ def _count_errors(
         expected, actual = declared.get(literal, 0), counts.get(literal, 0)
         if expected != actual:
             errors.append(f"{label}: {literal!r} found {actual} time(s), register pins {expected}")
-        if entry["class"] == "current" and (actual or expected) and literal not in current:
-            errors.append(f"{label}: current location names {literal!r}, which is not a current model")
         if entry["class"] == "nonoperative" and (actual or expected) and literal not in nonoperative:
             errors.append(
-                f"{label}: nonoperative location names {literal!r}, which task_selected_routing does not mark "
+                f"{label}: nonoperative location names {literal!r}, which archived v3 routing does not mark "
                 "historical-nonoperative"
             )
     return errors

@@ -1,4 +1,4 @@
-"""Synthetic v3 fit evidence through actual sizing/routing; no live authority.
+"""Synthetic role-based fit evidence through actual sizing/routing; no live authority.
 
 No provider is called. Genuine owner-capability, issuer and ledger joins belong
 at maintenance_release, not this public deterministic evidence evaluator.
@@ -14,12 +14,15 @@ from tests.test_operative_routing import NOW, ROOT
 from tests.test_routing_current_authority import synthetic_authority
 from tests.test_semantic_read_only_contract import semantic_review
 from cwo_core import operative_routing as routing
+from cwo_core.model_identities import operative_models
 from cwo_core.policy import load_policy
 from cwo_core.routing import classify_work
 from cwo_core.work_sizing import evaluate_work_estimate, is_read_only_work_estimate
 
 
 from tests.test_operative_routing import BUDGET, cache_profile, capability_evidence
+
+LUNA_MODEL, TERRA_MODEL = operative_models()
 
 def maintenance_budget():
     return {
@@ -57,7 +60,7 @@ def maintenance_authority():
 
 def luna_record(authority):
     return next(record for record in authority["fit_inputs"]["capability_evidence"]["operative_models"]
-                if record["model"] == routing.LUNA_MODEL)
+                if record["model"] == LUNA_MODEL)
 
 
 class MaintenanceRouteFitTests(unittest.TestCase):
@@ -80,7 +83,7 @@ class MaintenanceRouteFitTests(unittest.TestCase):
 
     def candidate(self, authority):
         return next(candidate for candidate in self.fit(authority)["candidates"]
-                    if candidate["model"] == routing.LUNA_MODEL)
+                    if candidate["model"] == LUNA_MODEL)
 
     def schema_check(self, route):
         self.assertEqual(routing.validate_task_selected_route_shape(route), [])
@@ -106,7 +109,7 @@ class MaintenanceRouteFitTests(unittest.TestCase):
         self.assertEqual(work["fit_mode"], "semantic")
         route = self.route(authority)
         self.assertTrue(route["dispatch_authorized"], route["stop_reason"])
-        self.assertEqual(route["selected_model"], routing.LUNA_MODEL)
+        self.assertEqual(route["selected_model"], LUNA_MODEL)
         classifications = route["fit_evidence"]["classifications"]
         self.assertFalse(classifications["deterministic"])
         self.assertTrue(classifications["bounded_semantic_readonly"])
@@ -118,7 +121,7 @@ class MaintenanceRouteFitTests(unittest.TestCase):
         self.assertNotIn("allocation_ceiling", route["aggregate_budget"])
         self.assertNotIn("terminal_reserve", route["aggregate_budget"])
         self.schema_check(route)
-        self.assertEqual(routing.validate_operative_route_for_model(route, routing.LUNA_MODEL,
+        self.assertEqual(routing.validate_operative_route_for_model(route, LUNA_MODEL,
             current_authority=authority, now=NOW), [])
         fit_inputs = dict(authority["fit_inputs"])
         fit_inputs.pop("cache_profile")
@@ -235,10 +238,10 @@ class MaintenanceRouteFitTests(unittest.TestCase):
                            ('source_sha256', True), ('source_sha256', None)):
             rows.append((original_id, {'key': key, 'value': value}, 'context_headroom', key, value, 'replace', False))
         original_id = 'test_context_source_exact_model_trust_freshness_and_capacity_must_join'
-        changes = (('model', routing.TERRA_MODEL), ('source', 'worker-asserted'),
+        changes = (('model', TERRA_MODEL), ('source', 'worker-asserted'),
                    ('observed_at', '2026-09-03T18:14:59Z'),
                    ('observed_at', '2026-09-03T19:15:01Z'),
-                   ('observed_at', 'not-a-time'), ('model', ' ' + routing.LUNA_MODEL),
+                   ('observed_at', 'not-a-time'), ('model', ' ' + LUNA_MODEL),
                    ('context_window_tokens', 99_999))
         for key, value in changes:
             rows.append((original_id, {'key': key, 'value': value}, 'context_window_source', key, value, 'replace', True))
@@ -348,18 +351,18 @@ class MaintenanceRouteFitTests(unittest.TestCase):
 
     def test_only_current_selected_model_qualification_can_authorize(self):
         for kind in ("missing", "expired", "wrong-model", "wrong-identity"):
-            authority = maintenance_authority(); qualification = authority["qualifications"][routing.LUNA_MODEL]
-            if kind == "missing": authority["qualifications"][routing.LUNA_MODEL] = None
+            authority = maintenance_authority(); qualification = authority["qualifications"][LUNA_MODEL]
+            if kind == "missing": authority["qualifications"][LUNA_MODEL] = None
             if kind == "expired": qualification["origin_expires_at"] = NOW
-            if kind == "wrong-model": qualification["model"] = routing.TERRA_MODEL
+            if kind == "wrong-model": qualification["model"] = TERRA_MODEL
             if kind == "wrong-identity": qualification["host_provenance_sha256"] = "9" * 64
             with self.subTest(kind=kind):
                 self.assertFalse(self.route(authority)["dispatch_authorized"])
-        authority = maintenance_authority(); authority["qualifications"][routing.TERRA_MODEL] = None
+        authority = maintenance_authority(); authority["qualifications"][TERRA_MODEL] = None
         self.assertTrue(self.route(authority)["dispatch_authorized"])
         route = self.route(authority)
-        self.assertTrue(routing.validate_operative_route_for_model(route, routing.LUNA_MODEL,
-            current_authority=authority, now=authority["qualifications"][routing.LUNA_MODEL]["origin_expires_at"]))
+        self.assertTrue(routing.validate_operative_route_for_model(route, LUNA_MODEL,
+            current_authority=authority, now=authority["qualifications"][LUNA_MODEL]["origin_expires_at"]))
 
     def test_inactive_or_nonfresh_attempt_cannot_dispatch(self):
         for key, value in (("attempt_state", "stopped"), ("attempt.fresh_segment", False)):
@@ -379,7 +382,7 @@ class MaintenanceRouteFitTests(unittest.TestCase):
             if field == "cumulative_before": budget[field] += 1
             if field == "reservation": budget[field]["tool_calls"] += 1
             with self.subTest(field=field):
-                self.assertTrue(routing.validate_operative_route_for_model(route, routing.LUNA_MODEL,
+                self.assertTrue(routing.validate_operative_route_for_model(route, LUNA_MODEL,
                     current_authority=authority, now=NOW))
 
 
@@ -392,7 +395,7 @@ class MaintenanceRouteFitTests(unittest.TestCase):
             route = self.route(current)
             self.assertIn("aggregate_budget leaves no protected terminal allocation",
                           routing.validate_task_selected_route_shape(route))
-            self.assertTrue(routing.validate_operative_route_for_model(route, routing.LUNA_MODEL,
+            self.assertTrue(routing.validate_operative_route_for_model(route, LUNA_MODEL,
                 current_authority=current, now=NOW))
 
     def test_unbounded_mission_does_not_bypass_quota_capacity_or_controls(self):
