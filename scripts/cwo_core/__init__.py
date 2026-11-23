@@ -69,6 +69,7 @@ __all__ = [
     "native_pool_capacity",
     "native_pool_capacity_compat",
     "native_pool_contracts",
+    "native_pool_qualification_fixtures",
     "native_pool_scheduler",
     "native_pool_schedulability",
     "native_pool_transaction",

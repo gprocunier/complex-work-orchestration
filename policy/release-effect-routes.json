@@ -44,7 +44,7 @@
 
 "I4":{"admission":{"$":2},"authority":"Explicit supported mode/acknowledgement/operator --apply; managed command output does not confer Beads database/task/closure authority. Later PATH bd and Codex hook semantics are external program contracts.","effect":"Codex hook config atomic write and delayed Beads commands","effect_points":["p285"],"gates":["p261","p29b"],"limits":"Valid preview zero write; apply exactly atomic persisted hooks. Probe-independent refusal zero version/write via N11. Managed bd codex-hook SessionStart/PreCompact/UserPromptSubmit/Stop are later Codex-consumed external command strings, not executed by writer; no downstream native/closure grant.","manual_decisions":["M02","M13","M20"],"ordering":"Safe hooks path + duplicate/shape/advisory validation before probe; mode-independent refusals before probe; merge preserves unrelated entries; rendered validation before if args.apply/write_hooks; atomic writer then later Codex consumes hooks.","trace_files":[{"$":64}],"witnesses":["w50"]},
 
-"N1":{"admission":{"$":2},"authority":"Explicit absolute executable and Codex home, or verified tool proof/capture binding; no ambient default.","effect":"Raw Codex app-server process launch","gates":["p149"],"limits":"Raw launcher uses the explicit selected executable and home or verified capture binding. A capability gap refuses before the app-server process. The separate schema export uses isolated homes and no model request. Runtime argv and environment, anonymous pipes, original I/O bounds and cleanup remain independently enforced. Fake launch witnesses observe scope and ordering.","manual_decisions":["M08","M33"],"ordering":"Entry native hold; model, effort and metadata validation; proof versus probe exclusivity; selected executable, home and configuration; native hold before bounded schema generation; native hold rechecked immediately before app-server launch.","trace_files":[{"$":29},"scripts/cwo_core/codex_protocol_capabilities.py"],"witnesses":["w77","w49"]},
+"N1":{"admission":{"$":2},"authority":"Explicit absolute executable and Codex home, or verified tool proof/capture binding; no ambient default.","effect":"Raw Codex app-server process launch","gates":["p149"],"limits":"Raw launcher uses the explicit selected executable and home or verified capture binding. A capability gap refuses before the app-server process. The separate schema export uses isolated homes and no model request. Runtime argv and environment, anonymous pipes, original I/O bounds and cleanup remain independently enforced. Fake launch witnesses observe scope and ordering.","manual_decisions":["M08","M33"],"ordering":"Entry native hold; model, effort and metadata validation; proof versus probe exclusivity; selected executable, home and configuration; native hold before bounded schema generation; native hold rechecked immediately before app-server launch.","trace_files":[{"$":29},{"$":342}],"witnesses":["w77","w49"]},
 
 "N10":{"admission":{"$":2},"authority":"Trusted in-process original transport over one selected child. Ordinary callers retain the source hold. The qualification registry binds one exact registered receiver to one authorized thread/start and turn/start and checks final payload identity.","effect":"Already-constructed raw RPC and direct turn wire effects","effect_points":["p37a"],"gates":["p2b4"],"limits":"Under the closed ordinary N1 hold, raw callers retain initialize, initialized, thread/read, turn/interrupt, thread/archive, thread/delete, model/list and mcpServerStatus/list. Only the original registered qualification receiver may request thread/start and turn/start through its separate signed permit, charged-start and exact wire selection. Every other RPC outside the ordinary allowlist remains held or refused. Owned real-pipe frames are capped at 1 MiB; request writes and responses share the caller deadline, and notify writes have a one-second deadline. Backpressure releases the reader condition; partial-write failure faults the connection without replay. In-memory historical fixture streams retain synchronous writes. Supported host model-context frames and finite replies additionally bind/screen final producer and JSON bytes at their separate N10.9/N10.8 physical boundaries. Earlier preparation or a clean prior scan cannot substitute for final bytes; no server-native builtin/provider/helper screening is claimed.","manual_decisions":["M08","M09","M12","M31","M34"],"ordering":"notify and request method/native checks precede their internal writer call; guarded request checks before the caller guard and again after it; turn-start checks before intent and again before its own internal writer call. These caller guards do not authorize direct private-helper invocation. No constructor-only credit. The internal real-pipe writer rechecks the actual method before every chunk after condition release; hold or qualification authority loss terminal-faults the same connection before further bytes. Qualification staging uses the original exact registered receiver and checked payload before the first byte. Per-chunk rechecks use the actual method and transport.","trace_files":[{"$":29},{"$":24},{"$":38},{"$":326},{"$":28},{"$":328},{"$":10}],"witnesses":["w7f",{"$":339}]},
 
@@ -52,7 +52,7 @@
 
 "N12":{"admission":{"$":4},"authority":"Explicit operator execution of cwo-codex, directly from the skill or from its installed wrapper. The operator selects PATH, cwd, HOME/CODEX_HOME, environment and forwarded arguments.","earlier_effects":"Read the selected skill role policy. An unpinned latest-in-family selection can start the bounded catalog child for handshake and model/list; explicit or pinned Sol selection skips the catalog probe.","effect":"Operator Codex launcher","effect_points":["p179","pArchitectExec"],"gates":[],"limits":"The selected Python and Codex executables resolve through PATH. The role adds model, effort and tier overrides before all forwarded arguments. No intrinsic timeout, output or cost bound covers the interactive command. Downstream option precedence remains outside this check.","manual_decisions":["M13"],"ordering":"The installed wrapper selects the skill shell entrypoint. That entrypoint runs the adjacent Python helper, which checks launch settings and resolves Sol policy before replacing itself with Codex using execvp.","trace_files":["scripts/cwo-codex","scripts/launch_architect.py",{"$":275},"scripts/model_catalog_startup.py","scripts/cwo_core/model_catalog_startup.py","scripts/cwo_core/model_identities.py"],"witnesses":["w5c","wArchitectInstalled"]},
 
-"N13":{"admission":{"$":4},"authority":"Explicit operator fixed offline diagnostics only; no native factory, maintenance, model-turn or accepted-artifact authority.","effect":"Disposable repository/listener setup, fixed command/config RPCs, trusted bootstrap/watchdog execution and retained-handle cleanup","gates":[],"limits":"No model/thread/turn, arbitrary command API, stdin delivery or accepted output. Original selected never configuration is unchanged. Diagnostic effects bypass no production hold and establish only enumerated observations; required omissions keep selected-unqualified/confidential unsupported. Private helpers retain trusted internal-caller prerequisites.","manual_decisions":["M25","M33"],"ordering":"Verify the selected executable capabilities in a confined schema process and bind its observed identity. Apply the fixed runtime and configuration, retain the original owner and verified namespace handle, check mounts, then release the bootstrap gate. Bound the fixed RPC and empty-poll observations and clean up independently.","trace_files":[{"$":74},{"$":16},{"$":17},{"$":10},"scripts/cwo_core/codex_protocol_capabilities.py"],"witnesses":["w34","w31","w33","pC"]},
+"N13":{"admission":{"$":4},"authority":"Explicit operator fixed offline diagnostics only; no native factory, maintenance, model-turn or accepted-artifact authority.","effect":"Disposable repository/listener setup, fixed command/config RPCs, trusted bootstrap/watchdog execution and retained-handle cleanup","gates":[],"limits":"No model/thread/turn, arbitrary command API, stdin delivery or accepted output. Original selected never configuration is unchanged. Diagnostic effects bypass no production hold and establish only enumerated observations; required omissions keep selected-unqualified/confidential unsupported. Private helpers retain trusted internal-caller prerequisites.","manual_decisions":["M25","M33"],"ordering":"Verify the selected executable capabilities in a confined schema process and bind its observed identity. Apply the fixed runtime and configuration, retain the original owner and verified namespace handle, check mounts, then release the bootstrap gate. Bound the fixed RPC and empty-poll observations and clean up independently.","trace_files":[{"$":74},{"$":16},{"$":17},{"$":10},{"$":342}],"witnesses":["w34","w31","w33","pC"]},
 
 "N2":{"admission":{"$":2},"authority":"Explicit probe CLI/model/home/catalog or opaque verified maintenance operation/context and qualification; not worker JSON.","effect":"Probe loopback listener; maintenance preparation/qualification native launch","gate_limits":"The other two checks belong to sibling entrypoints, not this constructor path. Each entry retains its own N1 refusal.","gates":["p1fc"],"limits":"P listener pair proves zero construct/preparer/serve then fake construct/serve/close on admitted binding-drift path; not complete probe session. Maintenance positives in existing runtime families use opaque current operation/context/qualification. Observation mints are process-local capabilities, not external identity. Earlier probe/maintenance construction grants no final egress authority: supported host model-context wire screening is separately reviewed at N10.9, finite reply screening at N10.8; source/pipe controls are not live native qualification.","manual_decisions":["M03","M05","M06","M08","M31"],"ordering":"N1 at each supported entry before proof/listener/output/prepare. Maintenance guard revalidates operation, task/worktree/config, session ledger and qualification before AppServer.","review_gates":["p1c6","p2a3"],"trace_files":[{"$":62},{"$":65},{"$":66},{"$":326},{"$":28}],"witnesses":["w8f","w62"]},
 
@@ -490,7 +490,7 @@
 
 "tests/test_finite_fixture_progress_acknowledgment.py",
 
-"scripts/cwo_core/codex_protocol_capabilities.py",
+{"$":342},
 
 "tests/test_codex_protocol_capabilities.py",
 
@@ -648,7 +648,7 @@
 
 "p13e":[61,57,"self._launch_registered_transport(home, binding, startup_config)",12,57,76],
 
-"p13f":[63,"RegisteredFiniteToolCalls.receive",813,"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36"],
+"p13f":[63,"RegisteredFiniteToolCalls.receive",813,{"$":346}],
 
 "p14":[8,726,"sync_playwright()",18,726,35],
 
@@ -1370,7 +1370,7 @@
 
 "p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",180,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
 
-"p25ExpirySupport0":[148,{"$":330},232,"d59b8417182e03f93912a075fb0195169ace16aa8a875be7e4a8b0f35023bd8a"],
+"p25ExpirySupport0":[148,{"$":330},232,{"$":343}],
 
 "p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1640,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
@@ -1408,7 +1408,7 @@
 
 "p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",96,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
 
-"p25PermitSupport0":[148,{"$":330},232,"d59b8417182e03f93912a075fb0195169ace16aa8a875be7e4a8b0f35023bd8a"],
+"p25PermitSupport0":[148,{"$":330},232,{"$":343}],
 
 "p25PermitVerify":[149,"verify_qualification_permit",156,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
 
@@ -1456,7 +1456,7 @@
 
 "p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",217,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
 
-"p25TransportScopeSupport0":[148,{"$":330},232,"d59b8417182e03f93912a075fb0195169ace16aa8a875be7e4a8b0f35023bd8a"],
+"p25TransportScopeSupport0":[148,{"$":330},232,{"$":343}],
 
 "p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1154,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
 
@@ -2158,7 +2158,7 @@
 
 "p36DirectCatalog":[63,"_tool_specs",65,"2c6a335dbd49bb39bc92a1c9d26eb45ecb50011b6521291b4e5f7bef36a0d7c0"],
 
-"p36FiniteAdmit":[63,"RegisteredFiniteToolCalls.receive",813,"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36"],
+"p36FiniteAdmit":[63,"RegisteredFiniteToolCalls.receive",813,{"$":346}],
 
 "p36FiniteArchive":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1699,"b4040d8e51171b1d374a9e26e8da3dc1db6782adb39699fd4fe6e7756c86e45f"],
 
@@ -4051,6 +4051,8 @@
 
 "installer-upstream-version-advice":["say prints bd version in the non-RPM guidance branch.",117,"I1.1"],
 
+"pool-qualification-private-seed-copy":["Copies the fixed Git seed into private synthetic fixture directories.","Local fixture preparation only.",null],
+
 "public-model-list-catalog-read":["Reads public Codex model metadata with a bounded page count.",106,null],
 
 "public-model-list-child-launch":["Starts an owned child for the optional model catalog handshake and lookup.",106,null],
@@ -5181,7 +5183,9 @@
 
 [84,2574,7,2574,35,"dynamic","66a339e6322b74fea8133b75bed5791305a9d34d910742112ba7390a31c5c4f7",[{"$":9},"XR416"]],
 
-[85,389,14,389,47,"dynamic","8eaf1f84aedb7d9844918bfedd8db1d69c82a042bfef4512bf974efa3f9754d5",[{"$":9},"XR417"]]
+[85,389,14,389,47,"dynamic","8eaf1f84aedb7d9844918bfedd8db1d69c82a042bfef4512bf974efa3f9754d5",[{"$":9},"XR417"]],
+
+[91,125,16,125,62,"install-copy","f5c888ca4e0901416faf62b7a3d5d2288b8edb43fe703522199cc1c80e8b6fde",[{"$":9},"pool-qualification-private-seed-copy"]]
 ],
 
 "paths":[
@@ -5357,7 +5361,7 @@
 
 "scripts/verify_affected_historical_contract.py",
 
-"scripts/cwo_core/codex_protocol_capabilities.py",
+{"$":342},
 
 "scripts/cwo_core/model_catalog_startup.py",
 
@@ -5365,7 +5369,9 @@
 
 "scripts/launch_architect.py",
 
-{"$":329}
+{"$":329},
+
+"scripts/prepare_native_pool_qualification.py"
 ],
 
 "schema":"bounded-primitives-v2"
@@ -5508,7 +5514,7 @@
 
 {"admission":{"$":2},"authority":"Caller home/model/tools; expected_binary check before reads/probe.","contract":"N11","effect":"Guarded capture-binding version probe","effect_points":["p288"],"entrypoint":"p321","gates":["p2b8"],"id":"N11.3","limits":"Mismatch: zero config/catalog/fingerprint/version calls. Matching actual helper issues fake selected --version; captured output uncapped, child timeout10s only, no whole-programme or grandchild sandbox.","manual_decisions":["M02","M08"],"ordering":"Expected-binary mismatch before config/catalog/hash/version; matching caller probes selected home/PATH. Hook CLI pre-probe checks are a separate caller contract.","witnesses":["w5"]},
 
-{"authority":"Trusted installed Codex selection or explicit fixed diagnostic selection with a confined generator.","contract":"N11","effect":"Finite local app-server schema generation and compatibility check","effect_points":["pSchemaProcess"],"entrypoint":"pSchemaEntry","id":"N11.4","limits":"The exported schemas demonstrate protocol shape. The helper issues no model, thread or turn request and cannot authorize a runtime launch, qualify containment, or override any live hold. The qualification opt-in checks the registered direct finite tool wire without selecting a new history mode.","manual_decisions":["M33"],"ordering":"Resolve the executable, create isolated home and output directories, run the bounded schema generator, then verify the required wire shapes.","trace_files":["scripts/cwo_core/codex_protocol_capabilities.py","scripts/check_codex_protocol_capabilities.py",{"$":29},{"$":74},{"$":328},{"$":10}],"witnesses":["wSchema","w36SchemaGate"]},
+{"authority":"Trusted installed Codex selection or explicit fixed diagnostic selection with a confined generator.","contract":"N11","effect":"Finite local app-server schema generation and compatibility check","effect_points":["pSchemaProcess"],"entrypoint":"pSchemaEntry","id":"N11.4","limits":"The exported schemas demonstrate protocol shape. The helper issues no model, thread or turn request and cannot authorize a runtime launch, qualify containment, or override any live hold. The qualification opt-in checks the registered direct finite tool wire without selecting a new history mode.","manual_decisions":["M33"],"ordering":"Resolve the executable, create isolated home and output directories, run the bounded schema generator, then verify the required wire shapes.","trace_files":[{"$":342},"scripts/check_codex_protocol_capabilities.py",{"$":29},{"$":74},{"$":328},{"$":10}],"witnesses":["wSchema","w36SchemaGate"]},
 
 {"contract":"N12","entrypoint":"p353","id":"N12.1"},
 
@@ -6228,6 +6234,18 @@
 
 "340":"w25Provider",
 
+"341":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})",
+
+"342":"scripts/cwo_core/codex_protocol_capabilities.py",
+
+"343":"d59b8417182e03f93912a075fb0195169ace16aa8a875be7e4a8b0f35023bd8a",
+
+"344":"self.assertEqual(self.provider_request.get(timeout=3), b'Authorization: Bearer ' + _EXAMPLE_ACCESS_TOKEN)",
+
+"345":"self.assertEqual(result.stdout.splitlines()[:2], [\"--profile\", \"cwo-architect\"])",
+
+"346":"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36",
+
 "35":"live_availability.require_pool_live()",
 
 "36":"scripts/registered_n1_workflow.py",
@@ -6444,7 +6462,7 @@
 
 "scripts/cwo.py":["76b0c3a568e75b4bb966572a9dfaec6121ee1321c38c8080768223b1640a70c8",493,1848],
 
-"scripts/cwo_core/__init__.py":["195020ba3548a73ab78d574ec218b89355e97b296c8ee5cc05e40c35e3c81dae",420,3531],
+"scripts/cwo_core/__init__.py":["65df9a6320272aeb6dae201633ab31981b866dda9835859416c160b58896e73d",420,3573],
 
 "scripts/cwo_core/access_profiles.py":["da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",420,12119],
 
@@ -6575,6 +6593,8 @@
 "scripts/cwo_core/native_pool_preflight.py":["d16c3d26374e7ffb972d6aa7a3d31a6972bb1b0539e8d9c10795c784f5d3720e",420,78400],
 
 "scripts/cwo_core/native_pool_proportionality.py":["3035ce06ccb508a38bf4b912b6cf337c1b988b20a8e385889ef061501c6dbda6",420,80954],
+
+"scripts/cwo_core/native_pool_qualification_fixtures.py":["36f72e2b1b738c44ff2361d9cd34df799efb161d8ca12bca74ddb59d519bcf8f",420,1338],
 
 "scripts/cwo_core/native_pool_reporting.py":["54771e211eac3e39cdc0fb887cb45a87ebc1f385cc6e9824965b454637c648bb",420,10077],
 
@@ -6796,6 +6816,8 @@
 
 "scripts/prepare_local_admission.py":["653c27644ab260eb70c29e52e91f88e04d80d4f03abbaf493aefb0e7c5ff3586",420,17175],
 
+"scripts/prepare_native_pool_qualification.py":["dcd87dc083c8d7f9d5ac676861f083f4584b0459d3629d73676dfee5ade13dae",420,7061],
+
 "scripts/prepare_native_worker.py":["8368b47ad968a1cf02a94b31bef1a5dddbde753a4021e5831c8e0bdc3d2ee0fa",420,110488],
 
 "scripts/prepare_risk_narrowing.py":["2d0812f234c53844327573de9d789448302d942f9df8e8024a1ba59a40008a4f",420,26090],
@@ -6914,7 +6936,7 @@
 
 "scripts/validate_public_copy.py":["e63be9d1068501c22640263a71725c5d2743679ac61908334a0b8a7b71fcb7ca",420,63926],
 
-"scripts/validate_repository.py":["1e02c0d21536fa4308a721cdb89f909163b979340c71f3fa776f7f3929cd4baf",420,114688],
+"scripts/validate_repository.py":["183e5a46b0b85064c6e64f2997e24960fa963a9a0c105059b8e67c3a5874b4a4",420,114737],
 
 "scripts/validate_run_readiness_plan.py":["4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",493,21103],
 
@@ -6932,7 +6954,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["d899b45d8af7c2e792e1e8d07901354281b0c8561fb12c8c231ac5c52be225bf",420,133311],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["e2f51d54b4724b453f501999ba260f34a0e9677be0bb4a558d406b6bce824c1e",420,133311],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -6980,7 +7002,7 @@
 
 "tests/test_core_resource_tool_profiles.py":["04b715405fb34f261e5f77ec905045f999d2a38c01e58e69fab2dfec6d753bd3",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["9ef8a891ff8c20088486bcc382d2f77155a2f57ad2e120ef181cb218c352c3f9",420,22353],
+"tests/test_cwo_core_import_contract.py":["b313ad81ad1a31ac121ba7570ce683e0cd4f41787bf8c011d52d7fb842e722c8",420,22402],
 
 "tests/test_documentation_tools.py":["370a6442e2928d9cc7ede031531898e78de7c4a7bbf459784c500a733af5bfd7",420,4875],
 
@@ -7194,25 +7216,25 @@
 
 "w35":{"assertion":"process.kill.assert_not_called()","body":"p9e","kind":{"$":1},"positive":"self.assertGreaterEqual(state['kill_sizes'][0], 2)","support":["p9c","p9d","p90","p99"],"test_id":"tests.test_selected_native_containment.ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death"},
 
-"w35AuthAbsent":{"assertion":"dial.assert_not_called()","body":"p35AuthAbsent","kind":{"$":0},"positive":"self.assertEqual(self.provider_request.get(timeout=3), b'Authorization: Bearer ' + _EXAMPLE_ACCESS_TOKEN)","support":["p35AuthTls"],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial"},
+"w35AuthAbsent":{"assertion":"dial.assert_not_called()","body":"p35AuthAbsent","kind":{"$":0},"positive":{"$":344},"support":["p35AuthTls"],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial"},
 
 "w35AuthEarlyCleanup":{"assertion":"self.assertNotEqual(_fd_identity(descriptor), identity)","body":"p35AuthEarlyCleanup","kind":{"$":0},"positive":"self.assertIsNotNone(identity)","support":[],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment"},
 
 "w35AuthGate":{"assertion":"execute.assert_not_called()","body":"p35AuthGate","kind":{"$":0},"positive":"self.assertEqual(witness.read(), _EXAMPLE_ACCESS_TOKEN)","support":[],"test_id":"tests.test_registered_provider_network.ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment"},
 
-"w35AuthTls":{"assertion":"self.assertEqual(self._run_offline_child(role).stdout, b'EXAMPLE child isolated\\n')","body":"p35AuthTls","kind":{"$":0},"positive":"self.assertEqual(self.provider_request.get(timeout=3), b'Authorization: Bearer ' + _EXAMPLE_ACCESS_TOKEN)","support":["p25ProviderSupport0","p25ProviderTLSSupport"],"test_id":"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot"},
+"w35AuthTls":{"assertion":"self.assertEqual(self._run_offline_child(role).stdout, b'EXAMPLE child isolated\\n')","body":"p35AuthTls","kind":{"$":0},"positive":{"$":344},"support":["p25ProviderSupport0","p25ProviderTLSSupport"],"test_id":"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot"},
 
 "w36":{"assertion":"self.assertEqual(pending, ['cleanup-pending'])","body":"pb2","kind":{"$":1},"positive":"self.assertEqual(gate.cleanup_phase(), 'unknown' if time_out else 'contained')","support":["pb3","pb6","pb4","pb5","pac","pad","pb1","pb0","pb7","pae","paf"],"test_id":"tests.test_registered_finite_input.FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication"},
 
-"w36FiniteArchive":{"assertion":"self.assertEqual(observed, [('pending', 1, 'paired-pending')])","body":"p36FiniteArchive","kind":{"$":0},"positive":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})","support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation"},
+"w36FiniteArchive":{"assertion":"self.assertEqual(observed, [('pending', 1, 'paired-pending')])","body":"p36FiniteArchive","kind":{"$":0},"positive":{"$":341},"support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation"},
 
 "w36FiniteHistory":{"assertion":"with self.assertRaisesRegex(finite_tools.FiniteToolError,","body":"p36FiniteHistory","kind":{"$":0},"positive":"self.assertEqual(factory.run()['attempt']['outcome'], 'completed')","support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout"},
 
-"w36FiniteLateItem":{"assertion":"self.assertIsNone(factory.token)","body":"p36FiniteLateItem","kind":{"$":0},"positive":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})","support":["p36FiniteLateSupport","p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal"},
+"w36FiniteLateItem":{"assertion":"self.assertIsNone(factory.token)","body":"p36FiniteLateItem","kind":{"$":0},"positive":{"$":341},"support":["p36FiniteLateSupport","p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal"},
 
 "w36FiniteQueuedItem":{"assertion":"self.assertEqual(pending, [('EXAMPLE-poll-call', True, False, True)])","body":"p36FiniteQueuedItem","kind":{"$":6},"positive":"self.assertTrue(factory.server.archived)","support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item"},
 
-"w36FiniteRefusal":{"assertion":"self.assertEqual(poll['delivered_bytes'], 0)","body":"p36FiniteRefusal","kind":{"$":0},"positive":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})","support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal"},
+"w36FiniteRefusal":{"assertion":"self.assertEqual(poll['delivered_bytes'], 0)","body":"p36FiniteRefusal","kind":{"$":0},"positive":{"$":341},"support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal"},
 
 "w36SchemaGate":{"assertion":{"$":338},"body":"p36SchemaGate","kind":{"$":0},"positive":"case.schema_check.assert_called_once()","support":["p25PermitSupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start"},
 
@@ -7294,7 +7316,7 @@
 
 "w5b":{"assertion":{"$":232},"body":"p372","kind":{"$":1},"positive":{"$":232},"support":["p20d"],"test_id":{"$":20}},
 
-"w5c":{"assertion":"self.assertEqual(result.stdout.splitlines()[:2], [\"--profile\", \"cwo-architect\"])","body":"p24a","kind":{"$":12},"positive":"self.assertEqual(result.stdout.splitlines()[:2], [\"--profile\", \"cwo-architect\"])","support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments"},
+"w5c":{"assertion":{"$":345},"body":"p24a","kind":{"$":12},"positive":{"$":345},"support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments"},
 
 "w5d":{"assertion":"run_bd.assert_not_called()","body":"p338","kind":{"$":0},"positive":{"$":121},"support":["p2d4"],"test_id":"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_no_form_of_successful_closure_writes_to_beads"},
 

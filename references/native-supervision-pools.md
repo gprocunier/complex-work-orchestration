@@ -125,6 +125,36 @@ the spending fuse even if unused budget remains.
 See [Pool Capacity Naming Migration](native-pool-capacity-migration.md) for the
 canonical field inventory and the bounded historical-read compatibility window.
 
+## Offline pool qualification fixtures
+
+Render the fixed N=2 and N=3 task plan and an initial `not-run` record with
+operator-chosen limits.
+
+```sh
+python scripts/prepare_native_pool_qualification.py \
+  --runs-per-cohort "$RUNS_PER_COHORT" --max-sessions "$SESSIONS_PER_RUN" \
+  --max-tool-calls "$TOOL_CALLS_PER_RUN" --max-runtime-seconds "$SECONDS_PER_RUN"
+```
+
+The run count applies separately to each cohort. The JSON includes the
+requested session, tool-call and runtime ceilings across both cohorts, the
+selected profile and the current Luna model identity from the model-role policy.
+Each worker has a distinct output path, fixed UTF-8 text and a completion
+marker. The initial record includes the CWO version, minimum Codex version,
+UTC date, outcome and scope limitations.
+
+Pass `--fixture-root "$NEW_DIRECTORY"` to also create the synthetic Git
+fixtures. Choose a new directory under an existing parent you own with no
+shared write access or symlink components. The command creates `seed/` and
+copies it to an integration checkout and a checkout for each worker under
+`n2/run-1/` and `n3/run-1/`. Run numbers start at 1 for each cohort. Disk use is
+one seed repository plus seven independent repositories per repetition across
+both cohorts. Each repository has its own Git metadata and no remotes. A failed
+setup cleans up the incomplete layout.
+
+The command makes zero model calls and produces a prepare-only plan with
+`dispatch_authorized: false`.
+
 ## Temporary Audited Tool Boundary
 
 Exact server-side tool enforcement remains the default for operative workers.
