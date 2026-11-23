@@ -11,6 +11,7 @@ import stat
 from typing import Any, Mapping, Sequence
 
 from .native_session import _record_token_snapshot
+from .policy_schema import strict_json_loads
 
 
 BOUNDARY_FIELDS = {"record_count", "byte_offset", "boundary_sha256", "token_snapshot"}
@@ -99,9 +100,9 @@ def capture_boundary(path: Path | str, session_id: str) -> tuple[dict[str, Any],
         if not line.strip():
             continue
         try:
-            value = json.loads(line.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise NativeSessionBoundaryError(f"session record {number} is invalid: {exc}") from exc
+            value = strict_json_loads(line.decode("utf-8"))
+        except (ValueError, RecursionError):
+            raise NativeSessionBoundaryError(f"session record {number} is invalid") from None
         if not isinstance(value, dict):
             raise NativeSessionBoundaryError(f"session record {number} is not an object")
         explicit = value.get("session_id")

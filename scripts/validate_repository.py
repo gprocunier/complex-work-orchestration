@@ -164,7 +164,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "execution_status_report": {"audit", "epic_convergence", "execution_enhancement_metrics", "model_identities", "paths"},
     "execution_enhancement_metrics": set(),
     "native_session": {"native_disposition"},
-    "native_session_boundary": {"native_session"},
+    "native_session_boundary": {"native_session", "policy_schema"},
     "native_live_availability": set(),
     "native_worker_contracts": {"native_disposition"},
     "native_authority": set(),

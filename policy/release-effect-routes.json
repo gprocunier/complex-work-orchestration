@@ -6624,7 +6624,7 @@
 
 "scripts/cwo_core/native_session.py":["2d5eaa3cce2a95d637053b6f692d59d45c7ecf9b5ee53039dde411dc4ad63dca",420,27227],
 
-"scripts/cwo_core/native_session_boundary.py":["a7a45a93599c4eea4763e6be35aa4c54e56cdc3ace67d8a724117077f6ae591b",420,13306],
+"scripts/cwo_core/native_session_boundary.py":["5305eecf76e598990caca8b72f5409f211cbad34947c466fac7f9fc11ad1fa51",420,13331],
 
 "scripts/cwo_core/native_stop_scope.py":["564be5a7f1868f55ddf3adaf79fd209b13cbbfff2a85fa26640a2d4e92f2e886",420,9763],
 
@@ -6936,7 +6936,7 @@
 
 "scripts/validate_public_copy.py":["e63be9d1068501c22640263a71725c5d2743679ac61908334a0b8a7b71fcb7ca",420,63926],
 
-"scripts/validate_repository.py":["183e5a46b0b85064c6e64f2997e24960fa963a9a0c105059b8e67c3a5874b4a4",420,114737],
+"scripts/validate_repository.py":["711990ee635f016800d54719658845190a09a73556c76031416faff9b4921c30",420,114754],
 
 "scripts/validate_run_readiness_plan.py":["4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",493,21103],
 
@@ -6954,7 +6954,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["8a367c48d924aa46f99257f84ac47c743668abf0b09e554b99f5de84615fc2ca",420,133311],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["9123bba4bd7a4fbd0126b37c533f9d0d0aa17169a216f1a5567527c4cfb5a8e5",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
