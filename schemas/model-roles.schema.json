@@ -60,6 +60,23 @@
             "selection": {"enum": ["explicit", "latest-in-family"]},
             "pin": {"type": "string", "minLength": 1}
           }
+        },
+        "cyber_fallback": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model", "required_access_program", "codex_config"],
+          "properties": {
+            "model": {"type": "string", "const": "gpt-daybreak-blue-latest"},
+            "required_access_program": {"type": "string", "const": "daybreakBlue"},
+            "codex_config": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["daybreak"],
+              "properties": {
+                "daybreak": {"type": "boolean", "const": true}
+              }
+            }
+          }
         }
       }
     }

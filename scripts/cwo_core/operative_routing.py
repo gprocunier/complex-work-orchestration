@@ -8,7 +8,7 @@ from typing import Any, Mapping
 
 from .model_identities import (
     GPT55_MODEL, LUNA_MODEL, OPERATIVE_ROLES, SPARK_MODEL, TERRA_MODEL,
-    model_family_role, operative_models,
+    cyber_fallback_availability, model_family_role, operative_models,
 )
 from .policy import RISK_ORDER, load_policy, project_executor_model
 
@@ -88,6 +88,13 @@ TASK_SELECTED_EXECUTORS = {role: f"internal_worker_{role}" for role in OPERATIVE
 TASK_SELECTED_VERSION = 4
 _TASK_SELECTED_ESCALATION_KINDS = {"fit", "risk", "economics"}
 _HISTORICAL_ESCALATION_KINDS = _TASK_SELECTED_ESCALATION_KINDS | {"qualification"}
+
+
+def cyber_fallback_status(
+    *, config: Mapping[str, Any] | None = None, catalog: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Project optional fallback availability without granting dispatch authority."""
+    return cyber_fallback_availability(config=config, catalog=catalog)
 
 
 def _canonical_sha256(value: Any) -> str:

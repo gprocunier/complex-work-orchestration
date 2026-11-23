@@ -5,8 +5,20 @@ import unittest
 from cwo_core import model_identities as identities
 
 
-def catalog(*models: str) -> dict:
-    return {"data": [{"id": model, "model": model, "hidden": False} for model in models],
+CYBER_MODEL = "gpt-daybreak-blue-latest"
+CYBER_ROLE = {
+    "model": CYBER_MODEL,
+    "required_access_program": "daybreakBlue",
+    "codex_config": {"daybreak": True},
+}
+
+
+def catalog(*models: str, cyber_access: tuple[str, ...] = ()) -> dict:
+    rows = [{"id": model, "model": model, "hidden": False} for model in models]
+    for row in rows:
+        if row["id"] == CYBER_MODEL:
+            row["availableAccessPrograms"] = {"cyber": list(cyber_access)}
+    return {"data": rows,
             "nextCursor": None}
 
 
@@ -88,6 +100,62 @@ class ModelRoleResolutionTests(unittest.TestCase):
         self.assertTrue(identities.requires_model_catalog(("luna",), config=config))
         self.assertFalse(identities.requires_model_catalog(("terra",), config=config))
         self.assertEqual(identities.resolve_model("luna", config=config), "gpt-10-luna")
+
+    def test_optional_cyber_fallback_is_absent_by_default(self):
+        config = self.config()
+
+        self.assertNotIn("cyber_fallback", config["roles"])
+        self.assertFalse(identities.requires_model_catalog(("cyber_fallback",), config=config))
+        self.assertEqual(
+            identities.cyber_fallback_availability(config=config),
+            {
+                "role": "cyber_fallback",
+                "status": "unconfigured",
+                "reason": "role-absent",
+                "model": None,
+                "required_access_program": None,
+                "codex_config": None,
+            },
+        )
+
+    def test_configured_cyber_fallback_uses_access_program_metadata(self):
+        config = self.config()
+        config["roles"]["cyber_fallback"] = dict(CYBER_ROLE)
+        available = catalog(CYBER_MODEL, cyber_access=("standard", "daybreakBlue"))
+
+        self.assertTrue(identities.requires_model_catalog(("cyber_fallback",), config=config))
+        self.assertEqual(
+            identities.cyber_fallback_availability(config=config, catalog=available),
+            {
+                "role": "cyber_fallback",
+                "status": "available",
+                "reason": "required-access-program-advertised",
+                **CYBER_ROLE,
+            },
+        )
+
+        for unavailable, reason in (
+            (catalog(), "model-not-advertised"),
+            (catalog(CYBER_MODEL), "access-program-not-advertised"),
+            (catalog(CYBER_MODEL, cyber_access=("standard",)), "access-program-not-advertised"),
+        ):
+            with self.subTest(reason=reason):
+                status = identities.cyber_fallback_availability(config=config, catalog=unavailable)
+                self.assertEqual((status["status"], status["reason"]), ("unavailable", reason))
+
+    def test_cyber_fallback_configuration_is_closed_and_exact(self):
+        base = self.config()
+        invalid = (
+            {**CYBER_ROLE, "model": "gpt-6.2-sol"},
+            {**CYBER_ROLE, "required_access_program": "standard"},
+            {**CYBER_ROLE, "codex_config": {"daybreak": False}},
+            {**CYBER_ROLE, "codex_config": {"daybreak": True, "other": True}},
+            {**CYBER_ROLE, "extra": True},
+        )
+        for entry in invalid:
+            with self.subTest(entry=entry), self.assertRaisesRegex(ValueError, "cyber_fallback"):
+                config = {"version": base["version"], "roles": {**base["roles"], "cyber_fallback": entry}}
+                identities.validate_model_role_config(config)
 
 
 if __name__ == "__main__":
