@@ -89,7 +89,7 @@ _N1_QUALIFICATION_THREAD_START = {
     **_THREAD_START_COMMON,
     "modelProvider": "openai", "serviceTier": "default",
     "permissions": "profile", "approvalPolicy": "never", "approvalsReviewer": "user",
-    "ephemeral": False,
+    "ephemeral": False, "historyMode": "legacy",
     "dynamicTools": [{
         "type": "namespace", "name": "cwo_finite", "description": "Registered finite tools",
         "tools": [{"type": "function", "name": name, "description": name, "inputSchema": {}}
@@ -429,7 +429,7 @@ def _check_protocol(protocol: _Schema, v2: _Schema, experimental: bool) -> None:
     }, "JSONRPCError")
 
 
-def _check_n1_qualification(protocol: _Schema) -> None:
+def _check_n1_qualification(protocol: _Schema, v2: _Schema) -> None:
     thread_start = protocol.method("ClientRequest", "thread/start")
     protocol.require_shape(thread_start, {
         "params.dynamicTools.[].@type=namespace.tools.[].@type=function.inputSchema": None,
@@ -438,6 +438,8 @@ def _check_n1_qualification(protocol: _Schema) -> None:
         thread_start, {"id": 1, "method": "thread/start", "params": _N1_QUALIFICATION_THREAD_START},
         "thread/start qualification request",
     )
+    v2.require_shape(v2.definition("ThreadStartResponse"), {"thread.historyMode": ("legacy",)},
+                     "thread/start qualification reply ThreadStartResponse")
     protocol.require_shape(protocol.method("ServerRequest", "item/tool/call"),
                            {"params.namespace": "string"}, "item/tool/call qualification request")
     protocol.require_value(protocol.definition("DynamicToolCallResponse"),
@@ -483,7 +485,7 @@ def _check_generated_schemas(output: Path, experimental: bool, *, n1_qualificati
         v2 = _Schema(_read_schema(directory_fd, _PROTOCOL_V2))
         _check_protocol(protocol, v2, experimental)
         if experimental and n1_qualification:
-            _check_n1_qualification(protocol)
+            _check_n1_qualification(protocol, v2)
     except (AttributeError, KeyError, RecursionError, TypeError) as error:
         raise CapabilityError("invalid generated Codex App Server schema structure") from error
     finally:

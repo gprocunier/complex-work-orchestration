@@ -508,7 +508,7 @@ class RpcProcess(children.FakeChild):
             response.update(case.spec['profile_readback'], model=case.spec['model'], modelProvider=case.spec['provider'])
             if runtime.qualification.MODEL_SELECTION in case.spec:
                 response.update(reasoningEffort=case.spec['effort'], serviceTier=params['serviceTier'])
-                response['thread']['ephemeral'] = params['ephemeral']
+                response['thread'].update(ephemeral=params['ephemeral'], historyMode=params.get('historyMode'))
             response.pop('sandbox')
             if case.drift:
                 response['activePermissionProfile']['id'] = 'EXAMPLE_FALLBACK'

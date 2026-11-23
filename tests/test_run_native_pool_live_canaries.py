@@ -868,6 +868,40 @@ class AppServerRpcErrorTests(unittest.TestCase):
         self.assertGreaterEqual(raised.exception.latency_ms, 0)
         self.assertEqual(len(server.rpc_latencies["thread/read"]), 1)
 
+    def test_only_original_qualification_read_classifies_cold_history(self) -> None:
+        from cwo_core.supervision.transport.app_server import _QUALIFICATION_RPC
+
+        diagnostic = ("thread thread-1 is not materialized yet; "
+                      "includeTurns is unavailable before first user message")
+        for label, selected, thread_id, include_turns, code, peer_message in (
+            ("exact", True, "thread-1", True, -32600, diagnostic),
+            ("generic", True, "thread-1", True, -32600, "bad request"),
+            ("extra text", True, "thread-1", True, -32600, diagnostic + " EXAMPLE marker"),
+            ("wrong diagnostic thread", True, "thread-1", True, -32600, diagnostic.replace("thread-1", "thread-2")),
+            ("wrong request thread", True, "thread-2", True, -32600, diagnostic.replace("thread-1", "thread-2")),
+            ("metadata only", True, "thread-1", False, -32600, diagnostic),
+            ("non-boolean includeTurns", True, "thread-1", 1, -32600, diagnostic),
+            ("unsupported", True, "thread-1", True, -32601, diagnostic),
+            ("before thread start", True, "thread-1", True, -32600, diagnostic),
+            ("other route", False, "thread-1", True, -32600, diagnostic),
+        ):
+            with self.subTest(label=label):
+                server = self.request_server({"id": 1, "error": {"code": code, "message": peer_message}})
+                if selected:
+                    server.thread_id = None if label == "before thread start" else "thread-1"
+                    _QUALIFICATION_RPC.register(server, (lambda: None, lambda *_args: None, "default"))
+                    self.addCleanup(_QUALIFICATION_RPC.pop, server, None)
+                with self.assertRaises(LIVE.AppServerRpcError) as raised:
+                    server.request("thread/read", {"threadId": thread_id, "includeTurns": include_turns})
+                self.assertIs(raised.exception.qualification_thread_unmaterialized, label == "exact")
+                self.assertEqual(str(raised.exception), f"app-server-request-failed:thread/read:{code}")
+                self.assertNotIn(peer_message, repr(vars(raised.exception)))
+
+    def test_cold_history_classification_requires_a_boolean(self) -> None:
+        with self.assertRaisesRegex(ValueError, "qualification-unmaterialized-invalid"):
+            LIVE.AppServerRpcError(method="thread/read", code=-32600, request_id=1,
+                latency_ms=1.0, qualification_thread_unmaterialized=1)
+
     def test_noninteger_code_and_unmatched_response_id_are_not_structured(self) -> None:
         for code in (True, "-32603"):
             with self.subTest(code=code):
@@ -6899,6 +6933,32 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 "submission-acknowledged-awaiting-materialization",
             )
             self.assertIsNone(adapter._session_boundary_baseline)
+
+    def test_check_refuses_qualification_cold_read_outside_its_pending_route(self) -> None:
+        for materialized in (False, True):
+            with self.subTest(materialized=materialized), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                server = FakeLiveThreadServer(root, initial_boundary="empty")
+                adapter = self.adapter(root, server, FakeMonotonicClock())
+                adapter.send_input(message="bounded prompt")
+                if materialized:
+                    server.set_boundary("valid")
+                server.notifications = lambda _thread_id, _method=None: [{
+                    "method": "turn/started", "params": {
+                        "threadId": server.thread_id, "turn": {"id": server.turn_id},
+                    },
+                }]
+                error = LIVE.AppServerRpcError(method="thread/read", code=-32600, request_id=1,
+                    latency_ms=1.0, qualification_thread_unmaterialized=True)
+                # After materialization, check bypasses the pending read path.
+                pending_read = ({"return_value": False} if materialized else
+                                {"wraps": adapter._fresh_nonterminal_thread_locked})
+                with (mock.patch.object(adapter, "_fresh_nonterminal_thread_locked", **pending_read) as pending,
+                      mock.patch.object(server, "read_thread", side_effect=error),
+                      self.assertRaises(LIVE.AppServerRpcError) as raised):
+                    adapter.check()
+                self.assertIs(raised.exception, error)
+                self.assertEqual(pending.call_count, 0 if materialized else 1)
 
     def test_only_exact_turn_started_notification_unlocks_thread_read(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

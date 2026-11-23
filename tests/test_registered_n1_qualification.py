@@ -250,6 +250,24 @@ class FactoryQualificationTests(unittest.TestCase):
         self.assertEqual(qualification.campaign_usage()['total'], 0)
         self.assertEqual(self.fixture.spawned, [])
 
+    def test_qualification_refuses_history_readback_drift_before_turn(self):
+        case = self.fixture.case(qualification=True, no_fake_scheduler=True)
+        factory = self.fixture.factory(case)
+        result = family.RpcProcess.result
+
+        def drift(process, method, params):
+            response = result(process, method, params)
+            if method == 'thread/start':
+                response['thread']['historyMode'] = 'paginated'
+            return response
+
+        with (patch.object(family.RpcProcess, 'result', drift),
+              self.assertRaisesRegex(qualification.QualificationError, 'history mode readback')):
+            factory.run()
+
+        self.assertNotIn('turn/start', self.fixture.spawned[0].methods)
+        self.assertTrue(factory.server.lifetime.contained)
+
     def managed_case(self, **changes):
         case = self.fixture.case(qualification=True, managed_login=True, **changes)
         login_home = case.host.state.parent / 'EXAMPLE-dedicated-login'

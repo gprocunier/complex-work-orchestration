@@ -1736,7 +1736,8 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         case.schema_check.assert_called_once()
         exchange = factory.server._effective_thread_start_evidence[case.scenario.thread_id]
         namespace, = exchange['request']['dynamicTools']
-        self.assertNotIn('historyMode', exchange['request'])
+        self.assertEqual(exchange['request'].get('historyMode'), 'legacy')
+        self.assertEqual(exchange['response']['thread'].get('historyMode'), 'legacy')
         self.assertEqual((namespace['type'], namespace['name']), ('namespace', 'cwo_finite'))
         self.assertEqual([tool['name'] for tool in namespace['tools']], ['finite_command', 'finite_poll'])
         self.assertEqual((case.host.state / 'artifact/file-0000').read_bytes(), family.fixtures.host_fixtures.OUTPUT)
@@ -1758,6 +1759,60 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                  if row.get('type') in {'function_call', 'function_call_output'}]
         self.assertEqual(calls, [('function_call', command['id']), ('function_call_output', command['id']),
                                  ('function_call', poll['id']), ('function_call_output', poll['id'])])
+
+    def test_qualification_waits_for_cold_read_then_accepts_original_rollout(self):
+        case = self.fixture.case(qualification=True, archive_schedule='settled',
+                                 no_fake_scheduler=True, materialize_on_turn_start=False)
+        scenario = case.scenario
+        factory = self.fixture.factory(case)
+        cold_reads = []
+        materialized = []
+        test = self
+
+        class ColdReadProcess(NamespacedFiniteRpcProcess):
+            def result(self, method, params):
+                if method == 'turn/start':
+                    scenario.set_boundary('empty')
+                    self.before_consumption(lambda: bool(factory.server.notifications(scenario.thread_id, 'turn/started')))
+                return super().result(method, params)
+
+            def approve(self):
+                self.stdout.put({'method': 'turn/started', 'params': {
+                    'threadId': scenario.thread_id, 'turn': {'id': scenario.turn_id, 'status': 'inProgress'}}})
+
+            def receive(self, message):
+                if message.get('method') != 'thread/read' or cold_reads:
+                    return super().receive(message)
+                test.assertEqual(message['params'], {'threadId': scenario.thread_id, 'includeTurns': True})
+                cold_reads.append(message['id'])
+                self.methods.append('thread/read')
+                self.stdout.put({'id': message['id'], 'error': {'code': -32600, 'message': (
+                    f'thread {scenario.thread_id} is not materialized yet; '
+                    'includeTurns is unavailable before first user message')}})
+
+        def progress(server, **kwargs):
+            if cold_reads and not materialized:
+                self.assertEqual(scenario.path.stat().st_size, 0)
+                self.assertIsNone(factory.adapter._session_boundary_baseline)
+                self.assertIsNone(factory.token)
+                scenario.set_boundary('valid')
+                records = [json.loads(line) for line in scenario.path.read_text().splitlines()]
+                records[-1]['payload'].update(model=case.spec['model'], effort=case.spec['effort'])
+                scenario.path.write_text(''.join(json.dumps(row) + '\n' for row in records))
+                materialized.append(True)
+                NamespacedFiniteRpcProcess.approve(self.fixture.spawned[0])
+            return original_progress(server, **kwargs)
+
+        with (patch.object(family, 'RpcProcess', ColdReadProcess), self._positive_finite_completion(case)):
+            original_progress = family.runtime._RegisteredServer.await_finite_progress
+            with patch.object(family.runtime._RegisteredServer, 'await_finite_progress', progress):
+                result = factory.run()
+
+        self.assertEqual(len(cold_reads), 1)
+        self.assertEqual(materialized, [True])
+        self.assertEqual(result['attempt']['outcome'], 'completed')
+        self.assertTrue(factory.server.archived)
+        self.assertTrue(factory.execution['summary']['session_boundary']['available'])
 
     def test_qualification_refuses_callback_namespace_before_owned_effect(self):
         case = self.fixture.case(qualification=True, finite_callback_namespace='functions')

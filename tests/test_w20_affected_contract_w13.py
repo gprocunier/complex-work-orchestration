@@ -1207,6 +1207,10 @@ def load_golden() -> dict:
     manifest_value = json.loads(manifest.read_bytes())
     current_app_server = manifest_value["current_app_server_source_sha256"]
     identities = document["sections"]["identities"]["source_sha256"]
+    rpc_error = _source_sha256(LIVE.AppServerRpcError)
+    if rpc_error != manifest_value["current_app_server_rpc_error_source_sha256"]:
+        raise AssertionError("current-rpc-error-class-binding-drift")
+    identities["AppServerRpcError"] = rpc_error
     identities["codex_tool_surface-module"] = _r5_surface_source_identity(
         identities["codex_tool_surface-module"], manifest_value["files"]["scripts/cwo_core/codex_tool_surface.py"])
     # The full-module reversal above verifies the former validator bytes too.
@@ -1470,6 +1474,13 @@ class TransportLineageBindingTests(unittest.TestCase):
             return text + "\n# changed\n" if value is LIVE.AppServer else text
         with mock.patch.object(inspect, "getsource", changed_class):
             with self.assertRaisesRegex(AssertionError, "^current-transport-class-binding-drift$"):
+                load_golden()
+
+        def changed_rpc_error(value):
+            text = source(value)
+            return text + "\n# changed\n" if value is LIVE.AppServerRpcError else text
+        with mock.patch.object(inspect, "getsource", changed_rpc_error):
+            with self.assertRaisesRegex(AssertionError, "^current-rpc-error-class-binding-drift$"):
                 load_golden()
 
 
