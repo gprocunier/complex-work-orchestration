@@ -134,6 +134,7 @@ class _FiniteLifecycle:
                          'command-effect', 'command-replied', 'command-completed',
                          'poll-queued', 'poll-deciding', 'poll-intent',
                          'poll-observing', 'poll-replied', 'request-queued'})
+    REPLY_PROGRESS_SECONDS = 15
 
     def __init__(self, clock=time.monotonic):
         self.clock = clock
@@ -142,6 +143,7 @@ class _FiniteLifecycle:
         self.generation = 0
         self.epoch = self.turn = self.command = self.poll = None
         self.edge_deadline = None
+        self.refusal_completion_deadline = None
         self.pending = {}
         self._cleanup = 'none'
         self._tool = 'none'
@@ -513,17 +515,24 @@ class _FiniteLifecycle:
                                       'command-intent', 'command-deciding', 'command-queued'}:
                     raise FiniteInputError('Command reply crossed a lifecycle phase.')
                 self.phase = 'command-replied'
-                self.edge_deadline = self.clock() + 15
+                self.edge_deadline = self.clock() + self.REPLY_PROGRESS_SECONDS
             elif tool == 'finite_poll':
                 if self.phase not in {'poll-observing', 'poll-intent', 'poll-deciding',
                                       'poll-queued'}:
                     raise FiniteInputError('Poll reply crossed a lifecycle phase.')
                 self.phase = 'poll-replied'
-                self.edge_deadline = self.clock() + 15
+                self.edge_deadline = self.clock() + self.REPLY_PROGRESS_SECONDS
             else:
                 raise FiniteInputError('Unknown dynamic tool cannot reply successfully.')
             self._publish()
             return True
+
+    def arm_refusal_completion_wait(self):
+        with self.condition:
+            if self.phase != 'refused' or self.refusal_completion_deadline is not None:
+                raise FiniteInputError('Only the original committed refusal may await turn completion.')
+            self.refusal_completion_deadline = self.clock() + self.REPLY_PROGRESS_SECONDS
+            self._publish()
 
     def complete(self, turn, call):
         with self.condition:
@@ -532,7 +541,7 @@ class _FiniteLifecycle:
             if self.turn != turn or self.command != call or self.phase != 'command-replied':
                 raise FiniteInputError('Command completion did not follow its reply.')
             self.phase = 'command-completed'
-            self.edge_deadline = self.clock() + 15
+            self.edge_deadline = self.clock() + self.REPLY_PROGRESS_SECONDS
             for tool, item, _deadline, _state in self.pending.values():
                 if tool == 'finite_poll':
                     self.poll = item
@@ -559,7 +568,7 @@ class _FiniteLifecycle:
                 self.phase = 'refused'
             else:
                 return False
-            self.edge_deadline = None
+            self.edge_deadline = self.refusal_completion_deadline = None
             self.pending.clear()
             self._publish()
             return True
@@ -619,24 +628,33 @@ class _FiniteLifecycle:
             self._publish()
             return True
 
+    def progress_deadline(self):
+        """Read the next progress deadline with the condition held."""
+        if self.phase == 'refused':
+            return self.refusal_completion_deadline
+        if self.phase not in self.WAITING:
+            return None
+        deadlines = [entry[2] for entry in self.pending.values()]
+        if self.edge_deadline is not None:
+            deadlines.append(self.edge_deadline)
+        return min(deadlines, default=None)
+
     def wait(self, host_deadline=None):
         """Sleep to the earliest live obligation, never a later queued bound."""
         with self.condition:
             generation = self.generation
-            while self.phase in self.WAITING and generation == self.generation:
-                deadlines = [entry[2] for entry in self.pending.values()]
-                if self.edge_deadline is not None:
-                    deadlines.append(self.edge_deadline)
-                if not deadlines:
+            while generation == self.generation:
+                deadline = self.progress_deadline()
+                if deadline is None:
                     return False
                 now = self.clock()
-                if min(deadlines) <= now:
+                if deadline <= now:
                     return True
                 if host_deadline is not None:
                     if host_deadline <= now:
                         return False
-                    deadlines.append(host_deadline)
-                self.condition.wait(timeout=min(deadlines) - now)
+                    deadline = min(deadline, host_deadline)
+                self.condition.wait(timeout=deadline - now)
             return False
 
 
@@ -1557,10 +1575,17 @@ class RegisteredFiniteInput:
                     evidence.fail_reply(qualified)
                 raise FiniteInputError('The prior-inflight tool reply is ambiguous.')
             committed = self.server._mark_command_reply(message, response, item)
-            if qualified is not None:
-                evidence.finish_reply(qualified, committed is True)
+            self._publish_qualified_reply(evidence, qualified, committed is True)
             self.server._sync_finite_progress_locked()
             return True
+
+    def _publish_qualified_reply(self, evidence, qualified, committed):
+        if qualified is None:
+            return
+        evidence.finish_reply(qualified, committed)
+        if committed and not qualified.reply[0]:
+            # The tool phase stays refused while the original turn finishes.
+            self.lifecycle.arm_refusal_completion_wait()
 
     def _record_reply_failure(self, dispatch, primary):
         if dispatch is None:

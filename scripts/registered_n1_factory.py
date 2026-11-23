@@ -1311,11 +1311,8 @@ class _RegisteredServer(RegisteredAppServer):
             with self.requests.lock:
                 self._sync_finite_progress_locked()
                 with lifecycle.condition:
-                    deadlines = [entry[2] for entry in lifecycle.pending.values()]
-                    if lifecycle.edge_deadline is not None:
-                        deadlines.append(lifecycle.edge_deadline)
-                    expired = (lifecycle.phase in lifecycle.WAITING and deadlines
-                               and min(deadlines) <= lifecycle.clock())
+                    deadline = lifecycle.progress_deadline()
+                    expired = deadline is not None and deadline <= lifecycle.clock()
             if expired:
                 raise AppServerError('registered-finite-progress-deadline')
         self._require_healthy()
