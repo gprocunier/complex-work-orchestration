@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.21.0 - 2026-11-23
+
 - Follow the registered native control poll interval while waiting for the original archive and require reconciliation if close exhausts the step budget.
 
 ### Tests
