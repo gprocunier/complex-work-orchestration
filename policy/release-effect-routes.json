@@ -56,7 +56,7 @@
 
 "N2":{"admission":{"$":2},"authority":"Explicit probe CLI/model/home/catalog or opaque verified maintenance operation/context and qualification; not worker JSON.","effect":"Probe loopback listener; maintenance preparation/qualification native launch","gate_limits":"The other two checks belong to sibling entrypoints, not this constructor path. Each entry retains its own N1 refusal.","gates":["p1fc"],"limits":"P listener pair proves zero construct/preparer/serve then fake construct/serve/close on admitted binding-drift path; not complete probe session. Maintenance positives in existing runtime families use opaque current operation/context/qualification. Observation mints are process-local capabilities, not external identity. Earlier probe/maintenance construction grants no final egress authority: supported host model-context wire screening is separately reviewed at N10.9, finite reply screening at N10.8; source/pipe controls are not live native qualification.","manual_decisions":["M03","M05","M06","M08","M31"],"ordering":"N1 at each supported entry before proof/listener/output/prepare. Maintenance guard revalidates operation, task/worktree/config, session ledger and qualification before AppServer.","review_gates":["p1c6","p2a3"],"trace_files":[{"$":62},{"$":65},{"$":66},{"$":326},{"$":28}],"witnesses":["w8f","w62"]},
 
-"N3":{"admission":{"$":2},"authority":"Exact protected host/factory/capability/admission and immutable configuration and graph intent. Ordinary N1 requires the source hold. Qualification requires the original registered receiver, signed unexpired operation permit and available campaign budget.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["p343"],"gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch.","gates":["p222"],"limits":"The ordinary hold refuses startup and intent. Existing fake controls retain the ordinary transport. Signed qualification selects a disposable registered route with at most 10 initial starts and 5 repair-bound rechecks, expiry, one start per operation and exact gpt-6.2-sol/xhigh/default tier. A contained birth may precede final release refusal. Source-owned provider proxy is app-server only; qualification does not enable production dispatch, authentication or publication. Offline witnesses use fake RPC or local TLS only.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37"],"ordering":"Select current N1 or signed qualification and exact role argv before owned birth. Use sealed options and exact bootstrap argv, retained original-parent/birth namespace handles, post-setup mount and intent checks, then the final stdin gate. Qualification records a durable start before app-server release. Tool release retains its own finite-input fence.","review_gates":["p167","p326"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340}]},
+"N3":{"admission":{"$":2},"authority":"Exact protected host/factory/capability/admission and immutable configuration and graph intent. Ordinary N1 requires the source hold. Qualification requires the original registered receiver, signed unexpired operation permit and available campaign budget.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["p343"],"gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch.","gates":["p222"],"limits":"The ordinary hold refuses startup and intent. Existing fake controls retain the ordinary transport. Signed qualification selects a disposable registered route with at most 10 initial starts and 5 repair-bound rechecks, expiry, one start per operation and exact gpt-6.2-sol/xhigh/default tier. A contained birth may precede final release refusal. Source-owned provider proxy is app-server only; qualification authentication is selected by the original signed operation and supplies no production or publication authority. Offline witnesses use fake RPC or local TLS only.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37"],"ordering":"Select current N1 or signed qualification and exact role argv before owned birth. Use sealed options and exact bootstrap argv, retained original-parent/birth namespace handles, post-setup mount and intent checks, then the final stdin gate. Qualification records a durable start before app-server release. Tool release retains its own finite-input fence. Managed login acquires a durable campaign interlock before admitted startup and retires it after verified namespace cleanup.","review_gates":["p167","p326"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340}]},
 
 "N4":{"admission":{"$":2},"authority":"Base class is not an admitted launcher. Supported shipped subclass is _RegisteredServer from protected factory; arbitrary Python subclasses are external trusted code, not accepted registered factories.","effect":"Registered transport exact base refusal and supported override launch","effect_points":["p187"],"gate_limits":"The abstract _launch_process body refuses unconditionally. Subclass overrides and constructed receiver identity remain manual dispatch limits; the base-type constructor guard precedes the named construction calls.","gates":["p34d"],"limits":"Exact base has zero Popen/binary lookup; positive is the actual _RegisteredServer through N3, not an arbitrary subclass or base AppServer constructor. Do not append all subclasses.","manual_decisions":["M08","M09"],"ordering":"Exact base type refuses before proof/probe/home; base _launch_process also refuses. Virtual override resolves to N3 containment, never ordinary AppServer.__init__ Popen.","review_gates":["pdb"],"trace_files":[{"$":115}],"witnesses":["w91","w4e"]},
 
@@ -198,7 +198,7 @@
 
 "M34":{"conclusion":"The registered qualification route is a bounded exception under the production hold for disposable workers. Ordinary N1, pool and campaign gates and shipped role defaults remain in force.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Trusted original signer, registry, factory, campaign custody and journal implementation remain prerequisites. An issued permit alone does not authorize alternate clients, host intake, publication or promotion. Synthetic starts and wire responses supply offline evidence only.","reason":"A signed HMAC qualification permit binds the exact claimed operation digest and signed model plan. Current permit, source, intent and campaign accounting precede launch. An owned private journal checks expiry, replay and budgets under a lock, and fsyncs each start before the app-server gate. The registered wire lookup binds the original receiver and restricts it to exact one-use thread/start and turn/start payloads. The signed selection uses OpenAI gpt-6.2-sol, xhigh and default tier.","review_evidence":{"$":7},"source":["p25PermitVerify","p25CampaignStart","p25Enroll","p25RequireSelected","p25RecordStart","p25WireRegistry","p25WireCheck","p25WireTurn","p25RpcGate"]},
 
-"M35":{"conclusion":"The qualification app-server broker permits HTTPS port 443 for chatgpt.com and api.openai.com. A signed launch with an attached Codex personal access token also permits auth.openai.com at that port. The app-server workspace is read-only. Tool and validator namespaces receive neither the token nor the proxy.","evidence_contracts":["N3","N9"],"external_trust_limit":"The controller provisions and manages its credential. The encrypted tunnel checks names and port without inspecting HTTP paths or bodies. Namespace isolation blocks direct traffic outside the explicit proxy audit. Local TLS tests use the bundled self-signed certificate and deliberately public fixture key. Real tokens, public provider connectivity and live Codex model behavior are unverified.","reason":"The original factory checks the signed launch before staging an explicit controller attachment in a private anonymous pipe. Only the app-server bootstrap inherits the read end. The parent releases its copy after owned spawn, the relay closes its copy before serving, and the bootstrap consumes the token after the trusted start gate and closes the pipe before exec. The existing datagram pair transfers bounded stream descriptors to the parent. Exact CONNECT authority and TLS SNI, including refusal of encrypted ClientHello, precede parent DNS and a bounded public-address dial. Denials are scrubbed. Record failure revokes the broker.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead"]},
+"M35":{"conclusion":"The qualification app-server broker permits HTTPS port 443 for chatgpt.com and api.openai.com. A signed launch with dedicated file login or an attached Codex personal access token also permits auth.openai.com at that port. The app-server workspace is read-only. Tool and validator namespaces receive neither login state nor the proxy.","evidence_contracts":["N3","N9"],"external_trust_limit":"The app server manages the dedicated file login. The embedding controller supplies any preprovisioned attachment. The encrypted tunnel checks names and port without inspecting HTTP paths or bodies. Namespace isolation blocks direct traffic outside the explicit proxy audit. Local TLS tests use the bundled self-signed certificate and deliberately public fixture key. Real tokens, public provider connectivity and live Codex model behavior are unverified. The managed mount requires Linux and Bubblewrap writable-overlay support. Synthetic files and same-filesystem rename witnesses do not establish live refresh.","reason":"The original factory checks the signed launch before staging an explicit controller attachment in a private anonymous pipe. Only the app-server bootstrap inherits the read end. The parent releases its copy after owned spawn, the relay closes its copy before serving, and the bootstrap consumes the token after the trusted start gate and closes the pipe before exec. The existing datagram pair transfers bounded stream descriptors to the parent. Exact CONNECT authority and TLS SNI, including refusal of encrypted ClientHello, precede parent DNS and a bounded public-address dial. Denials are scrubbed. Record failure revokes the broker. The signed managed-file selector uses the app-server-only fixed namespace alias of the approved passwd-relative login directory. The controller checks metadata and leaves file reads and refresh to Codex. A private overlay projects the signed config and a single operation spool for rollout and archive. The durable exclusive campaign interlock precedes mount preparation. The app-server gate observes mount identities before campaign charge. Uncertain namespace retirement holds the interlock.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead","p42LoginSelection","p42LeaseClaim","p42LeaseRetire","p42Mounts","p42MountVerify","p42Projection","p42Rollout","p42Archive"]},
 
 "M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts. A terminal rollout may await original typed item intake until the reply deadline while the wire turn stays open.","review_evidence":{"$":7},"source":["p25LiveInput","p36DirectCatalog","p36FiniteAdmit","p36FiniteItem","p36FiniteCommit","p36FiniteReplyDispatch","p36FiniteHistorical","p36FiniteMatch","p36FiniteAwaitOriginal","p36FiniteHistory","p36FiniteBoundary","p36FiniteWaitTerminal","p36FiniteTypedComplete"]},
 
@@ -556,7 +556,7 @@
 
 "p112":[120,"QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments",186,"32b00495d71f94381e4f8d4ca4ebc76fd51abd6c9443a3a4509c0640bc5c1d25"],
 
-"p113":[64,"_Containment.launch",637,"44b2f2960e6f7aecd67047dc1ca7e4edad0fbab3697ba53f9fd6d02bbcd59652"],
+"p113":[64,"_Containment.launch",672,"44b2f2960e6f7aecd67047dc1ca7e4edad0fbab3697ba53f9fd6d02bbcd59652"],
 
 "p114":[116,"OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared",389,"ba6ba5e3d23da891f8d3c7d03cfbd3bcc4d1526f1bacc1b9ccf6b359ada6177a"],
 
@@ -932,7 +932,7 @@
 
 "p1ab":[44,1806,"pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get(\"allow_private_dns\")))"],
 
-"p1ac":[64,"_RegisteredServer.request",1448,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
+"p1ac":[64,"_RegisteredServer.request",1501,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
 
 "p1ad":[3,538,"method(argument, submission, **options)",19,538,58],
 
@@ -968,7 +968,7 @@
 
 "p1bc":[90,"ChatGPTBrowserReviewTests._browser_result",1326,"a9058beb7012505459ffa69a75cc7039ed1546464c2942732822fd7a6a3fd485"],
 
-"p1bd":[64,"RegisteredN1Factory._isolated_validation",2383,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
+"p1bd":[64,"RegisteredN1Factory._isolated_validation",2457,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
 
 "p1be":[8,685,{"$":285},12,685,84],
 
@@ -1176,7 +1176,7 @@
 
 "p20a":[37,1502,"if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:"],
 
-"p20b":[64,"_RegisteredServer._launch_process",1478,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
+"p20b":[64,"_RegisteredServer._launch_process",1531,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
 
 "p20c":[78,"main",218,"4b19f823bfd6636d1a333dfc6aff0b26e633136bec98d21ff065260472d805a5"],
 
@@ -1226,7 +1226,7 @@
 
 "p221":[74,"_run_calibration",5079,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
 
-"p222":[64,639,{"$":148}],
+"p222":[64,674,{"$":148}],
 
 "p223":[43,"run_git",434,{"$":213}],
 
@@ -1274,7 +1274,7 @@
 
 "p238":[74,3706,{"$":284}],
 
-"p239":[64,"RegisteredN1Factory.run",2416,"0c790d6e416d303ed88a40e93573bcef26abdbd681e7e4b37a0555487e95262d"],
+"p239":[64,"RegisteredN1Factory.run",2513,"605910c46c37f2fa48aae94ff6154036d1dd9f289b010b6dd8bf90d30c55d9b7"],
 
 "p23a":[99,"F5NativeLiveHoldTests.test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control",72,"f207bc2f8e9c15178d0dcbfdf180602184543c6047821684826e1ff49456edea"],
 
@@ -1344,33 +1344,33 @@
 
 "p259":[44,"_resolve_local_endpoint_addresses",746,"4c5ba9de3b38425f046bb4fb398153c0dc38ca72b8a6e63128823db92e4d6d45"],
 
-"p25AdoptControl":[146,416,"socket.socket(fileno=descriptor)",9,416,41],
+"p25AdoptControl":[146,417,"socket.socket(fileno=descriptor)",9,417,41],
 
 "p25AdoptStream":[146,301,"socket.socket(fileno=descriptors[0])",15,301,51],
 
-"p25Bootstrap":[146,"_bootstrap",433,"bf517f8c2d5b541f94d88c9de5df1468d9a427457823e0184183a948b1eee4ef"],
+"p25Bootstrap":[146,"_bootstrap",434,"bf517f8c2d5b541f94d88c9de5df1468d9a427457823e0184183a948b1eee4ef"],
 
-"p25Broker":[146,"ProviderBroker.__init__",310,"67bf6ff62a596f64d4939ea348e2c7fccd1b964ed4001b16d5b8d1e210d436c3"],
+"p25Broker":[146,"ProviderBroker.__init__",310,"e31651f739ba712a261a555a708a00e65c1b6b1913ef6687eb0829829ebe2163"],
 
-"p25BrokerPair":[146,314,"socket.socketpair(type=socket.SOCK_DGRAM)",43,314,84],
+"p25BrokerPair":[146,315,"socket.socketpair(type=socket.SOCK_DGRAM)",43,315,84],
 
-"p25Budget":[148,"CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks",46,"8527c5eb6394a4a05df33b729c116e774e00420a465d8034c5653cdab392e1a6"],
+"p25Budget":[148,"CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks",50,"8527c5eb6394a4a05df33b729c116e774e00420a465d8034c5653cdab392e1a6"],
 
-"p25CampaignStart":[149,"_campaign_start",274,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
+"p25CampaignStart":[149,"_campaign_start",445,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
 
 "p25Dial":[146,"_dial_provider",188,"52fe6a0ece405aa8a79d44bfe33af8eef31e92faa0fc915a65aa287fd780a70a"],
 
-"p25Egress":[146,"ProviderBroker._handle",341,"55dca3e7fb430ad940cc66430d944423566f8882b05f2fefa3f6d243e5158fe7"],
+"p25Egress":[146,"ProviderBroker._handle",342,"55dca3e7fb430ad940cc66430d944423566f8882b05f2fefa3f6d243e5158fe7"],
 
-"p25Enroll":[149,"initialize_campaign",183,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
+"p25Enroll":[149,"initialize_campaign",334,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
 
-"p25EnrollHeader":[149,194,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
+"p25EnrollHeader":[149,345,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
 
-"p25EnrollMkdir":[149,188,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
+"p25EnrollMkdir":[149,339,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
 
-"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",180,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
+"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",455,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
 
-"p25ExpirySupport0":[148,{"$":330},232,{"$":343}],
+"p25ExpirySupport0":[148,{"$":330},507,{"$":343}],
 
 "p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1715,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
@@ -1384,85 +1384,85 @@
 
 "p25LiveInput":[62,"RegisteredFiniteInput.capture_poll_input",870,"741d0ee6da07e322fc782e67fce1b594af5ccc3fd648e603a20b1d9038354d67"],
 
-"p25LoopbackBind":[146,419,"listener.bind(('127.0.0.1', PROXY_PORT))"],
+"p25LoopbackBind":[146,420,"listener.bind(('127.0.0.1', PROXY_PORT))"],
 
-"p25LoopbackListen":[146,420,"listener.listen(_MAX_CONNECTIONS)"],
+"p25LoopbackListen":[146,421,"listener.listen(_MAX_CONNECTIONS)"],
 
-"p25LoopbackSocket":[146,416,"socket.socket()",54,416,69],
+"p25LoopbackSocket":[146,417,"socket.socket()",54,417,69],
 
-"p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",77,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
+"p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",81,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
 
-"p25MonitorCall":[64,850,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
+"p25MonitorCall":[64,885,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
 
-"p25MonitorProof":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",402,"7f29094575111853598e0e11ee85153f695cff96a2ea2d2f8c0d0212bfb5e19c"],
+"p25MonitorProof":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",421,"7f29094575111853598e0e11ee85153f695cff96a2ea2d2f8c0d0212bfb5e19c"],
 
-"p25MonitorReason":[64,871,"return report.get('reason') == str(missing)"],
+"p25MonitorReason":[64,906,"return report.get('reason') == str(missing)"],
 
-"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",861,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
+"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",896,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
 
-"p25MonitorTerminate":[64,"_Containment._terminate_monitor",847,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
+"p25MonitorTerminate":[64,"_Containment._terminate_monitor",882,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
 
 "p25Names":[146,"_validate_tls_name",143,"272a7c111ff2ec2d2ef0a20a2ac6bd8a5ce14842ac146273067bdc26f739516d"],
 
 "p25OriginalWatchdog":[117,"PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence",684,"03c80a17c82bad214cde5e29feb81bcc65e11e6704ad5daac3b03b09fc6f8fba"],
 
-"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",96,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
+"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",238,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
 
-"p25PermitSupport0":[148,{"$":330},232,{"$":343}],
+"p25PermitSupport0":[148,{"$":330},507,{"$":343}],
 
-"p25PermitVerify":[149,"verify_qualification_permit",156,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
+"p25PermitVerify":[149,"verify_qualification_permit",307,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
 
-"p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",358,"8a5c03a7dbf20a8094ccea57838b1f8d023d68885d38d877308b4f60e39b19d5"],
+"p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",377,"8a5c03a7dbf20a8094ccea57838b1f8d023d68885d38d877308b4f60e39b19d5"],
 
 "p25ProviderConnect":[146,196,"upstream.connect(address)",12,196,37],
 
-"p25ProviderExec":[146,444,"os.execv(command[0], command)",4,444,33],
+"p25ProviderExec":[146,445,"os.execv(command[0], command)",4,445,33],
 
-"p25ProviderPrivate":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",120,"7aa8c2bcc5b70827c849edf77343cf416363f4d238d4349a2c958656c070beba"],
+"p25ProviderPrivate":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",139,"7aa8c2bcc5b70827c849edf77343cf416363f4d238d4349a2c958656c070beba"],
 
 "p25ProviderPrivateSupport0":[147,{"$":334},47,{"$":335}],
 
-"p25ProviderSNI":[147,"ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect",110,"1064a86f83b1012e5e885ae440759722652253880878de0dd7054baa3a733ef8"],
+"p25ProviderSNI":[147,"ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect",129,"1064a86f83b1012e5e885ae440759722652253880878de0dd7054baa3a733ef8"],
 
 "p25ProviderSNISupport0":[147,{"$":334},47,{"$":335}],
 
 "p25ProviderSocket":[146,193,"socket.socket(family, socket.SOCK_STREAM)",19,193,60],
 
-"p25ProviderSupport0":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",335,"09acb7d123c99a72800a1b51d0d4487efd92ce9aa3a9edeb64c6a4e4b6797ed0"],
+"p25ProviderSupport0":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",354,"09acb7d123c99a72800a1b51d0d4487efd92ce9aa3a9edeb64c6a4e4b6797ed0"],
 
-"p25ProviderTLSSupport":[147,"ProviderNamespaceTests._synthetic_endpoint",287,"dfc4135d374b4fc9fee61a5a42b7ab3d039caaaadf271039ee7183fbf7e6f8a6"],
+"p25ProviderTLSSupport":[147,"ProviderNamespaceTests._synthetic_endpoint",306,"dfc4135d374b4fc9fee61a5a42b7ab3d039caaaadf271039ee7183fbf7e6f8a6"],
 
 "p25Receive":[146,"_receive_handoff",298,"bd7ae12514a91ea23c0045a0956835e9a282eeadac62dab106a0e90426f1414d"],
 
-"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2144,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
+"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2216,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
 
-"p25RelayFork":[146,404,"if os.fork() != 0:"],
+"p25RelayFork":[146,405,"if os.fork() != 0:"],
 
 "p25RelayRecvFD":[146,299,"message, descriptors, flags, _address = socket.recv_fds(control, 1, 1, socket.MSG_CMSG_CLOEXEC)"],
 
 "p25RelaySendFD":[146,290,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
 
-"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2133,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
+"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2205,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
 
 "p25Resolve":[146,"_resolved_provider",176,"2cab59725dc7236d4551ce9000244baf36f857ed37c2e0cfa6b7329514c51aec"],
 
 "p25RpcGate":[42,"_require_native_rpc",212,{"$":336}],
 
-"p25StartAppend":[149,283,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
+"p25StartAppend":[149,454,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
 
-"p25StartSync":[149,284,"os.fsync(descriptor)"],
+"p25StartSync":[149,455,"os.fsync(descriptor)"],
 
 "p25StreamPair":[146,287,"socket.socketpair()",21,287,40],
 
-"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",217,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
+"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",492,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
 
-"p25TransportScopeSupport0":[148,{"$":330},232,{"$":343}],
+"p25TransportScopeSupport0":[148,{"$":330},507,{"$":343}],
 
-"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1154,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
+"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1189,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
 
-"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1144,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
+"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1179,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
 
-"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1164,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
+"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1199,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
 
 "p25a":[116,{"$":56},260,{"$":49}],
 
@@ -1504,13 +1504,13 @@
 
 "p26c":[43,"WorktreeCapture._resolve_dirs",1934,"759407e0fb8121a074f72d098a7827e410ecd9e99fc1ebc27a5f29ad4bcf5b0b"],
 
-"p26d":[64,"_RegisteredServer.__init__",1116,"455086f7a62609952269401d68a0d894ebb4a3ed70fbb12fd0666cb3c469d0eb"],
+"p26d":[64,"_RegisteredServer.__init__",1151,"455086f7a62609952269401d68a0d894ebb4a3ed70fbb12fd0666cb3c469d0eb"],
 
 "p26e":[30,329,"self._handle.require_intent()"],
 
 "p26f":[32,783,"completed = subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,"],
 
-"p27":[64,1551,"self.request('thread/start', params, timeout=10)",29,1551,77],
+"p27":[64,1604,"self.request('thread/start', params, timeout=10)",29,1604,77],
 
 "p270":[73,706,"_require_live_activation(profile)"],
 
@@ -1546,7 +1546,7 @@
 
 "p28":[42,374,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,385,13],
 
-"p280":[64,"_CoherentServerRequests",993,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
+"p280":[64,"_CoherentServerRequests",1028,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
 
 "p281":[74,"main",12838,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
 
@@ -1682,7 +1682,7 @@
 
 "p2a7":[50,242,"if [[ \"$REPLACE\" -eq 1 && \"$DRY_RUN\" -eq 0 ]]; then"],
 
-"p2a8":[64,1480,"self.lifetime.launch(command, self.factory.home)",18,1480,66],
+"p2a8":[64,1533,"self.lifetime.launch(command, self.factory.home)",18,1533,66],
 
 "p2a9":[2,34,"if args.expires_after_bead.strip() != args.bead.strip():"],
 
@@ -1830,7 +1830,7 @@
 
 "p2ed":[59,415,{"$":57}],
 
-"p2ee":[64,2388,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2388,99],
+"p2ee":[64,2462,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2462,99],
 
 "p2ef":[8,{"$":197},1060,{"$":188}],
 
@@ -1852,7 +1852,7 @@
 
 "p2f7":[48,"require_trusted_reader",63,{"$":243}],
 
-"p2f8":[64,644,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
+"p2f8":[64,679,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
 
 "p2f9":[70,87,"require_v8_live_routes(plan)"],
 
@@ -1992,7 +1992,7 @@
 
 "p325":[2,54,"if not all((payload[\"operator_approval_ref\"], payload[\"sol_breakfix_scope\"], payload[\"sol_breakfix_expiry\"])):"],
 
-"p326":[64,2128,{"$":13}],
+"p326":[64,2200,{"$":13}],
 
 "p327":[23,"create_bead",231,"86b606298bf0b24b6e2416b45f7d92a832c408aea4f2ae0d10b3dbd65245b079"],
 
@@ -2052,9 +2052,9 @@
 
 "p341":[34,"_run",251,"043c67cecbd88fe946f19837214aba0a39406c62d7280a03e49f76226ca692af"],
 
-"p342":[64,"RegisteredN1Factory._effect",2271,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
+"p342":[64,"RegisteredN1Factory._effect",2345,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
 
-"p343":[64,665,"result = self.controller.spawn_owned("],
+"p343":[64,700,"result = self.controller.spawn_owned("],
 
 "p344":[8,{"$":199},705,{"$":168}],
 
@@ -2102,25 +2102,25 @@
 
 "p359":[51,"_LinuxEngine._capability",658,"b13ee7b85d401e179654e9581e68990fa87794af4c3884d10b2c348d19984466"],
 
-"p35AttachmentAdmission":[64,"RegisteredN1Factory._claim_run",2397,"018670080eb357ad844d59b5fb7e8b13bf6e6906d2e4ca47bf3870f7408001e5"],
+"p35AttachmentAdmission":[64,"RegisteredN1Factory._selected_access_token",2471,"cbeb9b7ce8a7a1cb81f9053c502e10e0413b0688ea98a9691769cea64195e82a"],
 
-"p35AttachmentRead":[146,"_read_access_token",426,"bfcc5ecf74d7f2ae741fe437bd7821bc1e03556fee0712797d4d80e6bedc7a2a"],
+"p35AttachmentRead":[146,"_read_access_token",427,"bfcc5ecf74d7f2ae741fe437bd7821bc1e03556fee0712797d4d80e6bedc7a2a"],
 
-"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",711,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
+"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",746,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
 
-"p35AttachmentStaging":[64,"_Containment._stage_access_token",560,"ac3682a1f98321bd9215d8ce36a135638d34c0b0d820026ae7904b43963a5072"],
+"p35AttachmentStaging":[64,"_Containment._stage_access_token",585,"ac3682a1f98321bd9215d8ce36a135638d34c0b0d820026ae7904b43963a5072"],
 
 "p35AuthAbsent":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",85,"286440c9d6e1457ac6b74f25862849cd2d29a19d093692fc22fbe76153d001a0"],
 
-"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",159,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
+"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",434,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
 
-"p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",216,"9d49cbff7cef5e78c2f32e4ce3d50f2d2483dc636827c42edb332215bc575254"],
+"p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",235,"9d49cbff7cef5e78c2f32e4ce3d50f2d2483dc636827c42edb332215bc575254"],
 
-"p35AuthTls":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",382,"70399970f5da9ab75059582e64e92c26f6d86fc8be44572c6555223f47fd3637"],
+"p35AuthTls":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",401,"70399970f5da9ab75059582e64e92c26f6d86fc8be44572c6555223f47fd3637"],
 
-"p35RelayCustody":[146,"_fork_relay",403,"15ff8165026b26477a8ee995b9ed9034f10c7b942f6e0aa8d32cd62cbb0586f2"],
+"p35RelayCustody":[146,"_fork_relay",404,"15ff8165026b26477a8ee995b9ed9034f10c7b942f6e0aa8d32cd62cbb0586f2"],
 
-"p35RelaySetup":[146,"_start_relay",415,"7be6b72ddaecb3a14a1756ef727661d22ff5665ae60a4794cf51bb75a801f0ee"],
+"p35RelaySetup":[146,"_start_relay",416,"7be6b72ddaecb3a14a1756ef727661d22ff5665ae60a4794cf51bb75a801f0ee"],
 
 "p35a":[112,"NativePoolAdmissionTests.test_close_owned_reconciles_exact_success_timeout_and_error",793,"1025d797bb254d49a929111b60ff9e66384e3be305cee67712b128870a611389"],
 
@@ -2172,7 +2172,7 @@
 
 "p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",1977,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
 
-"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1217,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
+"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1270,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
 
 "p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1926,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
 
@@ -2194,11 +2194,11 @@
 
 "p36SchemaContract":[141,"_check_n1_qualification",432,"f89a627ce9bff40376f19f9fd0fadf4d2c2460326a4a4f6004ee2928acc4709f"],
 
-"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",244,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
+"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",519,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
 
-"p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",631,"a7f87b36be3adf54b0d4000b3199ebada174ff892595c40d7b388dec3f044192"],
+"p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",666,"a7f87b36be3adf54b0d4000b3199ebada174ff892595c40d7b388dec3f044192"],
 
-"p36SchemaSelect":[149,"require_executable_schema",93,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
+"p36SchemaSelect":[149,"require_executable_schema",244,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
 
 "p36a":[47,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -2244,11 +2244,11 @@
 
 "p37e":[64,63,{"$":248},15,63,49],
 
-"p37f":[64,586,"os.write(descriptor, b'1')",12,586,38],
+"p37f":[64,611,"os.write(descriptor, b'1')",12,611,38],
 
 "p38":[8,1196,"box.evaluate(_FILL_SCRIPT, prompt)",35,1196,69],
 
-"p380":[64,616,{"$":148},8,616,37],
+"p380":[64,651,{"$":148},8,651,37],
 
 "p381":[127,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",957,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
 
@@ -2256,9 +2256,9 @@
 
 "p383":[127,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",939,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
 
-"p384":[64,"_Containment._command",484,"d461594250385ae5be10beeeaa01395173a07e042fe6ed27084ff3ece287ae19"],
+"p384":[64,"_Containment._command",510,"07fe31b30a2a1df9f5ad8d6789609c77021dc836326805cff8aea90881fe1b1f"],
 
-"p385":[64,745,"os.pidfd_open(pid, 0)",21,745,42],
+"p385":[64,780,"os.pidfd_open(pid, 0)",21,780,42],
 
 "p386":[64,"_namespace_info",158,"4bdd5337d0bd5be726aad740b60874887dcd4cda504fd993a8099cf78f0fc851"],
 
@@ -2268,15 +2268,15 @@
 
 "p389":[127,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",932,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
 
-"p38a":[64,"_Containment._release_command",606,"d5476cbe24d8e3de83f9106100989cd4bd675c8b133ada088bcfb31cf8722ec6"],
+"p38a":[64,"_Containment._release_command",640,"fb4d5e08f70f22a0433b3cf5c33ec6231f51eb897bdd59564982c6372c5d45f2"],
 
-"p38b":[64,"_Containment._retain_namespace",743,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
+"p38b":[64,"_Containment._retain_namespace",778,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
 
-"p38c":[64,789,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,789,75],
+"p38c":[64,824,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,824,75],
 
-"p38d":[64,609,{"$":249},8,609,34],
+"p38d":[64,644,{"$":249},8,644,34],
 
-"p38e":[64,"_Containment._terminate_claimed",888,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
+"p38e":[64,"_Containment._terminate_claimed",923,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
 
 "p38f":[79,165,"bd_json(command)",42,165,58],
 
@@ -2352,19 +2352,19 @@
 
 "p3S":[64,"_observe_adapter_failure",104,"869cdfc10f26047f7317a60cd6ace3e5842a732b4918a543b1f6af4c8ce05c9c"],
 
-"p3T":[64,"RegisteredN1Factory._make_adapter",2248,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
+"p3T":[64,"RegisteredN1Factory._make_adapter",2322,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
 
-"p3U":[64,"RegisteredN1Factory.model_task_binding",2055,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
+"p3U":[64,"RegisteredN1Factory.model_task_binding",2125,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
 
-"p3V":[64,"RegisteredAdapter._current_effective_boundary",1817,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
+"p3V":[64,"RegisteredAdapter._current_effective_boundary",1872,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
 
-"p3W":[64,"RegisteredN1Factory.model_task_bytes",2051,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
+"p3W":[64,"RegisteredN1Factory.model_task_bytes",2121,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
 
 "p3X":[111,"NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance",279,"f72d7a5e54a472bcac0502f46b639be46bf7b8a49fc39fad2f28e3f6720eab89"],
 
-"p3Y":[64,"RegisteredN1Factory._require_model_task",2046,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
+"p3Y":[64,"RegisteredN1Factory._require_model_task",2116,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
 
-"p3Z":[64,2047,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2049,74],
+"p3Z":[64,2117,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2119,74],
 
 "p3a":[8,739,{"$":254},26,743,17],
 
@@ -2408,39 +2408,39 @@
 
 "p3f":[76,1488,{"$":217},8,1492,9],
 
-"p3g":[64,"RegisteredN1Factory.record_dispatch",2087,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
+"p3g":[64,"RegisteredN1Factory.record_dispatch",2159,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
 
-"p3h":[64,2095,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2104,9],
+"p3h":[64,2167,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2176,9],
 
 "p3i":[111,"NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority",301,"7bf973b3e6e53c0e6c5fe7171dead072a12556ad50a9ab58ea29e5bc3cfbbd64"],
 
-"p3j":[64,1846,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1848,93],
+"p3j":[64,1901,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1903,93],
 
-"p3k":[64,"RegisteredN1Factory.guard",2017,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
+"p3k":[64,"RegisteredN1Factory.guard",2087,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
 
 "p3l":[111,"NativeOutboundScreenTests.registered_fixture",37,"2cc9dcf7da58c4f77b488c6c3a7dce0e94203e087fa5a2b9acff27ac22cf0842"],
 
 "p3m":[64,89,"_need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes\n          and _snapshot(selected['execution']) == receipt.execution_bytes,\n          'The model task requires the exact original admitted request and execution.')",4,91,87],
 
-"p3n":[64,"_registered_adapter_method",1897,"8b37de2cb04b07183fa7c73e71cb2265f80a9c089336d5cc0d55cead8a95fbfc"],
+"p3n":[64,"_registered_adapter_method",1952,"8b37de2cb04b07183fa7c73e71cb2265f80a9c089336d5cc0d55cead8a95fbfc"],
 
-"p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1726,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
+"p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1731,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
 
 "p3p":[111,"NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session",249,"5dd5476b4d34a47fc1794f47311d7c3308fbb73caa72b0b7869ea9b710863f65"],
 
 "p3q":[64,"_model_task",86,"1e7f83afba24a773dbce985590786eb56a82c0c5f30d40e24cb25deeefab38f1"],
 
-"p3r":[64,1819,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1819,99],
+"p3r":[64,1874,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1874,99],
 
 "p3s":[64,99,"_need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),\n          'The complete model task exceeds its original admitted byte allowance.')",4,100,82],
 
-"p3t":[64,"RegisteredAdapter.final_summary",1824,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
+"p3t":[64,"RegisteredAdapter.final_summary",1879,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
 
-"p3u":[64,1844,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1845,80],
+"p3u":[64,1899,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1900,80],
 
 "p3v":[111,"NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent",313,"448bff8184737597bf2cf9104a880623c7f0c7b36d91472f0423f5c5adecb5ed"],
 
-"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1836,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
+"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1891,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
 
 "p3x":[64,"_require_summary_primary",116,"ee253260a8982eca8f9b9b7617ac6dbdbdf49dcfb656ae4790273801f3e9cde6"],
 
@@ -2455,6 +2455,32 @@
 "p41":[8,1380,"candidate.click(timeout=timeout_ms)",16,1380,51],
 
 "p42":[8,677,{"$":254},26,681,17],
+
+"p42Archive":[149,"ManagedLoginMount.confirm_archived",202,"b52e8ee2fded973437991fbd7ce4f47a40fcb69ed62bd9f2f77470c1a3eea338"],
+
+"p42Interlock":[148,"CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release",94,"acf85bb27912d3e6d203555ce7f4fb4f4b9e97a4e694d95f22d838c81b00a722"],
+
+"p42LeaseClaim":[149,"claim_managed_login",365,"491ee59b40ed621f2e4930d4d7e4564683ac9b5f931037f1bf8874b4aa6c8ceb"],
+
+"p42LeaseRetire":[64,"RegisteredN1Factory._retire_managed_login",2493,"ca2c4dc74dad3324410da99c84a57263e6883f38cf6456cc355f367b9a1f01ef"],
+
+"p42LoginSelection":[64,"RegisteredN1Factory._select_managed_login",2034,"7afdf6915afbe268fdf048ca7bfbd6f3efc39c8d064787bc85bbb127f25113fc"],
+
+"p42MountVerify":[64,"_Containment._confirm_login_mount",632,"04d0e792136607c7609f9afa4d68370267cd17185f760ba22e3c483992492eed"],
+
+"p42Mounts":[64,"_Containment._appserver_mounts",498,"f2650cfc0f101963ccfde8658277281eec6c7292915170cab5ffcc0151ce5f23"],
+
+"p42Namespace":[148,"ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes",187,"4f16c4f92862debb13b92196ea293af3f7a097be7b4f1dd19d44b4b0d007d5da"],
+
+"p42Precharge":[148,"FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace",305,"3d5d8d26e305ffa0017b7d3168f4f2e52bd0d14756c6e57a5600289d42c2593a"],
+
+"p42Projection":[149,"ManagedLoginMount.prepare",143,"2f15c0e5211efe830f098372a2f14e963584903ee902969e06463b6dbc9471cb"],
+
+"p42Provider":[147,"ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist",110,"cbcfc8f9988446c042ac5c53e586916786ecd672d83e9ea540b9e8ac7e8736d2"],
+
+"p42Rollout":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",349,"273264f1d3281f34e020202294c1788688e9e6b1e99a2addfc6ac0d551c9d358"],
+
+"p42Unresolved":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",315,"ce1b7f7a372f3c205d2141ad468fea166d831755f9d6b8923037d21850e4912d"],
 
 "p43":[23,187,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,195,9],
 
@@ -2486,7 +2512,7 @@
 
 "p50":[8,1057,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1057,72],
 
-"p51":[64,1450,"super().request(*args, **kwargs)",17,1450,49],
+"p51":[64,1503,"super().request(*args, **kwargs)",17,1503,49],
 
 "p52":[50,202,{"$":315}],
 
@@ -2698,7 +2724,7 @@
 
 "pO":[129,"FiniteReplyWireTests.test_flush_or_scan_crossing_original_deadline_cannot_write",138,"13db522ce4edb84fb9a70b89c19ae9e35ec880fdecee4692a96fc188a91e8203"],
 
-"pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1797,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
+"pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1802,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
@@ -2708,9 +2734,9 @@
 
 "pRefusalClass":[143,"provider_policy_blocker",24,"4602fc7f3eac31aa4a2ba9ae0e9437d3d649c4b5c88b7f92e55ae862e061410f"],
 
-"pRefusalFixture":[127,"FactoryTests.assert_terminal_worker_failure",1745,"a2c1f9ba507243b1d4eb9d526fbc01358e34da2abc07abf54ead6836eb658bad"],
+"pRefusalFixture":[127,"FactoryTests.assert_terminal_worker_failure",1750,"a2c1f9ba507243b1d4eb9d526fbc01358e34da2abc07abf54ead6836eb658bad"],
 
-"pRefusalTest":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1789,"d25bd981c37a3d70434db9139eb0683a106c182dd635e4eaad9024a83f0ce81a"],
+"pRefusalTest":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1794,"d25bd981c37a3d70434db9139eb0683a106c182dd635e4eaad9024a83f0ce81a"],
 
 "pS":[65,"RegisteredN1Workflow._validate_execution",432,"9de7b62e0f7fdca9d868e2d5d7c98b9bad4eeadccca416586a9461d417690e7e"],
 
@@ -2838,7 +2864,7 @@
 
 "pce":[12,"main",846,"d0017093d8849ce4efedc6c4462bee8f1bcbdd348d8f24efcf40614272f997e6"],
 
-"pcf":[64,639,{"$":148}],
+"pcf":[64,674,{"$":148}],
 
 "pd":[8,876,"page.evaluate(_SNAPSHOT_SCRIPT, [marker])",20,876,61],
 
@@ -5011,39 +5037,39 @@
 
 [72,127,13,127,51,"dynamic","634fa128c02d9c9ccbe9f792b9c0cec527c554c3b64f8f3f7218f32b4bc5985f",[{"$":9},"XR357"]],
 
-[72,687,25,687,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
+[72,722,25,722,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
 
-[72,852,31,852,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
+[72,887,31,887,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
 
-[72,969,12,969,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
+[72,1004,12,1004,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
 
-[72,1027,15,1027,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
+[72,1062,15,1062,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
 
-[72,1394,20,1394,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
+[72,1447,20,1447,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
 
-[72,1450,17,1450,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
+[72,1503,17,1503,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
 
-[72,1460,49,1460,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
+[72,1513,49,1513,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
 
-[72,1480,18,1480,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
+[72,1533,18,1533,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
 
-[72,1551,29,1551,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
+[72,1604,29,1604,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
 
-[72,1719,16,1719,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
+[72,1774,16,1774,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
 
-[72,1864,17,1864,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
+[72,1919,17,1919,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
 
-[72,1865,39,1865,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
+[72,1920,39,1920,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
 
-[72,1884,15,1884,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
+[72,1939,15,1939,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
 
-[72,1913,16,1913,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
+[72,1968,16,1968,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
 
-[72,1915,18,1915,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
+[72,1970,18,1970,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
 
-[72,2279,29,2279,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
+[72,2353,29,2353,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
 
-[72,2388,22,2388,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
+[72,2462,22,2462,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
 
 [73,38,7,38,42,"dynamic","f6934272bce56a1ce7cebbe4386aacc09a74f1141872418c5f0b7011111d7163",[{"$":9},"XR373"]],
 
@@ -5061,13 +5087,13 @@
 
 [90,301,15,301,51,"network","1517417878c7639c66e291bf0671cdff0e1f7f2434388562b2580cd142583bcb",["route","N3.10","p25AdoptStream"]],
 
-[90,314,43,314,84,"network","355e91c70c9dfc2a98ab94029dd3305583791262806de9f1a9cf0eebaf4623e7",["route","N3.8","p25BrokerPair"]],
+[90,315,43,315,84,"network","355e91c70c9dfc2a98ab94029dd3305583791262806de9f1a9cf0eebaf4623e7",["route","N3.8","p25BrokerPair"]],
 
-[90,416,9,416,41,"network","a239c3e04154b0cd90f0307e20f274cde0677d2e6ce9659e60daa0c88b599ee4",["route","N3.11","p25AdoptControl"]],
+[90,417,9,417,41,"network","a239c3e04154b0cd90f0307e20f274cde0677d2e6ce9659e60daa0c88b599ee4",["route","N3.11","p25AdoptControl"]],
 
-[90,416,54,416,69,"network","2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",["route","N3.11","p25LoopbackSocket"]],
+[90,417,54,417,69,"network","2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",["route","N3.11","p25LoopbackSocket"]],
 
-[90,444,4,444,33,"process","bab1b779be05bd3bf09d1e3ce67d83ca0a862755c22d04a01ccb240b2557c9a6",["route","N3.11","p25ProviderExec"]],
+[90,445,4,445,33,"process","bab1b779be05bd3bf09d1e3ce67d83ca0a862755c22d04a01ccb240b2557c9a6",["route","N3.11","p25ProviderExec"]],
 
 [75,27,17,27,37,"dynamic","141361aefa2aa9f893afe69f541e620592710701316b4bd612c896639018171c",[{"$":9},"XR426b"]],
 
@@ -5438,13 +5464,13 @@
 
 {"contract":"N2","effect_points":["p1c3","p20"],"entrypoint":"p276","gates":["p2a3"],"id":"N2.4","review_gates":["p1fc","p1c6"]},
 
-{"contract":"N3","entrypoint":"pca","id":"N3.1","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w38","w25Permit","w25Budget","w25Expiry","w25Models"]},
+{"contract":"N3","entrypoint":"pca","id":"N3.1","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w38","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout"]},
 
 {"contract":"N3","entrypoint":"p2b1","id":"N3.2","manual_decisions":["M08","M09","M10","M26","M32"],"trace_files":[{"$":15},{"$":10},{"$":36}]},
 
-{"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},"scripts/cwo_core/supervision/turn_observations.py",{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models"]},
+{"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},"scripts/cwo_core/supervision/turn_observations.py",{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout"]},
 
-{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. An original registered qualification permit is checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before any worker birth or campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33"],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate"]},
+{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. An original registered qualification permit is checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before any worker birth or campaign start. The optional signed managed login mount is app-server-only and confirmed before the campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33"],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout"]},
 
 {"contract":"N4","entrypoint":"p2a6","gate_chains":[{"calls":[{"call":"p13e","direction":"into","target":"p30d"}],"effect":"p187","gate":"p34d"}],"id":"N4.1"},
 
@@ -5676,9 +5702,9 @@
 
 {"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["p7a"],"entrypoint":"p7b","gates":[],"id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":[{"$":70},{"$":21}],"witnesses":["w2a"]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Host broker calls this helper only after exact allowed CONNECT and initial TLS SNI. Resolve fixed names at port 443 through the trusted host resolver and reject private/non-global results. Up to eight address candidates share one deadline and respect revocation. The scanner labels socket.connect as browser family by name; the concrete receiver is a TCP socket. Synthetic local TLS is the positive control. The fixed authentication hostname is admitted only for an app-server launch with an attached personal access token.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent"]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Host broker calls this helper only after exact allowed CONNECT and initial TLS SNI. Resolve fixed names at port 443 through the trusted host resolver and reject private/non-global results. Up to eight address candidates share one deadline and respect revocation. The scanner labels socket.connect as browser family by name; the concrete receiver is a TCP socket. Synthetic local TLS is the positive control. The fixed authentication hostname is admitted only for an app-server launch with an attached personal access token.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent","w42Provider"]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent qualification relay control socketpair","effect_points":["p25BrokerPair"],"entrypoint":"p25Broker","gate_limits":{"$":327},"gates":[],"id":"N3.8","limits":"One anonymous local Unix datagram pair belongs to the original host and gated relay. Only its child end is inherited by the trusted app-server bootstrap. No file or host listener is exposed.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340}]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent qualification relay control socketpair","effect_points":["p25BrokerPair"],"entrypoint":"p25Broker","gate_limits":{"$":327},"gates":[],"id":"N3.8","limits":"One anonymous local Unix datagram pair belongs to the original host and gated relay. Only its child end is inherited by the trusted app-server bootstrap. No file or host listener is exposed.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340},"w42Provider"]},
 
 {"admission":{"$":4},"contract":"N3","effect":"Relay connection-local stream handoff","effect_points":["p25StreamPair","p25RelaySendFD"],"entrypoint":"p25Handoff","gate_limits":{"$":327},"gates":[],"id":"N3.9","limits":"The relay creates one anonymous Unix stream pair per admitted local connection and hands exactly one end to the original parent using SCM_RIGHTS. The bounded relay owns the other stream. This step cannot itself dial outside the namespace.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340}]},
 
@@ -6862,9 +6888,9 @@
 
 "scripts/registered_host_root_boundary.py":["615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",420,1303],
 
-"scripts/registered_n1_factory.py":["8f177e962cb9fc44be8946e79977543b9a779b8a5e63ebe26878d59445ed223a",420,126914],
+"scripts/registered_n1_factory.py":["38f67a06d0f0e9afd81d6af7ec5bd4e70d2cd881de2d179785c43625c009142c",420,131660],
 
-"scripts/registered_n1_qualification.py":["01f69bc668b866a24679ad061b492ce210447a63421e3206919d0a8ee3e8d815",420,12123],
+"scripts/registered_n1_qualification.py":["d7ede08c63483726bf4066c582945103970923a83839b0e488b147da2a62a1b0",420,20405],
 
 "scripts/registered_n1_workflow.py":["ab229624003f1d516d1831703aea8ecff27b5cb992b24106f66ac831adb60439",420,32110],
 
@@ -6874,7 +6900,7 @@
 
 "scripts/registered_native_pool_retry.py":["261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",420,22322],
 
-"scripts/registered_provider_network.py":["cb2547f088c713c781c96c33a23a27adbde186eea52c16338558f7c6ab544af6",420,15101],
+"scripts/registered_provider_network.py":["0b77e914fc1df528cf95392948bafb43d3b2a1582dfb39f02aec0c5ab9e82d18",420,15180],
 
 "scripts/registered_server_requests.py":["2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd",420,24889],
 
@@ -6954,7 +6980,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["94253ea4ff6c0da490ad20e4acaff95c53d79d1fd9967259ab6c133f715bd2f8",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["e6730627f577363d63790c32967a71dbe30f71f57c76e34d1d493b60bb24252d",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7068,15 +7094,15 @@
 
 "tests/test_registered_finite_tool_wiring.py":["376380fcf67a862c0393650edeedf79918546859ddacabdacc6ae90ae2775dc3",420,284864],
 
-"tests/test_registered_n1_factory.py":["4dea4c67e0f4f75b7e24f76c9f9cf6778fba1ce3e41273682b23ab2eb9e1ef2c",420,134701],
+"tests/test_registered_n1_factory.py":["8d2e04bf807531df3c1b76a40631bfb209e744ad1f9e3753c14566b65dffd3c0",420,135163],
 
-"tests/test_registered_n1_qualification.py":["25d4de70698c14439e45c4076e2bdedd3570756a1c1371e86f00fdd831c2b0d1",420,15745],
+"tests/test_registered_n1_qualification.py":["f464689b4bd074ff900bb638dbfef87d7234e5011e3fe0e42e817485bd218719",420,29979],
 
 "tests/test_registered_native_pool_host.py":["25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",420,39405],
 
 "tests/test_registered_outbound_screen.py":["de9f7f9b071365afef9236a20fbeef321d55cbdf941a4c3673646612a7b5949c",420,10270],
 
-"tests/test_registered_provider_network.py":["69b2da31a020c5f2bbc9ee42512c7b60289777ea20115d1577ea5cedc3be14b6",420,21057],
+"tests/test_registered_provider_network.py":["4810be8c8212226f4ed9896dac4446c9ef38421d1ce85f1df0c80eb168e64112",420,22158],
 
 "tests/test_registered_startup_publication.py":["7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",420,13496],
 
@@ -7263,6 +7289,18 @@
 "w41":{"assertion":"self.assert_effects()","body":"p398","kind":{"$":0},"positive":{"$":299},"support":["p39a"],"test_id":"tests.test_browser_share_dom.ShareDOMTests.test_replaced_document_with_identical_content_refuses"},
 
 "w42":{"assertion":"self.assert_effects(create=1)","body":"p399","kind":{"$":12},"limits":"One create already entered; unknown/full charge and zero additional effect on the refused successor. Not zero original creation.","positive":{"$":299},"support":["p39a"],"test_id":"tests.test_browser_share_dom.ShareDOMTests.test_invalid_returned_url_is_charged_unknown_and_never_retried"},
+
+"w42Interlock":{"assertion":"with self.assertRaisesRegex(qualification.QualificationError, 'changed'):","body":"p42Interlock","kind":{"$":1},"positive":"qualification.release_managed_login(second)","support":[],"test_id":"tests.test_registered_n1_qualification.CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release"},
+
+"w42Namespace":{"assertion":"assert not Path({str(self.auth)!r}).exists()","body":"p42Namespace","kind":{"$":1},"positive":"self.assertEqual(self.auth.read_bytes(), b'EXAMPLE refreshed login\\n')","support":[],"test_id":"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"},
+
+"w42Precharge":{"assertion":"self.assertEqual(qualification.campaign_usage()['total'], 0)","body":"p42Precharge","kind":{"$":1},"positive":"self.assertTrue(factory._managed_lifetime.contained)","support":[],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace"},
+
+"w42Provider":{"assertion":"dial.assert_not_called()","body":"p42Provider","kind":{"$":0},"positive":"self.assertIn(b'200', client.recv(1024))","support":[],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist"},
+
+"w42Rollout":{"assertion":"self.assertEqual(factory._managed_login.rollout, identity)","body":"p42Rollout","kind":{"$":1},"positive":"self.assertEqual(result['attempt']['outcome'], 'completed')","support":[],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout"},
+
+"w42Unresolved":{"assertion":"with self.assertRaisesRegex(qualification.QualificationError, 'unresolved'):","body":"p42Unresolved","kind":{"$":1},"positive":"self.assertFalse(factory._managed_lifetime.contained)","support":[],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock"},
 
 "w43":{"assertion":"self.assertEqual(fixture.spawned, [])","body":"p23a","kind":{"$":0},"positive":{"$":75},"support":[],"test_id":{"$":319}},
 

@@ -500,7 +500,7 @@ class RpcProcess(children.FakeChild):
     def result(self, method, params):
         case, scenario = self.case, self.case.scenario
         if method == 'initialize':
-            return {'codexHome': str(case.home)}
+            return {'codexHome': str(getattr(scenario, 'initialize_home', case.home))}
         if method == 'thread/start':
             if getattr(case, 'stderr_flood', False):
                 case.test.assertTrue(self.diagnostic_written.wait(2))
@@ -1408,8 +1408,9 @@ class FactoryTests(unittest.TestCase):
                 'validation_policy': policy.report, 'max_steps': changes.pop('max_steps', 64), 'purpose': 'local-engineering',
                 'implementation_sha256': runtime.implementation_sha256()}
         is_qualification = changes.pop('qualification', False)
+        managed_login = changes.pop('managed_login', False)
         if is_qualification:
-            spec = runtime.qualification.bind_model_selection(spec)
+            spec = runtime.qualification.bind_model_selection(spec, managed_login=managed_login)
             spec['thread_start'].update(approvalPolicy='never', ephemeral=False)
             spec['profile_readback']['approvalPolicy'] = 'never'
         finite_tool_mode = changes.pop('finite_tool_mode',
@@ -1428,6 +1429,10 @@ class FactoryTests(unittest.TestCase):
                 + ''.join(f'{feature} = false\n' for feature in runtime.qualification.disabled_features())
                 + '[features.code_mode]\nenabled = true\ndirect_only_tool_namespaces = '
                 + json.dumps([runtime.qualification.FINITE_TOOL_NAMESPACE]) + '\n')
+        if managed_login:
+            login_deny = f'{json.dumps(str(runtime.qualification.LOGIN_MOUNT))} = "deny"\n'
+            spec['configuration_files']['config.toml'] = ('cli_auth_credentials_store = "file"\n'
+                + spec['configuration_files']['config.toml'].replace('"/" = "deny"\n', '"/" = "deny"\n' + login_deny))
         for key in ('executable', 'launcher', 'validator'):
             spec[key + '_sha256'] = runtime._file(spec[key])[1]
         spec['custody'] = {'state': str(host.state), 'worker': str(host.worker), 'target': str(host.target),

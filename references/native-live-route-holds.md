@@ -75,12 +75,25 @@ processes run in separate network namespaces. Qualification output stays in
 disposable custody and production dispatch continues to require its own source
 decision.
 
-The isolated app-server spool starts without account state. A trusted embedding
-controller can pass an already provisioned Codex personal access token through
-the `provider_access_token` keyword to `RegisteredN1Factory.run`. The signed
+The controller can select a dedicated Codex file login by passing
+`managed_login=True` to `bind_model_selection` before signing the operation.
+Its registered configuration selects `cli_auth_credentials_store = "file"`
+and denies tool access to `/cwo/managed-login`. The app server sees that path
+as `CODEX_HOME`. It maps to the `.cwo-qual-codex` directory in the controller
+account's passwd home, with an owner-private directory and `auth.json`. Codex
+reads and refreshes the file in its namespace. The controller checks metadata
+and sends no authentication token. The signed config and active and archived
+rollouts use the original operation spool. Finite command and validator
+namespaces exclude the login. Linux and Bubblewrap must support a writable
+overlay on the dedicated login filesystem. Mount setup and verification occur
+before the launch is charged. An unresolved mount leaves the private campaign
+interlock held for controller reconciliation.
+
+The controller can separately supply a provisioned Codex personal access
+token through `RegisteredN1Factory.run(provider_access_token=...)`. The signed
 qualification launch delivers it through a private pipe. The app-server
 bootstrap closes the pipe before passing the token to Codex as
-`CODEX_ACCESS_TOKEN`. Only this launch's provider broker admits
-`auth.openai.com:443`, with matching CONNECT authority and TLS server name.
-The controller supplies and manages the credential. See the
+`CODEX_ACCESS_TOKEN`. The controller supplies and manages that credential.
+The provider broker adds `auth.openai.com:443` for either authentication mode,
+with matching CONNECT authority and TLS server name. See the
 [Codex access token documentation](https://learn.chatgpt.com/docs/enterprise/access-tokens).

@@ -1,10 +1,14 @@
 """Offline qualification authority and campaign accounting fixtures."""
 
 from concurrent.futures import ThreadPoolExecutor
+import json
 import os
 from pathlib import Path
+import select
+import subprocess
 import tempfile
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -87,6 +91,144 @@ class CampaignTests(unittest.TestCase):
                 role: {'current': 'gpt-6.2-sol', 'selection': 'explicit'} for role in original}})
 
 
+    def test_managed_login_lease_is_exclusive_and_requires_original_release(self):
+        first = qualification.claim_managed_login()
+        with self.assertRaisesRegex(qualification.QualificationError, 'unresolved'):
+            qualification.claim_managed_login()
+        qualification.release_managed_login(first)
+        second = qualification.claim_managed_login()
+        with self.assertRaisesRegex(qualification.QualificationError, 'changed'):
+            qualification.release_managed_login(first)
+        qualification.release_managed_login(second)
+
+    def test_managed_login_interlock_has_one_owner_across_contending_launches(self):
+        def claim(_):
+            try:
+                return qualification.claim_managed_login()
+            except qualification.QualificationError as exc:
+                self.assertIn('unresolved', str(exc))
+                return None
+
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            leases = list(filter(None, workers.map(claim, range(4))))
+        self.assertEqual(len(leases), 1)
+        qualification.release_managed_login(leases[0])
+
+
+class ManagedLoginNamespaceTests(unittest.TestCase):
+    def setUp(self):
+        self.launcher = '/usr/bin/bwrap'
+        if not Path(self.launcher).is_file():
+            self.skipTest('The actual bubblewrap executable is unavailable.')
+        supported, reason = runtime.owned.atomic_spawn.supported()
+        if not supported:
+            self.skipTest(reason)
+        help_text = subprocess.run([self.launcher, '--help'], check=True, capture_output=True, timeout=5).stdout
+        if b'--overlay-src' not in help_text:
+            self.skipTest('Bubblewrap does not support operation-local overlay projections.')
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory(dir='/tmp')))
+        self.login = self.root / 'EXAMPLE-dedicated-login'
+        self.login.mkdir(mode=0o700)
+        self.auth = self.login / 'auth.json'
+        self.auth.write_bytes(b'EXAMPLE original login\n')
+        self.auth.chmod(0o600)
+        for name in ('auth.json.lock', 'auth.lock'):
+            (self.login / name).touch(mode=0o600)
+        for name in ('log', 'tmp'):
+            (self.login / name).mkdir(mode=0o700)
+            (self.login / name / 'EXAMPLE previous').touch(mode=0o600)
+        self.spool = self.root / 'operation' / 'spool'
+        (self.spool / 'rules').mkdir(parents=True, mode=0o700)
+        (self.spool / 'config.toml').write_bytes(b'# EXAMPLE signed configuration\n')
+        (self.spool / 'rules' / 'default.rules').touch()
+        worker = self.root / 'worker'
+        (worker / '.git').mkdir(parents=True)
+        self.validator = family.runtime_validator()
+        self.factory = SimpleNamespace(spec={'launcher': self.launcher,
+            'configuration_files': {'config.toml': '', 'rules/default.rules': ''}, 'validator': self.validator},
+            host=SimpleNamespace(worker=worker), _managed_lease='EXAMPLE-lease',
+            host_records=SimpleNamespace(assert_worker_roots_excluded=lambda roots: None))
+        self.enterContext(patch.object(qualification, '_campaign_directory', return_value=self.root))
+        self.mount = qualification.ManagedLoginMount(self.login)
+        self.mount.prepare(self.spool)
+        self.addCleanup(self.mount.retire)
+
+    def witness(self, role, program):
+        lifetime = runtime._Containment(self.factory, role=role)
+        if role == 'appserver':
+            self.enterContext(patch.object(lifetime, '_managed_mount', return_value=self.mount))
+        command = [self.validator, '-I', '-S', '-c', program]
+        read_gate, write_gate = os.pipe()
+        read_info, write_info = os.pipe()
+        for fd in (read_gate, write_gate, read_info, write_info):
+            self.addCleanup(os.close, fd)
+        argv = lifetime._command(command, self.spool, read_gate, write_info)
+        with subprocess.Popen([*argv, '--', *command], pass_fds=(read_gate, write_info),
+                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as process:
+            try:
+                os.write(write_gate, b'1')
+                if not select.select([process.stdout], [], [], 5)[0]:
+                    self.fail('The synthetic namespace did not reach its startup witness.')
+                ready = process.stdout.readline()
+                if ready != b'EXAMPLE ready\n':
+                    self.fail(process.stderr.read().decode(errors='replace'))
+                pid = json.loads(os.read(read_info, 4096))['child-pid']
+                root = Path('/proc') / str(pid) / 'root'
+                if role == 'appserver':
+                    self.mount.confirm(root, self.spool)
+                else:
+                    self.assertFalse((root / qualification.LOGIN_MOUNT.relative_to('/')).exists())
+                stdout, stderr = process.communicate(b'1', timeout=5)
+                self.assertEqual((process.returncode, stdout), (0, b'EXAMPLE done\n'), stderr.decode(errors='replace'))
+            finally:
+                if process.poll() is None:
+                    process.kill()
+
+    def test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes(self):
+        ready = "import os, sys\nfrom pathlib import Path\nprint('EXAMPLE ready', flush=True)\nassert sys.stdin.read(1) == '1'\n"
+        self.witness('appserver', ready + r'''
+home = Path(os.environ['CODEX_HOME'])
+assert 'CODEX_ACCESS_TOKEN' not in os.environ
+assert (home / 'config.toml').read_bytes() == b'# EXAMPLE signed configuration\n'
+try:
+    (home / 'config.toml').write_text('EXAMPLE tamper')
+except OSError:
+    pass
+else:
+    raise AssertionError('The signed config is writable')
+auth = home / 'auth.json'
+assert auth.read_bytes() == b'EXAMPLE original login\n'
+update = home / 'EXAMPLE-auth-refresh'
+update.write_bytes(b'EXAMPLE refreshed login\n')
+update.chmod(0o600)
+os.replace(update, auth)
+for name in ('log', 'tmp', 'shell_snapshots'):
+    runtime = home / name
+    assert not (runtime / 'EXAMPLE previous').exists()
+    (runtime / 'EXAMPLE current').touch()
+rollout = home / 'sessions' / 'EXAMPLE-rollout'
+rollout.write_bytes(b'EXAMPLE turn')
+os.replace(rollout, home / 'archived_sessions' / rollout.name)
+print('EXAMPLE done')
+''')
+        self.assertEqual(self.auth.read_bytes(), b'EXAMPLE refreshed login\n')
+        self.assertEqual({path.name for path in self.login.iterdir()},
+                         {'auth.json', 'auth.json.lock', 'auth.lock', 'log', 'tmp'})
+        for name in ('log', 'tmp'):
+            self.assertEqual({path.name for path in (self.login / name).iterdir()}, {'EXAMPLE previous'})
+        for name in ('log', 'tmp', 'shell_snapshots'):
+            self.assertTrue((self.spool.parent / 'managed-runtime' / name / 'EXAMPLE current').is_file())
+        self.assertEqual((self.spool / 'archived_sessions' / 'EXAMPLE-rollout').read_bytes(), b'EXAMPLE turn')
+        for role in ('tool', 'validator'):
+            with self.subTest(role=role):
+                self.witness(role, ready + f'''
+assert 'CODEX_HOME' not in os.environ
+assert not Path({str(self.auth)!r}).exists()
+assert not Path({str(qualification.LOGIN_MOUNT / 'auth.json')!r}).exists()
+print('EXAMPLE done')
+''')
+
+
 class FactoryQualificationTests(unittest.TestCase):
     def setUp(self):
         self.fixture = family.FactoryTests(methodName='runTest')
@@ -106,6 +248,139 @@ class FactoryQualificationTests(unittest.TestCase):
                 guard()
         self.assertEqual(qualification.campaign_usage()['total'], 0)
         self.assertEqual(self.fixture.spawned, [])
+
+    def managed_case(self, **changes):
+        case = self.fixture.case(qualification=True, managed_login=True, **changes)
+        login_home = case.host.state.parent / 'EXAMPLE-dedicated-login'
+        login_home.mkdir(mode=0o700)
+        dummy = login_home / 'auth.json'
+        dummy.write_text('EXAMPLE managed login file\n')
+        dummy.chmod(0o600)
+        self.enterContext(patch.object(qualification, 'managed_login_home', return_value=login_home))
+        # This fixture replaces kernel births. The actual projection is checked
+        # by the separate real namespace witness.
+        self.enterContext(patch.object(qualification.ManagedLoginMount, 'confirm'))
+        case.scenario.initialize_home = qualification.LOGIN_MOUNT
+        return case, login_home
+
+    def test_managed_login_preserves_original_spool_and_excludes_other_roles(self):
+        case, login_home = self.managed_case(drift=True)
+        factory = self.fixture.factory(case)
+        self.assertEqual(factory.home, case.home)
+        with self.assertRaisesRegex(ValueError, 'profile readback'):
+            factory.run()
+        self.assertEqual(factory.server.codex_home, case.home)
+        self.assertEqual(factory.server.lifetime.provider_network._providers,
+                         runtime.provider_network.PROVIDERS | {'auth.openai.com'})
+        for role in ('tool', 'validator'):
+            lifetime = runtime._Containment(factory, role=role)
+            self.assertNotIn(str(login_home), lifetime._command([case.spec['validator']], None, 1, 2))
+            self.assertEqual(lifetime._provider_network_fds(), ())
+        self.assertEqual(qualification.campaign_usage()['total'], 1)
+        lease = qualification.claim_managed_login()
+        qualification.release_managed_login(lease)
+
+    def test_managed_login_rejects_unsafe_auth_metadata_and_interlock(self):
+        case, login_home = self.managed_case()
+        auth = login_home / 'auth.json'
+        alternate = login_home / 'EXAMPLE-other'
+        auth.rename(alternate)
+        auth.symlink_to(alternate)
+        with self.assertRaisesRegex(ValueError, 'private authentication file'):
+            self.fixture.factory(case)
+        auth.unlink()
+        alternate.rename(auth)
+        factory = self.fixture.factory(case)
+        with self.assertRaisesRegex(ValueError, 'one authentication mode'):
+            factory.run(provider_access_token=_EXAMPLE_ACCESS_TOKEN)
+        lease = qualification.claim_managed_login()
+        try:
+            with self.assertRaisesRegex(ValueError, 'unresolved'):
+                factory.run()
+        finally:
+            qualification.release_managed_login(lease)
+        self.assertEqual(qualification.campaign_usage()['total'], 0)
+        self.assertEqual(self.fixture.spawned, [])
+
+    def test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace(self):
+        case, _login = self.managed_case()
+        factory = self.fixture.factory(case)
+        with patch.object(runtime._Containment, '_confirm_mounts', side_effect=ValueError('EXAMPLE unsupported mount')):
+            with self.assertRaisesRegex(ValueError, 'unsupported mount'):
+                factory.run()
+        self.assertEqual(qualification.campaign_usage()['total'], 0)
+        self.assertTrue(factory._managed_lifetime.contained)
+        qualification.release_managed_login(qualification.claim_managed_login())
+
+    def test_unknown_login_mount_teardown_preserves_the_interlock(self):
+        case, _login = self.managed_case(drift=True)
+        factory = self.fixture.factory(case)
+        with patch.object(runtime._Containment, '_stop_namespace', side_effect=ValueError('EXAMPLE unknown teardown')):
+            with self.assertRaisesRegex(ValueError, 'profile readback'):
+                factory.run()
+        self.assertFalse(factory._managed_lifetime.contained)
+        with self.assertRaisesRegex(qualification.QualificationError, 'unresolved'):
+            qualification.claim_managed_login()
+
+    def test_managed_login_requires_permit_before_looking_up_the_login(self):
+        case, _login = self.managed_case()
+        with patch.object(qualification, 'managed_login_home') as lookup:
+            with self.assertRaises(runtime.live_availability.NativeLiveUnavailable):
+                self.fixture.factory(case, qualification_permit=None)
+        lookup.assert_not_called()
+        self.assertEqual(self.fixture.spawned, [])
+
+    def test_reported_rollout_cannot_point_into_the_login_home(self):
+        case, _login = self.managed_case()
+        factory = self.fixture.factory(case)
+        original = case.scenario.thread_response
+
+        def report_auth_path(*args, **kwargs):
+            response = original(*args, **kwargs)
+            response['thread']['path'] = str(qualification.LOGIN_MOUNT / 'auth.json')
+            return response
+
+        with patch.object(case.scenario, 'thread_response', side_effect=report_auth_path):
+            with self.assertRaisesRegex(ValueError, 'reported qualification rollout path differs'):
+                factory.run()
+        self.assertEqual(qualification.campaign_usage()['total'], 1)
+        self.assertNotIn('turn/start', self.fixture.spawned[0].methods)
+
+    def test_managed_login_captures_and_archives_the_original_reported_rollout(self):
+        from tests import test_registered_finite_tool_wiring as wiring
+
+        case, _login = self.managed_case(archive_schedule='settled')
+        factory = self.fixture.factory(case)
+        checkout = wiring.RegisteredFiniteToolWiringTests(methodName='runTest')
+        checkout.fixture = self.fixture
+        self.addCleanup(family.cleanup_helper, self, checkout)
+        request_start, request_read = case.scenario.thread_response, case.scenario.read_thread
+
+        def project(thread):
+            relative = Path(thread['path']).relative_to(case.home)
+            thread['path'] = str(qualification.LOGIN_MOUNT / relative)
+
+        def start(*args, **kwargs):
+            response = request_start(*args, **kwargs)
+            project(response['thread'])
+            return response
+
+        def read(*args, **kwargs):
+            thread, latency = request_read(*args, **kwargs)
+            project(thread)
+            return thread, latency
+
+        with (patch.object(case.scenario, 'thread_response', side_effect=start),
+              patch.object(case.scenario, 'read_thread', side_effect=read),
+              patch.object(family, 'RpcProcess', wiring.NamespacedFiniteRpcProcess),
+              checkout._positive_finite_completion(case)):
+            result = factory.run()
+
+        self.assertEqual(result['attempt']['outcome'], 'completed')
+        self.assertEqual(case.scenario.path.parent, case.home / 'archived_sessions')
+        identity = qualification.native_session_boundary.session_source_identity(
+            case.scenario.path, case.scenario.thread_id)
+        self.assertEqual(factory._managed_login.rollout, identity)
 
     def test_access_token_requires_signed_qualification_before_effect(self):
         case = self.fixture.case()

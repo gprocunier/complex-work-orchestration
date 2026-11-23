@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Allow signed native single-worker qualification to use a dedicated Codex-managed login isolated from finite commands and validators.
+
 ## 1.15.0 - 2026-11-23
 
 - Complete finite commands that exit cleanly before their first stdout read when the original process handle and bounded stdout EOF confirm the exit.
