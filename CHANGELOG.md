@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.13.0 - 2026-11-23
+
 - Refuse duplicate JSON keys and non-finite numbers, including numeric overflows, in trusted native session records used as turn evidence.
 
 ## 1.12.0 - 2026-11-23
