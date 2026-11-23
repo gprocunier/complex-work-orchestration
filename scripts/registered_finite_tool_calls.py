@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 from cwo_core import server_request_preparation as protocol
+from registered_finite_input import FiniteCommandExitUnobserved
 from registered_n1_qualification import FINITE_TOOL_NAMESPACE
 
 
@@ -1028,22 +1029,24 @@ class RegisteredFiniteToolCalls:
 
     def _read_output(self, deadline, params):
         descriptor = self.process.stdout.fileno()
+        gate = self.server.finite_input
         if select.select([descriptor], [], [], 0.1)[0]:
             try:
-                data = self.server.finite_input.read_stdout(descriptor, deadline, params=params)
+                data = gate.read_stdout(descriptor, deadline, params=params)
             except BlockingIOError:
                 return b''
-            state = self.server.finite_input.observe_process()
+            except FiniteCommandExitUnobserved:
+                # No bytes were read. Only a proved clean exit can proceed to the drain.
+                data = b''
+            state = gate.observe_process()
             if (not data and state != 'clean-exited') or len(data) > 4096:
                 raise FiniteToolError('Owned tool EOF or output bound ended the finite command.')
             if state == 'clean-exited':
-                data = self.server.finite_input.drain_terminal_output(
-                    descriptor, data, deadline, params=params)
+                data = gate.drain_terminal_output(descriptor, data, deadline, params=params)
             data.decode('utf-8', 'strict')
             return data
-        if self.server.finite_input.observe_process() == 'clean-exited':
-            return self.server.finite_input.drain_terminal_output(
-                descriptor, b'', deadline, params=params)
+        if gate.observe_process() == 'clean-exited':
+            return gate.drain_terminal_output(descriptor, b'', deadline, params=params)
         return b''
 
     def close(self):

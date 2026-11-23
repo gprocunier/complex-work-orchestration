@@ -571,35 +571,57 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 fault_observed.set()
 
     def _run_tool_exit(self, *, output=True, status=0, pid_exited=True,
-                       trailing='', close_output=True, expect_success=False):
+                       trailing='', close_output=True, expect_success=False, before_read=False,
+                       expect_read=True):
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
                                  command_no_output=not output, natural_tool_exit=True,
                                  no_fake_scheduler=expect_success)
         factory = self.fixture.factory(case)
         original_read = os.read
+        original_gate_read = gate_module.RegisteredFiniteInput.read_stdout
         observed = []
+        exit_applied = False
+
+        def apply_exit():
+            nonlocal exit_applied
+            tool = self.fixture.spawned[1]
+            # These bytes were produced before the modeled clean exit.
+            # Keep publication and the exit transition on the same guard.
+            with case.tool_stream._lock:
+                if trailing:
+                    self.assertTrue(tool.process.alive)
+                    self.assertIsNot(case.tool_stream.put(trailing), False)
+                tool.returncode = status
+                if close_output and not case.tool_stream.writer.closed:
+                    case.tool_stream.put('')
+                tool.process.alive = not pid_exited
+            exit_applied = True
+
+        def gate_read(gate, descriptor, deadline, **options):
+            if not exit_applied and descriptor == case.tool_stream.fileno():
+                self.assertFalse(observed)
+                self.assertEqual(options['params']['tool'], 'finite_command')
+                apply_exit()
+            return original_gate_read(gate, descriptor, deadline, **options)
 
         def read(descriptor, count):
+            first_stdout = (len(self.fixture.spawned) >= 2 and not observed
+                            and descriptor == case.tool_stream.fileno())
+            if before_read and first_stdout:
+                self.assertTrue(exit_applied, 'exit must precede the first stdout read')
+                self.assertEqual(factory.server.finite_input.terminal_code, 0)
             data = original_read(descriptor, count)
-            if (len(self.fixture.spawned) >= 2 and not observed
-                    and descriptor == case.tool_stream.fileno()):
-                tool = self.fixture.spawned[1]
-                # These bytes were produced before the modeled clean exit.
-                # Keep publication and the exit transition on the same guard.
-                with case.tool_stream._lock:
-                    if trailing:
-                        self.assertTrue(tool.process.alive)
-                        self.assertIsNot(case.tool_stream.put(trailing), False)
-                    tool.returncode = status
-                    if close_output and not case.tool_stream.writer.closed:
-                        case.tool_stream.put('')
-                    tool.process.alive = not pid_exited
+            if first_stdout:
+                if not exit_applied:
+                    apply_exit()
                 observed.append(data)
             return data
 
         progress = self._positive_finite_completion(case) if expect_success else nullcontext()
+        timing = (patch.object(gate_module.RegisteredFiniteInput, 'read_stdout', gate_read)
+                  if before_read else nullcontext())
         with patch.object(family, 'RpcProcess', DynamicRpcProcess), \
-                patch.object(os, 'read', side_effect=read), progress:
+                patch.object(os, 'read', side_effect=read), progress, timing:
             try:
                 result = factory.run()
             except BaseException as failure:
@@ -613,8 +635,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
             else:
                 family.runtime.admission.ledger_api.add_failure_note(result, 'Natural tool exit: ' + note)
             raise result
-        self.assertEqual(len(observed), 1, 'the original tool pipe must be observed')
-        self.assertEqual(observed[0], b'EXAMPLE finite command output\n' if output else b'')
+        self.assertTrue(exit_applied, 'the commanded status must be applied on the original pipe')
+        expected_data = b'EXAMPLE finite command output\n' if output else b''
+        expected = [expected_data] if expect_read else []
+        self.assertEqual(observed, expected, 'the original tool pipe read must match the authorization')
         return case, factory, result
 
     def _exit_between_command_read_and_reply(self, *, trailing, close_output=True,
@@ -671,6 +695,57 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(self.fixture.spawned[0].replies[0]['result']['contentItems'][0]['text'], '')
         self.assertEqual(case.poll_observation, {'stdout': '', 'running': False})
         self.assertIsNotNone(factory.issued_artifact())
+
+    def _assert_clean_exit_before_first_stdout_read(self, *, output):
+        case, factory, result = self._run_tool_exit(output=output, expect_success=True, before_read=True)
+        stdout = 'EXAMPLE finite command output\n' if output else ''
+        attempt = result['attempt']
+        gate = factory.server.finite_input
+        self.assertEqual(attempt['outcome'], 'completed')
+        self.assertEqual(attempt['charge'], attempt['amount'])
+        self.assertEqual(gate.terminal_code, 0)
+        self.assertTrue(gate.terminal_eof_proven)
+        self.assertEqual(gate.output_bytes_seen, len(stdout.encode('utf-8')))
+        self.assertEqual(gate.cleanup_phase(), 'contained')
+        self.assertIs(gate.closed_lifetime.process, self.fixture.spawned[1])
+        self.assertTrue(gate.closed_lifetime.termination_recorded)
+        rpc = self.fixture.spawned[0]
+        self.assertEqual(rpc.replies[0], {'id': rpc.command_request_id, 'result': {
+            'contentItems': [{'type': 'inputText', 'text': stdout}], 'success': True}})
+        self.assertEqual(case.poll_observation, {'stdout': '', 'running': False})
+        self.assertIsNotNone(factory.issued_artifact())
+
+    def test_clean_exit_before_first_stdout_read_with_buffered_output(self):
+        self._assert_clean_exit_before_first_stdout_read(output=True)
+
+    def test_clean_exit_before_first_stdout_read_without_buffered_output(self):
+        self._assert_clean_exit_before_first_stdout_read(output=False)
+
+    def _assert_refused_exit_before_first_stdout_read(self, reason, **options):
+        case, factory, result = self._run_tool_exit(before_read=True, **options)
+        self.assertIsInstance(result, BaseException)
+        observations = [json.loads(path.read_bytes()) for path in
+                        (factory.records / 'transport-observations').glob('observation-*.json')]
+        refusals = [row['observation'] for row in observations if row['stage'] == 'finite-tool-refusal']
+        self.assertEqual(refusals, [{'tool': 'finite_command', 'call': 'EXAMPLE-command-call',
+                                    'reason': 'FiniteInputError', 'message': reason}])
+        self.assertFalse(any(reply.get('result', {}).get('success') is True
+                             for reply in self.fixture.spawned[0].replies))
+        attempt = self.fixture.attempt(case)
+        self.assertEqual(attempt['outcome'], 'unknown')
+        self.assertEqual(attempt['charge'], attempt['amount'])
+
+    def test_nonzero_exit_before_first_stdout_read_refuses_without_reading(self):
+        self._assert_refused_exit_before_first_stdout_read(
+            'The owned tool exited with a nonzero status.', status=7, expect_read=False)
+
+    def test_status_without_same_handle_exit_before_first_stdout_read_refuses_without_reading(self):
+        self._assert_refused_exit_before_first_stdout_read(
+            'Owned process exit and retained handle disagree.', pid_exited=False, expect_read=False)
+
+    def test_same_handle_clean_exit_before_first_stdout_read_requires_bounded_eof(self):
+        self._assert_refused_exit_before_first_stdout_read(
+            'Clean owned exit did not have bounded stdout EOF.', close_output=False)
 
     def test_natural_exit_drains_buffered_tail_before_command_reply(self):
         _case, factory, result = self._run_tool_exit(trailing='EXAMPLE buffered tail\n', expect_success=True)
