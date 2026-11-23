@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.10.0 - 2026-11-23
+
 - Wait for the original native qualification turn to finish within its deadline after a finite tool refusal.
 - Wait for the original archive in the held-pool test before charging close steps.
 
