@@ -5702,7 +5702,7 @@
 
 {"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["p7a"],"entrypoint":"p7b","gates":[],"id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":[{"$":70},{"$":21}],"witnesses":["w2a"]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Host broker calls this helper only after exact allowed CONNECT and initial TLS SNI. Resolve fixed names at port 443 through the trusted host resolver and reject private/non-global results. Up to eight address candidates share one deadline and respect revocation. The scanner labels socket.connect as browser family by name; the concrete receiver is a TCP socket. Synthetic local TLS is the positive control. The fixed authentication hostname is admitted only for an app-server launch with an attached personal access token.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent","w42Provider"]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Host broker calls this helper only after exact allowed CONNECT and initial TLS SNI. Resolve fixed names at port 443 through the trusted host resolver and reject private/non-global results. Up to eight address candidates share one deadline and respect revocation. The scanner labels socket.connect as browser family by name; the concrete receiver is a TCP socket. Synthetic local TLS is the positive control. The fixed authentication hostname is admitted only for a signed app-server launch using the dedicated Codex file login or an attached personal access token.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent","w42Provider"]},
 
 {"admission":{"$":4},"contract":"N3","effect":"Parent qualification relay control socketpair","effect_points":["p25BrokerPair"],"entrypoint":"p25Broker","gate_limits":{"$":327},"gates":[],"id":"N3.8","limits":"One anonymous local Unix datagram pair belongs to the original host and gated relay. Only its child end is inherited by the trusted app-server bootstrap. No file or host listener is exposed.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340},"w42Provider"]},
 
@@ -6428,7 +6428,7 @@
 
 "references/cwo-system-prompt.md":["35a51347e73c234265797478a591dd101b803e4ba123d36b0ceeaa556c3b92bf",420,2833],
 
-"references/release-effect-routes.md":["cfb7f3abfe558a93011412c10c2fe35549cf1f9f3750deeb40253f3ce6b4002c",420,20629],
+"references/release-effect-routes.md":["b77671b0dd2ca0d18c4c41d62c32233e92b3d640dee49869230d9834b651b588",420,21138],
 
 "schemas/qualification-target.schema.json":["e466add6737bb9a244c0cbf6bb9877be9f3fff3575b7aad38a1e960ee28980fa",420,23935],
 
@@ -6698,7 +6698,7 @@
 
 "scripts/cwo_core/qualification_target.py":["75f7c8cb444f1d5ac1f6ac415ead7cd9f74064da37e9550a7bd45d4de69ecd55",420,1793],
 
-"scripts/cwo_core/release_effect_routes.py":["405eed8b027082872f515b90508aec97dd2b5af22fe637b553122462c5a29380",420,68167],
+"scripts/cwo_core/release_effect_routes.py":["0bce674495842839049b07cf5dc3cc3f32e880efe48c80bf8b35c9b77c019284",420,69594],
 
 "scripts/cwo_core/requirement_baseline.py":["135681130a0046db14dc84fcd7c73a8f61fd1c8001b7cc467828565fca693420",420,20496],
 
@@ -7106,7 +7106,7 @@
 
 "tests/test_registered_startup_publication.py":["7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",420,13496],
 
-"tests/test_release_effect_routes.py":["9a815ed5a300efcc2fb80f0801ebcdbd682785b25f814cf9c645a2f565e19609",420,96892],
+"tests/test_release_effect_routes.py":["4a3d2f54939fba01766c2bcbd12a39545fb17b66afd69c06ba7ff2ad529c93d1",420,99639],
 
 "tests/test_release_filesystem.py":["5fcb7a33f91ad28f1041c1498a61d47f22a67d4b55027f786b5c1df64584e212",420,16860],
 
@@ -7133,425 +7133,439 @@
 "tests/test_workspace_inert_inspection.py":["e4431b1a69b387499980c5b275eb66872bb7c01f88c86f79e87802c041bc41c9",420,288978]
 },
 
+"witness_columns":[
+"assertion",
+
+"body",
+
+"kind",
+
+"positive",
+
+"support",
+
+"test_id"
+],
+
 "witnesses":{
-"pC":{"assertion":"self.assertTrue(probe.close()['namespace_exited'])","body":"pE","kind":{"$":1},"positive":"self.assertIn('poll-ok', probe.poll('')['stdout'])","support":["pD","pG","pH"],"test_id":"tests.test_selected_native_containment.OuterBoundaryOSControlTests.test_scheduler_state_change_during_namespace_handle_open_preserves_birth"},
+"pC":["self.assertTrue(probe.close()['namespace_exited'])","pE",{"$":1},"self.assertIn('poll-ok', probe.poll('')['stdout'])",["pD","pG","pH"],"tests.test_selected_native_containment.OuterBoundaryOSControlTests.test_scheduler_state_change_during_namespace_handle_open_preserves_birth"],
 
-"w0":{"assertion":"self.assertEqual(code, 1, \"check must fail even though a.py is now in .gitignore\")","body":"p161","kind":{"$":12},"positive":"self.assertEqual(code, 0, err.getvalue())","support":[],"test_id":"tests.test_code_health.ReviewRoundTenTests.test_tracked_file_in_gitignore_with_new_debt_fails"},
+"w0":["self.assertEqual(code, 1, \"check must fail even though a.py is now in .gitignore\")","p161",{"$":12},"self.assertEqual(code, 0, err.getvalue())",[],"tests.test_code_health.ReviewRoundTenTests.test_tracked_file_in_gitignore_with_new_debt_fails"],
 
-"w1":{"assertion":{"$":135},"body":"p252","kind":{"$":12},"positive":"self.assertIn(\"parallel unittest: PASS workers=2 tests=3\", result.stdout)","support":["p1d2","p1e1","p2bc","p2ea"],"test_id":"tests.test_run_parallel_unittest.ParallelUnittestTests.test_cli_runs_isolated_shards_and_aggregates_success"},
+"w1":[{"$":135},"p252",{"$":12},"self.assertIn(\"parallel unittest: PASS workers=2 tests=3\", result.stdout)",["p1d2","p1e1","p2bc","p2ea"],"tests.test_run_parallel_unittest.ParallelUnittestTests.test_cli_runs_isolated_shards_and_aggregates_success"],
 
-"w10":{"assertion":"self.assertEqual((len(writes), len(links)), (0, 0))","body":"pea","kind":{"$":0},"positive":"self.assertEqual((len(writes), len(links)), (3, 1))","support":["p1cf","p158","p22a","p260"],"test_id":"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency"},
+"w10":["self.assertEqual((len(writes), len(links)), (0, 0))","pea",{"$":0},"self.assertEqual((len(writes), len(links)), (3, 1))",["p1cf","p158","p22a","p260"],"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency"],
 
-"w11":{"assertion":"self.assertEqual((quota.call_count, reached.call_count, audited, stdout.getvalue()), (0, 0, False, \"\"))","body":"p12e","kind":{"$":0},"positive":"self.assertEqual((quota.call_count, reached.call_count, audited), (quota_calls, 1, True))","support":["p1c0","p15d","p21b","p1e3","p1bc","p105","p13a","p1f4","p178"],"test_id":"tests.test_invocation_containment.ShippedRoutesAreDisabledTests.test_live_browser_dispatch_and_confirmation_refuse_before_any_effect"},
+"w11":["self.assertEqual((quota.call_count, reached.call_count, audited, stdout.getvalue()), (0, 0, False, \"\"))","p12e",{"$":0},"self.assertEqual((quota.call_count, reached.call_count, audited), (quota_calls, 1, True))",["p1c0","p15d","p21b","p1e3","p1bc","p105","p13a","p1f4","p178"],"tests.test_invocation_containment.ShippedRoutesAreDisabledTests.test_live_browser_dispatch_and_confirmation_refuse_before_any_effect"],
 
-"w12":{"assertion":{"$":308},"body":"p25c","kind":{"$":6},"positive":{"$":308},"support":[],"test_id":"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_example_positive_and_missing_review_refuse_without_effects"},
+"w12":[{"$":308},"p25c",{"$":6},{"$":308},[],"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_example_positive_and_missing_review_refuse_without_effects"],
 
-"w13":{"assertion":"with self.assertRaises(R.Refused, msg=f\"{name} unrelated selection admitted\"):","body":"pfd","kind":{"$":0},"positive":"self.assertTrue(self.select(root, output, review)[\"complete_effect_trace\"])","support":[],"test_id":"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_unrelated_review_test_receipt_and_manual_decisions_refuse"},
+"w13":["with self.assertRaises(R.Refused, msg=f\"{name} unrelated selection admitted\"):","pfd",{"$":0},"self.assertTrue(self.select(root, output, review)[\"complete_effect_trace\"])",[],"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_unrelated_review_test_receipt_and_manual_decisions_refuse"],
 
 "w14":{"assertion":{"$":231},"body":"p14c","kind":{"$":0},"positive":"self.assertEqual(child.call_args.args[0][:2], [\"ruff\", \"check\"])","test_id":"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive"},
 
-"w15":{"assertion":"retain.assert_not_called()","body":"p247","kind":{"$":1},"positive":"libc.posix_spawnattr_destroy.assert_called_once()","support":["p2ec"],"test_id":"tests.test_atomic_spawn.AtomicSpawnTests.test_native_errno_is_used_and_all_initialized_resources_are_destroyed"},
+"w15":["retain.assert_not_called()","p247",{"$":1},"libc.posix_spawnattr_destroy.assert_called_once()",["p2ec"],"tests.test_atomic_spawn.AtomicSpawnTests.test_native_errno_is_used_and_all_initialized_resources_are_destroyed"],
 
-"w16":{"assertion":"self.assertEqual(late_opens, [])","body":"p2bb","kind":{"$":1},"positive":"self.assertNotIn(report[\"outcome\"], (\"invalid-request\", \"invalid-spawn\"))","support":[],"test_id":"tests.test_linux_owned_children.RealOwnedChildTests.test_creation_never_opens_a_pidfd_after_an_outside_reaper"},
+"w16":["self.assertEqual(late_opens, [])","p2bb",{"$":1},"self.assertNotIn(report[\"outcome\"], (\"invalid-request\", \"invalid-spawn\"))",[],"tests.test_linux_owned_children.RealOwnedChildTests.test_creation_never_opens_a_pidfd_after_an_outside_reaper"],
 
-"w17":{"assertion":"self.assertEqual(report[\"outcome\"], \"registered\", report)","body":"p244","kind":{"$":6},"positive":"self.assertEqual(child.returncode, 0)","support":[],"test_id":"tests.test_atomic_spawn.RealAtomicPipeTests.test_original_pipe_contract_preserves_stdio_pass_fds_and_child_only_umask"},
+"w17":["self.assertEqual(report[\"outcome\"], \"registered\", report)","p244",{"$":6},"self.assertEqual(child.returncode, 0)",[],"tests.test_atomic_spawn.RealAtomicPipeTests.test_original_pipe_contract_preserves_stdio_pass_fds_and_child_only_umask"],
 
-"w18":{"assertion":"load.assert_not_called()","body":"p2d9","kind":{"$":0},"positive":"self.assertEqual(failure.exception.errno, errno.ENOSYS)","support":[],"test_id":"tests.test_atomic_spawn.AtomicSpawnTests.test_unsupported_platform_and_old_libc_refuse_before_creation"},
+"w18":["load.assert_not_called()","p2d9",{"$":0},"self.assertEqual(failure.exception.errno, errno.ENOSYS)",[],"tests.test_atomic_spawn.AtomicSpawnTests.test_unsupported_platform_and_old_libc_refuse_before_creation"],
 
-"w19":{"assertion":"with self.assertRaisesRegex(SystemExit, \"independent.*digest\"):","body":"p352","kind":{"$":0},"positive":"self.assertTrue(self.validate() == self.text, \"response bytes changed\")","support":["p206","p203","p2cb","p10d"],"test_id":"tests.test_browser_provenance.BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal"},
+"w19":["with self.assertRaisesRegex(SystemExit, \"independent.*digest\"):","p352",{"$":0},"self.assertTrue(self.validate() == self.text, \"response bytes changed\")",["p206","p203","p2cb","p10d"],"tests.test_browser_provenance.BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal"],
 
-"w1a":{"assertion":"self.assertEqual((len(page.filled), len(page.sent)), (0, 0))","body":"p350","kind":{"$":0},"positive":{"$":292},"support":["p18d","p13a","p1f4","p178","p185","p208","p213"],"test_id":"tests.test_browser_connected.ConnectedBrowserTests.test_missing_admission_refuses_before_fill"},
+"w1a":["self.assertEqual((len(page.filled), len(page.sent)), (0, 0))","p350",{"$":0},{"$":292},["p18d","p13a","p1f4","p178","p185","p208","p213"],"tests.test_browser_connected.ConnectedBrowserTests.test_missing_admission_refuses_before_fill"],
 
-"w1b":{"assertion":"self.assertEqual(len(page.sent), 0)","body":"p279","kind":{"$":0},"positive":{"$":292},"support":["p18d","p13a","p1f4","p178","p185","p208","p213"],"test_id":"tests.test_browser_connected.ConnectedBrowserTests.test_final_callbacks_revalidate_original_execution_and_inputs"},
+"w1b":["self.assertEqual(len(page.sent), 0)","p279",{"$":0},{"$":292},["p18d","p13a","p1f4","p178","p185","p208","p213"],"tests.test_browser_connected.ConnectedBrowserTests.test_final_callbacks_revalidate_original_execution_and_inputs"],
 
-"w1c":{"assertion":"self.assertEqual(len(calls), 0)","body":"p233","kind":{"$":0},"positive":"self.assertEqual((len(page.sent), len(calls)), (1, 1))","support":["p27b","p13a","p1f4","p178"],"test_id":"tests.test_browser_connected.ConnectedBrowserTests.test_share_wrong_content_conversation_purpose_and_expiry_refuse_before_effect"},
+"w1c":["self.assertEqual(len(calls), 0)","p233",{"$":0},"self.assertEqual((len(page.sent), len(calls)), (1, 1))",["p27b","p13a","p1f4","p178"],"tests.test_browser_connected.ConnectedBrowserTests.test_share_wrong_content_conversation_purpose_and_expiry_refuse_before_effect"],
 
-"w1d":{"assertion":"self.assertEqual(invalid[\"termination\"][\"signals_sent\"], 0)","body":"p243","kind":{"$":0},"positive":"self.assertEqual(result[\"termination\"][\"outcomes\"], {\"killed\": 1})","support":["p306"],"test_id":"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_term_wait_and_explicit_kill_share_one_original_handle"},
+"w1d":["self.assertEqual(invalid[\"termination\"][\"signals_sent\"], 0)","p243",{"$":0},"self.assertEqual(result[\"termination\"][\"outcomes\"], {\"killed\": 1})",["p306"],"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_term_wait_and_explicit_kill_share_one_original_handle"],
 
-"w1e":{"assertion":"self.assertEqual(result[\"termination\"][\"signals_sent\"], 1)","body":"p24c","kind":{"$":6},"positive":"self.assertEqual(table.send_signal.call_count, 1)","support":["pf2"],"test_id":"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_consumes_controller_owned_lifetime"},
+"w1e":["self.assertEqual(result[\"termination\"][\"signals_sent\"], 1)","p24c",{"$":6},"self.assertEqual(table.send_signal.call_count, 1)",["pf2"],"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_consumes_controller_owned_lifetime"],
 
-"w1f":{"assertion":{"$":311},"body":"p1b7","kind":{"$":0},"positive":"self.assertTrue(birth.exit_confirmed and birth.reaped)","support":[],"test_id":"tests.test_linux_owned_children.RealOwnedChildTests.test_cleanup_consumes_atomic_owned_child_for_term_and_explicit_kill"},
+"w1f":[{"$":311},"p1b7",{"$":0},"self.assertTrue(birth.exit_confirmed and birth.reaped)",[],"tests.test_linux_owned_children.RealOwnedChildTests.test_cleanup_consumes_atomic_owned_child_for_term_and_explicit_kill"],
 
-"w2":{"assertion":"self.assertEqual(commits, [])","body":"p24e","kind":{"$":0},"positive":"self.assertEqual(len(commits), 1)","support":["p2d7"],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_public_consumer_revalidates_claims_under_capability_lock"},
+"w2":["self.assertEqual(commits, [])","p24e",{"$":0},"self.assertEqual(len(commits), 1)",["p2d7"],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_public_consumer_revalidates_claims_under_capability_lock"],
 
-"w20":{"assertion":"table.send_signal.assert_not_called()","body":"p102","kind":{"$":0},"positive":"self.assertEqual(self.run_retained_cleanup(producer, capability, session)[\"termination\"][\"signals_sent\"], 1)","support":["p25a"],"test_id":"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_refuses_missing_or_foreign_receipt"},
+"w20":["table.send_signal.assert_not_called()","p102",{"$":0},"self.assertEqual(self.run_retained_cleanup(producer, capability, session)[\"termination\"][\"signals_sent\"], 1)",["p25a"],"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_refuses_missing_or_foreign_receipt"],
 
-"w21":{"assertion":"self.assertEqual(replacement.signals, [])","body":"p114","kind":{"$":1},"positive":"self.assertEqual(table.closes, [table.next_fd])","support":["p287"],"test_id":"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared"},
+"w21":["self.assertEqual(replacement.signals, [])","p114",{"$":1},"self.assertEqual(table.closes, [table.next_fd])",["p287"],"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared"],
 
-"w22":{"assertion":{"$":76},"body":"p68","kind":{"$":0},"positive":{"$":145},"support":["p75"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes"},
+"w22":[{"$":76},"p68",{"$":0},{"$":145},["p75"],"tests.test_production_closure.ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes"],
 
-"w23":{"assertion":"self.assertEqual(self.store.audit_events(), before)","body":"p6b","kind":{"$":0},"positive":{"$":298},"support":[],"test_id":"tests.test_host_acceptance.HostAcceptanceTests.test_closing_acceptance_requires_host_selected_separated_adjudicator"},
+"w23":["self.assertEqual(self.store.audit_events(), before)","p6b",{"$":0},{"$":298},[],"tests.test_host_acceptance.HostAcceptanceTests.test_closing_acceptance_requires_host_selected_separated_adjudicator"],
 
-"w24":{"assertion":"configured.assert_not_called()","body":"p6d","kind":{"$":0},"positive":"self.assertEqual(authority.capture(database='/EXAMPLE/database', bead_id='EXAMPLE-bead',","support":[],"test_id":"tests.test_production_closure_authority.ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access"},
+"w24":["configured.assert_not_called()","p6d",{"$":0},"self.assertEqual(authority.capture(database='/EXAMPLE/database', bead_id='EXAMPLE-bead',",[],"tests.test_production_closure_authority.ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access"],
 
-"w25":{"assertion":"self.assertEqual(guard.call_count, entries[0])","body":"p16d","kind":{"$":0},"positive":{"$":145},"support":[],"test_id":"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control"},
+"w25":["self.assertEqual(guard.call_count, entries[0])","p16d",{"$":0},{"$":145},[],"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control"],
 
-"w25Budget":{"assertion":"with self.assertRaisesRegex(qualification.QualificationError, 'campaign.*limit'):","body":"p25Budget","kind":{"$":0},"positive":"self.assertEqual(qualification.campaign_usage(), {'initial': 10, 'rechecks': 5, 'total': 15})","support":[],"test_id":"tests.test_registered_n1_qualification.CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks"},
+"w25Budget":["with self.assertRaisesRegex(qualification.QualificationError, 'campaign.*limit'):","p25Budget",{"$":0},"self.assertEqual(qualification.campaign_usage(), {'initial': 10, 'rechecks': 5, 'total': 15})",[],"tests.test_registered_n1_qualification.CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks"],
 
-"w25Expiry":{"assertion":{"$":338},"body":"p25Expiry","kind":{"$":0},"positive":{"$":332},"support":["p25ExpirySupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker"},
+"w25Expiry":[{"$":338},"p25Expiry",{"$":0},{"$":332},["p25ExpirySupport0"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker"],
 
-"w25Finite":{"assertion":"self.assertEqual(observation['outcome'], 'refused-nonempty')","body":"p25Finite","kind":{"$":0},"positive":"self.assertEqual(observation['outcome'], 'empty-poll')","support":["p25FiniteSupport0","p25FiniteSupport1"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery"},
+"w25Finite":["self.assertEqual(observation['outcome'], 'refused-nonempty')","p25Finite",{"$":0},"self.assertEqual(observation['outcome'], 'empty-poll')",["p25FiniteSupport0","p25FiniteSupport1"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery"],
 
-"w25Models":{"assertion":"with self.assertRaisesRegex(qualification.QualificationError, 'role'):","body":"p25Models","kind":{"$":1},"positive":"{'model': 'gpt-6.2-sol', 'effort': 'xhigh', 'service_tier': 'default', 'provider': 'openai'}","support":[],"test_id":"tests.test_registered_n1_qualification.CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles"},
+"w25Models":["with self.assertRaisesRegex(qualification.QualificationError, 'role'):","p25Models",{"$":1},"{'model': 'gpt-6.2-sol', 'effort': 'xhigh', 'service_tier': 'default', 'provider': 'openai'}",[],"tests.test_registered_n1_qualification.CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles"],
 
-"w25MonitorProof":{"assertion":"with self.assertRaisesRegex(runtime.native.OfflineHostError, 'same-handle reaping'):","body":"p25MonitorProof","kind":{"$":0},"positive":"self.assertIs(lifetime._terminate_monitor(), complete)","support":[],"test_id":"tests.test_registered_provider_network.RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal"},
+"w25MonitorProof":["with self.assertRaisesRegex(runtime.native.OfflineHostError, 'same-handle reaping'):","p25MonitorProof",{"$":0},"self.assertIs(lifetime._terminate_monitor(), complete)",[],"tests.test_registered_provider_network.RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal"],
 
-"w25OriginalWatchdog":{"assertion":"self.assertEqual(terminated['outcome'], 'identity-unavailable')","body":"p25OriginalWatchdog","kind":{"$":1},"positive":"self.assertIs(report['child_reaped'], True)","support":[],"test_id":"tests.test_private_pid_ci_applicability.PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence"},
+"w25OriginalWatchdog":["self.assertEqual(terminated['outcome'], 'identity-unavailable')","p25OriginalWatchdog",{"$":1},"self.assertIs(report['child_reaped'], True)",[],"tests.test_private_pid_ci_applicability.PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence"],
 
-"w25Permit":{"assertion":{"$":338},"body":"p25Permit","kind":{"$":0},"positive":{"$":332},"support":["p25PermitSupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production"},
+"w25Permit":[{"$":338},"p25Permit",{"$":0},{"$":332},["p25PermitSupport0"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production"],
 
-"w25Provider":{"assertion":"self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))","body":"p25Provider","kind":{"$":0},"positive":"self.assertEqual(self.provider_request.get(timeout=3), b'EXAMPLE provider request')","support":["p25ProviderSupport0","p25ProviderTLSSupport"],"test_id":"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot"},
+"w25Provider":["self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))","p25Provider",{"$":0},"self.assertEqual(self.provider_request.get(timeout=3), b'EXAMPLE provider request')",["p25ProviderSupport0","p25ProviderTLSSupport"],"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot"],
 
-"w25ProviderPrivate":{"assertion":"self.assertEqual(self._refused_provider_hello(), 'provider-address-not-public')","body":"p25ProviderPrivate","kind":{"$":0},"positive":{"$":337},"support":["p25ProviderPrivateSupport0"],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_a_private_provider_dns_result_is_refused"},
+"w25ProviderPrivate":["self.assertEqual(self._refused_provider_hello(), 'provider-address-not-public')","p25ProviderPrivate",{"$":0},{"$":337},["p25ProviderPrivateSupport0"],"tests.test_registered_provider_network.ProviderNetworkTests.test_a_private_provider_dns_result_is_refused"],
 
-"w25ProviderSNI":{"assertion":"dial.assert_not_called()","body":"p25ProviderSNI","kind":{"$":0},"positive":{"$":337},"support":["p25ProviderSNISupport0"],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect"},
+"w25ProviderSNI":["dial.assert_not_called()","p25ProviderSNI",{"$":0},{"$":337},["p25ProviderSNISupport0"],"tests.test_registered_provider_network.ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect"],
 
-"w25TransportScope":{"assertion":"server.start_turn('thread', 'benign fixture')","body":"p25TransportScope","kind":{"$":0},"positive":{"$":332},"support":["p25TransportScopeSupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit"},
+"w25TransportScope":["server.start_turn('thread', 'benign fixture')","p25TransportScope",{"$":0},{"$":332},["p25TransportScopeSupport0"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit"],
 
-"w26":{"assertion":"self.assertEqual(len(consumed), 1)","body":"p6f","kind":{"$":1},"positive":{"$":145},"support":["p75"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures"},
+"w26":["self.assertEqual(len(consumed), 1)","p6f",{"$":1},{"$":145},["p75"],"tests.test_production_closure.ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures"],
 
-"w27":{"assertion":{"$":295},"body":"p71","kind":{"$":0},"positive":{"$":124},"support":["p77"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete"},
+"w27":[{"$":295},"p71",{"$":0},{"$":124},["p77"],"tests.test_production_closure.ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete"],
 
-"w28":{"assertion":"self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, True)","body":"p229","kind":{"$":0},"positive":"self.assertEqual(result[\"state\"], \"COMPLETED\")","support":[],"test_id":"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control"},
+"w28":["self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, True)","p229",{"$":0},"self.assertEqual(result[\"state\"], \"COMPLETED\")",[],"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control"],
 
-"w29":{"assertion":"io.assert_not_called()","body":"p330","kind":{"$":1},"positive":{"$":123},"support":["p197"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io"},
+"w29":["io.assert_not_called()","p330",{"$":1},{"$":123},["p197"],"tests.test_production_closure.ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io"],
 
-"w2a":{"assertion":{"$":295},"body":"p76","kind":{"$":0},"positive":{"$":304},"support":["p75"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes"},
+"w2a":[{"$":295},"p76",{"$":0},{"$":304},["p75"],"tests.test_production_closure.ProductionClosureTests.test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes"],
 
-"w2b":{"assertion":{"$":289},"body":"p78","kind":{"$":0},"positive":{"$":309},"support":["p77"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write"},
+"w2b":[{"$":289},"p78",{"$":0},{"$":309},["p77"],"tests.test_production_closure.ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write"],
 
-"w2c":{"assertion":{"$":289},"body":"p79","kind":{"$":0},"positive":{"$":309},"support":["p77"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_policy_source_drift_after_bind_or_comment_refuses_next_write"},
+"w2c":[{"$":289},"p79",{"$":0},{"$":309},["p77"],"tests.test_production_closure.ProductionClosureTests.test_policy_source_drift_after_bind_or_comment_refuses_next_write"],
 
-"w2d":{"assertion":{"$":76},"body":"p7c","kind":{"$":0},"positive":{"$":124},"support":["p77","p73","p72","p81","p7e","p82","p75"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance"},
+"w2d":[{"$":76},"p7c",{"$":0},{"$":124},["p77","p73","p72","p81","p7e","p82","p75"],"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance"],
 
-"w2e":{"assertion":{"$":76},"body":"p7d","kind":{"$":0},"positive":{"$":124},"support":["p77","p73","p72","p81","p7e","p82","p75"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads"},
+"w2e":[{"$":76},"p7d",{"$":0},{"$":124},["p77","p73","p72","p81","p7e","p82","p75"],"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads"],
 
-"w2f":{"assertion":"self.assertEqual(before, {p.relative_to(self.store.state_root): p.read_bytes()","body":"p7f","kind":{"$":0},"positive":{"$":298},"support":["p75"],"test_id":"tests.test_host_acceptance.HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest"},
+"w2f":["self.assertEqual(before, {p.relative_to(self.store.state_root): p.read_bytes()","p7f",{"$":0},{"$":298},["p75"],"tests.test_host_acceptance.HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest"],
 
-"w3":{"assertion":"self.assertFalse(pool_called)","body":"p1ff","kind":{"$":0},"positive":"self.assertTrue(result[\"accepted\"])","support":["p1fb"],"test_id":"tests.test_native_pool_transaction.NativePoolTransactionTests.test_final_horizon_overrun_contains_before_admitted_pool_commit"},
+"w3":["self.assertFalse(pool_called)","p1ff",{"$":0},"self.assertTrue(result[\"accepted\"])",["p1fb"],"tests.test_native_pool_transaction.NativePoolTransactionTests.test_final_horizon_overrun_contains_before_admitted_pool_commit"],
 
-"w30":{"assertion":{"$":76},"body":"p83","kind":{"$":0},"positive":{"$":304},"support":["p75"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage"},
+"w30":[{"$":76},"p83",{"$":0},{"$":304},["p75"],"tests.test_production_closure.ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage"],
 
-"w31":{"assertion":{"$":302},"body":"p91","kind":{"$":12},"positive":"self.assertEqual(report['observed']['command'], 'command-ok')","support":[],"test_id":"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec"},
+"w31":[{"$":302},"p91",{"$":12},"self.assertEqual(report['observed']['command'], 'command-ok')",[],"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec"],
 
-"w32":{"assertion":{"$":143},"body":"p93","kind":{"$":12},"positive":"self.assertTrue(probe._cleanup['namespace_exited'])","support":[],"test_id":"tests.test_selected_native_containment.DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error"},
+"w32":[{"$":143},"p93",{"$":12},"self.assertTrue(probe._cleanup['namespace_exited'])",[],"tests.test_selected_native_containment.DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error"],
 
-"w33":{"assertion":"probe.poll('injected input')","body":"p95","kind":{"$":12},"positive":"self.assertIn('poll-ok', result['stdout'])","support":[],"test_id":"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output"},
+"w33":["probe.poll('injected input')","p95",{"$":12},"self.assertIn('poll-ok', result['stdout'])",[],"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output"],
 
-"w34":{"assertion":"self.assertFalse(result['execution_authorized'])","body":"p9a","kind":{"$":12},"positive":"self.assertEqual(result['profile_status'], 'selected-unqualified')","support":[],"test_id":"tests.test_selected_native_containment.SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority"},
+"w34":["self.assertFalse(result['execution_authorized'])","p9a",{"$":12},"self.assertEqual(result['profile_status'], 'selected-unqualified')",[],"tests.test_selected_native_containment.SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority"],
 
-"w35":{"assertion":"process.kill.assert_not_called()","body":"p9e","kind":{"$":1},"positive":"self.assertGreaterEqual(state['kill_sizes'][0], 2)","support":["p9c","p9d","p90","p99"],"test_id":"tests.test_selected_native_containment.ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death"},
+"w35":["process.kill.assert_not_called()","p9e",{"$":1},"self.assertGreaterEqual(state['kill_sizes'][0], 2)",["p9c","p9d","p90","p99"],"tests.test_selected_native_containment.ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death"],
 
-"w35AuthAbsent":{"assertion":"dial.assert_not_called()","body":"p35AuthAbsent","kind":{"$":0},"positive":{"$":344},"support":["p35AuthTls"],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial"},
+"w35AuthAbsent":["dial.assert_not_called()","p35AuthAbsent",{"$":0},{"$":344},["p35AuthTls"],"tests.test_registered_provider_network.ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial"],
 
-"w35AuthEarlyCleanup":{"assertion":"self.assertNotEqual(_fd_identity(descriptor), identity)","body":"p35AuthEarlyCleanup","kind":{"$":0},"positive":"self.assertIsNotNone(identity)","support":[],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment"},
+"w35AuthEarlyCleanup":["self.assertNotEqual(_fd_identity(descriptor), identity)","p35AuthEarlyCleanup",{"$":0},"self.assertIsNotNone(identity)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment"],
 
-"w35AuthGate":{"assertion":"execute.assert_not_called()","body":"p35AuthGate","kind":{"$":0},"positive":"self.assertEqual(witness.read(), _EXAMPLE_ACCESS_TOKEN)","support":[],"test_id":"tests.test_registered_provider_network.ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment"},
+"w35AuthGate":["execute.assert_not_called()","p35AuthGate",{"$":0},"self.assertEqual(witness.read(), _EXAMPLE_ACCESS_TOKEN)",[],"tests.test_registered_provider_network.ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment"],
 
-"w35AuthTls":{"assertion":"self.assertEqual(self._run_offline_child(role).stdout, b'EXAMPLE child isolated\\n')","body":"p35AuthTls","kind":{"$":0},"positive":{"$":344},"support":["p25ProviderSupport0","p25ProviderTLSSupport"],"test_id":"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot"},
+"w35AuthTls":["self.assertEqual(self._run_offline_child(role).stdout, b'EXAMPLE child isolated\\n')","p35AuthTls",{"$":0},{"$":344},["p25ProviderSupport0","p25ProviderTLSSupport"],"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot"],
 
-"w36":{"assertion":"self.assertEqual(pending, ['cleanup-pending'])","body":"pb2","kind":{"$":1},"positive":"self.assertEqual(gate.cleanup_phase(), 'unknown' if time_out else 'contained')","support":["pb3","pb6","pb4","pb5","pac","pad","pb1","pb0","pb7","pae","paf"],"test_id":"tests.test_registered_finite_input.FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication"},
+"w36":["self.assertEqual(pending, ['cleanup-pending'])","pb2",{"$":1},"self.assertEqual(gate.cleanup_phase(), 'unknown' if time_out else 'contained')",["pb3","pb6","pb4","pb5","pac","pad","pb1","pb0","pb7","pae","paf"],"tests.test_registered_finite_input.FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication"],
 
-"w36FiniteArchive":{"assertion":"self.assertEqual(observed, [('pending', 1, 'paired-pending')])","body":"p36FiniteArchive","kind":{"$":0},"positive":{"$":341},"support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation"},
+"w36FiniteArchive":["self.assertEqual(observed, [('pending', 1, 'paired-pending')])","p36FiniteArchive",{"$":0},{"$":341},["p36FiniteRaceSupport"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation"],
 
-"w36FiniteHistory":{"assertion":"with self.assertRaisesRegex(finite_tools.FiniteToolError,","body":"p36FiniteHistory","kind":{"$":0},"positive":"self.assertEqual(factory.run()['attempt']['outcome'], 'completed')","support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout"},
+"w36FiniteHistory":["with self.assertRaisesRegex(finite_tools.FiniteToolError,","p36FiniteHistory",{"$":0},"self.assertEqual(factory.run()['attempt']['outcome'], 'completed')",[],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout"],
 
-"w36FiniteLateItem":{"assertion":"self.assertIsNone(factory.token)","body":"p36FiniteLateItem","kind":{"$":0},"positive":{"$":341},"support":["p36FiniteLateSupport","p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal"},
+"w36FiniteLateItem":["self.assertIsNone(factory.token)","p36FiniteLateItem",{"$":0},{"$":341},["p36FiniteLateSupport","p36FiniteRaceSupport"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal"],
 
-"w36FiniteQueuedItem":{"assertion":"self.assertEqual(pending, [('EXAMPLE-poll-call', True, False, True)])","body":"p36FiniteQueuedItem","kind":{"$":6},"positive":"self.assertTrue(factory.server.archived)","support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item"},
+"w36FiniteQueuedItem":["self.assertEqual(pending, [('EXAMPLE-poll-call', True, False, True)])","p36FiniteQueuedItem",{"$":6},"self.assertTrue(factory.server.archived)",[],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item"],
 
-"w36FiniteRefusal":{"assertion":"self.assertEqual(poll['delivered_bytes'], 0)","body":"p36FiniteRefusal","kind":{"$":0},"positive":{"$":341},"support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal"},
+"w36FiniteRefusal":["self.assertEqual(poll['delivered_bytes'], 0)","p36FiniteRefusal",{"$":0},{"$":341},["p36FiniteRaceSupport"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal"],
 
-"w36SchemaGate":{"assertion":{"$":338},"body":"p36SchemaGate","kind":{"$":0},"positive":"case.schema_check.assert_called_once()","support":["p25PermitSupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start"},
+"w36SchemaGate":[{"$":338},"p36SchemaGate",{"$":0},"case.schema_check.assert_called_once()",["p25PermitSupport0"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start"],
 
-"w37":{"assertion":"self.assertFalse((host.state / \"artifact\").exists())","body":"pbe","kind":{"$":12},"positive":"self.assertEqual(report[\"status\"], \"artifact-ready\", report[\"error\"])","support":["pbf"],"test_id":"tests.test_offline_n1_host.OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent"},
+"w37":["self.assertFalse((host.state / \"artifact\").exists())","pbe",{"$":12},"self.assertEqual(report[\"status\"], \"artifact-ready\", report[\"error\"])",["pbf"],"tests.test_offline_n1_host.OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent"],
 
-"w38":{"assertion":"self.assertEqual(native.fixture.spawned, [])","body":"pc3","kind":{"$":0},"positive":"self.assertTrue(result['execution_complete'])","support":["pc1","pc2","pc5","pc4","p23a"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_native_consumer_refuses_delivery_edit_during_original_evidence_consumption"},
+"w38":["self.assertEqual(native.fixture.spawned, [])","pc3",{"$":0},"self.assertTrue(result['execution_complete'])",["pc1","pc2","pc5","pc4","p23a"],"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_native_consumer_refuses_delivery_edit_during_original_evidence_consumption"],
 
-"w39":{"assertion":"self.assert_late_drift_refused(lambda: destination.write_bytes(concurrent))","body":"p36f","kind":{"$":12},"positive":"self.assertEqual(result[\"new_invocation\"][\"replacements\"], 1)","support":["p370"],"test_id":"tests.test_guarded_artifact_target.GuardedArtifactTargetTests.test_late_dirty_manifest_drift_preserves_concurrent_target_bytes"},
+"w39":["self.assert_late_drift_refused(lambda: destination.write_bytes(concurrent))","p36f",{"$":12},"self.assertEqual(result[\"new_invocation\"][\"replacements\"], 1)",["p370"],"tests.test_guarded_artifact_target.GuardedArtifactTargetTests.test_late_dirty_manifest_drift_preserves_concurrent_target_bytes"],
 
-"w3a":{"assertion":"self.assertEqual(self.fixture.attempt(case)['outcome'], 'failed')","body":"p55","kind":{"$":1},"positive":"self.assertIn('blocking-archive-observation', observations)","support":["p58","p57","p56","p5a","p59"],"test_id":"tests.test_registered_controlled_output_schedule.ControlledOutputScheduleTests.test_queued_archive_response_preserves_selected_original_rejection"},
+"w3a":["self.assertEqual(self.fixture.attempt(case)['outcome'], 'failed')","p55",{"$":1},"self.assertIn('blocking-archive-observation', observations)",["p58","p57","p56","p5a","p59"],"tests.test_registered_controlled_output_schedule.ControlledOutputScheduleTests.test_queued_archive_response_preserves_selected_original_rejection"],
 
-"w3b":{"assertion":"self.assert_real_namespace_stopped_after_monitor_failure(raises=True)","body":"p381","kind":{"$":12},"positive":"self.assertFalse(lifetime.contained or lifetime.termination_recorded)","support":["p383"],"test_id":"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises"},
+"w3b":["self.assert_real_namespace_stopped_after_monitor_failure(raises=True)","p381",{"$":12},"self.assertFalse(lifetime.contained or lifetime.termination_recorded)",["p383"],"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises"],
 
-"w3c":{"assertion":{"$":305},"body":"p388","kind":{"$":12},"positive":"self.assertEqual((lifetime.factory.host.worker / 'result.txt').read_bytes(), b'useful')","support":[],"test_id":"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command"},
+"w3c":[{"$":305},"p388",{"$":12},"self.assertEqual((lifetime.factory.host.worker / 'result.txt').read_bytes(), b'useful')",[],"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command"],
 
-"w3d":{"assertion":"self.assertFalse((lifetime.factory.host.worker / 'result.txt').exists())","body":"p389","kind":{"$":12},"positive":{"$":305},"support":[],"test_id":"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command"},
+"w3d":["self.assertFalse((lifetime.factory.host.worker / 'result.txt').exists())","p389",{"$":12},{"$":305},[],"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command"],
 
-"w3e":{"assertion":"self.assertTrue(any(worker.is_alive() for worker, _ in factory.server._worker_snapshot()))","body":"p3a6","kind":{"$":1},"positive":"self.assertTrue(all(not worker.is_alive() for worker, _ in factory.server._worker_snapshot()))","support":["p3a5","p3a7","p3a8","p3a4","p3a3","p3a2"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains"},
+"w3e":["self.assertTrue(any(worker.is_alive() for worker, _ in factory.server._worker_snapshot()))","p3a6",{"$":1},"self.assertTrue(all(not worker.is_alive() for worker, _ in factory.server._worker_snapshot()))",["p3a5","p3a7","p3a8","p3a4","p3a3","p3a2"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains"],
 
-"w3f":{"assertion":"self.assertEqual(self.http.calls, [])","body":"p393","kind":{"$":0},"positive":"self.assertEqual(self.http.calls[0][1], 1)","support":["p392","p394"],"test_id":"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_final_transport_delay_refuses_expired_admission_or_runtime_without_http"},
+"w3f":["self.assertEqual(self.http.calls, [])","p393",{"$":0},"self.assertEqual(self.http.calls[0][1], 1)",["p392","p394"],"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_final_transport_delay_refuses_expired_admission_or_runtime_without_http"],
 
-"w4":{"assertion":"self.assertEqual(result.returncode, 2)","body":"pfc","kind":{"$":12},"positive":"self.assertFalse(payload[\"visibility_hint_supported\"])","support":[],"test_id":"tests.test_configure_codex_beads_hooks.ConfigureCodexBeadsHooksTests.test_cli_json_reports_unsupported_quiet_without_writing"},
+"w4":["self.assertEqual(result.returncode, 2)","pfc",{"$":12},"self.assertFalse(payload[\"visibility_hint_supported\"])",[],"tests.test_configure_codex_beads_hooks.ConfigureCodexBeadsHooksTests.test_cli_json_reports_unsupported_quiet_without_writing"],
 
-"w40":{"assertion":"self.assertEqual(len(a.boundary.calls), 0)","body":"p39b","kind":{"$":0},"positive":"self.assertEqual((result.status, len(a.boundary.calls)), (\"created\", 1))","support":["p3a1","p395","p39d","p39f"],"test_id":"tests.test_browser_share_consent.ShareConsentTests.test_ordered_content_document_and_representation_drift_refuse"},
+"w40":["self.assertEqual(len(a.boundary.calls), 0)","p39b",{"$":0},"self.assertEqual((result.status, len(a.boundary.calls)), (\"created\", 1))",["p3a1","p395","p39d","p39f"],"tests.test_browser_share_consent.ShareConsentTests.test_ordered_content_document_and_representation_drift_refuse"],
 
-"w41":{"assertion":"self.assert_effects()","body":"p398","kind":{"$":0},"positive":{"$":299},"support":["p39a"],"test_id":"tests.test_browser_share_dom.ShareDOMTests.test_replaced_document_with_identical_content_refuses"},
+"w41":["self.assert_effects()","p398",{"$":0},{"$":299},["p39a"],"tests.test_browser_share_dom.ShareDOMTests.test_replaced_document_with_identical_content_refuses"],
 
 "w42":{"assertion":"self.assert_effects(create=1)","body":"p399","kind":{"$":12},"limits":"One create already entered; unknown/full charge and zero additional effect on the refused successor. Not zero original creation.","positive":{"$":299},"support":["p39a"],"test_id":"tests.test_browser_share_dom.ShareDOMTests.test_invalid_returned_url_is_charged_unknown_and_never_retried"},
 
-"w42Interlock":{"assertion":"with self.assertRaisesRegex(qualification.QualificationError, 'changed'):","body":"p42Interlock","kind":{"$":1},"positive":"qualification.release_managed_login(second)","support":[],"test_id":"tests.test_registered_n1_qualification.CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release"},
+"w42Interlock":["with self.assertRaisesRegex(qualification.QualificationError, 'changed'):","p42Interlock",{"$":1},"qualification.release_managed_login(second)",[],"tests.test_registered_n1_qualification.CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release"],
 
-"w42Namespace":{"assertion":"assert not Path({str(self.auth)!r}).exists()","body":"p42Namespace","kind":{"$":1},"positive":"self.assertEqual(self.auth.read_bytes(), b'EXAMPLE refreshed login\\n')","support":[],"test_id":"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"},
+"w42Namespace":["assert not Path({str(self.auth)!r}).exists()","p42Namespace",{"$":1},"self.assertEqual(self.auth.read_bytes(), b'EXAMPLE refreshed login\\n')",[],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"],
 
-"w42Precharge":{"assertion":"self.assertEqual(qualification.campaign_usage()['total'], 0)","body":"p42Precharge","kind":{"$":1},"positive":"self.assertTrue(factory._managed_lifetime.contained)","support":[],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace"},
+"w42Precharge":["self.assertEqual(qualification.campaign_usage()['total'], 0)","p42Precharge",{"$":1},"self.assertTrue(factory._managed_lifetime.contained)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace"],
 
-"w42Provider":{"assertion":"dial.assert_not_called()","body":"p42Provider","kind":{"$":0},"positive":"self.assertIn(b'200', client.recv(1024))","support":[],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist"},
+"w42Provider":["dial.assert_not_called()","p42Provider",{"$":0},"self.assertIn(b'200', client.recv(1024))",[],"tests.test_registered_provider_network.ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist"],
 
-"w42Rollout":{"assertion":"self.assertEqual(factory._managed_login.rollout, identity)","body":"p42Rollout","kind":{"$":1},"positive":"self.assertEqual(result['attempt']['outcome'], 'completed')","support":[],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout"},
+"w42Rollout":["self.assertEqual(factory._managed_login.rollout, identity)","p42Rollout",{"$":1},"self.assertEqual(result['attempt']['outcome'], 'completed')",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout"],
 
-"w42Unresolved":{"assertion":"with self.assertRaisesRegex(qualification.QualificationError, 'unresolved'):","body":"p42Unresolved","kind":{"$":1},"positive":"self.assertFalse(factory._managed_lifetime.contained)","support":[],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock"},
+"w42Unresolved":["with self.assertRaisesRegex(qualification.QualificationError, 'unresolved'):","p42Unresolved",{"$":1},"self.assertFalse(factory._managed_lifetime.contained)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock"],
 
-"w43":{"assertion":"self.assertEqual(fixture.spawned, [])","body":"p23a","kind":{"$":0},"positive":{"$":75},"support":[],"test_id":{"$":319}},
+"w43":["self.assertEqual(fixture.spawned, [])","p23a",{"$":0},{"$":75},[],{"$":319}],
 
-"w44":{"assertion":{"$":97},"body":"p101","kind":{"$":0},"positive":"self.assertEqual(launch.call_count,1)","support":[],"test_id":"tests.test_checked_command_interpreters.InterpreterSourceTests.test_real_interpreter_option_matrix_and_zero_guard_launches"},
+"w44":[{"$":97},"p101",{"$":0},"self.assertEqual(launch.call_count,1)",[],"tests.test_checked_command_interpreters.InterpreterSourceTests.test_real_interpreter_option_matrix_and_zero_guard_launches"],
 
-"w45":{"assertion":"dns.assert_not_called()","body":"p372","kind":{"$":0},"positive":{"$":93},"support":["p20d"],"test_id":{"$":20}},
+"w45":["dns.assert_not_called()","p372",{"$":0},{"$":93},["p20d"],{"$":20}],
 
-"w46":{"assertion":"self.assertFalse(marker.exists())","body":"p372","kind":{"$":0},"positive":{"$":129},"support":["p181"],"test_id":{"$":20}},
+"w46":["self.assertFalse(marker.exists())","p372",{"$":0},{"$":129},["p181"],{"$":20}],
 
-"w47":{"assertion":"capability.claim.assert_not_called()","body":"p1ef","kind":{"$":0},"positive":"capability.claim.assert_called_once_with()","support":[],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim"},
+"w47":["capability.claim.assert_not_called()","p1ef",{"$":0},"capability.claim.assert_called_once_with()",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim"],
 
-"w48":{"assertion":{"$":301},"body":"pf5","kind":{"$":1},"positive":{"$":301},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_selection_does_not_click_loose_text_when_confirmation_required"},
+"w48":[{"$":301},"pf5",{"$":1},{"$":301},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_selection_does_not_click_loose_text_when_confirmation_required"],
 
-"w49":{"assertion":{"$":130},"body":"p2e4","kind":{"$":6},"positive":{"$":130},"support":[],"test_id":"tests.test_r5_transport_launch.R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path"},
+"w49":[{"$":130},"p2e4",{"$":6},{"$":130},[],"tests.test_r5_transport_launch.R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path"],
 
-"w4a":{"assertion":"self.assertEqual(table.spawn_calls, [])","body":"p277","kind":{"$":0},"positive":{"$":141},"support":["p26b"],"test_id":"tests.test_linux_owned_children.ControllerTests.test_missing_handle_wait_capabilities_refuse_before_creation"},
+"w4a":["self.assertEqual(table.spawn_calls, [])","p277",{"$":0},{"$":141},["p26b"],"tests.test_linux_owned_children.ControllerTests.test_missing_handle_wait_capabilities_refuse_before_creation"],
 
-"w4b":{"assertion":{"$":134},"body":"p112","kind":{"$":6},"positive":{"$":134},"support":[],"test_id":"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments"},
+"w4b":[{"$":134},"p112",{"$":6},{"$":134},[],"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments"],
 
-"w4c":{"assertion":{"$":132},"body":"p2c6","kind":{"$":6},"positive":{"$":132},"support":["p339"],"test_id":"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_real_full_and_tight_graphs_preserve_valid_consumer_outputs"},
+"w4c":[{"$":132},"p2c6",{"$":6},{"$":132},["p339"],"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_real_full_and_tight_graphs_preserve_valid_consumer_outputs"],
 
-"w4d":{"assertion":"self.assertEqual((snapshot(self.tmp / \"skills\"), snapshot(self.backups)), before)","body":"p23c","kind":{"$":0},"positive":{"$":140},"support":["p32c"],"test_id":"tests.test_install_projection.InstallerProjectionTests.test_missing_required_entry_refuses_install_and_dry_run_without_change"},
+"w4d":["self.assertEqual((snapshot(self.tmp / \"skills\"), snapshot(self.backups)), before)","p23c",{"$":0},{"$":140},["p32c"],"tests.test_install_projection.InstallerProjectionTests.test_missing_required_entry_refuses_install_and_dry_run_without_change"],
 
-"w4e":{"assertion":{"$":75},"body":"p23a","kind":{"$":6},"positive":{"$":75},"support":[],"test_id":{"$":319}},
+"w4e":[{"$":75},"p23a",{"$":6},{"$":75},[],{"$":319}],
 
-"w4f":{"assertion":"self.assertEqual(refused.claim_order, [])","body":"p198","kind":{"$":0},"positive":"self.assertTrue(committed.owned)","support":[],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_timeout_reconciliation_uses_exact_show_not_command_output"},
+"w4f":["self.assertEqual(refused.claim_order, [])","p198",{"$":0},"self.assertTrue(committed.owned)",[],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_timeout_reconciliation_uses_exact_show_not_command_output"],
 
-"w5":{"assertion":{"$":239},"body":"p374","kind":{"$":0},"positive":{"$":77},"support":[],"test_id":{"$":322}},
+"w5":[{"$":239},"p374",{"$":0},{"$":77},[],{"$":322}],
 
-"w50":{"assertion":"self.assertEqual(write.call_count, int(apply), \"preview reached persistence\")","body":"p24b","kind":{"$":0},"positive":{"$":149},"support":[],"test_id":{"$":317}},
+"w50":["self.assertEqual(write.call_count, int(apply), \"preview reached persistence\")","p24b",{"$":0},{"$":149},[],{"$":317}],
 
-"w51":{"assertion":{"$":122},"body":"p21a","kind":{"$":6},"positive":{"$":122},"support":["p2e8"],"test_id":"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_requires_explicit_allow_flag"},
+"w51":[{"$":122},"p21a",{"$":6},{"$":122},["p2e8"],"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_requires_explicit_allow_flag"],
 
-"w52":{"assertion":{"$":123},"body":"p197","kind":{"$":6},"positive":{"$":123},"support":[],"test_id":"tests.test_production_closure.ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls"},
+"w52":[{"$":123},"p197",{"$":6},{"$":123},[],"tests.test_production_closure.ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls"],
 
-"w53":{"assertion":{"$":303},"body":"p37d","kind":{"$":1},"positive":{"$":303},"support":[],"test_id":{"$":321}},
+"w53":[{"$":303},"p37d",{"$":1},{"$":303},[],{"$":321}],
 
-"w54":{"assertion":{"$":136},"body":"p37d","kind":{"$":6},"positive":{"$":136},"support":[],"test_id":{"$":321}},
+"w54":[{"$":136},"p37d",{"$":6},{"$":136},[],{"$":321}],
 
-"w55":{"assertion":"self.assertEqual(len(effects.mock_calls), 0, \"held entry reached a browser effect\")","body":"p11e","kind":{"$":0},"positive":"effects.factory.assert_called_once_with()","support":["p2f1","p1ea","p13a","p1f4","p178","p21f","p1b2"],"test_id":"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_direct_custom_local_and_browser_modes_cannot_bypass_shipped_denials"},
+"w55":["self.assertEqual(len(effects.mock_calls), 0, \"held entry reached a browser effect\")","p11e",{"$":0},"effects.factory.assert_called_once_with()",["p2f1","p1ea","p13a","p1f4","p178","p21f","p1b2"],"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_direct_custom_local_and_browser_modes_cannot_bypass_shipped_denials"],
 
-"w56":{"assertion":{"$":291},"body":"p201","kind":{"$":1},"positive":{"$":291},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_records_attestation"},
+"w56":[{"$":291},"p201",{"$":1},{"$":291},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_records_attestation"],
 
-"w57":{"assertion":"self.assertEqual(mocks[\"submit\"].call_count, 0, \"refused final bytes must never reach fake Send\")","body":"p361","kind":{"$":0},"positive":"self.assertEqual(mocks[\"submit\"].call_count, 1, \"matched clean fake Send must function\")","support":["p33e","p111","p13a","p1f4","p178"],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_valid_packet_final_send_screen_refuses_encoded_context"},
+"w57":["self.assertEqual(mocks[\"submit\"].call_count, 0, \"refused final bytes must never reach fake Send\")","p361",{"$":0},"self.assertEqual(mocks[\"submit\"].call_count, 1, \"matched clean fake Send must function\")",["p33e","p111","p13a","p1f4","p178"],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_valid_packet_final_send_screen_refuses_encoded_context"],
 
-"w58":{"assertion":{"$":97},"body":"p192","kind":{"$":0},"positive":"launch.assert_called_once_with()","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_server_rechecks_dedicated_and_shared_holds_with_all_on_fake_control"},
+"w58":[{"$":97},"p192",{"$":0},"launch.assert_called_once_with()",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_server_rechecks_dedicated_and_shared_holds_with_all_on_fake_control"],
 
-"w59":{"assertion":{"$":138},"body":"p12b","kind":{"$":6},"positive":{"$":138},"support":[],"test_id":"tests.test_offline_profile_input.ProfileInputTests.test_supporting_input_reaches_actual_fake_process_once_with_original_bindings"},
+"w59":[{"$":138},"p12b",{"$":6},{"$":138},[],"tests.test_offline_profile_input.ProfileInputTests.test_supporting_input_reaches_actual_fake_process_once_with_original_bindings"],
 
-"w5a":{"assertion":{"$":147},"body":"p35a","kind":{"$":6},"positive":{"$":147},"support":[],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_close_owned_reconciles_exact_success_timeout_and_error"},
+"w5a":[{"$":147},"p35a",{"$":6},{"$":147},[],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_close_owned_reconciles_exact_success_timeout_and_error"],
 
-"w5b":{"assertion":{"$":232},"body":"p372","kind":{"$":1},"positive":{"$":232},"support":["p20d"],"test_id":{"$":20}},
+"w5b":[{"$":232},"p372",{"$":1},{"$":232},["p20d"],{"$":20}],
 
-"w5c":{"assertion":{"$":345},"body":"p24a","kind":{"$":12},"positive":{"$":345},"support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments"},
+"w5c":[{"$":345},"p24a",{"$":12},{"$":345},[],"tests.test_instruction_profiles.InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments"],
 
-"w5d":{"assertion":"run_bd.assert_not_called()","body":"p338","kind":{"$":0},"positive":{"$":121},"support":["p2d4"],"test_id":"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_no_form_of_successful_closure_writes_to_beads"},
+"w5d":["run_bd.assert_not_called()","p338",{"$":0},{"$":121},["p2d4"],"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_no_form_of_successful_closure_writes_to_beads"],
 
-"w5e":{"assertion":{"$":141},"body":"p26b","kind":{"$":6},"positive":{"$":141},"support":[],"test_id":"tests.test_linux_owned_children.ControllerTests.test_validation_freezes_inputs_and_keeps_a_valid_receipt"},
+"w5e":[{"$":141},"p26b",{"$":6},{"$":141},[],"tests.test_linux_owned_children.ControllerTests.test_validation_freezes_inputs_and_keeps_a_valid_receipt"],
 
-"w5f":{"assertion":{"$":77},"body":"p374","kind":{"$":6},"positive":{"$":77},"support":[],"test_id":{"$":322}},
+"w5f":[{"$":77},"p374",{"$":6},{"$":77},[],{"$":322}],
 
-"w6":{"assertion":"self.assertEqual(adapter.mock_calls, [])","body":"p271","kind":{"$":0},"positive":"self.assertEqual(plan.__getitem__.call_args_list, [mock.call(\"profile\"), mock.call(\"tasks\")])","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_closure_rechecks_before_plan_or_beads_reads_with_all_on_fake_control"},
+"w6":["self.assertEqual(adapter.mock_calls, [])","p271",{"$":0},"self.assertEqual(plan.__getitem__.call_args_list, [mock.call(\"profile\"), mock.call(\"tasks\")])",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_closure_rechecks_before_plan_or_beads_reads_with_all_on_fake_control"],
 
-"w60":{"assertion":{"$":78},"body":"p202","kind":{"$":1},"positive":{"$":78},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_rejects_mismatched_visible_label"},
+"w60":[{"$":78},"p202",{"$":1},{"$":78},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_rejects_mismatched_visible_label"],
 
-"w61":{"assertion":{"$":131},"body":"p2b6","kind":{"$":6},"positive":{"$":131},"support":[],"test_id":"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split"},
+"w61":[{"$":131},"p2b6",{"$":6},{"$":131},[],"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split"],
 
-"w62":{"assertion":{"$":125},"body":"p372","kind":{"$":6},"positive":{"$":125},"support":["p144"],"test_id":{"$":20}},
+"w62":[{"$":125},"p372",{"$":6},{"$":125},["p144"],{"$":20}],
 
-"w63":{"assertion":"self.assertEqual(forged_runner.claim_order, [])","body":"p190","kind":{"$":0},"positive":"self.assertEqual(runner.claim_order, [\"bead-a\", \"bead-b\", \"bead-c\"])","support":[],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_productive_n3_succeeds_and_forged_n4_rejects_before_claim"},
+"w63":["self.assertEqual(forged_runner.claim_order, [])","p190",{"$":0},"self.assertEqual(runner.claim_order, [\"bead-a\", \"bead-b\", \"bead-c\"])",[],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_productive_n3_succeeds_and_forged_n4_rejects_before_claim"],
 
-"w64":{"assertion":"spy_detect.assert_not_called()","body":"p1d3","kind":{"$":0},"positive":{"$":77},"support":["p374"],"test_id":"tests.test_configure_codex_beads_hooks_w18a_f1.ProbeOrderingTests.test_enforcement_hook_refusal_does_not_invoke_probe_or_write"},
+"w64":["spy_detect.assert_not_called()","p1d3",{"$":0},{"$":77},["p374"],"tests.test_configure_codex_beads_hooks_w18a_f1.ProbeOrderingTests.test_enforcement_hook_refusal_does_not_invoke_probe_or_write"],
 
-"w65":{"assertion":"self.assertEqual((factory.call_count, prepare.call_count, calls), (0, 0, []))","body":"p372","kind":{"$":0},"positive":{"$":47},"support":["p144","p375"],"test_id":{"$":20}},
+"w65":["self.assertEqual((factory.call_count, prepare.call_count, calls), (0, 0, []))","p372",{"$":0},{"$":47},["p144","p375"],{"$":20}],
 
-"w66":{"assertion":"self.assertEqual(profile.read_text(encoding=\"utf-8\"), \"locally modified\\n\")","body":"p320","kind":{"$":0},"positive":"self.assertTrue(verified[\"ok\"])","support":["p1e8"],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove"},
+"w66":["self.assertEqual(profile.read_text(encoding=\"utf-8\"), \"locally modified\\n\")","p320",{"$":0},"self.assertTrue(verified[\"ok\"])",["p1e8"],"tests.test_instruction_profiles.InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove"],
 
-"w67":{"assertion":"creator.assert_not_called()","body":"p23b","kind":{"$":0},"positive":{"$":126},"support":["p372","p15f"],"test_id":"tests.test_routing_risk_features.RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands"},
+"w67":["creator.assert_not_called()","p23b",{"$":0},{"$":126},["p372","p15f"],"tests.test_routing_risk_features.RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands"],
 
-"w68":{"assertion":"wire.assert_not_called()","body":"p1f1","kind":{"$":0},"positive":"wire.assert_called_once_with(adapter.thread_id, 'bounded prompt')","support":[],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter"},
+"w68":["wire.assert_not_called()","p1f1",{"$":0},"wire.assert_called_once_with(adapter.thread_id, 'bounded prompt')",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter"],
 
-"w69":{"assertion":"graph.assert_not_called()","body":"p12a","kind":{"$":0},"positive":"graph.assert_called_once()","support":[],"test_id":"tests.test_native_activation_preview.NativeActivationPreviewTests.test_prepare_root_refuses_before_graph_and_private_graph_uses_only_fake_bd"},
+"w69":["graph.assert_not_called()","p12a",{"$":0},"graph.assert_called_once()",[],"tests.test_native_activation_preview.NativeActivationPreviewTests.test_prepare_root_refuses_before_graph_and_private_graph_uses_only_fake_bd"],
 
-"w6a":{"assertion":{"$":48},"body":"p1a5","kind":{"$":1},"positive":{"$":48},"support":[],"test_id":{"$":323}},
+"w6a":[{"$":48},"p1a5",{"$":1},{"$":48},[],{"$":323}],
 
-"w6b":{"assertion":{"$":48},"body":"p1a5","kind":{"$":6},"positive":{"$":48},"support":[],"test_id":{"$":323}},
+"w6b":[{"$":48},"p1a5",{"$":6},{"$":48},[],{"$":323}],
 
-"w6c":{"assertion":{"$":78},"body":"p299","kind":{"$":1},"positive":{"$":78},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_requires_explicit_selectors"},
+"w6c":[{"$":78},"p299",{"$":1},{"$":78},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_requires_explicit_selectors"],
 
-"w6d":{"assertion":{"$":231},"body":"p372","kind":{"$":0},"positive":"self.assertEqual(child.call_count, 4)","support":["pc9"],"test_id":{"$":20}},
+"w6d":[{"$":231},"p372",{"$":0},"self.assertEqual(child.call_count, 4)",["pc9"],{"$":20}],
 
-"w6e":{"assertion":"self.assertIsNone(workspace_capture.trusted_git((str(fake),)))","body":"pcb","kind":{"$":0},"positive":{"$":48},"support":["p1a5"],"test_id":"tests.test_workspace_inert_inspection.TrustedGitTests.test_only_fixed_trustworthy_paths_are_used"},
+"w6e":["self.assertIsNone(workspace_capture.trusted_git((str(fake),)))","pcb",{"$":0},{"$":48},["p1a5"],"tests.test_workspace_inert_inspection.TrustedGitTests.test_only_fixed_trustworthy_paths_are_used"],
 
-"w6f":{"assertion":"self.assertFalse((fixture.ledger.root / N.admission.ledger_api.LEDGER_FILE).exists())","body":"p143","kind":{"$":0},"positive":{"$":131},"support":["p2b6"],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control"},
+"w6f":["self.assertFalse((fixture.ledger.root / N.admission.ledger_api.LEDGER_FILE).exists())","p143",{"$":0},{"$":131},["p2b6"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control"],
 
-"w7":{"assertion":"self.assertEqual((directory.call_count, load.call_count, approval.call_count), (reads, reads, 0))","body":"pd0","kind":{"$":0},"positive":"self.assertEqual((directory.call_count, load.call_count, approval.call_count), (1, 1, 1))","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_entry_holds_precede_reads_and_claims_with_all_on_fake_control"},
+"w7":["self.assertEqual((directory.call_count, load.call_count, approval.call_count), (reads, reads, 0))","pd0",{"$":0},"self.assertEqual((directory.call_count, load.call_count, approval.call_count), (1, 1, 1))",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_entry_holds_precede_reads_and_claims_with_all_on_fake_control"],
 
-"w70":{"assertion":{"$":47},"body":"p375","kind":{"$":1},"positive":{"$":47},"support":[],"test_id":{"$":318}},
+"w70":[{"$":47},"p375",{"$":1},{"$":47},[],{"$":318}],
 
-"w71":{"assertion":{"$":47},"body":"p375","kind":{"$":6},"positive":{"$":47},"support":[],"test_id":{"$":318}},
+"w71":[{"$":47},"p375",{"$":6},{"$":47},[],{"$":318}],
 
-"w72":{"assertion":"execute.assert_not_called()","body":"p372","kind":{"$":0},"positive":{"$":127},"support":["p1e0"],"test_id":{"$":20}},
+"w72":["execute.assert_not_called()","p372",{"$":0},{"$":127},["p1e0"],{"$":20}],
 
-"w73":{"assertion":"self.assertEqual(calls, [first] if revoke else [first, second],\n                             \"revoked authority reached a later validator process\")","body":"p1e2","kind":{"$":0},"positive":"self.assertTrue(result[\"independent_checks\"][0][\"accepted\"])","support":["p2e7"],"test_id":"tests.test_maintenance_native_runtime.MaintenanceRuntimeTests.test_independent_product_validation_observes_real_artifact_without_closing_bead"},
+"w73":["self.assertEqual(calls, [first] if revoke else [first, second],\n                             \"revoked authority reached a later validator process\")","p1e2",{"$":0},"self.assertTrue(result[\"independent_checks\"][0][\"accepted\"])",["p2e7"],"tests.test_maintenance_native_runtime.MaintenanceRuntimeTests.test_independent_product_validation_observes_real_artifact_without_closing_bead"],
 
-"w74":{"assertion":"self.assertEqual(self.effects, [])","body":"p128","kind":{"$":0},"positive":{"$":134},"support":["p112"],"test_id":"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects"},
+"w74":["self.assertEqual(self.effects, [])","p128",{"$":0},{"$":134},["p112"],"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects"],
 
-"w75":{"assertion":"self.assertEqual(self.fake_process_count(process), 0)","body":"p11b","kind":{"$":0},"positive":{"$":138},"support":["p12b"],"test_id":"tests.test_offline_profile_input.ProfileInputTests.test_finite_nonempty_refuses_before_process_and_empty_poll_uses_same_selection"},
+"w75":["self.assertEqual(self.fake_process_count(process), 0)","p11b",{"$":0},{"$":138},["p12b"],"tests.test_offline_profile_input.ProfileInputTests.test_finite_nonempty_refuses_before_process_and_empty_poll_uses_same_selection"],
 
-"w76":{"assertion":{"$":293},"body":"p2d8","kind":{"$":0},"positive":{"$":293},"support":["p345"],"test_id":"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_chrome_launcher_dry_run_and_operator_actions_use_only_expected_effects"},
+"w76":[{"$":293},"p2d8",{"$":0},{"$":293},["p345"],"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_chrome_launcher_dry_run_and_operator_actions_use_only_expected_effects"],
 
-"w77":{"assertion":"self.assertEqual((binary.call_count, launch.call_count), (0, 0))","body":"p31d","kind":{"$":0},"positive":{"$":130},"support":["p2e4"],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_r5_f5_held_n1_raw_library_zero_launch_and_patched_fake_launch"},
+"w77":["self.assertEqual((binary.call_count, launch.call_count), (0, 0))","p31d",{"$":0},{"$":130},["p2e4"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_r5_f5_held_n1_raw_library_zero_launch_and_patched_fake_launch"],
 
-"w78":{"assertion":"self.assertEqual(dict(held_boundaries.calls), NO_EFFECTS,\n                         \"shipped-hold-exact-envelope reached an effect\")","body":"p283","kind":{"$":0},"positive":"self.assertEqual(boundaries.order, [\"observer:invocation-intent\", \"resolve\", \"build_opener\", \"observer:request\",\n                                            \"opener\", \"observer:terminal\"])","support":[],"test_id":"tests.test_local_invocation_reservation.RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent"},
+"w78":["self.assertEqual(dict(held_boundaries.calls), NO_EFFECTS,\n                         \"shipped-hold-exact-envelope reached an effect\")","p283",{"$":0},"self.assertEqual(boundaries.order, [\"observer:invocation-intent\", \"resolve\", \"build_opener\", \"observer:request\",\n                                            \"opener\", \"observer:terminal\"])",[],"tests.test_local_invocation_reservation.RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent"],
 
-"w79":{"assertion":{"$":259},"body":"p2e9","kind":{"$":1},"positive":{"$":259},"support":[],"test_id":"tests.test_beads_dash_id_safety.BeadsArgvShapeTests.test_brief_displays_the_command_it_runs"},
+"w79":[{"$":259},"p2e9",{"$":1},{"$":259},[],"tests.test_beads_dash_id_safety.BeadsArgvShapeTests.test_brief_displays_the_command_it_runs"],
 
-"w7a":{"assertion":{"$":93},"body":"p372","kind":{"$":1},"positive":{"$":93},"support":["p20d"],"test_id":{"$":20}},
+"w7a":[{"$":93},"p372",{"$":1},{"$":93},["p20d"],{"$":20}],
 
-"w7b":{"assertion":"self.assertEqual(effects.mock_calls, [], \"refused authorization reached update/audit\")","body":"p1a3","kind":{"$":0},"positive":{"$":122},"support":["p2e8","p21a"],"test_id":"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_expiry_cannot_outlive_authorized_bead"},
+"w7b":["self.assertEqual(effects.mock_calls, [], \"refused authorization reached update/audit\")","p1a3",{"$":0},{"$":122},["p2e8","p21a"],"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_expiry_cannot_outlive_authorized_bead"],
 
-"w7c":{"assertion":"self.assertEqual(runner.close_order, [])","body":"p2b3","kind":{"$":0},"positive":{"$":147},"support":["p35a"],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_close_owned_rejects_preclosed_or_ownership_drift_before_command"},
+"w7c":["self.assertEqual(runner.close_order, [])","p2b3",{"$":0},{"$":147},["p35a"],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_close_owned_rejects_preclosed_or_ownership_drift_before_command"],
 
-"w7d":{"assertion":{"$":137},"body":"p2cc","kind":{"$":1},"positive":{"$":137},"support":[],"test_id":{"$":316}},
+"w7d":[{"$":137},"p2cc",{"$":1},{"$":137},[],{"$":316}],
 
-"w7e":{"assertion":{"$":142},"body":"p2de","kind":{"$":1},"positive":{"$":142},"support":[],"test_id":{"$":320}},
+"w7e":[{"$":142},"p2de",{"$":1},{"$":142},[],{"$":320}],
 
-"w7f":{"assertion":"self.assertEqual(value.process.stdin.getvalue(), '')","body":"p2de","kind":{"$":0},"positive":{"$":142},"support":[],"test_id":{"$":320}},
+"w7f":["self.assertEqual(value.process.stdin.getvalue(), '')","p2de",{"$":0},{"$":142},[],{"$":320}],
 
-"w8":{"assertion":{"$":139},"body":"p2f5","kind":{"$":0},"positive":"self.assertEqual(transport.thread_roles, {'EXAMPLE-thread': 'worker'})","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_thread_rechecks_each_hold_before_intent_rpc_or_binding"},
+"w8":[{"$":139},"p2f5",{"$":0},"self.assertEqual(transport.thread_roles, {'EXAMPLE-thread': 'worker'})",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_thread_rechecks_each_hold_before_intent_rpc_or_binding"],
 
-"w80":{"assertion":"self.assertTrue(verified[\"ok\"])","body":"p1e8","kind":{"$":6},"positive":"self.assertTrue(verified[\"ok\"])","support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_install_verify_remove_does_not_create_default_config"},
+"w80":["self.assertTrue(verified[\"ok\"])","p1e8",{"$":6},"self.assertTrue(verified[\"ok\"])",[],"tests.test_instruction_profiles.InstructionProfileTests.test_install_verify_remove_does_not_create_default_config"],
 
-"w81":{"assertion":{"$":149},"body":"p24b","kind":{"$":1},"positive":{"$":149},"support":[],"test_id":{"$":317}},
+"w81":[{"$":149},"p24b",{"$":1},{"$":149},[],{"$":317}],
 
-"w82":{"assertion":{"$":121},"body":"p2d4","kind":{"$":6},"positive":{"$":121},"support":[],"test_id":"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_closable_non_completion_outcomes_still_close"},
+"w82":[{"$":121},"p2d4",{"$":6},{"$":121},[],"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_closable_non_completion_outcomes_still_close"],
 
-"w83":{"assertion":"self.assertEqual(writes, [], 'revocation-first issued a real child gate byte')","body":"p32a","kind":{"$":0},"positive":{"$":128},"support":["p319"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child"},
+"w83":["self.assertEqual(writes, [], 'revocation-first issued a real child gate byte')","p32a",{"$":0},{"$":128},["p319"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child"],
 
-"w84":{"assertion":{"$":133},"body":"p236","kind":{"$":6},"positive":{"$":133},"support":[],"test_id":"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_pinned_reader_runs_its_verified_bytes"},
+"w84":[{"$":133},"p236",{"$":6},{"$":133},[],"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_pinned_reader_runs_its_verified_bytes"],
 
-"w85":{"assertion":{"$":290},"body":"p272","kind":{"$":1},"positive":{"$":290},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_requires_selected_attribute_when_configured"},
+"w85":[{"$":290},"p272",{"$":1},{"$":290},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_requires_selected_attribute_when_configured"],
 
-"w86":{"assertion":{"$":127},"body":"p372","kind":{"$":1},"positive":{"$":127},"support":["p1e0"],"test_id":{"$":20}},
+"w86":[{"$":127},"p372",{"$":1},{"$":127},["p1e0"],{"$":20}],
 
-"w87":{"assertion":"self.assertTrue(after[\"incomplete\"], \"changed Git indirection must not return a complete capture\")","body":"p125","kind":{"$":0},"positive":"self.assertTrue(fresh[\"baseline_complete\"], fresh[\"incomplete_reasons\"])","support":[],"test_id":"tests.test_workspace_inert_inspection.MetadataScopeTests.test_within_capture_indirection_retarget_is_incomplete"},
+"w87":["self.assertTrue(after[\"incomplete\"], \"changed Git indirection must not return a complete capture\")","p125",{"$":0},"self.assertTrue(fresh[\"baseline_complete\"], fresh[\"incomplete_reasons\"])",[],"tests.test_workspace_inert_inspection.MetadataScopeTests.test_within_capture_indirection_retarget_is_incomplete"],
 
-"w88":{"assertion":{"$":307},"body":"p347","kind":{"$":1},"positive":{"$":307},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_selection_opens_menu_before_clicking_option"},
+"w88":[{"$":307},"p347",{"$":1},{"$":307},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_selection_opens_menu_before_clicking_option"],
 
-"w89":{"assertion":{"$":128},"body":"p319","kind":{"$":6},"positive":{"$":128},"support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty"},
+"w89":[{"$":128},"p319",{"$":6},{"$":128},[],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty"],
 
-"w8a":{"assertion":{"$":239},"body":"p2cc","kind":{"$":0},"positive":{"$":137},"support":[],"test_id":{"$":316}},
+"w8a":[{"$":239},"p2cc",{"$":0},{"$":137},[],{"$":316}],
 
-"w8b":{"assertion":{"$":126},"body":"p372","kind":{"$":6},"positive":{"$":126},"support":["p15f"],"test_id":{"$":20}},
+"w8b":[{"$":126},"p372",{"$":6},{"$":126},["p15f"],{"$":20}],
 
-"w8c":{"assertion":"self.assertEqual(len(writes), 0)","body":"p126","kind":{"$":0},"positive":{"$":132},"support":["p140","p2c6","p339"],"test_id":"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_missing_references_and_duplicate_effective_keys_are_refused"},
+"w8c":["self.assertEqual(len(writes), 0)","p126",{"$":0},{"$":132},["p140","p2c6","p339"],"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_missing_references_and_duplicate_effective_keys_are_refused"],
 
-"w8d":{"assertion":{"$":140},"body":"p32c","kind":{"$":6},"positive":{"$":140},"support":[],"test_id":"tests.test_install_projection.InstallerProjectionTests.test_signal_after_the_previous_install_moved_restores_it"},
+"w8d":[{"$":140},"p32c",{"$":6},{"$":140},[],"tests.test_install_projection.InstallerProjectionTests.test_signal_after_the_previous_install_moved_restores_it"],
 
-"w8e":{"assertion":"opened.assert_not_called()","body":"p2b5","kind":{"$":0},"positive":{"$":133},"support":["p236"],"test_id":"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_unpinned_reader_never_runs"},
+"w8e":["opened.assert_not_called()","p2b5",{"$":0},{"$":133},["p236"],"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_unpinned_reader_never_runs"],
 
-"w8f":{"assertion":"self.assertEqual(guard.call_count, 0)","body":"p26a","kind":{"$":0},"positive":{"$":125},"support":["p372","p144"],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write"},
+"w8f":["self.assertEqual(guard.call_count, 0)","p26a",{"$":0},{"$":125},["p372","p144"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write"],
 
-"w9":{"assertion":{"$":139},"body":"p349","kind":{"$":0},"positive":"self.assertEqual(transport.start_turn('EXAMPLE-thread', 'EXAMPLE prompt'), server.start_turn.return_value)","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_admitted_thread_turn_rechecks_hold_flips_before_intent_or_rpc"},
+"w9":[{"$":139},"p349",{"$":0},"self.assertEqual(transport.start_turn('EXAMPLE-thread', 'EXAMPLE prompt'), server.start_turn.return_value)",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_admitted_thread_turn_rechecks_hold_flips_before_intent_or_rpc"],
 
-"w90":{"assertion":"self.assertEqual(marker.read_text(), \"preserved\")","body":"p242","kind":{"$":0},"positive":{"$":136},"support":["p37d"],"test_id":"tests.test_first_project.FirstProjectTests.test_creation_refuses_existing_directory"},
+"w90":["self.assertEqual(marker.read_text(), \"preserved\")","p242",{"$":0},{"$":136},["p37d"],"tests.test_first_project.FirstProjectTests.test_creation_refuses_existing_directory"],
 
-"w91":{"assertion":{"$":97},"body":"p1c9","kind":{"$":0},"positive":{"$":75},"support":["p23a"],"test_id":"tests.test_registered_app_server_transport_f2.RegisteredTransportF2Tests.test_f2_base_transport_refuses_before_any_launch"},
+"w91":[{"$":97},"p1c9",{"$":0},{"$":75},["p23a"],"tests.test_registered_app_server_transport_f2.RegisteredTransportF2Tests.test_f2_base_transport_refuses_before_any_launch"],
 
-"w92":{"assertion":{"$":129},"body":"p372","kind":{"$":1},"positive":{"$":129},"support":["p181"],"test_id":{"$":20}},
+"w92":[{"$":129},"p372",{"$":1},{"$":129},["p181"],{"$":20}],
 
-"wA":{"assertion":"self.assertEqual(len(cases), 52)","body":"pM","kind":{"$":1},"positive":"self.assertFalse(any(span in str(error) for span in item['sensitive']),","support":["pI","pJ","pN","pK","pO"],"test_id":"tests.test_registered_outbound_screen.FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write"},
+"wA":["self.assertEqual(len(cases), 52)","pM",{"$":1},"self.assertFalse(any(span in str(error) for span in item['sensitive']),",["pI","pJ","pN","pK","pO"],"tests.test_registered_outbound_screen.FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write"],
 
-"wArchitectInstalled":{"assertion":"self.assertEqual(refused.stdout, \"\")","body":"pArchitectInstalled","kind":{"$":12},"positive":"self.assertEqual(launch.stdout.splitlines(), [","support":[],"test_id":"tests.test_install_script.InstallScriptTests.test_install_offers_only_architect_and_launches_with_installed_role_policy"},
+"wArchitectInstalled":["self.assertEqual(refused.stdout, \"\")","pArchitectInstalled",{"$":12},"self.assertEqual(launch.stdout.splitlines(), [",[],"tests.test_install_script.InstallScriptTests.test_install_offers_only_architect_and_launches_with_installed_role_policy"],
 
-"wB":{"assertion":"self.assertEqual(writer.payloads, [])","body":"po","kind":{"$":1},"positive":"self.assertEqual(ledger.summary()[\"unresolved_turn_intent_count\"], 1)","support":["pU","pj","pY","pg"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_sensitive_prompt_and_metadata_keep_original_intent_without_wire"},
+"wB":["self.assertEqual(writer.payloads, [])","po",{"$":1},"self.assertEqual(ledger.summary()[\"unresolved_turn_intent_count\"], 1)",["pU","pj","pY","pg"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_sensitive_prompt_and_metadata_keep_original_intent_without_wire"],
 
-"wC":{"assertion":"self.assertEqual(len(prefixes), 1)","body":"pk","kind":{"$":1},"positive":"server.process.terminate.assert_called_once()","support":["pV","pl","ph"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_partial_write_source_drift_stops_connection_without_second_frame"},
+"wC":["self.assertEqual(len(prefixes), 1)","pk",{"$":1},"server.process.terminate.assert_called_once()",["pV","pl","ph"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_partial_write_source_drift_stops_connection_without_second_frame"],
 
-"wD":{"assertion":"self.assertIs(type(failure), selected.SelectedProbeError)","body":"pt","kind":{"$":1},"positive":"self.assertIs(type(result), unittest.SkipTest)","support":["ps"],"test_id":"tests.test_private_pid_ci_applicability.PrivatePidCIApplicabilityTests.test_counterfactual_product_regressions_remain_errors_without_skips"},
+"wD":["self.assertIs(type(failure), selected.SelectedProbeError)","pt",{"$":1},"self.assertIs(type(result), unittest.SkipTest)",["ps"],"tests.test_private_pid_ci_applicability.PrivatePidCIApplicabilityTests.test_counterfactual_product_regressions_remain_errors_without_skips"],
 
-"wE":{"assertion":"self.assertIn('EXAMPLE private operation refused', report['error'])","body":"p1H","kind":{"$":1},"positive":"self.assertEqual(report['driver_context'], context)","support":["p1I","p1J","p2L","p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidFailureDiagnosticTests.test_driver_permission_refusal_preserves_location_and_bounded_context"},
+"wE":["self.assertIn('EXAMPLE private operation refused', report['error'])","p1H",{"$":1},"self.assertEqual(report['driver_context'], context)",["p1I","p1J","p2L","p2M","pv"],"tests.test_selected_native_containment.PrivatePidFailureDiagnosticTests.test_driver_permission_refusal_preserves_location_and_bounded_context"],
 
-"wF":{"assertion":{"$":294},"body":"p2J","kind":{"$":1},"positive":{"$":306},"support":["p2X","p2M","pv","p2I"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_exec_cleared_parent_death_is_rearmed_before_handoff"},
+"wF":[{"$":294},"p2J",{"$":1},{"$":306},["p2X","p2M","pv","p2I"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_exec_cleared_parent_death_is_rearmed_before_handoff"],
 
-"wF0":{"assertion":"hold_preintent=True","body":"pF4","kind":{"$":1},"positive":"'test_exit_between_initial_read_and_reply_drains_tail_atomically'","support":["pF3","pF0","pF2","pF1"],"test_id":"tests.test_finite_fixture_progress_acknowledgment.FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent"},
+"wF0":["hold_preintent=True","pF4",{"$":1},"'test_exit_between_initial_read_and_reply_drains_tail_atomically'",["pF3","pF0","pF2","pF1"],"tests.test_finite_fixture_progress_acknowledgment.FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent"],
 
-"wF1":{"assertion":"self.assertNotIn(case._finite_success_consumed, [call.args[1] for call in waits.call_args_list])","body":"pF5","kind":{"$":1},"positive":"self.assertEqual(attempt['charge'], attempt['amount'])","support":["pF0","pF1"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join"},
+"wF1":["self.assertNotIn(case._finite_success_consumed, [call.args[1] for call in waits.call_args_list])","pF5",{"$":1},"self.assertEqual(attempt['charge'], attempt['amount'])",["pF0","pF1"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join"],
 
-"wG":{"assertion":"opening.assert_not_called()","body":"p1i","kind":{"$":1},"positive":{"$":146},"support":["pw","p1C","p2P","p2C"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_pid_view_refuses_before_cursor_open"},
+"wG":["opening.assert_not_called()","p1i",{"$":1},{"$":146},["pw","p1C","p2P","p2C"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_pid_view_refuses_before_cursor_open"],
 
-"wH":{"assertion":{"$":143},"body":"p1j","kind":{"$":1},"positive":"self.assertIn(boundary['namespace_init'], targets)","support":["p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_verified_inner_cleanup_survives_original_watchdog_owner_failure"},
+"wH":[{"$":143},"p1j",{"$":1},"self.assertIn(boundary['namespace_init'], targets)",["p2M","pv"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_verified_inner_cleanup_survives_original_watchdog_owner_failure"],
 
-"wI":{"assertion":{"$":296},"body":"p1k","kind":{"$":1},"positive":{"$":146},"support":["p2C","pw"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_policy_masked_capget_preserves_private_driver_capabilities"},
+"wI":[{"$":296},"p1k",{"$":1},{"$":146},["p2C","pw"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_policy_masked_capget_preserves_private_driver_capabilities"],
 
-"wJ":{"assertion":"self.assertNotIn(boundary['namespace_init'], targets)","body":"p1o","kind":{"$":1},"positive":{"$":282},"support":["p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_substituted_outer_helper_refuses_without_unverified_namespace_signal"},
+"wJ":["self.assertNotIn(boundary['namespace_init'], targets)","p1o",{"$":1},{"$":282},["p2M","pv"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_substituted_outer_helper_refuses_without_unverified_namespace_signal"],
 
-"wK":{"assertion":"parent.sendall.assert_not_called()","body":"p1u","kind":{"$":1},"positive":"signals.assert_not_called()","support":["p1t","p1Z","p1h"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_pid_owner_mismatch_refuses_before_release_or_signal"},
+"wK":["parent.sendall.assert_not_called()","p1u",{"$":1},"signals.assert_not_called()",["p1t","p1Z","p1h"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_pid_owner_mismatch_refuses_before_release_or_signal"],
 
-"wL":{"assertion":"self.assertNotIn(observations[0], targets)","body":"p2A","kind":{"$":1},"positive":"self.assertIsNone(owner._parent_observation)","support":["p1y","p1w"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_death_during_handoff_refuses_without_namespace_signal"},
+"wL":["self.assertNotIn(observations[0], targets)","p2A",{"$":1},"self.assertIsNone(owner._parent_observation)",["p1y","p1w"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_death_during_handoff_refuses_without_namespace_signal"],
 
-"wM":{"assertion":{"$":143},"body":"p2B","kind":{"$":1},"positive":"self.assertIn('secondary cleanup', str(primary.__notes__))","support":["p2U","p2T","p1l"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_primary_refusal_survives_cleanup_failure"},
+"wM":[{"$":143},"p2B",{"$":1},"self.assertIn('secondary cleanup', str(primary.__notes__))",["p2U","p2T","p1l"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_primary_refusal_survives_cleanup_failure"],
 
-"wN":{"assertion":{"$":296},"body":"p2C","kind":{"$":1},"positive":{"$":146},"support":[],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_actual_private_pid_reuse_preserves_the_fresh_lifetime"},
+"wN":[{"$":296},"p2C",{"$":1},{"$":146},[],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_actual_private_pid_reuse_preserves_the_fresh_lifetime"],
 
-"wO":{"assertion":"self.assertRaisesRegex(selected.SelectedProbeError, 'private proc')","body":"p2F","kind":{"$":1},"positive":{"$":282},"support":["p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_refuses_an_aliased_host_proc_view_before_release"},
+"wO":["self.assertRaisesRegex(selected.SelectedProbeError, 'private proc')","p2F",{"$":1},{"$":282},["p2M","pv"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_refuses_an_aliased_host_proc_view_before_release"],
 
-"wOverloadControl":{"assertion":"self.assertNotIn('terminal_blockers', report['summary'])","body":"pOverloadTest","kind":{"$":6},"positive":"self.assertEqual(attempt['charge'], attempt['amount'])","support":["pRefusalFixture"],"test_id":"tests.test_registered_n1_factory.FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure"},
+"wOverloadControl":["self.assertNotIn('terminal_blockers', report['summary'])","pOverloadTest",{"$":6},"self.assertEqual(attempt['charge'], attempt['amount'])",["pRefusalFixture"],"tests.test_registered_n1_factory.FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure"],
 
-"wP":{"assertion":"self.assertEqual(outer[0], owner.bwrap[0],","body":"p2K","kind":{"$":1},"positive":"self.assertEqual(command[:3], [owner.timeout[0], '--signal=KILL', '20'])","support":["p1F","p1X","p1g","p1Y"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_uid_map_boundary_requires_fixed_outer_bootstrap"},
+"wP":["self.assertEqual(outer[0], owner.bwrap[0],","p2K",{"$":1},"self.assertEqual(command[:3], [owner.timeout[0], '--signal=KILL', '20'])",["p1F","p1X","p1g","p1Y"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_uid_map_boundary_requires_fixed_outer_bootstrap"],
 
-"wPolicyRefusal":{"assertion":"self.assertRaisesRegex(runtime.native.OfflineHostError, 'never redispatch')","body":"pRefusalTest","kind":{"$":6},"positive":"self.assertEqual(report['summary']['terminal_blockers'], {'provider-safety-policy-refusal': 'cyberPolicy'})","support":["pRefusalFixture"],"test_id":"tests.test_registered_n1_factory.FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure"},
+"wPolicyRefusal":["self.assertRaisesRegex(runtime.native.OfflineHostError, 'never redispatch')","pRefusalTest",{"$":6},"self.assertEqual(report['summary']['terminal_blockers'], {'provider-safety-policy-refusal': 'cyberPolicy'})",["pRefusalFixture"],"tests.test_registered_n1_factory.FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure"],
 
-"wQ":{"assertion":{"$":302},"body":"p2Q","kind":{"$":12},"positive":"self.assertEqual(report['original_pid'], report['sentinel_pid'])","support":[],"test_id":"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_private_pid_reuse_repeats_the_exact_selected_launcher_scope"},
+"wQ":[{"$":302},"p2Q",{"$":12},"self.assertEqual(report['original_pid'], report['sentinel_pid'])",[],"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_private_pid_reuse_repeats_the_exact_selected_launcher_scope"],
 
-"wR":{"assertion":{"$":311},"body":"p2V","kind":{"$":1},"positive":"self.assertTrue(selected._reuse_heartbeat(Path(temporary) / 'sentinel/heartbeat', birth.descriptor))","support":["p1V","p1W","p1U","p1T"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_unverified_handoff_cannot_signal_an_unrelated_owned_sentinel"},
+"wR":[{"$":311},"p2V",{"$":1},"self.assertTrue(selected._reuse_heartbeat(Path(temporary) / 'sentinel/heartbeat', birth.descriptor))",["p1V","p1W","p1U","p1T"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_unverified_handoff_cannot_signal_an_unrelated_owned_sentinel"],
 
-"wS":{"assertion":{"$":294},"body":"p2X","kind":{"$":1},"positive":{"$":306},"support":["p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace"},
+"wS":[{"$":294},"p2X",{"$":1},{"$":306},["p2M","pv"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace"],
 
-"wSchema":{"assertion":"self.assertRaisesRegex(CapabilityError, \"thread/read\")","body":"pSchemaWitness","kind":{"$":12},"positive":"check_codex_capabilities(self.binary)","support":[],"test_id":"tests.test_codex_protocol_capabilities.CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability"},
+"wSchema":["self.assertRaisesRegex(CapabilityError, \"thread/read\")","pSchemaWitness",{"$":12},"check_codex_capabilities(self.binary)",[],"tests.test_codex_protocol_capabilities.CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability"],
 
-"wT":{"assertion":"self.assertEqual(phases, ['poll-deciding'])","body":"p2Z","kind":{"$":1},"positive":"self.assertEqual(stages.count('finite-poll-intent'), 0)","support":["p2Y"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication"},
+"wT":["self.assertEqual(phases, ['poll-deciding'])","p2Z",{"$":1},"self.assertEqual(stages.count('finite-poll-intent'), 0)",["p2Y"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication"],
 
-"wU":{"assertion":"submit.assert_not_called()","body":"p2i","kind":{"$":1},"positive":"self.assertFalse(result['dispatch_authorized'])","support":["p2u","p2x","p2t","p2v","p3A"],"test_id":"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary"},
+"wU":["submit.assert_not_called()","p2i",{"$":1},"self.assertFalse(result['dispatch_authorized'])",["p2u","p2x","p2t","p2v","p3A"],"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary"],
 
-"wV":{"assertion":"self.assert_partial_reservation_is_held(2)","body":"p2j","kind":{"$":1},"positive":{"$":297},"support":["p3D","p3C","p2o","p2n"],"test_id":"tests.test_registered_native_pool_host.PoolTests.test_competing_reservation_between_members_retains_both_original_charges"},
+"wV":["self.assert_partial_reservation_is_held(2)","p2j",{"$":1},{"$":297},["p3D","p3C","p2o","p2n"],"tests.test_registered_native_pool_host.PoolTests.test_competing_reservation_between_members_retains_both_original_charges"],
 
-"wW":{"assertion":"self.assertEqual(self.adoption_state(), before)","body":"p3E","kind":{"$":1},"positive":"workflow._require_execution()","support":["p2l","p2m"],"test_id":"tests.test_registered_native_pool_host.PoolTests.test_later_invalid_consent_preserves_entire_pool_adoption"},
+"wW":["self.assertEqual(self.adoption_state(), before)","p3E",{"$":1},"workflow._require_execution()",["p2l","p2m"],"tests.test_registered_native_pool_host.PoolTests.test_later_invalid_consent_preserves_entire_pool_adoption"],
 
-"wX":{"assertion":"self.assert_substituted_pool_is_held(retired, terminal_saved=False)","body":"p3G","kind":{"$":1},"positive":{"$":297},"support":["p3K","p2p","p3J","p2n"],"test_id":"tests.test_registered_native_pool_host.PoolTests.test_state_path_replacement_after_member_settlement_cannot_return_success"},
+"wX":["self.assert_substituted_pool_is_held(retired, terminal_saved=False)","p3G",{"$":1},{"$":297},["p3K","p2p","p3J","p2n"],"tests.test_registered_native_pool_host.PoolTests.test_state_path_replacement_after_member_settlement_cannot_return_success"],
 
-"wY":{"assertion":"self.assertNotIn('unshare_pid', owner.boundary)","body":"p3M","kind":{"$":12},"positive":"owner.controller._engine._verified.assert_called_once()","support":["p3O"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_parent_binds_single_helper_birth_and_pid_owner_before_release"},
+"wY":["self.assertNotIn('unshare_pid', owner.boundary)","p3M",{"$":12},"owner.controller._engine._verified.assert_called_once()",["p3O"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_parent_binds_single_helper_birth_and_pid_owner_before_release"],
 
-"wZ":{"assertion":"self.assertEqual(case.receipt.request_bytes, original)","body":"p3X","kind":{"$":1},"positive":"self.assertLessEqual(len(task_bytes), len(original))","support":["p3l"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance"},
+"wZ":["self.assertEqual(case.receipt.request_bytes, original)","p3X",{"$":1},"self.assertLessEqual(len(task_bytes), len(original))",["p3l"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance"],
 
-"wa":{"assertion":"self.assertEqual(server.thread_start_count, 0)","body":"pee","kind":{"$":0},"positive":"self.assertEqual(receipt[\"validation_outcome\"], \"accepted\")","support":["p1f3"],"test_id":"tests.test_run_native_pool_live_canaries.LiveCanaryMaterializationTests.test_final_watermark_failure_prevents_calibration_allocation"},
+"wa":["self.assertEqual(server.thread_start_count, 0)","pee",{"$":0},"self.assertEqual(receipt[\"validation_outcome\"], \"accepted\")",["p1f3"],"tests.test_run_native_pool_live_canaries.LiveCanaryMaterializationTests.test_final_watermark_failure_prevents_calibration_allocation"],
 
-"wb":{"assertion":{"$":139},"body":"p305","kind":{"$":0},"positive":"self.assertEqual(boundary.call_count, 2)","support":[],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds"},
+"wb":[{"$":139},"p305",{"$":0},"self.assertEqual(boundary.call_count, 2)",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds"],
 
-"wc":{"assertion":"self.assertEqual((read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0))","body":"p362","kind":{"$":0},"positive":"self.assertIs(result[4], mock.sentinel.reservation)","support":["p2db"],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch"},
+"wc":["self.assertEqual((read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0))","p362",{"$":0},"self.assertIs(result[4], mock.sentinel.reservation)",["p2db"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch"],
 
-"wd":{"assertion":"self.assertEqual(launch.call_count, 0)","body":"p186","kind":{"$":0},"positive":"self.assertEqual(launch.call_count, 1)","support":[],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_zero_launch_and_independent_patched_fake_control"},
+"wd":["self.assertEqual(launch.call_count, 0)","p186",{"$":0},"self.assertEqual(launch.call_count, 1)",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_zero_launch_and_independent_patched_fake_control"],
 
-"we":{"assertion":{"$":300},"body":"p200","kind":{"$":1},"positive":{"$":300},"support":["p33e","p111","p13a","p1f4","p178","p302"],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_default_run_never_creates_a_share"},
+"we":[{"$":300},"p200",{"$":1},{"$":300},["p33e","p111","p13a","p1f4","p178","p302"],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_default_run_never_creates_a_share"],
 
 "wf":{"assertion":"self.assertEqual(source['files_sha256'], hashlib.sha256(gate.source_io.encoded(source['files'])).hexdigest())","body":"p1bb","kind":{"$":1},"positive":"self.assertTrue(environment['scratch_filesystem'])","test_id":"tests.test_release_filesystem.ReleaseFilesystemTests.test_actual_source_snapshot_and_runtime_identities_are_bound"},
 
-"wg":{"assertion":"self.assertRaisesRegex(registered_fixture.runtime.native.OfflineHostError, 'model task changed')","body":"p3i","kind":{"$":1},"positive":"self.assertFalse(case.ledger.root.exists())","support":["p3l"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority"},
+"wg":["self.assertRaisesRegex(registered_fixture.runtime.native.OfflineHostError, 'model task changed')","p3i",{"$":1},"self.assertFalse(case.ledger.root.exists())",["p3l"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority"],
 
-"wh":{"assertion":"self.assertIs(observed.exception.__cause__, refusals[0])","body":"p3p","kind":{"$":1},"positive":"self.assertEqual((attempt[\"outcome\"], attempt[\"charge\"]), (\"unknown\", attempt[\"amount\"]))","support":["p3l"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session"},
+"wh":["self.assertIs(observed.exception.__cause__, refusals[0])","p3p",{"$":1},"self.assertEqual((attempt[\"outcome\"], attempt[\"charge\"]), (\"unknown\", attempt[\"amount\"]))",["p3l"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session"],
 
-"wi":{"assertion":"self.assertRaises(OutboundRefused)","body":"p3v","kind":{"$":1},"positive":"fixture.test_original_rpc_useful_capture_validation_and_no_redispatch()","support":["p3o"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent"}
+"wi":["self.assertRaises(OutboundRefused)","p3v",{"$":1},"fixture.test_original_rpc_useful_capture_validation_and_no_redispatch()",["p3o"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent"]
 }
 }

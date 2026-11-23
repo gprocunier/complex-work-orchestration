@@ -1523,6 +1523,55 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                 with self.subTest(row=row.__name__):
                     row()
 
+    def test_witness_columns_preserve_named_witnesses_and_exact_trace(self):
+        root, _output, _review = self.example(compact=True)
+        path = root / R.INVENTORY
+        value, _digest = R.inventory(root)
+        pair = value["witnesses"]["pair"]
+        pair.update(kind="zero-effect-refusal", support=[])
+        value["witnesses"]["named"] = dict(pair, limits="EXAMPLE optional witness limit")
+        value["contracts"]["EXAMPLE"]["witnesses"].append("named")
+        path.write_bytes(R.inventory_bytes(value))
+        expected = R.trace(root)
+
+        columns = ["assertion", "body", "kind", "positive", "support", "test_id"]
+        value.update(witness_columns=columns, shared_strings={"3": pair["test_id"]})
+        raw = R.inventory_bytes(value)
+        path.write_bytes(raw)
+        stored = json.loads(raw)["witnesses"]
+        self.assertEqual(stored["pair"], [pair[key] for key in columns[:-1]] + [{"$": 3}])
+        self.assertEqual(stored["named"]["limits"], "EXAMPLE optional witness limit")
+        loaded, _digest = R.inventory(root)
+        self.assertEqual(loaded["witnesses"], value["witnesses"])
+        self.assertEqual(R.inventory_bytes(loaded), raw)
+        observed = R.trace(root)
+        for field in ("routes", "sites", "primitive_hits", "primitive_coverage"):
+            self.assertEqual(observed[field], expected[field])
+
+    def test_witness_columns_refuse_malformed_declarations_and_rows(self):
+        root, _output, _review = self.example(compact=True)
+        path = root / R.INVENTORY
+        value, _digest = R.inventory(root)
+        columns = ["assertion", "body", "kind", "positive", "support", "test_id"]
+        value["witness_columns"] = columns
+        pair = value["witnesses"]["pair"]
+        pair.update(kind="zero-effect-refusal", support=[])
+        row = [pair[key] for key in columns]
+        for declared, malformed in ((columns[::-1], row), (columns, row[:-1]), (columns, row + ["EXAMPLE"]),
+                                    (columns, [True, *row[1:]]), (columns, [*row[:4], "test", row[5]]),
+                                    (columns, [*row[:4], [False], row[5]])):
+            with self.subTest(columns=declared, row=malformed):
+                value["witness_columns"] = declared
+                value["witnesses"]["pair"] = malformed
+                path.write_bytes(R._inventory_sections(value) + b"\n")
+                with self.assertRaisesRegex(R.Refused, "witness column"):
+                    R.inventory(root)
+        value.pop("witness_columns")
+        value["witnesses"]["pair"] = row
+        path.write_bytes(R._inventory_sections(value) + b"\n")
+        with self.assertRaisesRegex(R.Refused, "witness columns must be declared"):
+            R.inventory(root)
+
 
 if __name__ == "__main__":
     unittest.main()

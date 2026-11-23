@@ -130,7 +130,7 @@ def _inventory_sections(value):
 def inventory_bytes(value):
     """Sorted keys, authored array order, compact rows with blank separators."""
     expanded = _string_layout(value, compact=False, prune=True)
-    bindings = _source_binding_layout(expanded, compact=True)
+    bindings = _source_binding_layout(_witness_layout(expanded, compact=True), compact=True)
     return _inventory_sections(_string_layout(bindings, compact=True, prune=True)) + b"\n"
 
 
@@ -1303,7 +1303,7 @@ def inventory(root):
     ids = [route["id"] for route in value["routes"]]
     need(ids and len(ids) == len(set(ids)), "missing or duplicate routes")
     need(data == inventory_bytes(value), "canonical inventory layout required")
-    return _source_binding_layout(value, compact=False), digest(data)
+    return _witness_layout(_source_binding_layout(value, compact=False), compact=False), digest(data)
 
 
 def _table_point(value, key):
@@ -1326,7 +1326,7 @@ def _table_witness(value, key):
 
 def _routes(value):
     """Expand only explicit shared inventory references; no inferred edges."""
-    value = _string_layout(value, compact=False, prune=True)
+    value = _witness_layout(_string_layout(value, compact=False, prune=True), compact=False)
     if "contracts" not in value:
         return value["routes"]
     rows = []
@@ -1482,3 +1482,31 @@ def check(root, directory, review_path=None, review_sha256=None):
     return {"contract_valid": True, "complete_effect_trace": True, "f8_complete": False,
             "routes": len(current["routes"]), "source_sha256": current["source_sha256"],
             "trust": "operator-selected external semantic review; JSON does not authenticate people"}
+
+
+def _witness_row(row, columns, *, compact):
+    if type(row) is dict:
+        if not compact or set(row) != set(columns):
+            return row
+        row = [row[column] for column in columns]
+    need(type(row) is list and len(row) == len(columns), "witness column row width refused")
+    assertion, body, kind, positive, support, test_id = row
+    need(all(type(item) is str for item in (assertion, body, kind, positive, test_id))
+         and type(support) is list and all(type(point) is str for point in support),
+         "witness column field types refused")
+    return row if compact else dict(zip(columns, row))
+
+
+def _witness_layout(value, *, compact):
+    if "witness_columns" not in value:
+        named = value.get("witnesses", {})
+        need(type(named) is dict and all(type(row) is dict for row in named.values()),
+             "witness columns must be declared for positional records")
+        return value
+    columns = value["witness_columns"]
+    need(columns == ["assertion", "body", "kind", "positive", "support", "test_id"],
+         "witness columns refused")
+    table = value.get("witnesses")
+    need(type(table) is dict, "witness mapping required")
+    return {**value, "witnesses": {key: _witness_row(row, columns, compact=compact)
+                                   for key, row in table.items()}}

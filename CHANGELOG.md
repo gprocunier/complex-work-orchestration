@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Allow signed native single-worker qualification to use a dedicated Codex-managed login isolated from finite commands and validators.
+- Store standard release-effect witness records in compact rows while preserving their evidence and validation.
 
 ## 1.15.0 - 2026-11-23
 

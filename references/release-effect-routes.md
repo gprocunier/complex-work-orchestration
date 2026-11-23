@@ -54,6 +54,14 @@ Boolean modes or sizes refuse. Legacy named-field inventories remain supported.
 This lossless layout removes repeated field names without dropping bindings or
 changing the finite byte cap, route decisions or source identity checks.
 
+An optional `witness_columns` declaration uses the fixed order
+`["assertion", "body", "kind", "positive", "support", "test_id"]`.
+Witnesses with exactly those fields store one positional row. The first four
+fields and the test ID are strings. The support field is a list of point keys.
+Named witnesses with optional fields or additional limits keep their named
+form and full contents. The checker expands positional rows before resolving
+the original test declaration, support points and witness assertions.
+
 Point and witness keys are internal references, independent of route IDs and
 fully qualified test IDs. Short keys retain the same explicit source points and
 witness bodies; they do not infer call edges or replace any source identity.
