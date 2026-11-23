@@ -1059,6 +1059,7 @@ class SchemaAndContainmentTests(unittest.TestCase):
             # Experimental fake host reads persisted admission; production stays disabled.
             "scripts/offline_admitted_n1.py",
             "scripts/prepare_local_admission.py",
+            "scripts/prepare_native_pool_qualification.py",
             "scripts/qualified_review_dispatch.py",
         ])
         self.assertEqual(self.importers_of("local_invocation"), [
