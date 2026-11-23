@@ -567,6 +567,38 @@ class NativePoolLeaseTests(unittest.TestCase):
             with self.assertRaisesRegex(PoolLeaseError, "fields-invalid"):
                 registry.snapshot()
 
+    def test_dangling_registry_symlink_is_rejected_before_lock_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / "missing-registry.json"
+            registry = PoolLeaseRegistry(root / "leases.json")
+            registry.path.symlink_to(target)
+
+            with self.assertRaisesRegex(PoolLeaseError, "^lease-registry-path-is-symlink$"):
+                registry.snapshot()
+
+            self.assertEqual(registry.path.readlink(), target)
+            self.assertFalse(registry.lock_path.exists())
+            self.assertFalse(target.exists())
+
+    def test_dangling_lock_symlink_is_rejected_without_changing_registry(self) -> None:
+        contract, _ = pool_contract(cap=1)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            registry = PoolLeaseRegistry(root / "leases.json", now=lambda: NOW)
+            lease = registry.acquire(contract, "child-0")
+            original = registry.path.read_bytes()
+            target = root / "missing-lock"
+            registry.lock_path.unlink()
+            registry.lock_path.symlink_to(target)
+
+            with self.assertRaisesRegex(PoolLeaseError, "^lease-registry-lock-is-symlink$"):
+                registry.hold(lease["lease_id"])
+
+            self.assertEqual(registry.path.read_bytes(), original)
+            self.assertEqual(registry.lock_path.readlink(), target)
+            self.assertFalse(target.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

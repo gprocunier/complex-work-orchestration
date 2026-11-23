@@ -147,6 +147,60 @@ class NativePoolReportingTests(unittest.TestCase):
             self.assertEqual(symlink_status.returncode, 2)
             self.assertIn("symlink", symlink_status.stdout)
 
+    def test_cli_status_refuses_ambiguous_or_unreadable_state(self) -> None:
+        contract, state, receipt = self.artifacts()
+        original = json.dumps(state)
+        duplicate = original.replace('"status": "closed"', '"status": "control-failed", "status": "closed"', 1)
+        self.assertNotEqual(duplicate, original)
+        self.assertEqual(json.loads(duplicate), state)
+        wall_seconds = '"pool_wall_seconds": 0'
+        self.assertIn(wall_seconds, original)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            contract_path = root / "contract.json"
+            state_path = root / "state.json"
+            receipt_path = root / "receipt.json"
+            write_private_artifact(contract_path, contract)
+            write_private_artifact(receipt_path, receipt)
+            command = [
+                sys.executable, str(ROOT / "scripts" / "supervise_native_pool.py"), "status",
+                "--contract", str(contract_path), "--state", str(state_path), "--receipt", str(receipt_path),
+            ]
+            states = {
+                "duplicate status": duplicate.encode("utf-8"),
+                "non-finite number": original.replace(wall_seconds, '"pool_wall_seconds": NaN', 1).encode("utf-8"),
+                "overflow": original.replace(wall_seconds, '"pool_wall_seconds": 1e309', 1).encode("utf-8"),
+                "malformed JSON": b"{",
+                "invalid UTF-8": b"\xff",
+            }
+            for case, contents in states.items():
+                with self.subTest(case=case):
+                    state_path.write_bytes(contents)
+                    result = subprocess.run(command, cwd=ROOT, check=False, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                    self.assertEqual(json.loads(result.stdout), {"status": "error", "error": "state is unreadable"})
+
+    def test_cli_cleanup_refuses_dangling_registry_symlink(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            registry_link = root / "leases.json"
+            target = root / "missing" / "leases.json"
+            registry_link.symlink_to(target)
+            result = subprocess.run(
+                [
+                    sys.executable, str(ROOT / "scripts" / "supervise_native_pool.py"),
+                    "cleanup-leases", "--registry", str(registry_link),
+                ],
+                cwd=ROOT, check=False, capture_output=True, text=True,
+            )
+
+            self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout), {"status": "error", "error": "lease-registry-path-is-symlink"})
+            self.assertEqual(registry_link.readlink(), target)
+            self.assertFalse(target.parent.exists())
+            self.assertFalse((root / "leases.json.lock").exists())
+
 
 if __name__ == "__main__":
     unittest.main()
