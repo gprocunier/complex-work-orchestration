@@ -344,21 +344,29 @@ def _inputs(operation_id, task, contract, outputs, max_steps, configuration_pins
             "outputs": _output_paths(outputs), "max_steps": max_steps, "configuration_pins": pins}
 
 
-def _advance(turn, progress, task=None, *, repositories):
+def _advance(turn, progress, task=None, *, repositories, pace_archive_close=False):
     if progress is not None and progress["wait_required"]:
-        time.sleep(0.002)
+        if pace_archive_close and progress["phase"] == "waiting-close-complete":
+            time.sleep(progress["wait_seconds"])
+        else:
+            time.sleep(0.002)
         turn.resume_after_wait()
     _validate_scratch(repositories)
     return turn.step(task)
 
 
-def _drive(control, task, adapter, max_steps, repositories):
+def _drive(control, task, adapter, max_steps, repositories, *, pace_archive_close):
     turn = NativeControlTurn(control, _CALLBACK_FACTORY(adapter))
     progress = None
     for index in range(max_steps):
-        progress = _advance(turn, progress, task if index == 0 else None, repositories=repositories)
+        progress = _advance(turn, progress, task if index == 0 else None,
+                            repositories=repositories, pace_archive_close=pace_archive_close)
         if progress["status"] == "terminal":
             return progress["receipt"], False
+    if progress["phase"] in {"waiting-close-complete", "waiting-close-interrupt"}:
+        # An archive is already staged. Another interrupt would attempt to stage it again.
+        progress = turn.fail_control("archive-close-step-bound-exhausted")
+        return progress["receipt"], True
     progress = turn.request_interrupt("control-lost")
     for _ in range(8):
         progress = _advance(turn, progress, repositories=repositories)
@@ -608,7 +616,7 @@ class OfflineN1Host:
                 if current != self._initial:
                     raise OfflineHostError("Worker identity or expected target state drifted during startup.")
                 boundary = _adapter_binding(adapter, control, inputs["task"], self.worker, self.state)
-                report = self._execute_bound(inputs, adapter, current, boundary, None)
+                report = self._execute_bound(inputs, adapter, current, boundary, None, pace_archive_close=True)
                 if report["status"] != "artifact-ready":
                     failure = OfflineHostError(report["error"] or "Registered native execution requires reconciliation.")
                     failure.native_report = report
@@ -618,7 +626,7 @@ class OfflineN1Host:
                 factory._cleanup_owned(primary)
                 raise
 
-    def _execute_bound(self, inputs, adapter, current, boundary, existing):
+    def _execute_bound(self, inputs, adapter, current, boundary, existing, *, pace_archive_close=False):
         binding = {**inputs, **current, "adapter_boundary": boundary}
         if existing is not None:
             if existing["binding"] != binding:
@@ -631,13 +639,14 @@ class OfflineN1Host:
                   "artifact": None, "result_sha256": None,
                   "error": "Invocation intent is durable; execution requires reconciliation.", **_FLAGS_FALSE}
         self._save(record)
-        return self._execute(record, adapter)
+        return self._execute(record, adapter, pace_archive_close=pace_archive_close)
 
-    def _execute(self, record, adapter):
+    def _execute(self, record, adapter, *, pace_archive_close):
         try:
             inputs = record["binding"]
             repositories = (self.target, self.worker)
-            receipt, exhausted = _drive(inputs["contract"], inputs["task"], adapter, inputs["max_steps"], repositories)
+            receipt, exhausted = _drive(inputs["contract"], inputs["task"], adapter,
+                                        inputs["max_steps"], repositories, pace_archive_close=pace_archive_close)
             record["receipt"] = _freeze(receipt)
             if exhausted:
                 raise OfflineHostError("The step bound ended; control is lost and reconciliation is required.")
