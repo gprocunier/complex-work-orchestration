@@ -271,7 +271,7 @@ ALLOWED_IMPORTS = {
     "native_retry": {"native_authority"},
     "native_replanning": {"native_authority", "policy"},
     "native_session": {"native_disposition"},
-    "native_session_boundary": {"native_session"},
+    "native_session_boundary": {"native_session", "policy_schema"},
     "native_live_availability": set(),
     "native_worker_contracts": {"native_disposition"},
     "operative_routing": {"model_identities", "policy", "work_sizing"},
