@@ -149,7 +149,7 @@ class F5NativeLiveHoldTests(unittest.TestCase):
         fixture = PF.PoolTests('runTest')
         fixture._outcome = self._outcome
         self.addCleanup(NF.cleanup_helper, self, fixture)
-        fixture.cohort(1, enabled=True)
+        fixture.cohort(1, enabled=True, archive_schedule='settled')
         fixture.adopt()
         request = fixture.config.request('execute')
         with mock.patch.multiple(A, N1_LIVE_AVAILABLE=False, POOL_LIVE_AVAILABLE=False):
