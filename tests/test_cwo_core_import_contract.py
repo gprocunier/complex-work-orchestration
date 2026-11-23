@@ -71,6 +71,7 @@ ALLOWED_IMPORTS = {
     "packet_provenance": {"audit", "packets"},
     "model_identities": {"policy"},
     "model_catalog_startup": set(),
+    "cyber_fallback": {"invocation_ledger", "model_identities"},
     "outbound_screen": {"policy"},
     "prepared_outbound": {"outbound_screen"},
     "return_common": {"errors", "policy"},
