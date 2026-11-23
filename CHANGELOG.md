@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.17.0 - 2026-11-23
+
 - Refuse duplicate JSON keys and non-finite numbers when reading native pool evidence from the command line.
 - Refuse symlinks at native pool lease registry and lock paths, including dangling links during lease cleanup.
 
