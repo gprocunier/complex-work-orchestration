@@ -6,7 +6,6 @@ from contextlib import contextmanager
 import datetime as dt
 import fcntl
 import hashlib
-import json
 import os
 from pathlib import Path, PurePosixPath
 import tempfile
@@ -24,6 +23,7 @@ from .native_pool_contracts import (
     validate_pool_state,
     write_private_artifact,
 )
+from .policy_schema import strict_json_loads
 
 
 REGISTRY_TYPE = "cwo-native-supervision-lease-registry"
@@ -218,8 +218,8 @@ class PoolLeaseRegistry:
         if self.path.is_symlink():
             raise PoolLeaseError("lease-registry-path-is-symlink")
         try:
-            value = json.loads(self.path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            value = strict_json_loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, RecursionError) as exc:
             raise PoolLeaseError("lease-registry-unreadable") from exc
         if not isinstance(value, Mapping) or set(value) != REGISTRY_FIELDS:
             raise PoolLeaseError("lease-registry-fields-invalid")

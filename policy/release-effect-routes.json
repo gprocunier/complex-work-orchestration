@@ -4479,7 +4479,7 @@
 
 [29,14420,16,14425,17,"process","90928ad607f4faa213de0aca59fb89619a24ac618a8144f7e46781abd4b81759",["route","X5.1","p29"]],
 
-[30,2485,37,2485,67,"dynamic","a74a89069b1efd22cf981d458d146a42877e9605df43c107ed0ffbddc5286f86",[{"$":9},"XR135"]],
+[30,2486,37,2486,67,"dynamic","a74a89069b1efd22cf981d458d146a42877e9605df43c107ed0ffbddc5286f86",[{"$":9},"XR135"]],
 
 [31,1282,26,1282,58,"dynamic","269bdb738a942e93e117c0607b5116ecd0e79f93c26ac0d0c3bb7e9bd2bdd5e6",[{"$":9},"XR136"]],
 
@@ -6574,7 +6574,7 @@
 
 "scripts/cwo_core/native_live_campaign_contracts.py":["8f168387bc992e9d92aad0b24966ad5325f7c800d14ed4472efa316fb437e3d8",420,596405],
 
-"scripts/cwo_core/native_pool.py":["2cdd035c2484b390a0e2da6dbdf842df1459d3248b0a3d5728c012ad7471f3a6",420,113213],
+"scripts/cwo_core/native_pool.py":["a607f7ecb169ee0f0fdc440f854ab732836f852743482f05cb54cb222db48fc3",420,113271],
 
 "scripts/cwo_core/native_pool_admission.py":["3466da5cc42624199518f18bbcf0fd839db5307f511a2ac554090251f0b4bcac",420,80527],
 
@@ -6588,7 +6588,7 @@
 
 "scripts/cwo_core/native_pool_contracts.py":["d428cec0cf58ff3f34ea428d0ba958a6d936a35f0eb29d2cb5d8ab2de9b0567d",420,124342],
 
-"scripts/cwo_core/native_pool_leases.py":["1c64eb6ffcb2d8246283202fca654e8f135e34cacde7d135547dab4ffcac4d78",420,25634],
+"scripts/cwo_core/native_pool_leases.py":["fbcce705c51dede5ceef3d3773003167c57173f548d81bc8a2795a44121db67c",420,25680],
 
 "scripts/cwo_core/native_pool_preflight.py":["d16c3d26374e7ffb972d6aa7a3d31a6972bb1b0539e8d9c10795c784f5d3720e",420,78400],
 
@@ -6606,7 +6606,7 @@
 
 "scripts/cwo_core/native_pool_workspace.py":["be4fbae62193ed510cccf9ffb2325f56048a94584579114f175d3cec02a07244",420,20745],
 
-"scripts/cwo_core/native_precommit.py":["7f03d1681c3f4ac3c2134bf1dc6cde9107d8fdbd828ae6bff65d915318da7f82",420,94510],
+"scripts/cwo_core/native_precommit.py":["1cb1eebd157dcb0135e34112541ab8df3839c92c00d75786cb358d29bb192887",420,94440],
 
 "scripts/cwo_core/native_progress.py":["432ed0ccff31af69da3983c75c000b1411d9013eaa88b41313f4dc117ee7edfb",420,23681],
 
@@ -6624,7 +6624,7 @@
 
 "scripts/cwo_core/native_session.py":["2d5eaa3cce2a95d637053b6f692d59d45c7ecf9b5ee53039dde411dc4ad63dca",420,27227],
 
-"scripts/cwo_core/native_session_boundary.py":["5305eecf76e598990caca8b72f5409f211cbad34947c466fac7f9fc11ad1fa51",420,13331],
+"scripts/cwo_core/native_session_boundary.py":["a2b78248f56e695d5de21acf4af851de4bb3e860f4c9331935de2c0676659cd2",420,13643],
 
 "scripts/cwo_core/native_stop_scope.py":["564be5a7f1868f55ddf3adaf79fd209b13cbbfff2a85fa26640a2d4e92f2e886",420,9763],
 
@@ -6936,7 +6936,7 @@
 
 "scripts/validate_public_copy.py":["e63be9d1068501c22640263a71725c5d2743679ac61908334a0b8a7b71fcb7ca",420,63926],
 
-"scripts/validate_repository.py":["711990ee635f016800d54719658845190a09a73556c76031416faff9b4921c30",420,114754],
+"scripts/validate_repository.py":["00a6cc8407998abac514935349916c8d604e2896ed88442ea88fe2ea6b8aca66",420,114796],
 
 "scripts/validate_run_readiness_plan.py":["4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",493,21103],
 
@@ -6954,7 +6954,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["9123bba4bd7a4fbd0126b37c533f9d0d0aa17169a216f1a5567527c4cfb5a8e5",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["a1330735a08f22cdf0ebb5903be623c78a0aecf913abc3042ae740daa0e3a261",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7002,7 +7002,7 @@
 
 "tests/test_core_resource_tool_profiles.py":["04b715405fb34f261e5f77ec905045f999d2a38c01e58e69fab2dfec6d753bd3",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["b89ef8054dcf116ac6c2c8f7219a6bb4e9b6590d61d2adc67189645831c2a233",420,22419],
+"tests/test_cwo_core_import_contract.py":["5a18cdaee9a39166a551f460bb4cec326f367d23f013512049025880690e29b9",420,22461],
 
 "tests/test_documentation_tools.py":["370a6442e2928d9cc7ede031531898e78de7c4a7bbf459784c500a733af5bfd7",420,4875],
 

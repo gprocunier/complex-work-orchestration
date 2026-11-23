@@ -271,7 +271,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_pool_contracts",
         "util",
     },
-    "native_pool_leases": {"native_pool_contracts"},
+    "native_pool_leases": {"native_pool_contracts", "policy_schema"},
     "native_pool_workspace": {"native_pool_contracts", "workspace", "workspace_capture"},
     "native_pool": {
         "native_authority",
@@ -284,6 +284,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_pool_scheduler",
         "native_pool_schedulability",
         "native_stop_scope",
+        "policy_schema",
     },
     "native_pool_admitted": {
         "native_pool",

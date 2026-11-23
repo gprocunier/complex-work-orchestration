@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from hashlib import sha256
 import json
 from pathlib import Path
 import sys
 import tempfile
 import traceback
 import unittest
+from unittest.mock import patch
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -87,6 +89,20 @@ class NativeSessionBoundaryTests(unittest.TestCase):
         self.assertEqual(initial.source_identity_sha256, located.source_identity_sha256)
         self.assertTrue(same_boundary(baseline, current))
 
+    def test_capture_checks_prefix_on_the_same_bytes_it_parses_and_hashes(self) -> None:
+        records = self.records()
+        records[0]["payload"]["cwd"] = "/original"
+        self.write(records=records[:1])
+        _, baseline, _ = capture_unique_boundary(self.root, self.session_id)
+        original = self.path.read_bytes()
+        appended = original + (json.dumps(records[1]) + "\n").encode("utf-8")
+        rewritten = appended.replace(b'"/original"', b'"/modified"', 1)
+        with patch.object(Path, "read_bytes", side_effect=[appended, rewritten]) as read:
+            _, current, observed = capture_unique_boundary(self.root, self.session_id, baseline=baseline)
+        self.assertEqual(observed, records[:2])
+        self.assertEqual(current["boundary_sha256"], sha256(appended).hexdigest())
+        read.assert_called_once_with()
+
     def test_symlink_and_identical_content_replacement_are_rejected(self) -> None:
         outside = self.root / "outside.jsonl"
         self.write(outside)
@@ -153,15 +169,19 @@ class NativeSessionBoundaryTests(unittest.TestCase):
         with self.path.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps({"type": "event_msg", "payload": {"type": "user_message"}}) + "\n")
         assert_prefix_intact(self.path, baseline)
-        current, _records = capture_boundary(self.path, self.session_id)
+        _, current, _records = capture_unique_boundary(self.root, self.session_id, baseline=baseline)
         self.assertGreater(current["record_count"], baseline["record_count"])
         raw = self.path.read_bytes()
         self.path.write_bytes(b"x" + raw[1:])
         with self.assertRaisesRegex(NativeSessionBoundaryError, "prefix was rewritten"):
             assert_prefix_intact(self.path, baseline)
+        with self.assertRaisesRegex(NativeSessionBoundaryError, "prefix was rewritten"):
+            capture_unique_boundary(self.root, self.session_id, baseline=baseline)
         self.path.write_bytes(raw[: max(1, baseline["byte_offset"] - 1)])
         with self.assertRaisesRegex(NativeSessionBoundaryError, "truncated"):
             assert_prefix_intact(self.path, baseline)
+        with self.assertRaisesRegex(NativeSessionBoundaryError, "truncated"):
+            capture_unique_boundary(self.root, self.session_id, baseline=baseline)
 
     def test_wrong_turn_model_effort_and_compaction_reroute_terminal(self) -> None:
         records = self.records() + [

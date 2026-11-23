@@ -1556,6 +1556,28 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
 
+    def test_state_watermark_rejects_contradictory_duplicate_sequence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=1)
+            state_path = Path(temporary) / "pool-state.json"
+            harness.coordinator.step()
+            before = list(harness.adapters["child-0"].calls)
+            original = state_path.read_text(encoding="utf-8")
+            duplicate = original.replace(
+                '"state_sequence":',
+                '"state_sequence": -1, "state_sequence":',
+                1,
+            )
+            self.assertNotEqual(duplicate, original)
+            self.assertEqual(json.loads(duplicate), json.loads(original))
+            state_path.write_text(duplicate, encoding="utf-8")
+
+            progress = harness.coordinator.step()
+
+            self.assertIn("pool-state-watermark-unreadable", progress["state"]["reasons"])
+            self.assertEqual(harness.adapters["child-0"].calls, before)
+            self.assertFalse(harness.coordinator.run()["accepting"])
+
     def test_state_bound_control_request_interrupts_once_and_terminates(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             control_path = Path(temporary) / "pool-control.json"

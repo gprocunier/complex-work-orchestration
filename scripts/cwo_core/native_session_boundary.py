@@ -85,12 +85,18 @@ def _token_snapshot(records: Sequence[Mapping[str, Any]]) -> dict[str, int] | No
     return latest
 
 
-def capture_boundary(path: Path | str, session_id: str) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Capture one complete, identity-bound JSONL boundary."""
+def capture_boundary(
+    path: Path | str,
+    session_id: str,
+    *,
+    baseline: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Check any baseline prefix and capture the boundary from the same bytes."""
 
     session_path = Path(path)
     source_before = session_source_identity(session_path, session_id)
     raw = session_path.read_bytes()
+    _assert_prefix_bytes(raw, baseline)
     if not raw:
         raise NativeSessionBoundaryError("session file has no complete records")
     if not raw.endswith(b"\n"):
@@ -155,7 +161,14 @@ def same_boundary(expected: Mapping[str, Any], actual: Mapping[str, Any]) -> boo
 def assert_prefix_intact(path: Path | str, baseline: Mapping[str, Any]) -> None:
     session_path = Path(path)
     _regular_owner_stat(session_path)
-    raw = session_path.read_bytes()
+    if baseline is None:
+        raise NativeSessionBoundaryError("baseline byte offset is invalid")
+    _assert_prefix_bytes(session_path.read_bytes(), baseline)
+
+
+def _assert_prefix_bytes(raw: bytes, baseline: Mapping[str, Any] | None) -> None:
+    if baseline is None:
+        return
     offset = baseline.get("byte_offset")
     if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
         raise NativeSessionBoundaryError("baseline byte offset is invalid")
@@ -216,9 +229,7 @@ def capture_unique_boundary(
     baseline: Mapping[str, Any] | None = None,
 ) -> tuple[LocatedSession, dict[str, Any], list[dict[str, Any]]]:
     located = locate_unique_session(codex_home, session_id, reported_path=reported_path)
-    if baseline is not None:
-        assert_prefix_intact(located.path, baseline)
-    boundary, records = capture_boundary(located.path, session_id)
+    boundary, records = capture_boundary(located.path, session_id, baseline=baseline)
     if session_source_identity(located.path, session_id) != located.source_identity_sha256:
         raise NativeSessionBoundaryError("trusted session source identity changed")
     return located, boundary, records
