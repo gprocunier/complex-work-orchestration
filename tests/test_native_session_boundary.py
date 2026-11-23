@@ -169,6 +169,43 @@ class NativeSessionBoundaryTests(unittest.TestCase):
             },
         )
 
+    def test_conflicting_current_turn_context_cannot_be_ignored(self) -> None:
+        records = self.records()
+        payload = records[1]["payload"]
+        for change in (
+            {"model": "other-model"},
+            {"effort": "high"},
+            {"turn_id": "other-turn", "turnId": self.turn_id, "effort": "high"},
+        ):
+            with self.subTest(change=change):
+                conflicting = {"type": "turn_context", "payload": {**payload, **change}}
+                self.write(records=[*records, conflicting])
+                _, observed = capture_boundary(self.path, self.session_id)
+                with self.assertRaisesRegex(NativeSessionBoundaryError, "not singular"):
+                    trusted_turn_context(observed, turn_id=self.turn_id, model=payload["model"], effort=payload["effort"])
+
+    def test_current_turn_context_refuses_conflicting_aliases(self) -> None:
+        records = self.records()
+        payload = records[1]["payload"]
+        for change in ({"turnId": "other-turn"}, {"reasoning_effort": "high"}):
+            with self.subTest(change=change):
+                conflicting = {"type": "turn_context", "payload": {**payload, **change}}
+                self.write(records=[records[0], conflicting])
+                _, observed = capture_boundary(self.path, self.session_id)
+                with self.assertRaisesRegex(NativeSessionBoundaryError, "not singular"):
+                    trusted_turn_context(observed, turn_id=self.turn_id, model=payload["model"], effort=payload["effort"])
+
+    def test_current_turn_context_ignores_other_turn_and_accepts_legacy_aliases(self) -> None:
+        records = self.records()
+        payload = records[1]["payload"]
+        legacy = {"type": "turn_context", "payload": {"turnId": self.turn_id,
+                  "model": payload["model"], "reasoning_effort": payload["effort"]}}
+        unrelated = {"type": "turn_context", "payload": {**payload, "turn_id": "other-turn", "model": "other-model"}}
+        self.write(records=[records[0], unrelated, legacy, records[2]])
+        _, observed = capture_boundary(self.path, self.session_id)
+        index, context = trusted_turn_context(observed, turn_id=self.turn_id, model=payload["model"], effort=payload["effort"])
+        self.assertEqual((index, context), (2, legacy["payload"]))
+
     def test_task_complete_error_is_failed_terminal_without_exposing_error(
         self,
     ) -> None:

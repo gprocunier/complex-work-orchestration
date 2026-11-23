@@ -244,18 +244,28 @@ def trusted_turn_context(
     model: str,
     effort: str,
 ) -> tuple[int, dict[str, Any]]:
-    matches: list[tuple[int, dict[str, Any]]] = []
+    invalid = "trusted current-turn model and effort attestation is not singular"
+    match: tuple[int, dict[str, Any]] | None = None
     for index, record in enumerate(records):
         if record.get("type") != "turn_context" or not isinstance(record.get("payload"), Mapping):
             continue
         payload = dict(record["payload"])
-        current_turn = payload.get("turn_id") or payload.get("turnId")
-        current_effort = payload.get("effort") or payload.get("reasoning_effort")
-        if current_turn == turn_id and payload.get("model") == model and current_effort == effort:
-            matches.append((index, payload))
-    if len(matches) != 1:
-        raise NativeSessionBoundaryError("trusted current-turn model and effort attestation is not singular")
-    return matches[0]
+        turn_ids = (payload.get("turn_id"), payload.get("turnId"))
+        if turn_id not in turn_ids:
+            continue
+        efforts = (payload.get("effort"), payload.get("reasoning_effort"))
+        if (
+            match is not None
+            or any(value not in (None, turn_id) for value in turn_ids)
+            or payload.get("model") != model
+            or effort not in efforts
+            or any(value not in (None, effort) for value in efforts)
+        ):
+            raise NativeSessionBoundaryError(invalid)
+        match = index, payload
+    if match is None:
+        raise NativeSessionBoundaryError(invalid)
+    return match
 
 
 def telemetry_markers(records: Sequence[Mapping[str, Any]], *, turn_id: str) -> dict[str, Any]:
