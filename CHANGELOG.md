@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Use the fixed shell from the read-only runtime so finite commands can start when `/usr/bin/sh` is a symlink.
+
 ## 1.19.0 - 2026-11-23
 
 - Screen qualification thread-start frames before acquiring the managed login, starting the app server, or charging a start.

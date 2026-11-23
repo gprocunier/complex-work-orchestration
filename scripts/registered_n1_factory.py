@@ -524,9 +524,9 @@ class _Containment:
                  '--tmpfs', '/tmp', '--tmpfs', '/home', '--dir', '/etc',
                  '--setenv', 'HOME', '/home/worker', '--setenv', 'LC_ALL', 'C.UTF-8',
                  '--setenv', 'PATH', '/usr/bin:/bin']
-        # Private overlays must precede the executable bind, including binaries
-        # installed below a home or temporary directory.
-        argv += ['--ro-bind', command[0], command[0]]
+        # The runtime supplies the finite shell. Bind other executables after overlays.
+        if self.role != 'tool':
+            argv += ['--ro-bind', command[0], command[0]]
         argv += ['--ro-bind', spec['validator'], spec['validator']]
         if self.validator:
             scripts = str(Path(__file__).resolve().parent)

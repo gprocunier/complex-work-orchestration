@@ -2256,13 +2256,13 @@
 
 "p380":[64,653,{"$":148},8,653,37],
 
-"p381":[127,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",957,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
+"p381":[127,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",999,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
 
 "p382":[64,"_launcher_argv",139,"4ff15ecc165a978267d922a86efc1d2cf0b142dfa04f4aa339d7d361a31f8e01"],
 
-"p383":[127,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",939,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
+"p383":[127,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",981,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
 
-"p384":[64,"_Containment._command",512,"07fe31b30a2a1df9f5ad8d6789609c77021dc836326805cff8aea90881fe1b1f"],
+"p384":[64,"_Containment._command",512,"611ad6ad37a3e61b600eaa887c579eb1f233185139f1a6d0976442c09cf5be81"],
 
 "p385":[64,782,"os.pidfd_open(pid, 0)",21,782,42],
 
@@ -2270,9 +2270,9 @@
 
 "p387":[64,"_namespace_info_bytes",144,"51fe1fcadca2c30566207ec6ac4b43fd1824b7332c76f5948104133b2ba9cad4"],
 
-"p388":[127,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",922,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
+"p388":[127,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",964,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
 
-"p389":[127,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",932,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
+"p389":[127,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",974,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
 
 "p38a":[64,"_Containment._release_command",642,"fb4d5e08f70f22a0433b3cf5c33ec6231f51eb897bdd59564982c6372c5d45f2"],
 
@@ -2430,7 +2430,7 @@
 
 "p3n":[64,"_registered_adapter_method",1954,"8b37de2cb04b07183fa7c73e71cb2265f80a9c089336d5cc0d55cead8a95fbfc"],
 
-"p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1731,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
+"p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1790,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
 
 "p3p":[111,"NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session",249,"5dd5476b4d34a47fc1794f47311d7c3308fbb73caa72b0b7869ea9b710863f65"],
 
@@ -2742,7 +2742,7 @@
 
 "pO":[129,"FiniteReplyWireTests.test_flush_or_scan_crossing_original_deadline_cannot_write",138,"13db522ce4edb84fb9a70b89c19ae9e35ec880fdecee4692a96fc188a91e8203"],
 
-"pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1802,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
+"pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1861,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
@@ -2752,9 +2752,9 @@
 
 "pRefusalClass":[143,"provider_policy_blocker",24,"4602fc7f3eac31aa4a2ba9ae0e9437d3d649c4b5c88b7f92e55ae862e061410f"],
 
-"pRefusalFixture":[127,"FactoryTests.assert_terminal_worker_failure",1750,"a2c1f9ba507243b1d4eb9d526fbc01358e34da2abc07abf54ead6836eb658bad"],
+"pRefusalFixture":[127,"FactoryTests.assert_terminal_worker_failure",1809,"a2c1f9ba507243b1d4eb9d526fbc01358e34da2abc07abf54ead6836eb658bad"],
 
-"pRefusalTest":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1794,"d25bd981c37a3d70434db9139eb0683a106c182dd635e4eaad9024a83f0ce81a"],
+"pRefusalTest":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1853,"d25bd981c37a3d70434db9139eb0683a106c182dd635e4eaad9024a83f0ce81a"],
 
 "pS":[65,"RegisteredN1Workflow._validate_execution",432,"9de7b62e0f7fdca9d868e2d5d7c98b9bad4eeadccca416586a9461d417690e7e"],
 
@@ -6908,7 +6908,7 @@
 
 "scripts/registered_host_root_boundary.py":["615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",420,1303],
 
-"scripts/registered_n1_factory.py":["5a38327ad216aebe8635f018d54f5b8a45fc10d907d8ac2fca2e2bcba92deff9",420,132221],
+"scripts/registered_n1_factory.py":["1419a780f1bf8e3ea65c9d106ba757e1d2ac9430dd228feb7daa5db2bcb9b9b9",420,132208],
 
 "scripts/registered_n1_qualification.py":["d7ede08c63483726bf4066c582945103970923a83839b0e488b147da2a62a1b0",420,20405],
 
@@ -7000,7 +7000,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["68c57d376af5043db9e38f3662df0d5447a107e9a444c7417a505781ed9da5b8",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2519c8c12f44d39e1af5bc84df4aa6462ca5490d93feee167bb25f2d2465677b",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7114,7 +7114,7 @@
 
 "tests/test_registered_finite_tool_wiring.py":["376380fcf67a862c0393650edeedf79918546859ddacabdacc6ae90ae2775dc3",420,284864],
 
-"tests/test_registered_n1_factory.py":["8d2e04bf807531df3c1b76a40631bfb209e744ad1f9e3753c14566b65dffd3c0",420,135163],
+"tests/test_registered_n1_factory.py":["6077edfc22a6bdd0d64b36185f6debf3e62f61b15d907625488ea1deeca10a05",420,138839],
 
 "tests/test_registered_n1_qualification.py":["911b20433075b1bd5ad92f776965b689a2d9135bc3b69803288ffeab981a43ca",420,33755],
 

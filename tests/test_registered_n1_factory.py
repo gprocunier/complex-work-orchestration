@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import copy
 import builtins
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 import hashlib
 import io
 import json
@@ -861,6 +861,48 @@ class RealLauncherArgumentsTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr.decode(errors='replace'))
         self.assertEqual(result.stdout, b'EXAMPLE actual isolated command\n')
 
+    def test_real_finite_tool_bootstrap_executes_the_fixed_runtime_shell(self):
+        with tempfile.TemporaryDirectory(prefix='cwo-bwrap-tool-', dir='/tmp') as temporary, ExitStack() as stack:
+            worker = Path(temporary).resolve()
+            (worker / '.git').mkdir()
+            result = worker / 'result.txt'
+            factory = SimpleNamespace(spec={'launcher': self.launcher, 'validator': runtime_validator()},
+                host=SimpleNamespace(worker=worker),
+                host_records=SimpleNamespace(assert_worker_roots_excluded=lambda roots: None))
+            lifetime = runtime._Containment(factory, role='tool')
+            command = ['/usr/bin/sh', '-c', 'printf useful > result.txt']
+            read_gate, write_gate = os.pipe()
+            stack.callback(os.close, read_gate)
+            stack.callback(os.close, write_gate)
+            read_info, write_info = os.pipe()
+            stack.callback(os.close, read_info)
+            with os.fdopen(write_info, 'wb'):
+                options = lifetime._command(command, None, read_gate, write_info)
+                arguments = runtime._argument_file()
+                stack.callback(os.close, arguments)
+                os.write(arguments, b'\0'.join(part.encode() for part in options[1:]) + b'\0')
+                os.lseek(arguments, 0, os.SEEK_SET)
+                runtime.fcntl.fcntl(arguments, 1033, 15)
+                argv = runtime._launcher_argv(options[0], arguments, lifetime._bootstrap_command(command))
+                process = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT, pass_fds=(read_gate, write_info, arguments))
+            with process:
+                try:
+                    self.assertGreater(runtime._namespace_info(read_info)['child-pid'], 1)
+                    self.assertFalse(runtime.select.select([process.stdout], [], [], 0)[0])
+                    self.assertFalse(result.exists())
+                    os.write(write_gate, b'1')
+                    self.assertTrue(runtime.select.select([process.stdout], [], [], 5)[0])
+                    self.assertEqual(process.stdout.readline(), runtime._READY.encode())
+                    self.assertFalse(runtime.select.select([process.stdout], [], [], .1)[0])
+                    self.assertFalse(result.exists())
+                    stdout, _ = process.communicate(input=b'1', timeout=5)
+                    self.assertEqual(process.returncode, 0, stdout.decode(errors='replace'))
+                    self.assertEqual(stdout, b'')
+                    self.assertEqual(result.read_bytes(), b'useful')
+                finally:
+                    process.kill()
+
     def test_real_gate_uses_explicit_runtime_helper_despite_test_runner_prefix(self):
         with patch.object(sys, 'executable', '/opt/EXAMPLE-toolcache/bin/python'):
             lifetime, _home, _command = self.real_lifetime()
@@ -959,6 +1001,23 @@ class RealLauncherArgumentsTests(unittest.TestCase):
 
     def test_real_namespace_stops_even_when_original_monitor_cleanup_is_unresolved(self):
         self.assert_real_namespace_stopped_after_monitor_failure(raises=False)
+
+
+class RuntimeToolShellLayoutTests(unittest.TestCase):
+    def test_finite_tool_shell_is_supplied_by_the_read_only_runtime(self):
+        validator = '/usr/bin/EXAMPLE-validator'
+        factory = SimpleNamespace(spec={'launcher': '/usr/bin/bwrap', 'validator': validator},
+            host=SimpleNamespace(worker=Path('/EXAMPLE-worker')),
+            host_records=SimpleNamespace(assert_worker_roots_excluded=lambda roots: None))
+        lifetime = runtime._Containment(factory, role='tool')
+        command = ['/usr/bin/sh', '-c', 'printf EXAMPLE']
+        options = lifetime._command(command, None, 7, 9)
+        binds = [tuple(options[i + 1:i + 3]) for i, option in enumerate(options)
+                 if option == '--ro-bind']
+        self.assertIn(('/usr', '/usr'), binds)
+        self.assertIn((validator, validator), binds)
+        self.assertNotIn(('/usr/bin/sh', '/usr/bin/sh'), binds)
+        self.assertEqual(lifetime._bootstrap_command(command)[-3:], command)
 
 
 class RuntimeValidatorLayoutTests(unittest.TestCase):
