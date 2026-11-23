@@ -202,7 +202,9 @@
 
 "M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts. A terminal rollout may await original typed item intake until the reply deadline while the wire turn stays open.","review_evidence":{"$":7},"source":["p25LiveInput","p36DirectCatalog","p36FiniteAdmit","p36FiniteItem","p36FiniteCommit","p36FiniteReplyDispatch","p36FiniteHistorical","p36FiniteMatch","p36FiniteAwaitOriginal","p36FiniteHistory","p36FiniteBoundary","p36FiniteWaitTerminal","p36FiniteTypedComplete"]},
 
-"M37":{"conclusion":"The registered launcher may complete cleanup after a natural exit removed the original monitor executable link. The raw original controller report stays unchanged.","evidence_contracts":["N3","N9"],"external_trust_limit":"Only the exact retained original monitor and its existing PIDFD waitid accounting can establish exit and reaping. A disappearing proc link alone grants no effect authority. Namespace containment still requires its own retained evidence. The generic controller and private watchdog retain their original outcomes and wait budget.","reason":"Only an identity-unavailable report with the exact original monitor executable ENOENT, same PID and receipt, retired registration, positive original reaping and exit facts, and no signal can resolve the registered cleanup exception. It does not add a poll, change generic termination outcomes or retry cleanup.","review_evidence":{"$":7},"source":["p25MonitorTerminate","p25MonitorRecovery","p25MonitorReason"]}
+"M37":{"conclusion":"The registered launcher may complete cleanup after a natural exit removed the original monitor executable link. The raw original controller report stays unchanged.","evidence_contracts":["N3","N9"],"external_trust_limit":"Only the exact retained original monitor and its existing PIDFD waitid accounting can establish exit and reaping. A disappearing proc link alone grants no effect authority. Namespace containment still requires its own retained evidence. The generic controller and private watchdog retain their original outcomes and wait budget.","reason":"Only an identity-unavailable report with the exact original monitor executable ENOENT, same PID and receipt, retired registration, positive original reaping and exit facts, and no signal can resolve the registered cleanup exception. It does not add a poll, change generic termination outcomes or retry cleanup.","review_evidence":{"$":7},"source":["p25MonitorTerminate","p25MonitorRecovery","p25MonitorReason"]},
+
+"M43":{"conclusion":"The registered reader accepts an optional bounded timestamp on notification envelopes and preserves it as observation metadata. The existing request and response envelopes and source holds remain in force.","evidence_contracts":["N3","N10"],"external_trust_limit":"A timestamp is app-server observation data. Authority, ordering, correlation and deadlines remain bound to the original controller and transport. Offline startup evidence stops before any model turn.","reason":"The exact notification envelope can carry emittedAtMs as a nonnegative signed-64-bit integer. Requests still require their original IDs and envelope. Responses keep their exact result or error form. The controller classifies and retains the original notification frame before handling its method. A remote-control status notification supplies no RPC permission.","review_evidence":{"$":7},"source":["p43MethodEnvelope","p43Classify","p43ReadNotification"]}
 },
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
@@ -506,7 +508,11 @@
 
 "tests/test_registered_n1_qualification.py",
 
-{"$":328}
+{"$":328},
+
+"scripts/cwo_core/server_request_preparation.py",
+
+"tests/test_server_request_preparation.py"
 ],
 
 "points":{
@@ -2483,6 +2489,18 @@
 "p42Unresolved":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",315,"ce1b7f7a372f3c205d2141ad468fea166d831755f9d6b8923037d21850e4912d"],
 
 "p43":[23,187,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,195,9],
+
+"p43Classify":[150,"classify_message",209,"0bc4bc125364ed3d16e5386ab0f51ca12fde5776bc73aac41d13ca0b199d112a"],
+
+"p43MethodEnvelope":[150,"_check_method_envelope",199,"86eeb2273f741419d07fcca70d56136682ab8b136f5b7e7974555bd781a7e9ac"],
+
+"p43ReadNotification":[64,"_RegisteredServer._protocol_lines",1234,"cf5864e9618ec5fb6e4e243e0e5905f8e71c1df862933d0d6dd0f40d89837dd5"],
+
+"p43TimestampPositive":[151,"ServerRequestPreparationTests.test_timestamped_notification_preserves_the_actual_frame",344,"02dcd021f899614f2ae19ef830d3d4c9bb566901e391483f9d8cce3de8e90fe7"],
+
+"p43TimestampRefusal":[151,"ServerRequestPreparationTests.test_timestamped_envelope_refuses_bad_timestamps_and_non_notifications",353,"df3bcd847124c2b1c516b7c89cb06226a3ddbcfef35068665ef1acb48d76eb3e"],
+
+"p43TimestampStartup":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",575,"e379cf6d90a5836349060ab544e7aa88e80887b780718a4c92fea74c9d743cea"],
 
 "p44":[8,683,{"$":250},12,683,115],
 
@@ -5470,7 +5488,7 @@
 
 {"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},"scripts/cwo_core/supervision/turn_observations.py",{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout"]},
 
-{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. An original registered qualification permit is checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before any worker birth or campaign start. The optional signed managed login mount is app-server-only and confirmed before the campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33"],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout"]},
+{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. An original registered qualification permit is checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before any worker birth or campaign start. The optional signed managed login mount is app-server-only and confirmed before the campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33","M43"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29},"scripts/cwo_core/server_request_preparation.py"],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout","w43TimestampEnvelope","w43TimestampStartup"]},
 
 {"contract":"N4","entrypoint":"p2a6","gate_chains":[{"calls":[{"call":"p13e","direction":"into","target":"p30d"}],"effect":"p187","gate":"p34d"}],"id":"N4.1"},
 
@@ -5528,7 +5546,7 @@
 
 {"contract":"N10","effect_points":["p29f"],"entrypoint":"pfb","gate_limits":{"$":41},"gates":["p2c3"],"id":"N10.5","manual_decisions":["M08","M09","M12","M31","M32","M34"],"review_gates":["p29a","p2b4","p1da"],"trace_files":[{"$":29},{"$":24},{"$":38},{"$":326},{"$":28},{"$":10},{"$":15},{"$":328}]},
 
-{"admission":{"$":4},"contract":"N10","effect_points":["p37a","p27","p51"],"entrypoint":"p1ac","gates":[],"id":"N10.6","manual_decisions":["M08","M09","M12","M31","M32","M34"],"proof_applicability":{"$":8},"selector":{"$":206},"trace_files":[{"$":29},{"$":24},{"$":10},{"$":38},{"$":15},{"$":328}],"witnesses":["w7e",{"$":339}]},
+{"admission":{"$":4},"contract":"N10","effect_points":["p37a","p27","p51"],"entrypoint":"p1ac","gates":[],"id":"N10.6","manual_decisions":["M08","M09","M12","M31","M32","M34","M43"],"proof_applicability":{"$":8},"selector":{"$":206},"trace_files":[{"$":29},{"$":24},{"$":10},{"$":38},{"$":15},{"$":328},"scripts/cwo_core/server_request_preparation.py"],"witnesses":["w7e",{"$":339},"w43TimestampEnvelope","w43TimestampStartup"]},
 
 {"admission":{"$":4},"contract":"N10","effect_points":["p32e"],"entrypoint":"p30b","gates":[],"id":"N10.7","manual_decisions":["M08","M09","M12","M31","M34"],"proof_applicability":{"$":8},"selector":{"$":206},"witnesses":["w7e",{"$":339}]},
 
@@ -6726,7 +6744,7 @@
 
 "scripts/cwo_core/routing_signals.py":["6c32034033ae49cb45a38f63315825d648af53ac45455b2ee48249938d446246",420,8583],
 
-"scripts/cwo_core/server_request_preparation.py":["c69d6f0966653f446aaa9b16591d8ebc9b491870ff2f68620c821f968556ae3c",420,23996],
+"scripts/cwo_core/server_request_preparation.py":["c78ce4d85b553a81e58b5c222127fb0e29add4342270b341af855d34ddc8bae7",420,24327],
 
 "scripts/cwo_core/stage_completion.py":["46490b0a483ade12b7254e6c520a625805e98fb77488b92a4ed3a1dfd1344c4f",420,10579],
 
@@ -6980,7 +6998,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["5e68a3302af8d5e563a2c597780db139c2e6dc09d52bf0260e6bee702acc26f5",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["4dd6e0ace22fd44cfc221a300946d141c7891b0be6757432747b90a33c064f1e",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7096,7 +7114,7 @@
 
 "tests/test_registered_n1_factory.py":["8d2e04bf807531df3c1b76a40631bfb209e744ad1f9e3753c14566b65dffd3c0",420,135163],
 
-"tests/test_registered_n1_qualification.py":["f464689b4bd074ff900bb638dbfef87d7234e5011e3fe0e42e817485bd218719",420,29979],
+"tests/test_registered_n1_qualification.py":["fdea0343fc1e222fdf45dc7b406e58654148c0723f9043d777c10921bbb91c94",420,32378],
 
 "tests/test_registered_native_pool_host.py":["25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",420,39405],
 
@@ -7121,6 +7139,8 @@
 "tests/test_scaffold_dependency_validation.py":["56f647152b9bd65acfcbb014a04263203a1dd350082e61a35af9b0650c4e36dd",420,32651],
 
 "tests/test_selected_native_containment.py":["8228c514ddbfe1078c23b6b703941dd20b5346860af9d4f978946a1b6f688c2e",420,92596],
+
+"tests/test_server_request_preparation.py":["c223911902dd2837d18f9573a129c187069345a5a5abe22f3cc26e24205e70c7",420,31557],
 
 "tests/test_turn_observations.py":["9b6df5f09e4e8728943714c5c13aa41adc678c013282abd832caaf2eaf032f08",420,24093],
 
@@ -7317,6 +7337,10 @@
 "w42Unresolved":["with self.assertRaisesRegex(qualification.QualificationError, 'unresolved'):","p42Unresolved",{"$":1},"self.assertFalse(factory._managed_lifetime.contained)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock"],
 
 "w43":["self.assertEqual(fixture.spawned, [])","p23a",{"$":0},{"$":75},[],{"$":319}],
+
+"w43TimestampEnvelope":["with self.assertRaisesRegex(prep.PreparationError, \"server-request-id-required\"):","p43TimestampRefusal",{"$":1},"self.assertEqual(json.loads(typed.frame_json), message)",["p43TimestampPositive"],"tests.test_server_request_preparation.ServerRequestPreparationTests.test_timestamped_envelope_refuses_bad_timestamps_and_non_notifications"],
+
+"w43TimestampStartup":["self.assertNotIn('turn/start', self.fixture.spawned[0].methods)","p43TimestampStartup",{"$":1},"self.assertIn(remote_control, events)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn"],
 
 "w44":[{"$":97},"p101",{"$":0},"self.assertEqual(launch.call_count,1)",[],"tests.test_checked_command_interpreters.InterpreterSourceTests.test_real_interpreter_option_matrix_and_zero_guard_launches"],
 

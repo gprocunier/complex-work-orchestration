@@ -196,6 +196,16 @@ def _check_response_error(error: Any) -> None:
         raise PreparationError("response-error")
 
 
+def _check_method_envelope(message: dict, keys: set[str]) -> None:
+    if keys in ({"method", "params"}, {"id", "method", "params"}):
+        return
+    if keys != {"method", "params", "emittedAtMs"}:
+        raise PreparationError("ambiguous-method-envelope")
+    timestamp = message["emittedAtMs"]
+    if type(timestamp) is not int or not 0 <= timestamp < 2**63:
+        raise PreparationError("notification-timestamp")
+
+
 def classify_message(value: Any) -> Response | Notification | ServerRequest:
     """Classify a strict bounded object, without any lifecycle or decision work."""
     frame = _json(value)
@@ -204,8 +214,7 @@ def classify_message(value: Any) -> Response | Notification | ServerRequest:
         raise PreparationError("message-not-object")
     keys = set(message)
     if "method" in message:
-        if keys not in ({"method", "params"}, {"id", "method", "params"}):
-            raise PreparationError("ambiguous-method-envelope")
+        _check_method_envelope(message, keys)
         method, params = message["method"], message["params"]
         if not _text(method) or type(params) is not dict:
             raise PreparationError("method-or-params")

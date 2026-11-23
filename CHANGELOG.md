@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Accept the app server's bounded timestamps on native worker notifications.
+
 ## 1.17.0 - 2026-11-23
 
 - Refuse duplicate JSON keys and non-finite numbers when reading native pool evidence from the command line.
