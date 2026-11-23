@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import validate_repository as validate_repository_module  # noqa: E402
+from check_installed_skill import load_projection  # noqa: E402
 from validate_repository import (  # noqa: E402
     CI_REQUIRED_COMMANDS,
     validate_closure_pressure_contract,
@@ -138,14 +139,26 @@ class ValidateRepositoryTests(unittest.TestCase):
 
     def test_real_validator_rejects_stale_release_inventory_source(self) -> None:
         """Real copied validator refuses drift; healthy and restored copies pass."""
+        projection = load_projection(ROOT)
+        source_entries = {
+            entry["path"].split("/", 1)[0]
+            for section in ("entries", "excluded")
+            for entry in projection[section]
+        }
+        ignore_local = shutil.ignore_patterns(
+            ".git", "__pycache__", ".ruff_cache", ".beads", ".orchestration-audit",
+        )
+
+        def ignore(directory: str, names: list[str]) -> set[str]:
+            ignored = set(ignore_local(directory, names))
+            if Path(directory) == ROOT:
+                # Other tests can create and retire temporary roots during the copy.
+                ignored.update(set(names) - source_entries)
+            return ignored
+
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary) / "repo"
-            shutil.copytree(
-                ROOT, root,
-                ignore=shutil.ignore_patterns(
-                    ".git", "__pycache__", ".ruff_cache", ".beads", ".orchestration-audit",
-                ),
-            )
+            shutil.copytree(ROOT, root, ignore=ignore)
             # A validator fault must reach the behavioural assertion below.
             # Rebind only its copied bytes, preserving every other source and
             # primitive disposition, so stale self-metadata cannot kill it first.
