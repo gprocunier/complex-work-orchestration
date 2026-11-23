@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.11.0 - 2026-11-23
+
 - Render the offline N=2 and N=3 pool task plan and an initial qualification record, with optional private disposable Git fixtures.
 
 ## 1.10.0 - 2026-11-23
