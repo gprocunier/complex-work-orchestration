@@ -44,7 +44,9 @@ from cwo_core import native_live_availability as live_availability
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import record_received_return
 from cwo_core.process_identity import parse_proc_stat
-from cwo_core.supervision.transport.app_server import AppServerError, _QUALIFICATION_RPC, domain_sha256
+from cwo_core.supervision.transport.app_server import (
+    AppServerError, _QUALIFICATION_RPC, _checked_native_frame, _prepare_native_frame, domain_sha256,
+)
 from cwo_core.supervision.turn_observations import provider_policy_blocker
 from registered_app_server_transport import RegisteredAppServer
 from registered_host_root_boundary import require_private_roots
@@ -2266,6 +2268,14 @@ class RegisteredN1Factory:
             params.update(qualification.thread_selectors())
         return params
 
+    def _preflight_qualification_thread(self):
+        self.guard()
+        method = 'thread/start'
+        # The transport assigns the wire request ID and checks the resulting frame again.
+        payload = {'id': 0, 'method': method, 'params': self._thread_start_parameters()}
+        frame, binding = _prepare_native_frame(payload, method)
+        _checked_native_frame(binding, frame, None, method)
+
     def _require_finite_capture(self, mode):
         self.guard()
         server = self.server
@@ -2484,6 +2494,8 @@ class RegisteredN1Factory:
                 _need(self.result is not None, "Unknown execution requires reconciliation, never redispatch.")
                 self.guard()
                 return False
+            if self.qualification is not None:
+                self._preflight_qualification_thread()
             if self._managed_login is not None:
                 self._managed_lease = qualification.claim_managed_login()
             self._provider_access_token = provider_access_token

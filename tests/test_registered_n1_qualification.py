@@ -19,6 +19,7 @@ import selected_native_containment as selected
 from cwo_core.codex_protocol_capabilities import CapabilityError
 from cwo_core import model_identities
 from cwo_core.maintenance_authority import MaintenanceAuthorityError
+from cwo_core.outbound_screen import OutboundRefused
 from cwo_core.supervision.transport.app_server import AppServer
 
 runtime = family.runtime
@@ -262,6 +263,29 @@ class FactoryQualificationTests(unittest.TestCase):
         self.enterContext(patch.object(qualification.ManagedLoginMount, 'confirm'))
         case.scenario.initialize_home = qualification.LOGIN_MOUNT
         return case, login_home
+
+    def test_sensitive_qualification_workspace_refuses_before_login_ledger_and_birth(self):
+        repositories = self.fixture.repositories
+        parent = repositories.root / 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+        parent.mkdir(mode=0o700)
+        repositories.worker = repositories.worker.rename(parent / 'worker')
+        case, _login = self.managed_case()
+        factory = self.fixture.factory(case)
+
+        with (patch.object(qualification, 'claim_managed_login',
+                           wraps=qualification.claim_managed_login) as claim,
+              patch.object(runtime.admission, 'invoke_offline',
+                           wraps=runtime.admission.invoke_offline) as invoke,
+              self.assertRaisesRegex(OutboundRefused, 'outbound screening refused native model request')):
+            factory.run()
+
+        self.assertEqual((claim.call_count, invoke.call_count, len(self.fixture.spawned),
+                          qualification.campaign_usage()['total']), (0, 0, 0, 0))
+        family.assert_no_native_births(self, self.fixture)
+        self.assertFalse(case.ledger.root.exists())
+        self.assertFalse((case.host.state / 'registered-startup.json').exists())
+        self.assertIsNone(factory._qualification_start)
+        self.assertFalse(factory._started)
 
     def test_managed_login_preserves_original_spool_and_excludes_other_roles(self):
         case, login_home = self.managed_case(drift=True)

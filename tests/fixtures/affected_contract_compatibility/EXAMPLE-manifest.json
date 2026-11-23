@@ -527,7 +527,7 @@
     "scripts/registered_finite_input.py": "fc91cad44ce60b5633a399ee9b610689690154a15ba41cc0a5a95ba0e95db9cd",
     "scripts/registered_finite_tool_calls.py": "b66d74039e63f7727bf0c4dbc2dd329d03aa4a15c954c55463bfa078c2511be8",
     "scripts/registered_host_root_boundary.py": "615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",
-    "scripts/registered_n1_factory.py": "38f67a06d0f0e9afd81d6af7ec5bd4e70d2cd881de2d179785c43625c009142c",
+    "scripts/registered_n1_factory.py": "5a38327ad216aebe8635f018d54f5b8a45fc10d907d8ac2fca2e2bcba92deff9",
     "scripts/registered_n1_qualification.py": "d7ede08c63483726bf4066c582945103970923a83839b0e488b147da2a62a1b0",
     "scripts/registered_n1_workflow.py": "ab229624003f1d516d1831703aea8ecff27b5cb992b24106f66ac831adb60439",
     "scripts/registered_native_pool_client.py": "cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",
@@ -584,7 +584,7 @@
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
     "tests/test_registered_finite_tool_wiring.py": "376380fcf67a862c0393650edeedf79918546859ddacabdacc6ae90ae2775dc3",
     "tests/test_registered_n1_factory.py": "8d2e04bf807531df3c1b76a40631bfb209e744ad1f9e3753c14566b65dffd3c0",
-    "tests/test_registered_n1_qualification.py": "fdea0343fc1e222fdf45dc7b406e58654148c0723f9043d777c10921bbb91c94",
+    "tests/test_registered_n1_qualification.py": "911b20433075b1bd5ad92f776965b689a2d9135bc3b69803288ffeab981a43ca",
     "tests/test_registered_n1_workflow.py": "94d4de5b25c5e986311ebec6c55eb91b143dcf60080e84130748f8a290f35ed7",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
@@ -2448,7 +2448,7 @@
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
     "tests/test_registered_n1_factory.py": "8d2e04bf807531df3c1b76a40631bfb209e744ad1f9e3753c14566b65dffd3c0",
-    "tests/test_registered_n1_qualification.py": "fdea0343fc1e222fdf45dc7b406e58654148c0723f9043d777c10921bbb91c94",
+    "tests/test_registered_n1_qualification.py": "911b20433075b1bd5ad92f776965b689a2d9135bc3b69803288ffeab981a43ca",
     "tests/test_registered_provider_network.py": "4810be8c8212226f4ed9896dac4446c9ef38421d1ce85f1df0c80eb168e64112",
     "tests/test_registered_server_requests.py": "1339fd305c7267d3b7d7fef24453268c8180c1090ae20122f430ad675b3a07f5"
   },
