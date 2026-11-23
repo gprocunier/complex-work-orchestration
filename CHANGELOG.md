@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Wait for the original native qualification turn to finish within its deadline after a finite tool refusal.
+
 ## 1.9.0 - 2026-11-22
 
 - Native single-worker qualification now requires the `cwo_finite` namespace for finite command and poll callbacks. Archived results are verified against the original replies and completions.

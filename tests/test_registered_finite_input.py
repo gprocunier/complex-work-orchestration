@@ -2379,6 +2379,38 @@ class FiniteLifecycleTests(unittest.TestCase):
         self.assertFalse(machine.cleanup_event('contained'))
         self.assertEqual(machine.cleanup, 'unknown')
 
+    def test_refusal_completion_wait_keeps_its_bound_after_queued_work_is_refused(self):
+        machine, now = self.machine()
+        machine.queue(self.COMMAND, 'finite_command', self.TURN, 'EXAMPLE-command', 15)
+        machine.queue(self.POLL, 'finite_poll', self.TURN, 'EXAMPLE-poll', 1)
+        self.assertTrue(machine.reply(self.COMMAND, 'finite_command', 'EXAMPLE-command', False))
+        self.assertFalse(machine.wait())
+        machine.arm_refusal_completion_wait()
+        with self.assertRaises(finite.FiniteInputError):
+            machine.arm_refusal_completion_wait()
+        self.assertEqual(machine.phase, 'refused')
+        self.assertFalse(machine.call_live('EXAMPLE-poll', {'poll-deciding'}))
+        self.assertFalse(machine.queue(('str', 'EXAMPLE-late'), 'finite_poll', self.TURN,
+                                       'EXAMPLE-late-poll', 15))
+        now[0] = 1.0
+        self.assertFalse(machine.wait(host_deadline=now[0]))
+        now[0] = 15.0
+        self.assertTrue(machine.wait())
+
+    def test_original_terminal_fault_and_close_wake_refusal_completion_wait(self):
+        for event in ('terminal', 'fault', 'closed'):
+            with self.subTest(event=event):
+                machine, _now = self.machine()
+                machine.queue(self.COMMAND, 'finite_command', self.TURN, 'EXAMPLE-command', 15)
+                self.assertTrue(machine.reply(self.COMMAND, 'finite_command', 'EXAMPLE-command', False))
+                machine.arm_refusal_completion_wait()
+                with patch.object(machine.condition, 'wait',
+                                  side_effect=lambda timeout: machine.finish(event, turn=self.TURN)) as wait:
+                    self.assertFalse(machine.wait())
+                wait.assert_called_once_with(timeout=15.0)
+                self.assertEqual(machine.phase, event)
+                self.assertIsNone(machine.refusal_completion_deadline)
+
     def test_invalid_identity_phase_and_expiry_refuse_before_effect(self):
         machine, now = self.machine()
         with self.assertRaises(finite.FiniteInputError):

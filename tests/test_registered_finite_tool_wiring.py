@@ -1702,6 +1702,96 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
     def test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal(self):
         self._qualification_terminal_during_poll_write('EXAMPLE withheld input')
 
+    def test_qualification_waits_for_turn_completion_after_nonempty_poll_refusal(self):
+        case = self.fixture.case(qualification=True, archive_schedule='settled',
+                                 no_fake_scheduler=True, poll_chars='x', complete_after_refusal=True)
+        factory = self.fixture.factory(case)
+        with self._defer_qualification_refusal_completion(factory):
+            result = factory.run()
+        self.assertEqual(result['attempt']['outcome'], 'completed')
+        self.assertTrue(factory.server.archived)
+        self.assertTrue(factory.server.lifetime.contained)
+        self.assertFalse(factory.server.lifetime.termination['receipt_available'])
+        self.assertEqual([reply['result']['success'] for reply in self.fixture.spawned[0].replies], [True, False])
+        with self.assertRaises(BlockingIOError):
+            os.read(case.tool_read, 1)
+
+    def test_qualification_waits_for_turn_completion_after_canary_refusal(self):
+        case = self.fixture.case(qualification=True, archive_schedule='settled', no_fake_scheduler=True)
+        factory = self.fixture.factory(case)
+        canary = case.host.worker.parent / 'n1-outside-canary.txt'
+        original_bytes = b'n1 canary original\n'
+        canary.write_bytes(original_bytes)
+        before = canary.stat()
+
+        class CanaryProcess(NamespacedFiniteRpcProcess):
+            def approve(self):
+                self._send_tool(self.command_call_id, 'finite_command',
+                                {'command': r"printf '%s\n' 'n1 canary changed' > ../n1-outside-canary.txt"},
+                                self.case.scenario)
+
+            def receive(self, message):
+                super().receive(message)
+                if message.get('id') == self.command_request_id and message.get('result', {}).get('success') is False:
+                    self._emit_command_completion(message)
+                    self.complete()
+
+        with self._defer_qualification_refusal_completion(factory, CanaryProcess):
+            with self.assertRaisesRegex(ValueError, 'reconciliation is required'):
+                factory.run()
+        self.assertTrue(factory.server.archived)
+        self.assertEqual(len(self.fixture.spawned), 1)
+        self.assertIsNone(factory.execution['artifact'])
+        self.assertFalse((case.host.worker / 'result.txt').exists())
+        self.assertEqual(canary.read_bytes(), original_bytes)
+        after = canary.stat()
+        self.assertEqual((after.st_dev, after.st_ino), (before.st_dev, before.st_ino))
+        attempt = self.fixture.attempt(case)
+        self.assertEqual(attempt['charge'], attempt['amount'])
+
+    @contextmanager
+    def _defer_qualification_refusal_completion(self, factory, rpc_process=NamespacedFiniteRpcProcess):
+        reply_seen = threading.Event()
+        released = []
+
+        class DeferredCompletion(rpc_process):
+            def result(self, method, params):
+                if method == 'turn/start':
+                    observe_wait()
+                return super().result(method, params)
+
+            def complete(self):
+                reply_seen.set()
+
+            def release_completion(self):
+                super().complete()
+                self._emit_turn_terminal()
+
+        def observe_wait():
+            lifecycle = factory.server.finite_input.lifecycle
+            original_wait = lifecycle.condition.wait
+
+            def wait(timeout=None):
+                if lifecycle.phase == 'refused' and not released:
+                    self.assertTrue(reply_seen.wait(2))
+                    peer = self.fixture.spawned[0]
+                    self.assertEqual(peer.finished_items[-1]['status'], 'failed')
+                    self.assertFalse(lifecycle.queue((str, 'EXAMPLE-late-request'), 'finite_poll',
+                                                     lifecycle.turn, 'EXAMPLE-late-call', lifecycle.clock() + 1))
+                    released.append(timeout)
+                    peer.release_completion()
+                return original_wait(timeout)
+
+            lifecycle.condition.wait = wait
+
+        with (patch.object(family, 'RpcProcess', DeferredCompletion),
+              patch.object(family.runtime.provider_network, '_dial_provider',
+                           side_effect=AssertionError('unexpected provider request'))):
+            yield
+        timeout, = released
+        self.assertGreater(timeout, 0)
+        self.assertLessEqual(timeout, 15)
+
     def _qualification_terminal_during_poll_write(self, chars):
         case = self.fixture.case(qualification=True, archive_schedule='settled', race_poll_completion=True,
                                  terminal_during_poll_write=True, poll_chars=chars,
