@@ -100,6 +100,25 @@ class MalformedPolicyAtConsumersTests(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, r"roles\.luna\.selection.*must be one of"):
                 policy.load_policy("model-roles")
 
+    def test_optional_cyber_fallback_policy_loads_only_with_exact_settings(self) -> None:
+        from cwo_core.model_identities import validate_model_role_config
+
+        document = _read("model-roles")
+        document["roles"]["cyber_fallback"] = {
+            "model": "gpt-daybreak-blue-latest",
+            "required_access_program": "daybreakBlue",
+            "codex_config": {"daybreak": True},
+        }
+        with malformed_policy("model-roles", raw=json.dumps(document)):
+            loaded = policy.load_policy("model-roles")
+            validate_model_role_config(loaded)
+            self.assertEqual(loaded, document)
+
+        document["roles"]["cyber_fallback"]["codex_config"]["daybreak"] = False
+        with malformed_policy("model-roles", raw=json.dumps(document)):
+            with self.assertRaisesRegex(SystemExit, r"cyber_fallback.*daybreak.*must equal true"):
+                policy.load_policy("model-roles")
+
     def tearDown(self) -> None:
         policy.clear_policy_cache()
 

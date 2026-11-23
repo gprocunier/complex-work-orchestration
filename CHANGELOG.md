@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Screen qualification thread-start frames before acquiring the managed login, starting the app server, or charging a start.
+- Retry operator-marked security work once after a structured provider refusal, using an optional access-checked Daybreak fallback role, the unchanged packet and the original aggregate budget.
 
 ## 1.18.0 - 2026-11-23
 

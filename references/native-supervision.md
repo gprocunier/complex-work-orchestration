@@ -24,6 +24,64 @@ at startup. The optional `pin` takes precedence over discovery. The selected
 model stays fixed for that attempt. To roll back, select the explicit mode and
 use the model recorded in `previous`.
 
+The shipped policy does not contain a `cyber_fallback` role. A user who chooses
+to enable refusal recovery adds this exact entry under `roles` in their installed
+`policy/model-roles.yaml`:
+
+```json
+"cyber_fallback": {
+  "model": "gpt-daybreak-blue-latest",
+  "required_access_program": "daybreakBlue",
+  "codex_config": {"daybreak": true}
+}
+```
+
+At startup, CWO reads the public Codex model catalog. The role is available only
+when the exact model is selectable and its `availableAccessPrograms.cyber` list
+contains `daybreakBlue`. A missing model, missing metadata or missing program is
+reported as unavailable. It is not a policy-load error. CWO never combines
+`daybreak=true` with another model.
+
+Recovery also requires an explicit user-owned mark. Store it in an owned private
+file outside every lead and worker write root, and bind the file by its SHA-256
+digest when constructing `SecurityMarkStore`. The format is:
+
+```json
+{
+  "version": 1,
+  "marks": [
+    {
+      "scope": "work-item",
+      "id": "project-task-id",
+      "source": "user",
+      "marked_by": "operator identity",
+      "marked_at": "2026-11-23T09:00:00-05:00"
+    }
+  ]
+}
+```
+
+`scope` may be `work-item` or `project`. The file must be an absolute,
+non-symlink, owner-only regular file, normally mode `0600`. The parent supervisor
+passes all lead and worker write roots to `SecurityMarkStore`, requests an opaque
+mark handle for the exact work item and gives that handle to
+`CyberFallbackController`. Plain JSON, a mark whose `source` is `lead` or
+`worker`, a mark inside a supplied write root, a forged handle and a spent handle
+are rejected. The recorded mark retains `marked_by`, `marked_at` and the source
+file digest.
+
+After Part 1 reports a structured provider safety refusal, the parent controller
+can consume the mark and make one fallback attempt. It sends the identical packet
+bytes, preserves reasoning effort and service tier, links the attempt to the
+original with reason `cyber_refusal`, and charges the original aggregate budget
+again. The audit record binds the original attempt, classification, mark, role
+and packet digest. Unmarked work, unavailable access, any non-refusal failure or
+a second refusal produces a terminal blocker without another launch. The lead's
+model is not an input to this controller and never changes.
+
+This is a parent integration contract. The default-off native route holds remain
+in force, so adding the role or mark does not activate live dispatch.
+
 OpenAI describes Terra as suited to writing, visual understanding and computer
 use. Terra remains the escalation role. A future policy may send escalations
 based on coding difficulty to Sol. [OpenAI model guide](https://learn.chatgpt.com/docs/models#recommended-models).
@@ -50,6 +108,10 @@ failed and its exact `turn/completed` notification carries `cyberPolicy` or
 original failure, charge and cleanup outcome. Missing, ambiguous and other
 codes keep the ordinary failure classification. The blocker is terminal for
 that attempt.
+
+When that blocker belongs to marked work, the optional parent-side cyber fallback
+contract above may consume it once. Reply wording never classifies a refusal and
+cannot authorize the retry.
 
 ## Current host tool profiles
 

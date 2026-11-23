@@ -119,6 +119,10 @@ The next layer turns the plan into bounded assignments. The native delegation
 contract sizes the task first and then selects the exact model configured for
 Luna. Terra requires a recorded escalation. `policy/model-roles.yaml` defines
 the current and previous model for each role.
+Users with Daybreak Blue access may add the optional `cyber_fallback` role and
+mark authorized security work in a private file outside the lead and worker
+write roots. A structured provider refusal can then make one fully charged
+fallback attempt. Unmarked work and every other failure keep their normal path.
 Parallel work requires independent tasks, separate write ownership and an
 approved, qualified environment.
 

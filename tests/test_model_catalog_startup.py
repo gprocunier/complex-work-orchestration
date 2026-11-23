@@ -15,7 +15,8 @@ from model_catalog_startup import AppServerError, _CatalogServer, configure_cli_
 
 class ModelCatalogStartupTests(unittest.TestCase):
     def test_paginates_public_catalog_and_excludes_hidden_or_inexact_entries(self):
-        luna = {"id": "gpt-9.8-luna", "model": "gpt-9.8-luna", "hidden": False}
+        luna = {"id": "gpt-9.8-luna", "model": "gpt-9.8-luna", "hidden": False,
+                "availableAccessPrograms": {"cyber": ["daybreakBlue"]}}
         terra = {"id": "gpt-9.7-terra", "model": "gpt-9.7-terra", "hidden": False}
         request = Mock(side_effect=[
             ({"data": [luna, {"id": "gpt-reserve", "model": "gpt-reserve", "hidden": True}],

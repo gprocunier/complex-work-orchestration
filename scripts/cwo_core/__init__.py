@@ -43,6 +43,7 @@ __all__ = [
     "codex_protocol_capabilities",
     "codex_protocol_pin",
     "codex_tool_surface",
+    "cyber_fallback",
     "epic_convergence",
     "errors",
     "execution_enhancement_metrics",
