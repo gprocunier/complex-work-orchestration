@@ -4531,7 +4531,7 @@ class LiveThreadAdapter:
         try:
             thread, _latency = self.server.read_thread(self.thread_id)
         except AppServerRpcError as exc:
-            if exc.method != "thread/read" or exc.code != -32603:
+            if not self._pending_thread_read_error(exc):
                 raise
             # turn/started can precede readable thread projection.  While the
             # bounded materialization window remains open, keep this state
@@ -4545,6 +4545,9 @@ class LiveThreadAdapter:
         self.reported_session_path = thread.get("path") or self.reported_session_path
         self._pending_window_is_open_locked()
         return True
+
+    def _pending_thread_read_error(self, error: AppServerRpcError) -> bool:
+        return error.method == "thread/read" and error.code == -32603
 
     def _registered_tool_projector(self):
         return None

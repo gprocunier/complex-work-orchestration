@@ -233,6 +233,23 @@ def _qualification_turn_options(transport):
     return {} if binding is None else {"serviceTier": binding[2]}
 
 
+def _qualification_thread_unmaterialized(transport, payload, error):
+    """Classify only the pinned cold-history diagnostic for the original thread."""
+    if _QUALIFICATION_RPC.get(transport) is None or payload["method"] != "thread/read" or error["code"] != -32600:
+        return False
+    thread_id = transport.thread_id
+    params = payload["params"]
+    return (
+        isinstance(thread_id, str) and bool(thread_id)
+        and set(params) == {"threadId", "includeTurns"}
+        and params["threadId"] == thread_id and params["includeTurns"] is True
+        and error["message"] == (
+            f"thread {thread_id} is not materialized yet; "
+            "includeTurns is unavailable before first user message"
+        )
+    )
+
+
 def _explicit_probe_binding(executable, codex_home, requested_model, catalog):
     home = _explicit_launch_home(executable, codex_home)
     try:
@@ -1005,6 +1022,7 @@ class AppServer:
                 code=code,
                 request_id=request_id,
                 latency_ms=latency_ms,
+                qualification_thread_unmaterialized=_qualification_thread_unmaterialized(self, payload, error),
             )
         result = message.get("result")
         if not isinstance(result, dict):

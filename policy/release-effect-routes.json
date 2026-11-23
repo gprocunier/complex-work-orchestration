@@ -528,9 +528,9 @@
 
 "p102":[116,"OwnershipProducerTests.test_cleanup_refuses_missing_or_foreign_receipt",284,"d22d89b6c43609fdff018a8c8cee9e0bae515130d27ce62cfbe1d6cfb470788e"],
 
-"p103":[42,2490,"self.request(\n            \"turn/interrupt\",\n            {\"threadId\": thread_id, \"turnId\": turn_id},\n            timeout=timeout,\n        )",27,2494,9],
+"p103":[42,2508,"self.request(\n            \"turn/interrupt\",\n            {\"threadId\": thread_id, \"turnId\": turn_id},\n            timeout=timeout,\n        )",27,2512,9],
 
-"p104":[74,"run_pool_canary",7559,"fbef9e42927f0837bfd34712b2caba4408bc3b143578d4a27b6d9ef53e42e928"],
+"p104":[74,"run_pool_canary",7562,"fbef9e42927f0837bfd34712b2caba4408bc3b143578d4a27b6d9ef53e42e928"],
 
 "p105":[80,"captured_result",197,"d516f6e3e686562e513bb9d56ac4388df5f430be3348b7250960603b5329af00"],
 
@@ -650,7 +650,7 @@
 
 "p13c":[8,{"$":197},1060,{"$":188}],
 
-"p13d":[74,12832,{"$":43}],
+"p13d":[74,12835,{"$":43}],
 
 "p13e":[61,57,"self._launch_registered_transport(home, binding, startup_config)",12,57,76],
 
@@ -676,9 +676,9 @@
 
 "p148":[52,96,"path.unlink()"],
 
-"p149":[42,279,{"$":13}],
+"p149":[42,296,{"$":13}],
 
-"p14a":[42,"AppServer.notify",949,"fe85a2592d0c6f3a27ca5dc4ee3c6929cbe4f16b8adb639eb89f78a5b1f6c769"],
+"p14a":[42,"AppServer.notify",966,"fe85a2592d0c6f3a27ca5dc4ee3c6929cbe4f16b8adb639eb89f78a5b1f6c769"],
 
 "p14b":[75,554,"if args.workers < 1:"],
 
@@ -688,17 +688,17 @@
 
 "p14e":[43,"trusted_git_private",581,"06e76390df4df21ceaddd7930f1c72c4cd603dae22ff429bbea0700f159c7f83"],
 
-"p14f":[42,955,"self._write_payload(payload, method=method, timeout=1)",12,955,66],
+"p14f":[42,972,"self._write_payload(payload, method=method, timeout=1)",12,972,66],
 
 "p15":[23,291,"run_bd(args)",17,291,29],
 
-"p150":[74,7579,{"$":43}],
+"p150":[74,7582,{"$":43}],
 
 "p151":[50,297,{"$":245}],
 
-"p152":[74,12834,{"$":13}],
+"p152":[74,12837,{"$":13}],
 
-"p153":[74,"validate_and_acquire_global_campaign_claim",12434,"951df786887d39a5bc9139e6eef6b5723a2f9f2173286cf122ad76d3f3d51ee5"],
+"p153":[74,"validate_and_acquire_global_campaign_claim",12437,"951df786887d39a5bc9139e6eef6b5723a2f9f2173286cf122ad76d3f3d51ee5"],
 
 "p154":[50,217,"write_config \"$CONFIG_PATH\" \"$PORT\""],
 
@@ -734,7 +734,7 @@
 
 "p163":[39,128,"if (registration.pid, registration.session_id, registration.workspace) != (pid, session_id, workspace):"],
 
-"p164":[74,12458,{"$":35}],
+"p164":[74,12461,{"$":35}],
 
 "p165":[78,272,"if unmet:"],
 
@@ -766,7 +766,7 @@
 
 "p172":[8,698,"self._run(prompt)",19,698,36],
 
-"p173":[42,339,"self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,"],
+"p173":[42,356,"self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,"],
 
 "p174":[25,334,"completed = subprocess.run(executable_argv, cwd=cwd, env=environment, input=spec[\"stdin\"], text=True, capture_output=True, timeout=spec[\"timeout_seconds\"], shell=False)"],
 
@@ -834,7 +834,7 @@
 
 "p192":[121,"R1ActivationPreviewHoldTests.test_r1_server_rechecks_dedicated_and_shared_holds_with_all_on_fake_control",62,"3b55b5c3dd5c4e4ce45cdf0219d638e21e7291685a00b6129dc674c6355e6ebd"],
 
-"p193":[42,891,"self.request(\"mcpServerStatus/list\", params, timeout=15)",33,891,89],
+"p193":[42,908,"self.request(\"mcpServerStatus/list\", params, timeout=15)",33,908,89],
 
 "p194":[8,{"$":203},693,{"$":181}],
 
@@ -938,7 +938,7 @@
 
 "p1ab":[44,1806,"pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get(\"allow_private_dns\")))"],
 
-"p1ac":[64,"_RegisteredServer.request",1503,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
+"p1ac":[64,"_RegisteredServer.request",1504,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
 
 "p1ad":[3,538,"method(argument, submission, **options)",19,538,58],
 
@@ -968,13 +968,13 @@
 
 "p1b9":[38,"execute_native_pool_transaction",1474,"c96e27a1ac159baa75913f95b063a2d8494debcc01e923ba8b09bb1696c296e0"],
 
-"p1ba":[74,7115,{"$":43}],
+"p1ba":[74,7118,{"$":43}],
 
 "p1bb":[131,"ReleaseFilesystemTests.test_actual_source_snapshot_and_runtime_identities_are_bound",110,"ba8924f1e501934a6afa151250c9226bd5527451e89ef65fa3338b32962bf5f8"],
 
 "p1bc":[90,"ChatGPTBrowserReviewTests._browser_result",1326,"a9058beb7012505459ffa69a75cc7039ed1546464c2942732822fd7a6a3fd485"],
 
-"p1bd":[64,"RegisteredN1Factory._isolated_validation",2467,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
+"p1bd":[64,"RegisteredN1Factory._isolated_validation",2479,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
 
 "p1be":[8,685,{"$":285},12,685,84],
 
@@ -990,7 +990,7 @@
 
 "p1c3":[33,561,"server = AppServer(requested_model=scope[\"model\"], reasoning_effort=\"low\", tool_surface_proof=proof,"],
 
-"p1c4":[42,2502,"self.request(\n            \"thread/archive\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2506,9],
+"p1c4":[42,2520,"self.request(\n            \"thread/archive\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2524,9],
 
 "p1c5":[16,205,"if disposition not in NON_COMPLETION_DISPOSITIONS:"],
 
@@ -1006,7 +1006,7 @@
 
 "p1cb":[11,46,"if initial.ruff_version() != RUFF:"],
 
-"p1cc":[74,12833,{"$":35}],
+"p1cc":[74,12836,{"$":35}],
 
 "p1cd":[8,753,"self._confirm_configured_labels(page, timeout_ms)",36,753,85],
 
@@ -1036,11 +1036,11 @@
 
 "p1d9":[76,1657,"relationships = validate_workgraph_plan(plan, for_creation=True)"],
 
-"p1da":[42,1024,{"$":333}],
+"p1da":[42,1042,{"$":333}],
 
 "p1db":[67,406,"workflow.run(controlled_failure=controlled)"],
 
-"p1dc":[42,954,{"$":333}],
+"p1dc":[42,971,{"$":333}],
 
 "p1dd":[44,"validate_local_endpoint_base_url",782,"dab8178f1f002be6934db3cd25f7db906de4203f37718bd9a9541828f3d006f7"],
 
@@ -1062,7 +1062,7 @@
 
 "p1e5":[79,"main",124,"2e46d7bc2ee34907314c70645acaef2afd6bea59db17e78375857894b08f101d"],
 
-"p1e6":[42,1094,"self.request(\"model/list\", {\"includeHidden\": True})",26,1094,77],
+"p1e6":[42,1112,"self.request(\"model/list\", {\"includeHidden\": True})",26,1112,77],
 
 "p1e7":[50,298,"quote_cmd \"${cmd[@]}\""],
 
@@ -1090,15 +1090,15 @@
 
 "p1f2":[23,74,"if not database_value:"],
 
-"p1f3":[134,"LiveCanaryMaterializationTests.test_calibration_binds_requested_pool_cap_and_control_turn",3426,"69a6ced1b4354eb4fcbf5da831aabb2bd566c6a7e230e0f7c96c8bfc7f8e6c0c"],
+"p1f3":[134,"LiveCanaryMaterializationTests.test_calibration_binds_requested_pool_cap_and_control_turn",3460,"69a6ced1b4354eb4fcbf5da831aabb2bd566c6a7e230e0f7c96c8bfc7f8e6c0c"],
 
 "p1f4":[80,"Page",55,"7acdc7d242e5183d8656d3c4b30eab8e27893a3407099ba6cf3bcb9e66675b08"],
 
-"p1f5":[42,1319,"self.request(\n            \"thread/start\",\n            params,\n            timeout=30,\n        )",26,1323,9],
+"p1f5":[42,1337,"self.request(\n            \"thread/start\",\n            params,\n            timeout=30,\n        )",26,1341,9],
 
 "p1f6":[8,1162,"self._submit_guarded(page, prompt, request_id, timeout_ms, guard)",19,1162,84],
 
-"p1f7":[74,13456,"capture_input_source_identities(paths)",28,13456,66],
+"p1f7":[74,13459,"capture_input_source_identities(paths)",28,13459,66],
 
 "p1f8":[8,1036,{"$":283},20,1036,95],
 
@@ -1168,13 +1168,13 @@
 
 "p203":[87,"BrowserProvenanceTests.setUp",36,"190d1c43dd16d017fc1abfdbd8d609372a4df212e28f324a6d680a02008fdd3b"],
 
-"p204":[74,13123,{"$":43}],
+"p204":[74,13126,{"$":43}],
 
 "p205":[8,"PlaywrightChatGPTRunner._page_snapshot",872,"e996eb4f5cfa69c743c945503ee54f1674812a8ead1ae9cd90100b3fc822e5a4"],
 
 "p206":[87,"BrowserProvenanceTests.test_real_preparation_and_persisted_sanitizer_positive",93,"f6c3ccbc74fbca7f793188c178e1de8adb81f377b0284d120fb0f69a12108484"],
 
-"p207":[74,7116,{"$":35}],
+"p207":[74,7119,{"$":35}],
 
 "p208":[80,"packet_input",105,"80a92a01f4a209b535af916df0ee9d3fba1f5297bb50d945c47a8269916b15cd"],
 
@@ -1182,7 +1182,7 @@
 
 "p20a":[37,1502,"if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:"],
 
-"p20b":[64,"_RegisteredServer._launch_process",1533,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
+"p20b":[64,"_RegisteredServer._launch_process",1534,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
 
 "p20c":[78,"main",218,"4b19f823bfd6636d1a333dfc6aff0b26e633136bec98d21ff065260472d805a5"],
 
@@ -1230,7 +1230,7 @@
 
 "p220":[55,"main",2118,"160f4c8bc9c5f0c58aa7d3c9021637cbc9ad76a1951f90f4f0213c957117267b"],
 
-"p221":[74,"_run_calibration",5079,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
+"p221":[74,"_run_calibration",5082,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
 
 "p222":[64,676,{"$":148}],
 
@@ -1262,11 +1262,11 @@
 
 "p23":[32,783,"subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,\n                    timeout=command.timeout_seconds, env={**os.environ, \"PYTHONDONTWRITEBYTECODE\": \"1\"}, check=False)",28,784,117],
 
-"p230":[74,7366,"result, _latency = server.start_thread(worktree, **start_kwargs)"],
+"p230":[74,7369,"result, _latency = server.start_thread(worktree, **start_kwargs)"],
 
 "p231":[2,31,"if not args.allow_sol_breakfix:"],
 
-"p232":[74,12459,{"$":13}],
+"p232":[74,12462,{"$":13}],
 
 "p233":[86,"ConnectedBrowserTests.test_share_wrong_content_conversation_purpose_and_expiry_refuse_before_effect",262,"db6685805c939106a917251e2a955d8869bb556189e61449aea6bf0ae5a123a5"],
 
@@ -1280,7 +1280,7 @@
 
 "p238":[74,3706,{"$":284}],
 
-"p239":[64,"RegisteredN1Factory.run",2525,"605910c46c37f2fa48aae94ff6154036d1dd9f289b010b6dd8bf90d30c55d9b7"],
+"p239":[64,"RegisteredN1Factory.run",2537,"605910c46c37f2fa48aae94ff6154036d1dd9f289b010b6dd8bf90d30c55d9b7"],
 
 "p23a":[99,"F5NativeLiveHoldTests.test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control",72,"f207bc2f8e9c15178d0dcbfdf180602184543c6047821684826e1ff49456edea"],
 
@@ -1342,7 +1342,7 @@
 
 "p255":[54,242,{"$":230}],
 
-"p256":[74,7580,{"$":35}],
+"p256":[74,7583,{"$":35}],
 
 "p257":[43,462,{"$":256}],
 
@@ -1362,21 +1362,21 @@
 
 "p25Budget":[148,"CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks",51,"8527c5eb6394a4a05df33b729c116e774e00420a465d8034c5653cdab392e1a6"],
 
-"p25CampaignStart":[149,"_campaign_start",445,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
+"p25CampaignStart":[149,"_campaign_start",449,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
 
 "p25Dial":[146,"_dial_provider",188,"52fe6a0ece405aa8a79d44bfe33af8eef31e92faa0fc915a65aa287fd780a70a"],
 
 "p25Egress":[146,"ProviderBroker._handle",342,"55dca3e7fb430ad940cc66430d944423566f8882b05f2fefa3f6d243e5158fe7"],
 
-"p25Enroll":[149,"initialize_campaign",334,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
+"p25Enroll":[149,"initialize_campaign",338,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
 
-"p25EnrollHeader":[149,345,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
+"p25EnrollHeader":[149,349,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
 
-"p25EnrollMkdir":[149,339,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
+"p25EnrollMkdir":[149,343,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
 
-"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",479,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
+"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",497,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
 
-"p25ExpirySupport0":[148,{"$":330},531,{"$":343}],
+"p25ExpirySupport0":[148,{"$":330},549,{"$":343}],
 
 "p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1715,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
@@ -1414,9 +1414,9 @@
 
 "p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",239,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
 
-"p25PermitSupport0":[148,{"$":330},531,{"$":343}],
+"p25PermitSupport0":[148,{"$":330},549,{"$":343}],
 
-"p25PermitVerify":[149,"verify_qualification_permit",307,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
+"p25PermitVerify":[149,"verify_qualification_permit",311,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
 
 "p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",377,"8a5c03a7dbf20a8094ccea57838b1f8d023d68885d38d877308b4f60e39b19d5"],
 
@@ -1440,7 +1440,7 @@
 
 "p25Receive":[146,"_receive_handoff",298,"bd7ae12514a91ea23c0045a0956835e9a282eeadac62dab106a0e90426f1414d"],
 
-"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2218,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
+"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2230,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
 
 "p25RelayFork":[146,405,"if os.fork() != 0:"],
 
@@ -1448,27 +1448,27 @@
 
 "p25RelaySendFD":[146,290,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
 
-"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2207,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
+"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2219,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
 
 "p25Resolve":[146,"_resolved_provider",176,"2cab59725dc7236d4551ce9000244baf36f857ed37c2e0cfa6b7329514c51aec"],
 
 "p25RpcGate":[42,"_require_native_rpc",212,{"$":336}],
 
-"p25StartAppend":[149,454,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
+"p25StartAppend":[149,458,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
 
-"p25StartSync":[149,455,"os.fsync(descriptor)"],
+"p25StartSync":[149,459,"os.fsync(descriptor)"],
 
 "p25StreamPair":[146,287,"socket.socketpair()",21,287,40],
 
-"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",516,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
+"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",534,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
 
-"p25TransportScopeSupport0":[148,{"$":330},531,{"$":343}],
+"p25TransportScopeSupport0":[148,{"$":330},549,{"$":343}],
 
-"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1191,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
+"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1192,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
 
-"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1181,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
+"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1182,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
 
-"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1201,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
+"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1202,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
 
 "p25a":[116,{"$":56},260,{"$":49}],
 
@@ -1492,7 +1492,7 @@
 
 "p263":[46,"main",189,"5d709ef39400e6bf0f9dcb41d08b235ef6193e291f2a59e1d2810a2bb86c134f"],
 
-"p264":[74,5204,{"$":13}],
+"p264":[74,5207,{"$":13}],
 
 "p265":[76,1660,{"$":95}],
 
@@ -1510,13 +1510,13 @@
 
 "p26c":[43,"WorktreeCapture._resolve_dirs",1934,"759407e0fb8121a074f72d098a7827e410ecd9e99fc1ebc27a5f29ad4bcf5b0b"],
 
-"p26d":[64,"_RegisteredServer.__init__",1153,"455086f7a62609952269401d68a0d894ebb4a3ed70fbb12fd0666cb3c469d0eb"],
+"p26d":[64,"_RegisteredServer.__init__",1153,"55eb44a50ae744ebddae8a2d904b55f39013ed72ee03cb48c45f2f2fa433d2e7"],
 
 "p26e":[30,329,"self._handle.require_intent()"],
 
 "p26f":[32,783,"completed = subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,"],
 
-"p27":[64,1606,"self.request('thread/start', params, timeout=10)",29,1606,77],
+"p27":[64,1607,"self.request('thread/start', params, timeout=10)",29,1607,77],
 
 "p270":[73,706,"_require_live_activation(profile)"],
 
@@ -1550,11 +1550,11 @@
 
 "p27f":[8,839,"self._wait_for_stable_response(page, before_text, response_timeout, stable_wait, request_id=request_id)",32,839,135],
 
-"p28":[42,374,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,385,13],
+"p28":[42,391,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,402,13],
 
 "p280":[64,"_CoherentServerRequests",1030,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
 
-"p281":[74,"main",12838,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
+"p281":[74,"main",12841,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
 
 "p282":[23,"run_bd_structured",58,"d781473c3e5561ed87b7858716b135c9f398f6ad814100d5468acc378a0dad62"],
 
@@ -1572,7 +1572,7 @@
 
 "p289":[51,660,"if supported is not True:"],
 
-"p28a":[42,"AppServer.request_once_with_guard",1014,"07be1111674f6bd1722188fc3945cfd8197e909daeb6395a3477c63a8119c9a4"],
+"p28a":[42,"AppServer.request_once_with_guard",1032,"07be1111674f6bd1722188fc3945cfd8197e909daeb6395a3477c63a8119c9a4"],
 
 "p28b":[16,"execute",323,"58a3653bb306aff1533993e25a8a9499fe94a579bab5278f856417488d612917"],
 
@@ -1582,13 +1582,13 @@
 
 "p28e":[73,211,{"$":58}],
 
-"p28f":[42,"AppServer.__init__",261,"f706303f69ffdfeaf91d75b4c90b43fa1acf4fa9259c1e42d0e81247617134d5"],
+"p28f":[42,"AppServer.__init__",278,"f706303f69ffdfeaf91d75b4c90b43fa1acf4fa9259c1e42d0e81247617134d5"],
 
 "p29":[36,14420,"subprocess.run(\n                    [\"git\", \"worktree\", \"remove\", \"--force\", str(worktree)],\n                    cwd=root,\n                    check=False,\n                    capture_output=True,\n                )",16,14425,17],
 
 "p290":[25,327,"if not result[\"hash_match\"]:"],
 
-"p291":[74,"build_pool_inputs",7089,{"$":170}],
+"p291":[74,"build_pool_inputs",7092,{"$":170}],
 
 "p292":[23,72,"if not target.is_dir():"],
 
@@ -1612,11 +1612,11 @@
 
 "p29c":[73,175,{"$":58}],
 
-"p29d":[74,12835,"return AppServer()"],
+"p29d":[74,12838,"return AppServer()"],
 
 "p29e":[8,{"$":87},1024,{"$":81}],
 
-"p29f":[42,2339,"self._write_payload(payload, method=\"turn/start\", timeout=timeout)",27,2339,93],
+"p29f":[42,2357,"self._write_payload(payload, method=\"turn/start\", timeout=timeout)",27,2357,93],
 
 "p2A":[137,"PrivatePidReuseOSControlTests.test_parent_death_during_handoff_refuses_without_namespace_signal",617,"d5152fadf1f2fc17b9aca8b645af8157d192f67a6f09b26f60f58ea2cbfb42b4"],
 
@@ -1666,13 +1666,13 @@
 
 "p2X":[137,"PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace",498,"b8120a7d82448bf0702110c6216fa39662d2019ca1ec9c7489fff5c05c94d280"],
 
-"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4727,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
+"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4782,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
 
-"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4890,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
+"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4945,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
 
 "p2a":[36,14407,"subprocess.run(\n                [\"git\", \"apply\", \"--index\", \"-\"],\n                cwd=worktree,\n                check=True,\n                capture_output=True,\n                input=patch_bytes,\n            )",12,14413,13],
 
-"p2a0":[74,5096,{"$":13}],
+"p2a0":[74,5099,{"$":13}],
 
 "p2a1":[32,"_Runtime.validate",748,"a54caf7ba867af4a54cb5fb6020a38e4b5ab50668a3509cd2d41439b2c378047"],
 
@@ -1680,7 +1680,7 @@
 
 "p2a3":[33,521,{"$":13}],
 
-"p2a4":[74,13125,{"$":13}],
+"p2a4":[74,13128,{"$":13}],
 
 "p2a5":[73,707,"return AppServer()"],
 
@@ -1688,7 +1688,7 @@
 
 "p2a7":[50,242,"if [[ \"$REPLACE\" -eq 1 && \"$DRY_RUN\" -eq 0 ]]; then"],
 
-"p2a8":[64,1535,"self.lifetime.launch(command, self.factory.home)",18,1535,66],
+"p2a8":[64,1536,"self.lifetime.launch(command, self.factory.home)",18,1536,66],
 
 "p2a9":[2,34,"if args.expires_after_bead.strip() != args.bead.strip():"],
 
@@ -1714,7 +1714,7 @@
 
 "p2b3":[112,"NativePoolAdmissionTests.test_close_owned_rejects_preclosed_or_ownership_drift_before_command",878,"dcf724842eda7dbcfbf72b4c4a5fcc0616f2abcfc4a49e01581b180466f20ad8"],
 
-"p2b4":[42,964,{"$":333}],
+"p2b4":[42,981,{"$":333}],
 
 "p2b5":[91,"ChatGPTShareIngestTests.test_unpinned_reader_never_runs",444,"978feac45ad69ac3859cf737683204f53427b7956028b41070ee46b10f0d7f3d"],
 
@@ -1724,7 +1724,7 @@
 
 "p2b8":[27,552,"if expected_binary is not None and (not isinstance(expected_binary, (str, Path))"],
 
-"p2b9":[42,"AppServer.request",957,"28d8c8d855ca6f9ae7f5b78665ec1d32fb7568f4e748c999bbaf5be9513fd91a"],
+"p2b9":[42,"AppServer.request",974,"7ff2742bea2c6f7757c204c1bf471bfed17c4009a41ab81613b40ed5d8c678ba"],
 
 "p2ba":[37,527,"result = self._run("],
 
@@ -1734,7 +1734,7 @@
 
 "p2bd":[27,545,"expected_binary: Path | str | None = None,"],
 
-"p2be":[42,1409,"self.request(\n            \"thread/read\",\n            {\"threadId\": thread_id, \"includeTurns\": True},\n            timeout=timeout,\n        )",26,1413,9],
+"p2be":[42,1427,"self.request(\n            \"thread/read\",\n            {\"threadId\": thread_id, \"includeTurns\": True},\n            timeout=timeout,\n        )",26,1431,9],
 
 "p2bf":[17,"write_hooks",306,{"$":234}],
 
@@ -1746,7 +1746,7 @@
 
 "p2c2":[62,1669,"count = os.write(descriptor, payload)"],
 
-"p2c3":[42,2224,"_require_native_rpc(\"turn/start\", self)"],
+"p2c3":[42,2242,"_require_native_rpc(\"turn/start\", self)"],
 
 "p2c4":[60,358,"return self.opener.open(req, timeout=min(timeout, remaining))"],
 
@@ -1786,7 +1786,7 @@
 
 "p2d5":[68,314,"R.live_availability.require_pool_live()"],
 
-"p2d6":[74,13124,{"$":35}],
+"p2d6":[74,13127,{"$":35}],
 
 "p2d7":[112,"NativePoolAdmissionTests.test_concurrent_duplicate_consume_has_one_winner",664,"c8146754d52b045ac3dbdd2c6d2806b4398ac9342368aa16be2ce7a2d8cfcbc4"],
 
@@ -1796,7 +1796,7 @@
 
 "p2da":[34,308,"_run(\n        [\"bd\", *args],\n        cwd=directory,\n        env=_bd_environment(directory),\n        label=\"activation-beads\",\n    )",11,313,5],
 
-"p2db":[134,"FullAutoAuthorizationLauncherTests.test_global_claim_path_forwards_gate_scoped_operator_authorities",15395,"cfa96d85d333a302bd9f7f48c7b886aad1d2cc723d2bfd2e73253745d6f7a985"],
+"p2db":[134,"FullAutoAuthorizationLauncherTests.test_global_claim_path_forwards_gate_scoped_operator_authorities",15455,"cfa96d85d333a302bd9f7f48c7b886aad1d2cc723d2bfd2e73253745d6f7a985"],
 
 "p2dc":[8,"PlaywrightChatGPTRunner._wait_for_stable_response",1264,"c798acacb0c2aa4020fe876f553dd8e751414d78065981589ca61fc4a766ae26"],
 
@@ -1812,7 +1812,7 @@
 
 "p2e1":[73,1086,"approval = read_private_json("],
 
-"p2e2":[74,5179,"pre_allocation_check()"],
+"p2e2":[74,5182,"pre_allocation_check()"],
 
 "p2e3":[59,"consume",706,"fe5417f6e0cb00188ea30f1968f50174330043a4fd014fb75a2bf1606f47578d"],
 
@@ -1836,7 +1836,7 @@
 
 "p2ed":[59,415,{"$":57}],
 
-"p2ee":[64,2472,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2472,99],
+"p2ee":[64,2484,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2484,99],
 
 "p2ef":[8,{"$":197},1060,{"$":188}],
 
@@ -1846,7 +1846,7 @@
 
 "p2f1":[106,"Issue41DispatchMatrixTests.assert_browser_hold",383,"ab5aa1c29eade0eadc4d718bad81609b2cd380265e8cfdb613d92a31c4fa8968"],
 
-"p2f2":[42,"AppServer.start_thread",1258,"d70e0a54efc3c414d9642e4ee63616dbd169a624fe3da22cd0d7a06350abb0c1"],
+"p2f2":[42,"AppServer.start_thread",1276,"d70e0a54efc3c414d9642e4ee63616dbd169a624fe3da22cd0d7a06350abb0c1"],
 
 "p2f3":[44,804,"_resolve_local_endpoint_addresses(parsed.hostname, port)",16,804,72],
 
@@ -1972,7 +1972,7 @@
 
 "p319":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",679,"45d33cd966384729b74c39b88b42952a8373ff629909d0012379628c6c8fac3f"],
 
-"p31a":[74,7485,"campaign_live_route=True,"],
+"p31a":[74,7488,"campaign_live_route=True,"],
 
 "p31b":[8,{"$":200},1011,{"$":224}],
 
@@ -1980,7 +1980,7 @@
 
 "p31d":[99,"F5NativeLiveHoldTests.test_r5_f5_held_n1_raw_library_zero_launch_and_patched_fake_launch",50,"9406a16a58b02b11a4c290b4f125f441f7f181cf605d43f85e72c5700a575ce7"],
 
-"p31e":[74,"build_pool_inputs",7089,{"$":170}],
+"p31e":[74,"build_pool_inputs",7092,{"$":170}],
 
 "p31f":[73,212,{"$":211}],
 
@@ -1990,7 +1990,7 @@
 
 "p321":[27,"prepare_capture_binding",541,"62a8d76d6644a62380eb684c818896f7370da7ee4b7c7186ab6013bd79e4d252"],
 
-"p322":[74,12498,"reservation = acquire_global_campaign_claim("],
+"p322":[74,12501,"reservation = acquire_global_campaign_claim("],
 
 "p323":[17,400,{"$":324}],
 
@@ -1998,7 +1998,7 @@
 
 "p325":[2,54,"if not all((payload[\"operator_approval_ref\"], payload[\"sol_breakfix_scope\"], payload[\"sol_breakfix_expiry\"])):"],
 
-"p326":[64,2202,{"$":13}],
+"p326":[64,2214,{"$":13}],
 
 "p327":[23,"create_bead",231,"86b606298bf0b24b6e2416b45f7d92a832c408aea4f2ae0d10b3dbd65245b079"],
 
@@ -2006,7 +2006,7 @@
 
 "p329":[43,"WorktreeCapture._git",1542,"957bbafc0ae3a4261e504991fcbd97b3bade28080c0065c3e78da2eba25e419c"],
 
-"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",3127,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
+"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",3182,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
 
 "p32b":[31,"MaintenanceAuthorityVerifier.__init__",344,"03802d0590db57d2c1f457a056a7a56ee8a0e0ffce20be5e4abbad96ece2eb34"],
 
@@ -2058,7 +2058,7 @@
 
 "p341":[34,"_run",251,"043c67cecbd88fe946f19837214aba0a39406c62d7280a03e49f76226ca692af"],
 
-"p342":[64,"RegisteredN1Factory._effect",2355,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
+"p342":[64,"RegisteredN1Factory._effect",2367,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
 
 "p343":[64,702,"result = self.controller.spawn_owned("],
 
@@ -2108,7 +2108,7 @@
 
 "p359":[51,"_LinuxEngine._capability",658,"b13ee7b85d401e179654e9581e68990fa87794af4c3884d10b2c348d19984466"],
 
-"p35AttachmentAdmission":[64,"RegisteredN1Factory._selected_access_token",2481,"cbeb9b7ce8a7a1cb81f9053c502e10e0413b0688ea98a9691769cea64195e82a"],
+"p35AttachmentAdmission":[64,"RegisteredN1Factory._selected_access_token",2493,"cbeb9b7ce8a7a1cb81f9053c502e10e0413b0688ea98a9691769cea64195e82a"],
 
 "p35AttachmentRead":[146,"_read_access_token",427,"bfcc5ecf74d7f2ae741fe437bd7821bc1e03556fee0712797d4d80e6bedc7a2a"],
 
@@ -2118,7 +2118,7 @@
 
 "p35AuthAbsent":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",85,"286440c9d6e1457ac6b74f25862849cd2d29a19d093692fc22fbe76153d001a0"],
 
-"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",458,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
+"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",476,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
 
 "p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",235,"9d49cbff7cef5e78c2f32e4ce3d50f2d2483dc636827c42edb332215bc575254"],
 
@@ -2132,7 +2132,7 @@
 
 "p35b":[11,39,"if lane not in CONTRACT[\"interpreters\"]:"],
 
-"p35c":[74,7588,"build_pool_inputs(\n        server,\n        capability_receipt,\n        campaign_manifest,\n        root=root,\n        integration=integration,\n        pool_name=pool_name,\n        worktrees=worktrees,\n        mutable=mutable,\n        prompts=prompts,\n        expected_tokens=expected_tokens,\n        completion_evidence_policies=completion_evidence_policies,\n        tool_policies=tool_policies,\n        read_only_command_authorities=read_only_command_authorities,\n        pre_thread_start_check=pre_thread_start_check,\n        pre_allocation_check=pre_allocation_check,\n        expected_bound_manifest_validation=expected_bound_manifest_validation,\n        interrupt_after=interrupt_after,\n    )",8,7606,5],
+"p35c":[74,7591,"build_pool_inputs(\n        server,\n        capability_receipt,\n        campaign_manifest,\n        root=root,\n        integration=integration,\n        pool_name=pool_name,\n        worktrees=worktrees,\n        mutable=mutable,\n        prompts=prompts,\n        expected_tokens=expected_tokens,\n        completion_evidence_policies=completion_evidence_policies,\n        tool_policies=tool_policies,\n        read_only_command_authorities=read_only_command_authorities,\n        pre_thread_start_check=pre_thread_start_check,\n        pre_allocation_check=pre_allocation_check,\n        expected_bound_manifest_validation=expected_bound_manifest_validation,\n        interrupt_after=interrupt_after,\n    )",8,7609,5],
 
 "p35d":[67,353,{"$":35}],
 
@@ -2166,7 +2166,7 @@
 
 "p36FiniteAdmit":[63,"RegisteredFiniteToolCalls.receive",814,{"$":346}],
 
-"p36FiniteArchive":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1774,"b4040d8e51171b1d374a9e26e8da3dc1db6782adb39699fd4fe6e7756c86e45f"],
+"p36FiniteArchive":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1829,"b4040d8e51171b1d374a9e26e8da3dc1db6782adb39699fd4fe6e7756c86e45f"],
 
 "p36FiniteAwaitOriginal":[63,"QualifiedToolEvidence._wait_original_call",275,"59a9947e5dd6e73e752297b46b397830f3707faefb15b4e094294cb270746464"],
 
@@ -2176,21 +2176,21 @@
 
 "p36FiniteHistorical":[62,"_FiniteLifecycle.authority_terminal_reply_sent",207,"19d0a893f391688ae41aa53ebddb84acd66495a201bada1ddf4471fb2c2c4faa"],
 
-"p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",1977,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
+"p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",2032,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
 
-"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1272,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
+"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1273,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
 
-"p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1926,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
+"p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1981,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
 
-"p36FiniteLateSupport":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",1932,"4b3433322987eb6e977148d15383aeb667f1b0076c53aa6d85abbaaf03d7c024"],
+"p36FiniteLateSupport":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",1987,"4b3433322987eb6e977148d15383aeb667f1b0076c53aa6d85abbaaf03d7c024"],
 
 "p36FiniteMatch":[63,"QualifiedToolEvidence._project",249,"47c1685ecf94998ddcbc1fe5b42d57b582ab58efd882b80837a4b0620782ee59"],
 
 "p36FiniteQueuedItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item",785,"bec49dd2a00880480b7dca477f2941ac5a9a375367eb601dfc4377b6f381c171"],
 
-"p36FiniteRaceSupport":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1870,"0002d7ec83ef1635dd516baed13c367b00a43a2d66d6c1d094cb26a319b0f561"],
+"p36FiniteRaceSupport":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1925,"0002d7ec83ef1635dd516baed13c367b00a43a2d66d6c1d094cb26a319b0f561"],
 
-"p36FiniteRefusal":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1777,"7e884980369353800a945bedcd95102665f6500f2ff57dc3de0685ceb894f837"],
+"p36FiniteRefusal":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1832,"7e884980369353800a945bedcd95102665f6500f2ff57dc3de0685ceb894f837"],
 
 "p36FiniteReplyDispatch":[62,"RegisteredFiniteInput._dispatch_tool_reply",1569,"b349f67c3b8d5d09650e9cada2e715ad0c6ecb701a6b2ebeeaa75a644397bc4a"],
 
@@ -2198,13 +2198,13 @@
 
 "p36FiniteWaitTerminal":[63,"QualifiedToolEvidence._wait_terminal_reply",291,"973c5918e118ac096cbd002a96985f71117cae708efb850b19f6ae9695ae7a8e"],
 
-"p36SchemaContract":[141,"_check_n1_qualification",432,"f89a627ce9bff40376f19f9fd0fadf4d2c2460326a4a4f6004ee2928acc4709f"],
+"p36SchemaContract":[141,"_check_n1_qualification",432,"91677c3925bcfef392f0b8e6764eeae75d349df8e78d0e0f6af82a759834d610"],
 
-"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",543,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
+"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",561,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
 
 "p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",668,"a7f87b36be3adf54b0d4000b3199ebada174ff892595c40d7b388dec3f044192"],
 
-"p36SchemaSelect":[149,"require_executable_schema",244,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
+"p36SchemaSelect":[149,"require_executable_schema",245,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
 
 "p36a":[47,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -2240,7 +2240,7 @@
 
 "p379":[8,728,{"$":252}],
 
-"p37a":[42,978,{"$":288},23,978,83],
+"p37a":[42,995,{"$":288},23,995,83],
 
 "p37b":[74,3707,"turn, _latency = self.server.start_turn(self.thread_id, message)"],
 
@@ -2286,7 +2286,7 @@
 
 "p38f":[79,165,"bd_json(command)",42,165,58],
 
-"p39":[74,12835,"AppServer()",11,12835,22],
+"p39":[74,12838,"AppServer()",11,12838,22],
 
 "p390":[39,135,"binding.terminate_method(binding.issuer, binding.receipt, grace_seconds=grace_seconds,\n                                    min_age_seconds=min_age_seconds, allow_kill=allow_kill)",11,136,91],
 
@@ -2358,19 +2358,19 @@
 
 "p3S":[64,"_observe_adapter_failure",106,"869cdfc10f26047f7317a60cd6ace3e5842a732b4918a543b1f6af4c8ce05c9c"],
 
-"p3T":[64,"RegisteredN1Factory._make_adapter",2332,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
+"p3T":[64,"RegisteredN1Factory._make_adapter",2344,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
 
-"p3U":[64,"RegisteredN1Factory.model_task_binding",2127,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
+"p3U":[64,"RegisteredN1Factory.model_task_binding",2139,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
 
-"p3V":[64,"RegisteredAdapter._current_effective_boundary",1874,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
+"p3V":[64,"RegisteredAdapter._current_effective_boundary",1884,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
 
-"p3W":[64,"RegisteredN1Factory.model_task_bytes",2123,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
+"p3W":[64,"RegisteredN1Factory.model_task_bytes",2135,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
 
 "p3X":[111,"NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance",279,"f72d7a5e54a472bcac0502f46b639be46bf7b8a49fc39fad2f28e3f6720eab89"],
 
-"p3Y":[64,"RegisteredN1Factory._require_model_task",2118,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
+"p3Y":[64,"RegisteredN1Factory._require_model_task",2130,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
 
-"p3Z":[64,2119,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2121,74],
+"p3Z":[64,2131,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2133,74],
 
 "p3a":[8,739,{"$":254},26,743,17],
 
@@ -2378,31 +2378,31 @@
 
 "p3a1":[88,"ShareConsentTests",140,"856b0ba17280a32f78af37a6c37edfb30e42b19f2f547f0c5817e8f176e27006"],
 
-"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2701,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
+"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2756,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
 
-"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2637,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
+"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2692,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
 
-"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2612,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
+"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2667,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
 
-"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2549,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
+"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2604,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
 
-"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2575,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
+"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2630,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
 
-"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",2428,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
+"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",2483,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
 
-"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2540,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
+"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2595,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
 
-"p3a9":[42,600,{"$":333},16,600,49],
+"p3a9":[42,617,{"$":333},16,617,49],
 
-"p3aa":[42,667,"os.write(fd, frame)",19,667,38],
+"p3aa":[42,684,"os.write(fd, frame)",19,684,38],
 
-"p3ab":[42,"AppServer._refuse_server_request",641,"bb2818862adccdd0bf38c09a34c7bd398590f3a1ec76b9cd9de05d8c02ae7bb0"],
+"p3ab":[42,"AppServer._refuse_server_request",658,"bb2818862adccdd0bf38c09a34c7bd398590f3a1ec76b9cd9de05d8c02ae7bb0"],
 
-"p3ac":[42,634,"stream.write(self._checked_write_frame(binding, frame, None, method).decode(\"utf-8\"))"],
+"p3ac":[42,651,"stream.write(self._checked_write_frame(binding, frame, None, method).decode(\"utf-8\"))"],
 
-"p3ad":[42,605,"os.write(fd, frame[offset:])",24,605,52],
+"p3ad":[42,622,"os.write(fd, frame[offset:])",24,622,52],
 
-"p3ae":[42,"AppServer._write_payload",615,"f6d7341b3ed151f1b4fec4d8d0ef11ce878921262a067d4a6c9dbb43f393adbc"],
+"p3ae":[42,"AppServer._write_payload",632,"f6d7341b3ed151f1b4fec4d8d0ef11ce878921262a067d4a6c9dbb43f393adbc"],
 
 "p3b":[23,97,"subprocess.run(\n            command,\n            check=False,\n            cwd=target,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,105,9],
 
@@ -2414,21 +2414,21 @@
 
 "p3f":[76,1488,{"$":217},8,1492,9],
 
-"p3g":[64,"RegisteredN1Factory.record_dispatch",2161,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
+"p3g":[64,"RegisteredN1Factory.record_dispatch",2173,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
 
-"p3h":[64,2169,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2178,9],
+"p3h":[64,2181,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2190,9],
 
 "p3i":[111,"NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority",301,"7bf973b3e6e53c0e6c5fe7171dead072a12556ad50a9ab58ea29e5bc3cfbbd64"],
 
-"p3j":[64,1903,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1905,93],
+"p3j":[64,1913,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1915,93],
 
-"p3k":[64,"RegisteredN1Factory.guard",2089,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
+"p3k":[64,"RegisteredN1Factory.guard",2101,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
 
 "p3l":[111,"NativeOutboundScreenTests.registered_fixture",37,"2cc9dcf7da58c4f77b488c6c3a7dce0e94203e087fa5a2b9acff27ac22cf0842"],
 
 "p3m":[64,91,"_need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes\n          and _snapshot(selected['execution']) == receipt.execution_bytes,\n          'The model task requires the exact original admitted request and execution.')",4,93,87],
 
-"p3n":[64,"_registered_adapter_method",1954,"8b37de2cb04b07183fa7c73e71cb2265f80a9c089336d5cc0d55cead8a95fbfc"],
+"p3n":[64,"_registered_adapter_method",1965,"9fed8550d3650948ddb7301da8ba7e9af71155d945fbf6e1a840a2c3e99c1e28"],
 
 "p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1790,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
 
@@ -2436,17 +2436,17 @@
 
 "p3q":[64,"_model_task",88,"1e7f83afba24a773dbce985590786eb56a82c0c5f30d40e24cb25deeefab38f1"],
 
-"p3r":[64,1876,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1876,99],
+"p3r":[64,1886,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1886,99],
 
 "p3s":[64,101,"_need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),\n          'The complete model task exceeds its original admitted byte allowance.')",4,102,82],
 
-"p3t":[64,"RegisteredAdapter.final_summary",1881,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
+"p3t":[64,"RegisteredAdapter.final_summary",1891,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
 
-"p3u":[64,1901,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1902,80],
+"p3u":[64,1911,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1912,80],
 
 "p3v":[111,"NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent",313,"448bff8184737597bf2cf9104a880623c7f0c7b36d91472f0423f5c5adecb5ed"],
 
-"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1893,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
+"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1903,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
 
 "p3x":[64,"_require_summary_primary",118,"ee253260a8982eca8f9b9b7617ac6dbdbdf49dcfb656ae4790273801f3e9cde6"],
 
@@ -2462,15 +2462,15 @@
 
 "p42":[8,677,{"$":254},26,681,17],
 
-"p42Archive":[149,"ManagedLoginMount.confirm_archived",202,"b52e8ee2fded973437991fbd7ce4f47a40fcb69ed62bd9f2f77470c1a3eea338"],
+"p42Archive":[149,"ManagedLoginMount.confirm_archived",203,"b52e8ee2fded973437991fbd7ce4f47a40fcb69ed62bd9f2f77470c1a3eea338"],
 
 "p42Interlock":[148,"CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release",95,"acf85bb27912d3e6d203555ce7f4fb4f4b9e97a4e694d95f22d838c81b00a722"],
 
-"p42LeaseClaim":[149,"claim_managed_login",365,"491ee59b40ed621f2e4930d4d7e4564683ac9b5f931037f1bf8874b4aa6c8ceb"],
+"p42LeaseClaim":[149,"claim_managed_login",369,"491ee59b40ed621f2e4930d4d7e4564683ac9b5f931037f1bf8874b4aa6c8ceb"],
 
-"p42LeaseRetire":[64,"RegisteredN1Factory._retire_managed_login",2505,"ca2c4dc74dad3324410da99c84a57263e6883f38cf6456cc355f367b9a1f01ef"],
+"p42LeaseRetire":[64,"RegisteredN1Factory._retire_managed_login",2517,"ca2c4dc74dad3324410da99c84a57263e6883f38cf6456cc355f367b9a1f01ef"],
 
-"p42LoginSelection":[64,"RegisteredN1Factory._select_managed_login",2036,"7afdf6915afbe268fdf048ca7bfbd6f3efc39c8d064787bc85bbb127f25113fc"],
+"p42LoginSelection":[64,"RegisteredN1Factory._select_managed_login",2048,"7afdf6915afbe268fdf048ca7bfbd6f3efc39c8d064787bc85bbb127f25113fc"],
 
 "p42MountVerify":[64,"_Containment._confirm_login_mount",634,"04d0e792136607c7609f9afa4d68370267cd17185f760ba22e3c483992492eed"],
 
@@ -2478,15 +2478,15 @@
 
 "p42Namespace":[148,"ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes",188,"4f16c4f92862debb13b92196ea293af3f7a097be7b4f1dd19d44b4b0d007d5da"],
 
-"p42Precharge":[148,"FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace",329,"3d5d8d26e305ffa0017b7d3168f4f2e52bd0d14756c6e57a5600289d42c2593a"],
+"p42Precharge":[148,"FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace",347,"3d5d8d26e305ffa0017b7d3168f4f2e52bd0d14756c6e57a5600289d42c2593a"],
 
-"p42Projection":[149,"ManagedLoginMount.prepare",143,"2f15c0e5211efe830f098372a2f14e963584903ee902969e06463b6dbc9471cb"],
+"p42Projection":[149,"ManagedLoginMount.prepare",144,"2f15c0e5211efe830f098372a2f14e963584903ee902969e06463b6dbc9471cb"],
 
 "p42Provider":[147,"ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist",110,"cbcfc8f9988446c042ac5c53e586916786ecd672d83e9ea540b9e8ac7e8736d2"],
 
-"p42Rollout":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",373,"273264f1d3281f34e020202294c1788688e9e6b1e99a2addfc6ac0d551c9d358"],
+"p42Rollout":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",391,"273264f1d3281f34e020202294c1788688e9e6b1e99a2addfc6ac0d551c9d358"],
 
-"p42Unresolved":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",339,"ce1b7f7a372f3c205d2141ad468fea166d831755f9d6b8923037d21850e4912d"],
+"p42Unresolved":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",357,"ce1b7f7a372f3c205d2141ad468fea166d831755f9d6b8923037d21850e4912d"],
 
 "p43":[23,187,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,195,9],
 
@@ -2494,17 +2494,17 @@
 
 "p43MethodEnvelope":[150,"_check_method_envelope",199,"86eeb2273f741419d07fcca70d56136682ab8b136f5b7e7974555bd781a7e9ac"],
 
-"p43ReadNotification":[64,"_RegisteredServer._protocol_lines",1236,"cf5864e9618ec5fb6e4e243e0e5905f8e71c1df862933d0d6dd0f40d89837dd5"],
+"p43ReadNotification":[64,"_RegisteredServer._protocol_lines",1237,"cf5864e9618ec5fb6e4e243e0e5905f8e71c1df862933d0d6dd0f40d89837dd5"],
 
 "p43TimestampPositive":[151,"ServerRequestPreparationTests.test_timestamped_notification_preserves_the_actual_frame",344,"02dcd021f899614f2ae19ef830d3d4c9bb566901e391483f9d8cce3de8e90fe7"],
 
 "p43TimestampRefusal":[151,"ServerRequestPreparationTests.test_timestamped_envelope_refuses_bad_timestamps_and_non_notifications",353,"df3bcd847124c2b1c516b7c89cb06226a3ddbcfef35068665ef1acb48d76eb3e"],
 
-"p43TimestampStartup":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",599,"e379cf6d90a5836349060ab544e7aa88e80887b780718a4c92fea74c9d743cea"],
+"p43TimestampStartup":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",617,"e379cf6d90a5836349060ab544e7aa88e80887b780718a4c92fea74c9d743cea"],
 
 "p44":[8,683,{"$":250},12,683,115],
 
-"p45":[42,395,{"$":310},12,395,42],
+"p45":[42,412,{"$":310},12,412,42],
 
 "p46":[19,17,{"$":313},4,17,95],
 
@@ -2530,7 +2530,7 @@
 
 "p50":[8,1057,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1057,72],
 
-"p51":[64,1505,"super().request(*args, **kwargs)",17,1505,49],
+"p51":[64,1506,"super().request(*args, **kwargs)",17,1506,49],
 
 "p52":[50,202,{"$":315}],
 
@@ -2628,7 +2628,7 @@
 
 "p7f":[102,"HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest",46,"e60f60bff14fc83c6ab85e1cf6e25a344dc768508aee9e8aad810e15b689bbd8"],
 
-"p8":[42,339,"subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,\n                stderr=subprocess.PIPE, text=True, bufsize=1, umask=0o077, env=environment)",27,340,91],
+"p8":[42,356,"subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,\n                stderr=subprocess.PIPE, text=True, bufsize=1, umask=0o077, env=environment)",27,357,91],
 
 "p80":[28,226,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
 
@@ -2760,15 +2760,15 @@
 
 "pSchemaDiagnostic":[77,"SelectedNativeProbe.__init__",244,"d85d59ea250d08417882d99f7d004e780ea1e4a0b5466456e89e7a1c7998a23c"],
 
-"pSchemaEntry":[141,"check_codex_capabilities",493,"8c590668816022869d0d77cc19b7ce0e900be39e8b88d7bb2d4529fc6378f95a"],
+"pSchemaEntry":[141,"check_codex_capabilities",495,"8c590668816022869d0d77cc19b7ce0e900be39e8b88d7bb2d4529fc6378f95a"],
 
 "pSchemaLauncher":[77,"_schema_launcher",201,"86292ca77a2e901c641725c7543a1da1eeabd17b06a4f4cbacf9cfd608fd11f2"],
 
-"pSchemaProcess":[141,464,"subprocess.run(command, cwd=root, env=env, check=True, timeout=_SCHEMA_SECONDS,\n                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,\n                       umask=0o077)",8,466,35],
+"pSchemaProcess":[141,466,"subprocess.run(command, cwd=root, env=env, check=True, timeout=_SCHEMA_SECONDS,\n                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,\n                       umask=0o077)",8,468,35],
 
-"pSchemaWitness":[142,"CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability",112,"ce899572e6383c6b926850bb133274971386859b7cd3a734e0bce1b58b8443f6"],
+"pSchemaWitness":[142,"CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability",116,"ce899572e6383c6b926850bb133274971386859b7cd3a734e0bce1b58b8443f6"],
 
-"pT":[42,"AppServer._raise_failed_turn_start",2199,"8f2bd370b7c95ad75ce0faff59bb4489fc1a454114e155c953f20091bd6fa1c7"],
+"pT":[42,"AppServer._raise_failed_turn_start",2217,"8f2bd370b7c95ad75ce0faff59bb4489fc1a454114e155c953f20091bd6fa1c7"],
 
 "pU":[111,"NativeOutboundScreenTests.test_clean_original_turn_remains_useful_and_single_dispatch",89,"798565ae902efbb6fe4cd66a031bcaaa3abe08b940bd38575daea7cdd23c5393"],
 
@@ -2866,7 +2866,7 @@
 
 "pc6":[37,505,"if (\n            pre_hash != expected_pre_show_sha256\n            or pre.get(\"status\") != \"in_progress\"\n            or pre.get(\"assignee\") != self.actor\n        ):"],
 
-"pc7":[74,5205,"result, preallocation_latency = server.start_thread(cwd, **start_kwargs)"],
+"pc7":[74,5208,"result, preallocation_latency = server.start_thread(cwd, **start_kwargs)"],
 
 "pc8":[12,"write_install_manifest",726,"8f21f11005f4682849ec64a1810d70c2399137ff1e28cab60f0839170145b1cc"],
 
@@ -2878,7 +2878,7 @@
 
 "pcc":[32,"_Runtime.start_worker_session",587,"d29a898ef92223b919162508dd3bfea8f234b448eaa4b35f4819d96dc7c44268"],
 
-"pcd":[42,2532,"self.request(\n            \"thread/delete\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2536,9],
+"pcd":[42,2550,"self.request(\n            \"thread/delete\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2554,9],
 
 "pce":[12,"main",846,"d0017093d8849ce4efedc6c4462bee8f1bcbdd348d8f24efcf40614272f997e6"],
 
@@ -2896,9 +2896,9 @@
 
 "pd4":[41,1482,"return {\"contract_valid\": True, \"complete_effect_trace\": True, \"f8_complete\": False,"],
 
-"pd5":[74,7117,{"$":13}],
+"pd5":[74,7120,{"$":13}],
 
-"pd6":[74,7581,{"$":13}],
+"pd6":[74,7584,{"$":13}],
 
 "pd7":[49,363,"copy_projection \"$INSTALL_STAGE_DIR\" \"$directories\" \"$files\""],
 
@@ -2912,7 +2912,7 @@
 
 "pdc":[73,"ActivationLedgerTransport.start_turn",203,"9b7975ac0b344f731b685ebeefa31d1e395e162049f0bc2d9f55cbc3d444e341"],
 
-"pdd":[42,1051,{"$":288},27,1051,87],
+"pdd":[42,1069,{"$":288},27,1069,87],
 
 "pde":[37,2038,"revalidate_reservation_live("],
 
@@ -2926,7 +2926,7 @@
 
 "pe2":[73,1073,{"$":58}],
 
-"pe3":[74,12457,{"$":43}],
+"pe3":[74,12460,{"$":43}],
 
 "pe4":[41,"_review",1435,{"$":155}],
 
@@ -2948,7 +2948,7 @@
 
 "ped":[73,719,{"$":210}],
 
-"pee":[134,"LiveCanaryMaterializationTests.test_final_watermark_failure_prevents_calibration_allocation",3400,"b71129448e0f544bc6ac8935c141e9241c9ee47fd2aec7c5984eeec24b661ecf"],
+"pee":[134,"LiveCanaryMaterializationTests.test_final_watermark_failure_prevents_calibration_allocation",3434,"b71129448e0f544bc6ac8935c141e9241c9ee47fd2aec7c5984eeec24b661ecf"],
 
 "pef":[22,267,"os.execve(request['executable'],request['argv'],{})"],
 
@@ -2966,7 +2966,7 @@
 
 "pf5":[90,"ChatGPTBrowserReviewTests.test_selection_does_not_click_loose_text_when_confirmation_required",807,"a47c6f340f774a016b7df19dd2b26d960379080cab002ba9fc79002eff3c7597"],
 
-"pf6":[74,"_start_campaign_server",12831,"b2c94a55a0619f4b136b62fd5ed155fc9454987024cc6dbfdd801b1ee6e8f165"],
+"pf6":[74,"_start_campaign_server",12834,"b2c94a55a0619f4b136b62fd5ed155fc9454987024cc6dbfdd801b1ee6e8f165"],
 
 "pf7":[48,219,"directory.read(response_file)",29,219,58],
 
@@ -2976,7 +2976,7 @@
 
 "pfa":[38,1489,"require_recovery_authority(plan, runtime)"],
 
-"pfb":[42,"AppServer.start_turn",2214,"43faa9a5220328dc13f30d22e845006cc87f949f8bd9d09ef2347dc07996d6c6"],
+"pfb":[42,"AppServer.start_turn",2232,"43faa9a5220328dc13f30d22e845006cc87f949f8bd9d09ef2347dc07996d6c6"],
 
 "pfc":[95,"ConfigureCodexBeadsHooksTests.test_cli_json_reports_unsupported_quiet_without_writing",163,"6089a748c614e927764b8826d8a5ebaf2254ca90ae274bd42733eb1daa515e9f"],
 
@@ -2998,7 +2998,7 @@
 
 "pl":[111,"NativeOutboundScreenTests.test_secondary_termination_descriptor_and_note_failures_preserve_primary",215,"611e3d97f368104633a17cd02a95b655025ec1d99b36446b4fc19f4e835630c6"],
 
-"pm":[42,"AppServer._checked_write_frame",553,"b1ee684f60a21bdaf29f4669df7b81b7100f78ba2a0dc56ad2405db5f41cd651"],
+"pm":[42,"AppServer._checked_write_frame",570,"b1ee684f60a21bdaf29f4669df7b81b7100f78ba2a0dc56ad2405db5f41cd651"],
 
 "pn":[42,"_native_write_failure_reason",138,"66544a8c8bd6b2c8fdc440c9748c58108f48d345352e9b85fecdb64298e43edf"],
 
@@ -3006,7 +3006,7 @@
 
 "pp":[42,126,"if deadline is not None and time.monotonic() >= deadline:"],
 
-"pq":[42,"AppServer._restore_wire_writer",565,"ce12e816164f256037abc23bccec9dc79de1896ad264fe4089ed4970c9bd1d2e"],
+"pq":[42,"AppServer._restore_wire_writer",582,"ce12e816164f256037abc23bccec9dc79de1896ad264fe4089ed4970c9bd1d2e"],
 
 "pr":[77,938,"library.prctl(47, 4, 0, 0, 0)",10,938,39],
 
@@ -4391,7 +4391,7 @@
 
 [17,334,24,334,180,"process","0318cdc4a67405070420233f967833b92593b974af59cca55e64031469568a0e",["route","X1.2","p2b"]],
 
-[86,464,8,466,35,"process","18ebe3f1df7b8c2416e17cfef42ffaddd4e79ccdd47a478ee8dfa937f3a02744",["route","N11.4","pSchemaProcess"]],
+[86,466,8,468,35,"process","18ebe3f1df7b8c2416e17cfef42ffaddd4e79ccdd47a478ee8dfa937f3a02744",["route","N11.4","pSchemaProcess"]],
 
 [18,147,16,155,5,"process","2df2658aff0a84b558f3627dcc1eaa8546bb56a519fe87af202ec28bb8de19af",["route","N11.2","p26"]],
 
@@ -4601,173 +4601,173 @@
 
 [42,185,48,185,88,"dynamic","5800565c8d6e81a2758a9f365a4219a7163c9f556d7c328ff9d0287941988967",[{"$":9},"XR172"]],
 
-[43,339,27,340,91,"process","49f4f5236b30e7f6d3fa9f2fe1405cca3f6e86dc8941c5abccd6a0b0afed9a95",["route","N1.1","p8"]],
+[43,356,27,357,91,"process","49f4f5236b30e7f6d3fa9f2fe1405cca3f6e86dc8941c5abccd6a0b0afed9a95",["route","N1.1","p8"]],
 
-[43,374,24,385,13,{"$":3},"e715a5ecdef22632e43f8c4ca51f15a86871ebdefb303158e2a22af66871176f",["route","N1.1","p28"]],
+[43,391,24,402,13,{"$":3},"e715a5ecdef22632e43f8c4ca51f15a86871ebdefb303158e2a22af66871176f",["route","N1.1","p28"]],
 
-[43,395,12,395,42,{"$":3},{"$":156},["route","N1.1","p45"]],
+[43,412,12,412,42,{"$":3},{"$":156},["route","N1.1","p45"]],
 
-[43,402,26,402,74,"dynamic",{"$":190},[{"$":9},"XR176"]],
+[43,419,26,419,74,"dynamic",{"$":190},[{"$":9},"XR176"]],
 
-[43,502,17,502,48,"dynamic","41fcde87cc1cec206e71528f12245217332f87a2b4545b521c559d0c85329297",[{"$":9},"transport-stdout-buffer"]],
+[43,519,17,519,48,"dynamic","41fcde87cc1cec206e71528f12245217332f87a2b4545b521c559d0c85329297",[{"$":9},"transport-stdout-buffer"]],
 
-[43,519,16,519,52,"dynamic",{"$":214},[{"$":9},"transport-response-byte-accounting"]],
+[43,536,16,536,52,"dynamic",{"$":214},[{"$":9},"transport-response-byte-accounting"]],
 
-[43,526,8,526,44,"dynamic",{"$":214},[{"$":9},"transport-response-byte-release"]],
+[43,543,8,543,44,"dynamic",{"$":214},[{"$":9},"transport-response-byte-release"]],
 
-[43,537,19,537,58,"dynamic","10b396f35ac3d78d02bdcb0ea4f5128150ebfbd62987c8a604a4787982270457",[{"$":9},"transport-notification-byte-accounting"]],
+[43,554,19,554,58,"dynamic","10b396f35ac3d78d02bdcb0ea4f5128150ebfbd62987c8a604a4787982270457",[{"$":9},"transport-notification-byte-accounting"]],
 
-[43,594,15,594,47,"dynamic","1a2cb2d3cf37d576c4b2ae4add3eaebe9c97eaf467f233c72fc49235595426cd",[{"$":9},"transport-writer-closing-state"]],
+[43,611,15,611,47,"dynamic","1a2cb2d3cf37d576c4b2ae4add3eaebe9c97eaf467f233c72fc49235595426cd",[{"$":9},"transport-writer-closing-state"]],
 
-[43,620,14,620,51,"dynamic",{"$":193},[{"$":9},"transport-writer-serialization-state"]],
+[43,637,14,637,51,"dynamic",{"$":193},[{"$":9},"transport-writer-serialization-state"]],
 
-[43,643,11,643,48,"dynamic",{"$":193},[{"$":9},"transport-denial-partial-frame-state"]],
+[43,660,11,660,48,"dynamic",{"$":193},[{"$":9},"transport-denial-partial-frame-state"]],
 
-[43,693,34,695,25,"dynamic","d703705b0360a926f1ffb889733ace0ec8d0fd2ab807956b301d69268edbfd31",[{"$":9},"XR177"]],
+[43,710,34,712,25,"dynamic","d703705b0360a926f1ffb889733ace0ec8d0fd2ab807956b301d69268edbfd31",[{"$":9},"XR177"]],
 
-[43,807,51,811,37,"dynamic","18fd177af39cdb32b20ec009454a3bbffe247a300bfa8f8c452599cbce04b1ea",[{"$":9},"XR178"]],
+[43,824,51,828,37,"dynamic","18fd177af39cdb32b20ec009454a3bbffe247a300bfa8f8c452599cbce04b1ea",[{"$":9},"XR178"]],
 
-[43,819,49,823,37,"dynamic","4212744f5a8095deeef6fe657892f0f9af4b8dfa4ef2d8f999e0eec63be7fc91",[{"$":9},"XR179"]],
+[43,836,49,840,37,"dynamic","4212744f5a8095deeef6fe657892f0f9af4b8dfa4ef2d8f999e0eec63be7fc91",[{"$":9},"XR179"]],
 
-[43,868,12,868,55,"dynamic",{"$":32},[{"$":9},"XR182"]],
+[43,885,12,885,55,"dynamic",{"$":32},[{"$":9},"XR182"]],
 
-[43,874,15,874,58,"dynamic",{"$":32},[{"$":9},"XR183"]],
+[43,891,15,891,58,"dynamic",{"$":32},[{"$":9},"XR183"]],
 
-[43,887,25,887,73,"dynamic",{"$":240},[{"$":9},"XR184"]],
+[43,904,25,904,73,"dynamic",{"$":240},[{"$":9},"XR184"]],
 
-[43,891,33,891,89,{"$":3},"06180ac5000b45e0492ce40aa3277b2453f14607bce8e07d796a371fca102341",[{"$":9},"guard-scope-33aef003e612bf"]],
+[43,908,33,908,89,{"$":3},"06180ac5000b45e0492ce40aa3277b2453f14607bce8e07d796a371fca102341",[{"$":9},"guard-scope-33aef003e612bf"]],
 
-[43,895,19,895,67,"dynamic",{"$":240},[{"$":9},"XR186"]],
+[43,912,19,912,67,"dynamic",{"$":240},[{"$":9},"XR186"]],
 
-[43,922,15,922,58,"dynamic",{"$":32},[{"$":9},"XR187"]],
+[43,939,15,939,58,"dynamic",{"$":32},[{"$":9},"XR187"]],
 
-[43,939,17,939,61,"dynamic","6810117c6aacb6d969f71565eddacddf80c32febc2f8cff178f208887cd1754f",[{"$":9},"transport-stderr-buffer"]],
+[43,956,17,956,61,"dynamic","6810117c6aacb6d969f71565eddacddf80c32febc2f8cff178f208887cd1754f",[{"$":9},"transport-stderr-buffer"]],
 
-[43,973,59,973,102,"dynamic",{"$":32},[{"$":9},"XR188"]],
+[43,990,59,990,102,"dynamic",{"$":32},[{"$":9},"XR188"]],
 
-[43,1037,59,1037,102,"dynamic",{"$":32},[{"$":9},"XR189"]],
+[43,1055,59,1055,102,"dynamic",{"$":32},[{"$":9},"XR189"]],
 
-[43,1094,26,1094,77,{"$":3},"634d7b582ca1249137584565a5c3e2a511aceca913f890d4d38d73ac7eb07fc0",[{"$":9},"guard-scope-8828a037e55681"]],
+[43,1112,26,1112,77,{"$":3},"634d7b582ca1249137584565a5c3e2a511aceca913f890d4d38d73ac7eb07fc0",[{"$":9},"guard-scope-8828a037e55681"]],
 
-[43,1098,26,1098,71,"dynamic",{"$":25},[{"$":9},"XR191"]],
+[43,1116,26,1116,71,"dynamic",{"$":25},[{"$":9},"XR191"]],
 
-[43,1112,16,1112,58,"dynamic",{"$":42},[{"$":9},"XR192"]],
+[43,1130,16,1130,58,"dynamic",{"$":42},[{"$":9},"XR192"]],
 
-[43,1113,26,1113,71,"dynamic",{"$":25},[{"$":9},"XR193"]],
+[43,1131,26,1131,71,"dynamic",{"$":25},[{"$":9},"XR193"]],
 
-[43,1142,16,1142,58,"dynamic",{"$":42},[{"$":9},"XR194"]],
+[43,1160,16,1160,58,"dynamic",{"$":42},[{"$":9},"XR194"]],
 
-[43,1148,32,1148,77,"dynamic",{"$":25},[{"$":9},"XR195"]],
+[43,1166,32,1166,77,"dynamic",{"$":25},[{"$":9},"XR195"]],
 
-[43,1161,16,1161,58,"dynamic",{"$":42},[{"$":9},"XR196"]],
+[43,1179,16,1179,58,"dynamic",{"$":42},[{"$":9},"XR196"]],
 
-[43,1167,32,1167,77,"dynamic",{"$":25},[{"$":9},"XR197"]],
+[43,1185,32,1185,77,"dynamic",{"$":25},[{"$":9},"XR197"]],
 
-[43,1250,20,1250,62,"dynamic",{"$":42},[{"$":9},"XR198"]],
+[43,1268,20,1268,62,"dynamic",{"$":42},[{"$":9},"XR198"]],
 
-[43,1251,36,1251,81,"dynamic",{"$":25},[{"$":9},"XR199"]],
+[43,1269,36,1269,81,"dynamic",{"$":25},[{"$":9},"XR199"]],
 
-[43,1279,34,1279,76,"dynamic",{"$":42},[{"$":9},"XR200"]],
+[43,1297,34,1297,76,"dynamic",{"$":42},[{"$":9},"XR200"]],
 
-[43,1303,21,1303,66,"dynamic",{"$":25},[{"$":9},"XR201"]],
+[43,1321,21,1321,66,"dynamic",{"$":25},[{"$":9},"XR201"]],
 
-[43,1319,26,1323,9,{"$":3},"1cf45275a3cd503f5bb360e68726b6960ba048f0f34e1eb1f37f599f5357e98d",[{"$":9},"guard-scope-5929110daa092c"]],
+[43,1337,26,1341,9,{"$":3},"1cf45275a3cd503f5bb360e68726b6960ba048f0f34e1eb1f37f599f5357e98d",[{"$":9},"guard-scope-5929110daa092c"]],
 
-[43,1329,8,1329,62,"dynamic",{"$":53},[{"$":9},"XR203"]],
+[43,1347,8,1347,62,"dynamic",{"$":53},[{"$":9},"XR203"]],
 
-[43,1333,8,1333,55,"dynamic","10ee933e483a435004d164f0606b3aac85718ab1b1e3ee11fd86eb391ee6c6cd",[{"$":9},"XR204"]],
+[43,1351,8,1351,55,"dynamic","10ee933e483a435004d164f0606b3aac85718ab1b1e3ee11fd86eb391ee6c6cd",[{"$":9},"XR204"]],
 
-[43,1337,8,1337,54,"dynamic","0f20b2c88f25195510f7a99f6978618dbf0f7d4039a4d4604a8c34c31408c0cd",[{"$":9},"XR205"]],
+[43,1355,8,1355,54,"dynamic","0f20b2c88f25195510f7a99f6978618dbf0f7d4039a4d4604a8c34c31408c0cd",[{"$":9},"XR205"]],
 
-[43,1341,8,1341,61,"dynamic",{"$":173},[{"$":9},"XR206"]],
+[43,1359,8,1359,61,"dynamic",{"$":173},[{"$":9},"XR206"]],
 
-[43,1361,34,1361,79,"dynamic",{"$":25},[{"$":9},"XR207"]],
+[43,1379,34,1379,79,"dynamic",{"$":25},[{"$":9},"XR207"]],
 
-[43,1364,27,1368,13,"dynamic","c2c395f5aedd4a1d047be673b30cae4ead529655ffe804cb6618f9fafc4221a6",[{"$":9},"XR208"]],
+[43,1382,27,1386,13,"dynamic","c2c395f5aedd4a1d047be673b30cae4ead529655ffe804cb6618f9fafc4221a6",[{"$":9},"XR208"]],
 
-[43,1391,19,1391,74,"dynamic","d12430b15b4875f5c7e5dee5cebae6a5e0c506af31158d79b8789058f7cd6ff4",[{"$":9},"XR209"]],
+[43,1409,19,1409,74,"dynamic","d12430b15b4875f5c7e5dee5cebae6a5e0c506af31158d79b8789058f7cd6ff4",[{"$":9},"XR209"]],
 
-[43,1399,11,1399,54,"dynamic",{"$":32},[{"$":9},"XR210"]],
+[43,1417,11,1417,54,"dynamic",{"$":32},[{"$":9},"XR210"]],
 
-[43,1409,26,1413,9,{"$":3},"ee575de388967c2b24a43e75353526c0855bcf2e7fc4364c5992357e15063f17",[{"$":9},"guard-scope-54d98db8fd63cd"]],
+[43,1427,26,1431,9,{"$":3},"ee575de388967c2b24a43e75353526c0855bcf2e7fc4364c5992357e15063f17",[{"$":9},"guard-scope-54d98db8fd63cd"]],
 
-[43,1454,23,1454,80,"dynamic",{"$":90},[{"$":9},"XR212"]],
+[43,1472,23,1472,80,"dynamic",{"$":90},[{"$":9},"XR212"]],
 
-[43,1478,12,1478,69,"dynamic",{"$":90},[{"$":9},"XR213"]],
+[43,1496,12,1496,69,"dynamic",{"$":90},[{"$":9},"XR213"]],
 
-[43,1483,21,1487,9,"dynamic","68613689abc342ed8bec8fcf49fece11602292942be123c9c46d0d757ed84e8d",[{"$":9},"XR214"]],
+[43,1501,21,1505,9,"dynamic","68613689abc342ed8bec8fcf49fece11602292942be123c9c46d0d757ed84e8d",[{"$":9},"XR214"]],
 
-[43,1520,18,1520,63,"dynamic","0ded5f12b46d942756bc8ab3fe237bb684048d94bce18de1fc27a9b0572fa0cf",[{"$":9},"XR215"]],
+[43,1538,18,1538,63,"dynamic","0ded5f12b46d942756bc8ab3fe237bb684048d94bce18de1fc27a9b0572fa0cf",[{"$":9},"XR215"]],
 
-[43,1547,21,1547,64,"dynamic",{"$":176},[{"$":9},"XR216"]],
+[43,1565,21,1565,64,"dynamic",{"$":176},[{"$":9},"XR216"]],
 
-[43,1611,23,1615,13,"dynamic","95e3ee79c968db432e0d2e54382d353356a568a67ce95549871efda4e8ef78ce",[{"$":9},"XR217"]],
+[43,1629,23,1633,13,"dynamic","95e3ee79c968db432e0d2e54382d353356a568a67ce95549871efda4e8ef78ce",[{"$":9},"XR217"]],
 
-[43,1622,22,1624,13,"dynamic","37d2cc1022cccb72a7d51b1aa756f42427a8b3b52cf18fcf911ec78859346d67",[{"$":9},"XR218"]],
+[43,1640,22,1642,13,"dynamic","37d2cc1022cccb72a7d51b1aa756f42427a8b3b52cf18fcf911ec78859346d67",[{"$":9},"XR218"]],
 
-[43,2225,11,2225,54,"dynamic",{"$":32},[{"$":9},"XR219"]],
+[43,2243,11,2243,54,"dynamic",{"$":32},[{"$":9},"XR219"]],
 
-[43,2229,8,2229,62,"dynamic",{"$":53},[{"$":9},"XR220"]],
+[43,2247,8,2247,62,"dynamic",{"$":53},[{"$":9},"XR220"]],
 
-[43,2233,8,2233,61,"dynamic",{"$":173},[{"$":9},"XR221"]],
+[43,2251,8,2251,61,"dynamic",{"$":173},[{"$":9},"XR221"]],
 
-[43,2252,21,2252,66,"dynamic",{"$":25},[{"$":9},"XR222"]],
+[43,2270,21,2270,66,"dynamic",{"$":25},[{"$":9},"XR222"]],
 
-[43,2253,22,2253,62,"dynamic","a56b1ec9f283f59de8fae7cb7ad9f13830194484283fd16c5b7981b835a4afcc",[{"$":9},"XR223"]],
+[43,2271,22,2271,62,"dynamic","a56b1ec9f283f59de8fae7cb7ad9f13830194484283fd16c5b7981b835a4afcc",[{"$":9},"XR223"]],
 
-[43,2255,47,2255,88,"dynamic","4c55abc120a7ee45a393b742a206760ad76cfcf1638822e56c0cd95aec9e64f0",[{"$":9},"XR224"]],
+[43,2273,47,2273,88,"dynamic","4c55abc120a7ee45a393b742a206760ad76cfcf1638822e56c0cd95aec9e64f0",[{"$":9},"XR224"]],
 
-[43,2283,20,2283,63,"dynamic",{"$":159},[{"$":9},"XR225"]],
+[43,2301,20,2301,63,"dynamic",{"$":159},[{"$":9},"XR225"]],
 
-[43,2305,32,2307,13,"dynamic","acc509eb0bdcd3c9ab2be14ef20c52ec38c2caaeda2d9dd3971c2029ecb91b66",[{"$":9},"XR226"]],
+[43,2323,32,2325,13,"dynamic","acc509eb0bdcd3c9ab2be14ef20c52ec38c2caaeda2d9dd3971c2029ecb91b66",[{"$":9},"XR226"]],
 
-[43,2395,38,2399,17,"dynamic","4430929d4d33d778eef3d349f13a44ab9e2babad96673f8e9a4618c1aff72ad3",[{"$":9},"XR227"]],
+[43,2413,38,2417,17,"dynamic","4430929d4d33d778eef3d349f13a44ab9e2babad96673f8e9a4618c1aff72ad3",[{"$":9},"XR227"]],
 
-[43,2401,26,2403,17,"dynamic","29bc6ca40793f3339acd3a0ac0c81d91c58267eb8634a959210378f585a59d34",[{"$":9},"XR228"]],
+[43,2419,26,2421,17,"dynamic","29bc6ca40793f3339acd3a0ac0c81d91c58267eb8634a959210378f585a59d34",[{"$":9},"XR228"]],
 
-[43,2490,27,2494,9,{"$":3},"0b05c8e8c7cce41c526456138204499c51c435fb9877cc645959587112c4e79e",[{"$":9},"guard-scope-7b887edc672ea4"]],
+[43,2508,27,2512,9,{"$":3},"0b05c8e8c7cce41c526456138204499c51c435fb9877cc645959587112c4e79e",[{"$":9},"guard-scope-7b887edc672ea4"]],
 
-[43,2502,26,2506,9,{"$":3},"cfa6db33c4023f659f5b9c4e6ea67715b4609362857a3d51c817cb72a9d33973",[{"$":9},"guard-scope-8b69ed2587a8d1"]],
+[43,2520,26,2524,9,{"$":3},"cfa6db33c4023f659f5b9c4e6ea67715b4609362857a3d51c817cb72a9d33973",[{"$":9},"guard-scope-8b69ed2587a8d1"]],
 
-[43,2507,25,2507,74,"dynamic","20bca80e3434919e75d7575950a71a9d7dc1022641277199893559b99e22e2c0",[{"$":9},"XR231"]],
+[43,2525,25,2525,74,"dynamic","20bca80e3434919e75d7575950a71a9d7dc1022641277199893559b99e22e2c0",[{"$":9},"XR231"]],
 
-[43,2532,26,2536,9,{"$":3},"1d953b37e0b32e0c4c5906cc187b70397f87ad0d73a88b31af28a94479b44776",[{"$":9},"guard-scope-5bdf5819664888"]],
+[43,2550,26,2554,9,{"$":3},"1d953b37e0b32e0c4c5906cc187b70397f87ad0d73a88b31af28a94479b44776",[{"$":9},"guard-scope-5bdf5819664888"]],
 
-[43,2537,24,2537,72,"dynamic","8d38cf308cd79d01d7b923b7a91aad3561262cfb41adcbe23433e8bfa8a842ce",[{"$":9},"XR233"]],
+[43,2555,24,2555,72,"dynamic","8d38cf308cd79d01d7b923b7a91aad3561262cfb41adcbe23433e8bfa8a842ce",[{"$":9},"XR233"]],
 
-[43,2562,12,2566,13,"dynamic","94d1920476896ab8d1921e7e5e77ee73e05b6d3fde8f93b0193c94cb30446a24",[{"$":9},"XR234"]],
+[43,2580,12,2584,13,"dynamic","94d1920476896ab8d1921e7e5e77ee73e05b6d3fde8f93b0193c94cb30446a24",[{"$":9},"XR234"]],
 
-[43,2593,15,2593,58,"dynamic",{"$":159},[{"$":9},"XR235"]],
+[43,2611,15,2611,58,"dynamic",{"$":159},[{"$":9},"XR235"]],
 
-[43,2595,15,2595,58,"dynamic",{"$":176},[{"$":9},"XR236"]],
+[43,2613,15,2613,58,"dynamic",{"$":176},[{"$":9},"XR236"]],
 
-[43,2606,12,2610,13,"dynamic","b721e57f8119b40fdce4813de21a85a35e4267bd7267e40d0a1f11be2dc4924a",[{"$":9},"XR237"]],
+[43,2624,12,2628,13,"dynamic","b721e57f8119b40fdce4813de21a85a35e4267bd7267e40d0a1f11be2dc4924a",[{"$":9},"XR237"]],
 
-[43,2638,23,2638,60,"dynamic",{"$":215},[{"$":9},"XR238"]],
+[43,2656,23,2656,60,"dynamic",{"$":215},[{"$":9},"XR238"]],
 
-[43,2647,19,2647,56,"dynamic",{"$":215},[{"$":9},"XR239"]],
+[43,2665,19,2665,56,"dynamic",{"$":215},[{"$":9},"XR239"]],
 
-[43,2654,12,2658,13,"dynamic","24512c4852d4b9c7f5c7c53f91f87bf77d7d527135645db9adb2c1777573ac3e",[{"$":9},"XR240"]],
+[43,2672,12,2676,13,"dynamic","24512c4852d4b9c7f5c7c53f91f87bf77d7d527135645db9adb2c1777573ac3e",[{"$":9},"XR240"]],
 
-[43,2715,17,2715,72,"dynamic",{"$":91},[{"$":9},"XR241"]],
+[43,2733,17,2733,72,"dynamic",{"$":91},[{"$":9},"XR241"]],
 
-[43,2730,26,2734,9,"dynamic",{"$":152},[{"$":9},"XR242"]],
+[43,2748,26,2752,9,"dynamic",{"$":152},[{"$":9},"XR242"]],
 
-[43,2760,17,2760,72,"dynamic",{"$":91},[{"$":9},"XR243"]],
+[43,2778,17,2778,72,"dynamic",{"$":91},[{"$":9},"XR243"]],
 
-[43,2765,8,2765,62,"dynamic",{"$":53},[{"$":9},"XR244"]],
+[43,2783,8,2783,62,"dynamic",{"$":53},[{"$":9},"XR244"]],
 
-[43,2779,26,2783,9,"dynamic",{"$":152},[{"$":9},"XR245"]],
+[43,2797,26,2801,9,"dynamic",{"$":152},[{"$":9},"XR245"]],
 
-[43,2809,17,2809,72,"dynamic",{"$":91},[{"$":9},"XR246"]],
+[43,2827,17,2827,72,"dynamic",{"$":91},[{"$":9},"XR246"]],
 
-[43,2814,8,2814,62,"dynamic",{"$":53},[{"$":9},"XR247"]],
+[43,2832,8,2832,62,"dynamic",{"$":53},[{"$":9},"XR247"]],
 
-[43,2824,20,2828,9,"dynamic","12d620556187a2327e45f92323efa4a7e579cc7831c1cd2f396bebac90be5f0a",[{"$":9},"XR248"]],
+[43,2842,20,2846,9,"dynamic","12d620556187a2327e45f92323efa4a7e579cc7831c1cd2f396bebac90be5f0a",[{"$":9},"XR248"]],
 
-[43,2938,29,2942,13,"dynamic","46c9f5877e6bb84981ed4ceb01f811db46a401b5e62e63f2a7c98959f042967a",[{"$":9},"XR249"]],
+[43,2956,29,2960,13,"dynamic","46c9f5877e6bb84981ed4ceb01f811db46a401b5e62e63f2a7c98959f042967a",[{"$":9},"XR249"]],
 
-[43,3043,41,3043,69,"dynamic","9373db0fb139f323fed4e0a008860562527e4bb75811c044cff934520435c518",[{"$":9},"XR250"]],
+[43,3061,41,3061,69,"dynamic","9373db0fb139f323fed4e0a008860562527e4bb75811c044cff934520435c518",[{"$":9},"XR250"]],
 
 [44,39,26,39,54,"dynamic",{"$":5},[{"$":9},"XR429a"]],
 
@@ -5063,31 +5063,31 @@
 
 [72,1064,15,1064,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
 
-[72,1449,20,1449,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
+[72,1450,20,1450,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
 
-[72,1505,17,1505,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
+[72,1506,17,1506,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
 
-[72,1515,49,1515,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
+[72,1516,49,1516,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
 
-[72,1535,18,1535,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
+[72,1536,18,1536,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
 
-[72,1606,29,1606,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
+[72,1607,29,1607,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
 
-[72,1776,16,1776,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
+[72,1777,16,1777,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
 
-[72,1921,17,1921,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
+[72,1931,17,1931,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
 
-[72,1922,39,1922,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
+[72,1932,39,1932,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
 
-[72,1941,15,1941,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
+[72,1951,15,1951,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
 
-[72,1970,16,1970,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
+[72,1982,16,1982,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
 
-[72,1972,18,1972,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
+[72,1984,18,1984,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
 
-[72,2363,29,2363,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
+[72,2375,29,2375,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
 
-[72,2472,22,2472,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
+[72,2484,22,2484,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
 
 [73,38,7,38,42,"dynamic","f6934272bce56a1ce7cebbe4386aacc09a74f1141872418c5f0b7011111d7163",[{"$":9},"XR373"]],
 
@@ -5149,29 +5149,29 @@
 
 [77,4301,19,4305,9,"dynamic","64354f5d83b89b89ad0f24a564ce95dd477c764d9863fbff8596c937189c09a9",[{"$":9},"XR392"]],
 
-[77,4652,26,4652,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
+[77,4655,26,4655,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
 
-[77,4653,27,4653,74,"dynamic","34d362c2675aabd307488cbaf647d2a1fa798c608ab4cc6876cf45df6b8db3d3",[{"$":9},"XR394"]],
+[77,4656,27,4656,74,"dynamic","34d362c2675aabd307488cbaf647d2a1fa798c608ab4cc6876cf45df6b8db3d3",[{"$":9},"XR394"]],
 
-[77,5109,21,5109,68,"dynamic","03e40f4dda5b35ca112a831de1f77842a598814b9f9383fce6f40887b4e9821d",[{"$":9},"XR395"]],
+[77,5112,21,5112,68,"dynamic","03e40f4dda5b35ca112a831de1f77842a598814b9f9383fce6f40887b4e9821d",[{"$":9},"XR395"]],
 
-[77,5113,23,5113,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
+[77,5116,23,5116,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
 
-[77,5344,11,5344,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
+[77,5347,11,5347,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
 
-[77,6760,34,6764,5,"dynamic","fefb0e9bd53942617672b1558d6239cbecd123c294d6e779e941da9ad197c82f",[{"$":9},"XR398"]],
+[77,6763,34,6767,5,"dynamic","fefb0e9bd53942617672b1558d6239cbecd123c294d6e779e941da9ad197c82f",[{"$":9},"XR398"]],
 
-[77,7885,13,7885,55,"dynamic","61bca7ab0dac507a1c9c5378e7c810774e7b56ceef4ea2af792a229df9863673",[{"$":9},"XR399"]],
+[77,7888,13,7888,55,"dynamic","61bca7ab0dac507a1c9c5378e7c810774e7b56ceef4ea2af792a229df9863673",[{"$":9},"XR399"]],
 
-[77,7918,8,7918,53,"dynamic","19abb82bb824a6cdbabdb32d1c7fbf62169141b3fea50e36c75059a1b5de4755",[{"$":9},"XR400"]],
+[77,7921,8,7921,53,"dynamic","19abb82bb824a6cdbabdb32d1c7fbf62169141b3fea50e36c75059a1b5de4755",[{"$":9},"XR400"]],
 
-[77,8267,14,8267,42,"dynamic",{"$":5},[{"$":9},"XR401"]],
+[77,8270,14,8270,42,"dynamic",{"$":5},[{"$":9},"XR401"]],
 
-[77,12835,11,12835,22,{"$":3},{"$":226},["route","N8.2","p39"]],
+[77,12838,11,12838,22,{"$":3},{"$":226},["route","N8.2","p39"]],
 
-[77,14394,41,14394,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
+[77,14397,41,14397,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
 
-[77,14408,33,14410,13,"dynamic","6b7fa6c77ed4f77cadde0bf89fd63cc7922b7c756c4adeac87ff0b1fd6131280",[{"$":9},"XR404"]],
+[77,14411,33,14413,13,"dynamic","6b7fa6c77ed4f77cadde0bf89fd63cc7922b7c756c4adeac87ff0b1fd6131280",[{"$":9},"XR404"]],
 
 [78,272,17,277,9,"process","9405fecd42b800855c9f82196989b9655d5394379f927ae9ea12d499a7ffbc67",["route","X6.4","p54"]],
 
@@ -6540,7 +6540,7 @@
 
 "scripts/cwo_core/codex_hook_enforcement.py":["b988f0062b354cf193ec3528462168cb828f2721d29d046573c78f69ee1685a0",420,8633],
 
-"scripts/cwo_core/codex_protocol_capabilities.py":["126ddd4bfbcc7b3349db604da4829a1cb9a7584cd1729cdcf1d6f4a8c41e96d1",420,25240],
+"scripts/cwo_core/codex_protocol_capabilities.py":["9d0c0b5b036762c29ca01717cd63b7d068c280a5ff370700cd6c4e8a5b4528bb",420,25455],
 
 "scripts/cwo_core/codex_protocol_pin.py":["5f65e2bfedc3ccbb1f5248c63fa17c4d7b60a6586bf93044741e157a35c94bbd",420,29437],
 
@@ -6756,9 +6756,9 @@
 
 "scripts/cwo_core/supervision/transport/__init__.py":["a65e521ee9e997c481559de0e91962f8a0c19d6ba434c8525b3ee8ee8a97190d",420,445],
 
-"scripts/cwo_core/supervision/transport/app_server.py":["9b5dcef8d620c98b826a1ff321bb9242d483fb941e6f45d837bf5a5d275d1570",420,138074],
+"scripts/cwo_core/supervision/transport/app_server.py":["70de1f3fce337ba386cd9db67ede2435cb41563d05a1bf0eb4f4f1e1a3af5a01",420,138925],
 
-"scripts/cwo_core/supervision/transport/errors.py":["066b654ae6e7e8257801dd0f6e3957410671a207c54009a9a885523a8ebd75b9",420,1946],
+"scripts/cwo_core/supervision/transport/errors.py":["724d37e51cd03dd73954ee7ee71a22fd2ea4e9275ec3b9bf23451a1201951180",420,2248],
 
 "scripts/cwo_core/supervision/transport/private_io.py":["d86d07198b90557152fb19d4ec826a50b38c499ff8c2fdffdd94c4227917135f",420,7884],
 
@@ -6908,9 +6908,9 @@
 
 "scripts/registered_host_root_boundary.py":["615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",420,1303],
 
-"scripts/registered_n1_factory.py":["1419a780f1bf8e3ea65c9d106ba757e1d2ac9430dd228feb7daa5db2bcb9b9b9",420,132208],
+"scripts/registered_n1_factory.py":["ef312909a3153b261dc087ec1269d8c4ac80821202282eef151e99ba455f344f",420,132866],
 
-"scripts/registered_n1_qualification.py":["d7ede08c63483726bf4066c582945103970923a83839b0e488b147da2a62a1b0",420,20405],
+"scripts/registered_n1_qualification.py":["b8c0ccd06d8de720f81c5197d358a5d36253d31c78b703746d972288bc9f7c37",420,20600],
 
 "scripts/registered_n1_workflow.py":["ab229624003f1d516d1831703aea8ecff27b5cb992b24106f66ac831adb60439",420,32110],
 
@@ -6948,7 +6948,7 @@
 
 "scripts/run_native_pool_activation_preview.py":["ba8d6118af6dba182381e69f7354cd743434f320e678253e5ae0d36e42307b94",420,56364],
 
-"scripts/run_native_pool_live_canaries.py":["8e828c470f95f69ad0becc2a81c63307f36472ebc57fc90eaee403181adc50c6",420,611327],
+"scripts/run_native_pool_live_canaries.py":["8f192470690352fb737d8c6489fdc1e26806487792b7e04a42dc5b330d9a99b5",420,611465],
 
 "scripts/run_parallel_unittest.py":["2aa0756c9cf5543bb7c215a608574b3365b22991ccfe9e2d917ac05f31765576",493,27154],
 
@@ -7000,7 +7000,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["7cd7fd8ee80e892fc0d6efc07859860a62dd110ccc91de68bd629e965f67aedc",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["fedb0313e5f5c5f8876168b53cbe7d56703e52e762d5ed5691eb707aeade4551",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7040,7 +7040,7 @@
 
 "tests/test_code_health.py":["8f660ab109fdc51dacdd39350b79608d40b8af615bb2adc2ac127c5e8affbcba",420,142998],
 
-"tests/test_codex_protocol_capabilities.py":["1d95698661f8ad8878891121bc6f896aaf58881eafbe3e71d56e9f5a5afdbb97",420,8954],
+"tests/test_codex_protocol_capabilities.py":["d33338f3d5e2e01db9598a1909d02e761330a9c1449e786f05c6866305ba3817",420,9188],
 
 "tests/test_configure_codex_beads_hooks.py":["ab5965a39daa88368478bb6e0b95abf9ea8b4e177145722aea2d1a2aee311da1",420,9603],
 
@@ -7112,11 +7112,11 @@
 
 "tests/test_registered_finite_input.py":["68717f901788db83cf4196621eba1b5e78132a6d20fb60d2bc08542e854e8d79",420,131571],
 
-"tests/test_registered_finite_tool_wiring.py":["376380fcf67a862c0393650edeedf79918546859ddacabdacc6ae90ae2775dc3",420,284864],
+"tests/test_registered_finite_tool_wiring.py":["b8f14809e58a2921dcf07ce1f40acc4b40f0fdb30f7c2f295c4171cfa40dfaa7",420,288008],
 
-"tests/test_registered_n1_factory.py":["6077edfc22a6bdd0d64b36185f6debf3e62f61b15d907625488ea1deeca10a05",420,138839],
+"tests/test_registered_n1_factory.py":["588f55810cf71612b1008c51e50ced7813e3972d9df78aaf91b59867f1328f57",420,138881],
 
-"tests/test_registered_n1_qualification.py":["911b20433075b1bd5ad92f776965b689a2d9135bc3b69803288ffeab981a43ca",420,33755],
+"tests/test_registered_n1_qualification.py":["87b51de64d8eeb9eafb54bb5d1d2f5b60cf4945c768fae564d54535adf5582b1",420,34551],
 
 "tests/test_registered_native_pool_host.py":["25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",420,39405],
 
@@ -7134,7 +7134,7 @@
 
 "tests/test_run_admitted_native_pool_transaction.py":["531a7ebd4d5ed5623dbcb711d468889b934736398f48cae00ee1567398c4818a",420,23842],
 
-"tests/test_run_native_pool_live_canaries.py":["75373d41578b5c073d4150321b404be754a20d24db6b5fc323135e1628bdb1d7",420,685970],
+"tests/test_run_native_pool_live_canaries.py":["631c43caa3aa65f0099227eec1abcc9a894ace2d02fda169d1cc51a4f7f1940e",420,690166],
 
 "tests/test_run_parallel_unittest.py":["557f0665f12bb1f0aef4a9c7d9438496361409dd96a83ebea89b39fb7d2b2802",420,35677],
 

@@ -1156,6 +1156,7 @@ class _RegisteredServer(RegisteredAppServer):
         self.archived = False
         self._approval_ids, self._request_ids, self._items = set(), set(), {}
         self._profile_response = None
+        self.thread_id = None
         self.transport_failure = None
         self._response_ids = set()
         self._command_reply_committed = None
@@ -1831,6 +1832,15 @@ def _check_response(factory, params, response):
 class RegisteredAdapter(native.LiveThreadAdapter):
     """Original driver with a registered profile/custody validation boundary."""
 
+    def _pending_thread_read_error(self, error):
+        factory = _ADAPTERS.get(self)
+        return super()._pending_thread_read_error(error) or (
+            error.qualification_thread_unmaterialized is True
+            and (error.method, error.code) == ('thread/read', -32600)
+            and factory is not None and factory.server is self.server and factory.qualification is not None
+            and self.thread_response['thread'].get('historyMode') == qualification.HISTORY_MODE
+        )
+
     def _registered_tool_projector(self):
         factory = _ADAPTERS.get(self)
         _need(factory is not None and factory.server is self.server,
@@ -1949,10 +1959,12 @@ _CURRENT_BOUNDARY = RegisteredAdapter._current_effective_boundary
 _FINAL_SUMMARY = RegisteredAdapter.final_summary
 _TOOL_PROJECTOR = RegisteredAdapter._registered_tool_projector
 _FORBIDDEN_TOOLS = RegisteredAdapter._observe_forbidden_tool_activity
+_PENDING_THREAD_READ = RegisteredAdapter._pending_thread_read_error
 
 
 def _registered_adapter_method(name, original):
     return {'_validate_effective_boundary': _VALIDATE,
+            '_pending_thread_read_error': _PENDING_THREAD_READ,
             '_registered_tool_projector': _TOOL_PROJECTOR,
             '_observe_forbidden_tool_activity': _FORBIDDEN_TOOLS,
             '_record_complete_boundary_locked': _RECORD_BOUNDARY,

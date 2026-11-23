@@ -26,6 +26,7 @@ class AppServerRpcError(AppServerError):
         code: int,
         request_id: int,
         latency_ms: float,
+        qualification_thread_unmaterialized: bool = False,
     ) -> None:
         if not isinstance(method, str) or not method:
             raise ValueError("app-server-rpc-error-method-invalid")
@@ -33,6 +34,8 @@ class AppServerRpcError(AppServerError):
             raise ValueError("app-server-rpc-error-code-invalid")
         if type(request_id) is not int or request_id < 0:
             raise ValueError("app-server-rpc-error-request-id-invalid")
+        if type(qualification_thread_unmaterialized) is not bool:
+            raise ValueError("app-server-rpc-error-qualification-unmaterialized-invalid")
         if (
             isinstance(latency_ms, bool)
             or not isinstance(latency_ms, (int, float))
@@ -44,6 +47,7 @@ class AppServerRpcError(AppServerError):
         self.code = code
         self.request_id = request_id
         self.latency_ms = float(latency_ms)
+        self.qualification_thread_unmaterialized = qualification_thread_unmaterialized
         super().__init__(f"app-server-request-failed:{method}:{code}")
 
 

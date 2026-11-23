@@ -79,10 +79,14 @@ class CodexProtocolCapabilitiesTests(unittest.TestCase):
     def test_n1_qualification_keeps_the_original_history_contract(self):
         self.edit_schema(PROTOCOL, "v2.ThreadHistoryMode",
                          lambda schema: schema["enum"].remove("paginated"))
+        check_codex_capabilities(self.binary, n1_qualification=True)
+
+    def test_n1_qualification_requires_history_mode_readback(self):
         self.edit_schema(PROTOCOL_V2, "Thread",
                          lambda schema: schema["properties"].pop("historyMode"))
         check_codex_capabilities(self.binary)
-        check_codex_capabilities(self.binary, n1_qualification=True)
+        with self.assertRaisesRegex(CapabilityError, r"thread/start.*thread\.historyMode"):
+            check_codex_capabilities(self.binary, n1_qualification=True)
 
     def test_n1_qualification_requires_string_request_namespace(self):
         self.edit_schema(PROTOCOL, "DynamicToolCallParams.properties.namespace",

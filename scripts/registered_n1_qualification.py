@@ -30,6 +30,7 @@ EFFORT = 'xhigh'
 TIER = 'default'
 PROVIDER = 'openai'
 APPROVAL_POLICY = 'never'
+HISTORY_MODE = 'legacy'
 MODEL_SELECTION = 'qualification_model_selection'
 AUTHENTICATION = 'qualification_authentication'
 MANAGED_LOGIN = 'codex-managed-file'
@@ -224,7 +225,7 @@ def require_model_selection(spec, plan, operation):
 
 
 def thread_selectors():
-    return {'modelProvider': PROVIDER, 'serviceTier': TIER}
+    return {'modelProvider': PROVIDER, 'serviceTier': TIER, 'historyMode': HISTORY_MODE}
 
 
 FINITE_TOOL_NAMESPACE = 'cwo_finite'
@@ -261,8 +262,11 @@ def check_thread_model(params, response):
     _need(all(params.get(key) == value for key, value in thread_selectors().items())
           and response.get('reasoningEffort') == EFFORT and response.get('serviceTier') == TIER,
           'Actual qualification reasoning effort or service tier differs.')
-    _need(response.get('thread', {}).get('ephemeral') is False,
+    thread = response.get('thread', {})
+    _need(thread.get('ephemeral') is False,
           'The qualification thread must use its private persistent rollout.')
+    _need(thread.get('historyMode') == HISTORY_MODE,
+          'The qualification thread history mode readback differs.')
 
 
 def _digest(value):
