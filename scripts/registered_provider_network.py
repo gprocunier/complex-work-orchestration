@@ -307,9 +307,10 @@ def _receive_handoff(control):
 class ProviderBroker:
     """The host owns DNS, endpoint policy and every outbound socket."""
 
-    def __init__(self, record, *, allow_personal_access_token=False):
+    def __init__(self, record, *, allow_personal_access_token=False, allow_managed_login=False):
         self._record = record
-        self._providers = _PERSONAL_ACCESS_TOKEN_PROVIDERS if allow_personal_access_token else PROVIDERS
+        self._providers = (_PERSONAL_ACCESS_TOKEN_PROVIDERS
+                           if allow_personal_access_token or allow_managed_login else PROVIDERS)
         self._connections = _Connections(_MAX_CONNECTIONS)
         self._control, self.child_socket = socket.socketpair(type=socket.SOCK_DGRAM)
         self._control.settimeout(.25)

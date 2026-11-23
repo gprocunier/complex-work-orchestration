@@ -56,7 +56,7 @@
 
 "N2":{"admission":{"$":2},"authority":"Explicit probe CLI/model/home/catalog or opaque verified maintenance operation/context and qualification; not worker JSON.","effect":"Probe loopback listener; maintenance preparation/qualification native launch","gate_limits":"The other two checks belong to sibling entrypoints, not this constructor path. Each entry retains its own N1 refusal.","gates":["p1fc"],"limits":"P listener pair proves zero construct/preparer/serve then fake construct/serve/close on admitted binding-drift path; not complete probe session. Maintenance positives in existing runtime families use opaque current operation/context/qualification. Observation mints are process-local capabilities, not external identity. Earlier probe/maintenance construction grants no final egress authority: supported host model-context wire screening is separately reviewed at N10.9, finite reply screening at N10.8; source/pipe controls are not live native qualification.","manual_decisions":["M03","M05","M06","M08","M31"],"ordering":"N1 at each supported entry before proof/listener/output/prepare. Maintenance guard revalidates operation, task/worktree/config, session ledger and qualification before AppServer.","review_gates":["p1c6","p2a3"],"trace_files":[{"$":62},{"$":65},{"$":66},{"$":326},{"$":28}],"witnesses":["w8f","w62"]},
 
-"N3":{"admission":{"$":2},"authority":"Exact protected host/factory/capability/admission and immutable configuration and graph intent. Ordinary N1 requires the source hold. Qualification requires the original registered receiver, signed unexpired operation permit and available campaign budget.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["p343"],"gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch.","gates":["p222"],"limits":"The ordinary hold refuses startup and intent. Existing fake controls retain the ordinary transport. Signed qualification selects a disposable registered route with at most 10 initial starts and 5 repair-bound rechecks, expiry, one start per operation and exact gpt-6.2-sol/xhigh/default tier. A contained birth may precede final release refusal. Source-owned provider proxy is app-server only; qualification does not enable production dispatch, authentication or publication. Offline witnesses use fake RPC or local TLS only.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37"],"ordering":"Select current N1 or signed qualification and exact role argv before owned birth. Use sealed options and exact bootstrap argv, retained original-parent/birth namespace handles, post-setup mount and intent checks, then the final stdin gate. Qualification records a durable start before app-server release. Tool release retains its own finite-input fence.","review_gates":["p167","p326"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340}]},
+"N3":{"admission":{"$":2},"authority":"Exact protected host/factory/capability/admission and immutable configuration and graph intent. Ordinary N1 requires the source hold. Qualification requires the original registered receiver, signed unexpired operation permit and available campaign budget.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["p343"],"gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch.","gates":["p222"],"limits":"The ordinary hold refuses startup and intent. Existing fake controls retain the ordinary transport. Signed qualification selects a disposable registered route with at most 10 initial starts and 5 repair-bound rechecks, expiry, one start per operation and exact gpt-6.2-sol/xhigh/default tier. A contained birth may precede final release refusal. Source-owned provider proxy is app-server only; qualification authentication is selected by the original signed operation and supplies no production or publication authority. Offline witnesses use fake RPC or local TLS only.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37"],"ordering":"Select current N1 or signed qualification and exact role argv before owned birth. Use sealed options and exact bootstrap argv, retained original-parent/birth namespace handles, post-setup mount and intent checks, then the final stdin gate. Qualification records a durable start before app-server release. Tool release retains its own finite-input fence. Managed login acquires a durable campaign interlock before admitted startup and retires it after verified namespace cleanup.","review_gates":["p167","p326"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340}]},
 
 "N4":{"admission":{"$":2},"authority":"Base class is not an admitted launcher. Supported shipped subclass is _RegisteredServer from protected factory; arbitrary Python subclasses are external trusted code, not accepted registered factories.","effect":"Registered transport exact base refusal and supported override launch","effect_points":["p187"],"gate_limits":"The abstract _launch_process body refuses unconditionally. Subclass overrides and constructed receiver identity remain manual dispatch limits; the base-type constructor guard precedes the named construction calls.","gates":["p34d"],"limits":"Exact base has zero Popen/binary lookup; positive is the actual _RegisteredServer through N3, not an arbitrary subclass or base AppServer constructor. Do not append all subclasses.","manual_decisions":["M08","M09"],"ordering":"Exact base type refuses before proof/probe/home; base _launch_process also refuses. Virtual override resolves to N3 containment, never ordinary AppServer.__init__ Popen.","review_gates":["pdb"],"trace_files":[{"$":115}],"witnesses":["w91","w4e"]},
 
@@ -198,7 +198,7 @@
 
 "M34":{"conclusion":"The registered qualification route is a bounded exception under the production hold for disposable workers. Ordinary N1, pool and campaign gates and shipped role defaults remain in force.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Trusted original signer, registry, factory, campaign custody and journal implementation remain prerequisites. An issued permit alone does not authorize alternate clients, host intake, publication or promotion. Synthetic starts and wire responses supply offline evidence only.","reason":"A signed HMAC qualification permit binds the exact claimed operation digest and signed model plan. Current permit, source, intent and campaign accounting precede launch. An owned private journal checks expiry, replay and budgets under a lock, and fsyncs each start before the app-server gate. The registered wire lookup binds the original receiver and restricts it to exact one-use thread/start and turn/start payloads. The signed selection uses OpenAI gpt-6.2-sol, xhigh and default tier.","review_evidence":{"$":7},"source":["p25PermitVerify","p25CampaignStart","p25Enroll","p25RequireSelected","p25RecordStart","p25WireRegistry","p25WireCheck","p25WireTurn","p25RpcGate"]},
 
-"M35":{"conclusion":"The qualification app-server broker permits HTTPS port 443 for chatgpt.com and api.openai.com. A signed launch with an attached Codex personal access token also permits auth.openai.com at that port. The app-server workspace is read-only. Tool and validator namespaces receive neither the token nor the proxy.","evidence_contracts":["N3","N9"],"external_trust_limit":"The controller provisions and manages its credential. The encrypted tunnel checks names and port without inspecting HTTP paths or bodies. Namespace isolation blocks direct traffic outside the explicit proxy audit. Local TLS tests use the bundled self-signed certificate and deliberately public fixture key. Real tokens, public provider connectivity and live Codex model behavior are unverified.","reason":"The original factory checks the signed launch before staging an explicit controller attachment in a private anonymous pipe. Only the app-server bootstrap inherits the read end. The parent releases its copy after owned spawn, the relay closes its copy before serving, and the bootstrap consumes the token after the trusted start gate and closes the pipe before exec. The existing datagram pair transfers bounded stream descriptors to the parent. Exact CONNECT authority and TLS SNI, including refusal of encrypted ClientHello, precede parent DNS and a bounded public-address dial. Denials are scrubbed. Record failure revokes the broker.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead"]},
+"M35":{"conclusion":"The qualification app-server broker permits HTTPS port 443 for chatgpt.com and api.openai.com. A signed launch with dedicated file login or an attached Codex personal access token also permits auth.openai.com at that port. The app-server workspace is read-only. Tool and validator namespaces receive neither login state nor the proxy.","evidence_contracts":["N3","N9"],"external_trust_limit":"The app server manages the dedicated file login. The embedding controller supplies any preprovisioned attachment. The encrypted tunnel checks names and port without inspecting HTTP paths or bodies. Namespace isolation blocks direct traffic outside the explicit proxy audit. Local TLS tests use the bundled self-signed certificate and deliberately public fixture key. Real tokens, public provider connectivity and live Codex model behavior are unverified. The managed mount requires Linux and Bubblewrap writable-overlay support. Synthetic files and same-filesystem rename witnesses do not establish live refresh.","reason":"The original factory checks the signed launch before staging an explicit controller attachment in a private anonymous pipe. Only the app-server bootstrap inherits the read end. The parent releases its copy after owned spawn, the relay closes its copy before serving, and the bootstrap consumes the token after the trusted start gate and closes the pipe before exec. The existing datagram pair transfers bounded stream descriptors to the parent. Exact CONNECT authority and TLS SNI, including refusal of encrypted ClientHello, precede parent DNS and a bounded public-address dial. Denials are scrubbed. Record failure revokes the broker. The signed managed-file selector uses the app-server-only fixed namespace alias of the approved passwd-relative login directory. The controller checks metadata and leaves file reads and refresh to Codex. A private overlay projects the signed config and a single operation spool for rollout and archive. The durable exclusive campaign interlock precedes mount preparation. The app-server gate observes mount identities before campaign charge. Uncertain namespace retirement holds the interlock.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead","p42LoginSelection","p42LeaseClaim","p42LeaseRetire","p42Mounts","p42MountVerify","p42Projection","p42Rollout","p42Archive"]},
 
 "M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts. A terminal rollout may await original typed item intake until the reply deadline while the wire turn stays open.","review_evidence":{"$":7},"source":["p25LiveInput","p36DirectCatalog","p36FiniteAdmit","p36FiniteItem","p36FiniteCommit","p36FiniteReplyDispatch","p36FiniteHistorical","p36FiniteMatch","p36FiniteAwaitOriginal","p36FiniteHistory","p36FiniteBoundary","p36FiniteWaitTerminal","p36FiniteTypedComplete"]},
 
@@ -556,7 +556,7 @@
 
 "p112":[120,"QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments",186,"32b00495d71f94381e4f8d4ca4ebc76fd51abd6c9443a3a4509c0640bc5c1d25"],
 
-"p113":[64,"_Containment.launch",637,"44b2f2960e6f7aecd67047dc1ca7e4edad0fbab3697ba53f9fd6d02bbcd59652"],
+"p113":[64,"_Containment.launch",672,"44b2f2960e6f7aecd67047dc1ca7e4edad0fbab3697ba53f9fd6d02bbcd59652"],
 
 "p114":[116,"OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared",389,"ba6ba5e3d23da891f8d3c7d03cfbd3bcc4d1526f1bacc1b9ccf6b359ada6177a"],
 
@@ -932,7 +932,7 @@
 
 "p1ab":[44,1806,"pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get(\"allow_private_dns\")))"],
 
-"p1ac":[64,"_RegisteredServer.request",1448,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
+"p1ac":[64,"_RegisteredServer.request",1501,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
 
 "p1ad":[3,538,"method(argument, submission, **options)",19,538,58],
 
@@ -968,7 +968,7 @@
 
 "p1bc":[90,"ChatGPTBrowserReviewTests._browser_result",1326,"a9058beb7012505459ffa69a75cc7039ed1546464c2942732822fd7a6a3fd485"],
 
-"p1bd":[64,"RegisteredN1Factory._isolated_validation",2383,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
+"p1bd":[64,"RegisteredN1Factory._isolated_validation",2457,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
 
 "p1be":[8,685,{"$":285},12,685,84],
 
@@ -1176,7 +1176,7 @@
 
 "p20a":[37,1502,"if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:"],
 
-"p20b":[64,"_RegisteredServer._launch_process",1478,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
+"p20b":[64,"_RegisteredServer._launch_process",1531,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
 
 "p20c":[78,"main",218,"4b19f823bfd6636d1a333dfc6aff0b26e633136bec98d21ff065260472d805a5"],
 
@@ -1226,7 +1226,7 @@
 
 "p221":[74,"_run_calibration",5079,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
 
-"p222":[64,639,{"$":148}],
+"p222":[64,674,{"$":148}],
 
 "p223":[43,"run_git",434,{"$":213}],
 
@@ -1274,7 +1274,7 @@
 
 "p238":[74,3706,{"$":284}],
 
-"p239":[64,"RegisteredN1Factory.run",2416,"0c790d6e416d303ed88a40e93573bcef26abdbd681e7e4b37a0555487e95262d"],
+"p239":[64,"RegisteredN1Factory.run",2513,"605910c46c37f2fa48aae94ff6154036d1dd9f289b010b6dd8bf90d30c55d9b7"],
 
 "p23a":[99,"F5NativeLiveHoldTests.test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control",72,"f207bc2f8e9c15178d0dcbfdf180602184543c6047821684826e1ff49456edea"],
 
@@ -1344,33 +1344,33 @@
 
 "p259":[44,"_resolve_local_endpoint_addresses",746,"4c5ba9de3b38425f046bb4fb398153c0dc38ca72b8a6e63128823db92e4d6d45"],
 
-"p25AdoptControl":[146,416,"socket.socket(fileno=descriptor)",9,416,41],
+"p25AdoptControl":[146,417,"socket.socket(fileno=descriptor)",9,417,41],
 
 "p25AdoptStream":[146,301,"socket.socket(fileno=descriptors[0])",15,301,51],
 
-"p25Bootstrap":[146,"_bootstrap",433,"bf517f8c2d5b541f94d88c9de5df1468d9a427457823e0184183a948b1eee4ef"],
+"p25Bootstrap":[146,"_bootstrap",434,"bf517f8c2d5b541f94d88c9de5df1468d9a427457823e0184183a948b1eee4ef"],
 
-"p25Broker":[146,"ProviderBroker.__init__",310,"67bf6ff62a596f64d4939ea348e2c7fccd1b964ed4001b16d5b8d1e210d436c3"],
+"p25Broker":[146,"ProviderBroker.__init__",310,"e31651f739ba712a261a555a708a00e65c1b6b1913ef6687eb0829829ebe2163"],
 
-"p25BrokerPair":[146,314,"socket.socketpair(type=socket.SOCK_DGRAM)",43,314,84],
+"p25BrokerPair":[146,315,"socket.socketpair(type=socket.SOCK_DGRAM)",43,315,84],
 
-"p25Budget":[148,"CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks",46,"8527c5eb6394a4a05df33b729c116e774e00420a465d8034c5653cdab392e1a6"],
+"p25Budget":[148,"CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks",50,"8527c5eb6394a4a05df33b729c116e774e00420a465d8034c5653cdab392e1a6"],
 
-"p25CampaignStart":[149,"_campaign_start",274,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
+"p25CampaignStart":[149,"_campaign_start",445,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
 
 "p25Dial":[146,"_dial_provider",188,"52fe6a0ece405aa8a79d44bfe33af8eef31e92faa0fc915a65aa287fd780a70a"],
 
-"p25Egress":[146,"ProviderBroker._handle",341,"55dca3e7fb430ad940cc66430d944423566f8882b05f2fefa3f6d243e5158fe7"],
+"p25Egress":[146,"ProviderBroker._handle",342,"55dca3e7fb430ad940cc66430d944423566f8882b05f2fefa3f6d243e5158fe7"],
 
-"p25Enroll":[149,"initialize_campaign",183,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
+"p25Enroll":[149,"initialize_campaign",334,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
 
-"p25EnrollHeader":[149,194,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
+"p25EnrollHeader":[149,345,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
 
-"p25EnrollMkdir":[149,188,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
+"p25EnrollMkdir":[149,339,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
 
-"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",180,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
+"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",455,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
 
-"p25ExpirySupport0":[148,{"$":330},232,{"$":343}],
+"p25ExpirySupport0":[148,{"$":330},507,{"$":343}],
 
 "p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1715,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
@@ -1384,85 +1384,85 @@
 
 "p25LiveInput":[62,"RegisteredFiniteInput.capture_poll_input",870,"741d0ee6da07e322fc782e67fce1b594af5ccc3fd648e603a20b1d9038354d67"],
 
-"p25LoopbackBind":[146,419,"listener.bind(('127.0.0.1', PROXY_PORT))"],
+"p25LoopbackBind":[146,420,"listener.bind(('127.0.0.1', PROXY_PORT))"],
 
-"p25LoopbackListen":[146,420,"listener.listen(_MAX_CONNECTIONS)"],
+"p25LoopbackListen":[146,421,"listener.listen(_MAX_CONNECTIONS)"],
 
-"p25LoopbackSocket":[146,416,"socket.socket()",54,416,69],
+"p25LoopbackSocket":[146,417,"socket.socket()",54,417,69],
 
-"p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",77,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
+"p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",81,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
 
-"p25MonitorCall":[64,850,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
+"p25MonitorCall":[64,885,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
 
-"p25MonitorProof":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",402,"7f29094575111853598e0e11ee85153f695cff96a2ea2d2f8c0d0212bfb5e19c"],
+"p25MonitorProof":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",421,"7f29094575111853598e0e11ee85153f695cff96a2ea2d2f8c0d0212bfb5e19c"],
 
-"p25MonitorReason":[64,871,"return report.get('reason') == str(missing)"],
+"p25MonitorReason":[64,906,"return report.get('reason') == str(missing)"],
 
-"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",861,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
+"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",896,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
 
-"p25MonitorTerminate":[64,"_Containment._terminate_monitor",847,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
+"p25MonitorTerminate":[64,"_Containment._terminate_monitor",882,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
 
 "p25Names":[146,"_validate_tls_name",143,"272a7c111ff2ec2d2ef0a20a2ac6bd8a5ce14842ac146273067bdc26f739516d"],
 
 "p25OriginalWatchdog":[117,"PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence",684,"03c80a17c82bad214cde5e29feb81bcc65e11e6704ad5daac3b03b09fc6f8fba"],
 
-"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",96,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
+"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",238,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
 
-"p25PermitSupport0":[148,{"$":330},232,{"$":343}],
+"p25PermitSupport0":[148,{"$":330},507,{"$":343}],
 
-"p25PermitVerify":[149,"verify_qualification_permit",156,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
+"p25PermitVerify":[149,"verify_qualification_permit",307,"7f4eebe9d12e2a775b5b10403e174f3be1d3004559ff104fb764b6d44b025c9d"],
 
-"p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",358,"8a5c03a7dbf20a8094ccea57838b1f8d023d68885d38d877308b4f60e39b19d5"],
+"p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",377,"8a5c03a7dbf20a8094ccea57838b1f8d023d68885d38d877308b4f60e39b19d5"],
 
 "p25ProviderConnect":[146,196,"upstream.connect(address)",12,196,37],
 
-"p25ProviderExec":[146,444,"os.execv(command[0], command)",4,444,33],
+"p25ProviderExec":[146,445,"os.execv(command[0], command)",4,445,33],
 
-"p25ProviderPrivate":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",120,"7aa8c2bcc5b70827c849edf77343cf416363f4d238d4349a2c958656c070beba"],
+"p25ProviderPrivate":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",139,"7aa8c2bcc5b70827c849edf77343cf416363f4d238d4349a2c958656c070beba"],
 
 "p25ProviderPrivateSupport0":[147,{"$":334},47,{"$":335}],
 
-"p25ProviderSNI":[147,"ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect",110,"1064a86f83b1012e5e885ae440759722652253880878de0dd7054baa3a733ef8"],
+"p25ProviderSNI":[147,"ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect",129,"1064a86f83b1012e5e885ae440759722652253880878de0dd7054baa3a733ef8"],
 
 "p25ProviderSNISupport0":[147,{"$":334},47,{"$":335}],
 
 "p25ProviderSocket":[146,193,"socket.socket(family, socket.SOCK_STREAM)",19,193,60],
 
-"p25ProviderSupport0":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",335,"09acb7d123c99a72800a1b51d0d4487efd92ce9aa3a9edeb64c6a4e4b6797ed0"],
+"p25ProviderSupport0":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",354,"09acb7d123c99a72800a1b51d0d4487efd92ce9aa3a9edeb64c6a4e4b6797ed0"],
 
-"p25ProviderTLSSupport":[147,"ProviderNamespaceTests._synthetic_endpoint",287,"dfc4135d374b4fc9fee61a5a42b7ab3d039caaaadf271039ee7183fbf7e6f8a6"],
+"p25ProviderTLSSupport":[147,"ProviderNamespaceTests._synthetic_endpoint",306,"dfc4135d374b4fc9fee61a5a42b7ab3d039caaaadf271039ee7183fbf7e6f8a6"],
 
 "p25Receive":[146,"_receive_handoff",298,"bd7ae12514a91ea23c0045a0956835e9a282eeadac62dab106a0e90426f1414d"],
 
-"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2144,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
+"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2216,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
 
-"p25RelayFork":[146,404,"if os.fork() != 0:"],
+"p25RelayFork":[146,405,"if os.fork() != 0:"],
 
 "p25RelayRecvFD":[146,299,"message, descriptors, flags, _address = socket.recv_fds(control, 1, 1, socket.MSG_CMSG_CLOEXEC)"],
 
 "p25RelaySendFD":[146,290,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
 
-"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2133,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
+"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2205,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
 
 "p25Resolve":[146,"_resolved_provider",176,"2cab59725dc7236d4551ce9000244baf36f857ed37c2e0cfa6b7329514c51aec"],
 
 "p25RpcGate":[42,"_require_native_rpc",212,{"$":336}],
 
-"p25StartAppend":[149,283,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
+"p25StartAppend":[149,454,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
 
-"p25StartSync":[149,284,"os.fsync(descriptor)"],
+"p25StartSync":[149,455,"os.fsync(descriptor)"],
 
 "p25StreamPair":[146,287,"socket.socketpair()",21,287,40],
 
-"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",217,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
+"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",492,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
 
-"p25TransportScopeSupport0":[148,{"$":330},232,{"$":343}],
+"p25TransportScopeSupport0":[148,{"$":330},507,{"$":343}],
 
-"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1154,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
+"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1189,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
 
-"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1144,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
+"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1179,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
 
-"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1164,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
+"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1199,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
 
 "p25a":[116,{"$":56},260,{"$":49}],
 
@@ -1504,13 +1504,13 @@
 
 "p26c":[43,"WorktreeCapture._resolve_dirs",1934,"759407e0fb8121a074f72d098a7827e410ecd9e99fc1ebc27a5f29ad4bcf5b0b"],
 
-"p26d":[64,"_RegisteredServer.__init__",1116,"455086f7a62609952269401d68a0d894ebb4a3ed70fbb12fd0666cb3c469d0eb"],
+"p26d":[64,"_RegisteredServer.__init__",1151,"455086f7a62609952269401d68a0d894ebb4a3ed70fbb12fd0666cb3c469d0eb"],
 
 "p26e":[30,329,"self._handle.require_intent()"],
 
 "p26f":[32,783,"completed = subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,"],
 
-"p27":[64,1551,"self.request('thread/start', params, timeout=10)",29,1551,77],
+"p27":[64,1604,"self.request('thread/start', params, timeout=10)",29,1604,77],
 
 "p270":[73,706,"_require_live_activation(profile)"],
 
@@ -1546,7 +1546,7 @@
 
 "p28":[42,374,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,385,13],
 
-"p280":[64,"_CoherentServerRequests",993,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
+"p280":[64,"_CoherentServerRequests",1028,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
 
 "p281":[74,"main",12838,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
 
@@ -1682,7 +1682,7 @@
 
 "p2a7":[50,242,"if [[ \"$REPLACE\" -eq 1 && \"$DRY_RUN\" -eq 0 ]]; then"],
 
-"p2a8":[64,1480,"self.lifetime.launch(command, self.factory.home)",18,1480,66],
+"p2a8":[64,1533,"self.lifetime.launch(command, self.factory.home)",18,1533,66],
 
 "p2a9":[2,34,"if args.expires_after_bead.strip() != args.bead.strip():"],
 
@@ -1830,7 +1830,7 @@
 
 "p2ed":[59,415,{"$":57}],
 
-"p2ee":[64,2388,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2388,99],
+"p2ee":[64,2462,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2462,99],
 
 "p2ef":[8,{"$":197},1060,{"$":188}],
 
@@ -1852,7 +1852,7 @@
 
 "p2f7":[48,"require_trusted_reader",63,{"$":243}],
 
-"p2f8":[64,644,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
+"p2f8":[64,679,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
 
 "p2f9":[70,87,"require_v8_live_routes(plan)"],
 
@@ -1992,7 +1992,7 @@
 
 "p325":[2,54,"if not all((payload[\"operator_approval_ref\"], payload[\"sol_breakfix_scope\"], payload[\"sol_breakfix_expiry\"])):"],
 
-"p326":[64,2128,{"$":13}],
+"p326":[64,2200,{"$":13}],
 
 "p327":[23,"create_bead",231,"86b606298bf0b24b6e2416b45f7d92a832c408aea4f2ae0d10b3dbd65245b079"],
 
@@ -2052,9 +2052,9 @@
 
 "p341":[34,"_run",251,"043c67cecbd88fe946f19837214aba0a39406c62d7280a03e49f76226ca692af"],
 
-"p342":[64,"RegisteredN1Factory._effect",2271,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
+"p342":[64,"RegisteredN1Factory._effect",2345,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
 
-"p343":[64,665,"result = self.controller.spawn_owned("],
+"p343":[64,700,"result = self.controller.spawn_owned("],
 
 "p344":[8,{"$":199},705,{"$":168}],
 
@@ -2102,25 +2102,25 @@
 
 "p359":[51,"_LinuxEngine._capability",658,"b13ee7b85d401e179654e9581e68990fa87794af4c3884d10b2c348d19984466"],
 
-"p35AttachmentAdmission":[64,"RegisteredN1Factory._claim_run",2397,"018670080eb357ad844d59b5fb7e8b13bf6e6906d2e4ca47bf3870f7408001e5"],
+"p35AttachmentAdmission":[64,"RegisteredN1Factory._selected_access_token",2471,"cbeb9b7ce8a7a1cb81f9053c502e10e0413b0688ea98a9691769cea64195e82a"],
 
-"p35AttachmentRead":[146,"_read_access_token",426,"bfcc5ecf74d7f2ae741fe437bd7821bc1e03556fee0712797d4d80e6bedc7a2a"],
+"p35AttachmentRead":[146,"_read_access_token",427,"bfcc5ecf74d7f2ae741fe437bd7821bc1e03556fee0712797d4d80e6bedc7a2a"],
 
-"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",711,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
+"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",746,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
 
-"p35AttachmentStaging":[64,"_Containment._stage_access_token",560,"ac3682a1f98321bd9215d8ce36a135638d34c0b0d820026ae7904b43963a5072"],
+"p35AttachmentStaging":[64,"_Containment._stage_access_token",585,"ac3682a1f98321bd9215d8ce36a135638d34c0b0d820026ae7904b43963a5072"],
 
 "p35AuthAbsent":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",85,"286440c9d6e1457ac6b74f25862849cd2d29a19d093692fc22fbe76153d001a0"],
 
-"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",159,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
+"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",434,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
 
-"p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",216,"9d49cbff7cef5e78c2f32e4ce3d50f2d2483dc636827c42edb332215bc575254"],
+"p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",235,"9d49cbff7cef5e78c2f32e4ce3d50f2d2483dc636827c42edb332215bc575254"],
 
-"p35AuthTls":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",382,"70399970f5da9ab75059582e64e92c26f6d86fc8be44572c6555223f47fd3637"],
+"p35AuthTls":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",401,"70399970f5da9ab75059582e64e92c26f6d86fc8be44572c6555223f47fd3637"],
 
-"p35RelayCustody":[146,"_fork_relay",403,"15ff8165026b26477a8ee995b9ed9034f10c7b942f6e0aa8d32cd62cbb0586f2"],
+"p35RelayCustody":[146,"_fork_relay",404,"15ff8165026b26477a8ee995b9ed9034f10c7b942f6e0aa8d32cd62cbb0586f2"],
 
-"p35RelaySetup":[146,"_start_relay",415,"7be6b72ddaecb3a14a1756ef727661d22ff5665ae60a4794cf51bb75a801f0ee"],
+"p35RelaySetup":[146,"_start_relay",416,"7be6b72ddaecb3a14a1756ef727661d22ff5665ae60a4794cf51bb75a801f0ee"],
 
 "p35a":[112,"NativePoolAdmissionTests.test_close_owned_reconciles_exact_success_timeout_and_error",793,"1025d797bb254d49a929111b60ff9e66384e3be305cee67712b128870a611389"],
 
@@ -2172,7 +2172,7 @@
 
 "p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",1977,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
 
-"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1217,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
+"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1270,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
 
 "p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1926,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
 
@@ -2194,11 +2194,11 @@
 
 "p36SchemaContract":[141,"_check_n1_qualification",432,"f89a627ce9bff40376f19f9fd0fadf4d2c2460326a4a4f6004ee2928acc4709f"],
 
-"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",244,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
+"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",519,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
 
-"p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",631,"a7f87b36be3adf54b0d4000b3199ebada174ff892595c40d7b388dec3f044192"],
+"p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",666,"a7f87b36be3adf54b0d4000b3199ebada174ff892595c40d7b388dec3f044192"],
 
-"p36SchemaSelect":[149,"require_executable_schema",93,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
+"p36SchemaSelect":[149,"require_executable_schema",244,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
 
 "p36a":[47,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -2244,11 +2244,11 @@
 
 "p37e":[64,63,{"$":248},15,63,49],
 
-"p37f":[64,586,"os.write(descriptor, b'1')",12,586,38],
+"p37f":[64,611,"os.write(descriptor, b'1')",12,611,38],
 
 "p38":[8,1196,"box.evaluate(_FILL_SCRIPT, prompt)",35,1196,69],
 
-"p380":[64,616,{"$":148},8,616,37],
+"p380":[64,651,{"$":148},8,651,37],
 
 "p381":[127,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",957,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
 
@@ -2256,9 +2256,9 @@
 
 "p383":[127,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",939,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
 
-"p384":[64,"_Containment._command",484,"d461594250385ae5be10beeeaa01395173a07e042fe6ed27084ff3ece287ae19"],
+"p384":[64,"_Containment._command",510,"07fe31b30a2a1df9f5ad8d6789609c77021dc836326805cff8aea90881fe1b1f"],
 
-"p385":[64,745,"os.pidfd_open(pid, 0)",21,745,42],
+"p385":[64,780,"os.pidfd_open(pid, 0)",21,780,42],
 
 "p386":[64,"_namespace_info",158,"4bdd5337d0bd5be726aad740b60874887dcd4cda504fd993a8099cf78f0fc851"],
 
@@ -2268,15 +2268,15 @@
 
 "p389":[127,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",932,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
 
-"p38a":[64,"_Containment._release_command",606,"d5476cbe24d8e3de83f9106100989cd4bd675c8b133ada088bcfb31cf8722ec6"],
+"p38a":[64,"_Containment._release_command",640,"fb4d5e08f70f22a0433b3cf5c33ec6231f51eb897bdd59564982c6372c5d45f2"],
 
-"p38b":[64,"_Containment._retain_namespace",743,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
+"p38b":[64,"_Containment._retain_namespace",778,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
 
-"p38c":[64,789,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,789,75],
+"p38c":[64,824,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,824,75],
 
-"p38d":[64,609,{"$":249},8,609,34],
+"p38d":[64,644,{"$":249},8,644,34],
 
-"p38e":[64,"_Containment._terminate_claimed",888,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
+"p38e":[64,"_Containment._terminate_claimed",923,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
 
 "p38f":[79,165,"bd_json(command)",42,165,58],
 
@@ -2352,19 +2352,19 @@
 
 "p3S":[64,"_observe_adapter_failure",104,"869cdfc10f26047f7317a60cd6ace3e5842a732b4918a543b1f6af4c8ce05c9c"],
 
-"p3T":[64,"RegisteredN1Factory._make_adapter",2248,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
+"p3T":[64,"RegisteredN1Factory._make_adapter",2322,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
 
-"p3U":[64,"RegisteredN1Factory.model_task_binding",2055,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
+"p3U":[64,"RegisteredN1Factory.model_task_binding",2125,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
 
-"p3V":[64,"RegisteredAdapter._current_effective_boundary",1817,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
+"p3V":[64,"RegisteredAdapter._current_effective_boundary",1872,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
 
-"p3W":[64,"RegisteredN1Factory.model_task_bytes",2051,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
+"p3W":[64,"RegisteredN1Factory.model_task_bytes",2121,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
 
 "p3X":[111,"NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance",279,"f72d7a5e54a472bcac0502f46b639be46bf7b8a49fc39fad2f28e3f6720eab89"],
 
-"p3Y":[64,"RegisteredN1Factory._require_model_task",2046,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
+"p3Y":[64,"RegisteredN1Factory._require_model_task",2116,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
 
-"p3Z":[64,2047,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2049,74],
+"p3Z":[64,2117,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2119,74],
 
 "p3a":[8,739,{"$":254},26,743,17],
 
@@ -2408,39 +2408,39 @@
 
 "p3f":[76,1488,{"$":217},8,1492,9],
 
-"p3g":[64,"RegisteredN1Factory.record_dispatch",2087,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
+"p3g":[64,"RegisteredN1Factory.record_dispatch",2159,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
 
-"p3h":[64,2095,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2104,9],
+"p3h":[64,2167,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2176,9],
 
 "p3i":[111,"NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority",301,"7bf973b3e6e53c0e6c5fe7171dead072a12556ad50a9ab58ea29e5bc3cfbbd64"],
 
-"p3j":[64,1846,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1848,93],
+"p3j":[64,1901,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1903,93],
 
-"p3k":[64,"RegisteredN1Factory.guard",2017,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
+"p3k":[64,"RegisteredN1Factory.guard",2087,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
 
 "p3l":[111,"NativeOutboundScreenTests.registered_fixture",37,"2cc9dcf7da58c4f77b488c6c3a7dce0e94203e087fa5a2b9acff27ac22cf0842"],
 
 "p3m":[64,89,"_need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes\n          and _snapshot(selected['execution']) == receipt.execution_bytes,\n          'The model task requires the exact original admitted request and execution.')",4,91,87],
 
-"p3n":[64,"_registered_adapter_method",1897,"8b37de2cb04b07183fa7c73e71cb2265f80a9c089336d5cc0d55cead8a95fbfc"],
+"p3n":[64,"_registered_adapter_method",1952,"8b37de2cb04b07183fa7c73e71cb2265f80a9c089336d5cc0d55cead8a95fbfc"],
 
-"p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1726,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
+"p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1731,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
 
 "p3p":[111,"NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session",249,"5dd5476b4d34a47fc1794f47311d7c3308fbb73caa72b0b7869ea9b710863f65"],
 
 "p3q":[64,"_model_task",86,"1e7f83afba24a773dbce985590786eb56a82c0c5f30d40e24cb25deeefab38f1"],
 
-"p3r":[64,1819,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1819,99],
+"p3r":[64,1874,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1874,99],
 
 "p3s":[64,99,"_need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),\n          'The complete model task exceeds its original admitted byte allowance.')",4,100,82],
 
-"p3t":[64,"RegisteredAdapter.final_summary",1824,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
+"p3t":[64,"RegisteredAdapter.final_summary",1879,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
 
-"p3u":[64,1844,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1845,80],
+"p3u":[64,1899,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1900,80],
 
 "p3v":[111,"NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent",313,"448bff8184737597bf2cf9104a880623c7f0c7b36d91472f0423f5c5adecb5ed"],
 
-"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1836,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
+"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1891,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
 
 "p3x":[64,"_require_summary_primary",116,"ee253260a8982eca8f9b9b7617ac6dbdbdf49dcfb656ae4790273801f3e9cde6"],
 
@@ -2455,6 +2455,32 @@
 "p41":[8,1380,"candidate.click(timeout=timeout_ms)",16,1380,51],
 
 "p42":[8,677,{"$":254},26,681,17],
+
+"p42Archive":[149,"ManagedLoginMount.confirm_archived",202,"b52e8ee2fded973437991fbd7ce4f47a40fcb69ed62bd9f2f77470c1a3eea338"],
+
+"p42Interlock":[148,"CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release",94,"acf85bb27912d3e6d203555ce7f4fb4f4b9e97a4e694d95f22d838c81b00a722"],
+
+"p42LeaseClaim":[149,"claim_managed_login",365,"491ee59b40ed621f2e4930d4d7e4564683ac9b5f931037f1bf8874b4aa6c8ceb"],
+
+"p42LeaseRetire":[64,"RegisteredN1Factory._retire_managed_login",2493,"ca2c4dc74dad3324410da99c84a57263e6883f38cf6456cc355f367b9a1f01ef"],
+
+"p42LoginSelection":[64,"RegisteredN1Factory._select_managed_login",2034,"7afdf6915afbe268fdf048ca7bfbd6f3efc39c8d064787bc85bbb127f25113fc"],
+
+"p42MountVerify":[64,"_Containment._confirm_login_mount",632,"04d0e792136607c7609f9afa4d68370267cd17185f760ba22e3c483992492eed"],
+
+"p42Mounts":[64,"_Containment._appserver_mounts",498,"f2650cfc0f101963ccfde8658277281eec6c7292915170cab5ffcc0151ce5f23"],
+
+"p42Namespace":[148,"ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes",187,"4f16c4f92862debb13b92196ea293af3f7a097be7b4f1dd19d44b4b0d007d5da"],
+
+"p42Precharge":[148,"FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace",305,"3d5d8d26e305ffa0017b7d3168f4f2e52bd0d14756c6e57a5600289d42c2593a"],
+
+"p42Projection":[149,"ManagedLoginMount.prepare",143,"2f15c0e5211efe830f098372a2f14e963584903ee902969e06463b6dbc9471cb"],
+
+"p42Provider":[147,"ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist",110,"cbcfc8f9988446c042ac5c53e586916786ecd672d83e9ea540b9e8ac7e8736d2"],
+
+"p42Rollout":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",349,"273264f1d3281f34e020202294c1788688e9e6b1e99a2addfc6ac0d551c9d358"],
+
+"p42Unresolved":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",315,"ce1b7f7a372f3c205d2141ad468fea166d831755f9d6b8923037d21850e4912d"],
 
 "p43":[23,187,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,195,9],
 
@@ -2486,7 +2512,7 @@
 
 "p50":[8,1057,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1057,72],
 
-"p51":[64,1450,"super().request(*args, **kwargs)",17,1450,49],
+"p51":[64,1503,"super().request(*args, **kwargs)",17,1503,49],
 
 "p52":[50,202,{"$":315}],
 
@@ -2698,7 +2724,7 @@
 
 "pO":[129,"FiniteReplyWireTests.test_flush_or_scan_crossing_original_deadline_cannot_write",138,"13db522ce4edb84fb9a70b89c19ae9e35ec880fdecee4692a96fc188a91e8203"],
 
-"pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1797,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
+"pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1802,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
@@ -2708,9 +2734,9 @@
 
 "pRefusalClass":[143,"provider_policy_blocker",24,"4602fc7f3eac31aa4a2ba9ae0e9437d3d649c4b5c88b7f92e55ae862e061410f"],
 
-"pRefusalFixture":[127,"FactoryTests.assert_terminal_worker_failure",1745,"a2c1f9ba507243b1d4eb9d526fbc01358e34da2abc07abf54ead6836eb658bad"],
+"pRefusalFixture":[127,"FactoryTests.assert_terminal_worker_failure",1750,"a2c1f9ba507243b1d4eb9d526fbc01358e34da2abc07abf54ead6836eb658bad"],
 
-"pRefusalTest":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1789,"d25bd981c37a3d70434db9139eb0683a106c182dd635e4eaad9024a83f0ce81a"],
+"pRefusalTest":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1794,"d25bd981c37a3d70434db9139eb0683a106c182dd635e4eaad9024a83f0ce81a"],
 
 "pS":[65,"RegisteredN1Workflow._validate_execution",432,"9de7b62e0f7fdca9d868e2d5d7c98b9bad4eeadccca416586a9461d417690e7e"],
 
@@ -2838,7 +2864,7 @@
 
 "pce":[12,"main",846,"d0017093d8849ce4efedc6c4462bee8f1bcbdd348d8f24efcf40614272f997e6"],
 
-"pcf":[64,639,{"$":148}],
+"pcf":[64,674,{"$":148}],
 
 "pd":[8,876,"page.evaluate(_SNAPSHOT_SCRIPT, [marker])",20,876,61],
 
@@ -5011,39 +5037,39 @@
 
 [72,127,13,127,51,"dynamic","634fa128c02d9c9ccbe9f792b9c0cec527c554c3b64f8f3f7218f32b4bc5985f",[{"$":9},"XR357"]],
 
-[72,687,25,687,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
+[72,722,25,722,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
 
-[72,852,31,852,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
+[72,887,31,887,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
 
-[72,969,12,969,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
+[72,1004,12,1004,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
 
-[72,1027,15,1027,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
+[72,1062,15,1062,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
 
-[72,1394,20,1394,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
+[72,1447,20,1447,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
 
-[72,1450,17,1450,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
+[72,1503,17,1503,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
 
-[72,1460,49,1460,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
+[72,1513,49,1513,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
 
-[72,1480,18,1480,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
+[72,1533,18,1533,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
 
-[72,1551,29,1551,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
+[72,1604,29,1604,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
 
-[72,1719,16,1719,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
+[72,1774,16,1774,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
 
-[72,1864,17,1864,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
+[72,1919,17,1919,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
 
-[72,1865,39,1865,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
+[72,1920,39,1920,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
 
-[72,1884,15,1884,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
+[72,1939,15,1939,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
 
-[72,1913,16,1913,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
+[72,1968,16,1968,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
 
-[72,1915,18,1915,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
+[72,1970,18,1970,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
 
-[72,2279,29,2279,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
+[72,2353,29,2353,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
 
-[72,2388,22,2388,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
+[72,2462,22,2462,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
 
 [73,38,7,38,42,"dynamic","f6934272bce56a1ce7cebbe4386aacc09a74f1141872418c5f0b7011111d7163",[{"$":9},"XR373"]],
 
@@ -5061,13 +5087,13 @@
 
 [90,301,15,301,51,"network","1517417878c7639c66e291bf0671cdff0e1f7f2434388562b2580cd142583bcb",["route","N3.10","p25AdoptStream"]],
 
-[90,314,43,314,84,"network","355e91c70c9dfc2a98ab94029dd3305583791262806de9f1a9cf0eebaf4623e7",["route","N3.8","p25BrokerPair"]],
+[90,315,43,315,84,"network","355e91c70c9dfc2a98ab94029dd3305583791262806de9f1a9cf0eebaf4623e7",["route","N3.8","p25BrokerPair"]],
 
-[90,416,9,416,41,"network","a239c3e04154b0cd90f0307e20f274cde0677d2e6ce9659e60daa0c88b599ee4",["route","N3.11","p25AdoptControl"]],
+[90,417,9,417,41,"network","a239c3e04154b0cd90f0307e20f274cde0677d2e6ce9659e60daa0c88b599ee4",["route","N3.11","p25AdoptControl"]],
 
-[90,416,54,416,69,"network","2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",["route","N3.11","p25LoopbackSocket"]],
+[90,417,54,417,69,"network","2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",["route","N3.11","p25LoopbackSocket"]],
 
-[90,444,4,444,33,"process","bab1b779be05bd3bf09d1e3ce67d83ca0a862755c22d04a01ccb240b2557c9a6",["route","N3.11","p25ProviderExec"]],
+[90,445,4,445,33,"process","bab1b779be05bd3bf09d1e3ce67d83ca0a862755c22d04a01ccb240b2557c9a6",["route","N3.11","p25ProviderExec"]],
 
 [75,27,17,27,37,"dynamic","141361aefa2aa9f893afe69f541e620592710701316b4bd612c896639018171c",[{"$":9},"XR426b"]],
 
@@ -5438,13 +5464,13 @@
 
 {"contract":"N2","effect_points":["p1c3","p20"],"entrypoint":"p276","gates":["p2a3"],"id":"N2.4","review_gates":["p1fc","p1c6"]},
 
-{"contract":"N3","entrypoint":"pca","id":"N3.1","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w38","w25Permit","w25Budget","w25Expiry","w25Models"]},
+{"contract":"N3","entrypoint":"pca","id":"N3.1","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w38","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout"]},
 
 {"contract":"N3","entrypoint":"p2b1","id":"N3.2","manual_decisions":["M08","M09","M10","M26","M32"],"trace_files":[{"$":15},{"$":10},{"$":36}]},
 
-{"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},"scripts/cwo_core/supervision/turn_observations.py",{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models"]},
+{"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},"scripts/cwo_core/supervision/turn_observations.py",{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout"]},
 
-{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. An original registered qualification permit is checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before any worker birth or campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33"],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate"]},
+{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. An original registered qualification permit is checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before any worker birth or campaign start. The optional signed managed login mount is app-server-only and confirmed before the campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33"],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout"]},
 
 {"contract":"N4","entrypoint":"p2a6","gate_chains":[{"calls":[{"call":"p13e","direction":"into","target":"p30d"}],"effect":"p187","gate":"p34d"}],"id":"N4.1"},
 
@@ -5676,9 +5702,9 @@
 
 {"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["p7a"],"entrypoint":"p7b","gates":[],"id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":[{"$":70},{"$":21}],"witnesses":["w2a"]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Host broker calls this helper only after exact allowed CONNECT and initial TLS SNI. Resolve fixed names at port 443 through the trusted host resolver and reject private/non-global results. Up to eight address candidates share one deadline and respect revocation. The scanner labels socket.connect as browser family by name; the concrete receiver is a TCP socket. Synthetic local TLS is the positive control. The fixed authentication hostname is admitted only for an app-server launch with an attached personal access token.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent"]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Host broker calls this helper only after exact allowed CONNECT and initial TLS SNI. Resolve fixed names at port 443 through the trusted host resolver and reject private/non-global results. Up to eight address candidates share one deadline and respect revocation. The scanner labels socket.connect as browser family by name; the concrete receiver is a TCP socket. Synthetic local TLS is the positive control. The fixed authentication hostname is admitted only for a signed app-server launch using the dedicated Codex file login or an attached personal access token.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent","w42Provider"]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent qualification relay control socketpair","effect_points":["p25BrokerPair"],"entrypoint":"p25Broker","gate_limits":{"$":327},"gates":[],"id":"N3.8","limits":"One anonymous local Unix datagram pair belongs to the original host and gated relay. Only its child end is inherited by the trusted app-server bootstrap. No file or host listener is exposed.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340}]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent qualification relay control socketpair","effect_points":["p25BrokerPair"],"entrypoint":"p25Broker","gate_limits":{"$":327},"gates":[],"id":"N3.8","limits":"One anonymous local Unix datagram pair belongs to the original host and gated relay. Only its child end is inherited by the trusted app-server bootstrap. No file or host listener is exposed.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340},"w42Provider"]},
 
 {"admission":{"$":4},"contract":"N3","effect":"Relay connection-local stream handoff","effect_points":["p25StreamPair","p25RelaySendFD"],"entrypoint":"p25Handoff","gate_limits":{"$":327},"gates":[],"id":"N3.9","limits":"The relay creates one anonymous Unix stream pair per admitted local connection and hands exactly one end to the original parent using SCM_RIGHTS. The bounded relay owns the other stream. This step cannot itself dial outside the namespace.","manual_decisions":["M34","M35","M37"],"review_gates":["p222"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":[{"$":340}]},
 
@@ -6402,7 +6428,7 @@
 
 "references/cwo-system-prompt.md":["35a51347e73c234265797478a591dd101b803e4ba123d36b0ceeaa556c3b92bf",420,2833],
 
-"references/release-effect-routes.md":["cfb7f3abfe558a93011412c10c2fe35549cf1f9f3750deeb40253f3ce6b4002c",420,20629],
+"references/release-effect-routes.md":["b77671b0dd2ca0d18c4c41d62c32233e92b3d640dee49869230d9834b651b588",420,21138],
 
 "schemas/qualification-target.schema.json":["e466add6737bb9a244c0cbf6bb9877be9f3fff3575b7aad38a1e960ee28980fa",420,23935],
 
@@ -6672,7 +6698,7 @@
 
 "scripts/cwo_core/qualification_target.py":["75f7c8cb444f1d5ac1f6ac415ead7cd9f74064da37e9550a7bd45d4de69ecd55",420,1793],
 
-"scripts/cwo_core/release_effect_routes.py":["405eed8b027082872f515b90508aec97dd2b5af22fe637b553122462c5a29380",420,68167],
+"scripts/cwo_core/release_effect_routes.py":["0bce674495842839049b07cf5dc3cc3f32e880efe48c80bf8b35c9b77c019284",420,69594],
 
 "scripts/cwo_core/requirement_baseline.py":["135681130a0046db14dc84fcd7c73a8f61fd1c8001b7cc467828565fca693420",420,20496],
 
@@ -6862,9 +6888,9 @@
 
 "scripts/registered_host_root_boundary.py":["615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",420,1303],
 
-"scripts/registered_n1_factory.py":["8f177e962cb9fc44be8946e79977543b9a779b8a5e63ebe26878d59445ed223a",420,126914],
+"scripts/registered_n1_factory.py":["38f67a06d0f0e9afd81d6af7ec5bd4e70d2cd881de2d179785c43625c009142c",420,131660],
 
-"scripts/registered_n1_qualification.py":["01f69bc668b866a24679ad061b492ce210447a63421e3206919d0a8ee3e8d815",420,12123],
+"scripts/registered_n1_qualification.py":["d7ede08c63483726bf4066c582945103970923a83839b0e488b147da2a62a1b0",420,20405],
 
 "scripts/registered_n1_workflow.py":["ab229624003f1d516d1831703aea8ecff27b5cb992b24106f66ac831adb60439",420,32110],
 
@@ -6874,7 +6900,7 @@
 
 "scripts/registered_native_pool_retry.py":["261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",420,22322],
 
-"scripts/registered_provider_network.py":["cb2547f088c713c781c96c33a23a27adbde186eea52c16338558f7c6ab544af6",420,15101],
+"scripts/registered_provider_network.py":["0b77e914fc1df528cf95392948bafb43d3b2a1582dfb39f02aec0c5ab9e82d18",420,15180],
 
 "scripts/registered_server_requests.py":["2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd",420,24889],
 
@@ -6954,7 +6980,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["94253ea4ff6c0da490ad20e4acaff95c53d79d1fd9967259ab6c133f715bd2f8",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["e6730627f577363d63790c32967a71dbe30f71f57c76e34d1d493b60bb24252d",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7068,19 +7094,19 @@
 
 "tests/test_registered_finite_tool_wiring.py":["376380fcf67a862c0393650edeedf79918546859ddacabdacc6ae90ae2775dc3",420,284864],
 
-"tests/test_registered_n1_factory.py":["4dea4c67e0f4f75b7e24f76c9f9cf6778fba1ce3e41273682b23ab2eb9e1ef2c",420,134701],
+"tests/test_registered_n1_factory.py":["8d2e04bf807531df3c1b76a40631bfb209e744ad1f9e3753c14566b65dffd3c0",420,135163],
 
-"tests/test_registered_n1_qualification.py":["25d4de70698c14439e45c4076e2bdedd3570756a1c1371e86f00fdd831c2b0d1",420,15745],
+"tests/test_registered_n1_qualification.py":["f464689b4bd074ff900bb638dbfef87d7234e5011e3fe0e42e817485bd218719",420,29979],
 
 "tests/test_registered_native_pool_host.py":["25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",420,39405],
 
 "tests/test_registered_outbound_screen.py":["de9f7f9b071365afef9236a20fbeef321d55cbdf941a4c3673646612a7b5949c",420,10270],
 
-"tests/test_registered_provider_network.py":["69b2da31a020c5f2bbc9ee42512c7b60289777ea20115d1577ea5cedc3be14b6",420,21057],
+"tests/test_registered_provider_network.py":["4810be8c8212226f4ed9896dac4446c9ef38421d1ce85f1df0c80eb168e64112",420,22158],
 
 "tests/test_registered_startup_publication.py":["7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",420,13496],
 
-"tests/test_release_effect_routes.py":["9a815ed5a300efcc2fb80f0801ebcdbd682785b25f814cf9c645a2f565e19609",420,96892],
+"tests/test_release_effect_routes.py":["4a3d2f54939fba01766c2bcbd12a39545fb17b66afd69c06ba7ff2ad529c93d1",420,99639],
 
 "tests/test_release_filesystem.py":["5fcb7a33f91ad28f1041c1498a61d47f22a67d4b55027f786b5c1df64584e212",420,16860],
 
@@ -7107,413 +7133,439 @@
 "tests/test_workspace_inert_inspection.py":["e4431b1a69b387499980c5b275eb66872bb7c01f88c86f79e87802c041bc41c9",420,288978]
 },
 
+"witness_columns":[
+"assertion",
+
+"body",
+
+"kind",
+
+"positive",
+
+"support",
+
+"test_id"
+],
+
 "witnesses":{
-"pC":{"assertion":"self.assertTrue(probe.close()['namespace_exited'])","body":"pE","kind":{"$":1},"positive":"self.assertIn('poll-ok', probe.poll('')['stdout'])","support":["pD","pG","pH"],"test_id":"tests.test_selected_native_containment.OuterBoundaryOSControlTests.test_scheduler_state_change_during_namespace_handle_open_preserves_birth"},
+"pC":["self.assertTrue(probe.close()['namespace_exited'])","pE",{"$":1},"self.assertIn('poll-ok', probe.poll('')['stdout'])",["pD","pG","pH"],"tests.test_selected_native_containment.OuterBoundaryOSControlTests.test_scheduler_state_change_during_namespace_handle_open_preserves_birth"],
 
-"w0":{"assertion":"self.assertEqual(code, 1, \"check must fail even though a.py is now in .gitignore\")","body":"p161","kind":{"$":12},"positive":"self.assertEqual(code, 0, err.getvalue())","support":[],"test_id":"tests.test_code_health.ReviewRoundTenTests.test_tracked_file_in_gitignore_with_new_debt_fails"},
+"w0":["self.assertEqual(code, 1, \"check must fail even though a.py is now in .gitignore\")","p161",{"$":12},"self.assertEqual(code, 0, err.getvalue())",[],"tests.test_code_health.ReviewRoundTenTests.test_tracked_file_in_gitignore_with_new_debt_fails"],
 
-"w1":{"assertion":{"$":135},"body":"p252","kind":{"$":12},"positive":"self.assertIn(\"parallel unittest: PASS workers=2 tests=3\", result.stdout)","support":["p1d2","p1e1","p2bc","p2ea"],"test_id":"tests.test_run_parallel_unittest.ParallelUnittestTests.test_cli_runs_isolated_shards_and_aggregates_success"},
+"w1":[{"$":135},"p252",{"$":12},"self.assertIn(\"parallel unittest: PASS workers=2 tests=3\", result.stdout)",["p1d2","p1e1","p2bc","p2ea"],"tests.test_run_parallel_unittest.ParallelUnittestTests.test_cli_runs_isolated_shards_and_aggregates_success"],
 
-"w10":{"assertion":"self.assertEqual((len(writes), len(links)), (0, 0))","body":"pea","kind":{"$":0},"positive":"self.assertEqual((len(writes), len(links)), (3, 1))","support":["p1cf","p158","p22a","p260"],"test_id":"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency"},
+"w10":["self.assertEqual((len(writes), len(links)), (0, 0))","pea",{"$":0},"self.assertEqual((len(writes), len(links)), (3, 1))",["p1cf","p158","p22a","p260"],"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency"],
 
-"w11":{"assertion":"self.assertEqual((quota.call_count, reached.call_count, audited, stdout.getvalue()), (0, 0, False, \"\"))","body":"p12e","kind":{"$":0},"positive":"self.assertEqual((quota.call_count, reached.call_count, audited), (quota_calls, 1, True))","support":["p1c0","p15d","p21b","p1e3","p1bc","p105","p13a","p1f4","p178"],"test_id":"tests.test_invocation_containment.ShippedRoutesAreDisabledTests.test_live_browser_dispatch_and_confirmation_refuse_before_any_effect"},
+"w11":["self.assertEqual((quota.call_count, reached.call_count, audited, stdout.getvalue()), (0, 0, False, \"\"))","p12e",{"$":0},"self.assertEqual((quota.call_count, reached.call_count, audited), (quota_calls, 1, True))",["p1c0","p15d","p21b","p1e3","p1bc","p105","p13a","p1f4","p178"],"tests.test_invocation_containment.ShippedRoutesAreDisabledTests.test_live_browser_dispatch_and_confirmation_refuse_before_any_effect"],
 
-"w12":{"assertion":{"$":308},"body":"p25c","kind":{"$":6},"positive":{"$":308},"support":[],"test_id":"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_example_positive_and_missing_review_refuse_without_effects"},
+"w12":[{"$":308},"p25c",{"$":6},{"$":308},[],"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_example_positive_and_missing_review_refuse_without_effects"],
 
-"w13":{"assertion":"with self.assertRaises(R.Refused, msg=f\"{name} unrelated selection admitted\"):","body":"pfd","kind":{"$":0},"positive":"self.assertTrue(self.select(root, output, review)[\"complete_effect_trace\"])","support":[],"test_id":"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_unrelated_review_test_receipt_and_manual_decisions_refuse"},
+"w13":["with self.assertRaises(R.Refused, msg=f\"{name} unrelated selection admitted\"):","pfd",{"$":0},"self.assertTrue(self.select(root, output, review)[\"complete_effect_trace\"])",[],"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_unrelated_review_test_receipt_and_manual_decisions_refuse"],
 
 "w14":{"assertion":{"$":231},"body":"p14c","kind":{"$":0},"positive":"self.assertEqual(child.call_args.args[0][:2], [\"ruff\", \"check\"])","test_id":"tests.test_release_effect_routes.ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive"},
 
-"w15":{"assertion":"retain.assert_not_called()","body":"p247","kind":{"$":1},"positive":"libc.posix_spawnattr_destroy.assert_called_once()","support":["p2ec"],"test_id":"tests.test_atomic_spawn.AtomicSpawnTests.test_native_errno_is_used_and_all_initialized_resources_are_destroyed"},
+"w15":["retain.assert_not_called()","p247",{"$":1},"libc.posix_spawnattr_destroy.assert_called_once()",["p2ec"],"tests.test_atomic_spawn.AtomicSpawnTests.test_native_errno_is_used_and_all_initialized_resources_are_destroyed"],
 
-"w16":{"assertion":"self.assertEqual(late_opens, [])","body":"p2bb","kind":{"$":1},"positive":"self.assertNotIn(report[\"outcome\"], (\"invalid-request\", \"invalid-spawn\"))","support":[],"test_id":"tests.test_linux_owned_children.RealOwnedChildTests.test_creation_never_opens_a_pidfd_after_an_outside_reaper"},
+"w16":["self.assertEqual(late_opens, [])","p2bb",{"$":1},"self.assertNotIn(report[\"outcome\"], (\"invalid-request\", \"invalid-spawn\"))",[],"tests.test_linux_owned_children.RealOwnedChildTests.test_creation_never_opens_a_pidfd_after_an_outside_reaper"],
 
-"w17":{"assertion":"self.assertEqual(report[\"outcome\"], \"registered\", report)","body":"p244","kind":{"$":6},"positive":"self.assertEqual(child.returncode, 0)","support":[],"test_id":"tests.test_atomic_spawn.RealAtomicPipeTests.test_original_pipe_contract_preserves_stdio_pass_fds_and_child_only_umask"},
+"w17":["self.assertEqual(report[\"outcome\"], \"registered\", report)","p244",{"$":6},"self.assertEqual(child.returncode, 0)",[],"tests.test_atomic_spawn.RealAtomicPipeTests.test_original_pipe_contract_preserves_stdio_pass_fds_and_child_only_umask"],
 
-"w18":{"assertion":"load.assert_not_called()","body":"p2d9","kind":{"$":0},"positive":"self.assertEqual(failure.exception.errno, errno.ENOSYS)","support":[],"test_id":"tests.test_atomic_spawn.AtomicSpawnTests.test_unsupported_platform_and_old_libc_refuse_before_creation"},
+"w18":["load.assert_not_called()","p2d9",{"$":0},"self.assertEqual(failure.exception.errno, errno.ENOSYS)",[],"tests.test_atomic_spawn.AtomicSpawnTests.test_unsupported_platform_and_old_libc_refuse_before_creation"],
 
-"w19":{"assertion":"with self.assertRaisesRegex(SystemExit, \"independent.*digest\"):","body":"p352","kind":{"$":0},"positive":"self.assertTrue(self.validate() == self.text, \"response bytes changed\")","support":["p206","p203","p2cb","p10d"],"test_id":"tests.test_browser_provenance.BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal"},
+"w19":["with self.assertRaisesRegex(SystemExit, \"independent.*digest\"):","p352",{"$":0},"self.assertTrue(self.validate() == self.text, \"response bytes changed\")",["p206","p203","p2cb","p10d"],"tests.test_browser_provenance.BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal"],
 
-"w1a":{"assertion":"self.assertEqual((len(page.filled), len(page.sent)), (0, 0))","body":"p350","kind":{"$":0},"positive":{"$":292},"support":["p18d","p13a","p1f4","p178","p185","p208","p213"],"test_id":"tests.test_browser_connected.ConnectedBrowserTests.test_missing_admission_refuses_before_fill"},
+"w1a":["self.assertEqual((len(page.filled), len(page.sent)), (0, 0))","p350",{"$":0},{"$":292},["p18d","p13a","p1f4","p178","p185","p208","p213"],"tests.test_browser_connected.ConnectedBrowserTests.test_missing_admission_refuses_before_fill"],
 
-"w1b":{"assertion":"self.assertEqual(len(page.sent), 0)","body":"p279","kind":{"$":0},"positive":{"$":292},"support":["p18d","p13a","p1f4","p178","p185","p208","p213"],"test_id":"tests.test_browser_connected.ConnectedBrowserTests.test_final_callbacks_revalidate_original_execution_and_inputs"},
+"w1b":["self.assertEqual(len(page.sent), 0)","p279",{"$":0},{"$":292},["p18d","p13a","p1f4","p178","p185","p208","p213"],"tests.test_browser_connected.ConnectedBrowserTests.test_final_callbacks_revalidate_original_execution_and_inputs"],
 
-"w1c":{"assertion":"self.assertEqual(len(calls), 0)","body":"p233","kind":{"$":0},"positive":"self.assertEqual((len(page.sent), len(calls)), (1, 1))","support":["p27b","p13a","p1f4","p178"],"test_id":"tests.test_browser_connected.ConnectedBrowserTests.test_share_wrong_content_conversation_purpose_and_expiry_refuse_before_effect"},
+"w1c":["self.assertEqual(len(calls), 0)","p233",{"$":0},"self.assertEqual((len(page.sent), len(calls)), (1, 1))",["p27b","p13a","p1f4","p178"],"tests.test_browser_connected.ConnectedBrowserTests.test_share_wrong_content_conversation_purpose_and_expiry_refuse_before_effect"],
 
-"w1d":{"assertion":"self.assertEqual(invalid[\"termination\"][\"signals_sent\"], 0)","body":"p243","kind":{"$":0},"positive":"self.assertEqual(result[\"termination\"][\"outcomes\"], {\"killed\": 1})","support":["p306"],"test_id":"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_term_wait_and_explicit_kill_share_one_original_handle"},
+"w1d":["self.assertEqual(invalid[\"termination\"][\"signals_sent\"], 0)","p243",{"$":0},"self.assertEqual(result[\"termination\"][\"outcomes\"], {\"killed\": 1})",["p306"],"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_term_wait_and_explicit_kill_share_one_original_handle"],
 
-"w1e":{"assertion":"self.assertEqual(result[\"termination\"][\"signals_sent\"], 1)","body":"p24c","kind":{"$":6},"positive":"self.assertEqual(table.send_signal.call_count, 1)","support":["pf2"],"test_id":"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_consumes_controller_owned_lifetime"},
+"w1e":["self.assertEqual(result[\"termination\"][\"signals_sent\"], 1)","p24c",{"$":6},"self.assertEqual(table.send_signal.call_count, 1)",["pf2"],"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_consumes_controller_owned_lifetime"],
 
-"w1f":{"assertion":{"$":311},"body":"p1b7","kind":{"$":0},"positive":"self.assertTrue(birth.exit_confirmed and birth.reaped)","support":[],"test_id":"tests.test_linux_owned_children.RealOwnedChildTests.test_cleanup_consumes_atomic_owned_child_for_term_and_explicit_kill"},
+"w1f":[{"$":311},"p1b7",{"$":0},"self.assertTrue(birth.exit_confirmed and birth.reaped)",[],"tests.test_linux_owned_children.RealOwnedChildTests.test_cleanup_consumes_atomic_owned_child_for_term_and_explicit_kill"],
 
-"w2":{"assertion":"self.assertEqual(commits, [])","body":"p24e","kind":{"$":0},"positive":"self.assertEqual(len(commits), 1)","support":["p2d7"],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_public_consumer_revalidates_claims_under_capability_lock"},
+"w2":["self.assertEqual(commits, [])","p24e",{"$":0},"self.assertEqual(len(commits), 1)",["p2d7"],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_public_consumer_revalidates_claims_under_capability_lock"],
 
-"w20":{"assertion":"table.send_signal.assert_not_called()","body":"p102","kind":{"$":0},"positive":"self.assertEqual(self.run_retained_cleanup(producer, capability, session)[\"termination\"][\"signals_sent\"], 1)","support":["p25a"],"test_id":"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_refuses_missing_or_foreign_receipt"},
+"w20":["table.send_signal.assert_not_called()","p102",{"$":0},"self.assertEqual(self.run_retained_cleanup(producer, capability, session)[\"termination\"][\"signals_sent\"], 1)",["p25a"],"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_refuses_missing_or_foreign_receipt"],
 
-"w21":{"assertion":"self.assertEqual(replacement.signals, [])","body":"p114","kind":{"$":1},"positive":"self.assertEqual(table.closes, [table.next_fd])","support":["p287"],"test_id":"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared"},
+"w21":["self.assertEqual(replacement.signals, [])","p114",{"$":1},"self.assertEqual(table.closes, [table.next_fd])",["p287"],"tests.test_ownership_producer.OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared"],
 
-"w22":{"assertion":{"$":76},"body":"p68","kind":{"$":0},"positive":{"$":145},"support":["p75"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes"},
+"w22":[{"$":76},"p68",{"$":0},{"$":145},["p75"],"tests.test_production_closure.ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes"],
 
-"w23":{"assertion":"self.assertEqual(self.store.audit_events(), before)","body":"p6b","kind":{"$":0},"positive":{"$":298},"support":[],"test_id":"tests.test_host_acceptance.HostAcceptanceTests.test_closing_acceptance_requires_host_selected_separated_adjudicator"},
+"w23":["self.assertEqual(self.store.audit_events(), before)","p6b",{"$":0},{"$":298},[],"tests.test_host_acceptance.HostAcceptanceTests.test_closing_acceptance_requires_host_selected_separated_adjudicator"],
 
-"w24":{"assertion":"configured.assert_not_called()","body":"p6d","kind":{"$":0},"positive":"self.assertEqual(authority.capture(database='/EXAMPLE/database', bead_id='EXAMPLE-bead',","support":[],"test_id":"tests.test_production_closure_authority.ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access"},
+"w24":["configured.assert_not_called()","p6d",{"$":0},"self.assertEqual(authority.capture(database='/EXAMPLE/database', bead_id='EXAMPLE-bead',",[],"tests.test_production_closure_authority.ProductionAuthorityTests.test_capture_requires_exact_delivery_context_before_store_access"],
 
-"w25":{"assertion":"self.assertEqual(guard.call_count, entries[0])","body":"p16d","kind":{"$":0},"positive":{"$":145},"support":[],"test_id":"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control"},
+"w25":["self.assertEqual(guard.call_count, entries[0])","p16d",{"$":0},{"$":145},[],"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control"],
 
-"w25Budget":{"assertion":"with self.assertRaisesRegex(qualification.QualificationError, 'campaign.*limit'):","body":"p25Budget","kind":{"$":0},"positive":"self.assertEqual(qualification.campaign_usage(), {'initial': 10, 'rechecks': 5, 'total': 15})","support":[],"test_id":"tests.test_registered_n1_qualification.CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks"},
+"w25Budget":["with self.assertRaisesRegex(qualification.QualificationError, 'campaign.*limit'):","p25Budget",{"$":0},"self.assertEqual(qualification.campaign_usage(), {'initial': 10, 'rechecks': 5, 'total': 15})",[],"tests.test_registered_n1_qualification.CampaignTests.test_one_budget_survives_new_controllers_and_signed_rechecks"],
 
-"w25Expiry":{"assertion":{"$":338},"body":"p25Expiry","kind":{"$":0},"positive":{"$":332},"support":["p25ExpirySupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker"},
+"w25Expiry":[{"$":338},"p25Expiry",{"$":0},{"$":332},["p25ExpirySupport0"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker"],
 
-"w25Finite":{"assertion":"self.assertEqual(observation['outcome'], 'refused-nonempty')","body":"p25Finite","kind":{"$":0},"positive":"self.assertEqual(observation['outcome'], 'empty-poll')","support":["p25FiniteSupport0","p25FiniteSupport1"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery"},
+"w25Finite":["self.assertEqual(observation['outcome'], 'refused-nonempty')","p25Finite",{"$":0},"self.assertEqual(observation['outcome'], 'empty-poll')",["p25FiniteSupport0","p25FiniteSupport1"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery"],
 
-"w25Models":{"assertion":"with self.assertRaisesRegex(qualification.QualificationError, 'role'):","body":"p25Models","kind":{"$":1},"positive":"{'model': 'gpt-6.2-sol', 'effort': 'xhigh', 'service_tier': 'default', 'provider': 'openai'}","support":[],"test_id":"tests.test_registered_n1_qualification.CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles"},
+"w25Models":["with self.assertRaisesRegex(qualification.QualificationError, 'role'):","p25Models",{"$":1},"{'model': 'gpt-6.2-sol', 'effort': 'xhigh', 'service_tier': 'default', 'provider': 'openai'}",[],"tests.test_registered_n1_qualification.CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles"],
 
-"w25MonitorProof":{"assertion":"with self.assertRaisesRegex(runtime.native.OfflineHostError, 'same-handle reaping'):","body":"p25MonitorProof","kind":{"$":0},"positive":"self.assertIs(lifetime._terminate_monitor(), complete)","support":[],"test_id":"tests.test_registered_provider_network.RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal"},
+"w25MonitorProof":["with self.assertRaisesRegex(runtime.native.OfflineHostError, 'same-handle reaping'):","p25MonitorProof",{"$":0},"self.assertIs(lifetime._terminate_monitor(), complete)",[],"tests.test_registered_provider_network.RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal"],
 
-"w25OriginalWatchdog":{"assertion":"self.assertEqual(terminated['outcome'], 'identity-unavailable')","body":"p25OriginalWatchdog","kind":{"$":1},"positive":"self.assertIs(report['child_reaped'], True)","support":[],"test_id":"tests.test_private_pid_ci_applicability.PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence"},
+"w25OriginalWatchdog":["self.assertEqual(terminated['outcome'], 'identity-unavailable')","p25OriginalWatchdog",{"$":1},"self.assertIs(report['child_reaped'], True)",[],"tests.test_private_pid_ci_applicability.PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence"],
 
-"w25Permit":{"assertion":{"$":338},"body":"p25Permit","kind":{"$":0},"positive":{"$":332},"support":["p25PermitSupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production"},
+"w25Permit":[{"$":338},"p25Permit",{"$":0},{"$":332},["p25PermitSupport0"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production"],
 
-"w25Provider":{"assertion":"self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))","body":"p25Provider","kind":{"$":0},"positive":"self.assertEqual(self.provider_request.get(timeout=3), b'EXAMPLE provider request')","support":["p25ProviderSupport0","p25ProviderTLSSupport"],"test_id":"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot"},
+"w25Provider":["self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))","p25Provider",{"$":0},"self.assertEqual(self.provider_request.get(timeout=3), b'EXAMPLE provider request')",["p25ProviderSupport0","p25ProviderTLSSupport"],"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot"],
 
-"w25ProviderPrivate":{"assertion":"self.assertEqual(self._refused_provider_hello(), 'provider-address-not-public')","body":"p25ProviderPrivate","kind":{"$":0},"positive":{"$":337},"support":["p25ProviderPrivateSupport0"],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_a_private_provider_dns_result_is_refused"},
+"w25ProviderPrivate":["self.assertEqual(self._refused_provider_hello(), 'provider-address-not-public')","p25ProviderPrivate",{"$":0},{"$":337},["p25ProviderPrivateSupport0"],"tests.test_registered_provider_network.ProviderNetworkTests.test_a_private_provider_dns_result_is_refused"],
 
-"w25ProviderSNI":{"assertion":"dial.assert_not_called()","body":"p25ProviderSNI","kind":{"$":0},"positive":{"$":337},"support":["p25ProviderSNISupport0"],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect"},
+"w25ProviderSNI":["dial.assert_not_called()","p25ProviderSNI",{"$":0},{"$":337},["p25ProviderSNISupport0"],"tests.test_registered_provider_network.ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect"],
 
-"w25TransportScope":{"assertion":"server.start_turn('thread', 'benign fixture')","body":"p25TransportScope","kind":{"$":0},"positive":{"$":332},"support":["p25TransportScopeSupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit"},
+"w25TransportScope":["server.start_turn('thread', 'benign fixture')","p25TransportScope",{"$":0},{"$":332},["p25TransportScopeSupport0"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit"],
 
-"w26":{"assertion":"self.assertEqual(len(consumed), 1)","body":"p6f","kind":{"$":1},"positive":{"$":145},"support":["p75"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures"},
+"w26":["self.assertEqual(len(consumed), 1)","p6f",{"$":1},{"$":145},["p75"],"tests.test_production_closure.ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures"],
 
-"w27":{"assertion":{"$":295},"body":"p71","kind":{"$":0},"positive":{"$":124},"support":["p77"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete"},
+"w27":[{"$":295},"p71",{"$":0},{"$":124},["p77"],"tests.test_production_closure.ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete"],
 
-"w28":{"assertion":"self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, True)","body":"p229","kind":{"$":0},"positive":"self.assertEqual(result[\"state\"], \"COMPLETED\")","support":[],"test_id":"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control"},
+"w28":["self.assertIs(qualified.PRODUCTION_CLOSURE_AVAILABLE, True)","p229",{"$":0},"self.assertEqual(result[\"state\"], \"COMPLETED\")",[],"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control"],
 
-"w29":{"assertion":"io.assert_not_called()","body":"p330","kind":{"$":1},"positive":{"$":123},"support":["p197"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io"},
+"w29":["io.assert_not_called()","p330",{"$":1},{"$":123},["p197"],"tests.test_production_closure.ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io"],
 
-"w2a":{"assertion":{"$":295},"body":"p76","kind":{"$":0},"positive":{"$":304},"support":["p75"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes"},
+"w2a":[{"$":295},"p76",{"$":0},{"$":304},["p75"],"tests.test_production_closure.ProductionClosureTests.test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes"],
 
-"w2b":{"assertion":{"$":289},"body":"p78","kind":{"$":0},"positive":{"$":309},"support":["p77"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write"},
+"w2b":[{"$":289},"p78",{"$":0},{"$":309},["p77"],"tests.test_production_closure.ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write"],
 
-"w2c":{"assertion":{"$":289},"body":"p79","kind":{"$":0},"positive":{"$":309},"support":["p77"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_policy_source_drift_after_bind_or_comment_refuses_next_write"},
+"w2c":[{"$":289},"p79",{"$":0},{"$":309},["p77"],"tests.test_production_closure.ProductionClosureTests.test_policy_source_drift_after_bind_or_comment_refuses_next_write"],
 
-"w2d":{"assertion":{"$":76},"body":"p7c","kind":{"$":0},"positive":{"$":124},"support":["p77","p73","p72","p81","p7e","p82","p75"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance"},
+"w2d":[{"$":76},"p7c",{"$":0},{"$":124},["p77","p73","p72","p81","p7e","p82","p75"],"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance"],
 
-"w2e":{"assertion":{"$":76},"body":"p7d","kind":{"$":0},"positive":{"$":124},"support":["p77","p73","p72","p81","p7e","p82","p75"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads"},
+"w2e":[{"$":76},"p7d",{"$":0},{"$":124},["p77","p73","p72","p81","p7e","p82","p75"],"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads"],
 
-"w2f":{"assertion":"self.assertEqual(before, {p.relative_to(self.store.state_root): p.read_bytes()","body":"p7f","kind":{"$":0},"positive":{"$":298},"support":["p75"],"test_id":"tests.test_host_acceptance.HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest"},
+"w2f":["self.assertEqual(before, {p.relative_to(self.store.state_root): p.read_bytes()","p7f",{"$":0},{"$":298},["p75"],"tests.test_host_acceptance.HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest"],
 
-"w3":{"assertion":"self.assertFalse(pool_called)","body":"p1ff","kind":{"$":0},"positive":"self.assertTrue(result[\"accepted\"])","support":["p1fb"],"test_id":"tests.test_native_pool_transaction.NativePoolTransactionTests.test_final_horizon_overrun_contains_before_admitted_pool_commit"},
+"w3":["self.assertFalse(pool_called)","p1ff",{"$":0},"self.assertTrue(result[\"accepted\"])",["p1fb"],"tests.test_native_pool_transaction.NativePoolTransactionTests.test_final_horizon_overrun_contains_before_admitted_pool_commit"],
 
-"w30":{"assertion":{"$":76},"body":"p83","kind":{"$":0},"positive":{"$":304},"support":["p75"],"test_id":"tests.test_production_closure.ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage"},
+"w30":[{"$":76},"p83",{"$":0},{"$":304},["p75"],"tests.test_production_closure.ProductionClosureTests.test_host_record_store_cannot_overlap_database_storage"],
 
-"w31":{"assertion":{"$":302},"body":"p91","kind":{"$":12},"positive":"self.assertEqual(report['observed']['command'], 'command-ok')","support":[],"test_id":"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec"},
+"w31":[{"$":302},"p91",{"$":12},"self.assertEqual(report['observed']['command'], 'command-ok')",[],"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec"],
 
-"w32":{"assertion":{"$":143},"body":"p93","kind":{"$":12},"positive":"self.assertTrue(probe._cleanup['namespace_exited'])","support":[],"test_id":"tests.test_selected_native_containment.DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error"},
+"w32":[{"$":143},"p93",{"$":12},"self.assertTrue(probe._cleanup['namespace_exited'])",[],"tests.test_selected_native_containment.DiagnosticCleanupContractTests.test_owner_failure_still_stops_retained_handles_and_preserves_primary_over_close_error"],
 
-"w33":{"assertion":"probe.poll('injected input')","body":"p95","kind":{"$":12},"positive":"self.assertIn('poll-ok', result['stdout'])","support":[],"test_id":"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output"},
+"w33":["probe.poll('injected input')","p95",{"$":12},"self.assertIn('poll-ok', result['stdout'])",[],"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_nonempty_input_denies_before_empty_poll_observes_output"],
 
-"w34":{"assertion":"self.assertFalse(result['execution_authorized'])","body":"p9a","kind":{"$":12},"positive":"self.assertEqual(result['profile_status'], 'selected-unqualified')","support":[],"test_id":"tests.test_selected_native_containment.SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority"},
+"w34":["self.assertFalse(result['execution_authorized'])","p9a",{"$":12},"self.assertEqual(result['profile_status'], 'selected-unqualified')",[],"tests.test_selected_native_containment.SelectedContainmentContractTests.test_diagnostic_result_never_claims_execution_authority"],
 
-"w35":{"assertion":"process.kill.assert_not_called()","body":"p9e","kind":{"$":1},"positive":"self.assertGreaterEqual(state['kill_sizes'][0], 2)","support":["p9c","p9d","p90","p99"],"test_id":"tests.test_selected_native_containment.ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death"},
+"w35":["process.kill.assert_not_called()","p9e",{"$":1},"self.assertGreaterEqual(state['kill_sizes'][0], 2)",["p9c","p9d","p90","p99"],"tests.test_selected_native_containment.ControllerDeathReadinessTests.test_handoff_waits_for_live_heartbeat_growth_before_controller_death"],
 
-"w35AuthAbsent":{"assertion":"dial.assert_not_called()","body":"p35AuthAbsent","kind":{"$":0},"positive":{"$":344},"support":["p35AuthTls"],"test_id":"tests.test_registered_provider_network.ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial"},
+"w35AuthAbsent":["dial.assert_not_called()","p35AuthAbsent",{"$":0},{"$":344},["p35AuthTls"],"tests.test_registered_provider_network.ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial"],
 
-"w35AuthEarlyCleanup":{"assertion":"self.assertNotEqual(_fd_identity(descriptor), identity)","body":"p35AuthEarlyCleanup","kind":{"$":0},"positive":"self.assertIsNotNone(identity)","support":[],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment"},
+"w35AuthEarlyCleanup":["self.assertNotEqual(_fd_identity(descriptor), identity)","p35AuthEarlyCleanup",{"$":0},"self.assertIsNotNone(identity)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment"],
 
-"w35AuthGate":{"assertion":"execute.assert_not_called()","body":"p35AuthGate","kind":{"$":0},"positive":"self.assertEqual(witness.read(), _EXAMPLE_ACCESS_TOKEN)","support":[],"test_id":"tests.test_registered_provider_network.ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment"},
+"w35AuthGate":["execute.assert_not_called()","p35AuthGate",{"$":0},"self.assertEqual(witness.read(), _EXAMPLE_ACCESS_TOKEN)",[],"tests.test_registered_provider_network.ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment"],
 
-"w35AuthTls":{"assertion":"self.assertEqual(self._run_offline_child(role).stdout, b'EXAMPLE child isolated\\n')","body":"p35AuthTls","kind":{"$":0},"positive":{"$":344},"support":["p25ProviderSupport0","p25ProviderTLSSupport"],"test_id":"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot"},
+"w35AuthTls":["self.assertEqual(self._run_offline_child(role).stdout, b'EXAMPLE child isolated\\n')","p35AuthTls",{"$":0},{"$":344},["p25ProviderSupport0","p25ProviderTLSSupport"],"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot"],
 
-"w36":{"assertion":"self.assertEqual(pending, ['cleanup-pending'])","body":"pb2","kind":{"$":1},"positive":"self.assertEqual(gate.cleanup_phase(), 'unknown' if time_out else 'contained')","support":["pb3","pb6","pb4","pb5","pac","pad","pb1","pb0","pb7","pae","paf"],"test_id":"tests.test_registered_finite_input.FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication"},
+"w36":["self.assertEqual(pending, ['cleanup-pending'])","pb2",{"$":1},"self.assertEqual(gate.cleanup_phase(), 'unknown' if time_out else 'contained')",["pb3","pb6","pb4","pb5","pac","pad","pb1","pb0","pb7","pae","paf"],"tests.test_registered_finite_input.FiniteInputTests.test_gate_owned_peer_wait_includes_original_owner_publication"],
 
-"w36FiniteArchive":{"assertion":"self.assertEqual(observed, [('pending', 1, 'paired-pending')])","body":"p36FiniteArchive","kind":{"$":0},"positive":{"$":341},"support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation"},
+"w36FiniteArchive":["self.assertEqual(observed, [('pending', 1, 'paired-pending')])","p36FiniteArchive",{"$":0},{"$":341},["p36FiniteRaceSupport"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation"],
 
-"w36FiniteHistory":{"assertion":"with self.assertRaisesRegex(finite_tools.FiniteToolError,","body":"p36FiniteHistory","kind":{"$":0},"positive":"self.assertEqual(factory.run()['attempt']['outcome'], 'completed')","support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout"},
+"w36FiniteHistory":["with self.assertRaisesRegex(finite_tools.FiniteToolError,","p36FiniteHistory",{"$":0},"self.assertEqual(factory.run()['attempt']['outcome'], 'completed')",[],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout"],
 
-"w36FiniteLateItem":{"assertion":"self.assertIsNone(factory.token)","body":"p36FiniteLateItem","kind":{"$":0},"positive":{"$":341},"support":["p36FiniteLateSupport","p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal"},
+"w36FiniteLateItem":["self.assertIsNone(factory.token)","p36FiniteLateItem",{"$":0},{"$":341},["p36FiniteLateSupport","p36FiniteRaceSupport"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal"],
 
-"w36FiniteQueuedItem":{"assertion":"self.assertEqual(pending, [('EXAMPLE-poll-call', True, False, True)])","body":"p36FiniteQueuedItem","kind":{"$":6},"positive":"self.assertTrue(factory.server.archived)","support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item"},
+"w36FiniteQueuedItem":["self.assertEqual(pending, [('EXAMPLE-poll-call', True, False, True)])","p36FiniteQueuedItem",{"$":6},"self.assertTrue(factory.server.archived)",[],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item"],
 
-"w36FiniteRefusal":{"assertion":"self.assertEqual(poll['delivered_bytes'], 0)","body":"p36FiniteRefusal","kind":{"$":0},"positive":{"$":341},"support":["p36FiniteRaceSupport"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal"},
+"w36FiniteRefusal":["self.assertEqual(poll['delivered_bytes'], 0)","p36FiniteRefusal",{"$":0},{"$":341},["p36FiniteRaceSupport"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal"],
 
-"w36SchemaGate":{"assertion":{"$":338},"body":"p36SchemaGate","kind":{"$":0},"positive":"case.schema_check.assert_called_once()","support":["p25PermitSupport0"],"test_id":"tests.test_registered_n1_qualification.FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start"},
+"w36SchemaGate":[{"$":338},"p36SchemaGate",{"$":0},"case.schema_check.assert_called_once()",["p25PermitSupport0"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start"],
 
-"w37":{"assertion":"self.assertFalse((host.state / \"artifact\").exists())","body":"pbe","kind":{"$":12},"positive":"self.assertEqual(report[\"status\"], \"artifact-ready\", report[\"error\"])","support":["pbf"],"test_id":"tests.test_offline_n1_host.OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent"},
+"w37":["self.assertFalse((host.state / \"artifact\").exists())","pbe",{"$":12},"self.assertEqual(report[\"status\"], \"artifact-ready\", report[\"error\"])",["pbf"],"tests.test_offline_n1_host.OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent"],
 
-"w38":{"assertion":"self.assertEqual(native.fixture.spawned, [])","body":"pc3","kind":{"$":0},"positive":"self.assertTrue(result['execution_complete'])","support":["pc1","pc2","pc5","pc4","p23a"],"test_id":"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_native_consumer_refuses_delivery_edit_during_original_evidence_consumption"},
+"w38":["self.assertEqual(native.fixture.spawned, [])","pc3",{"$":0},"self.assertTrue(result['execution_complete'])",["pc1","pc2","pc5","pc4","p23a"],"tests.test_acceptance_product_flow.AcceptanceProductFlowTests.test_native_consumer_refuses_delivery_edit_during_original_evidence_consumption"],
 
-"w39":{"assertion":"self.assert_late_drift_refused(lambda: destination.write_bytes(concurrent))","body":"p36f","kind":{"$":12},"positive":"self.assertEqual(result[\"new_invocation\"][\"replacements\"], 1)","support":["p370"],"test_id":"tests.test_guarded_artifact_target.GuardedArtifactTargetTests.test_late_dirty_manifest_drift_preserves_concurrent_target_bytes"},
+"w39":["self.assert_late_drift_refused(lambda: destination.write_bytes(concurrent))","p36f",{"$":12},"self.assertEqual(result[\"new_invocation\"][\"replacements\"], 1)",["p370"],"tests.test_guarded_artifact_target.GuardedArtifactTargetTests.test_late_dirty_manifest_drift_preserves_concurrent_target_bytes"],
 
-"w3a":{"assertion":"self.assertEqual(self.fixture.attempt(case)['outcome'], 'failed')","body":"p55","kind":{"$":1},"positive":"self.assertIn('blocking-archive-observation', observations)","support":["p58","p57","p56","p5a","p59"],"test_id":"tests.test_registered_controlled_output_schedule.ControlledOutputScheduleTests.test_queued_archive_response_preserves_selected_original_rejection"},
+"w3a":["self.assertEqual(self.fixture.attempt(case)['outcome'], 'failed')","p55",{"$":1},"self.assertIn('blocking-archive-observation', observations)",["p58","p57","p56","p5a","p59"],"tests.test_registered_controlled_output_schedule.ControlledOutputScheduleTests.test_queued_archive_response_preserves_selected_original_rejection"],
 
-"w3b":{"assertion":"self.assert_real_namespace_stopped_after_monitor_failure(raises=True)","body":"p381","kind":{"$":12},"positive":"self.assertFalse(lifetime.contained or lifetime.termination_recorded)","support":["p383"],"test_id":"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises"},
+"w3b":["self.assert_real_namespace_stopped_after_monitor_failure(raises=True)","p381",{"$":12},"self.assertFalse(lifetime.contained or lifetime.termination_recorded)",["p383"],"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises"],
 
-"w3c":{"assertion":{"$":305},"body":"p388","kind":{"$":12},"positive":"self.assertEqual((lifetime.factory.host.worker / 'result.txt').read_bytes(), b'useful')","support":[],"test_id":"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command"},
+"w3c":[{"$":305},"p388",{"$":12},"self.assertEqual((lifetime.factory.host.worker / 'result.txt').read_bytes(), b'useful')",[],"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command"],
 
-"w3d":{"assertion":"self.assertFalse((lifetime.factory.host.worker / 'result.txt').exists())","body":"p389","kind":{"$":12},"positive":{"$":305},"support":[],"test_id":"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command"},
+"w3d":["self.assertFalse((lifetime.factory.host.worker / 'result.txt').exists())","p389",{"$":12},{"$":305},[],"tests.test_registered_n1_factory.RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command"],
 
-"w3e":{"assertion":"self.assertTrue(any(worker.is_alive() for worker, _ in factory.server._worker_snapshot()))","body":"p3a6","kind":{"$":1},"positive":"self.assertTrue(all(not worker.is_alive() for worker, _ in factory.server._worker_snapshot()))","support":["p3a5","p3a7","p3a8","p3a4","p3a3","p3a2"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains"},
+"w3e":["self.assertTrue(any(worker.is_alive() for worker, _ in factory.server._worker_snapshot()))","p3a6",{"$":1},"self.assertTrue(all(not worker.is_alive() for worker, _ in factory.server._worker_snapshot()))",["p3a5","p3a7","p3a8","p3a4","p3a3","p3a2"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains"],
 
-"w3f":{"assertion":"self.assertEqual(self.http.calls, [])","body":"p393","kind":{"$":0},"positive":"self.assertEqual(self.http.calls[0][1], 1)","support":["p392","p394"],"test_id":"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_final_transport_delay_refuses_expired_admission_or_runtime_without_http"},
+"w3f":["self.assertEqual(self.http.calls, [])","p393",{"$":0},"self.assertEqual(self.http.calls[0][1], 1)",["p392","p394"],"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_final_transport_delay_refuses_expired_admission_or_runtime_without_http"],
 
-"w4":{"assertion":"self.assertEqual(result.returncode, 2)","body":"pfc","kind":{"$":12},"positive":"self.assertFalse(payload[\"visibility_hint_supported\"])","support":[],"test_id":"tests.test_configure_codex_beads_hooks.ConfigureCodexBeadsHooksTests.test_cli_json_reports_unsupported_quiet_without_writing"},
+"w4":["self.assertEqual(result.returncode, 2)","pfc",{"$":12},"self.assertFalse(payload[\"visibility_hint_supported\"])",[],"tests.test_configure_codex_beads_hooks.ConfigureCodexBeadsHooksTests.test_cli_json_reports_unsupported_quiet_without_writing"],
 
-"w40":{"assertion":"self.assertEqual(len(a.boundary.calls), 0)","body":"p39b","kind":{"$":0},"positive":"self.assertEqual((result.status, len(a.boundary.calls)), (\"created\", 1))","support":["p3a1","p395","p39d","p39f"],"test_id":"tests.test_browser_share_consent.ShareConsentTests.test_ordered_content_document_and_representation_drift_refuse"},
+"w40":["self.assertEqual(len(a.boundary.calls), 0)","p39b",{"$":0},"self.assertEqual((result.status, len(a.boundary.calls)), (\"created\", 1))",["p3a1","p395","p39d","p39f"],"tests.test_browser_share_consent.ShareConsentTests.test_ordered_content_document_and_representation_drift_refuse"],
 
-"w41":{"assertion":"self.assert_effects()","body":"p398","kind":{"$":0},"positive":{"$":299},"support":["p39a"],"test_id":"tests.test_browser_share_dom.ShareDOMTests.test_replaced_document_with_identical_content_refuses"},
+"w41":["self.assert_effects()","p398",{"$":0},{"$":299},["p39a"],"tests.test_browser_share_dom.ShareDOMTests.test_replaced_document_with_identical_content_refuses"],
 
 "w42":{"assertion":"self.assert_effects(create=1)","body":"p399","kind":{"$":12},"limits":"One create already entered; unknown/full charge and zero additional effect on the refused successor. Not zero original creation.","positive":{"$":299},"support":["p39a"],"test_id":"tests.test_browser_share_dom.ShareDOMTests.test_invalid_returned_url_is_charged_unknown_and_never_retried"},
 
-"w43":{"assertion":"self.assertEqual(fixture.spawned, [])","body":"p23a","kind":{"$":0},"positive":{"$":75},"support":[],"test_id":{"$":319}},
+"w42Interlock":["with self.assertRaisesRegex(qualification.QualificationError, 'changed'):","p42Interlock",{"$":1},"qualification.release_managed_login(second)",[],"tests.test_registered_n1_qualification.CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release"],
 
-"w44":{"assertion":{"$":97},"body":"p101","kind":{"$":0},"positive":"self.assertEqual(launch.call_count,1)","support":[],"test_id":"tests.test_checked_command_interpreters.InterpreterSourceTests.test_real_interpreter_option_matrix_and_zero_guard_launches"},
+"w42Namespace":["assert not Path({str(self.auth)!r}).exists()","p42Namespace",{"$":1},"self.assertEqual(self.auth.read_bytes(), b'EXAMPLE refreshed login\\n')",[],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"],
 
-"w45":{"assertion":"dns.assert_not_called()","body":"p372","kind":{"$":0},"positive":{"$":93},"support":["p20d"],"test_id":{"$":20}},
+"w42Precharge":["self.assertEqual(qualification.campaign_usage()['total'], 0)","p42Precharge",{"$":1},"self.assertTrue(factory._managed_lifetime.contained)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace"],
 
-"w46":{"assertion":"self.assertFalse(marker.exists())","body":"p372","kind":{"$":0},"positive":{"$":129},"support":["p181"],"test_id":{"$":20}},
+"w42Provider":["dial.assert_not_called()","p42Provider",{"$":0},"self.assertIn(b'200', client.recv(1024))",[],"tests.test_registered_provider_network.ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist"],
 
-"w47":{"assertion":"capability.claim.assert_not_called()","body":"p1ef","kind":{"$":0},"positive":"capability.claim.assert_called_once_with()","support":[],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim"},
+"w42Rollout":["self.assertEqual(factory._managed_login.rollout, identity)","p42Rollout",{"$":1},"self.assertEqual(result['attempt']['outcome'], 'completed')",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout"],
 
-"w48":{"assertion":{"$":301},"body":"pf5","kind":{"$":1},"positive":{"$":301},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_selection_does_not_click_loose_text_when_confirmation_required"},
+"w42Unresolved":["with self.assertRaisesRegex(qualification.QualificationError, 'unresolved'):","p42Unresolved",{"$":1},"self.assertFalse(factory._managed_lifetime.contained)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock"],
 
-"w49":{"assertion":{"$":130},"body":"p2e4","kind":{"$":6},"positive":{"$":130},"support":[],"test_id":"tests.test_r5_transport_launch.R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path"},
+"w43":["self.assertEqual(fixture.spawned, [])","p23a",{"$":0},{"$":75},[],{"$":319}],
 
-"w4a":{"assertion":"self.assertEqual(table.spawn_calls, [])","body":"p277","kind":{"$":0},"positive":{"$":141},"support":["p26b"],"test_id":"tests.test_linux_owned_children.ControllerTests.test_missing_handle_wait_capabilities_refuse_before_creation"},
+"w44":[{"$":97},"p101",{"$":0},"self.assertEqual(launch.call_count,1)",[],"tests.test_checked_command_interpreters.InterpreterSourceTests.test_real_interpreter_option_matrix_and_zero_guard_launches"],
 
-"w4b":{"assertion":{"$":134},"body":"p112","kind":{"$":6},"positive":{"$":134},"support":[],"test_id":"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments"},
+"w45":["dns.assert_not_called()","p372",{"$":0},{"$":93},["p20d"],{"$":20}],
 
-"w4c":{"assertion":{"$":132},"body":"p2c6","kind":{"$":6},"positive":{"$":132},"support":["p339"],"test_id":"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_real_full_and_tight_graphs_preserve_valid_consumer_outputs"},
+"w46":["self.assertFalse(marker.exists())","p372",{"$":0},{"$":129},["p181"],{"$":20}],
 
-"w4d":{"assertion":"self.assertEqual((snapshot(self.tmp / \"skills\"), snapshot(self.backups)), before)","body":"p23c","kind":{"$":0},"positive":{"$":140},"support":["p32c"],"test_id":"tests.test_install_projection.InstallerProjectionTests.test_missing_required_entry_refuses_install_and_dry_run_without_change"},
+"w47":["capability.claim.assert_not_called()","p1ef",{"$":0},"capability.claim.assert_called_once_with()",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim"],
 
-"w4e":{"assertion":{"$":75},"body":"p23a","kind":{"$":6},"positive":{"$":75},"support":[],"test_id":{"$":319}},
+"w48":[{"$":301},"pf5",{"$":1},{"$":301},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_selection_does_not_click_loose_text_when_confirmation_required"],
 
-"w4f":{"assertion":"self.assertEqual(refused.claim_order, [])","body":"p198","kind":{"$":0},"positive":"self.assertTrue(committed.owned)","support":[],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_timeout_reconciliation_uses_exact_show_not_command_output"},
+"w49":[{"$":130},"p2e4",{"$":6},{"$":130},[],"tests.test_r5_transport_launch.R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path"],
 
-"w5":{"assertion":{"$":239},"body":"p374","kind":{"$":0},"positive":{"$":77},"support":[],"test_id":{"$":322}},
+"w4a":["self.assertEqual(table.spawn_calls, [])","p277",{"$":0},{"$":141},["p26b"],"tests.test_linux_owned_children.ControllerTests.test_missing_handle_wait_capabilities_refuse_before_creation"],
 
-"w50":{"assertion":"self.assertEqual(write.call_count, int(apply), \"preview reached persistence\")","body":"p24b","kind":{"$":0},"positive":{"$":149},"support":[],"test_id":{"$":317}},
+"w4b":[{"$":134},"p112",{"$":6},{"$":134},[],"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments"],
 
-"w51":{"assertion":{"$":122},"body":"p21a","kind":{"$":6},"positive":{"$":122},"support":["p2e8"],"test_id":"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_requires_explicit_allow_flag"},
+"w4c":[{"$":132},"p2c6",{"$":6},{"$":132},["p339"],"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_real_full_and_tight_graphs_preserve_valid_consumer_outputs"],
 
-"w52":{"assertion":{"$":123},"body":"p197","kind":{"$":6},"positive":{"$":123},"support":[],"test_id":"tests.test_production_closure.ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls"},
+"w4d":["self.assertEqual((snapshot(self.tmp / \"skills\"), snapshot(self.backups)), before)","p23c",{"$":0},{"$":140},["p32c"],"tests.test_install_projection.InstallerProjectionTests.test_missing_required_entry_refuses_install_and_dry_run_without_change"],
 
-"w53":{"assertion":{"$":303},"body":"p37d","kind":{"$":1},"positive":{"$":303},"support":[],"test_id":{"$":321}},
+"w4e":[{"$":75},"p23a",{"$":6},{"$":75},[],{"$":319}],
 
-"w54":{"assertion":{"$":136},"body":"p37d","kind":{"$":6},"positive":{"$":136},"support":[],"test_id":{"$":321}},
+"w4f":["self.assertEqual(refused.claim_order, [])","p198",{"$":0},"self.assertTrue(committed.owned)",[],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_timeout_reconciliation_uses_exact_show_not_command_output"],
 
-"w55":{"assertion":"self.assertEqual(len(effects.mock_calls), 0, \"held entry reached a browser effect\")","body":"p11e","kind":{"$":0},"positive":"effects.factory.assert_called_once_with()","support":["p2f1","p1ea","p13a","p1f4","p178","p21f","p1b2"],"test_id":"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_direct_custom_local_and_browser_modes_cannot_bypass_shipped_denials"},
+"w5":[{"$":239},"p374",{"$":0},{"$":77},[],{"$":322}],
 
-"w56":{"assertion":{"$":291},"body":"p201","kind":{"$":1},"positive":{"$":291},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_records_attestation"},
+"w50":["self.assertEqual(write.call_count, int(apply), \"preview reached persistence\")","p24b",{"$":0},{"$":149},[],{"$":317}],
 
-"w57":{"assertion":"self.assertEqual(mocks[\"submit\"].call_count, 0, \"refused final bytes must never reach fake Send\")","body":"p361","kind":{"$":0},"positive":"self.assertEqual(mocks[\"submit\"].call_count, 1, \"matched clean fake Send must function\")","support":["p33e","p111","p13a","p1f4","p178"],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_valid_packet_final_send_screen_refuses_encoded_context"},
+"w51":[{"$":122},"p21a",{"$":6},{"$":122},["p2e8"],"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_requires_explicit_allow_flag"],
 
-"w58":{"assertion":{"$":97},"body":"p192","kind":{"$":0},"positive":"launch.assert_called_once_with()","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_server_rechecks_dedicated_and_shared_holds_with_all_on_fake_control"},
+"w52":[{"$":123},"p197",{"$":6},{"$":123},[],"tests.test_production_closure.ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls"],
 
-"w59":{"assertion":{"$":138},"body":"p12b","kind":{"$":6},"positive":{"$":138},"support":[],"test_id":"tests.test_offline_profile_input.ProfileInputTests.test_supporting_input_reaches_actual_fake_process_once_with_original_bindings"},
+"w53":[{"$":303},"p37d",{"$":1},{"$":303},[],{"$":321}],
 
-"w5a":{"assertion":{"$":147},"body":"p35a","kind":{"$":6},"positive":{"$":147},"support":[],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_close_owned_reconciles_exact_success_timeout_and_error"},
+"w54":[{"$":136},"p37d",{"$":6},{"$":136},[],{"$":321}],
 
-"w5b":{"assertion":{"$":232},"body":"p372","kind":{"$":1},"positive":{"$":232},"support":["p20d"],"test_id":{"$":20}},
+"w55":["self.assertEqual(len(effects.mock_calls), 0, \"held entry reached a browser effect\")","p11e",{"$":0},"effects.factory.assert_called_once_with()",["p2f1","p1ea","p13a","p1f4","p178","p21f","p1b2"],"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_direct_custom_local_and_browser_modes_cannot_bypass_shipped_denials"],
 
-"w5c":{"assertion":{"$":345},"body":"p24a","kind":{"$":12},"positive":{"$":345},"support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments"},
+"w56":[{"$":291},"p201",{"$":1},{"$":291},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_records_attestation"],
 
-"w5d":{"assertion":"run_bd.assert_not_called()","body":"p338","kind":{"$":0},"positive":{"$":121},"support":["p2d4"],"test_id":"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_no_form_of_successful_closure_writes_to_beads"},
+"w57":["self.assertEqual(mocks[\"submit\"].call_count, 0, \"refused final bytes must never reach fake Send\")","p361",{"$":0},"self.assertEqual(mocks[\"submit\"].call_count, 1, \"matched clean fake Send must function\")",["p33e","p111","p13a","p1f4","p178"],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_valid_packet_final_send_screen_refuses_encoded_context"],
 
-"w5e":{"assertion":{"$":141},"body":"p26b","kind":{"$":6},"positive":{"$":141},"support":[],"test_id":"tests.test_linux_owned_children.ControllerTests.test_validation_freezes_inputs_and_keeps_a_valid_receipt"},
+"w58":[{"$":97},"p192",{"$":0},"launch.assert_called_once_with()",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_server_rechecks_dedicated_and_shared_holds_with_all_on_fake_control"],
 
-"w5f":{"assertion":{"$":77},"body":"p374","kind":{"$":6},"positive":{"$":77},"support":[],"test_id":{"$":322}},
+"w59":[{"$":138},"p12b",{"$":6},{"$":138},[],"tests.test_offline_profile_input.ProfileInputTests.test_supporting_input_reaches_actual_fake_process_once_with_original_bindings"],
 
-"w6":{"assertion":"self.assertEqual(adapter.mock_calls, [])","body":"p271","kind":{"$":0},"positive":"self.assertEqual(plan.__getitem__.call_args_list, [mock.call(\"profile\"), mock.call(\"tasks\")])","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_closure_rechecks_before_plan_or_beads_reads_with_all_on_fake_control"},
+"w5a":[{"$":147},"p35a",{"$":6},{"$":147},[],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_close_owned_reconciles_exact_success_timeout_and_error"],
 
-"w60":{"assertion":{"$":78},"body":"p202","kind":{"$":1},"positive":{"$":78},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_rejects_mismatched_visible_label"},
+"w5b":[{"$":232},"p372",{"$":1},{"$":232},["p20d"],{"$":20}],
 
-"w61":{"assertion":{"$":131},"body":"p2b6","kind":{"$":6},"positive":{"$":131},"support":[],"test_id":"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split"},
+"w5c":[{"$":345},"p24a",{"$":12},{"$":345},[],"tests.test_instruction_profiles.InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments"],
 
-"w62":{"assertion":{"$":125},"body":"p372","kind":{"$":6},"positive":{"$":125},"support":["p144"],"test_id":{"$":20}},
+"w5d":["run_bd.assert_not_called()","p338",{"$":0},{"$":121},["p2d4"],"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_no_form_of_successful_closure_writes_to_beads"],
 
-"w63":{"assertion":"self.assertEqual(forged_runner.claim_order, [])","body":"p190","kind":{"$":0},"positive":"self.assertEqual(runner.claim_order, [\"bead-a\", \"bead-b\", \"bead-c\"])","support":[],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_productive_n3_succeeds_and_forged_n4_rejects_before_claim"},
+"w5e":[{"$":141},"p26b",{"$":6},{"$":141},[],"tests.test_linux_owned_children.ControllerTests.test_validation_freezes_inputs_and_keeps_a_valid_receipt"],
 
-"w64":{"assertion":"spy_detect.assert_not_called()","body":"p1d3","kind":{"$":0},"positive":{"$":77},"support":["p374"],"test_id":"tests.test_configure_codex_beads_hooks_w18a_f1.ProbeOrderingTests.test_enforcement_hook_refusal_does_not_invoke_probe_or_write"},
+"w5f":[{"$":77},"p374",{"$":6},{"$":77},[],{"$":322}],
 
-"w65":{"assertion":"self.assertEqual((factory.call_count, prepare.call_count, calls), (0, 0, []))","body":"p372","kind":{"$":0},"positive":{"$":47},"support":["p144","p375"],"test_id":{"$":20}},
+"w6":["self.assertEqual(adapter.mock_calls, [])","p271",{"$":0},"self.assertEqual(plan.__getitem__.call_args_list, [mock.call(\"profile\"), mock.call(\"tasks\")])",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_closure_rechecks_before_plan_or_beads_reads_with_all_on_fake_control"],
 
-"w66":{"assertion":"self.assertEqual(profile.read_text(encoding=\"utf-8\"), \"locally modified\\n\")","body":"p320","kind":{"$":0},"positive":"self.assertTrue(verified[\"ok\"])","support":["p1e8"],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove"},
+"w60":[{"$":78},"p202",{"$":1},{"$":78},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_rejects_mismatched_visible_label"],
 
-"w67":{"assertion":"creator.assert_not_called()","body":"p23b","kind":{"$":0},"positive":{"$":126},"support":["p372","p15f"],"test_id":"tests.test_routing_risk_features.RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands"},
+"w61":[{"$":131},"p2b6",{"$":6},{"$":131},[],"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split"],
 
-"w68":{"assertion":"wire.assert_not_called()","body":"p1f1","kind":{"$":0},"positive":"wire.assert_called_once_with(adapter.thread_id, 'bounded prompt')","support":[],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter"},
+"w62":[{"$":125},"p372",{"$":6},{"$":125},["p144"],{"$":20}],
 
-"w69":{"assertion":"graph.assert_not_called()","body":"p12a","kind":{"$":0},"positive":"graph.assert_called_once()","support":[],"test_id":"tests.test_native_activation_preview.NativeActivationPreviewTests.test_prepare_root_refuses_before_graph_and_private_graph_uses_only_fake_bd"},
+"w63":["self.assertEqual(forged_runner.claim_order, [])","p190",{"$":0},"self.assertEqual(runner.claim_order, [\"bead-a\", \"bead-b\", \"bead-c\"])",[],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_productive_n3_succeeds_and_forged_n4_rejects_before_claim"],
 
-"w6a":{"assertion":{"$":48},"body":"p1a5","kind":{"$":1},"positive":{"$":48},"support":[],"test_id":{"$":323}},
+"w64":["spy_detect.assert_not_called()","p1d3",{"$":0},{"$":77},["p374"],"tests.test_configure_codex_beads_hooks_w18a_f1.ProbeOrderingTests.test_enforcement_hook_refusal_does_not_invoke_probe_or_write"],
 
-"w6b":{"assertion":{"$":48},"body":"p1a5","kind":{"$":6},"positive":{"$":48},"support":[],"test_id":{"$":323}},
+"w65":["self.assertEqual((factory.call_count, prepare.call_count, calls), (0, 0, []))","p372",{"$":0},{"$":47},["p144","p375"],{"$":20}],
 
-"w6c":{"assertion":{"$":78},"body":"p299","kind":{"$":1},"positive":{"$":78},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_requires_explicit_selectors"},
+"w66":["self.assertEqual(profile.read_text(encoding=\"utf-8\"), \"locally modified\\n\")","p320",{"$":0},"self.assertTrue(verified[\"ok\"])",["p1e8"],"tests.test_instruction_profiles.InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove"],
 
-"w6d":{"assertion":{"$":231},"body":"p372","kind":{"$":0},"positive":"self.assertEqual(child.call_count, 4)","support":["pc9"],"test_id":{"$":20}},
+"w67":["creator.assert_not_called()","p23b",{"$":0},{"$":126},["p372","p15f"],"tests.test_routing_risk_features.RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands"],
 
-"w6e":{"assertion":"self.assertIsNone(workspace_capture.trusted_git((str(fake),)))","body":"pcb","kind":{"$":0},"positive":{"$":48},"support":["p1a5"],"test_id":"tests.test_workspace_inert_inspection.TrustedGitTests.test_only_fixed_trustworthy_paths_are_used"},
+"w68":["wire.assert_not_called()","p1f1",{"$":0},"wire.assert_called_once_with(adapter.thread_id, 'bounded prompt')",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter"],
 
-"w6f":{"assertion":"self.assertFalse((fixture.ledger.root / N.admission.ledger_api.LEDGER_FILE).exists())","body":"p143","kind":{"$":0},"positive":{"$":131},"support":["p2b6"],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control"},
+"w69":["graph.assert_not_called()","p12a",{"$":0},"graph.assert_called_once()",[],"tests.test_native_activation_preview.NativeActivationPreviewTests.test_prepare_root_refuses_before_graph_and_private_graph_uses_only_fake_bd"],
 
-"w7":{"assertion":"self.assertEqual((directory.call_count, load.call_count, approval.call_count), (reads, reads, 0))","body":"pd0","kind":{"$":0},"positive":"self.assertEqual((directory.call_count, load.call_count, approval.call_count), (1, 1, 1))","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_entry_holds_precede_reads_and_claims_with_all_on_fake_control"},
+"w6a":[{"$":48},"p1a5",{"$":1},{"$":48},[],{"$":323}],
 
-"w70":{"assertion":{"$":47},"body":"p375","kind":{"$":1},"positive":{"$":47},"support":[],"test_id":{"$":318}},
+"w6b":[{"$":48},"p1a5",{"$":6},{"$":48},[],{"$":323}],
 
-"w71":{"assertion":{"$":47},"body":"p375","kind":{"$":6},"positive":{"$":47},"support":[],"test_id":{"$":318}},
+"w6c":[{"$":78},"p299",{"$":1},{"$":78},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_requires_explicit_selectors"],
 
-"w72":{"assertion":"execute.assert_not_called()","body":"p372","kind":{"$":0},"positive":{"$":127},"support":["p1e0"],"test_id":{"$":20}},
+"w6d":[{"$":231},"p372",{"$":0},"self.assertEqual(child.call_count, 4)",["pc9"],{"$":20}],
 
-"w73":{"assertion":"self.assertEqual(calls, [first] if revoke else [first, second],\n                             \"revoked authority reached a later validator process\")","body":"p1e2","kind":{"$":0},"positive":"self.assertTrue(result[\"independent_checks\"][0][\"accepted\"])","support":["p2e7"],"test_id":"tests.test_maintenance_native_runtime.MaintenanceRuntimeTests.test_independent_product_validation_observes_real_artifact_without_closing_bead"},
+"w6e":["self.assertIsNone(workspace_capture.trusted_git((str(fake),)))","pcb",{"$":0},{"$":48},["p1a5"],"tests.test_workspace_inert_inspection.TrustedGitTests.test_only_fixed_trustworthy_paths_are_used"],
 
-"w74":{"assertion":"self.assertEqual(self.effects, [])","body":"p128","kind":{"$":0},"positive":{"$":134},"support":["p112"],"test_id":"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects"},
+"w6f":["self.assertFalse((fixture.ledger.root / N.admission.ledger_api.LEDGER_FILE).exists())","p143",{"$":0},{"$":131},["p2b6"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control"],
 
-"w75":{"assertion":"self.assertEqual(self.fake_process_count(process), 0)","body":"p11b","kind":{"$":0},"positive":{"$":138},"support":["p12b"],"test_id":"tests.test_offline_profile_input.ProfileInputTests.test_finite_nonempty_refuses_before_process_and_empty_poll_uses_same_selection"},
+"w7":["self.assertEqual((directory.call_count, load.call_count, approval.call_count), (reads, reads, 0))","pd0",{"$":0},"self.assertEqual((directory.call_count, load.call_count, approval.call_count), (1, 1, 1))",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_entry_holds_precede_reads_and_claims_with_all_on_fake_control"],
 
-"w76":{"assertion":{"$":293},"body":"p2d8","kind":{"$":0},"positive":{"$":293},"support":["p345"],"test_id":"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_chrome_launcher_dry_run_and_operator_actions_use_only_expected_effects"},
+"w70":[{"$":47},"p375",{"$":1},{"$":47},[],{"$":318}],
 
-"w77":{"assertion":"self.assertEqual((binary.call_count, launch.call_count), (0, 0))","body":"p31d","kind":{"$":0},"positive":{"$":130},"support":["p2e4"],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_r5_f5_held_n1_raw_library_zero_launch_and_patched_fake_launch"},
+"w71":[{"$":47},"p375",{"$":6},{"$":47},[],{"$":318}],
 
-"w78":{"assertion":"self.assertEqual(dict(held_boundaries.calls), NO_EFFECTS,\n                         \"shipped-hold-exact-envelope reached an effect\")","body":"p283","kind":{"$":0},"positive":"self.assertEqual(boundaries.order, [\"observer:invocation-intent\", \"resolve\", \"build_opener\", \"observer:request\",\n                                            \"opener\", \"observer:terminal\"])","support":[],"test_id":"tests.test_local_invocation_reservation.RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent"},
+"w72":["execute.assert_not_called()","p372",{"$":0},{"$":127},["p1e0"],{"$":20}],
 
-"w79":{"assertion":{"$":259},"body":"p2e9","kind":{"$":1},"positive":{"$":259},"support":[],"test_id":"tests.test_beads_dash_id_safety.BeadsArgvShapeTests.test_brief_displays_the_command_it_runs"},
+"w73":["self.assertEqual(calls, [first] if revoke else [first, second],\n                             \"revoked authority reached a later validator process\")","p1e2",{"$":0},"self.assertTrue(result[\"independent_checks\"][0][\"accepted\"])",["p2e7"],"tests.test_maintenance_native_runtime.MaintenanceRuntimeTests.test_independent_product_validation_observes_real_artifact_without_closing_bead"],
 
-"w7a":{"assertion":{"$":93},"body":"p372","kind":{"$":1},"positive":{"$":93},"support":["p20d"],"test_id":{"$":20}},
+"w74":["self.assertEqual(self.effects, [])","p128",{"$":0},{"$":134},["p112"],"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects"],
 
-"w7b":{"assertion":"self.assertEqual(effects.mock_calls, [], \"refused authorization reached update/audit\")","body":"p1a3","kind":{"$":0},"positive":{"$":122},"support":["p2e8","p21a"],"test_id":"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_expiry_cannot_outlive_authorized_bead"},
+"w75":["self.assertEqual(self.fake_process_count(process), 0)","p11b",{"$":0},{"$":138},["p12b"],"tests.test_offline_profile_input.ProfileInputTests.test_finite_nonempty_refuses_before_process_and_empty_poll_uses_same_selection"],
 
-"w7c":{"assertion":"self.assertEqual(runner.close_order, [])","body":"p2b3","kind":{"$":0},"positive":{"$":147},"support":["p35a"],"test_id":"tests.test_native_pool_admission.NativePoolAdmissionTests.test_close_owned_rejects_preclosed_or_ownership_drift_before_command"},
+"w76":[{"$":293},"p2d8",{"$":0},{"$":293},["p345"],"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_chrome_launcher_dry_run_and_operator_actions_use_only_expected_effects"],
 
-"w7d":{"assertion":{"$":137},"body":"p2cc","kind":{"$":1},"positive":{"$":137},"support":[],"test_id":{"$":316}},
+"w77":["self.assertEqual((binary.call_count, launch.call_count), (0, 0))","p31d",{"$":0},{"$":130},["p2e4"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_r5_f5_held_n1_raw_library_zero_launch_and_patched_fake_launch"],
 
-"w7e":{"assertion":{"$":142},"body":"p2de","kind":{"$":1},"positive":{"$":142},"support":[],"test_id":{"$":320}},
+"w78":["self.assertEqual(dict(held_boundaries.calls), NO_EFFECTS,\n                         \"shipped-hold-exact-envelope reached an effect\")","p283",{"$":0},"self.assertEqual(boundaries.order, [\"observer:invocation-intent\", \"resolve\", \"build_opener\", \"observer:request\",\n                                            \"opener\", \"observer:terminal\"])",[],"tests.test_local_invocation_reservation.RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent"],
 
-"w7f":{"assertion":"self.assertEqual(value.process.stdin.getvalue(), '')","body":"p2de","kind":{"$":0},"positive":{"$":142},"support":[],"test_id":{"$":320}},
+"w79":[{"$":259},"p2e9",{"$":1},{"$":259},[],"tests.test_beads_dash_id_safety.BeadsArgvShapeTests.test_brief_displays_the_command_it_runs"],
 
-"w8":{"assertion":{"$":139},"body":"p2f5","kind":{"$":0},"positive":"self.assertEqual(transport.thread_roles, {'EXAMPLE-thread': 'worker'})","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_thread_rechecks_each_hold_before_intent_rpc_or_binding"},
+"w7a":[{"$":93},"p372",{"$":1},{"$":93},["p20d"],{"$":20}],
 
-"w80":{"assertion":"self.assertTrue(verified[\"ok\"])","body":"p1e8","kind":{"$":6},"positive":"self.assertTrue(verified[\"ok\"])","support":[],"test_id":"tests.test_instruction_profiles.InstructionProfileTests.test_install_verify_remove_does_not_create_default_config"},
+"w7b":["self.assertEqual(effects.mock_calls, [], \"refused authorization reached update/audit\")","p1a3",{"$":0},{"$":122},["p2e8","p21a"],"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_expiry_cannot_outlive_authorized_bead"],
 
-"w81":{"assertion":{"$":149},"body":"p24b","kind":{"$":1},"positive":{"$":149},"support":[],"test_id":{"$":317}},
+"w7c":["self.assertEqual(runner.close_order, [])","p2b3",{"$":0},{"$":147},["p35a"],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_close_owned_rejects_preclosed_or_ownership_drift_before_command"],
 
-"w82":{"assertion":{"$":121},"body":"p2d4","kind":{"$":6},"positive":{"$":121},"support":[],"test_id":"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_closable_non_completion_outcomes_still_close"},
+"w7d":[{"$":137},"p2cc",{"$":1},{"$":137},[],{"$":316}],
 
-"w83":{"assertion":"self.assertEqual(writes, [], 'revocation-first issued a real child gate byte')","body":"p32a","kind":{"$":0},"positive":{"$":128},"support":["p319"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child"},
+"w7e":[{"$":142},"p2de",{"$":1},{"$":142},[],{"$":320}],
 
-"w84":{"assertion":{"$":133},"body":"p236","kind":{"$":6},"positive":{"$":133},"support":[],"test_id":"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_pinned_reader_runs_its_verified_bytes"},
+"w7f":["self.assertEqual(value.process.stdin.getvalue(), '')","p2de",{"$":0},{"$":142},[],{"$":320}],
 
-"w85":{"assertion":{"$":290},"body":"p272","kind":{"$":1},"positive":{"$":290},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_requires_selected_attribute_when_configured"},
+"w8":[{"$":139},"p2f5",{"$":0},"self.assertEqual(transport.thread_roles, {'EXAMPLE-thread': 'worker'})",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_thread_rechecks_each_hold_before_intent_rpc_or_binding"],
 
-"w86":{"assertion":{"$":127},"body":"p372","kind":{"$":1},"positive":{"$":127},"support":["p1e0"],"test_id":{"$":20}},
+"w80":["self.assertTrue(verified[\"ok\"])","p1e8",{"$":6},"self.assertTrue(verified[\"ok\"])",[],"tests.test_instruction_profiles.InstructionProfileTests.test_install_verify_remove_does_not_create_default_config"],
 
-"w87":{"assertion":"self.assertTrue(after[\"incomplete\"], \"changed Git indirection must not return a complete capture\")","body":"p125","kind":{"$":0},"positive":"self.assertTrue(fresh[\"baseline_complete\"], fresh[\"incomplete_reasons\"])","support":[],"test_id":"tests.test_workspace_inert_inspection.MetadataScopeTests.test_within_capture_indirection_retarget_is_incomplete"},
+"w81":[{"$":149},"p24b",{"$":1},{"$":149},[],{"$":317}],
 
-"w88":{"assertion":{"$":307},"body":"p347","kind":{"$":1},"positive":{"$":307},"support":[],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_selection_opens_menu_before_clicking_option"},
+"w82":[{"$":121},"p2d4",{"$":6},{"$":121},[],"tests.test_close_bead_with_summary.SuccessfulClosureUnavailableTests.test_closable_non_completion_outcomes_still_close"],
 
-"w89":{"assertion":{"$":128},"body":"p319","kind":{"$":6},"positive":{"$":128},"support":[],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty"},
+"w83":["self.assertEqual(writes, [], 'revocation-first issued a real child gate byte')","p32a",{"$":0},{"$":128},["p319"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child"],
 
-"w8a":{"assertion":{"$":239},"body":"p2cc","kind":{"$":0},"positive":{"$":137},"support":[],"test_id":{"$":316}},
+"w84":[{"$":133},"p236",{"$":6},{"$":133},[],"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_pinned_reader_runs_its_verified_bytes"],
 
-"w8b":{"assertion":{"$":126},"body":"p372","kind":{"$":6},"positive":{"$":126},"support":["p15f"],"test_id":{"$":20}},
+"w85":[{"$":290},"p272",{"$":1},{"$":290},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_requires_selected_attribute_when_configured"],
 
-"w8c":{"assertion":"self.assertEqual(len(writes), 0)","body":"p126","kind":{"$":0},"positive":{"$":132},"support":["p140","p2c6","p339"],"test_id":"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_missing_references_and_duplicate_effective_keys_are_refused"},
+"w86":[{"$":127},"p372",{"$":1},{"$":127},["p1e0"],{"$":20}],
 
-"w8d":{"assertion":{"$":140},"body":"p32c","kind":{"$":6},"positive":{"$":140},"support":[],"test_id":"tests.test_install_projection.InstallerProjectionTests.test_signal_after_the_previous_install_moved_restores_it"},
+"w87":["self.assertTrue(after[\"incomplete\"], \"changed Git indirection must not return a complete capture\")","p125",{"$":0},"self.assertTrue(fresh[\"baseline_complete\"], fresh[\"incomplete_reasons\"])",[],"tests.test_workspace_inert_inspection.MetadataScopeTests.test_within_capture_indirection_retarget_is_incomplete"],
 
-"w8e":{"assertion":"opened.assert_not_called()","body":"p2b5","kind":{"$":0},"positive":{"$":133},"support":["p236"],"test_id":"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_unpinned_reader_never_runs"},
+"w88":[{"$":307},"p347",{"$":1},{"$":307},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_selection_opens_menu_before_clicking_option"],
 
-"w8f":{"assertion":"self.assertEqual(guard.call_count, 0)","body":"p26a","kind":{"$":0},"positive":{"$":125},"support":["p372","p144"],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write"},
+"w89":[{"$":128},"p319",{"$":6},{"$":128},[],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty"],
 
-"w9":{"assertion":{"$":139},"body":"p349","kind":{"$":0},"positive":"self.assertEqual(transport.start_turn('EXAMPLE-thread', 'EXAMPLE prompt'), server.start_turn.return_value)","support":[],"test_id":"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_admitted_thread_turn_rechecks_hold_flips_before_intent_or_rpc"},
+"w8a":[{"$":239},"p2cc",{"$":0},{"$":137},[],{"$":316}],
 
-"w90":{"assertion":"self.assertEqual(marker.read_text(), \"preserved\")","body":"p242","kind":{"$":0},"positive":{"$":136},"support":["p37d"],"test_id":"tests.test_first_project.FirstProjectTests.test_creation_refuses_existing_directory"},
+"w8b":[{"$":126},"p372",{"$":6},{"$":126},["p15f"],{"$":20}],
 
-"w91":{"assertion":{"$":97},"body":"p1c9","kind":{"$":0},"positive":{"$":75},"support":["p23a"],"test_id":"tests.test_registered_app_server_transport_f2.RegisteredTransportF2Tests.test_f2_base_transport_refuses_before_any_launch"},
+"w8c":["self.assertEqual(len(writes), 0)","p126",{"$":0},{"$":132},["p140","p2c6","p339"],"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_missing_references_and_duplicate_effective_keys_are_refused"],
 
-"w92":{"assertion":{"$":129},"body":"p372","kind":{"$":1},"positive":{"$":129},"support":["p181"],"test_id":{"$":20}},
+"w8d":[{"$":140},"p32c",{"$":6},{"$":140},[],"tests.test_install_projection.InstallerProjectionTests.test_signal_after_the_previous_install_moved_restores_it"],
 
-"wA":{"assertion":"self.assertEqual(len(cases), 52)","body":"pM","kind":{"$":1},"positive":"self.assertFalse(any(span in str(error) for span in item['sensitive']),","support":["pI","pJ","pN","pK","pO"],"test_id":"tests.test_registered_outbound_screen.FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write"},
+"w8e":["opened.assert_not_called()","p2b5",{"$":0},{"$":133},["p236"],"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_unpinned_reader_never_runs"],
 
-"wArchitectInstalled":{"assertion":"self.assertEqual(refused.stdout, \"\")","body":"pArchitectInstalled","kind":{"$":12},"positive":"self.assertEqual(launch.stdout.splitlines(), [","support":[],"test_id":"tests.test_install_script.InstallScriptTests.test_install_offers_only_architect_and_launches_with_installed_role_policy"},
+"w8f":["self.assertEqual(guard.call_count, 0)","p26a",{"$":0},{"$":125},["p372","p144"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write"],
 
-"wB":{"assertion":"self.assertEqual(writer.payloads, [])","body":"po","kind":{"$":1},"positive":"self.assertEqual(ledger.summary()[\"unresolved_turn_intent_count\"], 1)","support":["pU","pj","pY","pg"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_sensitive_prompt_and_metadata_keep_original_intent_without_wire"},
+"w9":[{"$":139},"p349",{"$":0},"self.assertEqual(transport.start_turn('EXAMPLE-thread', 'EXAMPLE prompt'), server.start_turn.return_value)",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_admitted_thread_turn_rechecks_hold_flips_before_intent_or_rpc"],
 
-"wC":{"assertion":"self.assertEqual(len(prefixes), 1)","body":"pk","kind":{"$":1},"positive":"server.process.terminate.assert_called_once()","support":["pV","pl","ph"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_partial_write_source_drift_stops_connection_without_second_frame"},
+"w90":["self.assertEqual(marker.read_text(), \"preserved\")","p242",{"$":0},{"$":136},["p37d"],"tests.test_first_project.FirstProjectTests.test_creation_refuses_existing_directory"],
 
-"wD":{"assertion":"self.assertIs(type(failure), selected.SelectedProbeError)","body":"pt","kind":{"$":1},"positive":"self.assertIs(type(result), unittest.SkipTest)","support":["ps"],"test_id":"tests.test_private_pid_ci_applicability.PrivatePidCIApplicabilityTests.test_counterfactual_product_regressions_remain_errors_without_skips"},
+"w91":[{"$":97},"p1c9",{"$":0},{"$":75},["p23a"],"tests.test_registered_app_server_transport_f2.RegisteredTransportF2Tests.test_f2_base_transport_refuses_before_any_launch"],
 
-"wE":{"assertion":"self.assertIn('EXAMPLE private operation refused', report['error'])","body":"p1H","kind":{"$":1},"positive":"self.assertEqual(report['driver_context'], context)","support":["p1I","p1J","p2L","p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidFailureDiagnosticTests.test_driver_permission_refusal_preserves_location_and_bounded_context"},
+"w92":[{"$":129},"p372",{"$":1},{"$":129},["p181"],{"$":20}],
 
-"wF":{"assertion":{"$":294},"body":"p2J","kind":{"$":1},"positive":{"$":306},"support":["p2X","p2M","pv","p2I"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_exec_cleared_parent_death_is_rearmed_before_handoff"},
+"wA":["self.assertEqual(len(cases), 52)","pM",{"$":1},"self.assertFalse(any(span in str(error) for span in item['sensitive']),",["pI","pJ","pN","pK","pO"],"tests.test_registered_outbound_screen.FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write"],
 
-"wF0":{"assertion":"hold_preintent=True","body":"pF4","kind":{"$":1},"positive":"'test_exit_between_initial_read_and_reply_drains_tail_atomically'","support":["pF3","pF0","pF2","pF1"],"test_id":"tests.test_finite_fixture_progress_acknowledgment.FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent"},
+"wArchitectInstalled":["self.assertEqual(refused.stdout, \"\")","pArchitectInstalled",{"$":12},"self.assertEqual(launch.stdout.splitlines(), [",[],"tests.test_install_script.InstallScriptTests.test_install_offers_only_architect_and_launches_with_installed_role_policy"],
 
-"wF1":{"assertion":"self.assertNotIn(case._finite_success_consumed, [call.args[1] for call in waits.call_args_list])","body":"pF5","kind":{"$":1},"positive":"self.assertEqual(attempt['charge'], attempt['amount'])","support":["pF0","pF1"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join"},
+"wB":["self.assertEqual(writer.payloads, [])","po",{"$":1},"self.assertEqual(ledger.summary()[\"unresolved_turn_intent_count\"], 1)",["pU","pj","pY","pg"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_sensitive_prompt_and_metadata_keep_original_intent_without_wire"],
 
-"wG":{"assertion":"opening.assert_not_called()","body":"p1i","kind":{"$":1},"positive":{"$":146},"support":["pw","p1C","p2P","p2C"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_pid_view_refuses_before_cursor_open"},
+"wC":["self.assertEqual(len(prefixes), 1)","pk",{"$":1},"server.process.terminate.assert_called_once()",["pV","pl","ph"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_partial_write_source_drift_stops_connection_without_second_frame"],
 
-"wH":{"assertion":{"$":143},"body":"p1j","kind":{"$":1},"positive":"self.assertIn(boundary['namespace_init'], targets)","support":["p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_verified_inner_cleanup_survives_original_watchdog_owner_failure"},
+"wD":["self.assertIs(type(failure), selected.SelectedProbeError)","pt",{"$":1},"self.assertIs(type(result), unittest.SkipTest)",["ps"],"tests.test_private_pid_ci_applicability.PrivatePidCIApplicabilityTests.test_counterfactual_product_regressions_remain_errors_without_skips"],
 
-"wI":{"assertion":{"$":296},"body":"p1k","kind":{"$":1},"positive":{"$":146},"support":["p2C","pw"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_policy_masked_capget_preserves_private_driver_capabilities"},
+"wE":["self.assertIn('EXAMPLE private operation refused', report['error'])","p1H",{"$":1},"self.assertEqual(report['driver_context'], context)",["p1I","p1J","p2L","p2M","pv"],"tests.test_selected_native_containment.PrivatePidFailureDiagnosticTests.test_driver_permission_refusal_preserves_location_and_bounded_context"],
 
-"wJ":{"assertion":"self.assertNotIn(boundary['namespace_init'], targets)","body":"p1o","kind":{"$":1},"positive":{"$":282},"support":["p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_substituted_outer_helper_refuses_without_unverified_namespace_signal"},
+"wF":[{"$":294},"p2J",{"$":1},{"$":306},["p2X","p2M","pv","p2I"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_exec_cleared_parent_death_is_rearmed_before_handoff"],
 
-"wK":{"assertion":"parent.sendall.assert_not_called()","body":"p1u","kind":{"$":1},"positive":"signals.assert_not_called()","support":["p1t","p1Z","p1h"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_pid_owner_mismatch_refuses_before_release_or_signal"},
+"wF0":["hold_preintent=True","pF4",{"$":1},"'test_exit_between_initial_read_and_reply_drains_tail_atomically'",["pF3","pF0","pF2","pF1"],"tests.test_finite_fixture_progress_acknowledgment.FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent"],
 
-"wL":{"assertion":"self.assertNotIn(observations[0], targets)","body":"p2A","kind":{"$":1},"positive":"self.assertIsNone(owner._parent_observation)","support":["p1y","p1w"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_death_during_handoff_refuses_without_namespace_signal"},
+"wF1":["self.assertNotIn(case._finite_success_consumed, [call.args[1] for call in waits.call_args_list])","pF5",{"$":1},"self.assertEqual(attempt['charge'], attempt['amount'])",["pF0","pF1"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join"],
 
-"wM":{"assertion":{"$":143},"body":"p2B","kind":{"$":1},"positive":"self.assertIn('secondary cleanup', str(primary.__notes__))","support":["p2U","p2T","p1l"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_primary_refusal_survives_cleanup_failure"},
+"wG":["opening.assert_not_called()","p1i",{"$":1},{"$":146},["pw","p1C","p2P","p2C"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_pid_view_refuses_before_cursor_open"],
 
-"wN":{"assertion":{"$":296},"body":"p2C","kind":{"$":1},"positive":{"$":146},"support":[],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_actual_private_pid_reuse_preserves_the_fresh_lifetime"},
+"wH":[{"$":143},"p1j",{"$":1},"self.assertIn(boundary['namespace_init'], targets)",["p2M","pv"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_verified_inner_cleanup_survives_original_watchdog_owner_failure"],
 
-"wO":{"assertion":"self.assertRaisesRegex(selected.SelectedProbeError, 'private proc')","body":"p2F","kind":{"$":1},"positive":{"$":282},"support":["p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_refuses_an_aliased_host_proc_view_before_release"},
+"wI":[{"$":296},"p1k",{"$":1},{"$":146},["p2C","pw"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_policy_masked_capget_preserves_private_driver_capabilities"],
 
-"wOverloadControl":{"assertion":"self.assertNotIn('terminal_blockers', report['summary'])","body":"pOverloadTest","kind":{"$":6},"positive":"self.assertEqual(attempt['charge'], attempt['amount'])","support":["pRefusalFixture"],"test_id":"tests.test_registered_n1_factory.FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure"},
+"wJ":["self.assertNotIn(boundary['namespace_init'], targets)","p1o",{"$":1},{"$":282},["p2M","pv"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_substituted_outer_helper_refuses_without_unverified_namespace_signal"],
 
-"wP":{"assertion":"self.assertEqual(outer[0], owner.bwrap[0],","body":"p2K","kind":{"$":1},"positive":"self.assertEqual(command[:3], [owner.timeout[0], '--signal=KILL', '20'])","support":["p1F","p1X","p1g","p1Y"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_uid_map_boundary_requires_fixed_outer_bootstrap"},
+"wK":["parent.sendall.assert_not_called()","p1u",{"$":1},"signals.assert_not_called()",["p1t","p1Z","p1h"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_pid_owner_mismatch_refuses_before_release_or_signal"],
 
-"wPolicyRefusal":{"assertion":"self.assertRaisesRegex(runtime.native.OfflineHostError, 'never redispatch')","body":"pRefusalTest","kind":{"$":6},"positive":"self.assertEqual(report['summary']['terminal_blockers'], {'provider-safety-policy-refusal': 'cyberPolicy'})","support":["pRefusalFixture"],"test_id":"tests.test_registered_n1_factory.FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure"},
+"wL":["self.assertNotIn(observations[0], targets)","p2A",{"$":1},"self.assertIsNone(owner._parent_observation)",["p1y","p1w"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_death_during_handoff_refuses_without_namespace_signal"],
 
-"wQ":{"assertion":{"$":302},"body":"p2Q","kind":{"$":12},"positive":"self.assertEqual(report['original_pid'], report['sentinel_pid'])","support":[],"test_id":"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_private_pid_reuse_repeats_the_exact_selected_launcher_scope"},
+"wM":[{"$":143},"p2B",{"$":1},"self.assertIn('secondary cleanup', str(primary.__notes__))",["p2U","p2T","p1l"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_primary_refusal_survives_cleanup_failure"],
 
-"wR":{"assertion":{"$":311},"body":"p2V","kind":{"$":1},"positive":"self.assertTrue(selected._reuse_heartbeat(Path(temporary) / 'sentinel/heartbeat', birth.descriptor))","support":["p1V","p1W","p1U","p1T"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_unverified_handoff_cannot_signal_an_unrelated_owned_sentinel"},
+"wN":[{"$":296},"p2C",{"$":1},{"$":146},[],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_actual_private_pid_reuse_preserves_the_fresh_lifetime"],
 
-"wS":{"assertion":{"$":294},"body":"p2X","kind":{"$":1},"positive":{"$":306},"support":["p2M","pv"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace"},
+"wO":["self.assertRaisesRegex(selected.SelectedProbeError, 'private proc')","p2F",{"$":1},{"$":282},["p2M","pv"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_refuses_an_aliased_host_proc_view_before_release"],
 
-"wSchema":{"assertion":"self.assertRaisesRegex(CapabilityError, \"thread/read\")","body":"pSchemaWitness","kind":{"$":12},"positive":"check_codex_capabilities(self.binary)","support":[],"test_id":"tests.test_codex_protocol_capabilities.CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability"},
+"wOverloadControl":["self.assertNotIn('terminal_blockers', report['summary'])","pOverloadTest",{"$":6},"self.assertEqual(attempt['charge'], attempt['amount'])",["pRefusalFixture"],"tests.test_registered_n1_factory.FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure"],
 
-"wT":{"assertion":"self.assertEqual(phases, ['poll-deciding'])","body":"p2Z","kind":{"$":1},"positive":"self.assertEqual(stages.count('finite-poll-intent'), 0)","support":["p2Y"],"test_id":"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication"},
+"wP":["self.assertEqual(outer[0], owner.bwrap[0],","p2K",{"$":1},"self.assertEqual(command[:3], [owner.timeout[0], '--signal=KILL', '20'])",["p1F","p1X","p1g","p1Y"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_uid_map_boundary_requires_fixed_outer_bootstrap"],
 
-"wU":{"assertion":"submit.assert_not_called()","body":"p2i","kind":{"$":1},"positive":"self.assertFalse(result['dispatch_authorized'])","support":["p2u","p2x","p2t","p2v","p3A"],"test_id":"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary"},
+"wPolicyRefusal":["self.assertRaisesRegex(runtime.native.OfflineHostError, 'never redispatch')","pRefusalTest",{"$":6},"self.assertEqual(report['summary']['terminal_blockers'], {'provider-safety-policy-refusal': 'cyberPolicy'})",["pRefusalFixture"],"tests.test_registered_n1_factory.FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure"],
 
-"wV":{"assertion":"self.assert_partial_reservation_is_held(2)","body":"p2j","kind":{"$":1},"positive":{"$":297},"support":["p3D","p3C","p2o","p2n"],"test_id":"tests.test_registered_native_pool_host.PoolTests.test_competing_reservation_between_members_retains_both_original_charges"},
+"wQ":[{"$":302},"p2Q",{"$":12},"self.assertEqual(report['original_pid'], report['sentinel_pid'])",[],"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_private_pid_reuse_repeats_the_exact_selected_launcher_scope"],
 
-"wW":{"assertion":"self.assertEqual(self.adoption_state(), before)","body":"p3E","kind":{"$":1},"positive":"workflow._require_execution()","support":["p2l","p2m"],"test_id":"tests.test_registered_native_pool_host.PoolTests.test_later_invalid_consent_preserves_entire_pool_adoption"},
+"wR":[{"$":311},"p2V",{"$":1},"self.assertTrue(selected._reuse_heartbeat(Path(temporary) / 'sentinel/heartbeat', birth.descriptor))",["p1V","p1W","p1U","p1T"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_unverified_handoff_cannot_signal_an_unrelated_owned_sentinel"],
 
-"wX":{"assertion":"self.assert_substituted_pool_is_held(retired, terminal_saved=False)","body":"p3G","kind":{"$":1},"positive":{"$":297},"support":["p3K","p2p","p3J","p2n"],"test_id":"tests.test_registered_native_pool_host.PoolTests.test_state_path_replacement_after_member_settlement_cannot_return_success"},
+"wS":[{"$":294},"p2X",{"$":1},{"$":306},["p2M","pv"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace"],
 
-"wY":{"assertion":"self.assertNotIn('unshare_pid', owner.boundary)","body":"p3M","kind":{"$":12},"positive":"owner.controller._engine._verified.assert_called_once()","support":["p3O"],"test_id":"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_parent_binds_single_helper_birth_and_pid_owner_before_release"},
+"wSchema":["self.assertRaisesRegex(CapabilityError, \"thread/read\")","pSchemaWitness",{"$":12},"check_codex_capabilities(self.binary)",[],"tests.test_codex_protocol_capabilities.CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability"],
 
-"wZ":{"assertion":"self.assertEqual(case.receipt.request_bytes, original)","body":"p3X","kind":{"$":1},"positive":"self.assertLessEqual(len(task_bytes), len(original))","support":["p3l"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance"},
+"wT":["self.assertEqual(phases, ['poll-deciding'])","p2Z",{"$":1},"self.assertEqual(stages.count('finite-poll-intent'), 0)",["p2Y"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication"],
 
-"wa":{"assertion":"self.assertEqual(server.thread_start_count, 0)","body":"pee","kind":{"$":0},"positive":"self.assertEqual(receipt[\"validation_outcome\"], \"accepted\")","support":["p1f3"],"test_id":"tests.test_run_native_pool_live_canaries.LiveCanaryMaterializationTests.test_final_watermark_failure_prevents_calibration_allocation"},
+"wU":["submit.assert_not_called()","p2i",{"$":1},"self.assertFalse(result['dispatch_authorized'])",["p2u","p2x","p2t","p2v","p3A"],"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary"],
 
-"wb":{"assertion":{"$":139},"body":"p305","kind":{"$":0},"positive":"self.assertEqual(boundary.call_count, 2)","support":[],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds"},
+"wV":["self.assert_partial_reservation_is_held(2)","p2j",{"$":1},{"$":297},["p3D","p3C","p2o","p2n"],"tests.test_registered_native_pool_host.PoolTests.test_competing_reservation_between_members_retains_both_original_charges"],
 
-"wc":{"assertion":"self.assertEqual((read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0))","body":"p362","kind":{"$":0},"positive":"self.assertIs(result[4], mock.sentinel.reservation)","support":["p2db"],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch"},
+"wW":["self.assertEqual(self.adoption_state(), before)","p3E",{"$":1},"workflow._require_execution()",["p2l","p2m"],"tests.test_registered_native_pool_host.PoolTests.test_later_invalid_consent_preserves_entire_pool_adoption"],
 
-"wd":{"assertion":"self.assertEqual(launch.call_count, 0)","body":"p186","kind":{"$":0},"positive":"self.assertEqual(launch.call_count, 1)","support":[],"test_id":"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_zero_launch_and_independent_patched_fake_control"},
+"wX":["self.assert_substituted_pool_is_held(retired, terminal_saved=False)","p3G",{"$":1},{"$":297},["p3K","p2p","p3J","p2n"],"tests.test_registered_native_pool_host.PoolTests.test_state_path_replacement_after_member_settlement_cannot_return_success"],
 
-"we":{"assertion":{"$":300},"body":"p200","kind":{"$":1},"positive":{"$":300},"support":["p33e","p111","p13a","p1f4","p178","p302"],"test_id":"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_default_run_never_creates_a_share"},
+"wY":["self.assertNotIn('unshare_pid', owner.boundary)","p3M",{"$":12},"owner.controller._engine._verified.assert_called_once()",["p3O"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_parent_binds_single_helper_birth_and_pid_owner_before_release"],
+
+"wZ":["self.assertEqual(case.receipt.request_bytes, original)","p3X",{"$":1},"self.assertLessEqual(len(task_bytes), len(original))",["p3l"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance"],
+
+"wa":["self.assertEqual(server.thread_start_count, 0)","pee",{"$":0},"self.assertEqual(receipt[\"validation_outcome\"], \"accepted\")",["p1f3"],"tests.test_run_native_pool_live_canaries.LiveCanaryMaterializationTests.test_final_watermark_failure_prevents_calibration_allocation"],
+
+"wb":[{"$":139},"p305",{"$":0},"self.assertEqual(boundary.call_count, 2)",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds"],
+
+"wc":["self.assertEqual((read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0))","p362",{"$":0},"self.assertIs(result[4], mock.sentinel.reservation)",["p2db"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch"],
+
+"wd":["self.assertEqual(launch.call_count, 0)","p186",{"$":0},"self.assertEqual(launch.call_count, 1)",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_zero_launch_and_independent_patched_fake_control"],
+
+"we":[{"$":300},"p200",{"$":1},{"$":300},["p33e","p111","p13a","p1f4","p178","p302"],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_default_run_never_creates_a_share"],
 
 "wf":{"assertion":"self.assertEqual(source['files_sha256'], hashlib.sha256(gate.source_io.encoded(source['files'])).hexdigest())","body":"p1bb","kind":{"$":1},"positive":"self.assertTrue(environment['scratch_filesystem'])","test_id":"tests.test_release_filesystem.ReleaseFilesystemTests.test_actual_source_snapshot_and_runtime_identities_are_bound"},
 
-"wg":{"assertion":"self.assertRaisesRegex(registered_fixture.runtime.native.OfflineHostError, 'model task changed')","body":"p3i","kind":{"$":1},"positive":"self.assertFalse(case.ledger.root.exists())","support":["p3l"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority"},
+"wg":["self.assertRaisesRegex(registered_fixture.runtime.native.OfflineHostError, 'model task changed')","p3i",{"$":1},"self.assertFalse(case.ledger.root.exists())",["p3l"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority"],
 
-"wh":{"assertion":"self.assertIs(observed.exception.__cause__, refusals[0])","body":"p3p","kind":{"$":1},"positive":"self.assertEqual((attempt[\"outcome\"], attempt[\"charge\"]), (\"unknown\", attempt[\"amount\"]))","support":["p3l"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session"},
+"wh":["self.assertIs(observed.exception.__cause__, refusals[0])","p3p",{"$":1},"self.assertEqual((attempt[\"outcome\"], attempt[\"charge\"]), (\"unknown\", attempt[\"amount\"]))",["p3l"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session"],
 
-"wi":{"assertion":"self.assertRaises(OutboundRefused)","body":"p3v","kind":{"$":1},"positive":"fixture.test_original_rpc_useful_capture_validation_and_no_redispatch()","support":["p3o"],"test_id":"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent"}
+"wi":["self.assertRaises(OutboundRefused)","p3v",{"$":1},"fixture.test_original_rpc_useful_capture_validation_and_no_redispatch()",["p3o"],"tests.test_native_outbound_screen.NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent"]
 }
 }

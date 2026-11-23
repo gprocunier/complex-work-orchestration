@@ -10,10 +10,15 @@ import os
 from pathlib import Path
 import pwd
 import re
+import shutil
+import stat
+import tempfile
 import time
+import uuid
 
 from cwo_core import host_records
 from cwo_core import maintenance_authority as authority
+from cwo_core import native_session_boundary
 from cwo_core.model_identities import MODEL_ROLES
 
 CAMPAIGN = 'native-single-worker-host-qualification'
@@ -26,7 +31,11 @@ TIER = 'default'
 PROVIDER = 'openai'
 APPROVAL_POLICY = 'never'
 MODEL_SELECTION = 'qualification_model_selection'
+AUTHENTICATION = 'qualification_authentication'
+MANAGED_LOGIN = 'codex-managed-file'
+LOGIN_MOUNT = Path('/cwo/managed-login')
 _JOURNAL = 'starts.jsonl'
+_LOGIN_LEASE = 'managed-login.json'
 _HEADER = {'campaign': CAMPAIGN, 'version': 1}
 _MAX_JOURNAL_BYTES = 8192
 _DIGEST = re.compile(r'[0-9a-f]{64}')
@@ -53,13 +62,155 @@ def _model_selection():
             'campaign': CAMPAIGN}
 
 
-def bind_model_selection(spec):
+def bind_model_selection(spec, *, managed_login=False):
     """Build the qualification spec before preparing admission and signing the operation."""
     selection = _model_selection()
     bound = copy.deepcopy(spec)
     bound.update({key: selection[key] for key in ('model', 'effort', 'provider')})
     bound[MODEL_SELECTION] = selection
+    if managed_login:
+        bound[AUTHENTICATION] = MANAGED_LOGIN
     return bound
+
+
+def require_authentication_selection(spec):
+    _need(AUTHENTICATION not in spec or spec[AUTHENTICATION] == MANAGED_LOGIN,
+          'Unsupported qualification authentication mode.')
+
+
+def managed_login_home():
+    """The controller's dedicated login is independent of caller environment and spec paths."""
+    return Path(pwd.getpwuid(os.getuid()).pw_dir) / '.cwo-qual-codex'
+
+
+def _file_identity(info):
+    return info.st_ino, info.st_mode, info.st_uid, info.st_size, info.st_mtime_ns
+
+
+_SESSION_STORES = ('sessions', 'archived_sessions')
+_DIRECTORY_PROJECTIONS = ('.tmp', 'tmp', 'log', 'skills', 'shell_snapshots', 'thread-writer-locks')
+_RUNTIME_PROJECTIONS = ('session_index.jsonl', 'installation_id', '.sandbox_migration')
+
+
+class ManagedLoginMount:
+    """Use the approved home as the overlay's writable layer, with operation-local state below it."""
+
+    def __init__(self, home):
+        self.home = home
+        self.identity = self._observe_home()[0]
+        self.lower = self.work = None
+        self.existing_runtime = ()
+        self.rollout = None
+
+    def _observe_home(self):
+        try:
+            directory = host_records._directory(self.home, private=True)
+            with authority._state_descriptor(directory):
+                info = os.fstat(directory)
+                auth = self._observe_auth(directory)
+                return (info.st_dev, info.st_ino), auth
+        except (OSError, host_records.HostRecordError) as exc:
+            raise QualificationError('The dedicated login requires an owned directory and private authentication file.') from exc
+
+    @staticmethod
+    def _observe_auth(directory):
+        auth = os.stat('auth.json', dir_fd=directory, follow_symlinks=False)
+        _need(stat.S_ISREG(auth.st_mode) and stat.S_IMODE(auth.st_mode) == 0o600
+              and auth.st_uid == os.getuid() and auth.st_nlink == 1,
+              'The dedicated login requires a private authentication file.')
+        return _file_identity(auth)
+
+    def _projections(self, home):
+        runtime = home.parent / 'managed-runtime'
+        return {**{name: home / name for name in ('config.toml', 'rules', *_SESSION_STORES)},
+                **{name: runtime / name for name in (*_DIRECTORY_PROJECTIONS, *_RUNTIME_PROJECTIONS)}}
+
+    def _existing_runtime(self):
+        directory = host_records._directory(self.home, private=True)
+        with authority._state_descriptor(directory):
+            return tuple(name for name in _DIRECTORY_PROJECTIONS if self._directory_at(directory, name))
+
+    @staticmethod
+    def _directory_at(directory, name):
+        try:
+            observed = os.stat(name, dir_fd=directory, follow_symlinks=False)
+        except FileNotFoundError:
+            return False
+        _need(stat.S_ISDIR(observed.st_mode) and observed.st_uid == os.getuid(),
+              'A dedicated login runtime path is not an owned directory.')
+        return True
+
+    def prepare(self, home):
+        self.existing_runtime = self._existing_runtime()
+        self.lower = home.parent / 'managed-login-lower'
+        self.lower.mkdir(mode=0o700)
+        (home.parent / 'managed-runtime').mkdir(mode=0o700)
+        for name, target in self._projections(home).items():
+            if name in (*_SESSION_STORES, *_DIRECTORY_PROJECTIONS):
+                target.mkdir(mode=0o700, exist_ok=True)
+            (self.lower / name).symlink_to(target)
+        self.work = Path(tempfile.mkdtemp(prefix='managed-login-work-', dir=campaign_directory()))
+        _need(self.work.stat().st_dev == self.identity[0],
+              'The dedicated login and campaign state must share an overlay-capable filesystem.')
+
+    def options(self, home):
+        _need(self.lower is not None and self.work is not None, 'The original managed login projection is unavailable.')
+        runtime = str(home.parent / 'managed-runtime')
+        command = ['--bind', runtime, runtime, '--overlay-src', str(self.lower), '--overlay', str(self.home),
+                   str(self.work), str(LOGIN_MOUNT), '--setenv', 'CODEX_SQLITE_HOME', runtime]
+        for name in self.existing_runtime:
+            command += ['--bind', str(Path(runtime) / name), str(LOGIN_MOUNT / name)]
+        return command
+
+    def confirm(self, root, home):
+        identity, auth = self._observe_home()
+        _need(identity == self.identity, 'The original dedicated login directory changed.')
+        view = root / LOGIN_MOUNT.relative_to('/')
+        _need(_file_identity((view / 'auth.json').lstat()) == auth,
+              'The app server does not have the original private authentication file.')
+        for name, target in self._projections(home).items():
+            projected = view / name
+            matched = (os.path.samestat(projected.lstat(), target.stat()) if name in self.existing_runtime
+                       else projected.readlink() == target)
+            _need(matched, 'The original operation login projection was shadowed.')
+
+    def observe_rollout(self, home, thread):
+        value = thread.get('path')
+        if value is None:
+            return
+        path = self._project_rollout(home, value, thread['id'])
+        if path.is_file():
+            observed = native_session_boundary.locate_unique_session(home, thread['id'], reported_path=path)
+            _need(observed.path == path, 'The reported qualification rollout differs from its operation spool.')
+            _need(self.rollout is None or self.rollout == observed.source_identity_sha256,
+                  'The original qualification rollout identity changed.')
+            self.rollout = observed.source_identity_sha256
+
+    @staticmethod
+    def _project_rollout(home, raw, session_id):
+        _need(type(raw) is str and 0 < len(raw) <= 4096 and '\0' not in raw,
+              'A bounded qualification rollout path is required.')
+        path = Path(raw)
+        _need(path.is_absolute() and str(path) == raw and '..' not in path.parts
+              and (path.is_relative_to(LOGIN_MOUNT) or path.is_relative_to(home)),
+              'The qualification rollout path is outside its operation spool.')
+        relative = path.relative_to(LOGIN_MOUNT if path.is_relative_to(LOGIN_MOUNT) else home)
+        _need(len(relative.parts) >= 2 and relative.parts[0] in _SESSION_STORES
+              and relative.name.endswith(f'{session_id}.jsonl'), 'The reported qualification rollout path differs.')
+        return home / relative
+
+    def confirm_archived(self, home, session_id):
+        if self.rollout is not None:
+            observed = native_session_boundary.locate_unique_session(home, session_id)
+            _need(observed.store == 'archived_sessions' and observed.source_identity_sha256 == self.rollout,
+                  'Qualification archive did not retain the original rollout in its operation spool.')
+
+    def retire(self):
+        if self.work is not None:
+            overlay_work = self.work / 'work'
+            if overlay_work.is_dir():
+                overlay_work.chmod(0o700)
+            shutil.rmtree(self.work)
 
 
 def require_model_selection(spec, plan, operation):
@@ -197,7 +348,7 @@ def initialize_campaign():
 
 
 @contextmanager
-def _journal():
+def _journal(*, include_directory=False):
     flags = os.O_RDWR | os.O_APPEND | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
     try:
         directory = host_records._directory(_campaign_directory(), private=True)
@@ -206,9 +357,29 @@ def _journal():
             with authority._state_descriptor(descriptor):
                 authority.MaintenanceStateStore._private_file(descriptor)
                 fcntl.flock(descriptor, fcntl.LOCK_EX)
-                yield descriptor
+                yield (descriptor, directory) if include_directory else descriptor
     except (OSError, host_records.HostRecordError, authority.MaintenanceAuthorityError) as exc:
         raise QualificationError('Qualification campaign accounting is unavailable or unsafe.') from exc
+
+
+def claim_managed_login():
+    """Leave a durable interlock across controller crashes and unresolved namespaces."""
+    nonce = uuid.uuid4().hex
+    with _journal(include_directory=True) as (_, directory):
+        try:
+            # O_EXCL also leaves a blocking entry after a partial write.
+            host_records._write_at(directory, _LOGIN_LEASE, nonce.encode())
+        except FileExistsError as exc:
+            raise QualificationError('A managed login launch remains unresolved.') from exc
+    return nonce
+
+
+def release_managed_login(nonce):
+    with _journal(include_directory=True) as (_, directory):
+        observed = host_records._read_at(directory, _LOGIN_LEASE, 32)
+        _need(observed == nonce.encode(), 'The original managed login lease changed.')
+        os.unlink(_LOGIN_LEASE, dir_fd=directory)
+        os.fsync(directory)
 
 
 def _check_row(row, expected_sequence, previous):

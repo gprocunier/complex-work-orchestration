@@ -107,6 +107,25 @@ class ProviderNetworkTests(unittest.TestCase):
             self.assertEqual(self.denials.get(timeout=3), 'tls-server-name-mismatch')
             dial.assert_not_called()
 
+    def test_managed_login_keeps_the_fixed_https_allowlist(self):
+        self.broker.close()
+        self.broker = network.ProviderBroker(self.denials.put, allow_managed_login=True)
+        self.addCleanup(self.broker.close)
+        with patch.object(network, '_dial_provider') as dial:
+            for endpoint, reason in (('example.invalid:443', 'destination-not-allowed'),
+                                     ('auth.openai.com:8443', 'invalid-connect')):
+                client = self.client()
+                client.sendall(f'CONNECT {endpoint} HTTP/1.1\r\n\r\n'.encode())
+                self.assertIn(b'403', client.recv(1024))
+                self.assertEqual(self.denials.get(timeout=3), reason)
+            client = self.client()
+            client.sendall(b'CONNECT auth.openai.com:443 HTTP/1.1\r\n\r\n')
+            self.assertIn(b'200', client.recv(1024))
+            client.sendall(_hello('example.invalid'))
+            self.assertEqual(client.recv(1024), b'')
+            self.assertEqual(self.denials.get(timeout=3), 'tls-server-name-mismatch')
+            dial.assert_not_called()
+
     def test_a_different_tls_name_has_no_outbound_effect(self):
         with patch.object(network, '_dial_provider') as dial:
             client = self.client()

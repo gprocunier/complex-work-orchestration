@@ -1,8 +1,8 @@
 """Registered finite N=1 transport with parent custody and no route activation.
 
 Only a claimed original maintenance capability can select this factory. Worker
-code never runs in the controller. The isolated qualification app server can
-receive one explicitly attached provider credential through its start gate.
+code never runs in the controller. A signed qualification can select an
+isolated dedicated Codex login or a one-shot provider credential attachment.
 """
 from __future__ import annotations
 
@@ -269,8 +269,16 @@ def _configuration(spec, worker):
                     'filesystem': {'/': 'deny', str(worker): 'write'}, 'network': {'enabled': False}}}}
     if qualification.MODEL_SELECTION in spec:
         expected['features'] = qualification.configuration_features()
-        expected['permissions'][spec['thread_start']['permissions']]['filesystem'][str(worker)] = 'read'
+        roots = expected['permissions'][spec['thread_start']['permissions']]['filesystem']
+        roots[str(worker)] = 'read'
+        _managed_login_config(spec, expected, roots)
     _need(config == expected, "Registered configuration selectors, roots, hooks or network differ.")
+
+
+def _managed_login_config(spec, config, roots):
+    if spec.get(qualification.AUTHENTICATION) == qualification.MANAGED_LOGIN:
+        config['cli_auth_credentials_store'] = 'file'
+        roots[str(qualification.LOGIN_MOUNT)] = 'deny'
 
 
 class _DeadlineInput:
@@ -480,6 +488,24 @@ class _Containment:
         self._fds = []
         self.provider_network = None
         self._access_token_fd = -1
+        self._managed_mount_started = False
+
+    def _managed_mount(self):
+        if self.role == 'appserver' and type(self.factory) is RegisteredN1Factory:
+            return self.factory._managed_login
+        return None
+
+    def _appserver_mounts(self, home):
+        mount = self._managed_mount()
+        command = ['--bind', str(home), str(home), '--setenv', 'CODEX_HOME',
+                   str(home if mount is None else qualification.LOGIN_MOUNT)]
+        for name in self.factory.spec['configuration_files']:
+            command += ['--ro-bind', str(home / name), str(home / name)]
+        if mount is not None:
+            _need(self.factory._managed_lease is not None, "The managed login requires its original lease.")
+            self.factory._managed_lifetime = self
+            command += mount.options(home)
+        return command
 
     def _command(self, command, home, block, info):
         spec, host = self.factory.spec, self.factory.host
@@ -511,9 +537,7 @@ class _Containment:
                      '--ro-bind', worker + '/.git', worker + '/.git',
                      '--chdir', worker]
             if self.role == 'appserver':
-                argv += ['--bind', str(home), str(home), '--setenv', 'CODEX_HOME', str(home)]
-                for name in self.factory.spec['configuration_files']:
-                    argv += ['--ro-bind', str(home / name), str(home / name)]
+                argv += self._appserver_mounts(home)
         argv += self._provider_network_mounts()
         argv += ['--remount-ro', '/']
         return argv
@@ -527,7 +551,8 @@ class _Containment:
             return ()
         token = self.factory._take_provider_access_token()
         self.provider_network = provider_network.ProviderBroker(
-            self._record_provider_denial, allow_personal_access_token=token is not None)
+            self._record_provider_denial, allow_personal_access_token=token is not None,
+            allow_managed_login=self._managed_mount() is not None)
         control = self.provider_network.child_socket.fileno()
         if token is None:
             return (control,)
@@ -601,11 +626,21 @@ class _Containment:
         root = Path('/proc') / str(self._namespace_pid) / 'root'
         for source in self.factory._protected_roots():
             _not_exposed(root, source)
+        self._confirm_login_mount(root)
         _need(not select.select([self.namespace_handle], [], [], 0)[0], "The inspected namespace has exited.")
+
+    def _confirm_login_mount(self, root):
+        mount = self._managed_mount()
+        if mount is not None:
+            mount.confirm(root, self.factory.home)
+        else:
+            _need(not (root / qualification.LOGIN_MOUNT.relative_to('/')).exists(),
+                  "The managed login projection is visible outside its app-server namespace.")
 
     def _release_command(self, write_gate, observation, tool_call, deadline):
         # Bubblewrap's gate precedes filesystem setup. Only the fixed trusted
         # bootstrap runs after it, and the original command remains gated.
+        self._managed_mount_started = self._managed_mount() is not None
         os.write(write_gate, b'1')
         self._confirm_mounts()
         observation['filesystem_ready'] = True
@@ -1176,7 +1211,25 @@ class _RegisteredServer(RegisteredAppServer):
         return self.factory.spec['executable']
 
     def _requested_home(self):
-        return self.factory.home
+        return self.factory.appserver_home()
+
+    def _initialize_protocol(self, home, binding):
+        super()._initialize_protocol(home, binding)
+        # The wire readback verifies the child path. The controller uses the
+        # original operation's physical spool for its own observations.
+        self.codex_home = self.factory.home
+
+    def _guard_thread_observation(self, thread_id, thread):
+        super()._guard_thread_observation(thread_id, thread)
+        self._observe_managed_rollout(thread)
+
+    def _observe_managed_rollout(self, thread):
+        if self.factory._managed_login is not None:
+            self.factory._managed_login.observe_rollout(self.factory.home, thread)
+
+    def _confirm_managed_archive(self, thread_id):
+        if self.factory._managed_login is not None:
+            self.factory._managed_login.confirm_archived(self.factory.home, thread_id)
 
     def _protocol_lines(self):
         try:
@@ -1550,6 +1603,7 @@ class _RegisteredServer(RegisteredAppServer):
         params = self.factory._thread_start_parameters()
         response, _latency = self.request('thread/start', params, timeout=10)
         _check_response(self.factory, params, response)
+        self._observe_managed_rollout(response['thread'])
         self.thread_id = response['thread']['id']
         if self.factory.qualification is None:
             self.factory.record_dispatch(self.thread_id)
@@ -1650,6 +1704,7 @@ class _RegisteredServer(RegisteredAppServer):
         else:
             self.finite_tools.close()
         latency = super().archive_thread(thread_id)
+        self._confirm_managed_archive(thread_id)
         self.requests.close()
         self.lifetime.settle_termination()
         self._join_readers()
@@ -1945,6 +2000,8 @@ class RegisteredN1Factory:
         self._provider_access_token = None
         self._qualification_permit = copy.deepcopy(qualification_permit)
         self._qualification = self._authorize_qualification(self._qualification_permit, operation)
+        self._managed_lease = self._managed_lifetime = None
+        self._managed_login = self._select_managed_login()
         self._validate()
         admitted._require_primary(self.receipt)
         self._model_task = _model_task(self.receipt, self.spec, self.policy.report)
@@ -1974,9 +2031,22 @@ class RegisteredN1Factory:
                    self.host.state, self.ledger.root, self._store.directory, self.host_records.state_root])
         return authority
 
+    def _select_managed_login(self):
+        qualification.require_authentication_selection(self.spec)
+        if qualification.AUTHENTICATION not in self.spec:
+            return None
+        _need(self.qualification is not None, "Managed login requires signed qualification.")
+        home = native._path(qualification.managed_login_home())
+        _disjoint([home, qualification.campaign_directory(), self.host.worker, self.host.target,
+                   self.host.state, self.ledger.root, self._store.directory, self.host_records.state_root])
+        return qualification.ManagedLoginMount(home)
+
+    def appserver_home(self):
+        return self.home if self._managed_login is None else qualification.LOGIN_MOUNT
+
     def _validate_spec_fields(self, spec, fields):
         if self.qualification is not None:
-            _need(set(spec) == fields | {qualification.MODEL_SELECTION, 'finite_tool_mode'}
+            _need(set(spec) - {qualification.AUTHENTICATION} == fields | {qualification.MODEL_SELECTION, 'finite_tool_mode'}
                   and spec['finite_tool_mode'] == 'captured-live-host-tools',
                   "Qualification requires the signed live finite tool mode.")
         else:
@@ -2065,7 +2135,9 @@ class RegisteredN1Factory:
         roots = (self.host.target, self.host.state, self.ledger.root, self._store.directory,
                  self.host_records.root, self.host_records.audit_file)
         if self.qualification is not None:
-            return (*roots, qualification.campaign_directory())
+            roots = (*roots, qualification.campaign_directory())
+        if self._managed_login is not None:
+            roots = (*roots, self._managed_login.home)
         return roots
 
     def _worker_writable_roots(self):
@@ -2159,6 +2231,8 @@ class RegisteredN1Factory:
             native._sync(path.parent)
         self._configured = True
         self._check_configuration()
+        if self._managed_login is not None:
+            self._managed_login.prepare(self.home)
 
     def record(self, stage, observation):
         directory = self.records / 'transport-observations'
@@ -2394,10 +2468,15 @@ class RegisteredN1Factory:
             raise
         self.record('validated', {'artifact': report['artifact']['sha256'], 'policy': self.policy.report})
 
-    def _claim_run(self, provider_access_token):
+    def _selected_access_token(self, provider_access_token):
         if provider_access_token is not None:
             _need(self.qualification is not None, "Provider credential attachment requires signed qualification.")
-            provider_access_token = provider_network.personal_access_token_bytes(provider_access_token)
+            _need(self._managed_login is None, "Only one authentication mode may apply to an original launch.")
+            return provider_network.personal_access_token_bytes(provider_access_token)
+        return None
+
+    def _claim_run(self, provider_access_token):
+        provider_access_token = self._selected_access_token(provider_access_token)
         self.require_launch_selection()
         with self._lock:
             if self._started:
@@ -2405,9 +2484,27 @@ class RegisteredN1Factory:
                 _need(self.result is not None, "Unknown execution requires reconciliation, never redispatch.")
                 self.guard()
                 return False
+            if self._managed_login is not None:
+                self._managed_lease = qualification.claim_managed_login()
             self._provider_access_token = provider_access_token
             self._started = True
             return True
+
+    def _retire_managed_login(self, primary):
+        if self._managed_lease is None:
+            return
+        lifetime = self._managed_lifetime
+        try:
+            _need(lifetime is None or not lifetime._managed_mount_started or lifetime.contained,
+                  "The original managed login namespace remains unresolved.")
+            self._managed_login.retire()
+            qualification.release_managed_login(self._managed_lease)
+            self._managed_lease = None
+        except BaseException as failure:
+            if primary is None:
+                self.result = None
+                raise
+            admission.ledger_api.add_failure_note(primary, "Managed login retirement failed: " + type(failure).__name__)
 
     def _take_provider_access_token(self):
         token, self._provider_access_token = self._provider_access_token, None
@@ -2418,6 +2515,7 @@ class RegisteredN1Factory:
         if not self._claim_run(provider_access_token):
             return self.result
         del provider_access_token
+        primary = None
         try:
             self.guard()
             result = admission.invoke_offline(self.receipt, self.route, self.node_id,
@@ -2440,7 +2538,8 @@ class RegisteredN1Factory:
             _ADAPTERS.pop(self.adapter, None)
             self.result = result
             return result
-        except BaseException as primary:
+        except BaseException as failure:
+            primary = failure
             if self.server is not None:
                 self.server.finite_input.lifecycle.original_output_event('revoked')
                 self.server.requests.close()
@@ -2454,6 +2553,7 @@ class RegisteredN1Factory:
             raise
         finally:
             self._provider_access_token = None
+            self._retire_managed_login(primary)
 
     def _observer(self, report):
         # A real observer is persisted by InvocationLedger before the effect.
