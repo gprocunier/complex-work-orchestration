@@ -6614,7 +6614,7 @@
 
 "scripts/cwo_core/native_pool_contracts.py":["d428cec0cf58ff3f34ea428d0ba958a6d936a35f0eb29d2cb5d8ab2de9b0567d",420,124342],
 
-"scripts/cwo_core/native_pool_leases.py":["fbcce705c51dede5ceef3d3773003167c57173f548d81bc8a2795a44121db67c",420,25680],
+"scripts/cwo_core/native_pool_leases.py":["4827e94d1dc892392e7cea24e8fd26572c74a2989854c2274ced29f2d1c2c8eb",420,25629],
 
 "scripts/cwo_core/native_pool_preflight.py":["d16c3d26374e7ffb972d6aa7a3d31a6972bb1b0539e8d9c10795c784f5d3720e",420,78400],
 
@@ -6946,7 +6946,7 @@
 
 "scripts/summarize_resume_state.py":["18e9830176baa26c0aae69cdc7e0ce7cd7b4d564eeea15a4ee34e914cb0df053",493,6479],
 
-"scripts/supervise_native_pool.py":["e3fd7af143402739ef64c46e56f304c840fe1398c9f596296c5429692fca5114",493,10902],
+"scripts/supervise_native_pool.py":["daba0c7e673b65099a99497b5328746fda9cb81299894ed8545c0dbf2a6d2f12",493,10958],
 
 "scripts/supervise_native_precommit.py":["33546249e89e2446664a91afc7db6a71a4213082f60e074c236db41db5b07125",420,9105],
 
@@ -6980,7 +6980,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["e6730627f577363d63790c32967a71dbe30f71f57c76e34d1d493b60bb24252d",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["5e68a3302af8d5e563a2c597780db139c2e6dc09d52bf0260e6bee702acc26f5",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 

@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Refuse duplicate JSON keys and non-finite numbers when reading native pool evidence from the command line.
+- Refuse symlinks at native pool lease registry and lock paths, including dangling links during lease cleanup.
+
 ## 1.16.0 - 2026-11-23
 
 - Allow signed native single-worker qualification to use a dedicated Codex-managed login isolated from finite commands and validators.

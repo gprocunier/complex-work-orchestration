@@ -198,9 +198,9 @@ class PoolLeaseRegistry:
 
     @contextmanager
     def _locked(self) -> Iterator[None]:
-        if self.path.exists() and self.path.is_symlink():
+        if self.path.is_symlink():
             raise PoolLeaseError("lease-registry-path-is-symlink")
-        if self.lock_path.exists() and self.lock_path.is_symlink():
+        if self.lock_path.is_symlink():
             raise PoolLeaseError("lease-registry-lock-is-symlink")
         self.path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
         self.path.parent.chmod(0o700)
@@ -213,10 +213,10 @@ class PoolLeaseRegistry:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
     def _load_unlocked(self) -> list[dict[str, Any]]:
-        if not self.path.exists():
-            return []
         if self.path.is_symlink():
             raise PoolLeaseError("lease-registry-path-is-symlink")
+        if not self.path.exists():
+            return []
         try:
             value = strict_json_loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError, RecursionError) as exc:

@@ -35,6 +35,7 @@ from cwo_core.native_pool_reporting import (
     build_pool_status_report,
     record_pool_audit_event,
 )
+from cwo_core.policy_schema import strict_json_loads
 
 
 def _load_object(path_value: str, label: str) -> dict[str, Any]:
@@ -42,8 +43,8 @@ def _load_object(path_value: str, label: str) -> dict[str, Any]:
     if path.is_symlink():
         raise ValueError(f"{label} path is a symlink")
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+        value = strict_json_loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError) as exc:
         raise ValueError(f"{label} is unreadable") from exc
     if not isinstance(value, dict):
         raise ValueError(f"{label} must contain one JSON object")
@@ -232,7 +233,7 @@ def main() -> int:
             if pool_id in terminal_states:
                 raise ValueError(f"duplicate terminal state for pool {pool_id}")
             terminal_states[pool_id] = state
-        registry = PoolLeaseRegistry(Path(args.registry).expanduser().resolve())
+        registry = PoolLeaseRegistry(Path(args.registry).expanduser())
         changed = registry.cleanup_stale(terminal_states)
         print(
             json.dumps(
