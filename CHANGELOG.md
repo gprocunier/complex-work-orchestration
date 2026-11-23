@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Screen qualification thread-start frames before acquiring the managed login, starting the app server, or charging a start.
+
 ## 1.18.0 - 2026-11-23
 
 - Accept the app server's bounded timestamps on native worker notifications.
