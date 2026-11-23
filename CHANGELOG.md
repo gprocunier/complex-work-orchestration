@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.15.0 - 2026-11-23
+
 - Complete finite commands that exit cleanly before their first stdout read when the original process handle and bounded stdout EOF confirm the exit.
 
 ## 1.14.0 - 2026-11-23
