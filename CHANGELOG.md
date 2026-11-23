@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.19.0 - 2026-11-23
+
 - Screen qualification thread-start frames before acquiring the managed login, starting the app server, or charging a start.
 
 ## 1.18.0 - 2026-11-23
