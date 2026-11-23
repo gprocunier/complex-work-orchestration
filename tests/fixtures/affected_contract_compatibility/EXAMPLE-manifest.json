@@ -472,7 +472,7 @@
     "scripts/cwo_core/risk_features.py": "894ada759b8d000443b693a0ad382401fe2f64a519696aa039a20070443cf275",
     "scripts/cwo_core/routing.py": "83590e314bee56da4e1bc138700adb482dbd9e071f74374b7762383d880cb5d6",
     "scripts/cwo_core/routing_signals.py": "6c32034033ae49cb45a38f63315825d648af53ac45455b2ee48249938d446246",
-    "scripts/cwo_core/server_request_preparation.py": "c69d6f0966653f446aaa9b16591d8ebc9b491870ff2f68620c821f968556ae3c",
+    "scripts/cwo_core/server_request_preparation.py": "c78ce4d85b553a81e58b5c222127fb0e29add4342270b341af855d34ddc8bae7",
     "scripts/cwo_core/supervision/__init__.py": "363ea10aa7f27d5994295188e935330accfa55adb84f6a480f25a4ec6c2d6ee0",
     "scripts/cwo_core/supervision/transport/__init__.py": "a65e521ee9e997c481559de0e91962f8a0c19d6ba434c8525b3ee8ee8a97190d",
     "scripts/cwo_core/supervision/transport/app_server.py": "9b5dcef8d620c98b826a1ff321bb9242d483fb941e6f45d837bf5a5d275d1570",
@@ -584,7 +584,7 @@
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
     "tests/test_registered_finite_tool_wiring.py": "376380fcf67a862c0393650edeedf79918546859ddacabdacc6ae90ae2775dc3",
     "tests/test_registered_n1_factory.py": "8d2e04bf807531df3c1b76a40631bfb209e744ad1f9e3753c14566b65dffd3c0",
-    "tests/test_registered_n1_qualification.py": "f464689b4bd074ff900bb638dbfef87d7234e5011e3fe0e42e817485bd218719",
+    "tests/test_registered_n1_qualification.py": "fdea0343fc1e222fdf45dc7b406e58654148c0723f9043d777c10921bbb91c94",
     "tests/test_registered_n1_workflow.py": "94d4de5b25c5e986311ebec6c55eb91b143dcf60080e84130748f8a290f35ed7",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
@@ -2448,7 +2448,7 @@
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
     "tests/test_registered_n1_factory.py": "8d2e04bf807531df3c1b76a40631bfb209e744ad1f9e3753c14566b65dffd3c0",
-    "tests/test_registered_n1_qualification.py": "f464689b4bd074ff900bb638dbfef87d7234e5011e3fe0e42e817485bd218719",
+    "tests/test_registered_n1_qualification.py": "fdea0343fc1e222fdf45dc7b406e58654148c0723f9043d777c10921bbb91c94",
     "tests/test_registered_provider_network.py": "4810be8c8212226f4ed9896dac4446c9ef38421d1ce85f1df0c80eb168e64112",
     "tests/test_registered_server_requests.py": "1339fd305c7267d3b7d7fef24453268c8180c1090ae20122f430ad675b3a07f5"
   },

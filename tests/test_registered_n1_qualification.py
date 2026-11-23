@@ -571,3 +571,46 @@ class FactoryQualificationTests(unittest.TestCase):
             family.cleanup_helper(self, self.fixture.processes)
             family.cleanup_helper(self, self.fixture.authority)
         self.assertIs(restored_kill, original_kill)
+
+    def test_registered_startup_retains_timestamped_notifications_and_stops_before_turn(self):
+        from cwo_core.supervision.transport import app_server
+
+        case, _login = self.managed_case(no_fake_scheduler=True)
+        factory = self.fixture.factory(case)
+        timestamp = 1795442406000
+        remote_control = {'method': 'remoteControl/status/changed', 'params': {'status': 'disabled'},
+                          'emittedAtMs': timestamp}
+        original_gate = app_server._require_native_rpc
+
+        class TimestampedStartup(family.RpcProcess):
+            def result(self, method, params):
+                result = super().result(method, params)
+                if method == 'thread/start':
+                    self.stdout.put(remote_control)
+                    self.stdout.put({'method': 'thread/started', 'params': {'thread': result['thread']},
+                                     'emittedAtMs': timestamp + 1})
+                return result
+
+        def stop_before_turn(method, transport=None):
+            if method == 'turn/start':
+                with self.assertRaises(runtime.live_availability.NativeLiveUnavailable):
+                    original_gate('remoteControl/enable', transport)
+                raise ValueError('EXAMPLE stopped before model turn')
+            return original_gate(method, transport)
+
+        with (patch.object(family, 'RpcProcess', TimestampedStartup),
+              patch.object(app_server, '_require_native_rpc', side_effect=stop_before_turn),
+              self.assertRaisesRegex(ValueError, 'EXAMPLE stopped before model turn')):
+            factory.run()
+
+        self.assertEqual(factory.server.thread_id, case.scenario.thread_id)
+        events = [notification for _, notification in factory.server._notifications]
+        self.assertIn(remote_control, events)
+        started, = [notification for notification in events if notification['method'] == 'thread/started']
+        self.assertEqual(started['emittedAtMs'], timestamp + 1)
+        stages = [json.loads(path.read_bytes())['stage'] for path in
+                  (factory.records / 'transport-observations').glob('observation-*.json')]
+        self.assertIn('qualification-dispatch', stages)
+        self.assertIn('finite-tool-catalog', stages)
+        self.assertNotIn('turn/start', self.fixture.spawned[0].methods)
+        self.assertTrue(factory.server.lifetime.contained)

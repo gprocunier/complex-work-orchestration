@@ -341,6 +341,31 @@ class ServerRequestPreparationTests(unittest.TestCase):
         with self.assertRaises(PinError):
             pin_for("0.164.0")
 
+    def test_timestamped_notification_preserves_the_actual_frame(self):
+        legacy = {"method": "remoteControl/status/changed", "params": {"status": "disabled"}}
+        for message in (legacy, dict(legacy, emittedAtMs=0), dict(legacy, emittedAtMs=2**63 - 1)):
+            with self.subTest(message=message):
+                typed = prep.classify_message(message)
+                self.assertIs(type(typed), prep.Notification)
+                self.assertEqual(typed.method, legacy["method"])
+                self.assertEqual(json.loads(typed.frame_json), message)
+
+    def test_timestamped_envelope_refuses_bad_timestamps_and_non_notifications(self):
+        legacy = {"method": "remoteControl/status/changed", "params": {"status": "disabled"}}
+        for timestamp in (True, False, None, "1", -1, 1.5, 2**63, {}, []):
+            with self.subTest(timestamp=timestamp), self.assertRaises(prep.PreparationError):
+                prep.classify_message(dict(legacy, emittedAtMs=timestamp))
+        invalid = (dict(legacy, emittedAtMs=1, unknown=True), dict(legacy, emittedAtMs=1, id=1),
+                   {"method": legacy["method"], "emittedAtMs": 1},
+                   dict(request(), emittedAtMs=1), {"id": 1, "result": {}, "emittedAtMs": 1},
+                   {"id": 1, "error": {"code": -1, "message": "EXAMPLE"}, "emittedAtMs": 1})
+        for message in invalid:
+            with self.subTest(message=message), self.assertRaises(prep.PreparationError):
+                prep.classify_message(message)
+        callback = {"method": prep.COMMAND, "params": request()["params"], "emittedAtMs": 1}
+        with self.assertRaisesRegex(prep.PreparationError, "server-request-id-required"):
+            prep.classify_message(callback)
+
 
 class ServerRequestPreparationRegressionTests(unittest.TestCase):
     def pending_case(self, method, state):
