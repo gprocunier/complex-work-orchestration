@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Complete finite commands that exit cleanly before their first stdout read when the original process handle and bounded stdout EOF confirm the exit.
+
 ## 1.14.0 - 2026-11-23
 
 - Refuse duplicate JSON keys and non-finite numbers, including numeric overflows, in persisted native pool state and lease registries.

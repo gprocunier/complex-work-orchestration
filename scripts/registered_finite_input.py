@@ -27,6 +27,10 @@ class FiniteInputError(ValueError):
     """An input attempt was consumed without delivery."""
 
 
+class FiniteCommandExitUnobserved(FiniteInputError):
+    """The retained command needs exit observation before a stdout read."""
+
+
 @dataclass
 class _Poll:
     owner: object
@@ -1052,13 +1056,18 @@ class RegisteredFiniteInput:
                 return True
         return False
 
-    def _current_process(self):
+    def _process_binding_current(self):
         return (self._issued_lifetime(self.lifetime) and self._live_lifetime(self.lifetime)
-                and self.lifetime.process is self.process and self._pipes_current()
-                and ((self.terminal_code is None and self.process.returncode is None
-                      and self._pid_alive())
-                     or (self.terminal_code == 0 and self.process.returncode in (None, 0)
-                         and not self._pid_alive())))
+                and self.lifetime.process is self.process and self._pipes_current())
+
+    def _process_status_current(self):
+        return ((self.terminal_code is None and self.process.returncode is None
+                 and self._pid_alive())
+                or (self.terminal_code == 0 and self.process.returncode in (None, 0)
+                    and not self._pid_alive()))
+
+    def _current_process(self):
+        return self._process_binding_current() and self._process_status_current()
 
     def _observation_target(self):
         with self.lock:
@@ -1332,10 +1341,18 @@ class RegisteredFiniteInput:
     def _read_effect_current(self, descriptor, deadline, count):
         return (type(deadline) in (int, float) and time.monotonic() < deadline
                 and self.state == 'active' and self._turn_readable()
-                and self._current_authority() and self._current_process()
+                and self._current_authority() and self._process_binding_current()
                 and self._pipe_stat(descriptor) == self.output_stat
                 and not os.get_blocking(descriptor)
                 and type(count) is int and 1 <= count <= 4097)
+
+    def _require_read_process(self, params):
+        if self._process_status_current():
+            return
+        if self.terminal_code is None and params is not None and params.get('tool') == 'finite_command':
+            # Reconcile exit outside the locks before requesting a new read.
+            raise FiniteCommandExitUnobserved('The original stdout read needs exit observation.')
+        raise FiniteInputError('The original stdout read effect is no longer authorized.')
 
     def _read_request_current(self, issued, params, producer):
         if issued is not None:
@@ -1367,6 +1384,7 @@ class RegisteredFiniteInput:
                 if (not self._read_effect_current(descriptor, deadline, count)
                         or not self._read_request_current(issued, params, producer)):
                     raise FiniteInputError('The original stdout read effect is no longer authorized.')
+                self._require_read_process(params)
                 if issued is not None:
                     binding = (issued.epoch, issued.approval, issued.thread,
                                issued.turn, issued.approval, issued.approval)

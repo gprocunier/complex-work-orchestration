@@ -648,7 +648,7 @@
 
 "p13e":[61,57,"self._launch_registered_transport(home, binding, startup_config)",12,57,76],
 
-"p13f":[63,"RegisteredFiniteToolCalls.receive",813,{"$":346}],
+"p13f":[63,"RegisteredFiniteToolCalls.receive",814,{"$":346}],
 
 "p14":[8,726,"sync_playwright()",18,726,35],
 
@@ -942,7 +942,7 @@
 
 "p1b":[48,94,"subprocess.run(\n            # Run the verified bytes themselves, not the path, which could be replaced.\n            [sys.executable, \"-I\", \"-c\", code.decode(\"utf-8\"), source, \"--timeout\", str(timeout), \"--format\", \"json\"],\n            check=False,\n            capture_output=True,\n            text=True,\n            timeout=timeout,\n        )",17,101,9],
 
-"p1b0":[63,942,{"$":148}],
+"p1b0":[63,943,{"$":148}],
 
 "p1b1":[70,98,"if any(q.is_symlink() for q in (path, *path.parents)) or not path.is_file():"],
 
@@ -1076,7 +1076,7 @@
 
 "p1ef":[99,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",182,"9cb07ef63abb416ca4f820ef25ca157065bc40b1118b69f5b65a254df7a46959"],
 
-"p1f":[63,970,"lifetime.launch(['/usr/bin/sh', '-c', self.factory.spec['command']],\n                                      self.factory.home, tool_call=params, deadline=deadline,\n                                      tool_decision=decision)",22,972,61],
+"p1f":[63,971,"lifetime.launch(['/usr/bin/sh', '-c', self.factory.spec['command']],\n                                      self.factory.home, tool_call=params, deadline=deadline,\n                                      tool_decision=decision)",22,973,61],
 
 "p1f0":[43,"trusted_git_completed",554,"adcb7ccb6ef4d12b2231b9ee79fa364d50360a4ab300fa645fdcdccf7b2d32b7"],
 
@@ -1372,17 +1372,17 @@
 
 "p25ExpirySupport0":[148,{"$":330},232,{"$":343}],
 
-"p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1640,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
+"p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1715,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
-"p25FiniteSupport0":[126,"RegisteredFiniteToolWiringTests._run_live_capture_with_fake_rpc",1584,"90e5ba2bbf14be9d942b9950ad2593935b448ed9da7b2a19376a12d12c4a3b44"],
+"p25FiniteSupport0":[126,"RegisteredFiniteToolWiringTests._run_live_capture_with_fake_rpc",1659,"90e5ba2bbf14be9d942b9950ad2593935b448ed9da7b2a19376a12d12c4a3b44"],
 
-"p25FiniteSupport1":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1644,"ac7a86cf6e8372e4423e16990665e7dcf40b121ce5771ff91e21b941127c2c62"],
+"p25FiniteSupport1":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1719,"ac7a86cf6e8372e4423e16990665e7dcf40b121ce5771ff91e21b941127c2c62"],
 
 "p25Handoff":[146,"_handoff",285,"236a2ea21b94e94b272ec672da0334240167ce3f74b3e318fb120a0796c2dea3"],
 
 "p25HostResolve":[146,178,"answers = socket.getaddrinfo(host + '.', 443, type=socket.SOCK_STREAM,"],
 
-"p25LiveInput":[62,"RegisteredFiniteInput.capture_poll_input",866,"741d0ee6da07e322fc782e67fce1b594af5ccc3fd648e603a20b1d9038354d67"],
+"p25LiveInput":[62,"RegisteredFiniteInput.capture_poll_input",870,"741d0ee6da07e322fc782e67fce1b594af5ccc3fd648e603a20b1d9038354d67"],
 
 "p25LoopbackBind":[146,419,"listener.bind(('127.0.0.1', PROXY_PORT))"],
 
@@ -1520,7 +1520,7 @@
 
 "p273":[16,379,{"$":257}],
 
-"p274":[62,"RegisteredFiniteInput._write_reply_frame",1642,"75b4b4860fff3e9cc3d72835220eef0d2044dc09859d27c57e7a6fc55bb92e8a"],
+"p274":[62,"RegisteredFiniteInput._write_reply_frame",1660,"75b4b4860fff3e9cc3d72835220eef0d2044dc09859d27c57e7a6fc55bb92e8a"],
 
 "p275":[23,"add_dependency",347,{"$":177}],
 
@@ -1660,9 +1660,9 @@
 
 "p2X":[137,"PrivatePidReuseOSControlTests.test_watchdog_death_stops_the_verified_private_namespace",498,"b8120a7d82448bf0702110c6216fa39662d2019ca1ec9c7489fff5c05c94d280"],
 
-"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4652,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
+"p2Y":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4727,"a4d39fb8d857ddc3ef285a2c9eae40be38c7092c2c8364dc752a9525a3b7fea0"],
 
-"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4815,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
+"p2Z":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4890,"453fe569552a457ca89546086ab81a02654aee36ccd6bdd941b122780a051b20"],
 
 "p2a":[36,14407,"subprocess.run(\n                [\"git\", \"apply\", \"--index\", \"-\"],\n                cwd=worktree,\n                check=True,\n                capture_output=True,\n                input=patch_bytes,\n            )",12,14413,13],
 
@@ -1738,7 +1738,7 @@
 
 "p2c1":[27,147,{"$":61}],
 
-"p2c2":[62,1651,"count = os.write(descriptor, payload)"],
+"p2c2":[62,1669,"count = os.write(descriptor, payload)"],
 
 "p2c3":[42,2224,"_require_native_rpc(\"turn/start\", self)"],
 
@@ -1964,7 +1964,7 @@
 
 "p318":[60,"RegisteredReviewHost.dispatch",227,"f52b608fbfbf5fa2b8dcd957ec3494093145da05dbf930b86981f552a38dbf9b"],
 
-"p319":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",655,"45d33cd966384729b74c39b88b42952a8373ff629909d0012379628c6c8fac3f"],
+"p319":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",679,"45d33cd966384729b74c39b88b42952a8373ff629909d0012379628c6c8fac3f"],
 
 "p31a":[74,7485,"campaign_live_route=True,"],
 
@@ -2000,7 +2000,7 @@
 
 "p329":[43,"WorktreeCapture._git",1542,"957bbafc0ae3a4261e504991fcbd97b3bade28080c0065c3e78da2eba25e419c"],
 
-"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",3052,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
+"p32a":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",3127,"6592b4b8e9f1b3fcff24edaa159c51811eb659cf179271391013f15fadfd7f73"],
 
 "p32b":[31,"MaintenanceAuthorityVerifier.__init__",344,"03802d0590db57d2c1f457a056a7a56ee8a0e0ffce20be5e4abbad96ece2eb34"],
 
@@ -2156,41 +2156,41 @@
 
 "p369":[34,839,"_bd(\n            beads_directory,\n            \"update\",\n            \"--metadata\",\n            json.dumps(\n                {\"cwo_ready_set_admission\": metadata},\n                sort_keys=True,\n                separators=(\",\", \":\"),\n            ),\n            \"--json\",\n            \"--\",\n            issue_id,\n        )",8,851,9],
 
-"p36DirectCatalog":[63,"_tool_specs",65,"2c6a335dbd49bb39bc92a1c9d26eb45ecb50011b6521291b4e5f7bef36a0d7c0"],
+"p36DirectCatalog":[63,"_tool_specs",66,"2c6a335dbd49bb39bc92a1c9d26eb45ecb50011b6521291b4e5f7bef36a0d7c0"],
 
-"p36FiniteAdmit":[63,"RegisteredFiniteToolCalls.receive",813,{"$":346}],
+"p36FiniteAdmit":[63,"RegisteredFiniteToolCalls.receive",814,{"$":346}],
 
-"p36FiniteArchive":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1699,"b4040d8e51171b1d374a9e26e8da3dc1db6782adb39699fd4fe6e7756c86e45f"],
+"p36FiniteArchive":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1774,"b4040d8e51171b1d374a9e26e8da3dc1db6782adb39699fd4fe6e7756c86e45f"],
 
-"p36FiniteAwaitOriginal":[63,"QualifiedToolEvidence._wait_original_call",274,"59a9947e5dd6e73e752297b46b397830f3707faefb15b4e094294cb270746464"],
+"p36FiniteAwaitOriginal":[63,"QualifiedToolEvidence._wait_original_call",275,"59a9947e5dd6e73e752297b46b397830f3707faefb15b4e094294cb270746464"],
 
 "p36FiniteBoundary":[74,"trusted_tool_evidence_summary",2509,"56d4955b4154e1bb15326d974731fdcf9c300e22317b9b1dde175665251b6b01"],
 
-"p36FiniteCommit":[62,"RegisteredFiniteInput._finish_reply_publication",1562,"127d6a6cd8acdf1862a7c35440ba581541324bce66a4de879f368064706d3641"],
+"p36FiniteCommit":[62,"RegisteredFiniteInput._finish_reply_publication",1580,"127d6a6cd8acdf1862a7c35440ba581541324bce66a4de879f368064706d3641"],
 
-"p36FiniteHistorical":[62,"_FiniteLifecycle.authority_terminal_reply_sent",203,"19d0a893f391688ae41aa53ebddb84acd66495a201bada1ddf4471fb2c2c4faa"],
+"p36FiniteHistorical":[62,"_FiniteLifecycle.authority_terminal_reply_sent",207,"19d0a893f391688ae41aa53ebddb84acd66495a201bada1ddf4471fb2c2c4faa"],
 
-"p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",1902,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
+"p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",1977,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
 
 "p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1217,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
 
-"p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1851,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
+"p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1926,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
 
-"p36FiniteLateSupport":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",1857,"4b3433322987eb6e977148d15383aeb667f1b0076c53aa6d85abbaaf03d7c024"],
+"p36FiniteLateSupport":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",1932,"4b3433322987eb6e977148d15383aeb667f1b0076c53aa6d85abbaaf03d7c024"],
 
-"p36FiniteMatch":[63,"QualifiedToolEvidence._project",248,"47c1685ecf94998ddcbc1fe5b42d57b582ab58efd882b80837a4b0620782ee59"],
+"p36FiniteMatch":[63,"QualifiedToolEvidence._project",249,"47c1685ecf94998ddcbc1fe5b42d57b582ab58efd882b80837a4b0620782ee59"],
 
-"p36FiniteQueuedItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item",710,"bec49dd2a00880480b7dca477f2941ac5a9a375367eb601dfc4377b6f381c171"],
+"p36FiniteQueuedItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item",785,"bec49dd2a00880480b7dca477f2941ac5a9a375367eb601dfc4377b6f381c171"],
 
-"p36FiniteRaceSupport":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1795,"0002d7ec83ef1635dd516baed13c367b00a43a2d66d6c1d094cb26a319b0f561"],
+"p36FiniteRaceSupport":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1870,"0002d7ec83ef1635dd516baed13c367b00a43a2d66d6c1d094cb26a319b0f561"],
 
-"p36FiniteRefusal":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1702,"7e884980369353800a945bedcd95102665f6500f2ff57dc3de0685ceb894f837"],
+"p36FiniteRefusal":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1777,"7e884980369353800a945bedcd95102665f6500f2ff57dc3de0685ceb894f837"],
 
-"p36FiniteReplyDispatch":[62,"RegisteredFiniteInput._dispatch_tool_reply",1551,"b349f67c3b8d5d09650e9cada2e715ad0c6ecb701a6b2ebeeaa75a644397bc4a"],
+"p36FiniteReplyDispatch":[62,"RegisteredFiniteInput._dispatch_tool_reply",1569,"b349f67c3b8d5d09650e9cada2e715ad0c6ecb701a6b2ebeeaa75a644397bc4a"],
 
-"p36FiniteTypedComplete":[63,"QualifiedToolEvidence.complete",222,"2d6e65e556ee39ec6ca644e1a1927a657747e198b2c82598b6181ef48342916d"],
+"p36FiniteTypedComplete":[63,"QualifiedToolEvidence.complete",223,"2d6e65e556ee39ec6ca644e1a1927a657747e198b2c82598b6181ef48342916d"],
 
-"p36FiniteWaitTerminal":[63,"QualifiedToolEvidence._wait_terminal_reply",290,"973c5918e118ac096cbd002a96985f71117cae708efb850b19f6ae9695ae7a8e"],
+"p36FiniteWaitTerminal":[63,"QualifiedToolEvidence._wait_terminal_reply",291,"973c5918e118ac096cbd002a96985f71117cae708efb850b19f6ae9695ae7a8e"],
 
 "p36SchemaContract":[141,"_check_n1_qualification",432,"f89a627ce9bff40376f19f9fd0fadf4d2c2460326a4a4f6004ee2928acc4709f"],
 
@@ -2372,19 +2372,19 @@
 
 "p3a1":[88,"ShareConsentTests",140,"856b0ba17280a32f78af37a6c37edfb30e42b19f2f547f0c5817e8f176e27006"],
 
-"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2626,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
+"p3a2":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2701,"9248619b913e424ae1c196d42148b2f3a63398bcafffefa9084d06278ebed437"],
 
-"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2562,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
+"p3a3":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2637,"e54acbf294fb1bdbed48fe8990b94731d49bfa2eae37a4141ec82816f78b5aae"],
 
-"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2537,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
+"p3a4":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2612,"e60fe4fa139f28a883fa6f9b1b3240cfed35a1242bfe6394bed73beb66f4dd0c"],
 
-"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2474,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
+"p3a5":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2549,"72e18362d813234dad213f993d97f1053adf5a7cf9234ce964875bf1500b5068"],
 
-"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2500,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
+"p3a6":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2575,"90ee6c3a085090f912d6d861e6ecfd058b3e7983594f42edbc633a8fb91acc99"],
 
-"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",2353,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
+"p3a7":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",2428,"6a59bfb6bf6cb92778fd3bedd1dcc05956a9c6e34718fd8c14251d00618337ef"],
 
-"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2465,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
+"p3a8":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2540,"13d6d5fb7bf1a2431a7e2076dbbcc29dc0df065030451e803d71599e2ea6b0a3"],
 
 "p3a9":[42,600,{"$":333},16,600,49],
 
@@ -2670,15 +2670,15 @@
 
 "pF0":[126,"RegisteredFiniteToolWiringTests._positive_finite_completion",466,"ae05021db3d72c6e9d5d69291e5468b6084fb366023384192640c1f952dca9d2"],
 
-"pF1":[126,"RegisteredFiniteToolWiringTests._exit_between_command_read_and_reply",620,"ad8529115ccfe6cb97b5693b2d7e98f98e9361afadb630e59937837fc50b4934"],
+"pF1":[126,"RegisteredFiniteToolWiringTests._exit_between_command_read_and_reply",644,"ad8529115ccfe6cb97b5693b2d7e98f98e9361afadb630e59937837fc50b4934"],
 
-"pF2":[126,"RegisteredFiniteToolWiringTests.test_exit_between_initial_read_and_reply_drains_tail_atomically",682,"e89024b485b277239d541ed51ab4c96ee76b83d24a92e4b07012477345084e6b"],
+"pF2":[126,"RegisteredFiniteToolWiringTests.test_exit_between_initial_read_and_reply_drains_tail_atomically",757,"e89024b485b277239d541ed51ab4c96ee76b83d24a92e4b07012477345084e6b"],
 
 "pF3":[140,"FiniteFixtureProgressTests.success_consumers",123,"6512505989b3603a07d4d766589b7439fe5a2396b1ba2fc69c6fdbb144502bc9"],
 
 "pF4":[140,"FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent",106,"efa6e0d1fcd29deb977e3108cf6cc1cd8dbaa68fac4d7ade0f27643d2f12d15d"],
 
-"pF5":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",758,"416ec88722887755694115c4962bc03b5d5389870d4db51db7490c12923201ff"],
+"pF5":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",833,"416ec88722887755694115c4962bc03b5d5389870d4db51db7490c12923201ff"],
 
 "pG":[137,"WatchdogObjectIdentityTests.test_watchdog_scheduler_state_change_preserves_birth",1171,"c6d92df5a37bafb76c911fbe6a4a08fe926d716a4ee7b6de542ac59fba59d9a2"],
 
@@ -2690,7 +2690,7 @@
 
 "pK":[129,"FiniteReplyWireTests.test_accounting_failure_cannot_replace_the_outbound_refusal",173,"7bd01d7323b63de491916fd8c038dd790a0dfabb0a4a4ca17c9ff983ef76d384"],
 
-"pL":[62,"RegisteredFiniteInput._record_reply_failure",1590,"8e817905b0d44a1f24ef2c9ea95e46503d669108d9cd474729351b095712a8de"],
+"pL":[62,"RegisteredFiniteInput._record_reply_failure",1608,"8e817905b0d44a1f24ef2c9ea95e46503d669108d9cd474729351b095712a8de"],
 
 "pM":[129,"FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write",106,"6678e3521f8a26f0fd32f8868769d1577896cde3a682b42517a56d15c1ede64d"],
 
@@ -2700,7 +2700,7 @@
 
 "pOverloadTest":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1797,"b4d6e1fc0e472db6f382b926b214b8eda4bbd79c755f2e80b820229b1658748d"],
 
-"pP":[62,1648,"if time.monotonic() >= deadline:"],
+"pP":[62,1666,"if time.monotonic() >= deadline:"],
 
 "pQ":[65,"RegisteredN1Workflow._commit_execution",446,"3c21388b1aa970860dd77173b36f27bf03c3ad13ae77cf7c7d4fafe8a1ef01f8"],
 
@@ -2764,9 +2764,9 @@
 
 "pab":[77,634,"os.write(descriptor, pending)",28,634,57],
 
-"pac":[62,"RegisteredFiniteInput.cleanup_phase",727,"fc5f125f858f2cc459e847e5b525a3dff22406e6f97d5367a06ff176cda7852e"],
+"pac":[62,"RegisteredFiniteInput.cleanup_phase",731,"fc5f125f858f2cc459e847e5b525a3dff22406e6f97d5367a06ff176cda7852e"],
 
-"pad":[62,"RegisteredFiniteInput._publish_cleanup_observation",1691,"651db3ee5f962a20679e71e3c7388591952f434350e69692d254060840044a88"],
+"pad":[62,"RegisteredFiniteInput._publish_cleanup_observation",1709,"651db3ee5f962a20679e71e3c7388591952f434350e69692d254060840044a88"],
 
 "pae":[125,"FiniteInputTests.test_denied_read_result_precedes_original_cleanup_publication",1585,"b24c36ba885b316c883a080c63d49a2eb87a998177cd9a71705893360a9ad8a9"],
 
@@ -4997,13 +4997,13 @@
 
 [69,395,8,395,85,"dynamic","ea5252ae79ee7202099728c900aea8f0f5599ab64628d656497c031f3e715ae8",[{"$":9},"XR352"]],
 
-[70,748,23,748,65,"dynamic",{"$":151},[{"$":9},"XR353"]],
+[70,752,23,752,65,"dynamic",{"$":151},[{"$":9},"XR353"]],
 
-[70,1036,19,1036,61,"dynamic",{"$":151},[{"$":9},"XR354"]],
+[70,1040,19,1040,61,"dynamic",{"$":151},[{"$":9},"XR354"]],
 
-[70,1766,23,1766,75,"dynamic","2f9e0c2f2e7129d58e0d405a7dec095263c214aee9d3c0ea3dcca33814aaa24f",[{"$":9},"XR355"]],
+[70,1784,23,1784,75,"dynamic","2f9e0c2f2e7129d58e0d405a7dec095263c214aee9d3c0ea3dcca33814aaa24f",[{"$":9},"XR355"]],
 
-[71,970,22,972,61,"browser","d39ca2356bd7c0ee0bff23fe2688fb58023545c8242e0c9a3ec791566ad3f5b7",["route","N9.1","p1f"]],
+[71,971,22,973,61,"browser","d39ca2356bd7c0ee0bff23fe2688fb58023545c8242e0c9a3ec791566ad3f5b7",["route","N9.1","p1f"]],
 
 [72,105,14,105,61,"dynamic",{"$":241},[{"$":9},"XR428b"]],
 
@@ -6856,9 +6856,9 @@
 
 "scripts/registered_app_server_transport.py":["91fb0184a5e45ad64047f69c43c39b64895c04dbcedaa6e2ea44696bfdc128dd",420,19058],
 
-"scripts/registered_finite_input.py":["29c5238fad6d35df87035d81408b406f88cba282f989dd707342aa324ca0cb95",420,90322],
+"scripts/registered_finite_input.py":["fc91cad44ce60b5633a399ee9b610689690154a15ba41cc0a5a95ba0e95db9cd",420,91134],
 
-"scripts/registered_finite_tool_calls.py":["a92bd96bcc4ebb34718949191841ee50b13f72e85ac6ad08940bfcc015a79b16",420,52877],
+"scripts/registered_finite_tool_calls.py":["b66d74039e63f7727bf0c4dbc2dd329d03aa4a15c954c55463bfa078c2511be8",420,53007],
 
 "scripts/registered_host_root_boundary.py":["615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",420,1303],
 
@@ -6954,7 +6954,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["a1330735a08f22cdf0ebb5903be623c78a0aecf913abc3042ae740daa0e3a261",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["94253ea4ff6c0da490ad20e4acaff95c53d79d1fd9967259ab6c133f715bd2f8",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7066,7 +7066,7 @@
 
 "tests/test_registered_finite_input.py":["68717f901788db83cf4196621eba1b5e78132a6d20fb60d2bc08542e854e8d79",420,131571],
 
-"tests/test_registered_finite_tool_wiring.py":["0d22b0a0de247ca7b8312745e188207d46235f66a2ba0586cfa3cd2bfa06b7be",420,280454],
+"tests/test_registered_finite_tool_wiring.py":["376380fcf67a862c0393650edeedf79918546859ddacabdacc6ae90ae2775dc3",420,284864],
 
 "tests/test_registered_n1_factory.py":["4dea4c67e0f4f75b7e24f76c9f9cf6778fba1ce3e41273682b23ab2eb9e1ef2c",420,134701],
 
