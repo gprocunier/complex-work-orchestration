@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.12.0 - 2026-11-23
+
 - Refuse native model and effort attestation when the same turn has contradictory session records or fields.
 
 ## 1.11.0 - 2026-11-23
