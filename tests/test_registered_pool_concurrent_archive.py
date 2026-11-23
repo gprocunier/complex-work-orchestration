@@ -1,7 +1,7 @@
 """Pool-level positive concurrent archive ordering, using the original N1 path.
 
 Only fake RPC delivery and the cooperative polling clock are scheduled here.
-Original host/control/adapter methods,64 steps, deadlines and close checks stay
+Original host/control/adapter methods, 64 steps, deadlines and close checks stay
 intact. Real monotonic time still bounds repository inspection and RPC/cleanup.
 """
 from __future__ import annotations
@@ -26,13 +26,15 @@ class _CooperativeClock:
         self.waits = []
 
     def sleep(self, seconds):
-        self.test.assertEqual(seconds, .002)
         for member, gate in zip(self.fixture.fixtures, self.gates):
             factory = member.workflow.factory
             adapter = None if factory is None else getattr(factory, 'adapter', None)
             archive = None if adapter is None else adapter._staged_archive
-            if archive is None or archive._done.is_set():
+            if archive is None or adapter.archived:
                 continue
+            self.test.assertEqual(adapter._durable_terminal_status, 'completed')
+            control = adapter._effective_boundary['control_contract']
+            self.test.assertEqual(seconds, control['poll_interval_ms'] / 1000)
             # One original close must really return pending. The first wait
             # after finalize is allowed; the following close-wait is parked.
             self.test.assertTrue(gate.entered.wait(8), 'concurrent archive RPC was not issued')
@@ -41,6 +43,9 @@ class _CooperativeClock:
                 gate.pending.set()
                 self.test.assertTrue(gate.resume.wait(8), 'concurrent archive clock was not resumed')
                 self.test.assertTrue(archive._done.is_set(), 'poll clock resumed before actual archive completion')
+            break
+        else:
+            self.test.assertEqual(seconds, .002)
         self.waits.append(seconds)
         self.ns += round(seconds * 1_000_000_000)
 

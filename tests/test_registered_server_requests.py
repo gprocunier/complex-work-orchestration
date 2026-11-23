@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -1280,6 +1281,83 @@ class RegisteredRequestsTests(unittest.TestCase):
 
     def test_r3_original_step_exhaustion_with_natural_archive_scheduling(self):
         self.original_driver_interrupt('exhaustion')
+
+    def run_with_held_archive_response(self, case, *, release_response):
+        factory = self.fixture.factory(case)
+        requested = threading.Event()
+        held = []
+        elapsed = 0.0
+        original_receive = family.RpcProcess.receive
+
+        def receive(process, message):
+            if message.get('method') == 'thread/archive':
+                held.append((process, message))
+                requested.set()
+            else:
+                original_receive(process, message)
+
+        def sleep(seconds):
+            nonlocal elapsed
+            archive = factory.adapter._staged_archive
+            if archive is None:
+                time.sleep(seconds)
+                return
+            self.assertTrue(requested.wait(3), 'EXAMPLE original archive RPC was not issued')
+            if not elapsed:
+                self.assertFalse(archive.completion_ready())
+                self.assertIsNone(factory.server.archive_acceptance_proof(archive.thread_id))
+            elapsed += seconds
+            if release_response and elapsed >= 0.25 and not archive.completion_ready():
+                original_receive(*held[0])
+                archive.require_complete(timeout_seconds=3)
+
+        host_time = SimpleNamespace(monotonic=time.monotonic, sleep=sleep)
+        with (patch.object(family.RpcProcess, 'receive', receive),
+              patch.object(runtime.native, 'time', host_time)):
+            try:
+                factory.run()
+            except runtime.native.OfflineHostError as failure:
+                self.assertIsNotNone(failure.native_report)
+            finally:
+                archive = factory.adapter._staged_archive
+                self.assertIsNotNone(archive)
+                self.assertTrue(archive._done.wait(3), 'EXAMPLE archive worker did not settle')
+        self.assertEqual(len(held), 1)
+        self.assertEqual((case.host.worker / 'result.txt').read_bytes(), family.fixtures.host_fixtures.OUTPUT)
+        self.assertTrue(factory.server.lifetime.termination['child_reaped'])
+        return factory
+
+    def test_original_archive_can_complete_after_accelerated_steps_would_end(self):
+        case = self.pipe_case(max_steps=64)
+        factory = self.run_with_held_archive_response(case, release_response=True)
+        report = factory.execution
+        self.assertEqual(report['status'], 'artifact-ready', report['receipt'])
+        self.assertEqual(report['binding']['max_steps'], 64)
+        self.assertEqual(report['binding']['contract']['poll_interval_ms'], 500)
+        self.assertEqual(report['receipt']['terminal_state'], 'completed')
+        self.assertTrue(report['summary']['archived'])
+        self.assertEqual(self.fixture.spawned[0].methods.count('thread/archive'), 1)
+        host, token, report, target, policy = factory.issued_artifact()
+        self.assertEqual(runtime.validation.consume_validated(host, token, report, target, policy),
+                         (('result.txt', family.fixtures.host_fixtures.OUTPUT),))
+
+    def test_original_archive_exhaustion_preserves_one_stage_and_refuses_capture(self):
+        case = self.pipe_case(max_steps=64)
+        factory = self.run_with_held_archive_response(case, release_response=False)
+        report = factory.execution
+        receipt = report['receipt']
+        self.assertEqual(report['status'], 'reconciliation-required')
+        self.assertIsNone(report['artifact'])
+        self.assertIsNone(factory.token)
+        self.assertEqual(receipt['terminal_state'], 'control-failed')
+        self.assertEqual(receipt['errors'], ['archive-close-step-bound-exhausted'])
+        self.assertEqual(len(receipt['actions']), 64)
+        self.assertNotIn('interrupt', receipt['actions'])
+        self.assertFalse((case.host.state / 'artifact').exists())
+        self.assertEqual(case.host.status(factory.operation_id), report)
+        attempt = self.fixture.attempt(case)
+        self.assertEqual(attempt['outcome'], 'unknown')
+        self.assertEqual(attempt['charge'], attempt['amount'])
 
     def terminal_archive_fixture(self):
         entered, release, archive = threading.Event(), threading.Event(), threading.Event()

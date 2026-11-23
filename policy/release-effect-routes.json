@@ -1708,7 +1708,7 @@
 
 "p2b0":[44,"PinnedHTTPSConnection.connect",385,"5b1495139c3e265020d03743ce299640eea81bc397d87db4c4d7dc2ec9c9e529"],
 
-"p2b1":[53,"OfflineN1Host.run_registered",590,"27e3c0d796d213023974c150562417b12089e78a73c7b2a673fdb1b61a54e426"],
+"p2b1":[53,"OfflineN1Host.run_registered",598,"4bbc93e550077d157456b3b553ee233ab214bfc3aa8378f65685a34bce1d6f6c"],
 
 "p2b2":[8,837,{"$":287},16,837,123],
 
@@ -2834,17 +2834,17 @@
 
 "pb7":[125,"FiniteInputTests.test_two_finite_tool_closers_observe_one_inflight_owner",1291,"691ac855a05c3354245554524cfff5e93481d31dd4698ba8a35e1ebdc705cb16"],
 
-"pb8":[53,566,"os.replace(self.state / \"operation.next\", self.state / \"operation.json\")",8,566,80],
+"pb8":[53,574,"os.replace(self.state / \"operation.next\", self.state / \"operation.json\")",8,574,80],
 
-"pb9":[53,565,"self._require_lock()",8,565,28],
+"pb9":[53,573,"self._require_lock()",8,573,28],
 
-"pba":[53,556,"self._require_lock()",8,556,28],
+"pba":[53,564,"self._require_lock()",8,564,28],
 
-"pbb":[53,"OfflineN1Host._require_lock",534,"77b65d91bfc6b2da91dc6709c26eb5ac30d6129ce9ceaff4a92f66671c5db0ee"],
+"pbb":[53,"OfflineN1Host._require_lock",542,"77b65d91bfc6b2da91dc6709c26eb5ac30d6129ce9ceaff4a92f66671c5db0ee"],
 
-"pbc":[53,539,"_identity(self.state) != self._state_identity\n                or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1\n                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)",12,541,81],
+"pbc":[53,547,"_identity(self.state) != self._state_identity\n                or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1\n                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)",12,549,81],
 
-"pbd":[53,535,"self._lock_descriptor is None",11,535,40],
+"pbd":[53,543,"self._lock_descriptor is None",11,543,40],
 
 "pbe":[114,"OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent",470,"c85d27dc5727262a7c0951269eb16cd682ffd03bbcb31a6aacc978f3c238bdee"],
 
@@ -2852,7 +2852,7 @@
 
 "pc":[14,67,"subprocess.check_output(\n                ['stat', '-f', '-c', '%T', tempfile.gettempdir()], text=True)",34,68,77],
 
-"pc0":[53,"OfflineN1Host._save",555,"6e7216e282650023d4bb4b4f7b16948829eea27c4efef01d4e7a4fc9154e6b88"],
+"pc0":[53,"OfflineN1Host._save",563,"6e7216e282650023d4bb4b4f7b16948829eea27c4efef01d4e7a4fc9154e6b88"],
 
 "pc1":[82,"AcceptanceProductFlowTests.test_native_consumer_refuses_changed_original_delivery_review_before_effects",82,"c07f00ff5764ff8662944df7e39f0625a93ddc25799448c2e91c65d8b00f15ee"],
 
@@ -4951,9 +4951,9 @@
 
 [59,293,17,293,65,"dynamic",{"$":54},[{"$":9},"XR438"]],
 
-[59,592,21,592,69,"dynamic",{"$":54},[{"$":9},"XR439"]],
+[59,600,21,600,69,"dynamic",{"$":54},[{"$":9},"XR439"]],
 
-[59,658,12,658,60,"dynamic",{"$":54},[{"$":9},"XR440"]],
+[59,667,12,667,60,"dynamic",{"$":54},[{"$":9},"XR440"]],
 
 [60,36,32,36,53,"dynamic","e84f8ad946b634c11eaebe0107dea01b49ab67cb15c5c73710454306dbfc60b4",[{"$":9},"XR316"]],
 
@@ -6842,7 +6842,7 @@
 
 "scripts/offline_fake_artifact_promotion.py":["cb211328fb54cd56054422dfe1fdafca446277665354ebef2669fcef36b1351c",420,38543],
 
-"scripts/offline_n1_host.py":["15b8d89e834284869c1e8922cba523c0c43db0d6ec488bf7ef7206eaa936a9fd",420,34776],
+"scripts/offline_n1_host.py":["bd4ef838e112a5b122b1b219da09018e9c22b4eabbfeaf360465786a84d71730",420,35525],
 
 "scripts/offline_native_adjudication.py":["261f83c85996dfa831a2842e75ffecef2b0d831eadf7bc143f1203bbeda6caaa",420,25338],
 
@@ -7000,7 +7000,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2519c8c12f44d39e1af5bc84df4aa6462ca5490d93feee167bb25f2d2465677b",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["7cd7fd8ee80e892fc0d6efc07859860a62dd110ccc91de68bd629e965f67aedc",420,133354],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
