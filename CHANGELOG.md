@@ -4,6 +4,10 @@
 
 - Follow the registered native control poll interval while waiting for the original archive and require reconciliation if close exhausts the step budget.
 
+### Tests
+
+- Make the partial turn-write hold check deterministic while preserving its ambiguous dispatch assertions.
+
 ## 1.20.0 - 2026-11-23
 
 - Use the fixed shell from the read-only runtime so finite commands can start when `/usr/bin/sh` is a symlink.
