@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import traceback
 import unittest
 
 
@@ -120,12 +121,31 @@ class NativeSessionBoundaryTests(unittest.TestCase):
         self.path.write_text('{"type":"session_meta","payload":{"id":"session-one"}}', encoding="utf-8")
         with self.assertRaisesRegex(NativeSessionBoundaryError, "trailing partial"):
             capture_boundary(self.path, self.session_id)
-        self.path.write_text("not-json\n", encoding="utf-8")
-        with self.assertRaisesRegex(NativeSessionBoundaryError, "record 1 is invalid"):
-            capture_boundary(self.path, self.session_id)
+        for malformed in (b"not-json\n", b"\xff\n", b'{"value":NaN}\n', b'{"value":1e309}\n'):
+            with self.subTest(malformed=malformed):
+                self.path.write_bytes(malformed)
+                with self.assertRaisesRegex(NativeSessionBoundaryError, r"^session record 1 is invalid$"):
+                    capture_boundary(self.path, self.session_id)
         self.write(records=[{"type": "session_meta", "payload": {"id": "other"}}])
         with self.assertRaisesRegex(NativeSessionBoundaryError, "identity"):
             capture_boundary(self.path, self.session_id)
+
+    def test_boundary_refuses_duplicate_json_keys_without_exposing_record_data(self) -> None:
+        cases = {
+            "record identity": b'{"session_id":"other","sess\\u0069on_id":"session-one"}',
+            "same-turn model": (b'{"type":"turn_context","payload":{"turn_id":"turn-one",'
+                                b'"model":"other","model":"gpt-5.3-codex-spark","effort":"low"}}'),
+            "nested field": b'{"type":"event_msg","payload":[{"private-fixture-field":7,"private-fixture-field":7}]}',
+        }
+        for case, record in cases.items():
+            with self.subTest(case=case):
+                self.write(records=self.records()[:1])
+                with self.path.open("ab") as source:
+                    source.write(record + b"\n")
+                with self.assertRaisesRegex(NativeSessionBoundaryError, r"^session record 2 is invalid$") as caught:
+                    capture_boundary(self.path, self.session_id)
+                diagnostic = "".join(traceback.format_exception(caught.exception))
+                self.assertNotIn("private-fixture-field", diagnostic)
 
     def test_truncation_rewrite_and_delayed_append(self) -> None:
         self.write()

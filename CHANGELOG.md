@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Refuse duplicate JSON keys and non-finite numbers, including numeric overflows, in trusted native session records used as turn evidence.
+
 ## 1.12.0 - 2026-11-23
 
 - Refuse native model and effort attestation when the same turn has contradictory session records or fields.
