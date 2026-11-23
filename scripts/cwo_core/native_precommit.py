@@ -1379,8 +1379,7 @@ def check_precommit(
             _record_poll(state, current)
         try:
             session_path = Path(state["session_file"])
-            _prefix_is_intact(session_path, state["baseline"])
-            boundary, records = _boundary(session_path, state["session_id"])
+            boundary, records = _boundary(session_path, state["session_id"], baseline=state["baseline"])
             delta = records[int(state["baseline"]["record_count"]):]
             models, attestation_errors = _trusted_models(delta)
             if attestation_errors or (models and models != {state["requested_model"]}):
@@ -1997,8 +1996,7 @@ def validate_precommit_receipt(
                 if state.get(field) != receipt.get(field):
                     raise ValueError(f"receipt {field} no longer matches bound state")
             session_path = _secure_input_file(receipt["session_file"], "receipt session file")
-            _prefix_is_intact(session_path, baseline)
-            current, records = _boundary(session_path, receipt["session_id"])
+            current, records = _boundary(session_path, receipt["session_id"], baseline=baseline)
             _verify_exact_attestation(records, receipt["requested_model"])
             if not _same_boundary(terminal, current):
                 raise ValueError("intervening session bytes or records invalidate precommit receipt")

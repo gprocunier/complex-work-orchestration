@@ -75,6 +75,7 @@ from .native_stop_scope import (
     merge_stop_metadata,
     policy_scope_authority,
 )
+from .policy_schema import strict_json_loads
 
 
 POOL_CALLBACKS = {
@@ -660,8 +661,8 @@ class NativePoolCoordinator:
         if self.state_file is None:
             return
         try:
-            current = json.loads(self.state_file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+            current = strict_json_loads(self.state_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError, RecursionError) as exc:
             raise NativePoolError("pool-state-watermark-unreadable") from exc
         if current != self._state:
             raise NativePoolError("pool-state-watermark-mismatch")

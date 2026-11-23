@@ -531,6 +531,25 @@ class NativePoolLeaseTests(unittest.TestCase):
             self.assertEqual(changed[0]["lifecycle_state"], "release-pending")
             self.assertEqual(changed[0]["release_reason"], "manual-containment-required")
 
+    def test_registry_rejects_contradictory_duplicate_lease_state(self) -> None:
+        contract, _ = pool_contract(cap=1)
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "leases.json"
+            registry, lease, _ = registry_in_state(path, contract, "acquired")
+            self.assertEqual(registry.snapshot(), [lease])
+            original = path.read_text(encoding="utf-8")
+            duplicate = original.replace(
+                '"lifecycle_state": "acquired"',
+                '"lifecycle_state": "released", "lifecycle_state": "acquired"',
+                1,
+            )
+            self.assertNotEqual(duplicate, original)
+            self.assertEqual(json.loads(duplicate), json.loads(original))
+            path.write_text(duplicate, encoding="utf-8")
+
+            with self.assertRaisesRegex(PoolLeaseError, "^lease-registry-unreadable$"):
+                registry.snapshot()
+
     def test_symlink_and_corrupt_registry_are_rejected(self) -> None:
         contract, _ = pool_contract(cap=1)
         with tempfile.TemporaryDirectory() as temporary:
