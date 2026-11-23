@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.14.0 - 2026-11-23
+
 - Refuse duplicate JSON keys and non-finite numbers, including numeric overflows, in persisted native pool state and lease registries.
 - Verify the trusted session prefix against the same bytes used to read and hash the native session boundary.
 
