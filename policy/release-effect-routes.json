@@ -658,7 +658,7 @@
 
 "p142":[43,"WorktreeCapture.run",2559,"e3b501ccdb7adfb214b6fc560a9251eeca3beea67481a70c2b676541018da6e9"],
 
-"p143":[99,"F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control",148,"a181c544f42868bb93496510806d768e0825dc5265ad02dc3e0c6efd67ee1468"],
+"p143":[99,"F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control",148,"c028e2da5936b17f9843f906cee6177c0ffb3cba366df5cfd9788eeefb909421"],
 
 "p144":[130,"ReleaseEffectRoutesTests._probe_listener_pair",1350,"a7331d6647368b4a62f7f058ce8d621d1fa2ee86b6054608c740195e344120f9"],
 
@@ -6986,7 +6986,7 @@
 
 "tests/test_f1_production_closure_guards.py":["a9b3d8d2d96380160a41b220cff7d1f6185a91f4b70d7a059d79730fef4c7512",420,14498],
 
-"tests/test_f5_native_live_holds.py":["4f4624eefcad9071a32d136317fda4f4d8697be70ced029d412e0c7e4566d61f",420,28818],
+"tests/test_f5_native_live_holds.py":["5ee99168f2139ca43fd9e395956b57d55a0f64d627425aff2251af1cf7973352",420,28846],
 
 "tests/test_finite_fixture_progress_acknowledgment.py":["c335349771c883c613295c1abd667e6a870aef6d79ec36b43372b142239956ff",420,27829],
 
