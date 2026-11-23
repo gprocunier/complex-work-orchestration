@@ -16,6 +16,7 @@ import importlib
 import importlib.util
 import inspect
 import io
+import itertools
 import json
 import os
 import re
@@ -1019,6 +1020,7 @@ class FakeAppServerTransportTests(unittest.TestCase):
 
     def test_hold_recheck_after_partial_turn_write_retains_ambiguous_intent(self) -> None:
         from tests.test_run_native_pool_live_canaries import AmbiguousTurnDispatchTests
+        defining = transport("app_server")
         fixture = AmbiguousTurnDispatchTests()
         self.addCleanup(fixture.doCleanups)
         with tempfile.TemporaryDirectory() as temporary:
@@ -1033,11 +1035,15 @@ class FakeAppServerTransportTests(unittest.TestCase):
                 count = write(fd, data[:7])
                 if fd == write_fd:
                     prefixes.append(data[:count])
-                    transport("app_server").live_availability.N1_LIVE_AVAILABLE = False
+                    defining.live_availability.N1_LIVE_AVAILABLE = False
                 return count
-            with mock.patch.object(transport("app_server").live_availability, "N1_LIVE_AVAILABLE", True), mock.patch.object(
-                os, "write", side_effect=revoke
+            with (
+                mock.patch.object(defining, "time", wraps=time) as transport_clock,
+                mock.patch.object(defining.live_availability, "N1_LIVE_AVAILABLE", True),
+                mock.patch.object(os, "write", side_effect=revoke),
             ):
+                # Keep the deadline bounded without relying on host scheduling.
+                transport_clock.monotonic.side_effect = itertools.count(0.0, 0.001)
                 with self.assertRaises(runner.AmbiguousTurnStartError) as caught:
                     server.start_turn(thread_id, "Explain the local function.", timeout=0.03, ambiguity_timeout=0)
             self.assertEqual(server._reader_error, "native-n1-live-unavailable")
