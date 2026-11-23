@@ -530,7 +530,7 @@
 
 "p103":[42,2508,"self.request(\n            \"turn/interrupt\",\n            {\"threadId\": thread_id, \"turnId\": turn_id},\n            timeout=timeout,\n        )",27,2512,9],
 
-"p104":[74,"run_pool_canary",7562,"fbef9e42927f0837bfd34712b2caba4408bc3b143578d4a27b6d9ef53e42e928"],
+"p104":[74,"run_pool_canary",7559,"fbef9e42927f0837bfd34712b2caba4408bc3b143578d4a27b6d9ef53e42e928"],
 
 "p105":[80,"captured_result",197,"d516f6e3e686562e513bb9d56ac4388df5f430be3348b7250960603b5329af00"],
 
@@ -562,7 +562,7 @@
 
 "p112":[120,"QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments",186,"32b00495d71f94381e4f8d4ca4ebc76fd51abd6c9443a3a4509c0640bc5c1d25"],
 
-"p113":[64,"_Containment.launch",674,"44b2f2960e6f7aecd67047dc1ca7e4edad0fbab3697ba53f9fd6d02bbcd59652"],
+"p113":[64,"_Containment.launch",675,"44b2f2960e6f7aecd67047dc1ca7e4edad0fbab3697ba53f9fd6d02bbcd59652"],
 
 "p114":[116,"OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared",389,"ba6ba5e3d23da891f8d3c7d03cfbd3bcc4d1526f1bacc1b9ccf6b359ada6177a"],
 
@@ -650,7 +650,7 @@
 
 "p13c":[8,{"$":197},1060,{"$":188}],
 
-"p13d":[74,12835,{"$":43}],
+"p13d":[74,12832,{"$":43}],
 
 "p13e":[61,57,"self._launch_registered_transport(home, binding, startup_config)",12,57,76],
 
@@ -692,13 +692,13 @@
 
 "p15":[23,291,"run_bd(args)",17,291,29],
 
-"p150":[74,7582,{"$":43}],
+"p150":[74,7579,{"$":43}],
 
 "p151":[50,297,{"$":245}],
 
-"p152":[74,12837,{"$":13}],
+"p152":[74,12834,{"$":13}],
 
-"p153":[74,"validate_and_acquire_global_campaign_claim",12437,"951df786887d39a5bc9139e6eef6b5723a2f9f2173286cf122ad76d3f3d51ee5"],
+"p153":[74,"validate_and_acquire_global_campaign_claim",12434,"951df786887d39a5bc9139e6eef6b5723a2f9f2173286cf122ad76d3f3d51ee5"],
 
 "p154":[50,217,"write_config \"$CONFIG_PATH\" \"$PORT\""],
 
@@ -734,7 +734,7 @@
 
 "p163":[39,128,"if (registration.pid, registration.session_id, registration.workspace) != (pid, session_id, workspace):"],
 
-"p164":[74,12461,{"$":35}],
+"p164":[74,12458,{"$":35}],
 
 "p165":[78,272,"if unmet:"],
 
@@ -938,7 +938,7 @@
 
 "p1ab":[44,1806,"pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get(\"allow_private_dns\")))"],
 
-"p1ac":[64,"_RegisteredServer.request",1504,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
+"p1ac":[64,"_RegisteredServer.request",1505,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
 
 "p1ad":[3,538,"method(argument, submission, **options)",19,538,58],
 
@@ -968,13 +968,13 @@
 
 "p1b9":[38,"execute_native_pool_transaction",1474,"c96e27a1ac159baa75913f95b063a2d8494debcc01e923ba8b09bb1696c296e0"],
 
-"p1ba":[74,7118,{"$":43}],
+"p1ba":[74,7115,{"$":43}],
 
 "p1bb":[131,"ReleaseFilesystemTests.test_actual_source_snapshot_and_runtime_identities_are_bound",110,"ba8924f1e501934a6afa151250c9226bd5527451e89ef65fa3338b32962bf5f8"],
 
 "p1bc":[90,"ChatGPTBrowserReviewTests._browser_result",1326,"a9058beb7012505459ffa69a75cc7039ed1546464c2942732822fd7a6a3fd485"],
 
-"p1bd":[64,"RegisteredN1Factory._isolated_validation",2479,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
+"p1bd":[64,"RegisteredN1Factory._isolated_validation",2484,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
 
 "p1be":[8,685,{"$":285},12,685,84],
 
@@ -1006,7 +1006,7 @@
 
 "p1cb":[11,46,"if initial.ruff_version() != RUFF:"],
 
-"p1cc":[74,12836,{"$":35}],
+"p1cc":[74,12833,{"$":35}],
 
 "p1cd":[8,753,"self._confirm_configured_labels(page, timeout_ms)",36,753,85],
 
@@ -1098,7 +1098,7 @@
 
 "p1f6":[8,1162,"self._submit_guarded(page, prompt, request_id, timeout_ms, guard)",19,1162,84],
 
-"p1f7":[74,13459,"capture_input_source_identities(paths)",28,13459,66],
+"p1f7":[74,13456,"capture_input_source_identities(paths)",28,13456,66],
 
 "p1f8":[8,1036,{"$":283},20,1036,95],
 
@@ -1168,13 +1168,13 @@
 
 "p203":[87,"BrowserProvenanceTests.setUp",36,"190d1c43dd16d017fc1abfdbd8d609372a4df212e28f324a6d680a02008fdd3b"],
 
-"p204":[74,13126,{"$":43}],
+"p204":[74,13123,{"$":43}],
 
 "p205":[8,"PlaywrightChatGPTRunner._page_snapshot",872,"e996eb4f5cfa69c743c945503ee54f1674812a8ead1ae9cd90100b3fc822e5a4"],
 
 "p206":[87,"BrowserProvenanceTests.test_real_preparation_and_persisted_sanitizer_positive",93,"f6c3ccbc74fbca7f793188c178e1de8adb81f377b0284d120fb0f69a12108484"],
 
-"p207":[74,7119,{"$":35}],
+"p207":[74,7116,{"$":35}],
 
 "p208":[80,"packet_input",105,"80a92a01f4a209b535af916df0ee9d3fba1f5297bb50d945c47a8269916b15cd"],
 
@@ -1182,7 +1182,7 @@
 
 "p20a":[37,1502,"if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:"],
 
-"p20b":[64,"_RegisteredServer._launch_process",1534,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
+"p20b":[64,"_RegisteredServer._launch_process",1535,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
 
 "p20c":[78,"main",218,"4b19f823bfd6636d1a333dfc6aff0b26e633136bec98d21ff065260472d805a5"],
 
@@ -1230,9 +1230,9 @@
 
 "p220":[55,"main",2118,"160f4c8bc9c5f0c58aa7d3c9021637cbc9ad76a1951f90f4f0213c957117267b"],
 
-"p221":[74,"_run_calibration",5082,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
+"p221":[74,"_run_calibration",5079,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
 
-"p222":[64,676,{"$":148}],
+"p222":[64,677,{"$":148}],
 
 "p223":[43,"run_git",434,{"$":213}],
 
@@ -1262,11 +1262,11 @@
 
 "p23":[32,783,"subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,\n                    timeout=command.timeout_seconds, env={**os.environ, \"PYTHONDONTWRITEBYTECODE\": \"1\"}, check=False)",28,784,117],
 
-"p230":[74,7369,"result, _latency = server.start_thread(worktree, **start_kwargs)"],
+"p230":[74,7366,"result, _latency = server.start_thread(worktree, **start_kwargs)"],
 
 "p231":[2,31,"if not args.allow_sol_breakfix:"],
 
-"p232":[74,12462,{"$":13}],
+"p232":[74,12459,{"$":13}],
 
 "p233":[86,"ConnectedBrowserTests.test_share_wrong_content_conversation_purpose_and_expiry_refuse_before_effect",262,"db6685805c939106a917251e2a955d8869bb556189e61449aea6bf0ae5a123a5"],
 
@@ -1280,7 +1280,7 @@
 
 "p238":[74,3706,{"$":284}],
 
-"p239":[64,"RegisteredN1Factory.run",2537,"605910c46c37f2fa48aae94ff6154036d1dd9f289b010b6dd8bf90d30c55d9b7"],
+"p239":[64,"RegisteredN1Factory.run",2542,"605910c46c37f2fa48aae94ff6154036d1dd9f289b010b6dd8bf90d30c55d9b7"],
 
 "p23a":[99,"F5NativeLiveHoldTests.test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control",72,"f207bc2f8e9c15178d0dcbfdf180602184543c6047821684826e1ff49456edea"],
 
@@ -1342,7 +1342,7 @@
 
 "p255":[54,242,{"$":230}],
 
-"p256":[74,7583,{"$":35}],
+"p256":[74,7580,{"$":35}],
 
 "p257":[43,462,{"$":256}],
 
@@ -1398,15 +1398,15 @@
 
 "p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",82,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
 
-"p25MonitorCall":[64,887,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
+"p25MonitorCall":[64,888,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
 
 "p25MonitorProof":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",421,"7f29094575111853598e0e11ee85153f695cff96a2ea2d2f8c0d0212bfb5e19c"],
 
-"p25MonitorReason":[64,908,"return report.get('reason') == str(missing)"],
+"p25MonitorReason":[64,909,"return report.get('reason') == str(missing)"],
 
-"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",898,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
+"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",899,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
 
-"p25MonitorTerminate":[64,"_Containment._terminate_monitor",884,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
+"p25MonitorTerminate":[64,"_Containment._terminate_monitor",885,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
 
 "p25Names":[146,"_validate_tls_name",143,"272a7c111ff2ec2d2ef0a20a2ac6bd8a5ce14842ac146273067bdc26f739516d"],
 
@@ -1440,7 +1440,7 @@
 
 "p25Receive":[146,"_receive_handoff",298,"bd7ae12514a91ea23c0045a0956835e9a282eeadac62dab106a0e90426f1414d"],
 
-"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2230,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
+"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2235,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
 
 "p25RelayFork":[146,405,"if os.fork() != 0:"],
 
@@ -1448,7 +1448,7 @@
 
 "p25RelaySendFD":[146,290,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
 
-"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2219,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
+"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2224,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
 
 "p25Resolve":[146,"_resolved_provider",176,"2cab59725dc7236d4551ce9000244baf36f857ed37c2e0cfa6b7329514c51aec"],
 
@@ -1464,11 +1464,11 @@
 
 "p25TransportScopeSupport0":[148,{"$":330},549,{"$":343}],
 
-"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1192,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
+"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1193,"47d55a33e90d23d3e3f5bf37e62ed39f45064fca4c3e98727c0d045760399f55"],
 
-"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1182,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
+"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1183,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
 
-"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1202,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
+"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1203,"e402bfcef7bda4d95cb49cbe0151e7dba045fadb042b936cae05a4c059cfec3c"],
 
 "p25a":[116,{"$":56},260,{"$":49}],
 
@@ -1492,7 +1492,7 @@
 
 "p263":[46,"main",189,"5d709ef39400e6bf0f9dcb41d08b235ef6193e291f2a59e1d2810a2bb86c134f"],
 
-"p264":[74,5207,{"$":13}],
+"p264":[74,5204,{"$":13}],
 
 "p265":[76,1660,{"$":95}],
 
@@ -1510,13 +1510,13 @@
 
 "p26c":[43,"WorktreeCapture._resolve_dirs",1934,"759407e0fb8121a074f72d098a7827e410ecd9e99fc1ebc27a5f29ad4bcf5b0b"],
 
-"p26d":[64,"_RegisteredServer.__init__",1153,"55eb44a50ae744ebddae8a2d904b55f39013ed72ee03cb48c45f2f2fa433d2e7"],
+"p26d":[64,"_RegisteredServer.__init__",1154,"55eb44a50ae744ebddae8a2d904b55f39013ed72ee03cb48c45f2f2fa433d2e7"],
 
 "p26e":[30,329,"self._handle.require_intent()"],
 
 "p26f":[32,783,"completed = subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,"],
 
-"p27":[64,1607,"self.request('thread/start', params, timeout=10)",29,1607,77],
+"p27":[64,1608,"self.request('thread/start', params, timeout=10)",29,1608,77],
 
 "p270":[73,706,"_require_live_activation(profile)"],
 
@@ -1552,9 +1552,9 @@
 
 "p28":[42,391,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,402,13],
 
-"p280":[64,"_CoherentServerRequests",1030,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
+"p280":[64,"_CoherentServerRequests",1031,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
 
-"p281":[74,"main",12841,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
+"p281":[74,"main",12838,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
 
 "p282":[23,"run_bd_structured",58,"d781473c3e5561ed87b7858716b135c9f398f6ad814100d5468acc378a0dad62"],
 
@@ -1588,7 +1588,7 @@
 
 "p290":[25,327,"if not result[\"hash_match\"]:"],
 
-"p291":[74,"build_pool_inputs",7092,{"$":170}],
+"p291":[74,"build_pool_inputs",7089,{"$":170}],
 
 "p292":[23,72,"if not target.is_dir():"],
 
@@ -1612,7 +1612,7 @@
 
 "p29c":[73,175,{"$":58}],
 
-"p29d":[74,12838,"return AppServer()"],
+"p29d":[74,12835,"return AppServer()"],
 
 "p29e":[8,{"$":87},1024,{"$":81}],
 
@@ -1672,7 +1672,7 @@
 
 "p2a":[36,14407,"subprocess.run(\n                [\"git\", \"apply\", \"--index\", \"-\"],\n                cwd=worktree,\n                check=True,\n                capture_output=True,\n                input=patch_bytes,\n            )",12,14413,13],
 
-"p2a0":[74,5099,{"$":13}],
+"p2a0":[74,5096,{"$":13}],
 
 "p2a1":[32,"_Runtime.validate",748,"a54caf7ba867af4a54cb5fb6020a38e4b5ab50668a3509cd2d41439b2c378047"],
 
@@ -1680,7 +1680,7 @@
 
 "p2a3":[33,521,{"$":13}],
 
-"p2a4":[74,13128,{"$":13}],
+"p2a4":[74,13125,{"$":13}],
 
 "p2a5":[73,707,"return AppServer()"],
 
@@ -1688,7 +1688,7 @@
 
 "p2a7":[50,242,"if [[ \"$REPLACE\" -eq 1 && \"$DRY_RUN\" -eq 0 ]]; then"],
 
-"p2a8":[64,1536,"self.lifetime.launch(command, self.factory.home)",18,1536,66],
+"p2a8":[64,1537,"self.lifetime.launch(command, self.factory.home)",18,1537,66],
 
 "p2a9":[2,34,"if args.expires_after_bead.strip() != args.bead.strip():"],
 
@@ -1786,7 +1786,7 @@
 
 "p2d5":[68,314,"R.live_availability.require_pool_live()"],
 
-"p2d6":[74,13127,{"$":35}],
+"p2d6":[74,13124,{"$":35}],
 
 "p2d7":[112,"NativePoolAdmissionTests.test_concurrent_duplicate_consume_has_one_winner",664,"c8146754d52b045ac3dbdd2c6d2806b4398ac9342368aa16be2ce7a2d8cfcbc4"],
 
@@ -1812,7 +1812,7 @@
 
 "p2e1":[73,1086,"approval = read_private_json("],
 
-"p2e2":[74,5182,"pre_allocation_check()"],
+"p2e2":[74,5179,"pre_allocation_check()"],
 
 "p2e3":[59,"consume",706,"fe5417f6e0cb00188ea30f1968f50174330043a4fd014fb75a2bf1606f47578d"],
 
@@ -1836,7 +1836,7 @@
 
 "p2ed":[59,415,{"$":57}],
 
-"p2ee":[64,2484,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2484,99],
+"p2ee":[64,2489,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2489,99],
 
 "p2ef":[8,{"$":197},1060,{"$":188}],
 
@@ -1858,7 +1858,7 @@
 
 "p2f7":[48,"require_trusted_reader",63,{"$":243}],
 
-"p2f8":[64,681,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
+"p2f8":[64,682,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
 
 "p2f9":[70,87,"require_v8_live_routes(plan)"],
 
@@ -1972,7 +1972,7 @@
 
 "p319":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",679,"45d33cd966384729b74c39b88b42952a8373ff629909d0012379628c6c8fac3f"],
 
-"p31a":[74,7488,"campaign_live_route=True,"],
+"p31a":[74,7485,"campaign_live_route=True,"],
 
 "p31b":[8,{"$":200},1011,{"$":224}],
 
@@ -1980,7 +1980,7 @@
 
 "p31d":[99,"F5NativeLiveHoldTests.test_r5_f5_held_n1_raw_library_zero_launch_and_patched_fake_launch",50,"9406a16a58b02b11a4c290b4f125f441f7f181cf605d43f85e72c5700a575ce7"],
 
-"p31e":[74,"build_pool_inputs",7092,{"$":170}],
+"p31e":[74,"build_pool_inputs",7089,{"$":170}],
 
 "p31f":[73,212,{"$":211}],
 
@@ -1990,7 +1990,7 @@
 
 "p321":[27,"prepare_capture_binding",541,"62a8d76d6644a62380eb684c818896f7370da7ee4b7c7186ab6013bd79e4d252"],
 
-"p322":[74,12501,"reservation = acquire_global_campaign_claim("],
+"p322":[74,12498,"reservation = acquire_global_campaign_claim("],
 
 "p323":[17,400,{"$":324}],
 
@@ -1998,7 +1998,7 @@
 
 "p325":[2,54,"if not all((payload[\"operator_approval_ref\"], payload[\"sol_breakfix_scope\"], payload[\"sol_breakfix_expiry\"])):"],
 
-"p326":[64,2214,{"$":13}],
+"p326":[64,2219,{"$":13}],
 
 "p327":[23,"create_bead",231,"86b606298bf0b24b6e2416b45f7d92a832c408aea4f2ae0d10b3dbd65245b079"],
 
@@ -2058,9 +2058,9 @@
 
 "p341":[34,"_run",251,"043c67cecbd88fe946f19837214aba0a39406c62d7280a03e49f76226ca692af"],
 
-"p342":[64,"RegisteredN1Factory._effect",2367,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
+"p342":[64,"RegisteredN1Factory._effect",2372,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
 
-"p343":[64,702,"result = self.controller.spawn_owned("],
+"p343":[64,703,"result = self.controller.spawn_owned("],
 
 "p344":[8,{"$":199},705,{"$":168}],
 
@@ -2108,13 +2108,13 @@
 
 "p359":[51,"_LinuxEngine._capability",658,"b13ee7b85d401e179654e9581e68990fa87794af4c3884d10b2c348d19984466"],
 
-"p35AttachmentAdmission":[64,"RegisteredN1Factory._selected_access_token",2493,"cbeb9b7ce8a7a1cb81f9053c502e10e0413b0688ea98a9691769cea64195e82a"],
+"p35AttachmentAdmission":[64,"RegisteredN1Factory._selected_access_token",2498,"cbeb9b7ce8a7a1cb81f9053c502e10e0413b0688ea98a9691769cea64195e82a"],
 
 "p35AttachmentRead":[146,"_read_access_token",427,"bfcc5ecf74d7f2ae741fe437bd7821bc1e03556fee0712797d4d80e6bedc7a2a"],
 
-"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",748,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
+"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",749,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
 
-"p35AttachmentStaging":[64,"_Containment._stage_access_token",587,"ac3682a1f98321bd9215d8ce36a135638d34c0b0d820026ae7904b43963a5072"],
+"p35AttachmentStaging":[64,"_Containment._stage_access_token",588,"ac3682a1f98321bd9215d8ce36a135638d34c0b0d820026ae7904b43963a5072"],
 
 "p35AuthAbsent":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",85,"286440c9d6e1457ac6b74f25862849cd2d29a19d093692fc22fbe76153d001a0"],
 
@@ -2132,7 +2132,7 @@
 
 "p35b":[11,39,"if lane not in CONTRACT[\"interpreters\"]:"],
 
-"p35c":[74,7591,"build_pool_inputs(\n        server,\n        capability_receipt,\n        campaign_manifest,\n        root=root,\n        integration=integration,\n        pool_name=pool_name,\n        worktrees=worktrees,\n        mutable=mutable,\n        prompts=prompts,\n        expected_tokens=expected_tokens,\n        completion_evidence_policies=completion_evidence_policies,\n        tool_policies=tool_policies,\n        read_only_command_authorities=read_only_command_authorities,\n        pre_thread_start_check=pre_thread_start_check,\n        pre_allocation_check=pre_allocation_check,\n        expected_bound_manifest_validation=expected_bound_manifest_validation,\n        interrupt_after=interrupt_after,\n    )",8,7609,5],
+"p35c":[74,7588,"build_pool_inputs(\n        server,\n        capability_receipt,\n        campaign_manifest,\n        root=root,\n        integration=integration,\n        pool_name=pool_name,\n        worktrees=worktrees,\n        mutable=mutable,\n        prompts=prompts,\n        expected_tokens=expected_tokens,\n        completion_evidence_policies=completion_evidence_policies,\n        tool_policies=tool_policies,\n        read_only_command_authorities=read_only_command_authorities,\n        pre_thread_start_check=pre_thread_start_check,\n        pre_allocation_check=pre_allocation_check,\n        expected_bound_manifest_validation=expected_bound_manifest_validation,\n        interrupt_after=interrupt_after,\n    )",8,7606,5],
 
 "p35d":[67,353,{"$":35}],
 
@@ -2178,7 +2178,7 @@
 
 "p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",2032,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
 
-"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1273,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
+"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1274,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
 
 "p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1981,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
 
@@ -2202,7 +2202,7 @@
 
 "p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",561,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
 
-"p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",668,"a7f87b36be3adf54b0d4000b3199ebada174ff892595c40d7b388dec3f044192"],
+"p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",669,"a7f87b36be3adf54b0d4000b3199ebada174ff892595c40d7b388dec3f044192"],
 
 "p36SchemaSelect":[149,"require_executable_schema",245,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
 
@@ -2248,45 +2248,45 @@
 
 "p37d":[100,"FirstProjectTests.test_starter_fails_and_reference_satisfies_contract",28,"e90b0d320704bd11cba2ec843ce469e4c6c01ed0c01755d50fa220d5486e74a7"],
 
-"p37e":[64,65,{"$":248},15,65,49],
+"p37e":[64,66,{"$":248},15,66,49],
 
-"p37f":[64,613,"os.write(descriptor, b'1')",12,613,38],
+"p37f":[64,614,"os.write(descriptor, b'1')",12,614,38],
 
 "p38":[8,1196,"box.evaluate(_FILL_SCRIPT, prompt)",35,1196,69],
 
-"p380":[64,653,{"$":148},8,653,37],
+"p380":[64,654,{"$":148},8,654,37],
 
 "p381":[127,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",999,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
 
-"p382":[64,"_launcher_argv",139,"4ff15ecc165a978267d922a86efc1d2cf0b142dfa04f4aa339d7d361a31f8e01"],
+"p382":[64,"_launcher_argv",140,"4ff15ecc165a978267d922a86efc1d2cf0b142dfa04f4aa339d7d361a31f8e01"],
 
 "p383":[127,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",981,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
 
-"p384":[64,"_Containment._command",512,"611ad6ad37a3e61b600eaa887c579eb1f233185139f1a6d0976442c09cf5be81"],
+"p384":[64,"_Containment._command",513,"611ad6ad37a3e61b600eaa887c579eb1f233185139f1a6d0976442c09cf5be81"],
 
-"p385":[64,782,"os.pidfd_open(pid, 0)",21,782,42],
+"p385":[64,783,"os.pidfd_open(pid, 0)",21,783,42],
 
-"p386":[64,"_namespace_info",160,"4bdd5337d0bd5be726aad740b60874887dcd4cda504fd993a8099cf78f0fc851"],
+"p386":[64,"_namespace_info",161,"4bdd5337d0bd5be726aad740b60874887dcd4cda504fd993a8099cf78f0fc851"],
 
-"p387":[64,"_namespace_info_bytes",144,"51fe1fcadca2c30566207ec6ac4b43fd1824b7332c76f5948104133b2ba9cad4"],
+"p387":[64,"_namespace_info_bytes",145,"51fe1fcadca2c30566207ec6ac4b43fd1824b7332c76f5948104133b2ba9cad4"],
 
 "p388":[127,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",964,"efb1eb07d86b69717cb082ce3d152d29ff9b5e7477f8a05463580acd57ebf0c7"],
 
 "p389":[127,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",974,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
 
-"p38a":[64,"_Containment._release_command",642,"fb4d5e08f70f22a0433b3cf5c33ec6231f51eb897bdd59564982c6372c5d45f2"],
+"p38a":[64,"_Containment._release_command",643,"fb4d5e08f70f22a0433b3cf5c33ec6231f51eb897bdd59564982c6372c5d45f2"],
 
-"p38b":[64,"_Containment._retain_namespace",780,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
+"p38b":[64,"_Containment._retain_namespace",781,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
 
-"p38c":[64,826,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,826,75],
+"p38c":[64,827,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,827,75],
 
-"p38d":[64,646,{"$":249},8,646,34],
+"p38d":[64,647,{"$":249},8,647,34],
 
-"p38e":[64,"_Containment._terminate_claimed",925,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
+"p38e":[64,"_Containment._terminate_claimed",926,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
 
 "p38f":[79,165,"bd_json(command)",42,165,58],
 
-"p39":[74,12838,"AppServer()",11,12838,22],
+"p39":[74,12835,"AppServer()",11,12835,22],
 
 "p390":[39,135,"binding.terminate_method(binding.issuer, binding.receipt, grace_seconds=grace_seconds,\n                                    min_age_seconds=min_age_seconds, allow_kill=allow_kill)",11,136,91],
 
@@ -2354,23 +2354,23 @@
 
 "p3Q":[77,1356,"socket.socketpair()",24,1356,43],
 
-"p3R":[64,113,"adapter.server._fail_transport(failure)",8,113,47],
+"p3R":[64,114,"adapter.server._fail_transport(failure)",8,114,47],
 
-"p3S":[64,"_observe_adapter_failure",106,"869cdfc10f26047f7317a60cd6ace3e5842a732b4918a543b1f6af4c8ce05c9c"],
+"p3S":[64,"_observe_adapter_failure",107,"869cdfc10f26047f7317a60cd6ace3e5842a732b4918a543b1f6af4c8ce05c9c"],
 
-"p3T":[64,"RegisteredN1Factory._make_adapter",2344,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
+"p3T":[64,"RegisteredN1Factory._make_adapter",2349,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
 
-"p3U":[64,"RegisteredN1Factory.model_task_binding",2139,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
+"p3U":[64,"RegisteredN1Factory.model_task_binding",2144,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
 
-"p3V":[64,"RegisteredAdapter._current_effective_boundary",1884,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
+"p3V":[64,"RegisteredAdapter._current_effective_boundary",1889,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
 
-"p3W":[64,"RegisteredN1Factory.model_task_bytes",2135,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
+"p3W":[64,"RegisteredN1Factory.model_task_bytes",2140,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
 
 "p3X":[111,"NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance",279,"f72d7a5e54a472bcac0502f46b639be46bf7b8a49fc39fad2f28e3f6720eab89"],
 
-"p3Y":[64,"RegisteredN1Factory._require_model_task",2130,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
+"p3Y":[64,"RegisteredN1Factory._require_model_task",2135,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
 
-"p3Z":[64,2131,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2133,74],
+"p3Z":[64,2136,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2138,74],
 
 "p3a":[8,739,{"$":254},26,743,17],
 
@@ -2414,41 +2414,41 @@
 
 "p3f":[76,1488,{"$":217},8,1492,9],
 
-"p3g":[64,"RegisteredN1Factory.record_dispatch",2173,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
+"p3g":[64,"RegisteredN1Factory.record_dispatch",2178,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
 
-"p3h":[64,2181,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2190,9],
+"p3h":[64,2186,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2195,9],
 
 "p3i":[111,"NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority",301,"7bf973b3e6e53c0e6c5fe7171dead072a12556ad50a9ab58ea29e5bc3cfbbd64"],
 
-"p3j":[64,1913,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1915,93],
+"p3j":[64,1918,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1920,93],
 
-"p3k":[64,"RegisteredN1Factory.guard",2101,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
+"p3k":[64,"RegisteredN1Factory.guard",2106,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
 
 "p3l":[111,"NativeOutboundScreenTests.registered_fixture",37,"2cc9dcf7da58c4f77b488c6c3a7dce0e94203e087fa5a2b9acff27ac22cf0842"],
 
-"p3m":[64,91,"_need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes\n          and _snapshot(selected['execution']) == receipt.execution_bytes,\n          'The model task requires the exact original admitted request and execution.')",4,93,87],
+"p3m":[64,92,"_need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes\n          and _snapshot(selected['execution']) == receipt.execution_bytes,\n          'The model task requires the exact original admitted request and execution.')",4,94,87],
 
-"p3n":[64,"_registered_adapter_method",1965,"9fed8550d3650948ddb7301da8ba7e9af71155d945fbf6e1a840a2c3e99c1e28"],
+"p3n":[64,"_registered_adapter_method",1970,"88b40aa962ff9eb5983972d1e01896c040041c3dc08942079ce05f44186bc9ae"],
 
 "p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1790,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
 
 "p3p":[111,"NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session",249,"5dd5476b4d34a47fc1794f47311d7c3308fbb73caa72b0b7869ea9b710863f65"],
 
-"p3q":[64,"_model_task",88,"1e7f83afba24a773dbce985590786eb56a82c0c5f30d40e24cb25deeefab38f1"],
+"p3q":[64,"_model_task",89,"1e7f83afba24a773dbce985590786eb56a82c0c5f30d40e24cb25deeefab38f1"],
 
-"p3r":[64,1886,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1886,99],
+"p3r":[64,1891,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1891,99],
 
-"p3s":[64,101,"_need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),\n          'The complete model task exceeds its original admitted byte allowance.')",4,102,82],
+"p3s":[64,102,"_need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),\n          'The complete model task exceeds its original admitted byte allowance.')",4,103,82],
 
-"p3t":[64,"RegisteredAdapter.final_summary",1891,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
+"p3t":[64,"RegisteredAdapter.final_summary",1896,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
 
-"p3u":[64,1911,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1912,80],
+"p3u":[64,1916,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1917,80],
 
 "p3v":[111,"NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent",313,"448bff8184737597bf2cf9104a880623c7f0c7b36d91472f0423f5c5adecb5ed"],
 
-"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1903,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
+"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1908,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
 
-"p3x":[64,"_require_summary_primary",118,"ee253260a8982eca8f9b9b7617ac6dbdbdf49dcfb656ae4790273801f3e9cde6"],
+"p3x":[64,"_require_summary_primary",119,"ee253260a8982eca8f9b9b7617ac6dbdbdf49dcfb656ae4790273801f3e9cde6"],
 
 "p3y":[40,"_unique_frame_object",21,"8fe17f28c58aaad1cac301b93716e681a6af083576bc54d9e4bbb5975b8b26e7"],
 
@@ -2468,13 +2468,13 @@
 
 "p42LeaseClaim":[149,"claim_managed_login",369,"491ee59b40ed621f2e4930d4d7e4564683ac9b5f931037f1bf8874b4aa6c8ceb"],
 
-"p42LeaseRetire":[64,"RegisteredN1Factory._retire_managed_login",2517,"ca2c4dc74dad3324410da99c84a57263e6883f38cf6456cc355f367b9a1f01ef"],
+"p42LeaseRetire":[64,"RegisteredN1Factory._retire_managed_login",2522,"ca2c4dc74dad3324410da99c84a57263e6883f38cf6456cc355f367b9a1f01ef"],
 
-"p42LoginSelection":[64,"RegisteredN1Factory._select_managed_login",2048,"7afdf6915afbe268fdf048ca7bfbd6f3efc39c8d064787bc85bbb127f25113fc"],
+"p42LoginSelection":[64,"RegisteredN1Factory._select_managed_login",2053,"7afdf6915afbe268fdf048ca7bfbd6f3efc39c8d064787bc85bbb127f25113fc"],
 
-"p42MountVerify":[64,"_Containment._confirm_login_mount",634,"04d0e792136607c7609f9afa4d68370267cd17185f760ba22e3c483992492eed"],
+"p42MountVerify":[64,"_Containment._confirm_login_mount",635,"04d0e792136607c7609f9afa4d68370267cd17185f760ba22e3c483992492eed"],
 
-"p42Mounts":[64,"_Containment._appserver_mounts",500,"f2650cfc0f101963ccfde8658277281eec6c7292915170cab5ffcc0151ce5f23"],
+"p42Mounts":[64,"_Containment._appserver_mounts",501,"f2650cfc0f101963ccfde8658277281eec6c7292915170cab5ffcc0151ce5f23"],
 
 "p42Namespace":[148,"ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes",188,"4f16c4f92862debb13b92196ea293af3f7a097be7b4f1dd19d44b4b0d007d5da"],
 
@@ -2494,7 +2494,7 @@
 
 "p43MethodEnvelope":[150,"_check_method_envelope",199,"86eeb2273f741419d07fcca70d56136682ab8b136f5b7e7974555bd781a7e9ac"],
 
-"p43ReadNotification":[64,"_RegisteredServer._protocol_lines",1237,"cf5864e9618ec5fb6e4e243e0e5905f8e71c1df862933d0d6dd0f40d89837dd5"],
+"p43ReadNotification":[64,"_RegisteredServer._protocol_lines",1238,"cf5864e9618ec5fb6e4e243e0e5905f8e71c1df862933d0d6dd0f40d89837dd5"],
 
 "p43TimestampPositive":[151,"ServerRequestPreparationTests.test_timestamped_notification_preserves_the_actual_frame",344,"02dcd021f899614f2ae19ef830d3d4c9bb566901e391483f9d8cce3de8e90fe7"],
 
@@ -2530,7 +2530,7 @@
 
 "p50":[8,1057,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1057,72],
 
-"p51":[64,1506,"super().request(*args, **kwargs)",17,1506,49],
+"p51":[64,1507,"super().request(*args, **kwargs)",17,1507,49],
 
 "p52":[50,202,{"$":315}],
 
@@ -2866,7 +2866,7 @@
 
 "pc6":[37,505,"if (\n            pre_hash != expected_pre_show_sha256\n            or pre.get(\"status\") != \"in_progress\"\n            or pre.get(\"assignee\") != self.actor\n        ):"],
 
-"pc7":[74,5208,"result, preallocation_latency = server.start_thread(cwd, **start_kwargs)"],
+"pc7":[74,5205,"result, preallocation_latency = server.start_thread(cwd, **start_kwargs)"],
 
 "pc8":[12,"write_install_manifest",726,"8f21f11005f4682849ec64a1810d70c2399137ff1e28cab60f0839170145b1cc"],
 
@@ -2882,7 +2882,7 @@
 
 "pce":[12,"main",846,"d0017093d8849ce4efedc6c4462bee8f1bcbdd348d8f24efcf40614272f997e6"],
 
-"pcf":[64,676,{"$":148}],
+"pcf":[64,677,{"$":148}],
 
 "pd":[8,876,"page.evaluate(_SNAPSHOT_SCRIPT, [marker])",20,876,61],
 
@@ -2896,9 +2896,9 @@
 
 "pd4":[41,1482,"return {\"contract_valid\": True, \"complete_effect_trace\": True, \"f8_complete\": False,"],
 
-"pd5":[74,7120,{"$":13}],
+"pd5":[74,7117,{"$":13}],
 
-"pd6":[74,7584,{"$":13}],
+"pd6":[74,7581,{"$":13}],
 
 "pd7":[49,363,"copy_projection \"$INSTALL_STAGE_DIR\" \"$directories\" \"$files\""],
 
@@ -2926,7 +2926,7 @@
 
 "pe2":[73,1073,{"$":58}],
 
-"pe3":[74,12460,{"$":43}],
+"pe3":[74,12457,{"$":43}],
 
 "pe4":[41,"_review",1435,{"$":155}],
 
@@ -2966,7 +2966,7 @@
 
 "pf5":[90,"ChatGPTBrowserReviewTests.test_selection_does_not_click_loose_text_when_confirmation_required",807,"a47c6f340f774a016b7df19dd2b26d960379080cab002ba9fc79002eff3c7597"],
 
-"pf6":[74,"_start_campaign_server",12834,"b2c94a55a0619f4b136b62fd5ed155fc9454987024cc6dbfdd801b1ee6e8f165"],
+"pf6":[74,"_start_campaign_server",12831,"b2c94a55a0619f4b136b62fd5ed155fc9454987024cc6dbfdd801b1ee6e8f165"],
 
 "pf7":[48,219,"directory.read(response_file)",29,219,58],
 
@@ -5049,45 +5049,45 @@
 
 [71,971,22,973,61,"browser","d39ca2356bd7c0ee0bff23fe2688fb58023545c8242e0c9a3ec791566ad3f5b7",["route","N9.1","p1f"]],
 
-[72,107,14,107,61,"dynamic",{"$":241},[{"$":9},"XR428b"]],
+[72,108,14,108,61,"dynamic",{"$":241},[{"$":9},"XR428b"]],
 
-[72,119,14,119,61,"dynamic",{"$":241},[{"$":9},"XR429b"]],
+[72,120,14,120,61,"dynamic",{"$":241},[{"$":9},"XR429b"]],
 
-[72,129,13,129,51,"dynamic","634fa128c02d9c9ccbe9f792b9c0cec527c554c3b64f8f3f7218f32b4bc5985f",[{"$":9},"XR357"]],
+[72,130,13,130,51,"dynamic","634fa128c02d9c9ccbe9f792b9c0cec527c554c3b64f8f3f7218f32b4bc5985f",[{"$":9},"XR357"]],
 
-[72,724,25,724,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
+[72,725,25,725,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
 
-[72,889,31,889,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
+[72,890,31,890,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
 
-[72,1006,12,1006,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
+[72,1007,12,1007,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
 
-[72,1064,15,1064,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
+[72,1065,15,1065,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
 
-[72,1450,20,1450,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
+[72,1451,20,1451,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
 
-[72,1506,17,1506,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
+[72,1507,17,1507,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
 
-[72,1516,49,1516,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
+[72,1517,49,1517,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
 
-[72,1536,18,1536,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
+[72,1537,18,1537,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
 
-[72,1607,29,1607,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
+[72,1608,29,1608,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
 
-[72,1777,16,1777,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
+[72,1778,16,1778,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
 
-[72,1931,17,1931,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
+[72,1936,17,1936,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
 
-[72,1932,39,1932,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
+[72,1937,39,1937,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
 
-[72,1951,15,1951,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
+[72,1956,15,1956,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
 
-[72,1982,16,1982,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
+[72,1987,16,1987,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
 
-[72,1984,18,1984,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
+[72,1989,18,1989,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
 
-[72,2375,29,2375,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
+[72,2380,29,2380,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
 
-[72,2484,22,2484,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
+[72,2489,22,2489,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
 
 [73,38,7,38,42,"dynamic","f6934272bce56a1ce7cebbe4386aacc09a74f1141872418c5f0b7011111d7163",[{"$":9},"XR373"]],
 
@@ -5149,29 +5149,29 @@
 
 [77,4301,19,4305,9,"dynamic","64354f5d83b89b89ad0f24a564ce95dd477c764d9863fbff8596c937189c09a9",[{"$":9},"XR392"]],
 
-[77,4655,26,4655,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
+[77,4652,26,4652,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
 
-[77,4656,27,4656,74,"dynamic","34d362c2675aabd307488cbaf647d2a1fa798c608ab4cc6876cf45df6b8db3d3",[{"$":9},"XR394"]],
+[77,4653,27,4653,74,"dynamic","34d362c2675aabd307488cbaf647d2a1fa798c608ab4cc6876cf45df6b8db3d3",[{"$":9},"XR394"]],
 
-[77,5112,21,5112,68,"dynamic","03e40f4dda5b35ca112a831de1f77842a598814b9f9383fce6f40887b4e9821d",[{"$":9},"XR395"]],
+[77,5109,21,5109,68,"dynamic","03e40f4dda5b35ca112a831de1f77842a598814b9f9383fce6f40887b4e9821d",[{"$":9},"XR395"]],
 
-[77,5116,23,5116,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
+[77,5113,23,5113,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
 
-[77,5347,11,5347,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
+[77,5344,11,5344,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
 
-[77,6763,34,6767,5,"dynamic","fefb0e9bd53942617672b1558d6239cbecd123c294d6e779e941da9ad197c82f",[{"$":9},"XR398"]],
+[77,6760,34,6764,5,"dynamic","fefb0e9bd53942617672b1558d6239cbecd123c294d6e779e941da9ad197c82f",[{"$":9},"XR398"]],
 
-[77,7888,13,7888,55,"dynamic","61bca7ab0dac507a1c9c5378e7c810774e7b56ceef4ea2af792a229df9863673",[{"$":9},"XR399"]],
+[77,7885,13,7885,55,"dynamic","61bca7ab0dac507a1c9c5378e7c810774e7b56ceef4ea2af792a229df9863673",[{"$":9},"XR399"]],
 
-[77,7921,8,7921,53,"dynamic","19abb82bb824a6cdbabdb32d1c7fbf62169141b3fea50e36c75059a1b5de4755",[{"$":9},"XR400"]],
+[77,7918,8,7918,53,"dynamic","19abb82bb824a6cdbabdb32d1c7fbf62169141b3fea50e36c75059a1b5de4755",[{"$":9},"XR400"]],
 
-[77,8270,14,8270,42,"dynamic",{"$":5},[{"$":9},"XR401"]],
+[77,8267,14,8267,42,"dynamic",{"$":5},[{"$":9},"XR401"]],
 
-[77,12838,11,12838,22,{"$":3},{"$":226},["route","N8.2","p39"]],
+[77,12835,11,12835,22,{"$":3},{"$":226},["route","N8.2","p39"]],
 
-[77,14397,41,14397,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
+[77,14394,41,14394,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
 
-[77,14411,33,14413,13,"dynamic","6b7fa6c77ed4f77cadde0bf89fd63cc7922b7c756c4adeac87ff0b1fd6131280",[{"$":9},"XR404"]],
+[77,14408,33,14410,13,"dynamic","6b7fa6c77ed4f77cadde0bf89fd63cc7922b7c756c4adeac87ff0b1fd6131280",[{"$":9},"XR404"]],
 
 [78,272,17,277,9,"process","9405fecd42b800855c9f82196989b9655d5394379f927ae9ea12d499a7ffbc67",["route","X6.4","p54"]],
 
@@ -6908,7 +6908,7 @@
 
 "scripts/registered_host_root_boundary.py":["615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",420,1303],
 
-"scripts/registered_n1_factory.py":["ef312909a3153b261dc087ec1269d8c4ac80821202282eef151e99ba455f344f",420,132866],
+"scripts/registered_n1_factory.py":["e70ec58002282d1f2ef16657d75f8b4b1260d63a7bf7e046bfba57d80dd4e0ed",420,133136],
 
 "scripts/registered_n1_qualification.py":["b8c0ccd06d8de720f81c5197d358a5d36253d31c78b703746d972288bc9f7c37",420,20600],
 
@@ -6948,7 +6948,7 @@
 
 "scripts/run_native_pool_activation_preview.py":["ba8d6118af6dba182381e69f7354cd743434f320e678253e5ae0d36e42307b94",420,56364],
 
-"scripts/run_native_pool_live_canaries.py":["8f192470690352fb737d8c6489fdc1e26806487792b7e04a42dc5b330d9a99b5",420,611465],
+"scripts/run_native_pool_live_canaries.py":["8e828c470f95f69ad0becc2a81c63307f36472ebc57fc90eaee403181adc50c6",420,611327],
 
 "scripts/run_parallel_unittest.py":["2aa0756c9cf5543bb7c215a608574b3365b22991ccfe9e2d917ac05f31765576",493,27154],
 
@@ -7000,7 +7000,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["fedb0313e5f5c5f8876168b53cbe7d56703e52e762d5ed5691eb707aeade4551",420,133354],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["9ac9878f470a55d0c34ff0bfa1eec87f7cbda66029a65a30a34c4859043eaad4",420,133470],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7134,7 +7134,7 @@
 
 "tests/test_run_admitted_native_pool_transaction.py":["531a7ebd4d5ed5623dbcb711d468889b934736398f48cae00ee1567398c4818a",420,23842],
 
-"tests/test_run_native_pool_live_canaries.py":["631c43caa3aa65f0099227eec1abcc9a894ace2d02fda169d1cc51a4f7f1940e",420,690166],
+"tests/test_run_native_pool_live_canaries.py":["2d8b59bc4e130ab51fc0d3e05a01646a03dc7471519b7e4d2248e2cd76a80d15",420,690148],
 
 "tests/test_run_parallel_unittest.py":["557f0665f12bb1f0aef4a9c7d9438496361409dd96a83ebea89b39fb7d2b2802",420,35677],
 
@@ -7148,7 +7148,7 @@
 
 "tests/test_validate_repository.py":["51ed65b6483060dc752d8a0a6d7d6d42dd0a873c5ef507d5066a16561739ccf8",420,38401],
 
-"tests/test_w20_affected_contract_w13.py":["221da12194b6ede308aca865b40d962096e2c74d63fa0a11ae47d4817bbd679c",420,91073],
+"tests/test_w20_affected_contract_w13.py":["beedac9fff562628a3347ba78f2c6ac12fd8c66b528faa09d7a84f18d3b606ab",420,91690],
 
 "tests/test_workflow_adjudication.py":["d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5",420,38470],
 

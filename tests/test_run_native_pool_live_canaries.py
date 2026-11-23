@@ -6950,10 +6950,10 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
                 }]
                 error = LIVE.AppServerRpcError(method="thread/read", code=-32600, request_id=1,
                     latency_ms=1.0, qualification_thread_unmaterialized=True)
-                # A qualified handler would allow pending here. After rollout
-                # materialization even that handler is bypassed by check().
-                handler = {"return_value": True} if materialized else {"wraps": adapter._pending_thread_read_error}
-                with (mock.patch.object(adapter, "_pending_thread_read_error", **handler) as pending,
+                # After materialization, check bypasses the pending read path.
+                pending_read = ({"return_value": False} if materialized else
+                                {"wraps": adapter._fresh_nonterminal_thread_locked})
+                with (mock.patch.object(adapter, "_fresh_nonterminal_thread_locked", **pending_read) as pending,
                       mock.patch.object(server, "read_thread", side_effect=error),
                       self.assertRaises(LIVE.AppServerRpcError) as raised):
                     adapter.check()

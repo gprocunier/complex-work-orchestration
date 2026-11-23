@@ -47,6 +47,7 @@ from cwo_core.process_identity import parse_proc_stat
 from cwo_core.supervision.transport.app_server import (
     AppServerError, _QUALIFICATION_RPC, _checked_native_frame, _prepare_native_frame, domain_sha256,
 )
+from cwo_core.supervision.transport.errors import AppServerRpcError
 from cwo_core.supervision.turn_observations import provider_policy_blocker
 from registered_app_server_transport import RegisteredAppServer
 from registered_host_root_boundary import require_private_roots
@@ -1832,14 +1833,18 @@ def _check_response(factory, params, response):
 class RegisteredAdapter(native.LiveThreadAdapter):
     """Original driver with a registered profile/custody validation boundary."""
 
-    def _pending_thread_read_error(self, error):
-        factory = _ADAPTERS.get(self)
-        return super()._pending_thread_read_error(error) or (
-            error.qualification_thread_unmaterialized is True
-            and (error.method, error.code) == ('thread/read', -32600)
-            and factory is not None and factory.server is self.server and factory.qualification is not None
-            and self.thread_response['thread'].get('historyMode') == qualification.HISTORY_MODE
-        )
+    def _fresh_nonterminal_thread_locked(self):
+        try:
+            return super()._fresh_nonterminal_thread_locked()
+        except AppServerRpcError as error:
+            factory = _ADAPTERS.get(self)
+            if not (error.qualification_thread_unmaterialized is True
+                    and (error.method, error.code) == ('thread/read', -32600)
+                    and factory is not None and factory.server is self.server and factory.qualification is not None
+                    and self.thread_response['thread'].get('historyMode') == qualification.HISTORY_MODE):
+                raise
+            self._pending_window_is_open_locked()
+            return False
 
     def _registered_tool_projector(self):
         factory = _ADAPTERS.get(self)
@@ -1959,12 +1964,12 @@ _CURRENT_BOUNDARY = RegisteredAdapter._current_effective_boundary
 _FINAL_SUMMARY = RegisteredAdapter.final_summary
 _TOOL_PROJECTOR = RegisteredAdapter._registered_tool_projector
 _FORBIDDEN_TOOLS = RegisteredAdapter._observe_forbidden_tool_activity
-_PENDING_THREAD_READ = RegisteredAdapter._pending_thread_read_error
+_FRESH_NONTERMINAL_THREAD = RegisteredAdapter._fresh_nonterminal_thread_locked
 
 
 def _registered_adapter_method(name, original):
     return {'_validate_effective_boundary': _VALIDATE,
-            '_pending_thread_read_error': _PENDING_THREAD_READ,
+            '_fresh_nonterminal_thread_locked': _FRESH_NONTERMINAL_THREAD,
             '_registered_tool_projector': _TOOL_PROJECTOR,
             '_observe_forbidden_tool_activity': _FORBIDDEN_TOOLS,
             '_record_complete_boundary_locked': _RECORD_BOUNDARY,
