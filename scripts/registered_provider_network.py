@@ -226,8 +226,9 @@ def _transfer(selector, peers, stream):
 class _Connections:
     """Own at most a fixed number of concurrent streams."""
 
-    def __init__(self, limit):
+    def __init__(self, limit, on_revoke=None):
         self.limit = limit
+        self._on_revoke = on_revoke
         self.stopped = threading.Event()
         self.active = {}
         self.lock = threading.Lock()
@@ -266,6 +267,8 @@ class _Connections:
 
     def revoke(self):
         self.stopped.set()
+        if self._on_revoke is not None:
+            self._on_revoke()
         with self.lock:
             for stream in self.active:
                 try:
@@ -311,23 +314,30 @@ class ProviderBroker:
         self._record = record
         self._providers = (_PERSONAL_ACCESS_TOKEN_PROVIDERS
                            if allow_personal_access_token or allow_managed_login else PROVIDERS)
-        self._connections = _Connections(_MAX_CONNECTIONS)
-        self._control, self.child_socket = socket.socketpair(type=socket.SOCK_DGRAM)
-        self._control.settimeout(.25)
-        self.child_socket.settimeout(.25)
         self._closed = False
-        self._owner = threading.Thread(target=self._serve, name='cwo-provider-broker', daemon=True)
-        try:
+        with ExitStack() as startup:
+            self._control, self.child_socket = socket.socketpair(type=socket.SOCK_DGRAM)
+            startup.enter_context(self._control)
+            startup.enter_context(self.child_socket)
+            self._wake_read, wake_write = socket.socketpair()
+            startup.enter_context(self._wake_read)
+            startup.enter_context(wake_write)
+            self._connections = _Connections(_MAX_CONNECTIONS, on_revoke=wake_write.close)
+            self._control.settimeout(.25)
+            self.child_socket.settimeout(.25)
+            self._owner = threading.Thread(target=self._serve, name='cwo-provider-broker', daemon=True)
             self._owner.start()
-        except BaseException:
-            self._control.close()
-            self.child_socket.close()
-            raise
+            startup.pop_all()
 
     def _serve(self):
         try:
-            while not self._connections.stopped.is_set():
-                self._receive()
+            with selectors.DefaultSelector() as selector:
+                selector.register(self._control, selectors.EVENT_READ)
+                selector.register(self._wake_read, selectors.EVENT_READ)
+                # Revocation wakes the owner even after the child handoff socket has left the host.
+                while not self._connections.stopped.is_set():
+                    if selector.select() and not self._connections.stopped.is_set():
+                        self._receive()
         except Exception as failure:
             self._connections.fail(failure)
 
@@ -376,6 +386,7 @@ class ProviderBroker:
         self._owner.join(max(0, deadline - time.monotonic()))
         self._control.close()
         self.child_socket.close()
+        self._wake_read.close()
         self._connections.join(deadline)
         if self._owner.is_alive():
             raise ProviderNetworkError('The provider broker cleanup did not settle.')

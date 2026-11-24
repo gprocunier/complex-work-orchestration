@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Wake the provider broker promptly when a contained worker shuts down.
+
 ## 1.34.0 - 2026-11-24
 
 - Let offline critic synthesis read a host evaluation by its record digest alongside the exact return file.
