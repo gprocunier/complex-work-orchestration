@@ -4,6 +4,10 @@
 
 - Enable registered single-worker native execution with provider-only network access, explicit provider disclosure consent and separately supplied production authentication.
 
+### Tests
+
+- Stabilize the managed-login rollout fixture while retaining its original archive and cleanup checks.
+
 ## 1.26.0 - 2026-11-24
 
 - Report malformed native pool state fields as validation errors, including child IDs, child statuses, runtime dispositions, control-loss scopes, reason lists, and state digests checked for replay.

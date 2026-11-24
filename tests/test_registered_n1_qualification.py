@@ -7,6 +7,7 @@ from pathlib import Path
 import select
 import subprocess
 import tempfile
+import threading
 import time
 from types import SimpleNamespace
 import unittest
@@ -408,12 +409,38 @@ class FactoryQualificationTests(unittest.TestCase):
     def test_managed_login_captures_and_archives_the_original_reported_rollout(self):
         from tests import test_registered_finite_tool_wiring as wiring
 
-        case, _login = self.managed_case(archive_schedule='settled')
+        # This witness joins the real poll and archive separately. The turn
+        # reply must return before the fake peer starts the command.
+        case, _login = self.managed_case(archive_schedule='settled', no_fake_scheduler=True)
         factory = self.fixture.factory(case)
+        case.command_prepared, case.command_release = threading.Event(), threading.Event()
+        self.addCleanup(case.command_release.set)
         checkout = wiring.RegisteredFiniteToolWiringTests(methodName='runTest')
         checkout.fixture = self.fixture
         self.addCleanup(family.cleanup_helper, self, checkout)
         request_start, request_read = case.scenario.thread_response, case.scenario.read_thread
+        original_turn = runtime._RegisteredServer.start_turn
+        test = self
+
+        class TurnResponseFirst(wiring.NamespacedFiniteRpcProcess):
+            def result(self, method, params):
+                response = super().result(method, params)
+                if method == 'turn/start':
+                    # Publish the response only after the original driver has
+                    # released the Condition while awaiting this request.
+                    condition = factory.server._condition
+                    test.assertTrue(condition.acquire(timeout=3))
+                    try:
+                        test.assertIn(self.turn_start_request_id, factory.server._pending_turn_start_response_observers)
+                    finally:
+                        condition.release()
+                return response
+
+        def start_turn(server, *args, **kwargs):
+            response = original_turn(server, *args, **kwargs)
+            if server is factory.server:
+                case.command_release.set()
+            return response
 
         def project(thread):
             relative = Path(thread['path']).relative_to(case.home)
@@ -431,11 +458,13 @@ class FactoryQualificationTests(unittest.TestCase):
 
         with (patch.object(case.scenario, 'thread_response', side_effect=start),
               patch.object(case.scenario, 'read_thread', side_effect=read),
-              patch.object(family, 'RpcProcess', wiring.NamespacedFiniteRpcProcess),
+              patch.object(family, 'RpcProcess', TurnResponseFirst),
+              patch.object(runtime._RegisteredServer, 'start_turn', start_turn),
               checkout._positive_finite_completion(case)):
             result = factory.run()
 
         self.assertEqual(result['attempt']['outcome'], 'completed')
+        self.assertTrue(case.command_prepared.is_set())
         self.assertEqual(case.scenario.path.parent, case.home / 'archived_sessions')
         identity = qualification.native_session_boundary.session_source_identity(
             case.scenario.path, case.scenario.thread_id)
