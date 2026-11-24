@@ -52,7 +52,7 @@ def require_activation_live(profile: str | None = None) -> None:
         raise NativeLiveUnavailable("native-activation-profile-unavailable")
 
 
-POOL_QUALIFICATION_AVAILABLE = False
+POOL_QUALIFICATION_AVAILABLE = True
 
 
 def require_pool_qualification() -> None:

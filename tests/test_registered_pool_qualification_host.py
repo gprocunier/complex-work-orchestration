@@ -43,6 +43,10 @@ class RegisteredPoolQualificationHostTests(unittest.TestCase):
         self.root = Path(self.enterContext(TemporaryDirectory(prefix="pool-protected-host-")))
         self.request_path = self.root / "qualification.json"
         self.clock = self.enterContext(patch.object(controller, "time", return_value=_NOW))
+        self.ledger_root = self.root / "campaign"
+        self.enterContext(patch.object(stage, "contained_campaign_ledger_root", return_value=self.ledger_root))
+        InvocationLedger(self.ledger_root).open_budget(stage.CAMPAIGN_BUDGET_ID,
+            {"starts": stage.CAMPAIGN_START_CAP}, scope_sha256=stage.CAMPAIGN_SCOPE_SHA256)
         self.beads = _FixtureBeads()
         self.enterContext(patch.object(beads, "require_bd"))
         self.enterContext(patch.object(beads.subprocess, "run", side_effect=self.beads.run))
@@ -95,8 +99,9 @@ class RegisteredPoolQualificationHostTests(unittest.TestCase):
                 "journal_path": str(self.root / f"run-{size}.jsonl"), "fixture_root": str(fixture),
                 "reservation_sha256": receipt["reservation_sha256"], "capability_opportunity_sha256": "e" * 64}
 
-    def _check_original_parent(self, manifest, parent, *, include_pass_record):
+    def _check_original_parent(self, manifest, parent, *, approval, include_pass_record):
         self.assertTrue(include_pass_record)
+        self.assertEqual(approval.action_sha256, controller.qualification_action_sha256(manifest))
         self.assertIs(parent.factory, adapter.build_pool_qualification_runtime)
         self.assertEqual(parent.request_path, self.request_path)
         self.assertEqual(stat.S_IMODE(self.request_path.stat().st_mode), 0o600)
@@ -120,7 +125,8 @@ class RegisteredPoolQualificationHostTests(unittest.TestCase):
 
     def test_default_hold_and_bad_signature_precede_all_beads_io(self):
         stage_request = Mock()
-        with self.assertRaisesRegex(availability.NativeLiveUnavailable, "native-pool-qualification-unavailable"):
+        with (patch.object(availability, "POOL_QUALIFICATION_AVAILABLE", False),
+              self.assertRaisesRegex(availability.NativeLiveUnavailable, "native-pool-qualification-unavailable")):
             self._launch(stage_request=stage_request)
         self.enterContext(patch.object(availability, "require_pool_qualification"))
         with self.assertRaisesRegex(controller.QualificationControllerError, "original-operator-directive-required"):
@@ -146,6 +152,16 @@ class RegisteredPoolQualificationHostTests(unittest.TestCase):
         self.assertEqual([row[0] for row in first.calls], ["show"] * 3)
         stage_request.assert_not_called()
         self.assertFalse(tuple(self.root.glob("qualification.json*")))
+
+    def test_unenrolled_campaign_refuses_before_disposable_claims(self):
+        stage_request = Mock()
+        missing = self.root / "not-enrolled"
+        with (patch.object(stage, "contained_campaign_ledger_root", return_value=missing),
+              self.assertRaisesRegex(ValueError, "campaign-ledger-custody-refused")):
+            self._launch(stage_request=stage_request)
+        self.assertFalse(missing.exists())
+        self.assertTrue(all(not row.calls for row in self.beads.databases.values()))
+        stage_request.assert_not_called()
 
     def test_refused_final_approval_preserves_original_claims_and_refuses_replay(self):
         self.enterContext(patch.object(availability, "require_pool_qualification"))

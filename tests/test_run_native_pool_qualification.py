@@ -90,13 +90,15 @@ class ProtectedPoolControllerTests(unittest.TestCase):
         stage._stage_tasks = Mock(side_effect=lambda prep: {row["size"]: row["tasks"] for row in prep["cohorts"]})
         stage._stage_model = Mock()
         stage._signed_failure_isolation = _signed_failure_isolation
-        stage.PoolQualificationAccounting = Mock(side_effect=lambda ledger, expires: SimpleNamespace(ledger=ledger, expires_at=expires))
+        stage.PoolQualificationAccounting = Mock(side_effect=lambda ledger, expires, approval: SimpleNamespace(
+            ledger=ledger, expires_at=expires, _approval=approval))
         stage._campaign_custody = Mock(side_effect=lambda _: nullcontext())
         stage._require_campaign_budget = Mock()
         stage.contained_campaign_ledger_root = Mock(return_value=self.root / "fixed-stage-ledger")
         stage.select_contained_pool_runtime = Mock(side_effect=self._select_runtime)
         stage.make_pool_qualification_run = Mock(side_effect=(object(), object()))
         stage.pool_qualification_binding = Mock(return_value=_BINDING)
+        stage.contained_pool_qualification_binding = Mock(return_value=_BINDING)
         stage.run_contained_pool_qualification_stage = Mock(return_value={"outcome": "completed", "transactions": [{}, {}]})
         self.builder = Mock()
         self.enterContext(patch.dict(sys.modules, {stage.__name__: stage}))
@@ -308,7 +310,22 @@ class ProtectedPoolControllerTests(unittest.TestCase):
         self.enterContext(patch.dict(sys.modules, {module.__name__: module}))
         self.parent = replace(self.parent, capabilities=(), calibration_admissions=self.calibration_admissions)
         manifest = deepcopy(dict(self.manifest, calibrations=list(self.calibrations)))
+        manifest["expires_at"] = max(manifest["expires_at"], *(row["manifest"]["expires_at"] for row in self.calibrations))
         return manifest, driver
+
+    def test_signed_stage_binding_is_checked_before_any_calibration(self):
+        manifest, driver = self._combined_request()
+        manifest["stage_binding_sha256"] = "f" * 64
+        self._authorize(manifest)
+        self._assert_refused_before_selection("approved-stage-binding-mismatch")
+        self.verify_calibration.assert_not_called()
+        driver.assert_not_called()
+        self.stage._require_campaign_budget.assert_not_called()
+
+    def test_directive_over_another_start_cap_refuses_before_selection(self):
+        with patch.object(controller, "CAMPAIGN_START_CAP", 21):
+            self._authorize(self.manifest)
+        self._assert_refused_before_selection("original-operator-directive-required")
 
     def test_one_protected_invocation_joins_separate_signed_calibrations(self):
         manifest, driver = self._combined_request()
@@ -322,7 +339,12 @@ class ProtectedPoolControllerTests(unittest.TestCase):
             self.assertEqual(call.kwargs["manifest"], row["manifest"])
             self.assertEqual(call.kwargs["directive"], row["directive"])
         self.assertEqual(driver.call_count, 2)
-        self.assertEqual(self.verify_calibration.call_args_list, driver.call_args_list)
+        for verified, executed in zip(self.verify_calibration.call_args_list, driver.call_args_list, strict=True):
+            self.assertEqual(verified.args, executed.args)
+            self.assertEqual(verified.kwargs, {key: value for key, value in executed.kwargs.items()
+                                               if key != "_campaign_approval"})
+            self.assertEqual(executed.kwargs["_campaign_approval"].action_sha256,
+                             controller.qualification_action_sha256(manifest))
         self.stage.run_contained_pool_qualification_stage.assert_called_once()
 
     def test_independent_calibration_signature_and_approved_operation_match_before_starts(self):

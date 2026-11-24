@@ -238,11 +238,12 @@ limitations. The result covers the synthetic tasks under the recorded profile.
 
 ### Contained qualification on stock Codex
 
-The contained stage has its own default-off source hold and requires registered
-single-worker availability. Its protected parent uses `select_contained_pool_runtime` with
-the registered factory and makes each `PoolQualificationRun` from that selected
-runtime. An independently approved stage binding covers the fixed tasks,
-sealed run plans, and original accounting custody. The contained stage pins
+The contained qualification entry requires signed campaign approval, the enrolled
+campaign ledger and registered single-worker availability. Its protected parent
+uses `select_contained_pool_runtime` with the registered factory and makes each
+`PoolQualificationRun` from that selected
+runtime. The signed stage binding covers the fixed tasks, sealed run plans
+and original accounting custody before calibration starts. The stage pins
 `gpt-6.2-sol` at `xhigh` on the default tier for each run.
 
 Keep one private controller-enrolled campaign ledger across runs and repairs.

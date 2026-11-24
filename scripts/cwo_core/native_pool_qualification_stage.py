@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy
-from dataclasses import dataclass, replace
+from dataclasses import InitVar, dataclass, field, replace
 from datetime import datetime, timezone
 import fcntl
 from hashlib import sha256
@@ -19,6 +19,7 @@ from threading import Condition, get_ident
 from time import monotonic
 from types import FunctionType
 from typing import Any
+from weakref import WeakSet
 
 from .invocation_ledger import LEDGER_FILE, MAX_UNITS, InvocationLedger, add_failure_note, request_sha256
 from .model_identities import resolve_model
@@ -77,6 +78,8 @@ _CALIBRATION_ENTRY = "bind_protected_callback_calibration"
 CAMPAIGN_START_CAP = 20
 CAMPAIGN_BUDGET_ID = "native-pool-contained-qualification"
 CAMPAIGN_SCOPE_SHA256 = canonical_sha256({"campaign": CAMPAIGN_BUDGET_ID, "start_cap": CAMPAIGN_START_CAP})
+_CAMPAIGN_APPROVAL_TOKEN = object()
+_ISSUED_CAMPAIGN_APPROVALS = WeakSet()
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,12 +93,48 @@ class PoolQualificationRun:
     contained_selection: ContainedPoolSelection | None = None
 
 
+@dataclass(eq=False, frozen=True, slots=True, weakref_slot=True)
+class _CampaignApproval:
+    """Exact campaign authority verified and retained by the protected parent."""
+
+    stage_binding: str
+    action_sha256: str
+    expires_at: int
+    calibrations: tuple[tuple[str, str, str, str, int], ...]
+    controller_pid: int
+    parent: object = field(repr=False)
+    issuer: InitVar[object]
+
+    def __post_init__(self, issuer):
+        _require(issuer is _CAMPAIGN_APPROVAL_TOKEN, "signed-campaign-approval-required")
+        _ISSUED_CAMPAIGN_APPROVALS.add(self)
+
+    def __reduce__(self):
+        raise TypeError("Contained campaign approval cannot be copied or serialized.")
+
+
 @dataclass(frozen=True, slots=True)
 class PoolQualificationAccounting:
     """Original ledger and cutoff selected in the protected parent process."""
 
     ledger: InvocationLedger
     expires_at: int
+    _approval: _CampaignApproval | None = None
+
+
+def _original_campaign_approval(value: object) -> bool:
+    return type(value) is _CampaignApproval and value in _ISSUED_CAMPAIGN_APPROVALS
+
+
+def _require_campaign_approval(accounting: PoolQualificationAccounting) -> _CampaignApproval:
+    _require(type(accounting) is PoolQualificationAccounting and _original_campaign_approval(accounting._approval),
+             "signed-campaign-approval-required")
+    approval = accounting._approval
+    _require(type(accounting.ledger) is InvocationLedger and approval.controller_pid == os.getpid()
+             and accounting.ledger.root == contained_campaign_ledger_root()
+             and accounting.ledger.current_time() < accounting.expires_at <= approval.expires_at,
+             "signed-campaign-approval-not-current")
+    return approval
 
 
 def _ledger_root(accounting: PoolQualificationAccounting) -> Path:
@@ -721,6 +760,9 @@ class PoolQualificationRunLimits:
         return self._time_left()
 
     def _require_intent(self) -> None:
+        if self._allowance.campaign_intent is not None:
+            _require_contained_availability()
+            _require_campaign_approval(self._allowance.accounting)
         self._check_intent_custody()
         self._time_left()
 
@@ -1187,11 +1229,21 @@ def _require_campaign_budget(accounting: PoolQualificationAccounting, run_count:
                      ("reserved", "invocation-intent", "reconciliation-required")), "campaign-start-unresolved")
 
 
+def _require_campaign_enrollment(*, expires_at: int, run_count: int) -> None:
+    """Check the enrolled campaign's remaining capacity before disposable claims."""
+    root = contained_campaign_ledger_root()
+    with _campaign_custody(root):
+        _require_campaign_budget(PoolQualificationAccounting(InvocationLedger(root), expires_at), run_count)
+
+
 def _reserve_campaign_start(run: PoolQualificationRun, allowance: _StageAllowance) -> tuple[str, bytes]:
+    _require_contained_availability()
     allowance.check_custody()
+    approval = _require_campaign_approval(allowance.accounting)
     plan = run.plan
     request = {"stage_sha256": allowance.stage_sha256, "transaction_id": plan["transaction_id"],
-               "plan_sha256": plan["plan_sha256"], "scope_sha256": CAMPAIGN_SCOPE_SHA256}
+               "plan_sha256": plan["plan_sha256"], "scope_sha256": CAMPAIGN_SCOPE_SHA256,
+               "approval_action_sha256": approval.action_sha256}
     payload = json.dumps(request, sort_keys=True, separators=(",", ":")).encode("utf-8")
     digest = request_sha256(payload)
     reservation = allowance.accounting.ledger.reserve(
@@ -1471,6 +1523,7 @@ def run_contained_pool_callback_calibration(run: PoolQualificationRun, *, accoun
     binder: Callable[..., tuple], request: object) -> object:
     """Charge one independently verified, writer-held calibration on the campaign ledger."""
     _require_contained_availability()
+    approval = _require_campaign_approval(accounting)
     root = _ledger_root(accounting)
     _require(type(run) is PoolQualificationRun, "trusted-run-required")
     run = replace(run, plan=deepcopy(dict(run.plan)))
@@ -1480,6 +1533,8 @@ def run_contained_pool_callback_calibration(run: PoolQualificationRun, *, accoun
     operation, runtime_seconds, drive = binder(run, accounting, request)
     _require(type(operation) is str and len(operation) == 64 and _positive(runtime_seconds) and callable(drive),
              "registered-calibration-binding-required")
+    _require((operation, run.plan["plan_sha256"], str(run.journal_path), str(run.fixture_root),
+              accounting.expires_at) in approval.calibrations, "signed-campaign-calibration-mismatch")
     size = len(run.plan["children"])
     tasks = next((row["tasks"] for row in fixed_pool_qualification_cohorts() if row["size"] == size), None)
     _require(tasks is not None, "calibration-cohort-size-refused")
@@ -1535,6 +1590,10 @@ def _require_legacy_availability() -> None:
 def _run_stage(preparation, runs, *, approved_binding, accounting, require_active_limits, contained):
     require_route = _require_contained_availability if contained else _require_legacy_availability
     require_route()
+    if contained:
+        approval = _require_campaign_approval(accounting)
+        _require(approval.stage_binding == approved_binding and accounting.expires_at == approval.expires_at,
+                 "signed-campaign-stage-mismatch")
     accounting_root = _ledger_root(accounting)
     preparation = deepcopy(dict(preparation))
     runs = tuple(runs)

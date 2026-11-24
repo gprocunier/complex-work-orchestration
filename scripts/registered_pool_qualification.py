@@ -520,6 +520,7 @@ class _PoolWorker:
         self._result = self._archived = None
         self._start_ns = self._end_ns = None
         self._writer_done = False
+        self._writer_authorization = None
         self._widening_refused = None
 
     @property
@@ -687,8 +688,12 @@ class _PoolWorker:
             return _ISOLATION_REFUSAL
         if self.limits.isolation_target is not None:
             self.limits.wait_for_isolation_refusal()
-        output = self.containment.run_writer(pending.params["callId"],
-            authorize=lambda release: self._authorize_writer(pending, proof, release), deadline=self.limits.deadline)
+        self._writer_authorization = _PoolWriterAuthorization(self, pending, proof)
+        try:
+            output = self.containment.run_writer(pending.params["callId"],
+                authorize=self._writer_authorization, deadline=self.limits.deadline)
+        finally:
+            self._writer_authorization = None
         self.limits.ack_tool(self.child_id, self.thread_id, self.turn_id, pending.request_id)
         self._writer_done = True
         return output
@@ -831,6 +836,19 @@ class _PoolWorker:
         if self._start_ns is not None and self._end_ns is None:
             self._end_ns = monotonic_ns()
         return settled["all_contained"] and settled["resources_closed"]
+
+
+_POOL_WORKER_EFFECT = _PoolWorker.require_effect
+
+
+@dataclass(frozen=True, slots=True)
+class _PoolWriterAuthorization:
+    worker: _PoolWorker
+    pending: _PendingWriter
+    proof: object
+
+    def __call__(self, release):
+        self.worker._authorize_writer(self.pending, self.proof, release)
 
 
 class _WorkerControl:
@@ -1041,18 +1059,27 @@ class _PoolParent:
         return inputs
 
     def bind_limits(self, limits):
+        from cwo_core.native_pool_deferred_context import _ContainedPoolAdmission
         from cwo_core.native_pool_qualification_stage import PoolQualificationRunLimits
 
         _require(type(limits) is PoolQualificationRunLimits and self.limits is None, "original-stage-limits-required")
+        self._require_stage_mode(limits)
+        admission = getattr(limits, "_contained_admission", None)
+        _require(type(admission) is _ContainedPoolAdmission and admission._claimed
+                 and admission._selection.runtime.start_worker_session.__self__ is self
+                 and limits._allowance.campaign_intent is not None, "original-contained-stage-limits-required")
         self.limits = limits
         self.require_effect()
+
+    def _require_stage_mode(self, limits):
+        _require(self.calibration_only is (getattr(limits, "calibration_only", False) is True),
+                 "original-stage-mode-drift")
 
     def require_effect(self):
         native_live_availability.require_pool_qualification()
         native_live_availability.require_registered_n1_live()
         _require(self.limits is not None, "stage-limits-unbound")
-        _require(self.calibration_only is (getattr(self.limits, "calibration_only", False) is True),
-                 "original-stage-mode-drift")
+        self._require_stage_mode(self.limits)
         self.limits.remaining()
         self.limits._require_intent()
 

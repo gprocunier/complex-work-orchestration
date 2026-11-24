@@ -5,6 +5,7 @@ from pathlib import Path
 import select
 import sys
 import tempfile
+from threading import RLock
 import time
 import tomllib
 import unittest
@@ -19,6 +20,26 @@ from cwo_core import native_live_availability as availability
 
 
 class PoolConfigurationTests(unittest.TestCase):
+    @patch.object(availability, 'POOL_QUALIFICATION_AVAILABLE', True)
+    def test_open_source_still_refuses_a_raw_worker_before_private_paths(self):
+        with patch.object(containment.native, '_path', side_effect=AssertionError('private path reached')) as path:
+            with self.assertRaisesRegex(config.PoolContainmentError, 'Original retained pool worker required'):
+                containment.PoolWorkerContainment(
+                    worker_id='fixture', worktree=None, spool=None, login_slot=1, executable=None, launcher=None,
+                    validator=None, executable_sha256=None, launcher_sha256=None, validator_sha256=None,
+                    protected_roots=(), write_path='marker.txt', expected_utf8='fixture', require_effect=lambda: None,
+                )
+            path.assert_not_called()
+
+    def test_raw_writer_cannot_replace_original_retained_authorization(self):
+        worker = object.__new__(containment.PoolWorkerContainment)
+        worker._lock = RLock()
+        worker._authorize_effect = self.test_raw_writer_cannot_replace_original_retained_authorization
+        with (patch.object(worker, 'require_effect'), patch.object(worker, '_run_writer') as launch,
+              self.assertRaisesRegex(config.PoolContainmentError, 'Original retained pool writer required')):
+            worker.run_writer('fixture', authorize=lambda release: release(), deadline=time.monotonic() + 1)
+        launch.assert_not_called()
+
     def test_immutable_configuration_and_writer_registration(self):
         worker, spool = Path('/fixture/worker'), Path('/fixture/private-spool')
         raw = (b'{"models":[{"slug":"gpt-6.2-sol","tool_mode":"code_mode_only","multi_agent_version":"v2",'
@@ -116,6 +137,8 @@ assert sys.stdin.read() == ''
         self.enterContext(patch.object(availability, 'require_registered_n1_live'))
         self.enterContext(patch.object(availability, 'require_pool_qualification', create=True))
         self.enterContext(patch.object(qualification, 'require_executable_schema'))
+        self.enterContext(patch.object(containment, '_require_original_worker', side_effect=lambda effect, *_: effect()))
+        self.enterContext(patch.object(containment, '_require_original_writer'))
         qualification.initialize_campaign()
 
     def _paths(self, slot):

@@ -654,7 +654,10 @@ def prompt_preflight(prompt: str, tool_policy: Mapping[str, Any]) -> dict[str, A
 
     if not isinstance(prompt, str) or not prompt.strip():
         raise NativeToolIsolationError("prompt-preflight-input-invalid")
-    policy = normalize_tool_policy(tool_policy)
+    return _scan_prompt(prompt, normalize_tool_policy(tool_policy))
+
+
+def _scan_prompt(prompt: str, policy: Mapping[str, Any]) -> dict[str, Any]:
     findings: list[dict[str, Any]] = []
     permitted = set(policy["permitted_tools"])
     forbidden = set(policy["forbidden_tools"])

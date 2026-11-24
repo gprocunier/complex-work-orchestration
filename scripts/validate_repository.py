@@ -238,7 +238,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     },
     "native_pool_capacity": {"paths", "policy"},
     "native_pool_capacity_compat": set(),
-    "native_pool_qualification_fixtures": set(),
+    "native_pool_qualification_fixtures": {"native_tool_isolation"},
     "native_pool_schedulability": set(),
     "native_pool_contracts": {
         "native_authority",
