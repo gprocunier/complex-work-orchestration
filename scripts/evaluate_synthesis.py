@@ -50,12 +50,27 @@ def _input_file(item, key, directory):
     return directory / value
 
 
-def _recorded_evaluation(store, dispatch, receipt, evaluation, policy_sha256):
+def _evaluation_input(store, item, directory):
+    use_record = "evaluation_record_sha256" in item
+    if ("evaluation" in item) == use_record:
+        raise ValueError("each input must provide exactly one of evaluation or evaluation_record_sha256")
+    if use_record:
+        record = store.get(item["evaluation_record_sha256"], record_type="evaluation")
+        return _object(record.get("evaluation"), "recorded evaluation"), record
+    return _object(_read_json(_input_file(item, "evaluation", directory)), "evaluation"), None
+
+
+def _recorded_evaluation(store, dispatch, receipt, evaluation, policy_sha256, selected_record):
     evaluation_digest = pending_evaluation_sha256(evaluation)
-    records = store.find("evaluation", dispatch_id=dispatch["dispatch_id"],
+    binding = dict(dispatch_id=dispatch["dispatch_id"],
         return_sha256=receipt["return_sha256"], evaluation_sha256=evaluation_digest,
         dispatch_record_sha256=dispatch["_record_sha256"], return_record_sha256=receipt["_record_sha256"],
         policy_sha256=policy_sha256)
+    if selected_record is None:
+        records = store.find("evaluation", **binding)
+    else:
+        matches = all(selected_record.get(name) == value for name, value in binding.items())
+        records = [selected_record] if matches else []
     if not records:
         raise ValueError("evaluation does not match a current recorded evaluation of this return")
     if not any(isinstance(record.get("evaluation"), dict)
@@ -115,14 +130,16 @@ def _lane_input(item, evaluation, return_sha256):
 
 def _recorded_lane(store, item, directory, candidate, scope, policy_sha256):
     item = _object(item, "synthesis input")
-    evaluation = _object(_read_json(_input_file(item, "evaluation", directory)), "evaluation")
+    evaluation, selected_record = _evaluation_input(store, item, directory)
     raw = _read_bytes(_input_file(item, "return", directory))
     return_sha256 = hashlib.sha256(raw).hexdigest()
     dispatch = store.require_dispatch(evaluation.get("dispatch_id"))
     if dispatch["dispatch_role"] != "executor":
         raise ValueError("a critic return must come from a recorded executor dispatch")
     receipt = store.require_return(dispatch["dispatch_id"], return_sha256)
-    evaluation_digest = _recorded_evaluation(store, dispatch, receipt, evaluation, policy_sha256)
+    if selected_record is not None and receipt["return_sha256"] != return_sha256:
+        raise ValueError("return file does not match the exact host return receipt")
+    evaluation_digest = _recorded_evaluation(store, dispatch, receipt, evaluation, policy_sha256, selected_record)
     context = _source_context(dispatch)
     if context is not None and (context["candidate"], context["scope"]) != (candidate, scope):
         raise ValueError("recorded dispatch candidate or scope differs from the synthesis selection")
@@ -167,7 +184,8 @@ def _synthesize(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--inputs", required=True, type=Path, help="JSON list of return and evaluation file pairs.")
+    parser.add_argument("--inputs", required=True, type=Path,
+                        help="JSON list of return files paired with evaluation files or host evaluation record digests.")
     parser.add_argument("--candidate", required=True, help="Candidate or plan revision under review.")
     parser.add_argument("--scope", required=True, help="Adjudication scope for the selected candidate.")
     parser.add_argument("--adjudications", type=Path, help="JSON list of bound return adjudication records.")

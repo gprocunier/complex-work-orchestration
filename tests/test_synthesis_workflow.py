@@ -63,7 +63,7 @@ class SynthesisWorkflowTests(unittest.TestCase):
         return dict(peer_review_record=review, peer_review_status="passed", peer_review_reviewer=reviewer)
 
     def _critic(self, executor, provider_key, identity, value, *, dispatch_id=None,
-                manual=False, omit_peer_review=False, provider_conflicts=None):
+                manual=False, omit_peer_review=False, provider_conflicts=None, canonical_alias=False):
         dispatch_id = dispatch_id or executor
         provider, family, model = identity
         report = (ROOT / "examples/sample-contractor-return.md").read_text(encoding="utf-8")
@@ -85,7 +85,12 @@ class SynthesisWorkflowTests(unittest.TestCase):
                 observation_sha256="d" * 64, provider=provider, model_family=family, model_id=model,
                 reasoning_effort="high", session_id=f"{dispatch_id}-session",
                 evaluation_metadata={"source_context": context})
-            record_received_return(self.store, dispatch_id, report.encode())
+            if canonical_alias:
+                self.store.write_return_received(dispatch_id, sha256(report.encode()).hexdigest(),
+                    capture_provenance="host-capture-v1",
+                    canonical_return_sha256=sha256(report.replace("\n", "\r\n").encode()).hexdigest())
+            else:
+                record_received_return(self.store, dispatch_id, report.encode())
         evaluator_args = dict(bead_id="critic-task", dispatch_id=dispatch_id, executor=executor,
             provider_key=provider_key, dispatch_mode=mode, share_boundary="redacted-packet",
             job_description_label="contract-jd-architecture-reasoning",
@@ -121,13 +126,92 @@ class SynthesisWorkflowTests(unittest.TestCase):
                          omit_peer_review=omit_peer_review),
         )
 
-    def _synthesize(self, inputs, decisions, *, candidate=CANDIDATE):
+    def _synthesize(self, inputs, decisions, *, candidate=CANDIDATE, scope=SCOPE):
         from evaluate_synthesis import main
 
         return self._run_json("evaluate_synthesis.py", main,
             "--inputs", self._json_file("inputs.json", inputs), "--route", self.route_path,
-            "--candidate", candidate, "--scope", SCOPE,
+            "--candidate", candidate, "--scope", scope,
             "--adjudications", self._json_file("adjudications.json", decisions))
+
+    def _record_input(self, item, dispatch_id):
+        record, = self.store.find("evaluation", dispatch_id=dispatch_id)
+        entry = dict(item, evaluation_record_sha256=record["_record_sha256"])
+        del entry["evaluation"]
+        return entry
+
+    def test_host_evaluation_reference_matches_file_and_preserves_consensus(self):
+        inputs, decisions = self._panel()
+        expected = self._synthesize(inputs, decisions)
+        referenced = self._record_input(inputs[1], decisions[1]["dispatch_id"])
+        Path(inputs[1]["evaluation"]).unlink()
+        before = self.store.audit_events()
+        result = self._synthesize([inputs[0], referenced], decisions)
+        self.assertEqual(result, expected)
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(self.store.audit_events(), before)
+
+    def test_requires_exactly_one_evaluation_source_and_a_return_file(self):
+        inputs, decisions = self._panel()
+        referenced = self._record_input(inputs[0], decisions[0]["dispatch_id"])
+        return_file = {"return": referenced["return"]}
+        for entry in (return_file, dict(referenced, evaluation=inputs[0]["evaluation"])):
+            with self.subTest(entry=entry), self.assertRaisesRegex(SystemExit, "exactly one of evaluation"):
+                self._synthesize([entry, inputs[1]], decisions)
+        missing_return = dict(evaluation_record_sha256=referenced["evaluation_record_sha256"])
+        with self.assertRaisesRegex(SystemExit, "name its return file"):
+            self._synthesize([missing_return, inputs[1]], decisions)
+
+    def test_evaluation_reference_rejects_invalid_missing_and_wrong_type_digests(self):
+        inputs, decisions = self._panel()
+        dispatch_id = decisions[0]["dispatch_id"]
+        for record_id, error in (
+            (None, "requires a SHA-256 id"),
+            ("missing", "requires a SHA-256 id"),
+            ("f" * 64, "host record unavailable"),
+            (self.store.require_dispatch(dispatch_id)["_record_sha256"], "record type mismatch"),
+        ):
+            with self.subTest(record_id=record_id), self.assertRaisesRegex(SystemExit, error):
+                entry = {"return": inputs[0]["return"], "evaluation_record_sha256": record_id}
+                self._synthesize([entry, inputs[1]], decisions)
+
+    def test_reference_requires_the_selected_record_itself_to_bind_current_evidence(self):
+        inputs, decisions = self._panel()
+        dispatch_id = decisions[0]["dispatch_id"]
+        referenced = self._record_input(inputs[0], dispatch_id)
+        record = self.store.get(referenced["evaluation_record_sha256"], record_type="evaluation")
+        payload = {key: record[key] for key in (
+            "dispatch_id", "bead_id", "return_sha256", "evaluation_sha256", "evaluation", "policy_sha256",
+            "dispatch_record_sha256", "return_record_sha256",
+        )}
+        for field in ("dispatch_id", "return_sha256", "evaluation_sha256", "policy_sha256",
+                      "dispatch_record_sha256", "return_record_sha256"):
+            with self.subTest(field=field), self.assertRaisesRegex(SystemExit, "current recorded evaluation"):
+                stale_record = self.store.write_record("evaluation", **dict(payload, **{field: "f" * 64}))
+                self._synthesize([dict(referenced, evaluation_record_sha256=stale_record), inputs[1]], decisions)
+
+        different_provider = dict(payload["evaluation"], provider_key="anthropic_manual")
+        wrong_identity = self.store.write_record("evaluation", **dict(
+            payload, evaluation=different_provider, evaluation_sha256=pending_evaluation_sha256(different_provider)))
+        with self.assertRaisesRegex(SystemExit, "evaluation identity"):
+            self._synthesize([dict(referenced, evaluation_record_sha256=wrong_identity), inputs[1]], decisions)
+
+    def test_referenced_evaluation_requires_exact_bytes_and_recorded_scope(self):
+        inputs, decisions = self._panel()
+        critic, adjudication = self._critic("codex_architecture_critic", "internal_codex",
+            ("openai", "gpt", resolve_model("sol")), "3", dispatch_id="critic-with-canonical-alias",
+            canonical_alias=True)
+        referenced = self._record_input(critic, adjudication["dispatch_id"])
+        decisions = [adjudication, decisions[1]]
+        with self.assertRaisesRegex(SystemExit, "candidate or scope"):
+            self._synthesize([referenced, inputs[1]], decisions, scope="other-design")
+        path = Path(referenced["return"])
+        alias = path.read_bytes().replace(b"\n", b"\r\n")
+        path.write_bytes(alias)
+        legacy = self._synthesize([critic, inputs[1]], decisions)
+        self.assertEqual(legacy["input_provenance"][0]["return_sha256"], sha256(alias).hexdigest())
+        with self.assertRaisesRegex(SystemExit, "exact host return receipt"):
+            self._synthesize([referenced, inputs[1]], decisions)
 
     def test_two_evaluated_critics_agree(self):
         inputs, decisions = self._panel()
@@ -158,7 +242,9 @@ class SynthesisWorkflowTests(unittest.TestCase):
 
     def test_original_dispatch_still_requires_peer_review_if_evaluation_omitted_it(self):
         inputs, decisions = self._panel(manual=True, omit_peer_review=True)
-        result = self._synthesize(inputs, decisions)
+        referenced = self._record_input(inputs[1], decisions[1]["dispatch_id"])
+        result = self._synthesize([inputs[0], referenced], decisions)
+        self.assertEqual(result, self._synthesize(inputs, decisions))
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["primary_input_count"], 1)
         self.assertIn("peer-review-pending", result["held_inputs"][0]["hold_reasons"])
