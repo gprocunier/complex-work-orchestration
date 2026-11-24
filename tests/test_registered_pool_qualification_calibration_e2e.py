@@ -104,8 +104,10 @@ class SignedCalibrationPipeTests(unittest.TestCase):
         waiting = Event()
         revoked = Event()
         observed = Event()
+        refusals = []
         observe_completion = adapter._WorkerWire._observe_completion
         cancel_turn = adapter.RegisteredServerRequests.cancel_turn
+        observe_initial_polls = driver._observe_initial_polls
 
         def delayed_completion(wire, params, item):
             if wire.factory.login_slot != 1 or item.get("type") != "dynamicToolCall":
@@ -117,22 +119,34 @@ class SignedCalibrationPipeTests(unittest.TestCase):
                     item = {**item, "status": "completed"}
                 observe_completion(wire, params, item)
                 self.assertFalse(wire.factory.calibration_writer_refused())
+            except adapter.PoolQualificationAdapterError as failure:
+                refusals.append(str(failure))
+                raise
             finally:
                 observed.set()
 
+        def join_before_interrupt(controls, observer):
+            observe_initial_polls(controls, observer)
+            # Let the peer read the original refusal before the measured
+            # interrupt. Its completion is still held at the original reader.
+            self.assertTrue(waiting.wait(3), "inert peer did not complete the original refusal")
+
         def cancel_before_completion(registry, thread_id, turn_id):
+            if registry.server.factory.login_slot != 1:
+                return cancel_turn(registry, thread_id, turn_id)
+            self.assertTrue(waiting.is_set(), "original completion was not held before the interrupt")
             result = cancel_turn(registry, thread_id, turn_id)
-            if registry.server.factory.login_slot == 1:
-                self.assertTrue(waiting.wait(3), "inert peer did not complete the original refusal")
-                revoked.set()
-                self.assertTrue(observed.wait(3), "the revoked completion was not observed")
+            revoked.set()
+            self.assertTrue(observed.wait(3), "the revoked completion was not observed")
             return result
 
         with _pool_test_directory() as temporary, ExitStack() as stack:
             stack.enter_context(mock.patch.object(adapter._WorkerWire, "_observe_completion", delayed_completion))
             stack.enter_context(mock.patch.object(adapter.RegisteredServerRequests, "cancel_turn", cancel_before_completion))
+            stack.enter_context(mock.patch.object(driver, "_observe_initial_polls", join_before_interrupt))
             self._run_calibration(Path(temporary), stack, fixed_pool_qualification_cohorts()[0],
                                   expect_wire_failure=malformed)
+        self.assertEqual(refusals, ["pool-qualification-adapter-revoked-calibration-completion-drift"] if malformed else [])
 
     def _run_calibration(self, root, stack, cohort, *, expect_wire_failure=False):
         peers = []
