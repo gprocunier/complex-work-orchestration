@@ -313,6 +313,10 @@ class ClaimAdapter(Protocol):
     def for_admission_attempt(self, admission_nonce: str) -> ClaimAdapter: ...
 
 
+def _no_additional_claim_check(_actor: str, _bead_id: str) -> None:
+    """The ordinary adapter has no additional protected-host claim guard."""
+
+
 class BeadsClaimAdapter:
     """Per-issue compare-and-set claim adapter with exact-show reconciliation."""
 
@@ -324,12 +328,14 @@ class BeadsClaimAdapter:
         actor: str,
         timeout: int | None = None,
         runner: Callable[..., BdCommandResult] = run_bd_structured,
+        before_claim: Callable[[str, str], None] | None = None,
     ) -> None:
         self.directory = Path(directory).absolute()
         self.database = str(database).strip()
         self.actor = str(actor).strip()
         self.timeout = timeout
         self._runner = runner
+        self._before_claim = before_claim if before_claim is not None else _no_additional_claim_check
         if not self.directory.is_dir():
             raise NativePoolAdmissionError("claim-directory-must-exist")
         if not self.database:
@@ -368,6 +374,7 @@ class BeadsClaimAdapter:
             actor=f"{self.actor}-cwo-{actor_digest[:24]}",
             timeout=self.timeout,
             runner=self._runner,
+            before_claim=self._before_claim,
         )
 
     @staticmethod
@@ -441,6 +448,7 @@ class BeadsClaimAdapter:
             )
             return ClaimTransition(receipt=receipt, post_issue=pre)
 
+        self._before_claim(self.actor, issue_id)
         result = self._run(("update", "--claim", "--json", "--", issue_id))
         try:
             post = dict(self.show_exact(issue_id))

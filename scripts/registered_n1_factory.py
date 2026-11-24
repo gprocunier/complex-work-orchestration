@@ -710,13 +710,20 @@ class _Containment:
             qualification.require_executable_schema(factory.spec['executable'], factory.spec['executable_sha256'])
             factory.require_effect()
 
-    def launch(self, command, home, *, tool_call=None, deadline=None, tool_decision=None):
+    def _require_launch_command(self, command):
         _require_launch_selection(self.factory)
         self.factory.require_effect()
         _need((self.role == 'appserver' and command == [self.factory.spec['executable'], 'app-server', '--stdio'])
               or (self.role == 'tool' and command == ['/usr/bin/sh', '-c', self.factory.spec['command']])
               or (self.role == 'validator' and command == [self.factory.spec['validator'], '-I', '-S', '-c', _VALIDATOR]),
               "The trusted containment role has no other executable allowance.")
+
+    def _publish_pending_lifetime(self):
+        if self.role == 'tool':
+            self.factory.server.finite_input.publish_pending_lifetime(self)
+
+    def launch(self, command, home, *, tool_call=None, deadline=None, tool_decision=None):
+        self._require_launch_command(command)
         self._preflight_tool_launch(tool_call, deadline, tool_decision)
         self._preflight_qualification_schema()
         self.command = tuple(command)
@@ -749,8 +756,7 @@ class _Containment:
             birth = next(item for item in backend.births if item.receipt is self.receipt)
             self.birth = birth
             self.process = birth.child
-            if self.role == 'tool':
-                self.factory.server.finite_input.publish_pending_lifetime(self)
+            self._publish_pending_lifetime()
             for descriptor in (read_gate, write_info):
                 self._close_fd(descriptor)
             observation = self._observe(read_info)

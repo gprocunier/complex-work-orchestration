@@ -1058,11 +1058,16 @@ class SchemaAndContainmentTests(unittest.TestCase):
             # The optional parent fallback records a same-budget child attempt.
             "scripts/cwo_core/cyber_fallback.py",
             "scripts/cwo_core/local_invocation.py",
+            "scripts/cwo_core/native_pool_qualification_stage.py",
             # Experimental fake host reads persisted admission; production stays disabled.
             "scripts/offline_admitted_n1.py",
             "scripts/prepare_local_admission.py",
             "scripts/prepare_native_pool_qualification.py",
             "scripts/qualified_review_dispatch.py",
+            # The protected qualification route uses one campaign ledger for calibration and runs.
+            "scripts/registered_pool_qualification_calibration.py",
+            "scripts/registered_pool_qualification_capability.py",
+            "scripts/run_native_pool_qualification.py",
         ])
         self.assertEqual(self.importers_of("local_invocation"), [
             "scripts/dispatch_work.py", "scripts/qualified_review_dispatch.py",

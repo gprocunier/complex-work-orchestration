@@ -92,6 +92,17 @@ class OfflinePoolQualificationTests(unittest.TestCase):
                 self.assertEqual(completed.stdout, "")
         self.assertEqual(list(self.scratch.iterdir()), [])
 
+    def test_failure_isolation_preparation_keeps_both_positive_cohorts(self):
+        normal = self.plan()
+        completed = self.cli(*ARGS, "--failure-isolation")
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        approved = json.loads(completed.stdout)
+        self.assertIs(approved.pop("failure_isolation"), True)
+        self.assertEqual(approved, normal)
+        incomplete = self.cli(ARGS[0], "1", *ARGS[2:], "--failure-isolation")
+        self.assertEqual(incomplete.returncode, 2, incomplete.stdout)
+        self.assertIn("at least two runs per cohort", incomplete.stderr)
+
     def git(self, *args, cwd):
         return subprocess.run(
             ["git", "-c", "core.hooksPath=" + os.devnull, *args], cwd=cwd,

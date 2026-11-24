@@ -34,7 +34,7 @@ def _positive_units(raw: str) -> int:
     return value
 
 
-def _prepare(runs_per_cohort: int, per_run: dict[str, int]) -> dict:
+def _prepare(runs_per_cohort: int, per_run: dict[str, int], *, failure_isolation: bool = False) -> dict:
     cohorts = fixed_pool_qualification_cohorts()
     stage_ceiling = {key: len(cohorts) * runs_per_cohort * cap for key, cap in per_run.items()}
     if max(stage_ceiling.values()) > MAX_UNITS:
@@ -43,7 +43,7 @@ def _prepare(runs_per_cohort: int, per_run: dict[str, int]) -> dict:
         raise ValueError("each run needs room for at least three sessions and three tool calls")
 
     selection = selected_target()["selection"]
-    return {
+    preparation = {
         "mode": "prepare-only",
         "dispatch_authorized": False,
         "model_calls": 0,
@@ -64,6 +64,11 @@ def _prepare(runs_per_cohort: int, per_run: dict[str, int]) -> dict:
                             "Confidential workloads unsupported"],
         },
     }
+    if failure_isolation:
+        if runs_per_cohort < 2:
+            raise ValueError("failure isolation requires at least two runs per cohort")
+        preparation["failure_isolation"] = True
+    return preparation
 
 
 def _fixture_root(path: Path) -> Path:
@@ -152,10 +157,12 @@ def main(argv: list[str] | None = None) -> int:
         parser.add_argument("--max-" + key.replace("_", "-"), required=True,
                             dest=key, type=_positive_units, help=f"per-run cap on {key.replace('_', ' ')}")
     parser.add_argument("--fixture-root", type=Path, help="new directory for local synthetic Git fixtures")
+    parser.add_argument("--failure-isolation", action="store_true",
+                        help="reserve the final N=3 run for a benign refusal of worker-1's registered write")
     args = vars(parser.parse_args(argv))
     limits = {key: args[key] for key in LIMITS}
     try:
-        plan = _prepare(args["runs_per_cohort"], limits)
+        plan = _prepare(args["runs_per_cohort"], limits, failure_isolation=args["failure_isolation"])
         if args["fixture_root"] is not None:
             _materialize_fixtures(args["fixture_root"], plan)
     except (OSError, ValueError) as exc:

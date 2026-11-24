@@ -310,7 +310,8 @@
     "tests/test_registered_outbound_screen.py": 420,
     "tests/fixtures/outbound_screening/seed-corpus.json": 420,
     "tests/test_finite_fixture_progress_acknowledgment.py": 420,
-    "tests/test_registered_startup_publication.py": 420
+    "tests/test_registered_startup_publication.py": 420,
+    "scripts/cwo_core/native_pool_deferred_context.py": 420
   },
   "files": {
     "policy/acceptance-policy.yaml": "783bd8ec8440ca3d12a1efa0b01542c110171eccf25794839a2686f78d75d998",
@@ -322,7 +323,7 @@
     "policy/expert-registry.yaml": "91161757dfda43cd2fef0218a58f6f28e54a1dc014b4890ebc08f65af58849e5",
     "policy/harness-registry.yaml": "c6f55fdb4d97d39e522c2aedf7c362c446c4f152eca796b669f42e011674da2c",
     "policy/install-projection.yaml": "d17b014bffa51e2bd74465d0d5c91826f1b2f93eaa5633119ea5cca0d08d0cbe",
-    "policy/model-identity-scope.yaml": "1a5b6c92fee0924d44648064955a4875fbfaf87985b91cec00b13c65026d09fa",
+    "policy/model-identity-scope.yaml": "3d32923f6758e9be948065dab17ed0d1f8ade9afd39ff161ff8db9c9b9fc07af",
     "policy/model-profiles.yaml": "3c7f592fbfb15e5cbafd6f50f7dd008116df1cbad60ea1b9c2a2e0f644f7d44f",
     "policy/native-worker-execution.yaml": "6c2b9882e0ab7a70e611467db923771aab8bad4d7e0b7921f761cc4cc96ded51",
     "policy/outbound-screening.yaml": "94566e213284364be699123d155bb2a2d79d452482e4929f518b296ec31b5e33",
@@ -368,7 +369,7 @@
     "scripts/check_installed_skill.py": "a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",
     "scripts/cleanup_stale_agents.py": "923e38988513324f5b5b69961816d49d5f0968b24b124ea5cf8d06f5704afc98",
     "scripts/codex_tool_surface.py": "36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",
-    "scripts/cwo_core/__init__.py": "5a9b772e47a9100ca575fce1cc58cb163f662f848d47f0b4e64b4e9371f58d07",
+    "scripts/cwo_core/__init__.py": "52a82ee23c469978c1b511d51e3e82c57f49f07beb8aeb208d4a1d67218a8478",
     "scripts/cwo_core/access_profiles.py": "da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",
     "scripts/cwo_core/adjudication.py": "fa1661792c179819faf2a03382836326f04af919f8f95ebff6b9c70b2a18100d",
     "scripts/cwo_core/adjudication_binding.py": "187c16651357d8103bc018a5c521a8500a2ab77dbba598093f8002b057343fc3",
@@ -417,21 +418,21 @@
     "scripts/cwo_core/native_control.py": "292a6292ddc1e2c26c1c8c1ce1ec5075467a07c51a2e4463c50922b3c4859c95",
     "scripts/cwo_core/native_disposition.py": "e9d23c2d5afb74cec11e74a52e327867ac65ac6ddce9d33af82e87219782a012",
     "scripts/cwo_core/native_live_allocation_ledger.py": "503c274ff75ab385878d8663eb243e7e7c1d3c51d32555a9cf3bed0e4a39bef0",
-    "scripts/cwo_core/native_live_availability.py": "706fe69a236299bf56c807c5a1f3104a7a4be2394fab4f11f286e2656fb45841",
+    "scripts/cwo_core/native_live_availability.py": "ac0b586353fc7cb7a564dd2c5d2a61b43a4b681263cd3204c2118ebde2bf8147",
     "scripts/cwo_core/native_live_campaign_contracts.py": "8f168387bc992e9d92aad0b24966ad5325f7c800d14ed4472efa316fb437e3d8",
     "scripts/cwo_core/native_pool.py": "a607f7ecb169ee0f0fdc440f854ab732836f852743482f05cb54cb222db48fc3",
-    "scripts/cwo_core/native_pool_admission.py": "3466da5cc42624199518f18bbcf0fd839db5307f511a2ac554090251f0b4bcac",
-    "scripts/cwo_core/native_pool_admitted.py": "ecc33a44fe24ef8b82300f30ef4d4149bbc64664797e3042b472a39c4d144952",
+    "scripts/cwo_core/native_pool_admission.py": "f4f29487bcd26ecda0cf4cd361db5d3b78ad72880b003b5b19b9e1386d189cce",
+    "scripts/cwo_core/native_pool_admitted.py": "4351cd67d57db3f9f3d7ed0df457a0b93d305287d6d297291981234097b8e61d",
     "scripts/cwo_core/native_pool_capacity.py": "ba981b5f7c4b9653c72b697dbe58c81fe76120267d518c0f1944908599fb39d2",
     "scripts/cwo_core/native_pool_capacity_compat.py": "7a2a7287deede1fc035f47ce6d863d90f392bb167962a1da2960cc48d48fa5be",
-    "scripts/cwo_core/native_pool_config.py": "a6a498b3beb95552e11bc4af834ce0b467210d7ddcae315618ae568b44374d14",
-    "scripts/cwo_core/native_pool_contracts.py": "e26d46dff8c53c1b2958c3580665674537190411b68ec9efe6dd40ea47ade512",
-    "scripts/cwo_core/native_pool_leases.py": "4827e94d1dc892392e7cea24e8fd26572c74a2989854c2274ced29f2d1c2c8eb",
-    "scripts/cwo_core/native_pool_preflight.py": "d16c3d26374e7ffb972d6aa7a3d31a6972bb1b0539e8d9c10795c784f5d3720e",
+    "scripts/cwo_core/native_pool_config.py": "35450f469b68e4650e228954376a8d6b9f81dd3a748812de8c79e2bfea5228fd",
+    "scripts/cwo_core/native_pool_contracts.py": "1e0b99c7b5fb79546d31721b2cc826b4664959c8f65a667162778c6c2bda167e",
+    "scripts/cwo_core/native_pool_leases.py": "050699e622afe1ab4280038d2d1633ef9d15afcf3d3eb5dcc7e2528c8d71e6e8",
+    "scripts/cwo_core/native_pool_preflight.py": "4f880c11f49ea2d818264302698f57c8e1a3d91f1753eb0b1cef6a22e2703057",
     "scripts/cwo_core/native_pool_proportionality.py": "3035ce06ccb508a38bf4b912b6cf337c1b988b20a8e385889ef061501c6dbda6",
     "scripts/cwo_core/native_pool_schedulability.py": "fe801c2e7351a1b8812eb500064b4ed9b2650efaa974450662b66f7183f82894",
     "scripts/cwo_core/native_pool_scheduler.py": "41f049d4bbe22d497f18123ee51dc096fbe5be1a4c0f6ce24f8d1ecb90786a1b",
-    "scripts/cwo_core/native_pool_transaction.py": "d70e391d8d536dc72a96e6b5c5f6f4e865a65c05b6dfc81fca0e46d1ca51ad44",
+    "scripts/cwo_core/native_pool_transaction.py": "182381ae5f7165c3ca29e732f1ab9dadac490a4c76a0c5cdd99613160fa16625",
     "scripts/cwo_core/native_pool_workspace.py": "be4fbae62193ed510cccf9ffb2325f56048a94584579114f175d3cec02a07244",
     "scripts/cwo_core/native_precommit.py": "1cb1eebd157dcb0135e34112541ab8df3839c92c00d75786cb358d29bb192887",
     "scripts/cwo_core/native_recovery_authority.py": "040ba0acc5bc91ace93742c8b681c320a8d3bc4c108d4c4d1d4808446a7c4a40",
@@ -443,7 +444,7 @@
     "scripts/cwo_core/native_session_boundary.py": "a2b78248f56e695d5de21acf4af851de4bb3e860f4c9331935de2c0676659cd2",
     "scripts/cwo_core/native_stop_scope.py": "564be5a7f1868f55ddf3adaf79fd209b13cbbfff2a85fa26640a2d4e92f2e886",
     "scripts/cwo_core/native_tool_activation.py": "eea6942730c6d53b1e095a746ebb5c836e9124b73bb340f5c99fff66f9b9cd00",
-    "scripts/cwo_core/native_tool_isolation.py": "a955dc1717cbc1a333640f3bb06c85582057be2337f585dd13e6d7cd4cbfdf72",
+    "scripts/cwo_core/native_tool_isolation.py": "7cc24bffac8a0fd1aa4247daf9d33b6d04091c1746d55dda9e5d91dd4013e629",
     "scripts/cwo_core/native_turn_dispatch.py": "9a8ecaacd04876a1378fb7b544619c1e69fcf67c4f012eb92ef7f6468408e1bb",
     "scripts/cwo_core/native_worker_contracts.py": "3162aa1846bcd951b14b645754cf9e696b774e5b795cf37fef5e4d7840bdb7a5",
     "scripts/cwo_core/operative_routing.py": "60365ec405738ebf8c59a59deadc442c0817762f38102cc5e7b39d88d5b1bc2c",
@@ -528,8 +529,8 @@
     "scripts/registered_finite_input.py": "fc91cad44ce60b5633a399ee9b610689690154a15ba41cc0a5a95ba0e95db9cd",
     "scripts/registered_finite_tool_calls.py": "b66d74039e63f7727bf0c4dbc2dd329d03aa4a15c954c55463bfa078c2511be8",
     "scripts/registered_host_root_boundary.py": "615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",
-    "scripts/registered_n1_factory.py": "7aa3a0d3075b1685f9f46f073866327cd3a81c0ab50487e8c4621b9d3cf60579",
-    "scripts/registered_n1_qualification.py": "bb1c6df2bcacc3d16bbc7bf5d1c966a9c9b491a7c212849b925f6cecc84db80f",
+    "scripts/registered_n1_factory.py": "6b8e58e0a02b7f83bb6d988bb23724b691b3e49bbf1afd2a3b8265ebf2f2d004",
+    "scripts/registered_n1_qualification.py": "bd10b696b7572fba4090fe3db4cf56885c11541a715ab1f2783ec8a2bbea247c",
     "scripts/registered_n1_workflow.py": "ecd1314fb82a6b59d23d26fb9e04eef9ef851cddaa4b274871722aa1f500d10c",
     "scripts/registered_native_pool_client.py": "cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",
     "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
@@ -556,7 +557,7 @@
     "tests/test_affected_contract_compatibility.py": "428b92616f702ee4c09cf43f3e05d0dab55d502ac464c2a41272497a230a44a5",
     "tests/test_beads_ready_set.py": "f0d40bac7c5596fbef8e9d2739b0823eb3df1abd1b10fe8a5bca183d2983a8cc",
     "tests/test_codex_tool_surface.py": "162b77a5b7c7885422b5ebeb0e0f0807e22304e2ef6bd5a365c8137e5cd1fb07",
-    "tests/test_invocation_ledger.py": "0be1a9dd457d311ff6ea08fc1c1660ad5e6dce492536733a19c0ce325c76370f",
+    "tests/test_invocation_ledger.py": "198adf7e4efb7ae9673ebf5c3c536cf84a42a072d783ee2c86c8dc12b29e2945",
     "tests/test_linux_owned_children.py": "95c50998fb7e5cbc961ca6c7bbc53af6b703d5dfc39fff9df9106722db2b9e92",
     "tests/test_local_admission_preparation.py": "e57e952c8e0f908b535e18971f0dbefc7606648f2b87c910bbd47e9290547551",
     "tests/test_maintenance_authority.py": "aa834050333ec749804ce51dc2cf51b343ae4cfb6348d95a02a98995c870641d",
@@ -606,7 +607,8 @@
     "tests/test_registered_outbound_screen.py": "de9f7f9b071365afef9236a20fbeef321d55cbdf941a4c3673646612a7b5949c",
     "tests/fixtures/outbound_screening/seed-corpus.json": "7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",
     "tests/test_finite_fixture_progress_acknowledgment.py": "966f50fde466583060fcb0dce898c6bd7e479efba639f551bcc2e2f3444637d2",
-    "tests/test_registered_startup_publication.py": "7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7"
+    "tests/test_registered_startup_publication.py": "7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",
+    "scripts/cwo_core/native_pool_deferred_context.py": "f653d3f9a1ce01957fc8b4b3ad3745b4f4a776f54be0eefa2a68e1af52bf42ad"
   },
   "historical_files": {
     "238ddfb22c52f5e753bc5b24ba1e24b30df7b347": {
@@ -1108,9 +1110,11 @@
       "scripts/cwo_core/native_pool_admission.py",
       "scripts/cwo_core/native_pool_capacity.py",
       "scripts/cwo_core/native_pool_contracts.py",
+      "scripts/cwo_core/native_pool_deferred_context.py",
       "scripts/cwo_core/native_pool_leases.py",
       "scripts/cwo_core/native_pool_preflight.py",
-      "scripts/cwo_core/native_tool_activation.py"
+      "scripts/cwo_core/native_tool_activation.py",
+      "scripts/cwo_core/native_tool_isolation.py"
     ],
     "scripts/cwo_core/native_pool_capacity.py": [
       "scripts/cwo_core/__init__.py",
@@ -1174,8 +1178,11 @@
     "scripts/cwo_core/native_pool_transaction.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/maintenance_authority.py",
+      "scripts/cwo_core/native_live_availability.py",
       "scripts/cwo_core/native_pool_admitted.py",
       "scripts/cwo_core/native_pool_contracts.py",
+      "scripts/cwo_core/native_pool_deferred_context.py",
+      "scripts/cwo_core/policy_schema.py",
       "scripts/cwo_core/util.py"
     ],
     "scripts/cwo_core/native_pool_workspace.py": [
@@ -2341,6 +2348,11 @@
     "tests/test_registered_controlled_output_schedule.py": [
       "tests/test_registered_finite_input.py",
       "tests/test_registered_n1_factory.py"
+    ],
+    "scripts/cwo_core/native_pool_deferred_context.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/native_pool_contracts.py",
+      "scripts/cwo_core/native_tool_isolation.py"
     ]
   },
   "portable_contract_evidence": {

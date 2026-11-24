@@ -22,6 +22,9 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .native_pool_admitted import run_admitted_native_pool
 from .native_pool_contracts import canonical_sha256
+from .native_live_availability import require_pool_qualification, require_registered_n1_live
+from .native_pool_deferred_context import ProvisionalWorkerStartup, _ContainedPoolAdmission, _require
+from .policy_schema import json_equal
 from .util import atomic_write_text
 
 
@@ -1098,7 +1101,7 @@ class TransactionRuntime:
         Mapping[str, Any],
     ]
     start_worker_session: Callable[
-        [Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any]
+        [Mapping[str, Any], Mapping[str, Any]], Mapping[str, Any] | ProvisionalWorkerStartup
     ]
     bind_admitted_launch: Callable[
         [Mapping[str, Any], Sequence[Mapping[str, Any]], Mapping[str, Any]],
@@ -1308,11 +1311,12 @@ def _launch_session(
     allocation_class: str,
     ordinal: int,
     child: Mapping[str, Any] | None,
-    starter: Callable[..., Mapping[str, Any]],
+    starter: Callable[..., Mapping[str, Any] | ProvisionalWorkerStartup],
     context: Mapping[str, Any],
     start_attempts: list[dict[str, Any]],
     now_utc: Callable[[], dt.datetime],
     before_first_start: Callable[[Mapping[str, Any]], str] | None = None,
+    contained_admission: _ContainedPoolAdmission | None = None,
 ) -> dict[str, Any]:
     allocation_id = canonical_sha256(
         {
@@ -1367,12 +1371,8 @@ def _launch_session(
         raise NativePoolInfrastructureError(
             f"allocation-acknowledgement-lost:{allocation_id}:{type(exc).__name__}"
         ) from exc
-    allocation = _validate_allocation(
-        raw,
-        plan=plan,
-        allocation_class=allocation_class,
-        child=child,
-    )
+    allocation, event_type = _checked_worker_allocation(raw, plan, allocation_class, child, allocation_id,
+                                                       contained_admission, journal)
     if allocation["allocation_id"] != allocation_id:
         raise NativePoolInfrastructureError("runtime-allocation-id-mismatch")
     start_attempts[-1] = allocation
@@ -1388,7 +1388,7 @@ def _launch_session(
             now=now_utc(),
         )
     journal.append(
-        event_type="allocation-bound",
+        event_type=event_type,
         state=journal.current_state or "RESERVED",
         details={
             "allocation_id": allocation_id,
@@ -1401,6 +1401,69 @@ def _launch_session(
         now=now_utc(),
     )
     return allocation
+
+
+def _allocation_intent(plan: Mapping[str, Any], journal: TransactionJournal,
+                       child_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+    _require(type(journal) is TransactionJournal and journal.transaction_id == plan["transaction_id"],
+             "allocation-journal-mismatch")
+    events = journal.read()
+    _require(bool(events) and events[0]["event_type"] == "static-readiness-accepted"
+             and events[0]["details"].get("plan_sha256") == plan["plan_sha256"], "allocation-journal-plan-mismatch")
+    head = events[-1]
+    _require(head["state"] == "ALLOCATING" and head["event_type"] == "allocation-intent", "allocation-intent-not-current")
+    match = next(((ordinal, child) for ordinal, child in enumerate(plan["children"])
+                  if child["child_id"] == child_id), None)
+    _require(match is not None, "allocation-child-unapproved")
+    ordinal, child = match
+    scope = {"allocation_class": "worker", "child_id": child_id, "ordinal": ordinal}
+    allocation_id = canonical_sha256({"transaction_id": plan["transaction_id"], **scope})
+    expected = {**scope, "allocation_id": allocation_id, "requested_model": plan["selected_model"]}
+    _require(json_equal(head["details"], expected), "allocation-intent-mismatch")
+    return child, head
+
+
+def _checked_worker_allocation(raw, plan, allocation_class, child, allocation_id, contained, journal):
+    if contained is None or allocation_class != "worker":
+        return _validate_allocation(raw, plan=plan, allocation_class=allocation_class, child=child), "allocation-bound"
+    _, intent = _allocation_intent(plan, journal, child["child_id"])
+    return contained.retain(raw, child, allocation_id, intent["event_sha256"]), "allocation-provisional"
+
+
+def _require_contained_context(contained, plan, journal_path, runtime, run_pool):
+    if contained is None:
+        return
+    require_pool_qualification()
+    require_registered_n1_live()
+    if type(contained) is not _ContainedPoolAdmission or run_pool is not run_admitted_native_pool:
+        raise NativePoolProtectedError("transaction-contained-admission-authority-missing")
+    _require(plan["version"] == PLAN_VERSION and plan["prelude_session_count"] == 0,
+             "contained-transaction-binding-mismatch")
+    contained.require_transaction(plan, journal_path, runtime)
+
+
+def _require_contained_launch(contained, launch):
+    if contained is not None:
+        options = launch.keyword_arguments
+        contained.require_launch(options.get("capability_receipt"), (
+            launch.reservation_receipt, launch.admission_capability, launch.contract, launch.preflight_request,
+            launch.preflight_result, launch.child_contracts, launch.task_inputs, launch.child_callbacks,
+            options.get("capability_receipt"), options.get("claim_adapter"), options.get("lease_registry"),
+        ))
+
+
+def _dispatch_arguments(launch: AdmittedPoolLaunch, contained) -> dict[str, Any]:
+    options = dict(launch.keyword_arguments)
+    if "_contained_admission" in options:
+        raise NativePoolProtectedError("transaction-dispatch-admission-must-be-stage-issued")
+    if contained is not None:
+        options["_contained_admission"] = contained
+    return options
+
+
+def _require_contained_resolution(contained, accepted):
+    if contained is not None and accepted:
+        contained.require_resolved()
 
 
 def _validate_launch_bindings(
@@ -1471,6 +1534,79 @@ def _split_release_artifacts(value: Any) -> tuple[list[dict[str, Any]], list[dic
     return [dict(item) for item in bindings], [dict(item) for item in dependencies]
 
 
+def _binding_readiness(plan, runtime, context, readiness, clock, baseline_session_count, started):
+    binding_horizon_errors = readiness_horizon_errors(
+        readiness,
+        plan,
+        now=clock(),
+        remaining_allocations=0,
+    )
+    if binding_horizon_errors:
+        packet_bindings, refreshed = _split_release_artifacts(
+            runtime.refresh_release_artifacts(plan, context, readiness)
+        )
+        _assert_trusted_session_count(
+            runtime,
+            baseline=baseline_session_count,
+            attempts=started,
+            phase="release-refresh",
+        )
+        bead_records = {
+            item["bead_id"]: runtime.read_bead(item["bead_id"])
+            for item in plan["children"]
+        }
+        readiness = build_readiness_record(
+            plan,
+            bead_records,
+            packet_bindings,
+            refreshed,
+            now=clock(),
+            parent_readiness_sha256=readiness["readiness_sha256"],
+        )
+        binding_horizon_errors = readiness_horizon_errors(
+            readiness,
+            plan,
+            now=clock(),
+            remaining_allocations=0,
+        )
+    if binding_horizon_errors:
+        raise NativePoolTransactionError(
+            "transaction-binding-release-horizon-invalid:"
+            + ";".join(binding_horizon_errors)
+        )
+    return readiness
+
+
+def _calibration_selected(admission: _ContainedPoolAdmission | None) -> bool:
+    return admission is not None and admission._calibration is not None
+
+
+def _run_calibration_transaction(plan, runtime, context, readiness, journal, state, clock,
+                                 baseline, started, allocations, admission):
+    def require_release_horizon():
+        errors = readiness_horizon_errors(readiness, plan, now=clock(), remaining_allocations=0,
+                                          include_binding_and_admission=False)
+        if errors:
+            raise NativePoolTransactionError("transaction-calibration-release-horizon-invalid:" + ";".join(errors))
+
+    journal.append(event_type="qualification-calibration-controls-armed", state=state, details={
+        "calibration_operation_sha256": admission._calibration.operation_sha256,
+        "worker_session_bindings_sha256": canonical_sha256(allocations),
+        "readiness_sha256": readiness["readiness_sha256"],
+    }, now=clock())
+    operation = admission.run_calibration(plan, allocations, context, require_release_horizon)
+    _assert_trusted_session_count(runtime, baseline=baseline, attempts=started, phase="calibration")
+    state = _transition(journal, state, "CONTAINED", event_type="qualification-calibration-observed", details={
+        "calibration_operation_sha256": operation,
+        "accepted": False,
+    }, now=clock())
+    return {
+        "transaction_id": plan["transaction_id"], "plan_sha256": plan["plan_sha256"],
+        "readiness_sha256": readiness["readiness_sha256"], "state": state, "accepted": False,
+        "calibration_operation_sha256": operation, "journal_last_event_sha256": journal.read()[-1]["event_sha256"],
+    }
+
+
 def execute_native_pool_transaction(
     plan: Mapping[str, Any],
     runtime: TransactionRuntime,
@@ -1478,6 +1614,7 @@ def execute_native_pool_transaction(
     journal_path: str | Path,
     now_utc: Callable[[], dt.datetime] | None = None,
     run_pool: Callable[..., Mapping[str, Any]] = run_admitted_native_pool,
+    contained_admission: _ContainedPoolAdmission | None = None,
 ) -> dict[str, Any]:
     """Execute one bounded, effect-atomic admitted-pool transaction."""
 
@@ -1487,6 +1624,7 @@ def execute_native_pool_transaction(
     if type(runtime) is not TransactionRuntime:
         raise NativePoolTransactionError("transaction-runtime-type-invalid")
     require_recovery_authority(plan, runtime)
+    _require_contained_context(contained_admission, plan, journal_path, runtime, run_pool)
     clock = now_utc or (lambda: dt.datetime.now(dt.timezone.utc))
     journal = TransactionJournal(journal_path, str(plan["transaction_id"]))
     if journal.read():
@@ -1769,6 +1907,7 @@ def execute_native_pool_transaction(
                 context=context,
                 start_attempts=started,
                 now_utc=clock,
+                contained_admission=contained_admission,
             )
             worker_allocations.append(allocation)
             _assert_trusted_session_count(
@@ -1778,47 +1917,13 @@ def execute_native_pool_transaction(
                 phase="worker",
             )
 
-        binding_horizon_errors = readiness_horizon_errors(
-            readiness,
-            plan,
-            now=clock(),
-            remaining_allocations=0,
-        )
-        if binding_horizon_errors:
-            packet_bindings, refreshed = _split_release_artifacts(
-                runtime.refresh_release_artifacts(plan, context, readiness)
-            )
-            _assert_trusted_session_count(
-                runtime,
-                baseline=baseline_session_count,
-                attempts=started,
-                phase="release-refresh",
-            )
-            bead_records = {
-                item["bead_id"]: runtime.read_bead(item["bead_id"])
-                for item in plan["children"]
-            }
-            readiness = build_readiness_record(
-                plan,
-                bead_records,
-                packet_bindings,
-                refreshed,
-                now=clock(),
-                parent_readiness_sha256=readiness["readiness_sha256"],
-            )
-            binding_horizon_errors = readiness_horizon_errors(
-                readiness,
-                plan,
-                now=clock(),
-                remaining_allocations=0,
-            )
-        if binding_horizon_errors:
-            raise NativePoolTransactionError(
-                "transaction-binding-release-horizon-invalid:"
-                + ";".join(binding_horizon_errors)
-            )
+        readiness = _binding_readiness(plan, runtime, context, readiness, clock, baseline_session_count, started)
+        if _calibration_selected(contained_admission):
+            return _run_calibration_transaction(plan, runtime, context, readiness, journal, state, clock,
+                                                baseline_session_count, started, worker_allocations, contained_admission)
         launch = runtime.bind_admitted_launch(plan, worker_allocations, context)
         _validate_launch_bindings(plan, worker_allocations, launch)
+        _require_contained_launch(contained_admission, launch)
         _assert_trusted_session_count(
             runtime,
             baseline=baseline_session_count,
@@ -1868,7 +1973,7 @@ def execute_native_pool_transaction(
             launch.child_contracts,
             launch.task_inputs,
             launch.child_callbacks,
-            **dict(launch.keyword_arguments),
+            **_dispatch_arguments(launch, contained_admission),
         )
         _assert_trusted_session_count(
             runtime,
@@ -1910,6 +2015,7 @@ def execute_native_pool_transaction(
                     "transaction-final-bead-projection-drift:" + bead_id
                 )
         accepted = validation.get("accepted") is True
+        _require_contained_resolution(contained_admission, accepted)
         target = "ACCEPTED" if accepted else "CONTAINED"
         state = _transition(
             journal,

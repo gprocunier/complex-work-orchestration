@@ -27,7 +27,7 @@ from .native_pool_schedulability import (
     scheduling_budget_proof,
     validate_slack_warning_fraction,
 )
-from .native_tool_isolation import validate_tool_policy
+from .native_tool_isolation import _contained_pool_child_errors, validate_tool_policy
 from .native_stop_scope import STOP_METADATA_FIELDS, validate_stop_metadata
 from .native_recovery_authority import (
     validate_fixed_cohort_consumption_projection,
@@ -1379,6 +1379,7 @@ def validate_pool_contract(
                     prefix=f"child[{index}]-tool-policy",
                 )
             )
+            errors.extend(_contained_pool_child_errors(child, "contract", f"child[{index}]"))
             child_tool_policy = child.get("tool_policy")
             if (
                 isolation == "read-only-shared"

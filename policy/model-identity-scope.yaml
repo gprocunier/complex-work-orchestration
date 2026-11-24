@@ -253,6 +253,13 @@
       "reason": "Fixed run-local model for the signed, capped native single-worker host qualification."
     },
     {
+      "path": "scripts/cwo_core/native_pool_deferred_context.py",
+      "literal": "gpt-6.2-sol",
+      "count": 1,
+      "class": "qualification-pin",
+      "reason": "Fixed run-local model for the protected, capped native pool qualification."
+    },
+    {
       "path": "scripts/validate_repository.py",
       "literal": "gpt-5.5",
       "count": 1,

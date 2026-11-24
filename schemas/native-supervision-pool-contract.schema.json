@@ -447,6 +447,17 @@
     "tool_policy": {
       "oneOf": [
         {
+          "description": "Fixed contained qualification policy requiring protected runtime admission.",
+          "const": {
+            "version": 1,
+            "permitted_tools": ["cwo_finite.finite_command"],
+            "forbidden_tools": ["apply_patch", "exec_command", "followup_task", "request_user_input", "send_message", "spawn_agent", "web_search", "write_stdin"],
+            "enforcement_mode": "trusted-detect-and-contain",
+            "workload_class": "safety-canary",
+            "override_provenance": null
+          }
+        },
+        {
           "type": "object",
           "additionalProperties": false,
           "required": [
