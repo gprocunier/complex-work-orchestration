@@ -524,7 +524,8 @@ class RegisteredN1Workflow:
 
     def run(self, *, controlled_failure=False, provider_access_token=None):
         """Original admitted native path; retained durable intent prevents redispatch."""
-        production = self._production_selected()
+        production = (type(self.__dict__.get('config')) is ControllerConfiguration
+                      and self._production_selected())
         if production:
             R.live_availability.require_registered_n1_live()
         else:

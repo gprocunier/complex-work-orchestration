@@ -744,7 +744,7 @@
 
 "p166":[73,"main",1554,"fa4f0b1ae6e708db4fc3e79cbda81750537da401ef4d2195fcc9e23c1cf1bb9b"],
 
-"p167":[65,531,"R.live_availability.require_n1_live()"],
+"p167":[65,532,"R.live_availability.require_n1_live()"],
 
 "p168":[67,403,{"$":35}],
 
@@ -2862,7 +2862,7 @@
 
 "pc9":[130,"ReleaseEffectRoutesTests._git_pair",1421,"9ea51b3dd775b09c05711df0fc22507e51ad2470e896207c95ab8744467f27a5"],
 
-"pca":[65,"RegisteredN1Workflow.run",525,"060ba00d1fc2bc3e951a2d60d4662a6e9a3a2ffb3232c944a17083da1eeb9905"],
+"pca":[65,"RegisteredN1Workflow.run",525,"efd89f97cfd2375ca8fe94f6a9ae932bc4398f414b8de5aeab99217e115995e9"],
 
 "pcb":[139,"TrustedGitTests.test_only_fixed_trustworthy_paths_are_used",1148,"2946ac6f272afaed87623cacefadaff01adf3d7fa950ed2d38855913bf6fdc60"],
 
@@ -6912,7 +6912,7 @@
 
 "scripts/registered_n1_qualification.py":["bb1c6df2bcacc3d16bbc7bf5d1c966a9c9b491a7c212849b925f6cecc84db80f",420,20222],
 
-"scripts/registered_n1_workflow.py":["ac76a845057176d4aa7cf4ba0e4fb658b7a827eb3815161d4c0f539561b80887",420,36991],
+"scripts/registered_n1_workflow.py":["ecd1314fb82a6b59d23d26fb9e04eef9ef851cddaa4b274871722aa1f500d10c",420,37080],
 
 "scripts/registered_native_pool_client.py":["cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",420,2228],
 
@@ -7000,7 +7000,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["6bd0ee473f4ddc966735682838fc431b0d2cc3303475a0e831c83117c43d69b4",420,133470],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["06aae8199e311faba3b1764b756bf51a6f7c87a091c1b98fbe048a862e6eae04",420,133470],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
