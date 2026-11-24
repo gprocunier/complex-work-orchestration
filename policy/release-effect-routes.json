@@ -214,7 +214,7 @@
 
 "M44":{"conclusion":"Original adopted single-product workflow and its source switch select registered production with a configured file login.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Original host, signers and controller configuration are trusted. Publication needs separate adoption. Raw, pool, campaign and activation holds remain. Offline fixtures grant no production provider or qualification journal credit. Finite workers receive no credentials.","reason":"Check exact signed OpenAI route/model/effort, one worker/session, original evidence and provider-only consent. Require private configured login apart from primary and qualification homes and refuse attachments before claims or intent. Acquire separate durable per-login interlock before mount. Uncertain cleanup retains it. Recheck adoption, durable intent and owned receiver before effects. One checked thread/start and turn/start use signed data and default tier.","review_evidence":{"$":7},"source":["p52A","p52B","p52C","p52D","p52E","p52F","p52G","p55C","p55T","p55L"]},
 
-"MContainedHost":{"conclusion":"Enabled contained qualification requires original signed campaign authority.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent supplies approvals and disposable custody. Preview confers no authority. Production separate.","reason":"Approval binds campaign/cap 20. Enrollment and capacity precede claims, signed binding precedes calibration. Original approval gates starts/effects.","review_evidence":"Enrollment and raw refusals. Review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8","p64R","p66C"]}
+"MContainedHost":{"conclusion":"Contained qualification requires original signed campaign authority.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent owns approvals and disposable custody. Preview has no authority. Production separate.","reason":"Approval binds campaign/cap 20. Check enrollment/capacity before claims, signed binding before calibration and original approval before starts/effects.","review_evidence":"Enrollment/raw refusals. Review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8","p64R","p66C"]}
 },
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
@@ -2636,6 +2636,8 @@
 
 "p66C":[174,116,"_await_original_contexts(controls)"],
 
+"p66e":[159,"SignedCalibrationPipeTests.test_waits_for_owned_empty_rollout",97,"PIGjvsi8lCZeihVSelkw1LIzQucRH1DcfWmbkVfUdCU"],
+
 "p66t":[159,"SignedCalibrationPipeTests.test_waits_for_durable_context",68,"Cc1ZjRcQjnWYr15_Qd4l03yI6ROrBCssq0FJ8agXiC0"],
 
 "p67":[3,"RegisteredBrowserParent.create_share",386,"Mteu2NUvsKvZNqgbhtVz8EdvTdZRDeozAx1YKMe-0sg"],
@@ -2920,7 +2922,7 @@
 
 "pPoolAppLaunch":[155,349,"self._appserver.launch(command, self.home)",23,349,65],
 
-"pPoolCalibrationSupport":[159,"SignedCalibrationPipeTests._run_calibration",181,"zOmkXWdr-C6D1sJ8du4Yg-bGAGNafrrzh-deGu0yusw"],
+"pPoolCalibrationSupport":[159,"SignedCalibrationPipeTests._run_calibration",221,"zOmkXWdr-C6D1sJ8du4Yg-bGAGNafrrzh-deGu0yusw"],
 
 "pPoolCalibrationTest":[159,"SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts",63,"-Gdh3c6bBg_EStYzz_KHLrNqBTAdJzKgShhdjmm6_7E"],
 
@@ -2932,19 +2934,19 @@
 
 "pPoolPhysicalProof":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",268,"JxqY3KRsPFpDptFhspTub3G_vLf6GgRg1pwaOVkitHk"],
 
-"pPoolWireFactory":[157,"build_pool_qualification_runtime",1359,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
+"pPoolWireFactory":[157,"build_pool_qualification_runtime",1369,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
 
-"pPoolWireNotify":[157,218,"super().notify(method, params)",15,218,45],
+"pPoolWireNotify":[157,227,"super().notify(method, params)",15,227,45],
 
-"pPoolWirePositive":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",355,"fo08RmEmN8y7UomgQr-JGUkpBBRWwePP-xy6obruLrI"],
+"pPoolWirePositive":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",359,"fo08RmEmN8y7UomgQr-JGUkpBBRWwePP-xy6obruLrI"],
 
-"pPoolWireRefusal":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",378,"RCb6vrsu1R2qcT7c1F6xR-S-PA86n7WQ_OiYlQEDtDY"],
+"pPoolWireRefusal":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",382,"RCb6vrsu1R2qcT7c1F6xR-S-PA86n7WQ_OiYlQEDtDY"],
 
-"pPoolWireRequest":[157,210,"super().request(method, params, timeout=min(timeout, self.factory.remaining()))",15,210,94],
+"pPoolWireRequest":[157,219,"super().request(method, params, timeout=min(timeout, self.factory.remaining()))",15,219,94],
 
-"pPoolWireThread":[157,567,"self.wire.request(\"thread/start\", selectors)",22,567,66],
+"pPoolWireThread":[157,576,"self.wire.request(\"thread/start\", selectors)",22,576,66],
 
-"pPoolWireTurn":[157,628,"self.wire.request(\"turn/start\", self.turn_parameters())",20,628,75],
+"pPoolWireTurn":[157,637,"self.wire.request(\"turn/start\", self.turn_parameters())",20,637,75],
 
 "pPoolWorkerStart":[155,"PoolWorkerContainment.launch_appserver",340,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
 
@@ -5441,21 +5443,21 @@
 
 [92,420,18,420,98,"browser","d9cbc7f72cfe0c855721889fbdb9d18cc5a5b0c478e3057615b67236f5123e57",["route","N3.16","pPoolWriterLaunch"]],
 
-[93,210,15,210,94,{"$":3},"93dbfd4c807302f7ec9b883ea74c5c038f615a8c6a83c8cee125d9c09e07d525",["route","N4.3","pPoolWireRequest"]],
+[93,219,15,219,94,{"$":3},"93dbfd4c807302f7ec9b883ea74c5c038f615a8c6a83c8cee125d9c09e07d525",["route","N4.3","pPoolWireRequest"]],
 
-[93,218,15,218,45,{"$":3},"ce7d85f227360815e418e537f88026ebc34f2910dd383f153899e12ee1b52162",["route","N4.3","pPoolWireNotify"]],
+[93,227,15,227,45,{"$":3},"ce7d85f227360815e418e537f88026ebc34f2910dd383f153899e12ee1b52162",["route","N4.3","pPoolWireNotify"]],
 
-[93,432,23,432,60,"dynamic",{"$":193},[{"$":9},"xPoolWireFlag"]],
+[93,441,23,441,60,"dynamic",{"$":193},[{"$":9},"xPoolWireFlag"]],
 
-[93,567,22,567,66,{"$":3},"012ac706f4f15e3a3a11c2fdd56363495eea3f8529f7334442b3970b48d158d5",["route","N4.3","pPoolWireThread"]],
+[93,576,22,576,66,{"$":3},"012ac706f4f15e3a3a11c2fdd56363495eea3f8529f7334442b3970b48d158d5",["route","N4.3","pPoolWireThread"]],
 
-[93,628,20,628,75,{"$":3},"a1eb732d8cc4c3355fb4dd75527454c264e969160ea1d933a7a7924ba1fe3dae",["route","N4.3","pPoolWireTurn"]],
+[93,637,20,637,75,{"$":3},"a1eb732d8cc4c3355fb4dd75527454c264e969160ea1d933a7a7924ba1fe3dae",["route","N4.3","pPoolWireTurn"]],
 
-[93,887,21,887,39,"dynamic","f28d36928e27e6b8db6db6abdaf057139f74ee6f9963587a3c14a11ba7f1724c",[{"$":9},"xPoolControlNames"]],
+[93,897,21,897,39,"dynamic","f28d36928e27e6b8db6db6abdaf057139f74ee6f9963587a3c14a11ba7f1724c",[{"$":9},"xPoolControlNames"]],
 
-[93,1093,20,1093,65,"dynamic","d4a5a38d6d7b1e8e5b0e48f67f5018e3ac94ce6735d32d74c0f400d7b1cbd287",[{"$":9},"xQadm"]],
+[93,1103,20,1103,65,"dynamic","d4a5a38d6d7b1e8e5b0e48f67f5018e3ac94ce6735d32d74c0f400d7b1cbd287",[{"$":9},"xQadm"]],
 
-[93,1101,43,1101,85,"dynamic","5b98fdb4648598e7c6bbd78a23527e147c48c8b2e3940993f94d56190e602dc9",[{"$":9},"xPoolCalibrationMode"]],
+[93,1111,43,1111,85,"dynamic","5b98fdb4648598e7c6bbd78a23527e147c48c8b2e3940993f94d56190e602dc9",[{"$":9},"xPoolCalibrationMode"]],
 
 [90,193,19,193,60,"network",{"$":348},["route","N3.7","p25ProviderSocket"]],
 
@@ -5824,7 +5826,7 @@
 
 {"contract":"B6","effect":"Guarded dispatch commit callback after live reservation revalidation","effect_points":["p2ab"],"entrypoint":"pe5","gates":["p17c","pde"],"id":"B6.2","limits":"Claim drift: zero commit and capability available; original concurrent control commits once and retires. Validation/read callbacks may already run; no reserve_pool_cohort call or N4 claim here. Selected callbacks are trusted programmes; commit-start failure is terminal.","ordering":"Validate capability/reservation/context under capability lock; live claim revalidation before precommit/commit/postcommit.","witnesses":["w2"]},
 
-{"authority":"Validated plan and selected runtime. Recovery requires its original authority. Contained qualification also requires a stage-issued runtime and current original custody.","contract":"B6","effect":"Selected transaction runtime callbacks and admitted-pool commit","effect_points":["p147","p1b8"],"entrypoint":"p1b9","gates":["p19f","pfa","pf8"],"id":"B6.3","limits":"Zero run_pool on final-horizon refusal. Prepare/start/bind/journal may occur. Fake runtime accepts one refresh. Trust selected callbacks/clock/builder. Signed calibration shares allocation/campaign charge, holds writer and bypasses productive coordination.","ordering":"Plan, recovery and any contained stage checks before runtime. Ordinary allocation attestation is unchanged. Staged readiness precedes worker allocation, with final horizon checked before pool commit.","trace_files":[{"$":45},{"$":108}],"witnesses":["w3","wPoolCalibration"]},
+{"authority":"Validated plan and selected runtime. Original recovery authority. Contained qualification needs stage-issued runtime and current original custody.","contract":"B6","effect":"Selected runtime callbacks and admitted-pool commit","effect_points":["p147","p1b8"],"entrypoint":"p1b9","gates":["p19f","pfa","pf8"],"id":"B6.3","limits":"Zero run_pool on final-horizon refusal. Prepare/start/bind/journal may occur. Fake runtime accepts one refresh. Trust callbacks/clock/builder. Signed calibration shares allocation/campaign charge, holds writer and bypasses productive coordination.","ordering":"Check plan/recovery/stage before runtime. Keep ordinary allocation attestation. Check staged readiness before allocation and final horizon before commit.","trace_files":[{"$":45},{"$":108}],"witnesses":["w3","wPoolCalibration"]},
 
 {"contract":"B7","entrypoint":"p166","gate_chains":[{"calls":[{"call":"p2e5","direction":"into","target":"p2fd"},{"call":"p364","direction":"into","target":"p310"},{"call":"p2da","direction":"into","target":"p341"}],"effect":"p33a","gate":"p2fa"}],"id":"B7.1","trace_files":[{"$":67},{"$":73}]},
 
@@ -5872,7 +5874,7 @@
 
 {"contract":"N4","effect_points":["p187","pa","p37"],"entrypoint":"p1b4","gate_chains":[{"calls":[{"call":"p13e","direction":"into","target":"p30d"}],"effect":"p187","gate":"p34d"},{"calls":[{"call":"p146","direction":"into","target":"p159"}],"effect":"pa","gate":"p34d"},{"calls":[{"call":"p146","direction":"into","target":"p159"}],"effect":"p37","gate":"p34d"}],"id":"N4.2"},
 
-{"admission":{"$":4},"authority":"Signed contained campaign and runtime for original cohort.","contract":"N4","earlier_effects":"Host claims disposable cohorts, stages signed request, verifies runtime.","effect":"Stock thread start/control over owned stdio","effect_points":["pPoolWireRequest","pPoolWireNotify","pPoolWireThread","pPoolWireTurn"],"entrypoint":"pPoolWireFactory","gate_limits":"Review cross-call campaign/runtime/callback identity.","gates":[],"id":"N4.3","limits":"Partial claims keep receipts. Owned connection guards model/profile/input. Pin default in config/start/readback/turn. Leave fast_mode unset. Original authorization alone releases writer. Missing context waits to signed deadline. Conflicts or terminal refuse.","manual_decisions":["M26","MContainedHost"],"ordering":"Enroll before claims and bind signed calibration. Require each exact durable context before interrupt. Original callbacks before archive/settlement.","review_gates":[],"trace_files":[{"$":374},{"$":373},{"$":371},"scripts/cwo_core/native_pool_deferred_attestation.py",{"$":375},"scripts/registered_pool_qualification_capability.py",{"$":386},{"$":359},{"$":45},{"$":385}],"witnesses":["wPoolWirePositive","wPoolWireRefusal","wCQH","wQe1","wPoolCalibration"]},
+{"admission":{"$":4},"authority":"Signed campaign/runtime for original contained cohort.","contract":"N4","earlier_effects":"Host claims disposable cohorts, stages signed request, verifies runtime.","effect":"Stock thread start/control over owned stdio","effect_points":["pPoolWireRequest","pPoolWireNotify","pPoolWireThread","pPoolWireTurn"],"entrypoint":"pPoolWireFactory","gate_limits":"Review campaign/runtime/callback identity.","gates":[],"id":"N4.3","limits":"Keep partial receipts. Owned connection guards model/profile/input. Pin default in config/start/readback/turn with fast_mode unset. Original authorization alone releases writer. Owned empty rollout or absent context waits to signed deadline. Conflicts or terminal refuse.","manual_decisions":["M26","MContainedHost"],"ordering":"Enroll before claims. Bind signed calibration. Exact durable contexts precede interrupts. Original callbacks before archive/settlement.","review_gates":[],"trace_files":[{"$":374},{"$":373},{"$":371},"scripts/cwo_core/native_pool_deferred_attestation.py",{"$":375},"scripts/registered_pool_qualification_capability.py",{"$":386},{"$":359},{"$":45},{"$":385}],"witnesses":["wPoolWirePositive","wPoolWireRefusal","wCQH","wQe1","wPoolCalibration"]},
 
 {"contract":"N5","entrypoint":"p1fd","id":"N5.1","manual_decisions":["M08","M09"],"trace_files":[{"$":19},{"$":31},{"$":46}]},
 
@@ -7040,11 +7042,11 @@
 
 "@156":["OxNMA9rd2imvJ77krw2sA6CliBqJNAQUOYqkvDwOBIY",420,18897],
 
-"@157":["9CyFn4EvNNaWQqkcw4QNbhG4SOnyB3hGQSqwu2LlAeo",420,71693],
+"@157":["zO3MXK4_j7nrKNUpk0113El7m8E2bqt0n13UwafhbR0",420,72347],
 
-"@158":["2lX3FwI9KlGviSkljifhZV5OPEID_6IT-0hEb5FrNi8",420,29308],
+"@158":["AUhJd5guxVQQXqs2DjNFTmrPKSh32Bpno4xvXcXE5kY",420,29514],
 
-"@159":["9OPpXxlUq7E4kREJLpGHmmaRtCgL-2OQqhiN5nXnSSU",420,14591],
+"@159":["s3gZvTvl623GthOZXZCv66xpaR1mlmqt8M19oKQFyyM",420,16912],
 
 "@16":["ykgLQjdQGPg9uJTJLQHd2K3k_wBvy1Xnq6RIf3co0xE",420,21505],
 
@@ -8120,7 +8122,7 @@
 
 "wPolicyRefusal":["self.assertRaisesRegex(runtime.native.OfflineHostError, 'never redispatch')","pRefusalTest",{"$":6},"self.assertEqual(report['summary']['terminal_blockers'], {'provider-safety-policy-refusal': 'cyberPolicy'})",["pRefusalFixture"],"tests.test_registered_n1_factory.FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure"],
 
-"wPoolCalibration":["self.assertNotIn(\"qualification-writer-release\", events)","pPoolCalibrationTest",{"$":0},"self.assertEqual(ledger.summary(stage.CAMPAIGN_BUDGET_ID)[\"charged\"], {\"starts\": 1})",["pPoolCalibrationSupport","p66t"],"tests.test_registered_pool_qualification_calibration_e2e.SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts"],
+"wPoolCalibration":["self.assertNotIn(\"qualification-writer-release\", events)","pPoolCalibrationTest",{"$":0},"self.assertEqual(ledger.summary(stage.CAMPAIGN_BUDGET_ID)[\"charged\"], {\"starts\": 1})",["pPoolCalibrationSupport","p66t","p66e"],"tests.test_registered_pool_qualification_calibration_e2e.SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts"],
 
 "wPoolNoWrite":["self.assertFalse((paths[0] / 'marker.txt').exists())","pPoolWriterRefusal",{"$":0},"self.assertTrue(worker.receipt()['cleanup_confirmed'])",[],"tests.test_registered_pool_containment.PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned"],
 

@@ -97,8 +97,12 @@ for line in sys.stdin:
         response(req, result)
     elif method == 'turn/start':
         assert 'permissions' not in params
-        if behavior == 'deferred-context':
-            append(([] if inputs['existing'] else [meta]) + [event('task_started')])
+        if behavior in ('deferred-context', 'deferred-empty'):
+            if behavior == 'deferred-empty' and not inputs['existing']:
+                active.parent.mkdir(exist_ok=True)
+                active.touch(mode=0o600)
+            else:
+                append(([] if inputs['existing'] else [meta]) + [event('task_started')])
             response(req, {'turn': {'id': turn, 'items': [], 'status': 'inProgress'}})
             continue
         effort = 'low' if behavior == 'wrong-context' else params['effort']

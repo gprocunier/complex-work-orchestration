@@ -104,18 +104,27 @@ def _digest(data):
     return sha256(data).hexdigest()
 
 
-def _regular_rollout_stamp(path):
+def _regular_rollout_stamp(path, *, allow_empty=False):
     info = path.lstat()
+    minimum = 0 if allow_empty else 1
     _require(stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid() and info.st_nlink == 1
-             and not info.st_mode & 0o022 and 0 < info.st_size <= _ROLLOUT_BYTES, "rollout-custody")
+             and not info.st_mode & 0o022 and minimum <= info.st_size <= _ROLLOUT_BYTES, "rollout-custody")
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
-def _capture_rollout(path, thread_id, *, baseline=None):
-    stamp = _regular_rollout_stamp(path)
+def _capture_rollout(path, thread_id, *, baseline=None, allow_empty=False):
+    allow_empty = allow_empty and (baseline is None or baseline["byte_offset"] == 0)
+    stamp = _regular_rollout_stamp(path, allow_empty=allow_empty)
     source = session_source_identity(path, thread_id)
-    boundary, records = capture_boundary(path, thread_id, baseline=baseline)
-    _require(stamp == _regular_rollout_stamp(path) and source == session_source_identity(path, thread_id),
+    if stamp[2] == 0:
+        # Bind the empty file even if Codex starts filling it during this observation.
+        boundary = {"byte_offset": 0, "record_count": 0, "boundary_sha256": _digest(b""), "token_snapshot": None}
+        records = []
+        same_stamp = stamp[:2] == _regular_rollout_stamp(path, allow_empty=True)[:2]
+    else:
+        boundary, records = capture_boundary(path, thread_id, baseline=baseline)
+        same_stamp = stamp == _regular_rollout_stamp(path)
+    _require(same_stamp and source == session_source_identity(path, thread_id),
              "rollout-drift")
     return {**boundary, "source_identity_sha256": source}, records
 
@@ -636,10 +645,10 @@ class _PoolWorker:
         self._turn_ready.set()
         return turn_id
 
-    def _capture_active_rollout(self, *, baseline=None):
+    def _capture_active_rollout(self, *, baseline=None, allow_empty=False):
         located = locate_unique_session(self.spool, self.thread_id, reported_path=self._rollout)
         _require(located.path == self._rollout and located.store == "sessions", "active-rollout-path-drift")
-        boundary, rows = _capture_rollout(located.path, self.thread_id, baseline=baseline)
+        boundary, rows = _capture_rollout(located.path, self.thread_id, baseline=baseline, allow_empty=allow_empty)
         _require(located.source_identity_sha256 == boundary["source_identity_sha256"], "active-rollout-source-drift")
         return boundary, rows
 
@@ -654,7 +663,7 @@ class _PoolWorker:
         _require(self.parent.calibration_only and self.turn_id is not None, "original-calibration-turn-required")
         prefix = self._calibration_prefix or self._startup_prefix
         try:
-            boundary, rows = self._capture_active_rollout(baseline=prefix)
+            boundary, rows = self._capture_active_rollout(baseline=prefix, allow_empty=True)
         except NativeSessionBoundaryError as failure:
             if prefix is not None or os.path.lexists(self._rollout) or str(failure) != "trusted session file is missing":
                 raise
@@ -662,7 +671,8 @@ class _PoolWorker:
             return False
         _require(prefix is None or boundary["source_identity_sha256"] == prefix["source_identity_sha256"],
                  "calibration-rollout-replaced")
-        self._verify_session_meta(rows)
+        if rows:
+            self._verify_session_meta(rows)
         _require(self.wire.terminal is None and trusted_terminal_event(rows, turn_id=self.turn_id) is None,
                  "calibration-worker-ended-before-interrupt")
         self._calibration_prefix = boundary
