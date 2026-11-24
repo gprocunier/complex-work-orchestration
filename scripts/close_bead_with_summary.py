@@ -9,6 +9,7 @@ import sys
 import unicodedata
 from typing import Any
 
+from cwo_core import manual_delivery
 from cwo_core.beads import run_bd
 
 NO_VALUE = "None recorded."
@@ -320,6 +321,15 @@ def checked_narrative(args: argparse.Namespace) -> None:
                 )
 
 
+def write_summary(args: argparse.Namespace, disposition: str, summary: str) -> str:
+    if any(getattr(args, field, None) for field in ("baseline", "candidate", "amendment", "repo")):
+        if disposition != "pending-acceptance":
+            raise ValueError("delivery records require the pending-acceptance disposition")
+        return manual_delivery.record_delivery(args, summary)
+    run_bd(["comment", "--", clean_text(args.bead), summary])
+    return summary
+
+
 def execute(args: argparse.Namespace) -> dict[str, Any]:
     disposition = checked_disposition(args.disposition, close=bool(args.close))
     checked_narrative(args)
@@ -376,7 +386,7 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     if args.dry_run:
         return result
 
-    run_bd(["comment", "--", clean_text(args.bead), summary])
+    result["summary"] = write_summary(args, disposition, summary)
     result["comment_posted"] = True
 
     if args.close:
@@ -428,6 +438,7 @@ def parser() -> argparse.ArgumentParser:
     cli.add_argument("--close-reason", help="Unavailable for narrative dispositions; the reason is '<disposition>: <why>'.")
     cli.add_argument("--dry-run", action="store_true", help="Print what would be posted without calling bd.")
     cli.add_argument("--json", action="store_true", help="Print structured result JSON.")
+    manual_delivery.add_delivery_arguments(cli)
     return cli
 
 
@@ -441,7 +452,7 @@ def main(argv: list[str] | None = None) -> None:
             print(json.dumps(exc.result, indent=2, sort_keys=True))
         print(f"close_bead_with_summary: {exc} ({exc.result['close_error']})", file=sys.stderr)
         raise SystemExit(2) from exc
-    except (ValueError, SystemExit) as exc:
+    except (ValueError, OSError, SystemExit) as exc:
         print(f"close_bead_with_summary failed: {exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 

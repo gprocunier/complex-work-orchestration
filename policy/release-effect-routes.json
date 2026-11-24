@@ -6,11 +6,15 @@
 
 "B10":{"admission":{"$":1},"authority":"Operator read entries: brief/packet/continue/resume/candidate verify; JSON-file/depth-none/Markdown alternatives avoid applicable lookup.","effect":"Selected Beads read callers","effect_points":["p373"],"gates":[],"limits":"Exact show/ready/list selections; saved JSON, depth-none and Markdown alternatives avoid lookup. Names do not prove arbitrary bd executable read-only or free of migration/network effects.","manual_decisions":["M01","M02"],"ordering":"Exact show options before --; ready/list selector values source-bound; continuation exact-show batches50.","witnesses":["w79"]},
 
+"B11":{"admission":{"$":4},"authority":"Lead selects pending-acceptance, the project and exact Bead, and its current baseline and candidate inputs.","effect":"Host delivery audit append and bound Beads comment; the Bead stays open.","effect_points":["p70RecordAudit","p70RecordComment"],"gate_limits":"The CLI branch, live candidate checker and selected Beads callback are contextual source points. The local open-status check precedes both listed effects inside record_delivery.","gates":["p70RecordStatus"],"limits":"Ordinary pending-acceptance without binding data is B3. A delivery event can persist if the comment fails; only a matching posted comment is eligible for acceptance. The selected bd program, host and working tree are locally trusted.","manual_decisions":["M02","M04","M70"],"ordering":"The narrative entry checks disposition and dry-run before selecting bound delivery. Match the current candidate and baseline, require open status, append the delivery receipt, then post the matching comment.","review_gates":["p70Pending","p70Exact","p70SameDB"],"trace_files":["scripts/cwo.py",{"$":63},"scripts/cwo_core/manual_delivery.py",{"$":21},{"$":266},"scripts/cwo_core/requirement_baseline.py",{"$":105},"scripts/cwo_core/audit.py","scripts/cwo_core/process_identity.py"],"witnesses":["w70Record","w70FailedComment","w70Real"]},
+
+"B12":{"admission":{"$":2},"authority":"Foreground local reviewer outside the observed delivering and known agent ancestry, reviewing the exact posted delivery.","effect":"Append independent manual acceptance, issue one Beads close, and append closure after matching readback.","effect_points":["p70AcceptAudit","p70BeadsClose","p70CloseAudit"],"gate_chains":[{"calls":[{"call":"p70Review","direction":"return","target":"p70Reviewer"},{"call":"p70ClaimCall","direction":"into","target":"p70Claim"}],"effect":"p70AcceptAudit","gate":"p70Foreground"},{"calls":[{"call":"p70Review","direction":"return","target":"p70Reviewer"},{"call":"p70ClaimCall","direction":"into","target":"p70Claim"}],"effect":"p70AcceptAudit","gate":"p70NoAgent"},{"calls":[{"call":"p70ClaimCall","direction":"into","target":"p70Claim"}],"effect":"p70AcceptAudit","gate":"p70Note"},{"calls":[{"call":"p70ClaimCall","direction":"into","target":"p70Claim"}],"effect":"p70AcceptAudit","gate":"p70Digest"},{"calls":[{"call":"p70CurrentCall","direction":"return","target":"p70Current"}],"effect":"p70AcceptAudit","gate":"p70Latest"},{"calls":[{"call":"p70CurrentCall","direction":"return","target":"p70Current"}],"effect":"p70AcceptAudit","gate":"p70Separate"},{"calls":[{"call":"p70CloseCall","direction":"into","target":"p70Close"}],"effect":"p70BeadsClose","gate":"p70Claimed"},{"calls":[{"call":"p70CloseCall","direction":"into","target":"p70Close"}],"effect":"p70BeadsClose","gate":"p70SameDelivery"},{"calls":[{"call":"p70ConfirmCall","direction":"into","target":"p70Confirm"}],"effect":"p70CloseAudit","gate":"p70ClosedReadback"}],"gate_limits":"The live candidate and shared typed-prerequisite checks run before claim and again before a new close. The bound callback uses the selected project database. Those code paths and callback identity require manual review.","gates":["p70Foreground","p70NoAgent","p70Note","p70Digest","p70Latest","p70Separate","p70AcceptOpen","p70Claimed","p70SameDelivery","p70ClosedReadback"],"limits":"Initial candidate/baseline/dependency/session refusals precede acceptance and close. Beads reads and host maintenance can precede refusal. The acceptance event can persist when revalidation or close fails. A retry checks the original close without issuing another. The later closure audit receipt depends on confirmed readback; Beads and host audit are distinct stores.","manual_decisions":["M02","M04","M70"],"ordering":"Check the reviewer and supplied digest before admission. Claim the matching posted delivery under the existing audit lock, recheck current delivery, exact candidate, baseline and prerequisites before close, and require the matching reason and closed status before recording closure.","review_gates":["p70Exact","p74","p70SameDB"],"trace_files":["scripts/cwo.py","scripts/accept_delivery.py","scripts/cwo_core/manual_delivery.py","scripts/cwo_core/closure_checks.py",{"$":21},{"$":266},"scripts/cwo_core/requirement_baseline.py",{"$":105},"scripts/cwo_core/audit.py","scripts/cwo_core/process_identity.py"],"witnesses":["w70Session","w70Candidate","w70Digest","w70Baseline","w70Blocker","w70Child","w70Accept","w70Agent","w70Retry","w70Real"]},
+
 "B2":{"admission":{"$":2},"authority":"Explicit operator review creation; mandatory expert completion required independent of top-n.","effect":"Required-expert Beads creation","gates":["p11c","p1fe"],"limits":"Unmet experts: zero creates for both CLIs, including non-dry. P matched complete route makes four fake creates; dry complete/missing make zero. No lower subprocess reach inferred.","manual_decisions":["M01","M02"],"ordering":"Dry incomplete emits then refuses; non-dry unmet refuses before create; complete plan loops.","trace_files":[{"$":119}],"witnesses":["w67","w8b"]},
 
-"B3":{"admission":{"$":2},"authority":"Operator selects disposition: pending-acceptance/deferred stay open; rejected/abandoned/superseded/split may close.","effect":"Operator non-completion comment/optional close; successful closure refused","effect_points":["p273"],"gate_chains":[{"calls":[{"call":"p23d","direction":"return","target":"p1eb"}],"effect":"p273","gate":"p1c5"},{"calls":[{"call":"p23d","direction":"return","target":"p1eb"}],"effect":"p273","gate":"p1d6"}],"gates":["p1c5","p1d6","p2e6","p27c"],"limits":"Zero Beads calls for successful aliases/open outcomes with close. Superseded/split/rejected/abandoned positive comments then closes; pending/deferred may comment only. Close failure after comment is partial persistence.","manual_decisions":["M02"],"ordering":"checked_disposition then narrative/memory checks before comment; dry return; optional close after persisted comment.","trace_files":[{"$":63}],"witnesses":["w5d","w82"]},
+"B3":{"admission":{"$":2},"authority":"Operator selects disposition: pending-acceptance/deferred stay open; rejected/abandoned/superseded/split may close.","effect":"Operator non-completion comment/optional close; successful closure refused","effect_points":["p273"],"gate_chains":[{"calls":[{"call":"p23d","direction":"return","target":"p1eb"},{"call":"p70WriteSummaryCall","direction":"into","target":"p70WriteSummary"}],"effect":"p273","gate":"p1c5"},{"calls":[{"call":"p23d","direction":"return","target":"p1eb"},{"call":"p70WriteSummaryCall","direction":"into","target":"p70WriteSummary"}],"effect":"p273","gate":"p1d6"},{"calls":[{"call":"p70WriteSummaryCall","direction":"into","target":"p70WriteSummary"}],"effect":"p273","gate":"p2e6"},{"calls":[{"call":"p70WriteSummaryCall","direction":"into","target":"p70WriteSummary"}],"effect":"p273","gate":"p27c"}],"gates":["p1c5","p1d6","p2e6","p27c"],"limits":"Zero Beads calls for successful aliases/open outcomes with close. Superseded/split/rejected/abandoned positive comments then closes; pending/deferred may comment only. Close failure after comment is partial persistence. Delivery-binding options select the separate B11 route.","manual_decisions":["M02"],"ordering":"checked_disposition then narrative/memory checks before comment; dry return; optional close after persisted comment.","trace_files":[{"$":63}],"witnesses":["w5d","w82"]},
 
-"B4":{"admission":{"$":2},"authority":"Opaque supervisor registration, exact baseline/candidate joined to original host-dispatch source context, independently verified acceptance, original observations and setup database identity.","effect":"Host-qualified successful closure production Beads effects","effect_points":["p13b"],"gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p145","pe9","p2ed","p225"],"limits":"Production verified closure ships enabled; the source flag remains a kill switch. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. The EXAMPLE-only bridge branch has its own custody contract, not production authority. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review. Shipped-on and patched-off kill-switch witness covers registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage. Acceptance consumption is checked at capture and before every Beads call. The existing exclusive host audit lock joins the replay check to its intent append before any Beads write; the receipt belongs only to that in-flight attempt, whose full acceptance is still reverified. Failed writes and readback do not release consumption. Closing acceptance records host-selected adjudicator identity and rechecks existing provider/family/model/dispatch/session separation; control ID and effort alone are insufficient. Explicit original-adapter queries require closed blocking dependencies and reverse parent-child edges before writes and again before close. Policy source drift refuses consumption.","manual_decisions":["M02","M03","M04"],"ordering":"Gate at registration/consume/_production_guard/_bd; validate repeatedly before each write; atomically claim acceptance with durable consumption intent before the first Beads write; revalidate the in-flight authority through close and readback.","review_gates":["p145","pe9","p2ed","p80","p70","p6e","p6c","p74"],"trace_files":[{"$":63},{"$":70},{"$":278},{"$":268},{"$":105},"scripts/qualified_workflow_adjudication.py","scripts/prepare_delivery_closure.py"],"witnesses":["w28","w25","w29","w52","w2d","w2e","w2f","w30","w24","w22","w26","w23","w2a","w2c","w2b","w27"]},
+"B4":{"admission":{"$":2},"authority":"Opaque supervisor registration, exact baseline/candidate joined to original host-dispatch source context, independently verified acceptance, original observations and setup database identity.","effect":"Host-qualified successful closure production Beads effects","effect_points":["p13b"],"gate_limits":"Custody construction, consume admission and the stored guard callback are lifecycle checks. Their object/callback identity is reviewed manually; the adapter recheck directly precedes its bridge effect. Source-origin equality is rechecked through the captured authority before each adapter call; dynamic call identity and store separation require manual inspection.","gates":["p145","pe9","p2ed","p225"],"limits":"Production verified closure ships enabled; the source flag remains a kill switch. Fake original-adapter positive is an EXAMPLE host chain, not approval. Registry/original bridge/independent host acceptance repeated before each write; raw bridge call has no intrinsic hold. Comment may persist before a later refusal; unrestricted same-user host records lack external authentication. The EXAMPLE-only bridge branch has its own custody contract, not production authority. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review. Shipped-on and patched-off kill-switch witness covers registration; consumer adapter witness isolates its recheck before the downstream guard. Lifecycle inspection and host-acceptance positive remain independent support, not proof of every repeated guard. The original submitted source context is retained in dispatch and every acceptance link; custody baseline and candidate must match. Legacy context-free acceptance refuses completion. Origin joins are contextual review gates through capture/check; the inventory does not claim mechanically proven dynamic authority call edges. Unit origin checks isolate each digest; original consumer fixtures assert zero Beads calls/writes with independently checked comment/close positives. Host records must also remain outside database storage. Acceptance consumption is checked at capture and before every Beads call. The existing exclusive host audit lock joins the replay check to its intent append before any Beads write; the receipt belongs only to that in-flight attempt, whose full acceptance is still reverified. Failed writes and readback do not release consumption. Closing acceptance records host-selected adjudicator identity and rechecks existing provider/family/model/dispatch/session separation; control ID and effort alone are insufficient. Explicit original-adapter queries require closed blocking dependencies and reverse parent-child edges before writes and again before close. Policy source drift refuses consumption.","manual_decisions":["M02","M03","M04"],"ordering":"Gate at registration/consume/_production_guard/_bd; validate repeatedly before each write; atomically claim acceptance with durable consumption intent before the first Beads write; revalidate the in-flight authority through close and readback.","review_gates":["p145","pe9","p2ed","p80","p70","p6e","p6c","p74"],"trace_files":[{"$":63},{"$":70},{"$":278},{"$":268},{"$":105},"scripts/qualified_workflow_adjudication.py","scripts/prepare_delivery_closure.py","scripts/cwo_core/closure_checks.py"],"witnesses":["w28","w25","w29","w52","w2d","w2e","w2f","w30","w24","w22","w26","w23","w2a","w2c","w2b","w27"]},
 
 "B5":{"admission":{"$":2},"authority":"Explicit directory/database/actor and original default-bound structured runner; owned prestate not qualified completion.","effect":"Exact-prestate claim and owned close","limits":"Exact-show reads precede refusal. Zero additional update/close, not zero earlier successful claim. Explicit DB/actor and definition-bound runner; timeout/error reconciled by exact post-show without retry. Injected runner is trusted.","manual_decisions":["M02","M05"],"ordering":"Show exact prestate; refuse stale/preowned; at most one update/close; show exact poststate including timeout/error reconciliation.","trace_files":[{"$":45}],"witnesses":["w4f"]},
 
@@ -207,6 +211,8 @@
 "M43":{"conclusion":"The registered reader accepts an optional bounded timestamp on notification envelopes and preserves it as observation metadata. The existing request and response envelopes and source holds remain in force.","evidence_contracts":["N3","N10"],"external_trust_limit":"A timestamp is app-server observation data. Authority, ordering, correlation and deadlines remain bound to the original controller and transport. Offline startup evidence stops before any model turn.","reason":"The exact notification envelope can carry emittedAtMs as a nonnegative signed-64-bit integer. Requests still require their original IDs and envelope. Responses keep their exact result or error form. The controller classifies and retains the original notification frame before handling its method. A remote-control status notification supplies no RPC permission.","review_evidence":{"$":7},"source":["p43MethodEnvelope","p43Classify","p43ReadNotification"]},
 
 "M44":{"conclusion":"Original adopted single-product workflow and its source switch select registered production with a configured file login.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Original host, signers and controller configuration are trusted. Publication needs separate adoption. Raw, pool, campaign and activation holds remain. Offline fixtures grant no production provider or qualification journal credit. Finite workers receive no credentials.","reason":"Check exact signed OpenAI route/model/effort, one worker/session, original evidence and provider-only consent. Require private configured login apart from primary and qualification homes and refuse attachments before claims or intent. Acquire separate durable per-login interlock before mount. Uncertain cleanup retains it. Recheck adoption, durable intent and owned receiver before effects. One checked thread/start and turn/start use signed data and default tier.","review_evidence":{"$":7},"source":["p52A","p52B","p52C","p52D","p52E","p52F","p52G","p55C","p55T","p55L"]},
+
+"M70":{"conclusion":"Manual delivery and acceptance use a project-selected Beads adapter and the existing configured host audit store.","evidence_contracts":["B10","B11","B12"],"external_trust_limit":"Local terminal and observed process ancestry are host-integrity checks. The audit lock serializes receipt appends, not the Beads database or working tree. An unrestricted same-user writer and arbitrary selected bd behavior remain outside this claim.","reason":"Record a matching comment receipt only after a delivery audit event. New acceptance requires a matching posted delivery, an independent reviewer, live exact candidate and baseline, and closed blockers and children. Only the claiming invocation attempts close. A matching closed projection permits the linked closure receipt.","review_evidence":{"$":7},"source":["p70Project","p70DeliveryRecord","p70Reviewer","p70Current","p70Accept","p70Append"]},
 
 "MContainedHost":{"conclusion":"The contained qualification switch is on. Original signed campaign authority restricts effects to the protected route.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent supplies approvals and disposable custody. Fixed prompt preview grants no authority; production holds remain separate.","reason":"Claim approval binds campaign and cap 20. Ledger enrollment and capacity precede claims; signed binding precedes calibration. Original approval gates starts and effects.","review_evidence":"Enrollment and raw worker/writer refusal controls; review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8"]}
 },
@@ -550,7 +556,15 @@
 
 {"$":375},
 
-{"$":371}
+{"$":371},
+
+"scripts/cwo_core/closure_checks.py",
+
+"scripts/cwo_core/manual_delivery.py",
+
+"scripts/accept_delivery.py",
+
+"tests/test_manual_acceptance.py"
 ],
 
 "points":{
@@ -794,7 +808,7 @@
 
 "p17":[76,1692,"create_bead(\n                item[\"title\"],\n                parent=epic[\"id\"],\n                # One priority rule for direct creation and the Beads graph plan.\n                priority=item_priority(item, index),\n                labels=item[\"labels\"],\n                skills=item[\"skills\"],\n                description=body(f\"Complete the {key} lane.\", f\"Evidence and result for {key}.\"),\n                acceptance=str(item[\"acceptance\"]),\n                design=str(item[\"design\"]),\n                notes=str(item[\"notes\"]),\n                metadata=item.get(\"metadata\"),\n            )",19,1704,13],
 
-"p170":[16,"main",434,"6fc44a99948c0050a326d57516832c50458641219b57d849426a058d8f6727ee"],
+"p170":[16,"main",445,"c464f2bc906e507316dd8efd2967f95d63ddfc9d85b092510894ad76a739d2ce"],
 
 "p171":[43,412,"if not _trustworthy(real):"],
 
@@ -964,7 +978,7 @@
 
 "p1a8":[12,868,"if args.write_manifest and target_dir.exists():"],
 
-"p1a9":[59,716,"if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:"],
+"p1a9":[59,714,"if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:"],
 
 "p1aa":[23,361,{"$":258}],
 
@@ -1016,7 +1030,7 @@
 
 "p1c0":[105,"ShippedRoutesAreDisabledTests._live_packet_argv",80,"f5574a9d47a24ec588f9f0d19aea35b20290743970d3e9bee19248b354ccc862"],
 
-"p1c1":[21,"main",41,"f87cdec3a34483090a194b2100e6b7277f0f24872ee4e5c1a17efb82471401e4"],
+"p1c1":[21,"main",42,"f87cdec3a34483090a194b2100e6b7277f0f24872ee4e5c1a17efb82471401e4"],
 
 "p1c2":[17,"write_hooks",306,{"$":234}],
 
@@ -1024,7 +1038,7 @@
 
 "p1c4":[42,2527,"self.request(\n            \"thread/archive\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2531,9],
 
-"p1c5":[16,205,"if disposition not in NON_COMPLETION_DISPOSITIONS:"],
+"p1c5":[16,206,"if disposition not in NON_COMPLETION_DISPOSITIONS:"],
 
 "p1c6":[32,429,{"$":13}],
 
@@ -1060,7 +1074,7 @@
 
 "p1d5":[17,"build_managed_hooks",151,"7b31b12422709c75555460bd3e1b4125f32b2a8e309c233a1dd2886b67ee2e3b"],
 
-"p1d6":[16,207,"if disposition in OPEN_DISPOSITIONS and close:"],
+"p1d6":[16,208,"if disposition in OPEN_DISPOSITIONS and close:"],
 
 "p1d7":[8,"PlaywrightChatGPTRunner._submit_and_capture",830,"1b1579a294b0ad4db214801a91b8f3da5274996ee008fe3942bf3d4b917e8b57"],
 
@@ -1104,7 +1118,7 @@
 
 "p1ea":[106,"Issue41DispatchMatrixTests.assert_browser_source_controls",309,"784e3059e649620ac46d0426720cbeaca28616a5016b45f1d3c98e383343dbaf"],
 
-"p1eb":[16,"checked_disposition",202,"0ae219154507473534e82f36f41a053d226cb79c04ebd712d9547a6e1ab792a4"],
+"p1eb":[16,"checked_disposition",203,"0ae219154507473534e82f36f41a053d226cb79c04ebd712d9547a6e1ab792a4"],
 
 "p1ec":[8,837,{"$":287},16,837,123],
 
@@ -1318,7 +1332,7 @@
 
 "p23c":[103,"InstallerProjectionTests.test_missing_required_entry_refuses_install_and_dry_run_without_change",598,"220606ff411a085844c9d3de28c901300b9aef298d05658fd7aec532a326e523"],
 
-"p23d":[16,324,"checked_disposition(args.disposition, close=bool(args.close))",18,324,79],
+"p23d":[16,334,"checked_disposition(args.disposition, close=bool(args.close))",18,334,79],
 
 "p23e":[8,706,{"$":96}],
 
@@ -1374,7 +1388,7 @@
 
 "p257":[43,462,{"$":256}],
 
-"p258":[16,"execute_qualified_completed",57,"c677159e98811746ce1e6a65f3272f9398da67053e202624962fac5a60bf3590"],
+"p258":[16,"execute_qualified_completed",58,"c677159e98811746ce1e6a65f3272f9398da67053e202624962fac5a60bf3590"],
 
 "p259":[44,"_resolve_local_endpoint_addresses",746,"4c5ba9de3b38425f046bb4fb398153c0dc38ca72b8a6e63128823db92e4d6d45"],
 
@@ -1544,7 +1558,7 @@
 
 "p272":[90,"ChatGPTBrowserReviewTests.test_model_confirmation_requires_selected_attribute_when_configured",723,"c5d08a327fe3cd1e5f21f7005ca3f36bce45b6d8d0a7c03a62d4fcd480cc9246"],
 
-"p273":[16,379,{"$":257}],
+"p273":[16,329,{"$":257}],
 
 "p274":[62,"RegisteredFiniteInput._write_reply_frame",1660,"75b4b4860fff3e9cc3d72835220eef0d2044dc09859d27c57e7a6fc55bb92e8a"],
 
@@ -1560,7 +1574,7 @@
 
 "p27b":[86,"ConnectedBrowserTests.test_separate_share_action_reaches_one_registered_creation",230,"0180575d0021fd8e8cbe6d2f8fe8696122f05b43481f05e64086ffa65475c4e7"],
 
-"p27c":[16,376,{"$":95}],
+"p27c":[16,386,{"$":95}],
 
 "p27d":[44,371,"self.sock = self._create_connection("],
 
@@ -1590,7 +1604,7 @@
 
 "p28a":[42,"AppServer.request_once_with_guard",1039,"07be1111674f6bd1722188fc3945cfd8197e909daeb6395a3477c63a8119c9a4"],
 
-"p28b":[16,"execute",323,"58a3653bb306aff1533993e25a8a9499fe94a579bab5278f856417488d612917"],
+"p28b":[16,"execute",333,"4045e5812d3399cdb47d92cd2bcbd7f8ca2a6caad57da8083d2d1cbca0677e5b"],
 
 "p28c":[13,"main",10,"ea647fe3d080820e5b5af7c3ac2893f679cbc99fe0cde16b60849966c4121a2c"],
 
@@ -1744,7 +1758,7 @@
 
 "p2be":[42,1434,"self.request(\n            \"thread/read\",\n            {\"threadId\": thread_id, \"includeTurns\": True},\n            timeout=timeout,\n        )",26,1438,9],
 
-"p2c":[16,384,"run_bd([\"close\", \"--reason\", close_reason, \"--\", clean_text(args.bead)])",12,384,84],
+"p2c":[16,394,"run_bd([\"close\", \"--reason\", close_reason, \"--\", clean_text(args.bead)])",12,394,84],
 
 "p2c0":[37,427,"if pre_hash != expected_pre_show_sha256:"],
 
@@ -1818,13 +1832,13 @@
 
 "p2e2":[74,5179,"pre_allocation_check()"],
 
-"p2e3":[59,"consume",706,"fe5417f6e0cb00188ea30f1968f50174330043a4fd014fb75a2bf1606f47578d"],
+"p2e3":[59,"consume",704,"fe5417f6e0cb00188ea30f1968f50174330043a4fd014fb75a2bf1606f47578d"],
 
 "p2e4":[122,"R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path",24,"af6f405fb0f8cdf058d118a3c334eb2d17fbcdcf09fc9c9d73f4844dc8d5de0b"],
 
 "p2e5":[34,1364,"_create_beads_graph(\n        run_root,\n        profile=profile,\n        integration=integration,\n        override=override,\n        now=current,\n    )",8,1370,5],
 
-"p2e6":[16,325,"checked_narrative(args)"],
+"p2e6":[16,335,"checked_narrative(args)"],
 
 "p2e7":[109,"MaintenanceRuntimeTests._validator_recheck_row",562,"0e5841148e361c98711890b542a2b787b960aaaa4f74278043b0ff3f28504486"],
 
@@ -1974,7 +1988,7 @@
 
 "p31f":[73,212,{"$":211}],
 
-"p32":[16,379,{"$":257},4,379,61],
+"p32":[16,329,{"$":257},4,329,61],
 
 "p320":[104,"InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove",66,"3b4e1fdf421cdaeb9f05eddd0301ab30fac1bbc8066971961690005242f3003d"],
 
@@ -2614,9 +2628,9 @@
 
 "p68":[118,"ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes",397,"c81bbc65c0bbacd968e02609183740f1db4917a6ec12057d9b3bf377cc5c3df4"],
 
-"p69":[59,745,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,745,67],
+"p69":[59,743,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,743,67],
 
-"p6a":[59,737,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,737,58],
+"p6a":[59,735,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,735,58],
 
 "p6b":[102,"HostAcceptanceTests.test_closing_acceptance_requires_host_selected_separated_adjudicator",75,"38a02b27fd8bf7e88f5662b0aa3da74696cbbb4cce264d664d4ec8e4c4f1f21c"],
 
@@ -2632,13 +2646,125 @@
 
 "p70":[28,228,"_need(type(source_context) is dict"],
 
+"p70Accept":[170,"accept_delivery",254,"58ab978327acd78cc1c1fab7e962c0c9d71a6bb84468793667dcf91a91d5786d"],
+
+"p70AcceptAudit":[170,230,"_append(store, state, lock, event_type=ACCEPTED, **source,\n                           manual_reviewer=reviewer, manual_review_session=ancestry[0], manual_review_note=note)",19,231,112],
+
+"p70AcceptCLI":[171,"main",12,"a175be2c5f5662a2d2c6dffb43a82f2e24e7f242cd5704151140a3c9c13e4c64"],
+
+"p70AcceptOpen":[170,229,"_need(task.get(\"status\") in _OPEN, \"only an open delivered Bead can be accepted\")",8,229,89],
+
+"p70Append":[170,"_append",210,"ecb01dc022bd53db85a4711d6a480b84d60008f96e5fd8bf754c5e6e76ec295c"],
+
+"p70BeadsClose":[170,248,"run_bd([\"close\", \"--reason\", reason, \"--\", bead_id])",8,248,60],
+
+"p70Claim":[170,"_claim",220,"48f1c8d530923cda043d42964716e6d8e3e838b64eaee8384cccde1430fe656a"],
+
+"p70ClaimCall":[170,270,"_claim(store, task, binding, reviewer, ancestry, note)",28,270,82],
+
+"p70Claimed":[170,272,"if claimed:"],
+
+"p70Close":[170,"_close",246,"c6428a9ed8530af0c758fffbf099080a24407c49b09d48c1a0f513449858cd91"],
+
+"p70CloseAudit":[170,243,"_append(store, state, lock, event_type=CLOSED, **source)",15,243,71],
+
+"p70CloseCall":[170,279,"_close(run_bd, delivery.bead_id, reason)",8,279,48],
+
+"p70ClosedReadback":[170,281,"_need(current.get(\"status\") == \"closed\" and current.get(\"close_reason\") == reason,\n          \"acceptance was recorded, but closure is unconfirmed. A retry only checks for the original close\")",4,282,108],
+
+"p70Confirm":[170,"_confirm_close",235,"19588cd5a905cf62f1e44775d5e042e86c0582ab320019001a9cdbab2a1080c6"],
+
+"p70ConfirmCall":[170,283,"_confirm_close(store, accepted, binding)",14,283,54],
+
+"p70Current":[170,"_current_delivery",199,"5e06d1e2f12ef98e20c41aa8aa918c0bcff195f088815a760a43f5522e39743e"],
+
+"p70CurrentCall":[170,224,"_current_delivery(events, task, binding, ancestry)",16,224,66],
+
+"p70DeliveryRecord":[170,"record_delivery",159,"64147f4caf1bf28ba02b40fa5d631a5d7a5f32434a685968845c627e1b063380"],
+
+"p70DepRead":[169,28,"run_bd([\"dep\", \"list\", \"--json\", \"--type\", kind,\n                              \"--direction\", direction, \"--\", bead_id])",22,29,71],
+
+"p70Digest":[170,262,"_need(binding[\"candidate_sha256\"] == args.reviewed_candidate, \"the candidate file differs from the reviewed candidate\")",4,262,123],
+
+"p70Exact":[170,121,"_need(checked[\"valid\"], \"candidate or baseline refused: \" + \"; \".join(checked[\"errors\"]))",8,121,97],
+
+"p70Foreground":[170,70,"_need(foreground, \"manual acceptance requires a foreground terminal\")",4,70,73],
+
+"p70Latest":[170,204,"_need(_matches(event, **binding), \"the reviewed candidate and baseline must match the latest delivery\")",4,204,107],
+
+"p70NoAgent":[170,72,"_need(not any(agent for _, agent in chain), \"an agent session cannot accept a delivery by hand\")",4,72,100],
+
+"p70Note":[170,257,"_need(0 < len(note) <= 240, \"enter a review note of 1 to 240 characters\")",4,257,77],
+
+"p70Pending":[16,326,"if disposition != \"pending-acceptance\":"],
+
+"p70Project":[170,"project_beads",136,"cc1ca8c86b484940dd841cf81798ea44b9f0969c4b8cc1bfb8709a51d000c7a2"],
+
+"p70RecordAudit":[170,169,"store.record_audit_event(dict(event_type=RECORDED, **binding,\n                                            manual_delivery_session=session,\n                                            manual_summary_sha256=artifact_hash(summary)))",14,171,90],
+
+"p70RecordComment":[170,173,"run_bd([\"comment\", \"--\", delivery.bead_id, comment])",4,173,56],
+
+"p70RecordStatus":[170,166,"_need(task.get(\"status\") in _OPEN, \"only an open Bead can record a delivery\")",4,166,81],
+
+"p70Review":[170,255,"reviewer_session()",25,255,43],
+
+"p70Reviewer":[170,"reviewer_session",65,"19e4c4162ed302b258a8e022585f9fd62f90b2e95468d3e0b3b4989f18d64db7"],
+
+"p70SameDB":[170,147,"_need(_database_identity(storage) == database, \"the project Beads database changed\")",8,147,92],
+
+"p70SameDelivery":[170,275,"_need(latest[\"event_hash\"] == accepted[\"manual_delivery_event\"] and task.get(\"status\") in _OPEN,\n              \"the delivery changed after acceptance was recorded\")",8,276,67],
+
+"p70Separate":[170,205,"_need(not any(_matches(item, **binding) and item.get(\"manual_delivery_session\") in ancestry\n                  for item in deliveries), \"the delivering session cannot accept its own delivery\")",4,206,99],
+
+"p70Show":[170,111,"run_bd(beads.show_bead_args(self.bead_id, include_comments=True))",14,111,79],
+
+"p70TestAccept":[172,"ManualAcceptanceTests.test_accept_and_close_records_review_and_closure_on_the_host_chain",78,"08d71664731e4aab7fcb289cb9496613a7e22b81561d0c3761498c42f66bd464"],
+
+"p70TestAcceptCall":[172,"ManualAcceptanceTests.accept",66,"d57455dc6511a117e52f64178345829c98f4322ed66b0b9884eb322c12139bd8"],
+
+"p70TestAgent":[172,"ManualAcceptanceTests.test_foreground_shell_separation_refuses_known_agent_ancestry",191,"0bdb961e16a7503e217d2573cb4579bdd01fd356b109fd89631d3b5eee9c1cdd"],
+
+"p70TestAssertRefused":[172,"ManualAcceptanceTests.assert_refused",97,"6392ac1e436b65406f7f8542d026854aad0dc0a324595d0287bb8ae3058817e1"],
+
+"p70TestBaseline":[172,"ManualAcceptanceTests.test_changed_baseline_is_refused",119,"bbc6850bc2699caef429ac8a048a850ebeae5e48a853b3aba90139bcd20ed102"],
+
+"p70TestBeads":[172,"ManualAcceptanceTests.bd",41,"9a4ce5bfb0aa5861f3aa66653bd0e3812b9c40eb08088ac0fc9bfbcfe125573b"],
+
+"p70TestBlocker":[172,"ManualAcceptanceTests.test_open_blocker_is_refused",124,"d3eeeddd685776df20bf857a0784920d927e6cef3cd422e611c3c066595e351b"],
+
+"p70TestCandidate":[172,"ManualAcceptanceTests.test_changed_candidate_is_refused",110,"1baf5f29b8263d3610b0204df1d70da73e7e1eeb3e4e6eb5fc353b2d2a027682"],
+
+"p70TestChild":[172,"ManualAcceptanceTests.test_open_child_is_refused",129,"74bfae3b1ab6934fa463f8ba596adecbe4cae2dfae880eae8e371e05e4afd519"],
+
+"p70TestDeliver":[172,"ManualAcceptanceTests.deliver",57,"11eb00392abc06116621ea0a9080e708b164d8eed3a5a7d796e290133fa2fb44"],
+
+"p70TestDigest":[172,"ManualAcceptanceTests.test_reviewed_digest_is_checked_even_when_the_current_files_match",115,"17aa02c0591dfa551e5177b4cbdab5f299e66678c5d5c85d578714c4ed3fba2b"],
+
+"p70TestFailedComment":[172,"ManualAcceptanceTests.test_a_newer_failed_comment_keeps_the_last_posted_delivery_current",134,"05306ec13cee9b57925c0139cb4ce5a538571164297d3621da9066de0fd23f3d"],
+
+"p70TestRead":[172,"ManualAcceptanceTests.test_project_beads_from_outside_checkout_and_explicit_beads_dir",208,"55b6ee32f6d3457c27c22f03cbe19ed8f1d815a48b3c42b673291f3d1f0a87a0"],
+
+"p70TestReal":[172,"ManualAcceptanceTests.test_installed_style_command_records_and_closes_disposable_bead",234,"0d743af8da4fec241bcc6dbbbecfb8d844e0d2ee0674d61ceafa5cd59d005a18"],
+
+"p70TestRecord":[172,"ManualAcceptanceTests.test_accept_and_close_records_review_and_closure_on_the_host_chain",78,"08d71664731e4aab7fcb289cb9496613a7e22b81561d0c3761498c42f66bd464"],
+
+"p70TestRetry":[172,"ManualAcceptanceTests.test_timeout_retry_never_reissues_close_and_can_confirm_a_late_write",149,"71268b57eea9d91e9f38038ac28eaa8d356b2a909c520713437c1c9cc645c527"],
+
+"p70TestSession":[172,"ManualAcceptanceTests.test_delivering_session_cannot_accept_with_a_different_actor_name",106,"964ee500dfc71cffe77f2cc31e2e828561d9c666a21f336d535d1da1bc0b128c"],
+
+"p70Where":[170,130,"beads.run_bd([*arguments, \"where\", \"--json\"])",26,130,71],
+
+"p70WriteSummary":[16,"write_summary",324,"3201eaef60a7ddbfe24ee1eb631357e201eea63cd85f9749ea0d0978fb177528"],
+
+"p70WriteSummaryCall":[16,389,"write_summary(args, disposition, summary)",24,389,65],
+
 "p71":[118,"ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete",165,"a4824faccdc1e1178eb512e4c63038df1338f12753f83ef9177cbf3e6632014e"],
 
 "p72":[82,"AcceptanceProductFlowTests.closure",153,"bedff8651cadcf04e802bb57026387ada057df920dc9ec7efbe6e612576b5341"],
 
 "p73":[82,"AcceptanceProductFlowTests.provision",127,"1f652e3d6dee025cbc686e95cc63120f49df2f86efa7b43d885a1e30e8e0e919"],
 
-"p74":[59,568,"_need(row.get(\"status\") == \"closed\", \"nonclosed blocker or child prevents production closure\")"],
+"p74":[169,36,"if row.get(\"status\") != \"closed\":"],
 
 "p75":[81,"provision_acceptance",11,"91fe0fe0a55e055221950023331388bab6676d458c0e26e390d20051d8c551b9"],
 
@@ -2650,9 +2776,9 @@
 
 "p79":[118,"ProductionClosureTests.test_policy_source_drift_after_bind_or_comment_refuses_next_write",339,"0c81ef734f356170f7d1abe5b87d015f8aa11dda7f4ffa23e31ac3fc144c3e5a"],
 
-"p7a":[59,560,"_bd(state, [\"dep\", \"list\", \"--json\", \"--type\", kind,\n                          \"--direction\", direction, \"--\", bead_id])",14,561,67],
+"p7a":[59,564,"_bd(state, args)",65,564,81],
 
-"p7b":[59,"_closed_prerequisites",557,"c7a7c8baa94a4943b62e4ac4c22c65d4c43d401ddc02accd467688b25a04663e"],
+"p7b":[59,"_closed_prerequisites",557,"1c9d327c67532589fe6103e82a8732a4fe2727ed1645b39e7d36572e11524577"],
 
 "p7c":[82,"AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance",172,"192607830fac0710f577e5d39a88e3a2825d61af5372805aae27fe6e8721406f"],
 
@@ -3036,7 +3162,7 @@
 
 "pe8":[15,619,"signalled = termination[\"signals_sent\"]"],
 
-"pe9":[59,717,{"$":57}],
+"pe9":[59,715,{"$":57}],
 
 "pea":[136,"ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency",320,"59248bfeb067522d57bb963af737496fcbbf4434ce83ac3855536f41fffd82ce"],
 
@@ -4195,6 +4321,10 @@
 
 "XR446":[["require_server_or_fixture: ","Imports the named test module solely to identify FakeLiveThreadServer for the explicit fixture branch. This is executable fixture code, not authority; its inspected",139,"run the suite or launch a server."],2,"N3.3"],
 
+"XR70adapter":["The pinned project adapter forwards caller-selected argv.","Generic Beads execution boundary; caller-specific read, comment and close selections have their own route points.","B10.7"],
+
+"XR70narrative":["Read parsed delivery flags when selecting the summary route.","Only parsed option values are read; no callable is invoked.","B11.1"],
+
 "atomic-default-signal-lookup":["_attributes reads integer constants from the fixed SIGPIPE/SIGXFZ/SIGXFSZ tuple for child default dispositions; it does not resolve or invoke a signal sender.",107,null],
 
 "atomic-error-destroy-call":[["Exception cleanup invokes only the matching native",131,"and preserves the primary failure; no",156," occurs at this call."],107,null],
@@ -4499,29 +4629,31 @@
 
 [8,113,13,116,5,"process","3b8f67b55e86fc19777f692eea0b2dcaeef4633a7a210d59c63e79c64e6bd591",["route","X6.5","p5"]],
 
-[9,296,7,296,42,"dynamic","07f02f97a99290ee898fff05eabc693a0f300d55a2c43d705d20ddbeeb9016fe",[{"$":9},"XR052"]],
+[9,297,7,297,42,"dynamic","07f02f97a99290ee898fff05eabc693a0f300d55a2c43d705d20ddbeeb9016fe",[{"$":9},"XR052"]],
 
-[9,302,27,302,46,"dynamic","fccc57f95b4617e13fa018c64d8cc275b7cc6f547263c600fe18d094a3b2b102",[{"$":9},"XR053"]],
+[9,303,27,303,46,"dynamic","fccc57f95b4617e13fa018c64d8cc275b7cc6f547263c600fe18d094a3b2b102",[{"$":9},"XR053"]],
 
-[9,313,20,313,45,"dynamic",{"$":192},[{"$":9},"XR054"]],
+[9,314,20,314,45,"dynamic",{"$":192},[{"$":9},"XR054"]],
 
-[9,326,19,326,52,"dynamic","d7320aeb029337f16da654b0a6bf7368deea7b6de6c2ace091b35c8433af280f",[{"$":9},"XR055"]],
+[9,325,11,325,37,"dynamic","498f36547206751002fe00d71a88f9bf72a90da98a027a0020e1af6940baad43",[{"$":9},"XR70narrative"]],
 
-[9,327,19,327,52,"dynamic","1308f9b4fcc57072343095dccda7dc02f91d0817f79cddea90ceffdaab6388ce",[{"$":9},"XR056"]],
+[9,329,4,329,61,"beads","5e7ace2c191041c4889c52aa9822eff1faf51742a3d3d35d5bf2357b0e2d5ead",["route","B3.2","p32"]],
 
-[9,328,20,328,54,"dynamic","054678a61e342a8f75678b381e11d8e6c2ef5992c65ad808ffcd37994819ee03",[{"$":9},"XR057"]],
+[9,336,19,336,52,"dynamic","d7320aeb029337f16da654b0a6bf7368deea7b6de6c2ace091b35c8433af280f",[{"$":9},"XR055"]],
 
-[9,329,18,329,50,"dynamic","5a394f0c2717b494103abc748ed398133cf10a0f89c75e2c468995800945c47a",[{"$":9},"XR058"]],
+[9,337,19,337,52,"dynamic","1308f9b4fcc57072343095dccda7dc02f91d0817f79cddea90ceffdaab6388ce",[{"$":9},"XR056"]],
 
-[9,330,21,330,56,"dynamic","b1a71433318a435b7aad052069de759ed7e8faeaef4ffef091909f34c52009d1",[{"$":9},"XR059"]],
+[9,338,20,338,54,"dynamic","054678a61e342a8f75678b381e11d8e6c2ef5992c65ad808ffcd37994819ee03",[{"$":9},"XR057"]],
 
-[9,344,7,344,41,"dynamic",{"$":158},[{"$":9},"XR060"]],
+[9,339,18,339,50,"dynamic","5a394f0c2717b494103abc748ed398133cf10a0f89c75e2c468995800945c47a",[{"$":9},"XR058"]],
 
-[9,370,27,370,61,"dynamic",{"$":158},[{"$":9},"XR061"]],
+[9,340,21,340,56,"dynamic","b1a71433318a435b7aad052069de759ed7e8faeaef4ffef091909f34c52009d1",[{"$":9},"XR059"]],
 
-[9,379,4,379,61,"beads","5e7ace2c191041c4889c52aa9822eff1faf51742a3d3d35d5bf2357b0e2d5ead",["route","B3.2","p32"]],
+[9,354,7,354,41,"dynamic",{"$":158},[{"$":9},"XR060"]],
 
-[9,384,12,384,84,"beads","fc624adc87ae368a5a97a1442aea653ab3fa9e9f73e11e035ccc753a2e86ba94",["route","B3.2","p2c"]],
+[9,380,27,380,61,"dynamic",{"$":158},[{"$":9},"XR061"]],
+
+[9,394,12,394,84,"beads","fc624adc87ae368a5a97a1442aea653ab3fa9e9f73e11e035ccc753a2e86ba94",["route","B3.2","p2c"]],
 
 [10,51,17,58,9,"process","17758ec6a374a7c9ac2dd1b3b0e8d43ed46dfe6002f051521ce1716dfe03732b",["route","N11.1","p12"]],
 
@@ -5219,11 +5351,11 @@
 
 [67,542,10,542,84,"beads","5739bb06c1e78a8e2ddc382ccffc0dbe66631fdab5877e886b60d8c3cb9b9607",[{"$":9},"guard-scope-96050b233982b6"]],
 
-[67,560,14,561,67,"beads","b359f72ed679a565eeaa761e82b8f514b39363f6b91b0ef22596218b6f5aae39",["route","B10.6","p7a"]],
+[67,564,65,564,81,"beads","a9c4ead64a8f2be82646916e144f8de0918050c408974c6ae097e960126b745a",["route","B10.6","p7a"]],
 
-[67,737,8,737,58,"beads","688891c9f68a9e40644af047711eec5bbdb389e08bbb0dbc1c8273f39cfd5a26",["route","B4.3","p6a"]],
+[67,735,8,735,58,"beads","688891c9f68a9e40644af047711eec5bbdb389e08bbb0dbc1c8273f39cfd5a26",["route","B4.3","p6a"]],
 
-[67,745,8,745,67,"beads","fd19af61b6001cf3f329c9c333570c4c9cdc418fe87ec22363593b7653f57f57",["route","B4.3","p69"]],
+[67,743,8,743,67,"beads","fd19af61b6001cf3f329c9c333570c4c9cdc418fe87ec22363593b7653f57f57",["route","B4.3","p69"]],
 
 [68,134,14,134,48,"dynamic","bd6ebc2cc403a20668ccf6cbfccc0d44411109d9ad69b362640948b5361ed3f4",[{"$":9},"XR341"]],
 
@@ -5455,7 +5587,19 @@
 
 [84,2574,7,2574,35,"dynamic","66a339e6322b74fea8133b75bed5791305a9d34d910742112ba7390a31c5c4f7",[{"$":9},"XR416"]],
 
-[85,389,14,389,47,"dynamic","8eaf1f84aedb7d9844918bfedd8db1d69c82a042bfef4512bf974efa3f9754d5",[{"$":9},"XR417"]]
+[85,389,14,389,47,"dynamic","8eaf1f84aedb7d9844918bfedd8db1d69c82a042bfef4512bf974efa3f9754d5",[{"$":9},"XR417"]],
+
+[94,28,22,29,71,"beads","75f6bcc2873cedfdbef96c2223bf2c5091002f80e8cd311f3899b97a48b99436",["route","B10.6","p70DepRead"]],
+
+[95,111,14,111,79,"beads","d8e0714def0bdc15c4f5d74632fa58c59daf1dea6e59dd89315bdac428239677",["route","B10.7","p70Show"]],
+
+[95,130,26,130,71,"beads","45f85697f1634e93cd4a5a53f4962ec0d0182ba09c64002952055ea83c55448a",["route","B10.7","p70Where"]],
+
+[95,148,15,148,48,"beads","ab2405cdf94d02885e95cdc9b096a47725ff807ad31197140e2172b262fc4d40",[{"$":9},"XR70adapter"]],
+
+[95,173,4,173,56,"beads","11bf99f5445d9d2a239a32e83c53b2ac411df181fc252c262444dd5b2ee302c0",["route","B11.1","p70RecordComment"]],
+
+[95,248,8,248,60,"beads","8f6f2d6b141fa7121b1ca53778a893d5f5917c58647c63487e92e8c47d09c0b4",["route","B12.1","p70BeadsClose"]]
 ],
 
 "paths":[
@@ -5645,7 +5789,11 @@
 
 {"$":373},
 
-{"$":374}
+{"$":374},
+
+"scripts/cwo_core/closure_checks.py",
+
+"scripts/cwo_core/manual_delivery.py"
 ],
 
 "schema":"bounded-primitives-v2"
@@ -5950,7 +6098,7 @@
 
 {"admission":{"$":1},"authority":"Caller-owned request data only; protected registered host authority is independently required by later submit.","contract":"N5","effect":"Finite caller request file read and JSON data only","effect_points":["p2w","p2y"],"entrypoint":"p2z","gates":[],"id":"N5.9","limits":"Read-only caller ingress precedes authority checks by design. O_NOFOLLOW/O_NONBLOCK, regular-file/size and final FD/path marks bound the read; result is only one JSON object. Structural validate-only remains nonspending; execute still needs the original protected host/full current cohort and held native routes. No claim, import-selected adapter, model or accepted artifact authority.","manual_decisions":["M30"],"ordering":"Required platform guards before nonblocking nofollow open; regular FD/size and bounded read; final FD/path marks before decode/structure/submit. No host authority is validated here.","review_gates":[],"selector":"Actual pool-request ingress, for structural validate-only or later original-host execution.","trace_files":[{"$":46},{"$":72}],"witnesses":["wU"]},
 
-{"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["p7a"],"entrypoint":"p7b","id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":[{"$":70},{"$":21}],"witnesses":["w2a"]},
+{"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["p7a","p70DepRead"],"entrypoint":"p7b","id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":[{"$":70},{"$":21},"scripts/cwo_core/closure_checks.py"],"witnesses":["w2a"]},
 
 {"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Dial follows exact allowed CONNECT and initial TLS SNI. Trusted resolver selects fixed names at port 443 and rejects private/non-global results. Eight candidates at most share one deadline and honor revocation. The scanner labels TCP socket.connect as browser. Local TLS is the control. Auth host requires signed app-server file login or qualification attachment.","review_gates":["p222"],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent","w42Provider"]},
 
@@ -5970,7 +6118,13 @@
 
 {"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Start one contained qualification app server","effect_points":["pPoolAppLaunch"],"entrypoint":"pPoolWorkerStart","gate_chains":[],"gate_limits":"Original worker identity and verified namespace precede the app-server gate. Physical fixtures substitute the identity check.","gates":[],"id":"N3.15","limits":"Both switches, current approval and exact worker precede private paths. Check read-only mount and managed login before release. Broker takes no attachment. Inert witness verifies pre-spawn cleanup.","manual_decisions":["M26","MContainedHost","M35"],"review_gates":["pPoolHostCommandCheck","pPoolHostMountCheck"],"trace_files":[{"$":373},{"$":10},{"$":328},{"$":270}],"witnesses":["wPoolPhysical","wQe5","wV9"]},
 
-{"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Open the isolated fixed qualification writer gate","effect_points":["pPoolWriterLaunch"],"entrypoint":"pPoolFixedWriter","gate_chains":[],"gate_limits":"The retained original callback owns the one-shot writer gate. Physical fixtures substitute the identity check.","gates":[],"id":"N3.16","limits":"Retained callback and exact call/deadline authorize the sole writer gate. Mount and path checks precede release; refusals retain cleanup.","manual_decisions":["M26","MContainedHost"],"review_gates":["pPoolHostCommandCheck","pPoolHostMountCheck"],"trace_files":[{"$":373},{"$":10},{"$":328},{"$":270}],"witnesses":["wPoolPhysical","wPoolNoWrite","wQe5"]}
+{"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Open the isolated fixed qualification writer gate","effect_points":["pPoolWriterLaunch"],"entrypoint":"pPoolFixedWriter","gate_chains":[],"gate_limits":"The retained original callback owns the one-shot writer gate. Physical fixtures substitute the identity check.","gates":[],"id":"N3.16","limits":"Retained callback and exact call/deadline authorize the sole writer gate. Mount and path checks precede release; refusals retain cleanup.","manual_decisions":["M26","MContainedHost"],"review_gates":["pPoolHostCommandCheck","pPoolHostMountCheck"],"trace_files":[{"$":373},{"$":10},{"$":328},{"$":270}],"witnesses":["wPoolPhysical","wPoolNoWrite","wQe5"]},
+
+{"authority":"The selected project working tree and its ordinary or explicit Beads directory.","contract":"B10","effect":"Inspect the selected database, exact Bead with comments, and directed closure prerequisites.","effect_points":["p70Where","p70Show","p70DepRead"],"entrypoint":"p70Project","id":"B10.7","limits":"The where/show/dep-list selections are reads at this boundary. The selected bd program can have its own migration or connection effects. The closure fixture uses a Beads substitute for show and dependency projections.","manual_decisions":["M02","M70"],"ordering":"Resolve the Beads directory, check the selection with explicit -C and --db, then read the exact Bead and typed relationships for its route.","trace_files":["scripts/cwo_core/manual_delivery.py","scripts/cwo_core/closure_checks.py",{"$":21}],"witnesses":["w70Read"]},
+
+{"contract":"B11","entry_aliases":["cwo close-bead"],"entrypoint":"p170","id":"B11.1"},
+
+{"contract":"B12","entry_aliases":["cwo accept-delivery"],"entrypoint":"p70AcceptCLI","id":"B12.1"}
 ],
 
 "schema":"compact-release-routes-v1",
@@ -6872,7 +7026,7 @@
 
 "@159":["hMlZDgufZo-MsaCcCfKNjG8mHuvwQwf2005XJ7mH1Mc",420,12776],
 
-"@16":["Y5m8t72l_omj7a3qEAStJFdblyh5S8fNmDohrdPsS-o",420,20938],
+"@16":["ykgLQjdQGPg9uJTJLQHd2K3k_wBvy1Xnq6RIf3co0xE",420,21505],
 
 "@160":["wBwhcl3JkNbJ6wyWQfDMdJN1nyjQqHs_rVb398oPNAQ",420,10828],
 
@@ -6892,7 +7046,15 @@
 
 "@168":["HzJyBM4ZqZn-MhWGRn1KX8Nc-1TE3EtvLfK40bNJX-E",420,89458],
 
+"@169":["lO9F0Xj0KIjVVhrDHY6COvgLdXoLo0Lfr3z7rBFnPEU",420,1597],
+
 "@17":["ARu5xi70szNYoQbP68bDHBDe4ChByszxGU8enrcoDw8",493,17894],
+
+"@170":["5yDn3WdRVe9iSctilWttV32tFH3NDoqQ51YQjqg8Glw",420,13430],
+
+"@171":["tJDM-ehRkFCAgy3lOBiYrd5teSBPF9mVzGXoeZqRdUQ",420,1360],
+
+"@172":["yAB81MaVNtf103EpCcpRCQZNRZRrP94VXyasYgSNdhc",420,14023],
 
 "@18":["eeWhgdqzZxdBINbx0XseT7DQyIMEE_YvaJiCe2PZPCI",420,27248],
 
@@ -6902,7 +7064,7 @@
 
 "@20":["Xxk49TOGt-yQyKGUaRehpq0XA-5W1Rfzp-exIVetons",493,92],
 
-"@21":["drDDpWjnW0u5ZlcqnfrsYSHuEyHDjICAdoIjsWQKcMg",493,1848],
+"@21":["0ikwLzpUpjUvnNhJnZ7tdnmFJiBtBHR0qT2QuccRxds",493,1893],
 
 "@22":["ewJSKxVn2jq2eKqe7FYAXnzBaj27aPuInnaDtkbwHQU",420,15853],
 
@@ -6984,7 +7146,7 @@
 
 "@58":["iFS3QfWK2QkVZ6VjuRrv0MCSH-EgFSbpzOUJvNUfgMI",420,5207],
 
-"@59":["1JUXPZNMaMl_bux4z63DXU93557c8vrbgjNax7vWob8",420,38129],
+"@59":["Cnj6xCGu_pJDgrivycxrwSzTdKxjciPuD-2UKoOIJCc",420,37740],
 
 "@6":["LLs8nV66HqLvLP167fMq5c30vuTnprqrpcemJqCTtDE",493,28295],
 
@@ -7060,7 +7222,7 @@
 
 "@92":["siGfaOrrnus39dxPi_PEDNmuZ04Vjnop3h_uukqqYbk",420,4106],
 
-"@93":["23stydb5m3L4VCFmyShTWFH5ys1wJ0z8zT5oSPt1NX0",420,41925],
+"@93":["kRVAe1g_IsyrRlVoS7QVWEWXKAc73jRN9_FaeVnu09k",420,42007],
 
 "@94":["j2YKsQn9xR2s3Tk1C3lgjUC4r2Fbsq3CrBJ8Xor_vLo",420,142998],
 
@@ -7310,7 +7472,7 @@
 
 "scripts/cwo_core/synthesis_inputs.py":["GrXGx1VAwNAi3zFRdQ1_rYtNUj0PqMoXdvH1h2eeuus",420,57469],
 
-"scripts/cwo_core/telemetry.py":["DeOe00TifQX_2q9FCk-9C7Sf54W4WDw1VrR0ai9P4uE",420,25784],
+"scripts/cwo_core/telemetry.py":["cNlZYYJ6Xo7eyKpOseMZSPx6TtPPWwN-CZLohn_F1Wg",420,26059],
 
 "scripts/cwo_core/typed_artifact_requirement.py":["sZPbgWNySCIGqrbzTgbPAjlDd2FoOID0kgS4fAjKDio",420,2296],
 
@@ -7448,7 +7610,7 @@
 
 "scripts/validate_public_copy.py":["5jvp0QaFAcImQCY6cXJcXSdDZ5rGGQgzSguKe3H8t8o",420,63926],
 
-"scripts/validate_repository.py":["_ED0TyWLKSgy2aOhSkPGRo85XMX9jiq5K2tTBiY3gGw",420,115934],
+"scripts/validate_repository.py":["prGtj3B1v4CI_7DOW6_BaEMIZzOdhO1HLNnB6lCzBqg",420,116157],
 
 "scripts/validate_run_readiness_plan.py":["Qgbl831AJKP8HfpAZtP_cj91LTnKuHtFDKf02kUmy4Y",493,21103],
 
@@ -7464,7 +7626,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["V6P-dpTDYPgsHIOnL9TOZCB3yceE7uMfEAuQ_zsIbPQ",420,134123],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["y34ecZW9QXYVHI34Z2-HVfMyoGxuMdAnjq_bZbiQSgk",420,134123],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -7793,6 +7955,32 @@
 "w7":["self.assertEqual((directory.call_count, load.call_count, approval.call_count), (reads, reads, 0))","pd0",{"$":0},"self.assertEqual((directory.call_count, load.call_count, approval.call_count), (1, 1, 1))",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_r1_entry_holds_precede_reads_and_claims_with_all_on_fake_control"],
 
 "w70":[{"$":47},"p375",{"$":1},{"$":47},[],{"$":318}],
+
+"w70Accept":["self.assertEqual(acceptance[\"candidate_sha256\"], self.digest)","p70TestAccept",{"$":6},"self.assertEqual(closure[\"previous_event_hash\"], acceptance[\"event_hash\"])",["p70TestDeliver","p70TestAcceptCall","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_accept_and_close_records_review_and_closure_on_the_host_chain"],
+
+"w70Agent":["with self.assertRaisesRegex(ValueError, \"agent session\"):","p70TestAgent",{"$":12},"self.assertEqual(manual.reviewer_session(), (f\"uid:{os.getuid()}\", (\"launching-shell\",)))",[],"tests.test_manual_acceptance.ManualAcceptanceTests.test_foreground_shell_separation_refuses_known_agent_ancestry"],
+
+"w70Baseline":["self.assertEqual(self.store.audit_events(), before)","p70TestBaseline",{"$":0},"self.assertEqual([args[0] for args in self.effects], [\"comment\", \"close\"])",["p70TestAssertRefused","p70TestAccept","p70TestDeliver","p70TestAcceptCall","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_changed_baseline_is_refused"],
+
+"w70Blocker":["self.assertEqual(self.store.audit_events(), before)","p70TestBlocker",{"$":0},"self.assertEqual([args[0] for args in self.effects], [\"comment\", \"close\"])",["p70TestAssertRefused","p70TestAccept","p70TestDeliver","p70TestAcceptCall","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_open_blocker_is_refused"],
+
+"w70Candidate":["self.assertEqual(self.store.audit_events(), before)","p70TestCandidate",{"$":0},"self.assertEqual([args[0] for args in self.effects], [\"comment\", \"close\"])",["p70TestAssertRefused","p70TestAccept","p70TestDeliver","p70TestAcceptCall","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_changed_candidate_is_refused"],
+
+"w70Child":["self.assertEqual(self.store.audit_events(), before)","p70TestChild",{"$":0},"self.assertEqual([args[0] for args in self.effects], [\"comment\", \"close\"])",["p70TestAssertRefused","p70TestAccept","p70TestDeliver","p70TestAcceptCall","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_open_child_is_refused"],
+
+"w70Digest":["self.assertEqual(self.store.audit_events(), before)","p70TestDigest",{"$":0},"self.assertEqual([args[0] for args in self.effects], [\"comment\", \"close\"])",["p70TestAssertRefused","p70TestAccept","p70TestDeliver","p70TestAcceptCall","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_reviewed_digest_is_checked_even_when_the_current_files_match"],
+
+"w70FailedComment":["with self.assertRaisesRegex(SystemExit, \"timed out\"):","p70TestFailedComment",{"$":12},"self.assertEqual(self.store.audit_events()[2][\"manual_delivery_event\"], original[\"event_hash\"])",["p70TestDeliver","p70TestAcceptCall","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_a_newer_failed_comment_keeps_the_last_posted_delivery_current"],
+
+"w70Read":["self.assertNotEqual(project_id, other_id)","p70TestRead",{"$":1},"self.assertEqual(json.loads(project([\"show\", \"--json\", \"--\", \"proj-abc\"]))[0][\"title\"], \"proj task\")",[],"tests.test_manual_acceptance.ManualAcceptanceTests.test_project_beads_from_outside_checkout_and_explicit_beads_dir"],
+
+"w70Real":["self.assertEqual(result[\"status\"], \"closed\")","p70TestReal",{"$":12},"self.assertEqual(self.store.audit_events()[-1][\"event_type\"], \"manual_delivery_closed\")",[],"tests.test_manual_acceptance.ManualAcceptanceTests.test_installed_style_command_records_and_closes_disposable_bead"],
+
+"w70Record":["self.assertEqual(self.bead[\"status\"], \"in_progress\")","p70TestRecord",{"$":12},"self.assertEqual(delivery[\"event_type\"], \"manual_delivery_recorded\")",["p70TestDeliver","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_accept_and_close_records_review_and_closure_on_the_host_chain"],
+
+"w70Retry":["self.assertEqual(len(close_calls), 1)","p70TestRetry",{"$":12},"self.assertTrue(json.loads(output)[\"closed\"])",["p70TestDeliver","p70TestAcceptCall","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_timeout_retry_never_reissues_close_and_can_confirm_a_late_write"],
+
+"w70Session":["self.assertEqual(self.store.audit_events(), before)","p70TestSession",{"$":0},"self.assertEqual([args[0] for args in self.effects], [\"comment\", \"close\"])",["p70TestAssertRefused","p70TestAccept","p70TestDeliver","p70TestAcceptCall","p70TestBeads"],"tests.test_manual_acceptance.ManualAcceptanceTests.test_delivering_session_cannot_accept_with_a_different_actor_name"],
 
 "w71":[{"$":47},"p375",{"$":6},{"$":47},[],{"$":318}],
 

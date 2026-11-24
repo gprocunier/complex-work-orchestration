@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Let a hand reviewer accept an exact delivered candidate and close its Bead in one command, with acceptance and closure in the host audit.
+
 ## 1.31.2 - 2026-11-24
 
 ### Tests
