@@ -7266,7 +7266,7 @@
 
 "scripts/cwo_core/requirement_baseline.py":["E1aBEwoARtsU3IT818c6j2H9HIABt8xGeChWX8ppNCA",420,20496],
 
-"scripts/cwo_core/return_boundary.py":["fmWegBokNYK5BfrYc6tRUUpAaDnhPpNex8zpsquyBGU",420,12865],
+"scripts/cwo_core/return_boundary.py":["SRW40SMA6pZtQvF4j_x3W30jn5liNQGgVXmwktSroys",420,15766],
 
 "scripts/cwo_core/return_common.py":["Xd2wl0NgTvwAMqXKxidyFcg81ykVnzqn0nMpe2foO4U",420,4599],
 
@@ -7282,7 +7282,7 @@
 
 "scripts/cwo_core/return_tripwires.py":["LtRpIcPO1SoAeD5Byj6RiirSir_--bu7-yeWDnt4-Lc",420,18128],
 
-"scripts/cwo_core/returns.py":["tPMx1UHSfxiJ4kPjL88FS8qQP_6zHw3dPPeNla_KPt4",420,39845],
+"scripts/cwo_core/returns.py":["H7SJN20nRmCMfzLFm3C5MNZp-oq4zJ2L1lrbJRrrEUs",420,40657],
 
 "scripts/cwo_core/risk_features.py":["iUradZuNAARDtpOgrTgkAf4vZKUZaWqgOaIAcEQ88nU",420,11188],
 
@@ -7460,7 +7460,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["gbTEk-S4xQm1VrD5XyFBhwMbvzHxt36aDsgr6IWjkjw",420,134123],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["V6P-dpTDYPgsHIOnL9TOZCB3yceE7uMfEAuQ_zsIbPQ",420,134123],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 

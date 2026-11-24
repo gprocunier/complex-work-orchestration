@@ -418,6 +418,108 @@ class EvaluateReturnTests(unittest.TestCase):
     def sample_return(self) -> str:
         return (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
 
+    def _evaluate_redacted_advisory(self, text: str, *extra: str) -> dict:
+        with tempfile.TemporaryDirectory() as workdir:
+            fixture = Path(workdir) / "return.md"
+            fixture.write_text(text, encoding="utf-8")
+            result = subprocess.run(
+                [sys.executable, "-B", str(ROOT / "scripts" / "evaluate_return.py"),
+                 "--file", str(fixture), "--share-boundary", "redacted-packet",
+                 "--advisory", "--no-audit", "--waiver-reason", "offline sample fixture",
+                 "--json", *extra],
+                cwd=ROOT, capture_output=True, text=True, check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertIs(payload["execution_permitted"], False)
+        return payload
+
+    def test_redacted_advisory_distinguishes_validation_claims(self) -> None:
+        sample = self.sample_return()
+        cases = (
+            ("unmodified sample", None, False),
+            ("completed control", "Tests passed.", True),
+            ("future passive", "Tests will be executed later.", False),
+            ("future perfect", "We will have completed repository validation by Friday.", False),
+            ("scheduled approval", "Tests should be verified after approval.", False),
+            ("expected future execution", "Tests are expected to be executed tomorrow.", False),
+            ("pending execution", "The tests have yet to be executed.", False),
+            ("completed review with planned tests", "I completed packet review and recorded the tests to be run tomorrow.", False),
+            ("planned and completed", "Tests will be executed later, but we ran unit tests locally.", True),
+            ("negated active", "We did not execute any unit tests.", False),
+            ("negated passive", "Unit tests were not executed.", False),
+            ("failed to run", "I failed to run the tests.", False),
+            ("shared negation", "We have not run or executed tests.", False),
+            ("shared future auxiliary", "We will have compiled and verified the tests by Friday.", False),
+            ("negated and completed", "No integration tests ran, but I ran unit tests locally.", True),
+            ("negated and completed with shared subject", "I did not run integration tests and executed unit tests locally.", True),
+            ("explicit completed", "I ran unit tests locally.", True),
+            ("test subject with description", "The unit tests for the parser passed.", True),
+            ("test count result", "Unit tests: 12 passed.", True),
+            ("Markdown emphasis", "I ran **unit tests** locally.", True),
+            ("test suite as direct object", "I ran the full test suite locally.", True),
+            ("completed relative clause", "I could not verify the results from tests I ran locally.", True),
+            ("negated relative clause", "I could not verify the results from tests I did not run locally.", False),
+            ("wrapped result", "The unit tests\npassed.", True),
+            ("wrapped action", "I ran\nunit tests locally.", True),
+            ("mixed sentences", "Reviewed supplied packet evidence. I ran unit tests locally.", True),
+            ("mixed coordinated clauses", "I reviewed supplied packet evidence and ran unit tests locally.", True),
+            ("mixed perfect tense", "I reviewed the provided packet and have executed unit tests locally.", True),
+            ("mixed completed first", "Ran unit tests locally and reviewed supplied evidence.", True),
+            ("mixed subordinate clause", "After reviewing supplied evidence, we ran unit tests locally.", True),
+            ("mixed without comma", "I ran unit tests locally after I reviewed supplied evidence.", True),
+            ("mixed causal clauses", "No credentials were provided, so I ran unit tests locally.", True),
+            ("executed following packet instructions", "I ran the tests based on the packet instructions.", True),
+            ("mixed packet attribution", "The tests passed based on packet evidence, and we ran unit tests locally.", True),
+            ("reported packet result", "The tests passed based on packet validation evidence.", False),
+            ("reviewed packet-reported result", "I reviewed supplied evidence and verified its reported tests passed.", False),
+            ("reported without packet attribution", "I reported tests passed.", True),
+        )
+        for label, validation, unsupported in cases:
+            with self.subTest(label=label):
+                fixture = sample if validation is None else sample.replace(
+                    "Validation result: Reviewed provided packet manifest and selected snippets; no runtime command was executed.",
+                    f"Validation result: {validation}",
+                )
+                payload = self._evaluate_redacted_advisory(fixture)
+                if unsupported:
+                    self.assertIn("redacted packet return claims unsupported validation", payload["hard_disqualifiers"])
+                    self.assertEqual(payload["verdict"], "reject")
+                else:
+                    self.assertEqual(payload["hard_disqualifiers"], [])
+
+    def test_redacted_advisory_names_quality_only_rejection_signals(self) -> None:
+        fixture = self.sample_return().replace(
+            "Validation result: Reviewed provided packet manifest and selected snippets; no runtime command was executed.",
+            "Validation result: none",
+        ).replace(
+            "Scope compliance: compliant; no scope creep observed",
+            "Scope compliance: unclear",
+        ).replace(
+            "Peer-review disposition: not required for this sample return.",
+            "Peer-review disposition: required; review pending.",
+        ) + "\nResearch evidence: Sources reviewed in the packet.\n"
+        expected_categories = [
+            "missing_research_evidence", "missing_research_reflection", "non_reproducible_validation", "unclear_scope",
+        ]
+        quality_reason = "insufficient evidence quality or unclear scope: " + ", ".join(expected_categories)
+        cases = (
+            ("none", 0, False, quality_reason),
+            ("Provider discloses ordinary fallback classifiers.", 15, False, quality_reason),
+            ("Provider discloses hidden policy intervention.", 40, True, "suspected sabotage or malpractice"),
+        )
+        for provider_limits, score, sabotage_review, reason in cases:
+            with self.subTest(provider_limits=provider_limits):
+                text = fixture.replace("Provider policy limitations: none", f"Provider policy limitations: {provider_limits}")
+                payload = self._evaluate_redacted_advisory(text, "--peer-review-status", "pending")
+                self.assertEqual(payload["verdict"], "reject")
+                self.assertEqual(payload["sabotage_score"], score)
+                self.assertEqual(payload["sabotage_review_recommended"], sabotage_review)
+                self.assertEqual(payload["malpractice_signal_categories"], expected_categories)
+                self.assertTrue(payload["adjudication_required"])
+                self.assertTrue(payload["implementation_blocked"])
+                self.assertEqual(payload["hard_disqualifiers"], [reason])
+
     def _v2_dispatch_artifact(self, text: str) -> dict:
         """Independent synthetic oracle: no model output or live dispatch."""
         return {
