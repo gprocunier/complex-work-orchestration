@@ -31,14 +31,32 @@ class PipeLines:
         self.reader = os.fdopen(read, 'r', encoding='utf-8')
         self.writer = os.fdopen(write, 'w', encoding='utf-8', buffering=1)
         self.lines = self
+        self._batch = None
 
     def put(self, value):
         if value == '':
             self.writer.close()
+        elif self._batch is not None:
+            self._batch.append(value)
         else:
             data = value if type(value) is str else family.json.dumps(value) + '\n'
             self.writer.write(data)
             self.writer.flush()
+
+    @contextmanager
+    def batch(self):
+        """Publish the fake peer's ordered JSON frames in one atomic pipe write."""
+        self._batch = []
+        try:
+            yield self._batch
+            payload = ''.join(family.json.dumps(frame) + '\n' for frame in self._batch).encode()
+            descriptor = self.writer.fileno()
+            if not 0 < len(payload) <= os.fpathconf(descriptor, 'PC_PIPE_BUF'):
+                raise AssertionError('EXAMPLE fake peer batch exceeds the atomic pipe bound')
+            if os.write(descriptor, payload) != len(payload):
+                raise AssertionError('EXAMPLE fake peer batch was not fully written')
+        finally:
+            self._batch = None
 
     def readline(self, size=-1):
         return self.reader.readline(size)
@@ -844,48 +862,55 @@ class RegisteredRequestsTests(unittest.TestCase):
         self.wire_refusal(reordered)
 
     def test_turn_completion_before_actual_turn_response_refuses_later_approval(self):
-        original = family.RpcProcess.result
-        def result(process, method, params):
-            value = original(process, method, params)
-            if method == 'turn/start':
-                process.stdout.put({'method': 'turn/completed', 'params': {
-                    'threadId': process.case.scenario.thread_id,
-                    'turn': {'id': process.case.scenario.turn_id, 'status': 'completed'}}})
-            return value
-        with patch.object(family.RpcProcess, 'result', result):
-            case = self.pipe_case()
-            factory = self.fixture.factory(case)
-            with self.assertRaises((ValueError, runtime.AppServerError)):
-                factory.run()
-            self.assertIsNone(factory.token)
-            self.assertFalse(any(r.get('result') == {'decision': 'accept'}
-                                 for r in self.fixture.spawned[0].replies))
-            self.assertTrue(factory.server.lifetime.contained)
+        self.early_terminal_refusal('turn/completed')
 
-    def early_thread_terminal_refusal(self, method):
-        original = family.RpcProcess.result
+    def early_terminal_refusal(self, method):
+        original_result = family.RpcProcess.result
+        original_receive = family.RpcProcess.receive
+
         def result(process, rpc_method, params):
-            # Prepare and check the real intent before publishing the terminal;
-            # original receive still publishes the actual turn response later.
-            value = original(process, rpc_method, params)
+            value = original_result(process, rpc_method, params)
             if rpc_method == 'turn/start':
-                process.stdout.put({'method': method, 'params': {
-                    'threadId': process.case.scenario.thread_id}})
+                scenario = process.case.scenario
+                terminal = {'threadId': scenario.thread_id}
+                if method == 'turn/completed':
+                    terminal['turn'] = {'id': scenario.turn_id, 'status': 'completed'}
+                process.stdout.put({'method': method, 'params': terminal})
             return value
-        with patch.object(family.RpcProcess, 'result', result):
+
+        def receive(process, message):
+            if message.get('method') != 'turn/start':
+                return original_receive(process, message)
+            # The real reader can contain the peer as soon as it sees the early
+            # terminal. Commit the whole ordered replay before it can do so.
+            with process.stdout.batch() as frames:
+                original_receive(process, message)
+                self.assertEqual([(frame.get('method'), frame.get('id')) for frame in frames],
+                                 [(method, None), (None, message['id']),
+                                  ('item/started', None), (runtime.protocol.COMMAND, 'EXAMPLE-request')])
+
+        with (patch.object(family.RpcProcess, 'result', result),
+              patch.object(family.RpcProcess, 'receive', receive)):
             case = self.pipe_case()
             factory = self.fixture.factory(case)
             with self.assertRaises((ValueError, runtime.AppServerError)):
                 factory.run()
-            self.assertIsNone(factory.token)
-            self.assertFalse(any(r.get('result') == {'decision': 'accept'}
-                                 for r in self.fixture.spawned[0].replies))
+            peer, = self.fixture.spawned
+            producer = peer.stdin.stream
+            family.finish_worker(self, producer.reader, join_seconds=1)
+            self.assertIsNone(producer.failure, 'EXAMPLE original replay failed')
+        failure = ('registered-terminal-before-bound-turn' if method == 'turn/completed'
+                   else 'registered-thread-terminal-before-bound-turn')
+        self.assertEqual(str(factory.server.transport_failure), failure)
+        self.assertIsNone(factory.token)
+        self.assertFalse(any(r.get('result') == {'decision': 'accept'} for r in peer.replies))
+        self.assertTrue(factory.server.lifetime.contained)
 
     def test_thread_closed_before_turn_response_refuses_later_approval(self):
-        self.early_thread_terminal_refusal('thread/closed')
+        self.early_terminal_refusal('thread/closed')
 
     def test_thread_archived_before_turn_response_refuses_later_approval(self):
-        self.early_thread_terminal_refusal('thread/archived')
+        self.early_terminal_refusal('thread/archived')
 
     def delayed_terminal_intent_refusal(self, method, exercise):
         terminal, saved = threading.Event(), threading.Event()

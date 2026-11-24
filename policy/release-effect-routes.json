@@ -2548,7 +2548,7 @@
 
 "p51Drive":[53,"_drive",358,"7071dafc82f3f22463d07766a1afa386528b0cdfda67e4d92d000e5e90d47324"],
 
-"p51InterruptClose":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1335,"a09234b4cdb28170470a4a18af191991a206fab4e52df7dd72371fe382040d59"],
+"p51InterruptClose":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1360,"a09234b4cdb28170470a4a18af191991a206fab4e52df7dd72371fe382040d59"],
 
 "p52":[50,202,{"$":315}],
 
@@ -7034,7 +7034,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["fef48adbc02a9e1d9939b97f99b4f364e36e028b817ad21985baa5f766954732",420,133470],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["c6ca89e269a3e54bef646df772e70deaa06ba8517d47d2cec11b54bddc7da6a8",420,133470],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7158,7 +7158,7 @@
 
 "tests/test_registered_provider_network.py":["4810be8c8212226f4ed9896dac4446c9ef38421d1ce85f1df0c80eb168e64112",420,22158],
 
-"tests/test_registered_server_requests.py":["66dc0a6b64a63c56f93ebd8ebad47508fde70bab62f6dfb1c27de7728211d65f",420,85691],
+"tests/test_registered_server_requests.py":["a4da28e77d685459ab089a74a364cac9917b7ac844830f28ce741e768b9c8a29",420,86900],
 
 "tests/test_registered_startup_publication.py":["7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",420,13496],
 
