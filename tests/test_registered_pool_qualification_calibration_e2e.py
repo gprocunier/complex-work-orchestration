@@ -11,6 +11,7 @@ from cwo_core import beads, native_live_availability as availability
 from cwo_core import native_pool_qualification_stage as stage
 from cwo_core import native_pool_transaction as transaction
 from cwo_core.invocation_ledger import InvocationLedger
+from cwo_core.maintenance_authority import sign_controller_directive
 from cwo_core.native_pool_contracts import validate_capability_receipt
 from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts
 from prepare_native_pool_qualification import _materialize_fixtures, _prepare
@@ -18,7 +19,7 @@ import registered_pool_containment as host
 import registered_pool_qualification as adapter
 import registered_pool_qualification_calibration as driver
 import registered_pool_qualification_capability as capability
-from run_native_pool_qualification import ProtectedPoolQualificationParent
+import run_native_pool_qualification as controller
 
 from tests.test_native_pool_qualification_stage import _qualification_effect_events, _run_attempt
 from tests.test_registered_pool_qualification import _InertContainment, _pool_test_directory
@@ -146,6 +147,7 @@ class SignedCalibrationPipeTests(unittest.TestCase):
             self.assertIs(availability.POOL_QUALIFICATION_AVAILABLE, False)
 
         stack.enter_context(mock.patch.object(host, "PoolWorkerContainment", Peer))
+        stack.enter_context(mock.patch.object(availability, "POOL_QUALIFICATION_AVAILABLE", False))
         for module in (availability, stage, transaction):
             stack.enter_context(mock.patch.object(module, "require_pool_qualification", require_inert_scope))
         bd = _FixtureBeads()
@@ -167,7 +169,7 @@ class SignedCalibrationPipeTests(unittest.TestCase):
         manifest = {"scope": "contained-pool-callback-calibration-v1", "calibration_plan_sha256": run.plan["plan_sha256"],
                     "adapter_scope_sha256": capability.callback_adapter_scope_sha256(original_parent),
                     "expires_at": expires, "runtime_seconds": 60}
-        protected = ProtectedPoolQualificationParent(request_path=authority_path, verification_key=_KEY,
+        protected = controller.ProtectedPoolQualificationParent(request_path=authority_path, verification_key=_KEY,
             actor_id="test-operator", identity_source="fixture", admissions=(admission,),
             factory=driver.build_pool_qualification_runtime)
         request = {"plan": run.plan, "authority_path": authority_path, "admission": admission,
@@ -176,6 +178,15 @@ class SignedCalibrationPipeTests(unittest.TestCase):
                          capability.calibration_action_sha256(manifest))
         self.assertFalse(peers)
         self.assertEqual(ledger.summary(stage.CAMPAIGN_BUDGET_ID)["charged"], {"starts": 0})
+
+        signed_stage = {"schema": controller.APPROVAL_SCOPE, "preparation": prep, "runs": [],
+                        "stage_binding_sha256": _digest("inert stage binding"), "expires_at": expires,
+                        "calibrations": [{**request, "admission": None, "authority_path": str(authority_path),
+                                          "journal_path": str(run.journal_path), "fixture_root": str(run.fixture_root)}]}
+        directive = sign_controller_directive(verification_key=_KEY, actor_id="test-operator", identity_source="fixture",
+            action_sha256=controller.qualification_action_sha256(signed_stage), directive_id="inert containing campaign")
+        _, approval = controller._approved_campaign({"manifest": signed_stage, "directive": directive}, protected)
+        request["_campaign_approval"] = approval
 
         if expect_wire_failure:
             with self.assertRaisesRegex((adapter.PoolQualificationAdapterError, adapter.AppServerError),

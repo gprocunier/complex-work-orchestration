@@ -219,7 +219,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_recovery_policy": set(),
     "native_retry": {"native_authority"},
     "native_control": set(),
-    "native_tool_isolation": set(),
+    "native_tool_isolation": {"native_pool_qualification_fixtures"},
     "native_tool_activation": {
         "native_authority",
         "native_pool_admission",

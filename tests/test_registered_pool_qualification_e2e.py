@@ -20,6 +20,7 @@ sys.path.insert(0, str(SCRIPTS))
 import registered_pool_containment as host  # noqa: E402
 import registered_pool_qualification as adapter  # noqa: E402
 import registered_pool_qualification_capability as capabilities  # noqa: E402
+from tests.test_native_pool_contained_stage import _approve_accounting
 from cwo_core import beads, native_live_availability as availability  # noqa: E402
 from cwo_core import native_pool_qualification_stage as stage  # noqa: E402
 from cwo_core import native_pool_transaction as transaction  # noqa: E402
@@ -258,6 +259,7 @@ class AdmittedRegisteredPoolTests(unittest.TestCase):
             self.assertIs(availability.POOL_QUALIFICATION_AVAILABLE, False)
 
         stack.enter_context(patch.object(host, "PoolWorkerContainment", Peer))
+        stack.enter_context(patch.object(availability, "POOL_QUALIFICATION_AVAILABLE", False))
         for module in (availability, stage, transaction):
             stack.enter_context(patch.object(module, "require_pool_qualification", require_test_boundary))
         bd = _FixtureBeads()
@@ -283,6 +285,7 @@ class AdmittedRegisteredPoolTests(unittest.TestCase):
         accounting = stage.PoolQualificationAccounting(InvocationLedger(ledger_root), expires_at=int(time()) + 900)
         stack.enter_context(patch.object(stage, "contained_campaign_ledger_root", return_value=ledger_root))
         accounting.ledger.open_budget(stage.CAMPAIGN_BUDGET_ID, {"starts": 20}, scope_sha256=stage.CAMPAIGN_SCOPE_SHA256)
+        accounting = _approve_accounting(accounting, stage.pool_qualification_binding(prep, runs, accounting=accounting))
         return prep, runs, accounting, contained
 
     def _order_mismatch_after_sibling_arrival(self, stack):

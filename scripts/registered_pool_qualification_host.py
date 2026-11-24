@@ -8,12 +8,14 @@ import os
 from pathlib import Path
 
 from cwo_core.beads import run_bd_structured
+from cwo_core.invocation_ledger import InvocationLedger
 from cwo_core.native_authority import canonical_authority_sha256, canonical_json_object
 from cwo_core.native_pool_admission import (
     AdmissionCandidate, BeadsClaimAdapter, PoolAdmissionReservation, reserve_pool_cohort,
 )
 from cwo_core.native_pool_qualification_fixtures import POOL_QUALIFICATION_COHORT_SIZES
-from cwo_core.native_pool_qualification_stage import CAMPAIGN_START_CAP
+from cwo_core.native_pool_qualification_stage import CAMPAIGN_BUDGET_ID, CAMPAIGN_START_CAP
+from cwo_core import native_pool_qualification_stage as stage
 from cwo_core.private_artifact import PrivateDirectory
 from registered_host_root_boundary import require_private_roots
 from registered_pool_qualification import build_pool_qualification_runtime
@@ -94,6 +96,7 @@ def _admission_action(request, admissions, calibrations, expiry):
                for issue in row["candidate"]["child_bindings"]]
     _require(len(set(targets)) == len(targets), "disposable-admission-cohort-reused")
     return canonical_authority_sha256({"scope": ADMISSION_SCOPE, "request": request,
+                                       "campaign": CAMPAIGN_BUDGET_ID, "start_limit": CAMPAIGN_START_CAP,
                                        "expires_at": expiry, "admissions": list(admissions),
                                        "calibrations": list(calibrations)})
 
@@ -157,6 +160,10 @@ def _reserve_selected(directory, parent, admissions, calibrations, directive, ex
             _require(_request_binding(parent.request_path, current) == request, "protected-request-custody-changed")
 
     guard()
+    ledger_root = stage.contained_campaign_ledger_root()
+    with stage._campaign_custody(ledger_root):
+        stage._require_campaign_budget(stage.PoolQualificationAccounting(InvocationLedger(ledger_root), expires_at),
+                                       len(selected) + len(measured))
     reserved = tuple(_reserve(directory, f"{parent.request_path.name}.{index}", cohort, binding, guard)
                      for index, (cohort, binding) in enumerate(zip(admissions + calibrations, selected + measured), 1))
     return replace(parent, admissions=reserved[:len(admissions)], calibration_admissions=reserved[len(admissions):])

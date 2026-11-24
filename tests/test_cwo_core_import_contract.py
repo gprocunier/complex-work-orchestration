@@ -151,7 +151,7 @@ ALLOWED_IMPORTS = {
         "native_recovery_authority",
         "native_tool_isolation",
     },
-    "native_tool_isolation": set(),
+    "native_tool_isolation": {"native_pool_qualification_fixtures"},
     "native_stop_scope": {"native_authority"},
     "native_pool_admission": {
         "beads",

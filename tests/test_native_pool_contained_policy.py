@@ -11,11 +11,28 @@ from cwo_core import native_tool_isolation as tools
 from cwo_core.native_pool_admission import NativePoolAdmissionError
 from cwo_core.native_pool_admitted import run_admitted_native_pool
 from cwo_core.native_pool_preflight import run_pool_preflight
+from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts
 
 from tests.test_native_pool_contained_stage import _registered_fixture
 
 
 class ContainedPoolPolicyTests(unittest.TestCase):
+    def test_fixed_prompt_preparation_keeps_original_expansion_held(self):
+        policy = tools.contained_pool_tool_policy()
+        for cohort in fixed_pool_qualification_cohorts():
+            for task in cohort["tasks"]:
+                prompt = task["prompt"]
+                with self.assertRaisesRegex(tools.NativeToolIsolationError, "unproven-permitted-tool-expansion"):
+                    tools.prompt_preflight(prompt, policy)
+                evidence = tools.contained_pool_qualification_prompt_preflight(prompt)
+                self.assertTrue(evidence["accepted"])
+                self.assertEqual(evidence["tool_policy_sha256"], tools.canonical_sha256(policy))
+                self.assertIsNone(tools._active_contained_tool_scope())
+                with self.assertRaisesRegex(tools.NativeToolIsolationError, "unproven-permitted-tool-expansion"):
+                    tools.prompt_preflight(prompt, policy)
+                with self.assertRaisesRegex(tools.NativeToolIsolationError, "qualification-prompt-invalid"):
+                    tools.contained_pool_qualification_prompt_preflight(prompt + "\n")
+
     def test_rendered_contained_policy_grants_no_ordinary_validation_authority(self):
         policy = tools.contained_pool_tool_policy()
         surface = tools.contained_pool_tool_surface()

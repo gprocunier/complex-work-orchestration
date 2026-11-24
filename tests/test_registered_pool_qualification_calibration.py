@@ -12,12 +12,13 @@ from cwo_core.native_pool_transaction import NativePoolTransactionError, Transac
 import registered_pool_qualification_calibration as calibration
 import registered_pool_qualification_capability as capability
 
-from tests.test_native_pool_contained_stage import _registered_fixture
+from tests.test_native_pool_contained_stage import _approve_accounting, _registered_fixture
 from tests.test_native_pool_qualification_stage import _qualification_effect_events
 from tests.test_registered_pool_qualification_capability import _ProtectedParent, _fixture, _signed
 
 
 class CallbackCalibrationDriverTests(unittest.TestCase):
+    @mock.patch.object(availability, "POOL_QUALIFICATION_AVAILABLE", False)
     def test_source_hold_precedes_requests_and_signed_stage_inputs(self):
         request = mock.MagicMock()
         with self.assertRaisesRegex(NativeLiveUnavailable, "native-pool-qualification-unavailable"):
@@ -31,6 +32,9 @@ class CallbackCalibrationDriverTests(unittest.TestCase):
         with TemporaryDirectory() as temporary, ExitStack() as stack:
             launches = []
             _, (run, other), accounting = _registered_fixture(Path(temporary), stack, original_launches=launches)
+            accounting = _approve_accounting(accounting, accounting._approval.stage_binding, calibrations=(
+                ("b" * 64, run.plan["plan_sha256"], str(run.journal_path), str(run.fixture_root), accounting.expires_at),
+            ))
             request = calibration._CalibrationRequest(object(),
                 {"expires_at": accounting.expires_at, "runtime_seconds": 60}, {})
             marker = object()

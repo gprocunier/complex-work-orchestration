@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Require independently signed approval and an enrolled campaign ledger for contained pool qualification. Bind worker and writer effects to their original identities.
+
 ## 1.28.0 - 2026-11-24
 
 - Add a protected N=2 and N=3 pool qualification stage with durable run reservations and checks of worker output and lease settlement. Live pool execution remains held.

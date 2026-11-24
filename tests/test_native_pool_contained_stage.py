@@ -1,6 +1,7 @@
 from contextlib import ExitStack
 from dataclasses import replace
 from hashlib import sha256
+import os
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
@@ -32,6 +33,12 @@ from tests.test_native_pool_qualification_stage import (
 
 def _digest(text):
     return sha256(text.encode()).hexdigest()
+
+
+def _approve_accounting(accounting, binding, *, calibrations=()):
+    approval = stage._CampaignApproval(binding, _digest("inert signed campaign action"), accounting.expires_at,
+                                       calibrations, os.getpid(), None, stage._CAMPAIGN_APPROVAL_TOKEN)
+    return replace(accounting, _approval=approval)
 
 
 def _exchange(request):
@@ -124,7 +131,8 @@ def _registered_fixture(root, stack, *, omit_proof=False, original_launches=None
                                                         assembled=(bound.runtime, bound.bind_limits, bound.cleanup))
         active.append(stage.make_pool_qualification_run(bound.plan, selection, journal_path=bound.journal_path,
                                                         fixture_root=bound.fixture_root))
-    return preparation, active, accounting
+    binding = stage.pool_qualification_binding(preparation, active, accounting=accounting)
+    return preparation, active, _approve_accounting(accounting, binding)
 
 
 def _authorize_writer(limits, child_id, thread_id, turn_id, write):
@@ -132,6 +140,16 @@ def _authorize_writer(limits, child_id, thread_id, turn_id, write):
 
 
 class ContainedPoolStageTests(unittest.TestCase):
+    @mock.patch.object(availability, "POOL_QUALIFICATION_AVAILABLE", True)
+    def test_open_source_still_requires_signed_stage_before_accounting(self):
+        forged = stage.PoolQualificationAccounting(None, 1, object.__new__(stage._CampaignApproval))
+        with mock.patch.object(stage, "_ledger_root", side_effect=AssertionError("accounting reached")) as ledger:
+            for accounting in (None, forged):
+                with self.assertRaisesRegex(NativePoolTransactionError, "signed-campaign-approval-required"):
+                    stage.run_contained_pool_qualification_stage(None, (), approved_binding="a" * 64,
+                                                                 accounting=accounting)
+            ledger.assert_not_called()
+
     def _run_fixture(self, *, omit_proof):
         with TemporaryDirectory() as temporary, ExitStack() as stack:
             preparation, runs, accounting = _registered_fixture(Path(temporary), stack, omit_proof=omit_proof)
@@ -140,6 +158,7 @@ class ContainedPoolStageTests(unittest.TestCase):
                                                                   accounting=accounting)
             return result, [_qualification_effect_events(run, accounting) for run in runs if run.journal_path.exists()]
 
+    @mock.patch.object(availability, "POOL_QUALIFICATION_AVAILABLE", False)
     def test_qualification_hold_precedes_access_to_parent_inputs(self):
         preparation, runs, accounting = (mock.MagicMock() for _ in range(3))
         with self.assertRaisesRegex(availability.NativeLiveUnavailable, "native-pool-qualification-unavailable"):
@@ -164,9 +183,10 @@ class ContainedPoolStageTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             preparation, runs, _, _, accounting = _preparation_and_runs(Path(temporary))
             binding = stage.pool_qualification_binding(preparation, runs, accounting=accounting)
-            with self.assertRaisesRegex(NativePoolTransactionError, "contained-runtime-required"):
+            with (mock.patch.object(stage, "contained_campaign_ledger_root", return_value=accounting.ledger.root),
+                  self.assertRaisesRegex(NativePoolTransactionError, "contained-runtime-required")):
                 stage.run_contained_pool_qualification_stage(preparation, runs, approved_binding=binding,
-                                                             accounting=accounting)
+                                                             accounting=_approve_accounting(accounting, binding))
             self.assertFalse(any(run.journal_path.exists() for run in runs))
 
     @mock.patch.object(availability, "REGISTERED_N1_LIVE_AVAILABLE", True)

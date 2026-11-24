@@ -45,9 +45,14 @@ def _registered_parent(runtime: TransactionRuntime):
 
 
 def run_protected_callback_calibration(protected_parent: object, *, plan: Mapping[str, Any], authority_path: Path,
-    admission: object, manifest: dict[str, Any], directive: dict[str, Any]) -> ConnectedPoolCallbackCapability:
+    admission: object, manifest: dict[str, Any], directive: dict[str, Any],
+    _campaign_approval: object = None) -> ConnectedPoolCallbackCapability:
     """Measure one signed cohort and return its opaque capability to this controller."""
+    stage._require_contained_availability()
+    _require(stage._original_campaign_approval(_campaign_approval) and _campaign_approval.parent is protected_parent,
+             "signed-campaign-approval-required")
     run, accounting, request = _prepare_calibration(protected_parent, plan, authority_path, admission, manifest, directive)
+    accounting = stage.PoolQualificationAccounting(accounting.ledger, accounting.expires_at, _campaign_approval)
     handle = stage.run_contained_pool_callback_calibration(run, accounting=accounting,
         binder=bind_protected_callback_calibration, request=request)
     _require(type(handle) is ConnectedPoolCallbackCapability, "original-calibration-capability-required")

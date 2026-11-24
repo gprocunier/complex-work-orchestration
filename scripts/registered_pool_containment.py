@@ -11,7 +11,7 @@ import re
 import stat
 from threading import Lock, RLock, get_ident
 from time import monotonic
-from types import MappingProxyType, SimpleNamespace
+from types import MappingProxyType, MethodType, SimpleNamespace
 
 from cwo_core import native_live_availability as availability
 from cwo_core.host_records import configured_store
@@ -45,6 +45,27 @@ print('fixed qualification file written')
 def _route_available():
     availability.require_pool_qualification()
     availability.require_registered_n1_live()
+
+
+def _require_original_worker(effect, worker_id, worktree, spool, login_slot, containment=None):
+    from registered_pool_qualification import _POOL_WORKER_EFFECT, _PoolWorker
+
+    require(type(effect) is MethodType and effect.__func__ is _POOL_WORKER_EFFECT
+            and type(effect.__self__) is _PoolWorker, 'Original retained pool worker required.')
+    worker = effect.__self__
+    require((worker.child_id, worker.worktree, worker.spool, worker.login_slot)
+            == (worker_id, worktree, spool, login_slot) and worker.containment is containment,
+            'Original retained pool worker required.')
+    effect()
+
+
+def _require_original_writer(effect, authorize, call_id, deadline):
+    from registered_pool_qualification import _PoolWriterAuthorization
+
+    worker = effect.__self__
+    require(type(authorize) is _PoolWriterAuthorization and authorize.worker is worker
+            and worker._writer_authorization is authorize and authorize.pending.params['callId'] == call_id
+            and worker.limits.deadline == deadline, 'Original retained pool writer required.')
 
 
 def _directory_identity(path):
@@ -192,9 +213,9 @@ class PoolWorkerContainment:
                  launcher, launcher_sha256, validator, validator_sha256, protected_roots,
                  write_path, expected_utf8, require_effect, peer_worktrees=(), model_catalog=None):
         _route_available()
-        require(callable(require_effect) and type(worker_id) is str and _ID.fullmatch(worker_id) is not None,
+        require(type(worker_id) is str and _ID.fullmatch(worker_id) is not None,
                 'The original protected worker and effect check are required.')
-        require_effect()
+        _require_original_worker(require_effect, worker_id, worktree, spool, login_slot)
         self._authorize_effect = require_effect
         self.operation_id = worker_id
         self.host = SimpleNamespace(worker=native._path(worktree))
@@ -278,7 +299,8 @@ class PoolWorkerContainment:
     def require_effect(self):
         _route_available()
         require(not self._closed and not self._failed, 'The original worker is no longer open.')
-        self._authorize_effect()
+        _require_original_worker(self._authorize_effect, self.operation_id, self.host.worker, self.home,
+                                 self._slot, self)
         require((self.host.worker, self.home) == (self._paths[0], self._paths[2])
                 and tuple(_directory_identity(path) for path in self._paths) == self._identities,
                 'An original contained directory changed.')
@@ -377,7 +399,8 @@ class PoolWorkerContainment:
         """Perform the sole fixed write after the parent authorizes the one-shot gate."""
         with self._lock:
             self.require_effect()
-            require(type(call_id) is str and _ID.fullmatch(call_id) is not None and callable(authorize)
+            _require_original_writer(self._authorize_effect, authorize, call_id, deadline)
+            require(type(call_id) is str and _ID.fullmatch(call_id) is not None
                     and self._call is None and self._appserver is not None
                     and type(deadline) in (int, float), 'The original one-shot writer callback is required.')
             self._call = _WriterCall(call_id, authorize)

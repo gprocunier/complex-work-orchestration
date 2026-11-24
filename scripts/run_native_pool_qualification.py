@@ -35,6 +35,9 @@ from cwo_core.native_pool_admission import (
 from cwo_core.native_pool_contracts import canonical_sha256
 from cwo_core.native_pool_deferred_context import QUALIFICATION_PROFILE
 from cwo_core.native_pool_qualification_fixtures import POOL_QUALIFICATION_COHORT_SIZES, fixed_pool_qualification_cohorts
+from cwo_core.native_pool_qualification_stage import (
+    CAMPAIGN_BUDGET_ID, CAMPAIGN_START_CAP, _CAMPAIGN_APPROVAL_TOKEN, _CampaignApproval,
+)
 from cwo_core.native_pool_transaction import PLAN_VERSION, validate_transaction_plan
 from cwo_core.policy_schema import strict_json_loads
 from cwo_core.workspace_capture import BudgetExhausted, _pin_directory, read_at
@@ -141,7 +144,27 @@ def _require_current_input(path, ancestry, observed):
 
 def qualification_action_sha256(manifest):
     """Bind the complete fixed stage request in the existing operator directive."""
-    return canonical_authority_sha256({"scope": APPROVAL_SCOPE, "manifest": manifest})
+    return canonical_authority_sha256({"scope": APPROVAL_SCOPE, "manifest": manifest,
+                                       "campaign": CAMPAIGN_BUDGET_ID, "start_limit": CAMPAIGN_START_CAP})
+
+
+def _approved_campaign(request, parent):
+    from registered_pool_qualification_capability import calibration_action_sha256
+
+    _require(type(parent) is ProtectedPoolQualificationParent, "protected-parent-attachment-required")
+    manifest = _verify_approval(request, parent)
+    calibrations = manifest.get("calibrations", [])
+    _require(type(calibrations) is list and len(calibrations) <= CAMPAIGN_START_CAP,
+             "approved-calibration-start-cap-invalid")
+    try:
+        bindings = tuple((calibration_action_sha256(row["manifest"]), row["plan"]["plan_sha256"],
+                          row["journal_path"], row["fixture_root"], row["manifest"]["expires_at"])
+                         for row in calibrations)
+    except (KeyError, TypeError) as exc:
+        raise QualificationControllerError("approved-calibration-fields-invalid") from exc
+    approval = _CampaignApproval(manifest["stage_binding_sha256"], qualification_action_sha256(manifest),
+                                manifest["expires_at"], bindings, os.getpid(), parent, _CAMPAIGN_APPROVAL_TOKEN)
+    return manifest, approval
 
 
 def _verify_approval(request, parent):
@@ -287,6 +310,8 @@ def _select_calibrations(manifest, parent, rows, stage):
     _require(not parent.capabilities, "mixed-callback-capability-sources-refused")
     actions = tuple(_calibration_action(row, parent, admission, stage.QUALIFICATION_MODEL)
                     for row, admission in zip(selected, admissions))
+    _require(all(row["manifest"]["expires_at"] <= manifest["expires_at"] for row in selected),
+             "approved-calibration-expiry-outside-campaign")
     _require(len(set(actions)) == len(actions) and set(actions) == {row[_OPPORTUNITY] for row in rows},
              "signed-calibration-opportunity-mismatch")
     _require_distinct_runs(rows + selected, parent.admissions + admissions)
@@ -307,7 +332,7 @@ def _execute_calibrations(stage, parent, selected, accounting, rows):
     issued = {}
     for action, inputs in requests:
         _require_source()
-        issued[action] = run_protected_callback_calibration(parent, **inputs)
+        issued[action] = run_protected_callback_calibration(parent, **inputs, _campaign_approval=accounting._approval)
         _check_capability_objects((issued[action],), 1)
     return tuple(issued[row[_OPPORTUNITY]] for row in rows)
 
@@ -321,7 +346,7 @@ def _calibration_inputs(row, parent, admission):
             "manifest": row["manifest"], "directive": row["directive"]}
 
 
-def _run_approved_stage(manifest, parent, *, include_pass_record):
+def _run_approved_stage(manifest, parent, *, approval, include_pass_record):
     from cwo_core import native_pool_qualification_stage as stage
 
     rows = _validate_roster(manifest, parent.admissions, stage)
@@ -333,13 +358,16 @@ def _run_approved_stage(manifest, parent, *, include_pass_record):
     authority_paths = tuple(_authority_for_run(row) for row in rows)
 
     accounting = stage.PoolQualificationAccounting(InvocationLedger(stage.contained_campaign_ledger_root()),
-                                                     manifest["expires_at"])
+                                                     manifest["expires_at"], approval)
+    binding = manifest["stage_binding_sha256"]
+    planned = tuple((row["plan"], _path(row["journal_path"]), _path(row["fixture_root"])) for row in rows)
+    _require(stage.contained_pool_qualification_binding(preparation, planned, accounting=accounting) == binding,
+             "approved-stage-binding-mismatch")
     capabilities = (_execute_calibrations(stage, parent, calibrations, accounting, rows)
                     if calibrations else parent.capabilities)
     _require(time() < manifest["expires_at"], "qualification-directive-expired-or-future")
     runs = tuple(_select_run(stage, row, path, admission, capability, parent.factory)
                  for row, path, admission, capability in zip(rows, authority_paths, parent.admissions, capabilities))
-    binding = manifest["stage_binding_sha256"]
     _require(stage.pool_qualification_binding(preparation, runs, accounting=accounting) == binding,
              "approved-stage-binding-mismatch")
     _require_source()
@@ -366,8 +394,8 @@ def run_protected_pool_qualification(parent, *, include_pass_record=False):
              and isinstance(parent.request_path, Path) and callable(parent.factory),
              "protected-parent-attachment-required")
     request, _digest = _read_owner_json(_path(str(parent.request_path)))
-    manifest = _verify_approval(request, parent)
-    return _run_approved_stage(manifest, parent, include_pass_record=include_pass_record)
+    manifest, approval = _approved_campaign(request, parent)
+    return _run_approved_stage(manifest, parent, approval=approval, include_pass_record=include_pass_record)
 
 
 def _report_inputs(preparation, cap):
