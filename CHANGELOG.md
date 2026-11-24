@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.26.0 - 2026-11-24
+
 - Report malformed native pool state fields as validation errors, including child IDs, child statuses, runtime dispositions, control-loss scopes, reason lists, and state digests checked for replay.
 
 ## 1.25.0 - 2026-11-24
