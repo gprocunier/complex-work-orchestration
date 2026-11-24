@@ -11,6 +11,11 @@ Shared contracts, source points and witnesses avoid repeating the same data for
 entry aliases. Point arrays store a file index plus either symbol/line/raw-body
 digest or line/exact source text. These are explicit references, with no inferred
 call resolution. A raw declaration digest uses source bytes, with no AST dump ABI.
+The optional `point_digest_encoding: "sha256-base64url-v1"` stores literal
+declaration digests as 43 unpadded base64url characters. Readers restore the
+complete hexadecimal SHA256. Existing shared-string references, source text
+spans, and primitive digests keep their current layout. Legacy declaration rows
+with full hexadecimal digests use the same checks.
 Existing declaration and line/text points retain their semantics. An exact text
 span can additionally select UTF-8 byte columns with `col`, `end_line` and
 `end_col`; its compact point is `[file_index, line, text, col, end_line, end_col]`.
