@@ -580,13 +580,13 @@
 ],
 
 "points":{
-"bEe":[176,434,"record_received_return(configured_store(), dispatch_id, browser_return)"],
+"bEe":[176,437,"record_received_return(configured_store(), dispatch_id, browser_return)"],
 
-"bEg":[176,432,"if browser_return is not None:"],
+"bEg":[176,435,"if browser_return is not None:"],
 
-"bEm":[176,"main",476,"fnASApmtJ6eBsz_2OwuuEqym1rV0mo3xPny_7Y9KbhE"],
+"bEm":[176,"main",479,"fnASApmtJ6eBsz_2OwuuEqym1rV0mo3xPny_7Y9KbhE"],
 
-"bEw":[87,"BrowserProvenanceTests.test_private_evaluation_round_trip",183,"Y2YcdT8jGSV3JF6efnU4K0WpOgma9JTSqt2ooDq1qm8"],
+"bEw":[87,"BrowserProvenanceTests.test_private_evaluation_round_trip",209,"Y2YcdT8jGSV3JF6efnU4K0WpOgma9JTSqt2ooDq1qm8"],
 
 "browser-request-screen-body":[174,"prepare_browser_submission",73,"u7LdwN2Hkt-z3qQVtHVu1Y10NXCvLZbVgIufVb6vxq0"],
 
@@ -2116,7 +2116,7 @@
 
 "p351":[43,"WorktreeCapture._dirs",1548,"RyInlKdBKwbYhDsTBCa-7-OCgTXi5_PVtGLlXm54Cs0"],
 
-"p352":[87,"BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal",277,"GBCZC7XLKsWdI3VdJOUgU1lNxI3ibjQhbOSqJ4uhO0Y"],
+"p352":[87,"BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal",315,"GBCZC7XLKsWdI3VdJOUgU1lNxI3ibjQhbOSqJ4uhO0Y"],
 
 "p353":[20,2,"set -eu"],
 
@@ -5207,7 +5207,7 @@
 
 [47,2257,63,2257,100,"dynamic","ca9298ef778c10d60b8556f90a8da5bf9afceb30f77006f6b62ed9604dbd974c",[{"$":9},"XR278"]],
 
-[48,590,19,590,44,"dynamic",{"$":192},[{"$":9},"XR279"]],
+[48,593,19,593,44,"dynamic",{"$":192},[{"$":9},"XR279"]],
 
 [49,303,13,303,48,"dynamic","06ea1ab16420a26cb26d193569fc3ac9e1cfe493abcdfe2fef7ed2649c2a82ff",[{"$":9},"XR280"]],
 
@@ -7100,11 +7100,11 @@
 
 "@173":["tIkyVbbIbTVNZCaImn05K0UH-u2yrf0xgJPSbv-JxUk",420,8495],
 
-"@174":["vqYB7alT52EU5YQEhl38rkq6bhN9J9foKP_1UbNVqmM",420,4722],
+"@174":["mA3_ca0e7ZcWQQU9EgAVQ8O0kjTkjmlSteav-ucHOcc",420,6174],
 
 "@175":["_erCbCx5_5ca8oPuESeXYMpI9HQv8JbPLvxsxNJ9maI",420,12940],
 
-"@176":["Ee35MW-YULDOdBWEJtFfJO8dISnH8r8xxD_Sg4XWN40",493,41415],
+"@176":["xuOnpZjkASxwL3mGYalb5qMj70oN3AinKFkVUIpVBh0",493,41656],
 
 "@177":["qBuFjmJ4J-pRWXryHjO8RcrYazA2ukmqrtz5qo-Jyaw",420,8550],
 
@@ -7260,7 +7260,7 @@
 
 "@86":["XVWJTF7tMi9LBedksiJNFRMw258vQ4svNasA5V_R3N8",420,27339],
 
-"@87":["x2sSriEMQ1fwNQBNkIwEuCHjbPE6wz3MLuo8WO57KtQ",420,19524],
+"@87":["FdjM-CKRmAasehBrUiAcXEb8wq8LfMpfc_yag_j1oFw",420,21513],
 
 "@88":["48qRf-wZ0gOSGpSdDyIA19OfbHtBzAqCwbq5hqa5NQU",420,21997],
 
@@ -7674,7 +7674,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Gv5bYFjzPVBGezA5v9HniroIpwNzxIGD263NYbSbTVs",420,134123],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["-kh9qMY1AHzIXsc6wNr4KhBysQszP7rGyAzoQVUTJOk",420,134123],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 

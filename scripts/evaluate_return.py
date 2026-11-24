@@ -211,6 +211,9 @@ def _observed_browser_dispatch(packet: dict, provenance: dict, event_hash: str) 
         or any(dispatch.get(key) != value for key, value in expected.items())
     ):
         raise SystemExit("private response does not match the observed browser dispatch")
+    fields = ("packet_source_sha256", "request_id", "outbound_prepared_sha256")
+    if any(metadata.get(key) != provenance[key] for key in fields):
+        raise SystemExit("private response does not match the recorded browser preparation")
     return metadata
 
 

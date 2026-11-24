@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import build_contractor_packet  # noqa: E402
 from cwo_core import audit, browser_capture, host_records  # noqa: E402
-from cwo_core.outbound_screen import require_clean  # noqa: E402
+from cwo_core.outbound_screen import OutboundRefused, require_clean  # noqa: E402
 from cwo_core.prepared_outbound import PreparedSource  # noqa: E402
 from cwo_core.private_artifact import sha256_bytes  # noqa: E402
 from cwo_core.util import artifact_hash, packet_payload_hash  # noqa: E402
@@ -146,6 +146,16 @@ class BrowserProvenanceTests(unittest.TestCase):
         packet_path.write_text(json.dumps(self.packet), encoding="utf-8")
         request = prepare_browser_packet_request(packet_path)
         submitted = request.require_unchanged()
+        dispatch_id = self.packet["dispatch_id"]
+        prepared = request.record_dispatch()
+        dispatch = self.store.require_dispatch(dispatch_id)
+        self.assertEqual(dispatch["_record_sha256"], prepared)
+        self.assertEqual(dispatch["request_sha256"], sha256_bytes(submitted))
+        self.assertEqual(dispatch["evaluation_metadata"]["packet_source_sha256"], request.packet_source.sha256)
+        self.assertEqual(dispatch["evaluation_metadata"]["request_id"], request.request_id)
+        self.assertEqual(dispatch["evaluation_metadata"]["outbound_prepared_sha256"], request.outbound.sha256)
+        for field in ("model_family", "model_id", "reasoning_effort", "session_id"):
+            self.assertIsNone(dispatch[field])
         user_sha256 = artifact_hash(submitted.decode("utf-8").replace("\r\n", "\n").strip())
         attestation = {"required": True, "status": "confirmed"}
         browser = {
@@ -156,14 +166,6 @@ class BrowserProvenanceTests(unittest.TestCase):
         }
         artifact = browser_capture.write_private_response(
             self.base / "returns", metadata=request.metadata, prompt=request.prompt, browser_result=browser,
-        )
-        dispatch_id = self.packet["dispatch_id"]
-        prepared = self.store.write_dispatch(
-            dispatch_id=dispatch_id, dispatch_role="executor", provider=self.packet["provider_family"],
-            model_family=None, model_id=None, reasoning_effort=None, session_id=None,
-            packet_sha256=self.packet["packet_sha256"], request_sha256=request.outbound.payload.sha256,
-            bead_id=self.packet["bead_id"], executor=self.packet["executor"], provider_key=self.packet["provider_key"],
-            evaluation_metadata={"dispatch_mode": "browser_automation", "peer_review_required": True},
         )
         event = browser_capture.record_browser_dispatch(
             {**request.metadata, "prompt_sha256": artifact_hash(request.prompt), "status": "completed",
@@ -179,6 +181,30 @@ class BrowserProvenanceTests(unittest.TestCase):
         return ["evaluate_return.py", "--private-artifact", artifact["provenance_path"],
                 "--contractor-packet", str(packet_path), "--packet-source-sha256", request.packet_source.sha256,
                 "--capture-event", event["event_hash"], "--json"]
+
+    def test_prepared_dispatch_refuses_a_changed_packet_before_recording(self):
+        from browser_request import prepare_browser_packet_request
+
+        packet_path = self.base / "packet.json"
+        original = json.dumps(self.packet).encode("utf-8")
+        packet_path.write_bytes(original)
+        request = prepare_browser_packet_request(packet_path)
+        packet_path.write_bytes(original + b"\n")
+        with self.assertRaisesRegex(OutboundRefused, "input file changed after capture"):
+            request.record_dispatch()
+        self.assertFalse(self.store.find("dispatch"))
+
+    def test_prepared_dispatch_requires_the_configured_host_packet_audit(self):
+        from browser_request import prepare_browser_packet_request
+
+        packet_path = self.base / "packet.json"
+        packet_path.write_text(json.dumps(self.packet), encoding="utf-8")
+        request = prepare_browser_packet_request(packet_path)
+        unrelated_store = host_records.HostRecordStore.for_tests(self.base / "unrelated-host")
+        with host_records.using_test_store(unrelated_store):
+            with self.assertRaisesRegex(SystemExit, "contractor packet has no production provenance"):
+                request.record_dispatch()
+            self.assertFalse(unrelated_store.find("dispatch"))
 
     def test_private_evaluation_round_trip(self):
         import evaluate_return
@@ -228,6 +254,18 @@ class BrowserProvenanceTests(unittest.TestCase):
 
         argv = self.private_evaluation_args(observation="0" * 64)
         with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "observed browser dispatch"):
+            evaluate_return.main()
+        self.assertFalse(self.store.find("return-received"))
+        self.assertFalse(self.store.find("evaluation"))
+
+    def test_private_evaluation_checks_capture_request_id_against_preparation(self):
+        import evaluate_return
+
+        other_request_id = "0" * 32
+        argv = self.private_evaluation_args(
+            request_id=other_request_id, observed_document_request_id=other_request_id,
+        )
+        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "recorded browser preparation"):
             evaluate_return.main()
         self.assertFalse(self.store.find("return-received"))
         self.assertFalse(self.store.find("evaluation"))

@@ -39,6 +39,12 @@ a complete current chain by adding fields.
 
 ### Direct evaluation of an observed host dispatch
 
+The trusted host can call `prepare_browser_packet_request` and then call
+`record_dispatch()` on that prepared request before Send. The configured host
+store records the packet source, request ID and screened preparation and Send
+digests. The host supplies the actual model, effort and session when it records
+the observed dispatch after capture. Evaluation verifies these prepared fields.
+
 Use `cwo evaluate` to score the exact reply from an existing host-observed
 browser dispatch. Supply the original packet and its independent capture
 references.

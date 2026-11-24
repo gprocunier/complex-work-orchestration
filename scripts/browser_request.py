@@ -94,6 +94,31 @@ class PreparedBrowserPacketRequest:
         """Recheck the packet file and return the exact screened Send bytes."""
         return self.outbound.require_unchanged(self.outbound.source.value(), self.outbound.payload.data)
 
+    def record_dispatch(self) -> str:
+        """Record the exact prepared Send in the trusted host store before submission."""
+        from cwo_core.host_records import configured_store
+
+        require_production_contractor_packet(self.packet_source.value()["packet"])
+        metadata = self.metadata
+        self.require_unchanged()
+        return configured_store().write_dispatch(
+            dispatch_id=metadata["dispatch_id"], dispatch_role="executor", provider=metadata["provider_family"],
+            model_family=None, model_id=None, reasoning_effort=None, session_id=None,
+            packet_sha256=metadata["packet_sha256"], request_sha256=self.outbound.payload.sha256,
+            bead_id=metadata["bead_id"], executor=metadata["executor"], provider_key=metadata["provider_key"],
+            evaluation_metadata={
+                "dispatch_mode": "browser_automation",
+                "peer_review_required": True,
+                "share_boundary": metadata["share_boundary"],
+                "job_description_label": metadata["job_description_label"],
+                "expected_return_language": metadata["expected_return_language"],
+                "expected_return_language_source": metadata["expected_return_language_source"],
+                "packet_source_sha256": self.packet_source.sha256,
+                "request_id": self.request_id,
+                "outbound_prepared_sha256": self.outbound.sha256,
+            },
+        )
+
 
 def prepare_browser_packet_request(
     packet_path: str | Path, *, audit_file: Path | None = None,
