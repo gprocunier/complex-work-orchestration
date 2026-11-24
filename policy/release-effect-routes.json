@@ -7644,7 +7644,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["_RjvoCajS0riuixFksArdmNWyYGXfuFnbbhbbWhQV8E",420,134123],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["J_x7BgxbycQaV3VyrTlmemdishf_1RXHm5gxskT2xE8",420,134377],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -7666,7 +7666,7 @@
 
 "tests/test_validate_repository.py":["hNaVqOftTHeGNCp2Sj9X2e20UDjOhxLl_qXnN5YkZfk",420,38621],
 
-"tests/test_w20_affected_contract_w13.py":["vu2sn_9WJiijNHunjyxqwS_YxmtSj6oJ16hPGNO2Bqs",420,91690]
+"tests/test_w20_affected_contract_w13.py":["Si5Gsc3Y9a-8_uv5Sjvv6A6W4SmKrCZx20TEnP5GW9I",420,92225]
 },
 
 "witness_columns":[

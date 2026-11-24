@@ -459,9 +459,22 @@ def _tree_state(root: Path) -> dict[str, str]:
     return state
 
 
+def _launcher_before_retirement() -> str:
+    source = inspect.getsource(LIVE.main)
+    last_hold = "        live_availability.require_n1_live()\n"
+    retirement = (
+        last_hold
+        + "        # Keep the frozen campaign body for historical source verification.\n"
+        + "        raise LegacyNativePoolExecutionRetired()\n"
+    )
+    if source.count(retirement) != 1:
+        raise AssertionError("legacy-pool-retirement-launcher-lineage-drift")
+    return source.replace(retirement, last_hold, 1)
+
+
 def _drive_launcher(directory: Path, authorization: dict, manifest: dict, nonce: str, *,
                     operative_validator=None) -> dict:
-    """Run the real runner main() offline against private input files.
+    """Run the historical launcher offline against private fixture inputs.
 
     ``operative_validator`` is None for the real validator (wrapped, call-through)
     or a stub; only the positive control passes a stub.
@@ -545,8 +558,10 @@ def _drive_launcher(directory: Path, authorization: dict, manifest: dict, nonce:
                 LIVE, "validate_full_auto_authorization", side_effect=operative_validator))
         stack.enter_context(contextlib.redirect_stderr(stderr))
         stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
+        fixture = {}
+        exec(compile(_launcher_before_retirement(), "<historical-campaign-launcher>", "exec"), vars(LIVE), fixture)
         try:
-            return_code = LIVE.main()
+            return_code = fixture["main"]()
         except SystemExit as exc:  # argparse refusal: recorded, not a pass
             return_code = f"system-exit:{exc.code}"
     lines = [line for line in stderr.getvalue().splitlines() if line.startswith("{")]
@@ -568,11 +583,10 @@ def _drive_launcher(directory: Path, authorization: dict, manifest: dict, nonce:
 
 
 def launcher_authorization_section() -> dict:
-    """Historical-valid authorization against the operative consumer, the runner's main().
+    """Check authorization against the verified pre-retirement launcher.
 
-    main() is the only caller of the runner's ``validate_full_auto_authorization``
-    (with ``operative=True``). The cases differ only in the authorization and the
-    validator outcome; every other input file is the same placeholder set.
+    The cases differ in authorization and validator outcome. All other inputs
+    come from the same placeholder set.
     """
 
     with tempfile.TemporaryDirectory() as directory:
@@ -600,7 +614,7 @@ def launcher_authorization_section() -> dict:
         }
     return {
         "caller_source_sha256": {
-            "LIVE.main": _source_sha256(LIVE.main),
+            "LIVE.main": _sha256(_launcher_before_retirement()),
             "LIVE.require_operative_campaign_contract": _source_sha256(LIVE.require_operative_campaign_contract),
             "LIVE.validate_full_auto_authorization": _source_sha256(LIVE.validate_full_auto_authorization),
         },
@@ -1262,7 +1276,7 @@ def load_golden() -> dict:
     current_app_server = _sha256(source)
     document["sections"]["identities"]["source_sha256"]["AppServer"] = current_app_server
     document["sections"]["tool_surface"]["validator_source_sha256"]["AppServer"] = current_app_server
-    source = inspect.getsource(LIVE.main)
+    source = _launcher_before_retirement()
     historical = source
     for name in ('campaign', 'pool', 'n1'):
         gate = "        live_availability.require_" + name + "_live()\n"
