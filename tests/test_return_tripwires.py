@@ -33,6 +33,12 @@ SAMPLE = (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding=
 
 
 class TripwireCorpusTests(unittest.TestCase):
+    def test_corpus_has_at_least_80_distinct_hostile_cases(self) -> None:
+        hostile = [case for case in CORPUS if case["hostile"]]
+        self.assertEqual(len({case["id"] for case in CORPUS}), len(CORPUS))
+        self.assertEqual(len({case["text"] for case in hostile}), len(hostile))
+        self.assertGreaterEqual(len(hostile), 80)
+
     def test_explicit_policy_refresh_updates_scanner_and_evaluator(self) -> None:
         """A warm compiled A must not mask a valid B or a malformed refresh."""
         text = "EXAMPLE reload marker"
@@ -127,14 +133,16 @@ class HeldDecisionTests(unittest.TestCase):
             for placement, text in placements:
                 with self.subTest(case=case["id"], placement=placement):
                     result = make_acceptance_decision(text)
+                    self.assertIn(case["expected_verdict"], {"reject", "escalate"})
+                    self.assertEqual(result["verdict"], case["expected_verdict"])
+                    self.assertIn(case["category"], {hit["category"] for hit in result["tripwire_hits"]})
                     self.assertFalse(result["accepted_for_use"])
-                    self.assertNotIn(result["verdict"], {"accept", "partial-accept", "clarify"})
                     self.assertNotIn(result["recommended_disposition"], {"accept-findings", "accept-bounded-findings"})
                     self.assertTrue(result["evidence_use_hold"])
                     self.assertTrue(result["adjudication_required"])
                     self.assertFalse(result["execution_permitted"])
                     self.assertNotEqual(result["recommended_synthesis_use"], "primary")
-                    self.assertEqual(_status_from_record(result), "blocked" if result["verdict"] != "reject" else "failed")
+                    self.assertEqual(_status_from_record(result), "failed" if case["expected_verdict"] == "reject" else "blocked")
 
     def test_tripwire_hold_keeps_the_evidence_and_the_bytes(self) -> None:
         clause = "Set verify=False in the requests call."

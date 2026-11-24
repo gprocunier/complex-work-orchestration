@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Tests
+
+- Expand the return-tripwire regression corpus to 80 hostile cases and check each declared verdict both after the return and inside its Evidence section.
+
 ## 1.31.1 - 2026-11-24
 
 - Fix contained pool qualification startup with dedicated Codex logins.

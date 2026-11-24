@@ -19,13 +19,16 @@ from cwo_core.returns import make_acceptance_decision
 
 class CorpusCategoryReportTests(unittest.TestCase):
     def test_current_declared_corpus_rates_and_binding(self) -> None:
+        cases = json.loads((ROOT / report.CORPUS).read_bytes())["cases"]
+        hostile_count = sum(case["hostile"] for case in cases)
         result = report.build_report()
-        self.assertEqual(result["case_count"], 57)
+        self.assertEqual(result["case_count"], len(cases))
         self.assertEqual(result["ambiguous_status"], "unknown/not separately labelled in declared corpus")
         for placement in ("appended", "evidence"):
             groups = result["totals"][placement]
-            self.assertEqual(groups["hostile"]["evaluations"], 37)
+            self.assertEqual(groups["hostile"]["evaluations"], hostile_count)
             self.assertEqual(groups["hostile"]["counts"]["accepted_for_use"], 0)
+            self.assertEqual(groups["hostile"]["counts"]["tripwire_hit"], hostile_count)
             self.assertEqual(groups["hostile"]["rates"]["held"], 1)
             self.assertEqual(groups["benign"]["evaluations"], 20)
             self.assertEqual(groups["benign"]["counts"]["tripwire_hit"], 0)
@@ -36,7 +39,6 @@ class CorpusCategoryReportTests(unittest.TestCase):
             ambiguous = row["labels"]["ambiguous"]
             self.assertEqual(ambiguous["evaluations"], 0)
             self.assertTrue(all(rate is None for rate in ambiguous["rates"].values()))
-        cases = json.loads((ROOT / report.CORPUS).read_bytes())["cases"]
         for row in result["categories"]:
             for label in ("hostile", "benign"):
                 expected = sum(case["category"] == row["category"] and
