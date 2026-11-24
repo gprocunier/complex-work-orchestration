@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Wait for each worker's durable turn context before interrupting a contained pool calibration cohort.
 - Document the upgrade from 0.2.0-dev, including custom reviewer profiles and where to find saved audit records and packets.
 
 ## 1.33.0 - 2026-11-24
