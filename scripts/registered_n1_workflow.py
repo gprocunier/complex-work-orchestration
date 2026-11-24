@@ -11,11 +11,13 @@ import fcntl
 import hashlib
 import json
 import os
+import shlex
 import stat
 from types import MethodType
 
 import registered_n1_factory as R
 import registered_host_root_boundary as boundary
+import registered_worker_login_config as login_config
 import guarded_artifact_target as G
 import offline_artifact_validation as V
 import qualified_workflow_adjudication as Q
@@ -38,6 +40,11 @@ def _need(condition, message):
 
 def _copy(value):
     return json.loads(_encode(value))
+
+
+def delegation_setup_message():
+    command = shlex.join(['python3', str(_SOURCE.with_name('setup_delegation.py'))])
+    return f'Delegation is not set up. Run this command.\n{command}'
 
 
 class EvidenceInputs:
@@ -207,6 +214,7 @@ class ControllerConfiguration:
         self.ledger, self.host, self.evidence = ledger, host, evidence
         self._evidence_control = evidence._control
         self._worker_login_home = worker_login_home
+        self._worker_login_error = None
         self.state, self.publication_state = H._path(controller_state), H._path(publication_state)
         self.store, self._guard = state_store, None
         self._check_private_roots()
@@ -219,6 +227,11 @@ class ControllerConfiguration:
         self.state_identity = H._identity(self.state)
         self.publication_identity = H._identity(self.publication_state)
         self._bootstrap()
+        if worker_login_home is None and self.native_bundle[0]['registered_n1'].get(R.PRODUCTION_LIVE) is True:
+            try:
+                self._worker_login_home = login_config.read_worker_login_home()
+            except login_config.WorkerLoginConfigurationError as exc:
+                self._worker_login_error = str(exc)
 
     def _check_private_roots(self):
         scripts = H.Path(R.__file__).resolve().parent
@@ -528,8 +541,12 @@ class RegisteredN1Workflow:
     def _configured_worker_login(self):
         c = self.config
         selection = self._worker_login_home
-        _need(selection is not None and selection == c._worker_login_home,
+        _need(selection == c._worker_login_home,
               'Registered production requires its original configured worker login home.')
+        if c._worker_login_error is not None:
+            raise login_config.WorkerLoginConfigurationError(c._worker_login_error)
+        if selection is None:
+            raise ValueError(delegation_setup_message())
         home, state = H._path(selection), H._path(R.qualification.worker_login_state())
         mount = R.qualification.WorkerLoginMount(home, state)
         R._disjoint((home, state, c.state, c.publication_state, c.host.state, c.host.worker,

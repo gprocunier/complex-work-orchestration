@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add guided setup for the separate Codex worker sign-in, with an isolated startup check and a standalone command for existing installs.
+
 ### Tests
 
 - Settle accepting replies in the registered pool launcher and validation fixtures.

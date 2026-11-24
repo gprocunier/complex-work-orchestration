@@ -312,7 +312,9 @@
     "tests/fixtures/outbound_screening/seed-corpus.json": 420,
     "tests/test_finite_fixture_progress_acknowledgment.py": 420,
     "tests/test_registered_startup_publication.py": 420,
-    "scripts/cwo_core/native_pool_deferred_context.py": 420
+    "scripts/cwo_core/native_pool_deferred_context.py": 420,
+    "scripts/registered_worker_login_config.py": 420,
+    "scripts/setup_delegation.py": 420
   },
   "files": {
     "policy/acceptance-policy.yaml": "783bd8ec8440ca3d12a1efa0b01542c110171eccf25794839a2686f78d75d998",
@@ -500,7 +502,7 @@
     "scripts/generate_manual_dispatch_prompt.py": "fe67204d6af628f6f041138fd2b4cec6bfab70dccf73ad2cbf19fa7cad561316",
     "scripts/guarded_artifact_target.py": "7780fc04a6eae8ffc437681ed1de877491ec901d2500b94df0c92a3725699e1d",
     "scripts/import_execution_telemetry.py": "bc5531f6014a7afde377b71f752dc668657561ba6c59a2c9ed2d3dc7bf663f75",
-    "scripts/install.sh": "cbc9a1a3e85edd398ced21203e83a90f02168ccbde15f95e1f1c92d35477252e",
+    "scripts/install.sh": "0befb7520d9bc0efd7e5d0fad963501b6dbd3049d75dead9481ea68ccc5d874b",
     "scripts/linux_owned_children.py": "288e7b58debf019fe3290493bf199512863954be6fc065f148c18606fc0a4fb0",
     "scripts/model_catalog_startup.py": "ca86340346abea3e40e4d77be2733055ae46bb53f7fcad2ae2e0de05fd044c34",
     "scripts/offline_admitted_n1.py": "c2a509afff234db565f35225c36bc5eea9a9e9fef52fe562f9040e07946b9236",
@@ -532,7 +534,7 @@
     "scripts/registered_host_root_boundary.py": "615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",
     "scripts/registered_n1_factory.py": "360daa7ec3e61c9283bb6b67484a82aeb266fd60bb44251ff048352e75e7adcc",
     "scripts/registered_n1_qualification.py": "9540fd58f2ef72bf9349880d1bf77d87b44fb020e0a7446bbe8d1e0a350f2091",
-    "scripts/registered_n1_workflow.py": "39fb758c65836240e4538cecdf032ef6e883670fad0b637758ed566c92441137",
+    "scripts/registered_n1_workflow.py": "7de3c48c978922330a436b6ac9461c4029fcd9ebec932bd4a34e3927af3e201b",
     "scripts/registered_native_pool_client.py": "cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",
     "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
     "scripts/registered_native_pool_retry.py": "261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",
@@ -589,7 +591,7 @@
     "tests/test_registered_finite_tool_wiring.py": "36a5ce24e2c8ac0e5e797162aa545aafb5dffbbc3429f6e085eb1097ef559e39",
     "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
     "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
-    "tests/test_registered_n1_workflow.py": "0aea8c1b30c1d0666ff927e7d6d9f7fc8458a440e07d66543aae31b88fd977f3",
+    "tests/test_registered_n1_workflow.py": "bc497ff6916c73ef3e59fcfa0821d05046539010b8e63229d0580e5f65e01606",
     "tests/test_registered_native_pool_host.py": "b360554f45dd46116799fe7d0c31665a4b89531f610e589cd6b2c68fe941cf10",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
     "tests/test_registered_provider_network.py": "dcad39f3aa3e9c8aeccc6ab5f800ff2cc322baa8b8cc9dc4e388d7c965fc9c78",
@@ -610,7 +612,9 @@
     "tests/fixtures/outbound_screening/seed-corpus.json": "7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",
     "tests/test_finite_fixture_progress_acknowledgment.py": "966f50fde466583060fcb0dce898c6bd7e479efba639f551bcc2e2f3444637d2",
     "tests/test_registered_startup_publication.py": "7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",
-    "scripts/cwo_core/native_pool_deferred_context.py": "f653d3f9a1ce01957fc8b4b3ad3745b4f4a776f54be0eefa2a68e1af52bf42ad"
+    "scripts/cwo_core/native_pool_deferred_context.py": "f653d3f9a1ce01957fc8b4b3ad3745b4f4a776f54be0eefa2a68e1af52bf42ad",
+    "scripts/registered_worker_login_config.py": "f5fe6cd43edd5cac532395e9ac09be8f4b96883c976c9284ba581b8f24c7eb45",
+    "scripts/setup_delegation.py": "2a97b28e94ff6c24f3f4e57246ae178a69e80d708cd2568598b7dce4956dcaa5"
   },
   "historical_files": {
     "238ddfb22c52f5e753bc5b24ba1e24b30df7b347": {
@@ -1814,7 +1818,8 @@
       "scripts/offline_artifact_validation.py",
       "scripts/qualified_workflow_adjudication.py",
       "scripts/registered_host_root_boundary.py",
-      "scripts/registered_n1_factory.py"
+      "scripts/registered_n1_factory.py",
+      "scripts/registered_worker_login_config.py"
     ],
     "scripts/registered_native_pool_client.py": [
       "scripts/registered_native_pool_host.py"
@@ -2249,7 +2254,10 @@
       "tests/test_registered_n1_factory.py"
     ],
     "tests/test_registered_n1_workflow.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/host_records.py",
       "scripts/registered_n1_workflow.py",
+      "scripts/setup_delegation.py",
       "tests/test_registered_finite_tool_wiring.py",
       "tests/test_registered_n1_factory.py",
       "tests/test_workflow_adjudication.py"
@@ -2362,6 +2370,18 @@
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/native_pool_contracts.py",
       "scripts/cwo_core/native_tool_isolation.py"
+    ],
+    "scripts/registered_worker_login_config.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/host_records.py"
+    ],
+    "scripts/setup_delegation.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/host_records.py",
+      "scripts/cwo_core/paths.py",
+      "scripts/registered_n1_qualification.py",
+      "scripts/registered_worker_login_config.py",
+      "scripts/selected_native_containment.py"
     ]
   },
   "portable_contract_evidence": {

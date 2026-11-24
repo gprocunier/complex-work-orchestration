@@ -123,8 +123,11 @@ duplicate, missing-source or unused table entries. The table retains the existin
 source-file count bound; an empty hit set uses an empty table. Expanded v1 data
 has no `paths` table and remains supported, including EXAMPLE fixtures.
 
-Both forms retain full 64-character SHA256 values binding the exact UTF-8 call
-bytes, or whole shell line bytes without its newline. Columns remain UTF-8 byte
+Both forms bind exact UTF-8 call bytes or whole shell line bytes without the
+newline to a full SHA256. The optional `hit_digest_encoding: "sha256-base64url-v1"`
+stores literal hit digests in 43 unpadded base64url characters. Readers restore
+the complete hexadecimal digest and leave shared-string references in place
+when writing. Columns remain UTF-8 byte
 offsets and the span end remains excluded. Trace evidence expands compact rows
 before applying the same exact hit, route and exclusion checks. Rebinding keeps
 the selected representation and canonical record layout, preserves all primitive decisions and

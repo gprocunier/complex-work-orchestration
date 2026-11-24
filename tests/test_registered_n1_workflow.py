@@ -12,6 +12,7 @@ import importlib
 import json
 import os
 from pathlib import Path
+import shlex
 import sys
 import unittest
 from unittest.mock import ANY, patch
@@ -22,6 +23,7 @@ import registered_n1_workflow as W  # noqa: E402
 from tests import test_registered_n1_factory as F  # noqa: E402
 import tests.test_workflow_adjudication as E  # noqa: E402
 import tests.test_registered_finite_tool_wiring as tools  # noqa: E402
+from cwo_core import host_records  # noqa: E402
 from tests.test_finite_fixture_progress_acknowledgment import original_poll_ticket_clock  # noqa: E402
 
 
@@ -206,6 +208,9 @@ class WorkflowTests(unittest.TestCase):
             native_bundle=native, publication_bundle=publication, policy_specification=c.policy.report,
             receipt=c.receipt, route=c.route, node_id=c.node_id, ledger=c.ledger, host=c.host,
             controller_state=state, publication_state=pubstate, evidence=evidence)
+        self.read_installed_login = W.login_config.read_worker_login_home
+        self.worker_login_selection = self.enterContext(
+            patch.object(W.login_config, 'read_worker_login_home', return_value=None))
         self.workflow = self.make_workflow()
         test = self
         class FactoryReference:
@@ -372,6 +377,7 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'cannot accept a provider access token'):
             self.workflow.run(provider_access_token='at-EXAMPLE-synthetic-token')
         self.assert_unstarted()
+        self.worker_login_selection.assert_not_called()
 
     @production_case
     def test_production_requires_current_adoption_and_configured_worker_login(self):
@@ -398,8 +404,10 @@ class WorkflowTests(unittest.TestCase):
                 workflow.run(provider_access_token=synthetic)
         self.assert_unstarted()
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'EXAMPLE-ambient-token'}):
-            with self.assertRaisesRegex(ValueError, 'configured worker login home'):
+            with self.assertRaisesRegex(ValueError, 'Delegation is not set up') as failure:
                 workflow.run()
+        command = str(failure.exception).splitlines()[-1]
+        self.assertEqual(shlex.split(command), ['python3', str(ROOT / 'scripts/setup_delegation.py')])
         self.assert_unstarted()
         with self.assertRaisesRegex(ValueError, 'cannot accept a provider access token'):
             workflow.run(provider_access_token=synthetic)
@@ -407,6 +415,27 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'controlled failure'):
             workflow.run(controlled_failure=True, provider_access_token=synthetic)
         self.assert_unstarted()
+
+    @production_case
+    def test_malformed_saved_login_refuses_only_after_original_adoption(self):
+        root = self.case.host.state.parent
+        store = host_records.HostRecordStore.for_tests(root / 'EXAMPLE-installation-state')
+        with store._state(create=True) as directory:
+            host_records._write_at(directory, 'worker-login.json', b'{"version":2}', replace=True)
+        with host_records.using_test_store(store):
+            self.worker_login_selection.side_effect = self.read_installed_login
+            workflow = self.make_workflow()
+            self.assert_unstarted(workflow)
+            with self.assertRaisesRegex(ValueError, 'current execution adoption'):
+                workflow.run()
+            workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=self.production_disclosure())
+            with self.assertRaisesRegex(W.login_config.WorkerLoginConfigurationError, 'setting is invalid'):
+                workflow.run()
+            self.assert_unstarted(workflow)
+            self.worker_login_selection.reset_mock()
+            self.settings['worker_login_home'] = root / 'EXAMPLE-explicit-login'
+            self.assertEqual(self.make_workflow()._worker_login_home, self.settings['worker_login_home'])
+            self.worker_login_selection.assert_not_called()
 
     @production_case
     def test_production_refuses_protected_login_homes_before_claim(self):
@@ -431,18 +460,58 @@ class WorkflowTests(unittest.TestCase):
                         workflow.run()
                     self.assert_unstarted(workflow)
 
-    def configure_worker_login(self):
+    def configure_worker_login(self, *, from_installation=False):
         home = self.case.host.state.parent / 'EXAMPLE-worker-login'
-        home.mkdir(mode=0o700)
+        state = home.parent / 'EXAMPLE-worker-login-state'
+        self.enterContext(patch.object(W.R.qualification, 'worker_login_state', return_value=state))
+        self.worker_login_selection.reset_mock()
+        if from_installation:
+            self.workflow = self.workflow_from_saved_login(home)
+        else:
+            home.mkdir(mode=0o700)
+            self.write_example_login(home)
+            self.settings['worker_login_home'] = home
+            self.workflow = self.make_workflow()
+        self.case.scenario.initialize_home = W.R.qualification.LOGIN_MOUNT
+        return self.workflow, home, state
+
+    @staticmethod
+    def write_example_login(home):
         auth = home / 'auth.json'
         auth.write_text('EXAMPLE dedicated worker login file\n')
         auth.chmod(0o600)
-        state = home.parent / 'EXAMPLE-worker-login-state'
-        self.enterContext(patch.object(W.R.qualification, 'worker_login_state', return_value=state))
-        self.settings['worker_login_home'] = home
-        self.workflow = self.make_workflow()
-        self.case.scenario.initialize_home = W.R.qualification.LOGIN_MOUNT
-        return self.workflow, home, state
+
+    def workflow_from_saved_login(self, home):
+        import setup_delegation as setup
+
+        store = host_records.HostRecordStore.for_tests(home.parent / 'EXAMPLE-installation-state')
+        binary = home.with_name('EXAMPLE-codex')
+        primary = home.with_name('EXAMPLE-main-codex')
+        primary.mkdir(mode=0o700)
+        replacement = home.with_name('EXAMPLE-reconfigured-login')
+        replacement.mkdir(mode=0o700)
+
+        def fake_login(command, *, env, check):
+            self.assertEqual(command[-2:], ['login', '--device-auth'])
+            self.assertEqual(env['CODEX_HOME'], str(home))
+            self.assertTrue(check)
+            self.write_example_login(home)
+
+        with host_records.using_test_store(store):
+            with (patch.object(setup, '_codex_binary', return_value=binary),
+                  patch.object(setup.subprocess, 'run', side_effect=fake_login) as login,
+                  patch.object(setup, 'SelectedNativeProbe') as probe):
+                probe.return_value.read_configuration.return_value = {
+                    'responses': {'initialize': {'result': {}}}, 'accepted_output': False,
+                    'cleanup': {'namespace_exited': True}}
+                self.assertEqual(setup.setup_delegation(home, primary), home)
+                login.assert_called_once()
+                probe.assert_called_once_with(codex=binary)
+            self.worker_login_selection.side_effect = self.read_installed_login
+            workflow = self.make_workflow()
+            W.login_config.write_worker_login_home(replacement)
+        self.worker_login_selection.side_effect = AssertionError('original selected worker home must be pinned')
+        return workflow
 
     @production_case
     def test_production_refuses_wrong_signed_selection_before_claim(self):
@@ -473,7 +542,8 @@ class WorkflowTests(unittest.TestCase):
 
     @production_case
     def test_production_uses_configured_worker_login_and_separate_publication(self):
-        workflow, home, state = self.configure_worker_login()
+        workflow, home, state = self.configure_worker_login(from_installation=True)
+        self.worker_login_selection.assert_called_once_with()
         workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=self.production_disclosure())
         with (patch.object(W.R._Containment, '_stage_access_token', side_effect=AssertionError('unexpected token attachment')),
               patch.object(F, 'RpcProcess', tools.NamespacedFiniteRpcProcess),
@@ -489,6 +559,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue(result['validation_complete'])
         mount = workflow.factory._managed_login
         self.assertEqual(mount.home, home)
+        self.worker_login_selection.assert_called_once_with()
         confirm.assert_called_once_with(mount, ANY, self.case.home)
         self.assertEqual(list(state.iterdir()), [])
         self.assertEqual(state.stat().st_mode & 0o777, 0o700)
@@ -520,6 +591,7 @@ class WorkflowTests(unittest.TestCase):
     @production_case
     def test_production_retains_worker_login_lease_when_namespace_cleanup_is_unknown(self):
         workflow, home, state = self.configure_worker_login()
+        self.worker_login_selection.assert_not_called()
         workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=self.production_disclosure())
         self.case.drift = True
         with (patch.object(W.R.provider_network, '_dial_provider', side_effect=AssertionError('unexpected provider call')),

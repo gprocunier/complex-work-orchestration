@@ -14,6 +14,7 @@ OS_RELEASE_FILE="${OS_RELEASE_FILE:-/etc/os-release}"
 ASSUME_YES=0
 DRY_RUN=0
 UNINSTALL=0
+SETUP_DELEGATION=0
 CODEX_HOME_OVERRIDE="${CODEX_HOME:-}"
 SKILLS_DIR_OVERRIDE="${CODEX_SKILLS_DIR:-}"
 INSTALL_STAGE_DIR=""
@@ -65,6 +66,7 @@ Options:
   --codex-home PATH   Use PATH as CODEX_HOME and install into PATH/skills.
   -y, --yes           Accept detected/default paths without prompting.
   --dry-run           Print what would happen without copying files.
+  --setup-delegation  Set up a separate Codex worker sign-in after installation.
   --uninstall         Move the installed skill to a backup outside skills/ and leave no active install.
   -h, --help          Show this help.
 
@@ -119,6 +121,10 @@ parse_args() {
         ;;
       --dry-run)
         DRY_RUN=1
+        shift
+        ;;
+      --setup-delegation)
+        SETUP_DELEGATION=1
         shift
         ;;
       --uninstall)
@@ -511,6 +517,37 @@ is_rpm_host() {
   return 1
 }
 
+setup_delegation_if_requested() {
+  local setup_script="$1/$SKILL_NAME/scripts/setup_delegation.py"
+  local codex_home="$2"
+  local reply
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    if [ "$SETUP_DELEGATION" -eq 1 ]; then
+      say "Dry run: worker delegation setup would run after installing."
+    fi
+  else
+    if [ "$SETUP_DELEGATION" -eq 0 ] && is_interactive; then
+      printf 'Set up Codex worker delegation with a separate device sign-in? [y/N]: '
+      read -r reply || reply=""
+      case "$reply" in
+        y|Y|yes|YES) SETUP_DELEGATION=1 ;;
+      esac
+    fi
+    if [ "$SETUP_DELEGATION" -eq 1 ]; then
+      if python3 -B "$setup_script" --codex-home "$codex_home"; then
+        return 0
+      fi
+      say "The skill is installed. To retry delegation setup, run:"
+      printf '  python3 %q --codex-home %q\n' "$setup_script" "$codex_home"
+      return 1
+    fi
+  fi
+
+  say "To set up Codex worker delegation, run:"
+  printf '  python3 %q --codex-home %q\n' "$setup_script" "$codex_home"
+}
+
 main() {
   local codex_home
   local detected_skills_dir
@@ -545,6 +582,7 @@ main() {
   say "To opt in to the CWO architect profile after installing the skill:"
   printf '  python3 %q install --profile architect --codex-home %q\n' \
     "$skills_dir/$SKILL_NAME/scripts/manage_instruction_profile.py" "$codex_home"
+  setup_delegation_if_requested "$skills_dir" "$codex_home"
 }
 
 main "$@"
