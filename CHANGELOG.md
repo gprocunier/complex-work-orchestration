@@ -4,6 +4,9 @@
 
 - Wait for each worker's durable turn context before interrupting a contained pool calibration cohort.
 - Document the upgrade from 0.2.0-dev, including custom reviewer profiles and where to find saved audit records and packets.
+- Extract screened browser packet preparation and private response recording for use by browser integrations.
+- Evaluate exact private browser replies using capture references from the original observed host dispatch.
+- Let browser integrations record the exact screened packet request and its normalized user-turn digest before submission.
 
 ## 1.33.0 - 2026-11-24
 
@@ -12,9 +15,6 @@
 ## 1.32.1 - 2026-11-24
 
 - Preserve the explicit default service tier in Codex startup readback for contained pool qualification.
-- Extract screened browser packet preparation and private response recording for use by browser integrations.
-- Evaluate exact private browser replies when the original host has recorded a matching observed dispatch.
-- Let browser integrations record the exact screened packet request as a prepared host dispatch before submission.
 
 ### Tests
 

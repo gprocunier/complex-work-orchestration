@@ -7,10 +7,12 @@ import re
 import secrets
 from typing import Any
 
+from cwo_core.browser_provenance import normalize_browser_request
 from cwo_core.outbound_screen import require_clean
 from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.packets import contractor_packet_language_metadata
 from cwo_core.prepared_outbound import PreparedOutbound, PreparedSource
+from cwo_core.util import artifact_hash
 from generate_manual_dispatch_prompt import load_packet_file, render_packet_prompt
 
 
@@ -100,7 +102,7 @@ class PreparedBrowserPacketRequest:
 
         require_production_contractor_packet(self.packet_source.value()["packet"])
         metadata = self.metadata
-        self.require_unchanged()
+        submitted = self.require_unchanged().decode("utf-8")
         return configured_store().write_dispatch(
             dispatch_id=metadata["dispatch_id"], dispatch_role="executor", provider=metadata["provider_family"],
             model_family=None, model_id=None, reasoning_effort=None, session_id=None,
@@ -116,6 +118,7 @@ class PreparedBrowserPacketRequest:
                 "packet_source_sha256": self.packet_source.sha256,
                 "request_id": self.request_id,
                 "outbound_prepared_sha256": self.outbound.sha256,
+                "submitted_user_sha256": artifact_hash(normalize_browser_request(submitted)),
             },
         )
 

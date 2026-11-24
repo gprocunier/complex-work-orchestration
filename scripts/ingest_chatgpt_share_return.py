@@ -229,15 +229,20 @@ def add_private_capture_arguments(parser) -> None:
     parser.add_argument("--capture-event", help="Exact persisted chatgpt_browser_dispatch event_hash.")
 
 
-def private_capture_expectation(args, packet_path: str | None) -> PrivateCaptureExpectation:
-    if not packet_path or not args.packet_source_sha256 or not args.capture_event:
-        raise SystemExit("private intake requires the contractor packet, --packet-source-sha256 and --capture-event")
+def read_private_capture_packet(packet_path: str) -> dict[str, Any]:
     try:
         packet = json.loads(Path(packet_path).read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError):
         raise SystemExit("current contractor packet is unreadable or malformed") from None
     if not isinstance(packet, dict):
         raise SystemExit("current contractor packet must be an object")
+    return packet
+
+
+def private_capture_expectation(args, packet_path: str | None) -> PrivateCaptureExpectation:
+    if not packet_path or not args.packet_source_sha256 or not args.capture_event:
+        raise SystemExit("private intake requires the contractor packet, --packet-source-sha256 and --capture-event")
+    packet = read_private_capture_packet(packet_path)
     return select_private_capture(packet, packet_source_sha256=args.packet_source_sha256,
                                   capture_event_hash=args.capture_event, **candidate_context(args))
 

@@ -38,6 +38,8 @@ from cwo_core.prepared_outbound import PreparedSource
 from cwo_core.browser_provenance import (
     PRIVATE_RESPONSE_ARTIFACT_TYPE as PRIVATE_RESPONSE_ARTIFACT_TYPE,
     PRIVATE_RESPONSE_VERSION as PRIVATE_RESPONSE_VERSION,
+    USER_TEXT_NORMALIZATION,
+    normalize_browser_request,
 )
 from cwo_core.policy import load_policy
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
@@ -855,7 +857,7 @@ class PlaywrightChatGPTRunner:
     @staticmethod
     def _request_text(value: str) -> str:
         """Compare requests exactly, ignoring only line-ending style and surrounding whitespace."""
-        return value.replace("\r\n", "\n").strip()
+        return normalize_browser_request(value)
 
     def _observed_turn(self, snapshot, before_ids, prompt, request_id, checks):
         messages = snapshot["messages"]
@@ -958,7 +960,7 @@ class PlaywrightChatGPTRunner:
             "observed_document_request_id": (first or {}).get("stamp"),
             "observed_user_sha256": sha256_bytes(self._request_text(user_text).encode("utf-8")) if user_text is not None else None,
             "submitted_user_sha256": sha256_bytes(self._request_text(prompt).encode("utf-8")) if prompt is not None else None,
-            "user_text_normalization": "crlf-strip-v1",
+            "user_text_normalization": USER_TEXT_NORMALIZATION,
             "checks": checks,
             "capture_complete": not reasons and bool(text.strip()),
             "incomplete_reasons": reasons if text.strip() else reasons + ["empty-response"],

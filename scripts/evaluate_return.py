@@ -9,6 +9,7 @@ from typing import Any
 
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.audit import record_audit_event
+from cwo_core.browser_provenance import BROWSER_PREPARATION_TRACE_FIELDS, candidate_context, select_private_capture
 from cwo_core.errors import CWOPolicyError
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import record_received_return
@@ -30,7 +31,7 @@ from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, 
 from ingest_chatgpt_share_return import (
     add_private_capture_arguments,
     load_private_response,
-    private_capture_expectation,
+    read_private_capture_packet,
 )
 
 
@@ -191,30 +192,28 @@ def _require_confirmed_private_capture(event: dict, provenance: dict) -> None:
         raise SystemExit("private evaluation requires a capture without a public share")
 
 
-def _observed_browser_dispatch(packet: dict, provenance: dict, event_hash: str) -> dict:
+def _observed_browser_dispatch(packet: dict) -> dict:
     # The trusted host pins the capture event as its observation, independently of the artifacts.
-    dispatch = configured_store().require_dispatch(packet["dispatch_id"])
+    dispatch = configured_store().require_dispatch(packet.get("dispatch_id"))
     expected = {
         "stage": "observed",
         "dispatch_role": "executor",
-        "observation_sha256": event_hash,
-        "request_sha256": provenance["submitted_sha256"],
-        "packet_sha256": packet["packet_sha256"],
-        "bead_id": packet["bead_id"],
-        "executor": packet["executor"],
-        "provider_key": packet["provider_key"],
-        "provider": packet["provider_family"],
+        **{key: packet.get(key) for key in ("packet_sha256", "bead_id", "executor", "provider_key")},
+        "provider": packet.get("provider_family"),
     }
-    metadata = dispatch["evaluation_metadata"]
     if (
-        metadata.get("dispatch_mode") != "browser_automation"
+        dispatch["evaluation_metadata"].get("dispatch_mode") != "browser_automation"
         or any(dispatch.get(key) != value for key, value in expected.items())
     ):
         raise SystemExit("private response does not match the observed browser dispatch")
-    fields = ("packet_source_sha256", "request_id", "outbound_prepared_sha256")
-    if any(metadata.get(key) != provenance[key] for key in fields):
+    return dispatch
+
+
+def _require_browser_preparation_match(dispatch: dict, provenance: dict) -> None:
+    metadata = dispatch["evaluation_metadata"]
+    if (dispatch.get("request_sha256") != provenance["submitted_sha256"]
+            or any(metadata.get(key) != provenance[key] for key in BROWSER_PREPARATION_TRACE_FIELDS)):
         raise SystemExit("private response does not match the recorded browser preparation")
-    return metadata
 
 
 def _apply_browser_review_requirements(args: argparse.Namespace, metadata: dict) -> None:
@@ -231,11 +230,20 @@ def _contractor_evaluation_input(args: argparse.Namespace) -> tuple[dict, bytes 
         return (_production_packet_metadata(args.contractor_packet, args.audit_file)
                 if args.contractor_packet else {}), None
     try:
-        expected = private_capture_expectation(args, args.contractor_packet)
+        packet = read_private_capture_packet(args.contractor_packet)
+        dispatch = _observed_browser_dispatch(packet)
+        metadata = dispatch["evaluation_metadata"]
+        packet_source = metadata.get("packet_source_sha256")
+        capture_event = dispatch["observation_sha256"]
+        for flag, explicit, pinned in (("--packet-source-sha256", args.packet_source_sha256, packet_source),
+                                        ("--capture-event", args.capture_event, capture_event)):
+            if explicit is not None and explicit != pinned:
+                raise SystemExit(flag + " does not match the observed browser dispatch")
+        expected = select_private_capture(packet, packet_source_sha256=packet_source,
+                                          capture_event_hash=capture_event, **candidate_context(args))
         text, provenance, _ = load_private_response(Path(args.private_artifact).expanduser(), expected=expected)
         _require_confirmed_private_capture(json.loads(expected.event_json), provenance)
-        packet = json.loads(expected.packet_json)
-        metadata = _observed_browser_dispatch(packet, provenance, expected.capture_event_hash)
+        _require_browser_preparation_match(dispatch, provenance)
     except CWOPolicyError as failure:
         raise SystemExit(str(failure)) from failure
     _apply_browser_review_requirements(args, metadata)

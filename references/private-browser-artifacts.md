@@ -41,27 +41,27 @@ a complete current chain by adding fields.
 
 The trusted host can call `prepare_browser_packet_request` and then call
 `record_dispatch()` on that prepared request before Send. The configured host
-store records the packet source, request ID and screened preparation and Send
-digests. The host supplies the actual model, effort and session when it records
-the observed dispatch after capture. Evaluation verifies these prepared fields.
+store records the packet source, request ID, screened preparation, and exact
+Send digest. It also records the digest used to compare the observed user turn
+after normalizing CRLF and surrounding whitespace. The host supplies the actual
+model, effort and session when it records the observed dispatch after capture.
 
 Use `cwo evaluate` to score the exact reply from an existing host-observed
-browser dispatch. Supply the original packet and its independent capture
-references.
+browser dispatch. Supply the original packet and the private provenance file.
 
 ```bash
 python scripts/cwo.py evaluate \
   --private-artifact private/review.provenance.json \
-  --contractor-packet private/packet.json \
-  --packet-source-sha256 "$PACKET_SOURCE_SHA256" \
-  --capture-event "$CAPTURE_EVENT_HASH" --json
+  --contractor-packet private/packet.json --json
 ```
 
 The configured host audit store must contain the completed private capture.
-The observed executor dispatch must bind that capture event and the exact
-screened request digest. Evaluation records the exact response digest in the
-host chain and applies the dispatch's review requirements. Its output contains
-the score, review status and record reference.
+Evaluation gets the packet-source digest and capture-event hash from the
+observed executor dispatch. Any explicit `--packet-source-sha256` or
+`--capture-event` must match the host record. Evaluation verifies both the exact
+screened Send digest and the normalized user-turn digest against the preparation.
+It records the exact response digest and applies the dispatch's review
+requirements. Its output contains the score, review status and record reference.
 
 Browser attestation flags report confirmation of configured UI labels. Exact
 model and session identity come from the original host observation. Live Chrome

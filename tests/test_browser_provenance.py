@@ -29,7 +29,7 @@ def production_packet() -> dict:
     return build_contractor_packet.build_packet(
         bead_id="cwo-1", bead_json=bead, executor="chatgpt_pro_browser_master_reviewer",
         share_boundary="redacted-packet", job_description_label="contract-jd-master-plan-review",
-        allowed_files=[], inline_snippets=["Review the retry design."], external_opt_in=True,
+        allowed_files=[], inline_snippets=["Review the retry design.\r\nCheck its recovery path."], external_opt_in=True,
         opt_in_basis="cli-flag", quota_info={"quota_checked": True, "quota_remaining": 4},
         dispatch_id="dispatch-1",
     )
@@ -139,7 +139,7 @@ class BrowserProvenanceTests(unittest.TestCase):
         self.assertNotIn(self.text.strip(), audit_text)
         self.assertNotIn(self.browser["conversation_url"], audit_text)
 
-    def private_evaluation_args(self, *, observed=True, observation=None, **capture):
+    def private_evaluation_args(self, *, observed=True, observation=None, explicit_pins=True, **capture):
         from browser_request import prepare_browser_packet_request
 
         packet_path = self.base / "packet.json"
@@ -157,6 +157,8 @@ class BrowserProvenanceTests(unittest.TestCase):
         for field in ("model_family", "model_id", "reasoning_effort", "session_id"):
             self.assertIsNone(dispatch[field])
         user_sha256 = artifact_hash(submitted.decode("utf-8").replace("\r\n", "\n").strip())
+        self.assertNotEqual(sha256_bytes(submitted), user_sha256)
+        self.assertEqual(dispatch["evaluation_metadata"]["submitted_user_sha256"], user_sha256)
         attestation = {"required": True, "status": "confirmed"}
         browser = {
             **self.browser, **request.outbound.metadata(), "model_attestation": attestation,
@@ -178,9 +180,12 @@ class BrowserProvenanceTests(unittest.TestCase):
                 provider=self.packet["provider_family"], model_family="fixture-family", model_id="fixture-model",
                 reasoning_effort="fixture-effort", session_id="fixture-session",
             )
-        return ["evaluate_return.py", "--private-artifact", artifact["provenance_path"],
-                "--contractor-packet", str(packet_path), "--packet-source-sha256", request.packet_source.sha256,
-                "--capture-event", event["event_hash"], "--json"]
+        argv = ["evaluate_return.py", "--private-artifact", artifact["provenance_path"],
+                "--contractor-packet", str(packet_path), "--json"]
+        if explicit_pins:
+            argv.extend(["--packet-source-sha256", request.packet_source.sha256,
+                         "--capture-event", event["event_hash"]])
+        return argv
 
     def test_prepared_dispatch_refuses_a_changed_packet_before_recording(self):
         from browser_request import prepare_browser_packet_request
@@ -206,17 +211,40 @@ class BrowserProvenanceTests(unittest.TestCase):
                 request.record_dispatch()
             self.assertFalse(unrelated_store.find("dispatch"))
 
+    def test_host_scoring_preserves_browser_trace_in_its_dispatch(self):
+        from cwo_core.host_acceptance import _evaluate, _host_inputs
+
+        self.private_evaluation_args()
+        dispatch_id = self.packet["dispatch_id"]
+        dispatch = self.store.require_dispatch(dispatch_id)
+        inputs = _host_inputs(dispatch, self.packet["bead_id"], dispatch_id)
+        pending, _ = _evaluate(self.text, inputs, None)
+        self.assertTrue(pending["peer_review_required"])
+        self.assertTrue(pending["architect_review_required"])
+        self.assertFalse(pending["execution_permitted"])
+        trace = self.store.require_dispatch(dispatch_id)["evaluation_metadata"]
+        for field in ("packet_source_sha256", "request_id", "outbound_prepared_sha256", "submitted_user_sha256"):
+            self.assertTrue(trace[field])
+            self.assertNotIn(field, inputs)
+
     def test_private_evaluation_round_trip(self):
         import evaluate_return
 
         self.text = (" \r\nStatus: completed\r\nSummary: PRIVATE_CAPTURE_SENTINEL Résumé 雪\r\n"
                      "Sources inspected: PRIVATE_CAPTURE_SENTINEL\r\n  ")
         self.browser["response_text"] = self.text
-        argv = self.private_evaluation_args()
-        wrong_event = argv.copy()
-        wrong_event[wrong_event.index("--capture-event") + 1] = "0" * 64
-        with patch.object(sys, "argv", wrong_event), self.assertRaisesRegex(SystemExit, "independent audit store"):
-            evaluate_return.main()
+        explicit_argv = self.private_evaluation_args()
+        argv = explicit_argv.copy()
+        for flag in ("--packet-source-sha256", "--capture-event"):
+            index = explicit_argv.index(flag)
+            wrong_pin = explicit_argv.copy()
+            wrong_pin[index + 1] = "0" * 64
+            with self.subTest(flag=flag), patch.object(sys, "argv", wrong_pin), self.assertRaisesRegex(
+                SystemExit, flag + " does not match the observed browser dispatch",
+            ):
+                evaluate_return.main()
+            index = argv.index(flag)
+            del argv[index:index + 2]
         self.assertFalse(self.store.find("return-received"))
         self.assertFalse(self.store.find("evaluation"))
 
@@ -236,14 +264,14 @@ class BrowserProvenanceTests(unittest.TestCase):
         self.assertNotIn("PRIVATE_CAPTURE_SENTINEL", self.store.audit_file.read_text())
         self.assertEqual(json.loads(stdout.getvalue())["verdict"], evaluation["evaluation"]["verdict"])
 
-        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
+        with patch.object(sys, "argv", explicit_argv), contextlib.redirect_stdout(io.StringIO()):
             evaluate_return.main()
         self.assertEqual(self.store.find("return-received", dispatch_id=dispatch_id), [receipt])
 
     def test_private_evaluation_requires_observed_dispatch_before_receipting(self):
         import evaluate_return
 
-        argv = self.private_evaluation_args(observed=False)
+        argv = self.private_evaluation_args(observed=False, explicit_pins=False)
         with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "observed browser dispatch"):
             evaluate_return.main()
         self.assertFalse(self.store.find("return-received"))
@@ -252,8 +280,8 @@ class BrowserProvenanceTests(unittest.TestCase):
     def test_private_evaluation_requires_observed_dispatch_to_pin_capture(self):
         import evaluate_return
 
-        argv = self.private_evaluation_args(observation="0" * 64)
-        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "observed browser dispatch"):
+        argv = self.private_evaluation_args(observation="0" * 64, explicit_pins=False)
+        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "independent audit store"):
             evaluate_return.main()
         self.assertFalse(self.store.find("return-received"))
         self.assertFalse(self.store.find("evaluation"))
@@ -265,6 +293,17 @@ class BrowserProvenanceTests(unittest.TestCase):
         argv = self.private_evaluation_args(
             request_id=other_request_id, observed_document_request_id=other_request_id,
         )
+        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "recorded browser preparation"):
+            evaluate_return.main()
+        self.assertFalse(self.store.find("return-received"))
+        self.assertFalse(self.store.find("evaluation"))
+
+    def test_private_evaluation_checks_normalized_user_turn_against_preparation(self):
+        import evaluate_return
+
+        unrelated_user_sha256 = sha256_bytes(b"An unrelated user turn.")
+        argv = self.private_evaluation_args(observed_user_sha256=unrelated_user_sha256,
+                                            submitted_user_sha256=unrelated_user_sha256)
         with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "recorded browser preparation"):
             evaluate_return.main()
         self.assertFalse(self.store.find("return-received"))
