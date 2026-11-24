@@ -284,8 +284,8 @@ its mechanism and limit. [Understand these limits](https://gprocunier.github.io/
   from `templates/operator-handoff-packet.md`.
 - **Model roles** include Sol for leadership, adjudication and recorded coding
   escalation, Astra for unresolved architecture review, Luna for focused native
-  work, and Terra for interface, visual and computer-use work. Spark appears in
-  historical records.
+  work, and Terra for interface, visual and computer-use work.
+  Spark appears in historical records.
 
 ## More detail
 
