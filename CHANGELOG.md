@@ -2,7 +2,6 @@
 
 ## Unreleased
 
-- Enable registered single-worker native execution with provider-only network access, explicit provider disclosure consent and separately supplied production authentication.
 - Add a protected N=2 and N=3 pool qualification stage with durable run reservations and checks of worker output and lease settlement. Live pool execution remains held.
 - Require active accounting for the protected pool qualification stage by default. Persist session and turn intents, charge tools before their effects, enforce a whole-run deadline, and hold ambiguous reservations for reconciliation.
 - Stop protected pool qualification when an active effect gate refuses a request during final validation. Verify fixture and lease evidence after owned runtime cleanup.
@@ -16,6 +15,10 @@
 - Measure original contained-pool callbacks through a separately signed calibration cohort. Charge it against the same campaign cap and bind the measured capability to the approved controller.
 - Stop new pool qualification effects at the signed cutoff while retaining original cleanup and settlement evidence.
 - Add a protected host entry for signed pool qualification. Record the applied containment controls and catalog selection, and verify peer cleanup after a planned worker refusal.
+
+## 1.27.0 - 2026-11-24
+
+- Enable registered single-worker native execution with provider-only network access, explicit provider disclosure consent and separately supplied production authentication.
 
 ### Tests
 
