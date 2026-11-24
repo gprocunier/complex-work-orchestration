@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.31.1 - 2026-11-24
+
 - Fix contained pool qualification startup with dedicated Codex logins.
 
 ## 1.31.0 - 2026-11-24
