@@ -456,12 +456,16 @@ class FactoryQualificationTests(unittest.TestCase):
             project(thread)
             return thread, latency
 
-        with (patch.object(case.scenario, 'thread_response', side_effect=start),
-              patch.object(case.scenario, 'read_thread', side_effect=read),
-              patch.object(family, 'RpcProcess', TurnResponseFirst),
-              patch.object(runtime._RegisteredServer, 'start_turn', start_turn),
-              checkout._positive_finite_completion(case)):
-            result = factory.run()
+        try:
+            with (patch.object(case.scenario, 'thread_response', side_effect=start),
+                  patch.object(case.scenario, 'read_thread', side_effect=read),
+                  patch.object(family, 'RpcProcess', TurnResponseFirst),
+                  patch.object(runtime._RegisteredServer, 'start_turn', start_turn),
+                  checkout._positive_finite_completion(case), wiring._fixture_poll_ticket_clock(factory)):
+                result = factory.run()
+        except BaseException as failure:
+            wiring._note_original_poll_refusal(factory, failure)
+            raise
 
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertTrue(case.command_prepared.is_set())

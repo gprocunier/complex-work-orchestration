@@ -1372,7 +1372,7 @@
 
 "p25EnrollMkdir":[149,344,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
 
-"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",543,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
+"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",547,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
 
 "p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1715,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
@@ -1410,7 +1410,7 @@
 
 "p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",257,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
 
-"p25PermitSupport0":[148,{"$":330},619,{"$":343}],
+"p25PermitSupport0":[148,{"$":330},623,{"$":343}],
 
 "p25PermitVerify":[149,"verify_qualification_permit",311,"6a66d1125c57eb1c4d75e221237015b7c1524fb5fbed7a566ec0cd2b1ad88502"],
 
@@ -1454,7 +1454,7 @@
 
 "p25StreamPair":[146,287,"socket.socketpair()",21,287,40],
 
-"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",604,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
+"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",608,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
 
 "p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1242,"a02900fa940a71a9257a0985c2869d384029bb4c15d0fe234f4825aa1acbf333"],
 
@@ -2072,7 +2072,7 @@
 
 "p35AuthAbsent":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",85,"286440c9d6e1457ac6b74f25862849cd2d29a19d093692fc22fbe76153d001a0"],
 
-"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",522,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
+"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",526,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
 
 "p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",235,"9d49cbff7cef5e78c2f32e4ce3d50f2d2483dc636827c42edb332215bc575254"],
 
@@ -2154,7 +2154,7 @@
 
 "p36SchemaContract":[141,"_check_n1_qualification",432,"91677c3925bcfef392f0b8e6764eeae75d349df8e78d0e0f6af82a759834d610"],
 
-"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",631,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
+"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",635,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
 
 "p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",707,"a58d94e463b863bdb23d71af20c013a791585334be25e21ccb222fa13da1dbac"],
 
@@ -2430,7 +2430,7 @@
 
 "p42Provider":[147,"ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist",110,"cbcfc8f9988446c042ac5c53e586916786ecd672d83e9ea540b9e8ac7e8736d2"],
 
-"p42Rollout":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",409,"ad75c4fed194eae0aca16bd3610f0c804cf1471239b182ad0989d8eb5b0abf01"],
+"p42Rollout":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",409,"61c13ce09d2ea62b2731bf164faa5a969939146acfab5b1b3a5dddd2d9aa086d"],
 
 "p42Unresolved":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",375,"ce1b7f7a372f3c205d2141ad468fea166d831755f9d6b8923037d21850e4912d"],
 
@@ -2446,7 +2446,7 @@
 
 "p43TimestampRefusal":[151,"ServerRequestPreparationTests.test_timestamped_envelope_refuses_bad_timestamps_and_non_notifications",353,"df3bcd847124c2b1c516b7c89cb06226a3ddbcfef35068665ef1acb48d76eb3e"],
 
-"p43TimestampStartup":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",687,"e379cf6d90a5836349060ab544e7aa88e80887b780718a4c92fea74c9d743cea"],
+"p43TimestampStartup":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",691,"e379cf6d90a5836349060ab544e7aa88e80887b780718a4c92fea74c9d743cea"],
 
 "p44":[8,683,{"$":250},12,683,115],
 
@@ -2476,11 +2476,11 @@
 
 "p50":[8,1057,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1057,72],
 
-"p50BeforeBirth":[148,"FactoryQualificationTests.test_total_limit_refuses_before_any_worker_or_configuration",580,"5257a14fd52d0456b297adcd65fd57d94d85a8340868a4bf20c7a3845442cdef"],
+"p50BeforeBirth":[148,"FactoryQualificationTests.test_total_limit_refuses_before_any_worker_or_configuration",584,"5257a14fd52d0456b297adcd65fd57d94d85a8340868a4bf20c7a3845442cdef"],
 
 "p50PermitBody":[149,"_StartRequest.authorization",292,"9388aa989fcc29ee673ed00b9bbb272b6fb8f3a9fe1521bdf31af602c4272c1b"],
 
-"p50PermitBudget":[148,"FactoryQualificationTests.test_permit_requires_signed_version_two_and_exact_integer_start_limit",556,"eab4559f41df921005bafa42665135a5a95c7397f99805cd670b09cf69b10b0b"],
+"p50PermitBudget":[148,"FactoryQualificationTests.test_permit_requires_signed_version_two_and_exact_integer_start_limit",560,"eab4559f41df921005bafa42665135a5a95c7397f99805cd670b09cf69b10b0b"],
 
 "p50ReadJournal":[149,"_read_starts",399,"d8e8be2e1341b6050dbe47315b12623ba39dc4dd6958098a16a322bb6c645551"],
 
@@ -7000,7 +7000,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["bed004d5f5c15aa79d8710d6f199dd848fb686ea911d48a0452d0caf2b933858",420,133470],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["e401cf73c887566c9f69fb423d4788915c23fd4385fe4e46c5875789a2d0ff88",420,133470],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7116,7 +7116,7 @@
 
 "tests/test_registered_n1_factory.py":["a2336f0c685d0a4038b1f30196f731244ef650a3a0b3ad382a3fbda7c1b623d1",420,140063],
 
-"tests/test_registered_n1_qualification.py":["a3f9ba38c01988856c4e6ad79c999b069688db4300a33bb74956582ab2c341d9",420,38848],
+"tests/test_registered_n1_qualification.py":["0670a42a96c2c1d780c395788c2c5a73d28e1fbf73c07075d98b34858d5e57d1",420,39053],
 
 "tests/test_registered_n1_workflow.py":["877f50f79bbb340544c229491f4a12d0c65cc3c2f9bb9368445a0e91a4f81159",420,53891],
 
