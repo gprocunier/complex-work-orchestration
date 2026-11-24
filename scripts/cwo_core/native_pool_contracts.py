@@ -1868,15 +1868,18 @@ def validate_pool_state(
     if not isinstance(terminal, list) or any(not _nonempty(item) for item in terminal):
         errors.append("invalid-terminal-children")
         terminal = []
-    if len(active) != len(set(active)):
+    active_ids = set(active)
+    terminal_ids = set(terminal)
+    if len(active) != len(active_ids):
         errors.append("duplicate-active-children")
-    if len(terminal) != len(set(terminal)):
+    if len(terminal) != len(terminal_ids):
         errors.append("duplicate-terminal-children")
-    if set(active) & set(terminal):
+    if active_ids & terminal_ids:
         errors.append("active-terminal-overlap")
 
     children_value = state.get("children")
     children: list[Mapping[str, Any]] = []
+    child_ids: list[str] = []
     hard_capacity = load_pool_capacity().hard_max_active_workers
     if (
         not isinstance(children_value, list)
@@ -1891,13 +1894,16 @@ def validate_pool_state(
             children.append(child)
             if child.get("ordinal") != index:
                 errors.append(f"invalid-child[{index}]-ordinal")
-            if not _nonempty(child.get("child_id")):
+            child_id = child.get("child_id")
+            if _nonempty(child_id):
+                child_ids.append(child_id)
+            else:
                 errors.append(f"invalid-child[{index}]-id")
             if child.get("status") not in CHILD_STATUSES:
                 errors.append(f"invalid-child[{index}]-status")
-            if child.get("runtime_disposition") not in RUNTIME_DISPOSITIONS:
-                errors.append(f"invalid-child[{index}]-runtime-disposition")
             runtime_disposition = child.get("runtime_disposition")
+            if not isinstance(runtime_disposition, str) or runtime_disposition not in RUNTIME_DISPOSITIONS:
+                errors.append(f"invalid-child[{index}]-runtime-disposition")
             recovery_projection = child.get("recovery_projection")
             if runtime_disposition == "failed-contained":
                 projection_errors = validate_fixed_cohort_consumption_projection(
@@ -1922,23 +1928,21 @@ def validate_pool_state(
             )
             if not _nonempty(child.get("lease_id")):
                 errors.append(f"invalid-child[{index}]-lease-id")
-    child_ids = [child.get("child_id") for child in children]
-    if len(child_ids) != len(set(child_ids)):
+    known_child_ids = set(child_ids)
+    if len(child_ids) != len(known_child_ids):
         errors.append("duplicate-child-id")
-    if not set(active).issubset(set(child_ids)) or not set(terminal).issubset(
-        set(child_ids)
-    ):
+    if (active_ids | terminal_ids) - known_child_ids:
         errors.append("active-or-terminal-child-unknown")
     expected_active = [
         child.get("child_id")
         for child in children
         if child.get("status")
-        in {"armed", "running", "interrupt-pending", "interrupt-confirmed", "completed"}
+        in ("armed", "running", "interrupt-pending", "interrupt-confirmed", "completed")
     ]
     expected_terminal = [
         child.get("child_id")
         for child in children
-        if child.get("status") in {"closed", "control-failed"}
+        if child.get("status") in ("closed", "control-failed")
     ]
     if active != expected_active:
         errors.append("active-child-status-mismatch")
@@ -1971,6 +1975,7 @@ def validate_pool_state(
     reasons = state.get("reasons")
     if not isinstance(reasons, list) or any(not _nonempty(item) for item in reasons):
         errors.append("invalid-reasons")
+        reasons = []
     first_fault = _validate_first_protected_fault(
         state.get("first_protected_fault"),
         state_sequence=state.get("state_sequence"),
@@ -1983,7 +1988,7 @@ def validate_pool_state(
         errors.append("first-protected-fault-requires-reason")
     if first_fault is not None and reasons and first_fault.get("code") not in reasons:
         errors.append("first-protected-fault-reason-mismatch")
-    if state.get("control_loss_scope") not in {None, "child", "pool"}:
+    if state.get("control_loss_scope") not in (None, "child", "pool"):
         errors.append("invalid-control-loss-scope")
     state_stop_metadata = {field: state.get(field) for field in STOP_METADATA_FIELDS}
     errors.extend(validate_stop_metadata(state_stop_metadata))
@@ -1995,11 +2000,11 @@ def validate_pool_state(
     )
     if state.get("status") == "control-failed" and not reasons:
         errors.append("control-failed-requires-reason")
-    if state.get("status") == "completed" and set(terminal) != set(child_ids):
+    if state.get("status") == "completed" and terminal_ids != known_child_ids:
         errors.append("completed-requires-terminal-cohort")
-    if state.get("status") == "closed" and set(terminal) != set(child_ids):
+    if state.get("status") == "closed" and terminal_ids != known_child_ids:
         errors.append("closed-requires-terminal-cohort")
-    if state.get("status") == "control-failed" and set(terminal) != set(child_ids):
+    if state.get("status") == "control-failed" and terminal_ids != known_child_ids:
         errors.append("control-failed-requires-terminal-cohort")
     if contract is not None:
         if state.get("pool_id") != contract.get("pool_id"):
@@ -2054,7 +2059,8 @@ def validate_pool_state(
         ):
             errors.append("scheduler-cursor-out-of-range")
     _validate_hash(state, "state_sha256", errors)
-    _validate_replay(state, "state_sha256", seen_hashes, errors)
+    if _is_sha256(state.get("state_sha256")):
+        _validate_replay(state, "state_sha256", seen_hashes, errors)
     return errors
 
 

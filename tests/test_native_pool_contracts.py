@@ -1012,6 +1012,43 @@ class NativePoolContractTest(unittest.TestCase):
         self.assertIn("release-pending-lease-terminal-evidence-required", errors)
         self.assertIn("release-pending-lease-reason-required", errors)
 
+    def test_pool_state_validator_reports_malformed_child_ids_and_dispositions(self) -> None:
+        contract, _, _, state, _, _ = self.artifacts()
+        cases = (
+            ("child_id", "invalid-child[0]-id"),
+            ("status", "invalid-child[0]-status"),
+            ("runtime_disposition", "invalid-child[0]-runtime-disposition"),
+            ("control_loss_scope", "invalid-control-loss-scope"),
+        )
+        self.assertEqual(validate_pool_artifact(state, contract=contract), [])
+        for field, reason in cases:
+            for invalid_value in ([], {}):
+                with self.subTest(field=field, invalid_value=invalid_value):
+                    malformed = copy.deepcopy(state)
+                    target = malformed if field == "control_loss_scope" else malformed["children"][0]
+                    target[field] = invalid_value
+                    malformed = seal_artifact(malformed, "state_sha256")
+                    self.assertIn(reason, validate_pool_artifact(malformed, contract=contract))
+
+    def test_pool_state_replay_rejects_seen_hash_and_malformed_digest(self) -> None:
+        contract, _, _, state, _, _ = self.artifacts()
+        self.assertEqual(
+            validate_pool_artifact(state, contract=contract, seen_hashes=()), [],
+        )
+        self.assertEqual(
+            validate_pool_artifact(
+                state, contract=contract, seen_hashes=(state["state_sha256"],),
+            ),
+            ["replay-detected"],
+        )
+        for invalid_digest in ([], {}):
+            with self.subTest(invalid_digest=invalid_digest):
+                malformed = {**state, "state_sha256": invalid_digest}
+                self.assertEqual(
+                    validate_pool_artifact(malformed, contract=contract, seen_hashes=()),
+                    ["invalid-state-sha256"],
+                )
+
     def test_private_artifact_write_is_atomic_mode_0600(self) -> None:
         contract, _ = pool_contract(cap=1)
         with tempfile.TemporaryDirectory() as temporary:

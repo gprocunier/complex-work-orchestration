@@ -34,7 +34,7 @@ from cwo_core.maintenance_runtime_support import (
 )
 from cwo_core.native_authority import canonical_authority_sha256
 from cwo_core.native_pool_admission import AdmissionCandidate, BeadsClaimAdapter, build_admission_child_binding
-from cwo_core.native_pool_contracts import canonical_sha256, validate_pool_contract
+from cwo_core.native_pool_contracts import canonical_sha256, seal_artifact, validate_pool_contract
 from cwo_core.native_pool_preflight import effective_child_packet_sha256
 from cwo_core.native_pool_proportionality import pool_proportionality_check
 from cwo_core.native_pool_transaction import (
@@ -868,6 +868,32 @@ class TerminalPoolStateConsumerTests(unittest.TestCase):
                 self.path.write_text(json.dumps(state))
                 with self.subTest(target=target,bad=bad), self.assertRaisesRegex(MaintenanceRuntimeError,"status-type-invalid"):
                     module.read_pool_terminal_state(self.path,contract=self.harness.contract)
+
+    def test_malformed_child_id_returns_typed_state_error(self):
+        original = module.read_pool_terminal_state(self.path, contract=self.harness.contract)
+        for invalid_id in ([], {}):
+            with self.subTest(invalid_id=invalid_id):
+                state = deepcopy(original)
+                state["children"][0]["child_id"] = invalid_id
+                self.path.write_text(json.dumps(seal_artifact(state, "state_sha256")))
+                with self.assertRaisesRegex(MaintenanceRuntimeError, r"pool-state-invalid:.*invalid-child\[0\]-id"):
+                    module.read_pool_terminal_state(self.path, contract=self.harness.contract)
+
+    def test_malformed_reasons_with_first_fault_return_typed_state_error(self):
+        original = module.read_pool_terminal_state(self.path, contract=self.harness.contract)
+        fault = {
+            "code": "lease-acquisition-failed",
+            "operation": None,
+            "observed_callback_latency_ms": None,
+            "certified_callback_max_ms": None,
+            "latched_state_sequence": original["state_sequence"],
+        }
+        for invalid_reasons in (True, 1):
+            with self.subTest(invalid_reasons=invalid_reasons):
+                state = {**original, "first_protected_fault": fault, "reasons": invalid_reasons}
+                self.path.write_text(json.dumps(seal_artifact(state, "state_sha256")))
+                with self.assertRaisesRegex(MaintenanceRuntimeError, r"pool-state-invalid:.*invalid-reasons"):
+                    module.read_pool_terminal_state(self.path, contract=self.harness.contract)
 
     def test_tampered_terminal_state_hash_cannot_be_replaced_by_success_boolean(self):
         state = json.loads(self.path.read_text())
