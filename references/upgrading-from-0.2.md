@@ -10,11 +10,10 @@ destination and verify the replacement.
 | --- | --- |
 | Outside reviewers | With explicit opt-in, build and validate a contractor packet, export its manual prompt, then submit it yourself within the approved sharing boundary. Bring the return back for evaluation and adjudication. See [outside review](external-contracting.md). |
 | Local vLLM reviewers | Prepare a local dispatch envelope or export a prompt. Live HTTP submission with `--execute-local` is held. See [local model preparation](local-inference.md#dispatch). |
-| ChatGPT in Chrome | Live browser submission and model confirmation are held. You can [verify saved private return artifacts](private-browser-artifacts.md). The [old browser instructions](chatgpt-pro-browser.md) have been withdrawn. |
+| ChatGPT in Chrome | The [desktop Chrome workflow](chatgpt-pro-browser.md) is off by default pending an authorized live round trip. You can [verify saved CDP return artifacts](private-browser-artifacts.md). |
 | Codex work | Work in the lead session or use the [registered single-worker route](native-live-route-holds.md#registered-single-worker-production) with its original signed workflow, consent for the exact provider disclosure and a dedicated worker login. Raw native launch, concurrent pools and campaigns remain held. |
 
-Direct local model dispatch and a ChatGPT Chrome plugin workflow are planned
-for future 1.x releases.
+Direct local model dispatch is planned for a future 1.x release.
 
 The lead records delivery as `pending-acceptance` with the baseline and
 candidate files. A reviewer working by hand runs `cwo.py accept-delivery` from

@@ -1,15 +1,18 @@
-# Private browser returns
+# Saved private browser returns
 
-A complete private browser return binds the reviewed input to the packet,
-frozen screened request, observed conversation and user/assistant messages, and
-exact response bytes. Candidate reviews name the existing formal candidate
-identity and verify its current repository contents. Other assignments identify
-their packet inputs explicitly and make no candidate claim.
+For the current copied-reply workflow, see
+[ChatGPT Pro review in desktop Chrome](chatgpt-pro-browser.md). The verification
+steps below apply to saved private captures from the earlier CDP browser route.
 
-The private provenance record contains identities and digests. Response text
-stays in its separate owner-only file. Publication uses the existing protected
-directory, atomic no-overwrite writes and substitution checks. A partial capture
-or a missing file is retained for diagnosis and cannot become a complete return.
+## Ingest a saved capture
+
+A complete capture binds the packet, frozen screened request, observed
+conversation and messages, and exact response bytes. A candidate review also
+binds the named candidate and verifies its current repository contents.
+
+The provenance record contains identifiers and digests. The response text
+stays in a separate owner-only file. Partial captures remain available for
+diagnosis. Ingestion requires a complete capture.
 
 Ingestion needs the current original packet, its saved packet-source digest and
 the exact dispatch event hash returned with the private-artifact reference. The
@@ -30,24 +33,15 @@ python scripts/ingest_chatgpt_share_return.py \
 ```
 
 A candidate-bound packet also requires its private candidate record and current
-repository through `--candidate` and `--candidate-root`. Full candidate and Bead
-records are not disclosed in the packet. Default stdout is metadata, and refusal diagnostics omit response content.
-The explicitly requested contractor-return file includes
-the evidence text for normal evaluation. Extraction does not accept findings.
-Older provenance versions remain historical records and cannot be upgraded into
-a complete current chain by adding fields.
+repository through `--candidate` and `--candidate-root`. Stdout and refusal
+diagnostics report metadata. The requested contractor-return file contains the
+evidence text for evaluation. Preserve older provenance versions as recorded.
 
-### Direct evaluation of an observed host dispatch
+## Evaluate a saved capture
 
-The trusted host can call `prepare_browser_packet_request` and then call
-`record_dispatch()` on that prepared request before Send. The configured host
-store records the packet source, request ID, screened preparation, and exact
-Send digest. It also records the digest used to compare the observed user turn
-after normalizing CRLF and surrounding whitespace. The host supplies the actual
-model, effort and session when it records the observed dispatch after capture.
-
-Use `cwo evaluate` to score the exact reply from an existing host-observed
-browser dispatch. Supply the original packet and the private provenance file.
+When the host audit store already contains the dispatch and its completed
+private capture, evaluate the reply with the original packet and provenance
+file.
 
 ```bash
 python scripts/cwo.py evaluate \
@@ -55,22 +49,17 @@ python scripts/cwo.py evaluate \
   --contractor-packet private/packet.json --json
 ```
 
-The configured host audit store must contain the completed private capture.
 Evaluation gets the packet-source digest and capture-event hash from the
-observed executor dispatch. Any explicit `--packet-source-sha256` or
-`--capture-event` must match the host record. Evaluation verifies both the exact
-screened Send digest and the normalized user-turn digest against the preparation.
-It records the exact response digest and applies the dispatch's review
-requirements. Its output contains the score, review status and record reference.
+original dispatch. If you supply either `--packet-source-sha256` or
+`--capture-event`, match the value in the host record. The evaluator checks the
+screened request and captured turn against that record, then records the response
+digest, score and review status.
 
-Browser attestation flags report confirmation of configured UI labels. Exact
-model and session identity come from the original host observation. Live Chrome
-dispatch and qualification of a Pro response remain pending.
+Verification assumes control of both the artifacts and audit store. A process
+with the same user's access can write both. Keep the independently selected
+references outside the returned artifact.
 
-Private permissions and audit hashes provide local access hygiene and consistent
-identity. They do not authenticate the provider or protect against another
-process with the same user's access to both the artifacts and trusted audit
-store. Keep the independently selected references outside the returned artifact.
+## Historical share consent fixtures
 
 Separate create-share authorization requires fresh consent from the original
 registered parent. Consent binds its frozen source, candidate or packet inputs,
@@ -99,6 +88,5 @@ creation. A wrong result discovered after creation leaves an unknown outcome
 and conservative reservation accounting; it cannot undo that creation. No
 legacy share, social or clipboard fallback follows a refusal.
 
-Browser Send and sharing remain unavailable as live routes. Offline fixture
-coverage does not establish complete coverage of a live UI, restore routes or
-authorize live sharing.
+The CDP Send and share routes remain held. These fixtures exercise checks on
+saved or simulated browser content.

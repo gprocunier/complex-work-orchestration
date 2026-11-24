@@ -8,6 +8,7 @@ import secrets
 from typing import Any
 
 from cwo_core.browser_provenance import normalize_browser_request
+from cwo_core.host_records import DESKTOP_BROWSER_HANDOFF
 from cwo_core.outbound_screen import require_clean
 from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.packets import contractor_packet_language_metadata
@@ -96,7 +97,7 @@ class PreparedBrowserPacketRequest:
         """Recheck the packet file and return the exact screened Send bytes."""
         return self.outbound.require_unchanged(self.outbound.source.value(), self.outbound.payload.data)
 
-    def record_dispatch(self) -> str:
+    def record_dispatch(self, *, desktop: bool = False) -> str:
         """Record the exact prepared Send in the trusted host store before submission."""
         from cwo_core.host_records import configured_store
 
@@ -109,6 +110,7 @@ class PreparedBrowserPacketRequest:
             packet_sha256=metadata["packet_sha256"], request_sha256=self.outbound.payload.sha256,
             bead_id=metadata["bead_id"], executor=metadata["executor"], provider_key=metadata["provider_key"],
             evaluation_metadata={
+                **({"browser_handoff": DESKTOP_BROWSER_HANDOFF} if desktop else {}),
                 "dispatch_mode": "browser_automation",
                 "peer_review_required": True,
                 "share_boundary": metadata["share_boundary"],
@@ -124,13 +126,14 @@ class PreparedBrowserPacketRequest:
 
 
 def prepare_browser_packet_request(
-    packet_path: str | Path, *, audit_file: Path | None = None,
+    packet_path: str | Path, *, audit_file: Path | None = None, request_id: str | None = None,
 ) -> PreparedBrowserPacketRequest:
-    """Prepare a production packet with a fresh ID for a trusted browser parent."""
+    """Screen a production request, generating an ID unless resuming a recorded preparation."""
     path = str(packet_path)
     prompt, metadata, packet_source, _ = load_browser_packet_prompt(path, {"packet": path}, audit_file=audit_file)
     source = {"prompt": prompt, "inputs": [packet_source.sha256], "metadata": metadata}
     capture = PreparedSource.capture(source, packet_source.files)
-    request_id = secrets.token_hex(16)
+    if request_id is None:
+        request_id = secrets.token_hex(16)
     outbound = prepare_browser_submission(bound_request(prompt, request_id), capture=capture, source=source)
     return PreparedBrowserPacketRequest(request_id, packet_source, outbound)

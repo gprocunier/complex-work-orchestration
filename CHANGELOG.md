@@ -4,9 +4,7 @@
 
 - Wait for each worker's durable turn context before interrupting a contained pool calibration cohort.
 - Document the upgrade from 0.2.0-dev, including custom reviewer profiles and where to find saved audit records and packets.
-- Extract screened browser packet preparation and private response recording for use by browser integrations.
-- Evaluate exact private browser replies using capture references from the original observed host dispatch.
-- Let browser integrations record the exact screened packet request and its normalized user-turn digest before submission.
+- Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
 
 ## 1.33.0 - 2026-11-24
 

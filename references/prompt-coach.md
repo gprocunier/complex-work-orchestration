@@ -223,8 +223,8 @@ is still recorded for auditability.
 A final-plan review is a separate assignment with its own question, allowed
 material and required evidence. If the user makes a named review a prerequisite,
 keep dependent implementation blocked until that requirement is met or explicitly
-changed by the operator. Browser-plugin instructions are deferred; do not use
-historical browser examples as current setup instructions.
+changed by the operator. See [desktop Chrome review](chatgpt-pro-browser.md)
+for the ChatGPT Pro workflow and its availability.
 
 Local-worker language such as `vLLM`, `local worker`, or `OpenShift AI` asks for
 local-worker opt-in before dispatch. Without `--local-ok`, the conservative
