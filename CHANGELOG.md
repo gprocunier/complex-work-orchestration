@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.33.0 - 2026-11-24
+
 - Combine recorded critic evaluations with bound adjudications in an offline synthesis report. Preserve peer-review holds and compare explicit claims across provider domains when required.
 
 ## 1.32.1 - 2026-11-24
