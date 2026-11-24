@@ -78,9 +78,14 @@ def require_authentication_selection(spec):
           'Unsupported qualification authentication mode.')
 
 
-def managed_login_home():
+def _login_name(slot, first, suffix=''):
+    _need(type(slot) is int and 1 <= slot <= 3, 'A dedicated qualification login slot is required.')
+    return first + ('' if slot == 1 else '-' + str(slot)) + suffix
+
+
+def managed_login_home(slot=1):
     """The controller's dedicated login is independent of caller environment and spec paths."""
-    return Path(pwd.getpwuid(os.getuid()).pw_dir) / '.cwo-qual-codex'
+    return Path(pwd.getpwuid(os.getuid()).pw_dir) / _login_name(slot, '.cwo-qual-codex')
 
 
 def _file_identity(info):
@@ -367,23 +372,30 @@ def _journal(*, include_directory=False):
         raise QualificationError('Qualification campaign accounting is unavailable or unsafe.') from exc
 
 
-def claim_managed_login():
+def _login_lease_name(slot):
+    stem, suffix = os.path.splitext(_LOGIN_LEASE)
+    return _login_name(slot, stem, suffix)
+
+
+def claim_managed_login(slot=1):
     """Leave a durable interlock across controller crashes and unresolved namespaces."""
+    lease = _login_lease_name(slot)
     nonce = uuid.uuid4().hex
     with _journal(include_directory=True) as (_, directory):
         try:
             # O_EXCL also leaves a blocking entry after a partial write.
-            host_records._write_at(directory, _LOGIN_LEASE, nonce.encode())
+            host_records._write_at(directory, lease, nonce.encode())
         except FileExistsError as exc:
             raise QualificationError('A managed login launch remains unresolved.') from exc
     return nonce
 
 
-def release_managed_login(nonce):
+def release_managed_login(nonce, slot=1):
+    lease = _login_lease_name(slot)
     with _journal(include_directory=True) as (_, directory):
-        observed = host_records._read_at(directory, _LOGIN_LEASE, 32)
+        observed = host_records._read_at(directory, lease, 32)
         _need(observed == nonce.encode(), 'The original managed login lease changed.')
-        os.unlink(_LOGIN_LEASE, dir_fd=directory)
+        os.unlink(lease, dir_fd=directory)
         os.fsync(directory)
 
 

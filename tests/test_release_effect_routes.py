@@ -1572,6 +1572,123 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         with self.assertRaisesRegex(R.Refused, "witness columns must be declared"):
             R.inventory(root)
 
+    def test_source_binding_path_aliases_preserve_exact_trace_and_legacy_readback(self):
+        root, _output, _review = self.example(compact=True)
+        expected = R.trace(root)
+        path = root / R.INVENTORY
+        value, _digest = R.inventory(root)
+        value.update(source_binding_columns=["sha256", "mode", "size"],
+                     shared_strings={"3": "scripts/example.py"})
+        legacy = R.inventory_bytes(value)
+        path.write_bytes(legacy)
+        self.assertEqual(R.inventory(root)[0]["source_bindings"], value["source_bindings"])
+        value["source_binding_path_keys"] = "point-files-v1"
+        raw = R.inventory_bytes(value)
+        path.write_bytes(raw)
+        stored = json.loads(raw)
+        self.assertEqual(stored["point_files"][0], {"$": 3})
+        self.assertEqual(set(stored["source_bindings"]), {"@0", "@1", "scripts/__init__.py", "tests/__init__.py"})
+        loaded, _digest = R.inventory(root)
+        self.assertEqual(loaded["source_bindings"], value["source_bindings"])
+        self.assertEqual(R.inventory_bytes(loaded), raw)
+        observed = R.trace(root)
+        for field in ("routes", "sites", "primitive_hits", "primitive_coverage"):
+            self.assertEqual(observed[field], expected[field])
+
+    def test_source_binding_path_aliases_refuse_ambiguous_or_unbounded_keys(self):
+        root, _output, _review = self.example(compact=True)
+        path = root / R.INVENTORY
+        value, _digest = R.inventory(root)
+        value.update(source_binding_columns=["sha256", "mode", "size"],
+                     source_binding_path_keys="point-files-v1")
+        raw = R.inventory_bytes(value)
+        stored = json.loads(raw)
+        changes = (
+            lambda row: row.update(source_binding_path_keys=True),
+            lambda row: row.pop("source_binding_columns"),
+            lambda row: row.update(point_files=["scripts/example.py"] * 2),
+            lambda row: row.update(point_files=["scripts/example.py", "../outside"]),
+            lambda row: row["source_bindings"].update({"scripts/example.py": row["source_bindings"]["@0"]}),
+            *(lambda row, key=key: row["source_bindings"].update({key: row["source_bindings"].pop("@0")})
+              for key in ("@", "@-1", "@01", "@+0", "@2", "@12000", "@123456", "@０", "scripts//example.py")),
+        )
+        for change in changes:
+            invalid = copy.deepcopy(stored)
+            change(invalid)
+            with self.subTest(invalid=invalid["source_bindings"]):
+                path.write_bytes(R._inventory_sections(invalid) + b"\n")
+                with self.assertRaisesRegex(R.Refused, "source binding"):
+                    R.inventory(root)
+        duplicate = next(line for line in raw.splitlines() if line.startswith(b'"@0":'))
+        path.write_bytes(raw.replace(duplicate, duplicate + b"\n\n" + duplicate, 1))
+        with self.assertRaisesRegex(R.Refused, "canonical inventory layout"):
+            R.inventory(root)
+        with patch.object(R, "MAX_FILE", len(R.encoded(stored))):
+            with self.assertRaisesRegex(R.Refused, "decoded inventory string budget"):
+                R._source_binding_paths(stored, compact=False)
+
+    def test_source_binding_digest_encoding_round_trips_with_literal_and_alias_paths(self):
+        root, _output, _review = self.example(compact=True)
+        path = root / R.INVENTORY
+        expected = R.trace(root)
+        value, _digest = R.inventory(root)
+        value["source_binding_columns"] = ["sha256", "mode", "size"]
+        source = "scripts/example.py"
+        identity = value["source_bindings"][source]
+        legacy = R.inventory_bytes(value)
+        self.assertEqual(json.loads(legacy)["source_bindings"][source][0], identity["sha256"])
+        path.write_bytes(legacy)
+        self.assertEqual(R.inventory(root)[0]["source_bindings"][source], identity)
+        value["source_binding_digest_encoding"] = "sha256-base64url-v1"
+        for key in (source, "@0"):
+            if key == "@0":
+                value["source_binding_path_keys"] = "point-files-v1"
+            with self.subTest(key=key):
+                raw = R.inventory_bytes(value)
+                path.write_bytes(raw)
+                stored = json.loads(raw)["source_bindings"][key]
+                self.assertRegex(stored[0], r"^[A-Za-z0-9_-]{43}$")
+                self.assertEqual(stored[1:], [identity["mode"], identity["size"]])
+                loaded, _digest = R.inventory(root)
+                self.assertEqual(loaded["source_bindings"], value["source_bindings"])
+                self.assertEqual(R.inventory_bytes(loaded), raw)
+                observed = R.trace(root)
+                for field in ("routes", "sites", "primitive_hits", "primitive_coverage"):
+                    self.assertEqual(observed[field], expected[field])
+
+    def test_source_binding_digest_encoding_refuses_malformed_or_unbounded_expansion(self):
+        root, _output, _review = self.example(compact=True)
+        path = root / R.INVENTORY
+        value, _digest = R.inventory(root)
+        value.update(source_binding_columns=["sha256", "mode", "size"],
+                     source_binding_path_keys="point-files-v1", source_binding_digest_encoding="sha256-base64url-v1")
+        stored = json.loads(R.inventory_bytes(value))
+        valid = stored["source_bindings"]["@0"][0]
+        alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+        noncanonical = valid[:-1] + alphabet[alphabet.index(valid[-1]) + 1]
+        for malformed in (None, True, valid[:-1], valid + "=", "+" + valid[1:], "/" + valid[1:],
+                          noncanonical, value["source_bindings"]["scripts/example.py"]["sha256"]):
+            with self.subTest(digest=malformed):
+                altered = copy.deepcopy(stored)
+                altered["source_bindings"]["@0"][0] = malformed
+                path.write_bytes(R._inventory_sections(altered) + b"\n")
+                with self.assertRaisesRegex(R.Refused, "source binding digest|canonical inventory layout"):
+                    R.inventory(root)
+        for mode in (None, False, "other", "undeclared"):
+            with self.subTest(mode=mode):
+                altered = copy.deepcopy(stored)
+                if mode == "undeclared":
+                    altered.pop("source_binding_digest_encoding")
+                else:
+                    altered["source_binding_digest_encoding"] = mode
+                path.write_bytes(R._inventory_sections(altered) + b"\n")
+                with self.assertRaisesRegex(R.Refused, "source binding digest"):
+                    R.inventory(root)
+        without_aliases = {**stored, "source_bindings": R._source_binding_paths(stored, compact=False)}
+        with patch.object(R, "MAX_FILE", len(R.encoded(without_aliases))):
+            with self.assertRaisesRegex(R.Refused, "decoded inventory string budget exceeded by source binding digests"):
+                R._source_binding_layout(stored, compact=False)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,6 +26,7 @@ from .native_pool_capacity import (
     load_operative_pool_capacity,
     operative_pool_policy,
 )
+from .native_pool_deferred_context import DeferredAttestationError, _ContainedPoolAdmission
 from .native_pool_leases import PoolLeaseError, PoolLeaseRegistry
 from .native_pool_preflight import (
     ADMITTED_PREFLIGHT_VERSION,
@@ -37,6 +38,19 @@ from .native_tool_activation import (
     VerifiedToolEnforcementActivation,
     consume_tool_enforcement_activation,
 )
+from .native_tool_isolation import _active_contained_tool_scope
+
+
+def _require_contained_dispatch(admission, activation, inputs, *, consume: bool = False) -> None:
+    scope = _active_contained_tool_scope()
+    if scope is None and admission is None:
+        return
+    if scope is None or type(admission) is not _ContainedPoolAdmission or activation is not None:
+        raise NativePoolAdmissionError("contained-pool-dispatch-authority-required")
+    try:
+        admission.require_dispatch(scope, inputs, consume=consume)
+    except DeferredAttestationError as failure:
+        raise NativePoolAdmissionError(str(failure)) from failure
 
 
 def run_admitted_native_pool(
@@ -62,9 +76,13 @@ def run_admitted_native_pool(
     recovery_authority_store: object | None = None,
     recovery_controller_root: object | None = None,
     recovery_action_resolver: Callable[..., object] | None = None,
+    _contained_admission: _ContainedPoolAdmission | None = None,
 ) -> dict[str, Any]:
     """Run one policy-authorized fixed cohort after consuming exact live authority."""
 
+    contained_inputs = (reservation_receipt, admission_capability, contract, preflight_request, preflight_result,
+                        child_contracts, task_inputs, child_callbacks, capability_receipt, claim_adapter, lease_registry)
+    _require_contained_dispatch(_contained_admission, activation_capability, contained_inputs)
     try:
         effective_policy = operative_pool_policy(policy_document)
         capacity_limits = load_operative_pool_capacity(effective_policy)
@@ -138,6 +156,7 @@ def run_admitted_native_pool(
                 "admitted-launch-tool-enforcement-activation-invalid:" + str(error)
             ) from error
 
+    _require_contained_dispatch(_contained_admission, activation_capability, contained_inputs, consume=True)
     child_ids = [str(child["child_id"]) for child in contract["children"]]
     acquired = lease_registry.acquire_many(
         contract,
@@ -158,6 +177,7 @@ def run_admitted_native_pool(
 
         def commit(dispatch_receipt: Mapping[str, Any]) -> None:
             nonlocal lease_ownership_transferred
+            _require_contained_dispatch(_contained_admission, activation_capability, contained_inputs)
             coordinator = _build_admitted_pool_coordinator(
                 contract,
                 child_contracts,

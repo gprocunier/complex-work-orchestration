@@ -39,6 +39,7 @@ from .native_pool_schedulability import (
 )
 from .native_tool_isolation import (
     NativeToolIsolationError,
+    _contained_pool_child_errors,
     prompt_preflight,
     validate_tool_enforcement_override,
     validate_tool_policy,
@@ -1210,6 +1211,7 @@ def run_pool_preflight(
         tool_policy_errors = validate_tool_policy(
             tool_policy, prefix=f"child[{index}]-tool-policy"
         )
+        tool_policy_errors.extend(_contained_pool_child_errors(child, "preflight", f"child[{index}]"))
         if tool_policy_errors:
             findings.append(
                 _finding(

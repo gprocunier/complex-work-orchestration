@@ -50,3 +50,11 @@ def require_activation_live(profile: str | None = None) -> None:
         require_pool_live()
     elif profile not in {"n1-read-only", "n1-mutable"}:
         raise NativeLiveUnavailable("native-activation-profile-unavailable")
+
+
+POOL_QUALIFICATION_AVAILABLE = False
+
+
+def require_pool_qualification() -> None:
+    if POOL_QUALIFICATION_AVAILABLE is not True:
+        raise NativeLiveUnavailable("native-pool-qualification-unavailable")

@@ -134,14 +134,14 @@ def inventory_bytes(value):
     return _inventory_sections(_string_layout(bindings, compact=True, prune=True)) + b"\n"
 
 
-def _source_binding_identity(row, columns):
+def _source_binding_identity(row, columns, compact_digests):
     """Column rows retain the complete identity; no field is inferred or omitted."""
     if type(row) is list:
         need(len(row) == len(columns), "source binding row width refused")
         row = dict(zip(columns, row))
     need(type(row) is dict and set(row) == set(columns), "source binding identity fields refused")
-    need(type(row["sha256"]) is str and re.fullmatch(r"[0-9a-f]{64}", row["sha256"]) is not None,
-         "source binding digest refused")
+    digest_hex = _source_binding_hex(row["sha256"], compact_digests)
+    row = {**row, "sha256": digest_hex}
     need(type(row["mode"]) is int and 0 <= row["mode"] <= 0o7777
          and type(row["size"]) is int and row["size"] >= 0, "source binding mode or size refused")
     return row
@@ -149,15 +149,15 @@ def _source_binding_identity(row, columns):
 
 def _source_binding_layout(value, *, compact):
     if "source_binding_columns" not in value:
-        return value
+        return _literal_source_binding_layout(value)
     columns = value["source_binding_columns"]
     need(columns == ["sha256", "mode", "size"], "source binding columns refused")
-    need(type(value["source_bindings"]) is dict, "source binding mapping required")
-    bindings = {}
-    for path, row in value["source_bindings"].items():
-        identity = _source_binding_identity(row, columns)
-        bindings[path] = [identity[key] for key in columns] if compact else dict(identity)
-    return {**value, "source_bindings": bindings}
+    # Resolve the binding keys before adapting the independent identity rows.
+    bindings = _source_binding_paths(value, compact=False)
+    identities = _source_binding_rows(value, bindings, columns, compact=compact)
+    if compact:
+        identities["source_bindings"] = _source_binding_paths(identities, compact=True)
+    return identities
 
 
 def mark(value):
@@ -1510,3 +1510,91 @@ def _witness_layout(value, *, compact):
     need(type(table) is dict, "witness mapping required")
     return {**value, "witnesses": {key: _witness_row(row, columns, compact=compact)
                                    for key, row in table.items()}}
+
+
+def _literal_source_binding_layout(value):
+    fields = {"source_binding_path_keys", "source_binding_digest_encoding"}
+    need(not fields.intersection(value), "source binding encodings require declared identity columns")
+    return value
+
+
+def _binding_literal_path(path):
+    return (type(path) is str and bool(path) and not path.startswith("@") and "\0" not in path
+            and all(part not in {"", ".", ".."} for part in path.split("/")))
+
+
+def _binding_path_table(value):
+    need(value["source_binding_path_keys"] == "point-files-v1", "source binding path key encoding refused")
+    paths = value.get("point_files")
+    need(type(paths) is list and len(paths) <= MAX_FILES and all(_binding_literal_path(path) for path in paths),
+         "source binding point path table refused")
+    need(len(set(paths)) == len(paths), "duplicate source binding point path")
+    return paths
+
+
+def _binding_path(key, paths):
+    need(type(key) is str, "source binding key must be text")
+    if key.startswith("@"):
+        need(re.fullmatch(r"@(?:0|[1-9][0-9]{0,4})", key) is not None, "source binding path alias refused")
+        index = int(key[1:])
+        need(index < len(paths), "source binding path alias outside table")
+        return paths[index]
+    need(_binding_literal_path(key), "source binding literal path refused")
+    return key
+
+
+def _source_binding_paths(value, *, compact):
+    bindings = value["source_bindings"]
+    need(type(bindings) is dict, "source binding mapping required")
+    if "source_binding_path_keys" not in value:
+        return dict(bindings)
+    paths = _binding_path_table(value)
+    need(len(bindings) <= MAX_FILES, "source binding path count exceeded")
+    expanded, delta = {}, 0
+    for key, row in bindings.items():
+        path = _binding_path(key, paths)
+        need(path not in expanded, "duplicate decoded source binding path")
+        expanded[path] = row
+        delta += len(encoded(path)) - len(encoded(key))
+    need(len(encoded(value)) + delta <= MAX_FILE, "decoded inventory string budget exceeded by source binding paths")
+    if not compact:
+        return expanded
+    aliases = {path: f"@{index}" for index, path in enumerate(paths)}
+    return {aliases.get(path, path): row for path, row in expanded.items()}
+
+
+def _source_binding_base64(data):
+    from base64 import urlsafe_b64encode
+
+    return urlsafe_b64encode(data).decode("ascii").rstrip("=")
+
+
+def _source_binding_hex(value, compact_digests):
+    from base64 import urlsafe_b64decode
+
+    if type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value) is not None:
+        return value
+    need(compact_digests and type(value) is str and re.fullmatch(r"[A-Za-z0-9_-]{43}", value) is not None,
+         "source binding digest refused")
+    raw = urlsafe_b64decode(value + "=")
+    need(len(raw) == 32 and _source_binding_base64(raw) == value, "noncanonical source binding digest refused")
+    return raw.hex()
+
+
+def _source_binding_rows(value, bindings, columns, *, compact):
+    field = "source_binding_digest_encoding"
+    compact_digests = field in value
+    need(not compact_digests or value[field] == "sha256-base64url-v1", "source binding digest encoding refused")
+    expanded = {**value, "source_bindings": bindings}
+    rows, delta = {}, 0
+    for path, row in bindings.items():
+        identity = _source_binding_identity(row, columns, compact_digests)
+        if compact_digests:
+            stored = row[0] if type(row) is list else row["sha256"]
+            delta += 64 - len(stored)
+            if compact:
+                identity["sha256"] = _source_binding_base64(bytes.fromhex(identity["sha256"]))
+        rows[path] = [identity[key] for key in columns] if compact else identity
+    if compact_digests:
+        need(len(encoded(expanded)) + delta <= MAX_FILE, "decoded inventory string budget exceeded by source binding digests")
+    return {**value, "source_bindings": rows}

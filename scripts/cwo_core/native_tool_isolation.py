@@ -7,9 +7,14 @@ not treat prompt instructions as an enforcement mechanism.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from dataclasses import InitVar, dataclass
 import hashlib
 import json
 import re
+from types import MappingProxyType
 import uuid
 from typing import Any, Mapping
 
@@ -84,6 +89,9 @@ DEFAULT_FORBIDDEN_TOOLS = (
 UNPROVEN_PERMITTED_TOOLS = frozenset(
     {"apply_patch", "exec_command", "write_stdin"}
 )
+CONTAINED_POOL_WRITER = "cwo_finite.finite_command"
+CONTAINED_POOL_SURFACE_SOURCE = "contained-pool-registered-parent"
+_CONTAINED_POOL_TOKEN = object()
 KNOWN_TOOL_NAMES = frozenset(
     {
         "apply_patch",
@@ -128,6 +136,125 @@ _NEGATION_SUFFIX = re.compile(
 
 class NativeToolIsolationError(ValueError):
     """Raised when a required native tool boundary cannot be established."""
+
+
+@dataclass(frozen=True, slots=True)
+class _ContainedPoolChild:
+    worktree: str
+    worktree_identity_sha256: str
+    write_path: str
+    prompt: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ContainedPoolToolScope:
+    children: Mapping[str, _ContainedPoolChild]
+    model: str
+    check_active: Callable[[], None]
+    issuer: InitVar[object]
+
+    def __post_init__(self, issuer: object) -> None:
+        if issuer is not _CONTAINED_POOL_TOKEN:
+            raise NativeToolIsolationError("contained-pool-tool-scope-untrusted")
+        object.__setattr__(self, "children", MappingProxyType(dict(self.children)))
+
+
+_CONTAINED_POOL_SCOPE: ContextVar[_ContainedPoolToolScope | None] = ContextVar("contained_pool_tool_scope", default=None)
+
+
+@contextmanager
+def _contained_pool_tool_validation(scope: _ContainedPoolToolScope) -> Iterator[None]:
+    """Keep protected validation within the original synchronous transaction."""
+    if type(scope) is not _ContainedPoolToolScope or _CONTAINED_POOL_SCOPE.get() is not None:
+        raise NativeToolIsolationError("contained-pool-tool-scope-untrusted")
+    token = _CONTAINED_POOL_SCOPE.set(scope)
+    try:
+        yield
+    finally:
+        _CONTAINED_POOL_SCOPE.reset(token)
+
+
+def contained_pool_tool_policy() -> dict[str, Any]:
+    """Render the fixed writer registration for a protected qualification artifact."""
+    return {
+        "version": TOOL_POLICY_VERSION,
+        "permitted_tools": [CONTAINED_POOL_WRITER],
+        "forbidden_tools": sorted(set(DEFAULT_FORBIDDEN_TOOLS) | UNPROVEN_PERMITTED_TOOLS),
+        "enforcement_mode": "trusted-detect-and-contain",
+        "workload_class": "safety-canary",
+        "override_provenance": None,
+    }
+
+
+def contained_pool_tool_surface() -> dict[str, Any]:
+    """Render the stock server's lack of an enforceable allowlist."""
+    value = {
+        "surface_type": TOOL_SURFACE_TYPE, "version": 1, "source": CONTAINED_POOL_SURFACE_SOURCE,
+        "server_allowlist_supported": False, "allowlist_parameter": None,
+        "requested_allowlist": [CONTAINED_POOL_WRITER], "effective_allowlist": None,
+        "override_provenance": None,
+    }
+    value["surface_sha256"] = canonical_sha256(value)
+    return value
+
+
+def _is_contained_policy(value: Mapping[str, Any]) -> bool:
+    return (type(value.get("version")) is int and value.get("permitted_tools") == [CONTAINED_POOL_WRITER]
+            and value == contained_pool_tool_policy())
+
+
+def _active_contained_tool_scope() -> _ContainedPoolToolScope | None:
+    scope = _CONTAINED_POOL_SCOPE.get()
+    if scope is not None:
+        scope.check_active()
+    return scope
+
+
+def _policy_permitted_tool_names(policy: Mapping[str, Any]) -> frozenset[str]:
+    if _is_contained_policy(policy) and _active_contained_tool_scope() is not None:
+        return frozenset({CONTAINED_POOL_WRITER})
+    return UNPROVEN_PERMITTED_TOOLS
+
+
+def _validate_contained_tool_surface(policy, source, supported, parameter, effective) -> None:
+    if _is_contained_policy(policy) and (source != CONTAINED_POOL_SURFACE_SOURCE or supported is not False
+                                         or parameter is not None or effective is not None):
+        raise NativeToolIsolationError("contained-pool-tool-surface-mismatch")
+
+
+def _contained_pool_child_errors(child: Mapping[str, Any], phase: str, prefix: str) -> list[str]:
+    scope = _active_contained_tool_scope()
+    if scope is None:
+        return []
+    child_id = child.get("child_id")
+    expected = scope.children.get(child_id) if type(child_id) is str else None
+    if expected is None or not _contained_pool_child_binding_matches(child, expected):
+        return [f"{prefix}-contained-child-binding-mismatch"]
+    if not _contained_pool_phase_matches(child, expected, scope.model, phase):
+        return [f"{prefix}-contained-{phase}-binding-mismatch"]
+    return []
+
+
+def _contained_pool_child_binding_matches(child: Mapping[str, Any], expected: _ContainedPoolChild) -> bool:
+    policy = child.get("tool_policy")
+    return (child.get("isolation_class") == "mutable-isolated"
+            and child.get("declared_write_paths") == child.get("integration_target_paths") == [expected.write_path]
+            and isinstance(policy, Mapping) and _is_contained_policy(policy))
+
+
+def _contained_pool_phase_matches(child: Mapping[str, Any], expected: _ContainedPoolChild, model: str, phase: str) -> bool:
+    if child.get("requested_model") != model:
+        return False
+    if phase == "contract":
+        return (isinstance(child.get("worktree_identity"), Mapping)
+                and canonical_sha256(child["worktree_identity"]) == expected.worktree_identity_sha256)
+    if (child.get("worktree") != expected.worktree
+            or child.get("worktree_identity_sha256") != expected.worktree_identity_sha256):
+        return False
+    if phase == "preflight":
+        return (child.get("prompt") == expected.prompt
+                and child.get("tool_surface") == contained_pool_tool_surface())
+    return phase == "render"
 
 
 def canonical_sha256(value: Any) -> str:
@@ -438,7 +565,7 @@ def validate_tool_policy(
     )
     if not permitted:
         errors.append(f"{prefix}-permitted-tools-must-not-be-empty")
-    allowed = UNPROVEN_PERMITTED_TOOLS
+    allowed = _policy_permitted_tool_names(policy)
     if current:
         profile = policy.get("tool_profile")
         expected = CORE_RESOURCE_TOOL_PROFILES.get(profile) if type(profile) is str else None
@@ -605,6 +732,7 @@ def build_tool_surface_snapshot(
     """Bind the requested policy to a truthful server capability snapshot."""
 
     policy = normalize_tool_policy(tool_policy)
+    _validate_contained_tool_surface(policy, source, server_allowlist_supported, allowlist_parameter, effective_allowlist)
     if not isinstance(source, str) or not source.strip():
         raise NativeToolIsolationError("tool-surface-source-invalid")
     if not isinstance(server_allowlist_supported, bool):

@@ -179,6 +179,31 @@ def _seal_registry(leases: list[Mapping[str, Any]]) -> dict[str, Any]:
     return value
 
 
+def decode_lease_registry(value: Any) -> list[dict[str, Any]]:
+    """Validate a parsed registry artifact and return its lease rows."""
+    if not isinstance(value, Mapping) or set(value) != REGISTRY_FIELDS:
+        raise PoolLeaseError("lease-registry-fields-invalid")
+    if value.get("registry_type") != REGISTRY_TYPE or value.get("version") != REGISTRY_VERSION:
+        raise PoolLeaseError("lease-registry-header-invalid")
+    if value.get("registry_sha256") != _registry_hash(value):
+        raise PoolLeaseError("lease-registry-sha256-mismatch")
+    leases = value.get("leases")
+    if not isinstance(leases, list):
+        raise PoolLeaseError("lease-registry-leases-invalid")
+    result: list[dict[str, Any]] = []
+    ids: set[str] = set()
+    for lease in leases:
+        errors = validate_lease(lease)
+        if errors:
+            raise PoolLeaseError("lease-registry-artifact-invalid:" + ";".join(errors))
+        lease_id = str(lease["lease_id"])
+        if lease_id in ids:
+            raise PoolLeaseError("lease-registry-duplicate-lease-id")
+        ids.add(lease_id)
+        result.append(dict(lease))
+    return result
+
+
 class PoolLeaseRegistry:
     """One process-locked registry retaining leases through verified pool close."""
 
@@ -221,27 +246,7 @@ class PoolLeaseRegistry:
             value = strict_json_loads(self.path.read_text(encoding="utf-8"))
         except (OSError, ValueError, RecursionError) as exc:
             raise PoolLeaseError("lease-registry-unreadable") from exc
-        if not isinstance(value, Mapping) or set(value) != REGISTRY_FIELDS:
-            raise PoolLeaseError("lease-registry-fields-invalid")
-        if value.get("registry_type") != REGISTRY_TYPE or value.get("version") != REGISTRY_VERSION:
-            raise PoolLeaseError("lease-registry-header-invalid")
-        if value.get("registry_sha256") != _registry_hash(value):
-            raise PoolLeaseError("lease-registry-sha256-mismatch")
-        leases = value.get("leases")
-        if not isinstance(leases, list):
-            raise PoolLeaseError("lease-registry-leases-invalid")
-        result: list[dict[str, Any]] = []
-        ids: set[str] = set()
-        for lease in leases:
-            errors = validate_lease(lease)
-            if errors:
-                raise PoolLeaseError("lease-registry-artifact-invalid:" + ";".join(errors))
-            lease_id = str(lease["lease_id"])
-            if lease_id in ids:
-                raise PoolLeaseError("lease-registry-duplicate-lease-id")
-            ids.add(lease_id)
-            result.append(dict(lease))
-        return result
+        return decode_lease_registry(value)
 
     def _write_unlocked(self, leases: list[Mapping[str, Any]]) -> None:
         write_private_artifact(self.path, _seal_registry(leases))
