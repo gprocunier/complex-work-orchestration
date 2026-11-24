@@ -17,6 +17,7 @@ WRITER_TOOL = 'finite_command'
 WRITER_COMMAND = 'write the selected qualification fixture file'
 CATALOG_NAME = 'model-catalog.json'
 MAX_CATALOG_BYTES = 2_000_000
+# Codex uses fast_mode to expose the default tier too. The config and RPC selectors pin the tier.
 _DISABLED_FEATURES = (
     'shell_tool', 'unified_exec', 'unified_exec_tty', 'code_mode_only', 'code_mode_only_strict_3p_tools',
     'view_image', 'image_generation', 'standalone_web_search', 'request_permissions_tool',
@@ -26,7 +27,7 @@ _DISABLED_FEATURES = (
     'multi_env_copy_file', 'memories', 'memory_tool', 'browser_use', 'browser_use_external',
     'browser_use_full_cdp_access', 'computer_use', 'js_repl', 'js_repl_tools_only', 'hooks',
     'codex_hooks', 'plugin_hooks', 'undo', 'send_message_to_user_async',
-    'executor_capability_discovery', 'executor_capability_discovery_v2', 'fast_mode',
+    'executor_capability_discovery', 'executor_capability_discovery_v2',
 )
 _CATALOG_OPTIONALS = frozenset({'apply_patch_tool_type', 'multi_agent_version'})
 _TURN_REQUIRED = {'threadId', 'model', 'effort', 'serviceTier', 'input'}

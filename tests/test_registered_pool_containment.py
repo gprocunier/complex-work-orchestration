@@ -73,15 +73,43 @@ class PoolConfigurationTests(unittest.TestCase):
         self.assertEqual(tool['name'], 'finite_command')
         self.assertEqual(tool['inputSchema']['properties']['command']['enum'], [config.WRITER_COMMAND])
 
+    def test_default_tier_contract(self):
+        worker, spool = Path('/fixture/worker'), Path('/fixture/private-spool')
+        catalog = b'{"models":[{"slug":"gpt-6.2-sol"}]}'
+        for model_catalog in (None, catalog):
+            with self.subTest(trimmed=model_catalog is not None):
+                raw = config.configuration_files(worker, spool, catalog=model_catalog)['config.toml']
+                settings = tomllib.loads(raw.decode())
+                self.assertEqual(settings['service_tier'], 'default')
+                self.assertNotIn('fast_mode', settings['features'])
+        self.assertEqual(config.thread_start_selectors(worker)['serviceTier'], 'default')
+
+        response = {'cwd': str(worker), 'runtimeWorkspaceRoots': [str(worker)],
+                    'activePermissionProfile': {'id': config.PROFILE, 'extends': None},
+                    'model': qualification.MODEL, 'modelProvider': qualification.PROVIDER,
+                    'approvalPolicy': qualification.APPROVAL_POLICY, 'approvalsReviewer': 'user',
+                    'reasoningEffort': qualification.EFFORT,
+                    'thread': {'id': 'thread-one', 'turns': [], 'ephemeral': False,
+                               'historyMode': qualification.HISTORY_MODE}}
+        config.require_thread_readback(worker, {**response, 'serviceTier': 'default'})
+        rejected = [response, *({**response, 'serviceTier': value} for value in (None, 'fast', 'priority', 'flex'))]
+        for drift in rejected:
+            with self.subTest(tier=drift.get('serviceTier', 'missing')), self.assertRaises(config.PoolContainmentError):
+                config.require_thread_readback(worker, drift)
+
     def test_later_turn_cannot_widen_its_selectors(self):
         turn = {'threadId': 'thread-one', 'model': qualification.MODEL, 'effort': qualification.EFFORT,
                 'serviceTier': qualification.TIER, 'input': []}
         config.require_turn_selectors(turn, thread_id='thread-one')
-        for drift in ({'model': 'default'}, {'serviceTier': 'fast'}, {'effort': 'max'},
+        for drift in ({'model': 'default'}, {'serviceTier': None}, {'serviceTier': 'fast'},
+                      {'serviceTier': 'priority'}, {'serviceTier': 'flex'}, {'effort': 'max'},
                       {'threadId': 'thread-two'}, {'cwd': '/outside'}, {'permissions': ':workspace'},
                       {'sandboxPolicy': {'type': 'dangerFullAccess'}}, {'approvalPolicy': 'on-request'}):
             with self.subTest(drift=drift), self.assertRaises(config.PoolContainmentError):
                 config.require_turn_selectors({**turn, **drift}, thread_id='thread-one')
+        del turn['serviceTier']
+        with self.assertRaises(config.PoolContainmentError):
+            config.require_turn_selectors(turn, thread_id='thread-one')
 
     def test_named_profile_refuses_a_missing_or_widened_login_deny_rule(self):
         worktree = Path('/fixture/worker')

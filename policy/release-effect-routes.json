@@ -214,7 +214,7 @@
 
 "M44":{"conclusion":"Original adopted single-product workflow and its source switch select registered production with a configured file login.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Original host, signers and controller configuration are trusted. Publication needs separate adoption. Raw, pool, campaign and activation holds remain. Offline fixtures grant no production provider or qualification journal credit. Finite workers receive no credentials.","reason":"Check exact signed OpenAI route/model/effort, one worker/session, original evidence and provider-only consent. Require private configured login apart from primary and qualification homes and refuse attachments before claims or intent. Acquire separate durable per-login interlock before mount. Uncertain cleanup retains it. Recheck adoption, durable intent and owned receiver before effects. One checked thread/start and turn/start use signed data and default tier.","review_evidence":{"$":7},"source":["p52A","p52B","p52C","p52D","p52E","p52F","p52G","p55C","p55T","p55L"]},
 
-"MContainedHost":{"conclusion":"The contained qualification switch is on. Original signed campaign authority restricts effects to the protected route.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent supplies approvals and disposable custody. Fixed prompt preview grants no authority; production holds remain separate.","reason":"Claim approval binds campaign and cap 20. Ledger enrollment and capacity precede claims; signed binding precedes calibration. Original approval gates starts and effects.","review_evidence":"Enrollment and raw worker/writer refusal controls; review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8"]}
+"MContainedHost":{"conclusion":"Enabled contained qualification requires original signed campaign authority.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent supplies approvals and disposable custody. Preview confers no authority. Production separate.","reason":"Approval binds campaign/cap 20. Enrollment and capacity precede claims, signed binding precedes calibration. Original approval gates starts/effects.","review_evidence":"Enrollment and raw refusals. Review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8","p64R"]}
 },
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
@@ -566,7 +566,9 @@
 
 "scripts/accept_delivery.py",
 
-"tests/test_manual_acceptance.py"
+"tests/test_manual_acceptance.py",
+
+{"$":385}
 ],
 
 "points":{
@@ -2622,6 +2624,10 @@
 
 "p64":[3,"RegisteredBrowserParent",179,"FAQBWuh-O3ugTrpISiMnigc0Iea3SJsxUSohOK8Yx8Y"],
 
+"p64R":[173,147,"'serviceTier': TIER}",70,147,90],
+
+"p64t":[156,"PoolConfigurationTests.test_default_tier_contract",76,"S0cNBp6hxSLxGrVfuL5Pn9Hav81X-zFjDOpNuv4DFdg"],
+
 "p65":[8,"BrowserRunnerAdapter.send",497,"ZH4IHj7vOlpY_oN3BmvAnGZNbHEJTvDv2F73Fb52BYQ"],
 
 "p66":[8,501,"target.evaluate(_SEND_SCRIPT, submission)",20,501,61],
@@ -2918,7 +2924,7 @@
 
 "pPoolHostMountCheck":[155,162,{"$":148}],
 
-"pPoolPhysicalProof":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",240,"JxqY3KRsPFpDptFhspTub3G_vLf6GgRg1pwaOVkitHk"],
+"pPoolPhysicalProof":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",268,"JxqY3KRsPFpDptFhspTub3G_vLf6GgRg1pwaOVkitHk"],
 
 "pPoolWireFactory":[157,"build_pool_qualification_runtime",1333,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
 
@@ -2938,7 +2944,7 @@
 
 "pPoolWriterLaunch":[155,420,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,420,98],
 
-"pPoolWriterRefusal":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",270,"lzFDdzNrTvpz66VacjEohnYvV5DqdDp-b0ibJdzoQyk"],
+"pPoolWriterRefusal":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",298,"lzFDdzNrTvpz66VacjEohnYvV5DqdDp-b0ibJdzoQyk"],
 
 "pQ":[65,"RegisteredN1Workflow._commit_execution",485,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
 
@@ -2986,7 +2992,7 @@
 
 "pV9":[155,212,"production_live = False",4,212,27],
 
-"pVa":[156,"PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn",221,"1biCCmpFFglbVdZwIzdKS0Xx9YP10piczub1M_-vuR4"],
+"pVa":[156,"PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn",249,"1biCCmpFFglbVdZwIzdKS0Xx9YP10piczub1M_-vuR4"],
 
 "pW":[42,123,"if frame != original:"],
 
@@ -5860,7 +5866,7 @@
 
 {"contract":"N4","effect_points":["p187","pa","p37"],"entrypoint":"p1b4","gate_chains":[{"calls":[{"call":"p13e","direction":"into","target":"p30d"}],"effect":"p187","gate":"p34d"},{"calls":[{"call":"p146","direction":"into","target":"p159"}],"effect":"pa","gate":"p34d"},{"calls":[{"call":"p146","direction":"into","target":"p159"}],"effect":"p37","gate":"p34d"}],"id":"N4.2"},
 
-{"admission":{"$":4},"authority":"Signed contained-pool campaign, selected runtime and original cohort admission.","contract":"N4","earlier_effects":"Protected host claims disposable cohorts, stages the signed request and verifies the bound runtime.","effect":"Start and control the fixed stock worker thread through its owned stdio transport","effect_points":["pPoolWireRequest","pPoolWireNotify","pPoolWireThread","pPoolWireTurn"],"entrypoint":"pPoolWireFactory","gate_chains":[],"gate_limits":"Cross-call campaign, runtime and callback identity require manual review.","gates":[],"id":"N4.3","limits":"Partial claims retain their receipts. Each child uses its original owned connection, guarded model, profile and input. The original retained authorization alone unlocks its writer.","manual_decisions":["M26","MContainedHost"],"ordering":"Check enrollment before claims and signed binding before calibration. Verify original callbacks before archive and settlement.","review_gates":[],"trace_files":[{"$":374},{"$":373},{"$":371},"scripts/cwo_core/native_pool_deferred_attestation.py",{"$":375},"scripts/registered_pool_qualification_capability.py","scripts/registered_pool_qualification_calibration.py",{"$":359},{"$":45}],"witnesses":["wPoolWirePositive","wPoolWireRefusal","wCQH","wQe1"]},
+{"admission":{"$":4},"authority":"Signed contained campaign and runtime for original cohort.","contract":"N4","earlier_effects":"Host claims disposable cohorts, stages signed request, verifies runtime.","effect":"Stock thread start/control over owned stdio","effect_points":["pPoolWireRequest","pPoolWireNotify","pPoolWireThread","pPoolWireTurn"],"entrypoint":"pPoolWireFactory","gate_limits":"Review cross-call campaign/runtime/callback identity.","gates":[],"id":"N4.3","limits":"Retain partial claim receipts. Owned connection guards model, profile and input. Require default in config/start/readback/turn. Leave fast_mode unset. Only original retained authorization releases writer.","manual_decisions":["M26","MContainedHost"],"ordering":"Enrollment before claims, signed binding before calibration, original callbacks before archive/settlement.","review_gates":[],"trace_files":[{"$":374},{"$":373},{"$":371},"scripts/cwo_core/native_pool_deferred_attestation.py",{"$":375},"scripts/registered_pool_qualification_capability.py","scripts/registered_pool_qualification_calibration.py",{"$":359},{"$":45},{"$":385}],"witnesses":["wPoolWirePositive","wPoolWireRefusal","wCQH","wQe1"]},
 
 {"contract":"N5","entrypoint":"p1fd","id":"N5.1","manual_decisions":["M08","M09"],"trace_files":[{"$":19},{"$":31},{"$":46}]},
 
@@ -6750,6 +6756,8 @@
 
 "384":"tests.test_manual_acceptance.ManualAcceptanceTests.test_accept_and_close_records_review_and_closure_on_the_host_chain",
 
+"385":"scripts/registered_pool_configuration.py",
+
 "39":"23a9127df77c97fb58c8251023c2f298a4ca6fe9ad53fef07fb2769164fe810e",
 
 "4":"manual-program",
@@ -7022,7 +7030,7 @@
 
 "@155":["SP-I61utrYTpkWLw0DApJztjAwOrQqqDBwbQ--bFW5I",420,23300],
 
-"@156":["BsRE_cR8yI39pUgtt9nV8ISg0BD9E64I-j8meP6vVvo",420,16960],
+"@156":["OxNMA9rd2imvJ77krw2sA6CliBqJNAQUOYqkvDwOBIY",420,18897],
 
 "@157":["OjqkxUBpBMfkhjT5b_2lAJXUDcn5t8CB-hR2wpgy8To",420,70221],
 
@@ -7059,6 +7067,8 @@
 "@171":["tJDM-ehRkFCAgy3lOBiYrd5teSBPF9mVzGXoeZqRdUQ",420,1360],
 
 "@172":["yAB81MaVNtf103EpCcpRCQZNRZRrP94VXyasYgSNdhc",420,14023],
+
+"@173":["tIkyVbbIbTVNZCaImn05K0UH-u2yrf0xgJPSbv-JxUk",420,8495],
 
 "@18":["eeWhgdqzZxdBINbx0XseT7DQyIMEE_YvaJiCe2PZPCI",420,27248],
 
@@ -7569,8 +7579,6 @@
 "scripts/record_native_model_capability.py":["zPi7jGxi4MLTshotBUkybSFVU5QUi5jc14XT14xr7yg",420,4186],
 
 "scripts/registered_host_root_boundary.py":["YVEJAkpd-rBiWkErHbDfheVtG_bm-K2cfOzcr3RS6DY",420,1303],
-
-"scripts/registered_pool_configuration.py":["kNfLfHZ4BJmwoHQXE5Tv4ZEcM3xpAy2uSUAY9C7QJLM",420,8410],
 
 "scripts/registered_pool_qualification_calibration.py":["Ot5J-6-4EZ0QH5EJKVEKFW-573Pcc5fQEpsEiWDfd18",420,8071],
 
@@ -8108,7 +8116,7 @@
 
 "wPoolPhysical":["self.assertTrue(rows['appserver-contained']['worktree_readonly'])","pPoolPhysicalProof",{"$":1},"self.assertEqual(rows['writer-output']['call_id'], f'call-{slot}')",[],"tests.test_registered_pool_containment.PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes"],
 
-"wPoolWirePositive":["self.assertEqual(len({proof.startup.connection_epoch_sha256 for proof in parent.limits.proofs.values()}), 2)","pPoolWirePositive",{"$":1},"self.assertTrue(parent.cleanup(monotonic() + 2))",[],"tests.test_registered_pool_qualification.RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes"],
+"wPoolWirePositive":["self.assertEqual(len({proof.startup.connection_epoch_sha256 for proof in parent.limits.proofs.values()}), 2)","pPoolWirePositive",{"$":1},"self.assertTrue(parent.cleanup(monotonic() + 2))",["p64t"],"tests.test_registered_pool_qualification.RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes"],
 
 "wPoolWireRefusal":["self.assertEqual(parent.limits.debits, set())","pPoolWireRefusal",{"$":0},"self.assertIn(\"writer-policy\", str(worker.wire.transport_failure))",[],"tests.test_registered_pool_qualification.RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer"],
 
