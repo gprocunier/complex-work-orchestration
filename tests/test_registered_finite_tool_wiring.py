@@ -2005,20 +2005,34 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         factory = self.fixture.factory(case)
         physical = gate_module.RegisteredFiniteInput._write_reply_frame
 
+        def await_reader_refusal():
+            end = time.monotonic() + 3
+            while factory.server.transport_failure is None:
+                self.assertLess(time.monotonic(), end, 'expected refusal of the late item')
+                time.sleep(.001)
+
+        class LatePollRpcProcess(NamespacedFiniteRpcProcess):
+            def complete(self):
+                # The wire terminal and late item are already queued. Let the
+                # original reader decide the late item before the fake peer
+                # publishes durable completion to the controller.
+                await_reader_refusal()
+                super().complete()
+
         def hold_after_write(writer, frame, source, deadline):
             sent = physical(writer, frame, source, deadline)
             if source['id'] == 'EXAMPLE-request-EXAMPLE-poll-call' and sent:
-                end = time.monotonic() + 3
-                while factory.server.transport_failure is None:
-                    self.assertLess(time.monotonic(), end, 'expected refusal of the late item')
-                    time.sleep(.001)
+                await_reader_refusal()
             return sent
 
-        with (patch.object(family, 'RpcProcess', NamespacedFiniteRpcProcess),
+        with (patch.object(family, 'RpcProcess', LatePollRpcProcess),
               patch.object(gate_module.RegisteredFiniteInput, '_write_reply_frame', staticmethod(hold_after_write)),
               self._positive_finite_completion(case), self.assertRaises(ValueError)):
             factory.run()
         self.assertIn('Qualification completion differs', str(factory.server.transport_failure))
+        turn = case.scenario.thread_id, case.scenario.turn_id
+        self.assertIn(turn, factory.server.requests.terminals)
+        self.assertIsNone(factory.server.qualified_tool_evidence.completion((*turn, 'EXAMPLE-poll-call')))
         self.assertIsNone(factory.token)
         with self.assertRaises(BlockingIOError):
             os.read(case.tool_read, 1)
