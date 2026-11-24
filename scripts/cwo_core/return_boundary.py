@@ -96,33 +96,71 @@ def redacted_packet_direct_access_findings(text: str) -> list[str]:
     return findings
 
 
+_VALIDATION_ACTIVITY = r"(?:tests?|repository validation|validate_repository|install(?:ation)? dry[- ]run|compileall)"
+_VALIDATION_PAST_VERB = r"(?:passed|failed(?!\s+to\b)|verified|validated|compiled|completed|ran|executed)"
+_VALIDATION_RUN_VERB = (
+    r"(?:ran|executed|did\s+(?:run|execute)|(?:have|has|had)\s+(?:already\s+)?(?:run|executed))"
+)
+_VALIDATION_ACTIVE_VERB = rf"(?:{_VALIDATION_RUN_VERB}|{_VALIDATION_PAST_VERB})"
+_VALIDATION_ASSERTION = re.compile(
+    rf"\b(?P<action>{_VALIDATION_ACTIVE_VERB})\s+(?:(?:a|an|the|all|both|some|several|our|my|unit|integration|"
+    rf"regression|smoke|automated|local|full|\d+)\s+)*`?{_VALIDATION_ACTIVITY}\b"
+    rf"|\b{_VALIDATION_ACTIVITY}\b`?(?:\s+(?:suite|suites|execution|results?))?"
+    rf"(?:\s+(?:for|of)\s+[\w./-]+(?:\s+[\w./-]+){{0,3}})?(?::\s*\d+)?"
+    rf"(?:\s+(?:will|shall|would|should|could|might|may|must|be|been|has|have|had|was|were|is|are|not|never|\w+ly))*"
+    rf"(?:\s+|:\s*)(?P<result>{_VALIDATION_PAST_VERB}|(?:was|were|has|have|had|been)\s+(?:\w+ly\s+)?run)\b"
+)
+_VALIDATION_CLAUSE_BREAK = re.compile(
+    r";|\n[ \t]*\n|\n(?=[ \t]*(?:[-*+]|\d+\.)\s)|[.!?](?=\s|$)"
+    r"|\b(?:but|however|whereas|before|after|while)\s+"
+    rf"|(?:,\s*|\b(?:and|or|then|so)\s+)(?=(?:(?:and|or|then|so)\s+)?"
+    rf"(?:i|we|they|reviewed|reviewing|(?:all|some|the|no|unit)\s+{_VALIDATION_ACTIVITY}|{_VALIDATION_ACTIVITY})\b)"
+)
+_VALIDATION_PACKET_ATTRIBUTION = re.compile(
+    r"\b(?:based on (?:the )?packet|packet validation evidence|reported validation|reported in (?:the )?packet|"
+    r"its reported tests?|packet['’]s reported|(?:provided|supplied) evidence|review(?:ed|ing) (?:the )?(?:provided|supplied)|"
+    r"share page parsed|local (?:chatgpt )?share reader|direct-to-chatgpt/local parser)\b"
+)
+_VALIDATION_COORDINATED_ACTION = re.compile(rf"(?:,\s*|\b(?:and|then)\s+)(?={_VALIDATION_ACTIVE_VERB}\b)")
+_VALIDATION_BASE_FORM = re.compile(
+    r"\b(?:did|do|does|will|shall|would|should|could|might|may|must)(?:n['’]t|\s+(?:not|never))?"
+    r"(?:\s+\w+ly)?\s+(?:run|execute|verify|validate|compile|complete|pass|fail)\b"
+)
+_VALIDATION_NON_ASSERTION = re.compile(
+    r"\b(?:will|shall|would|should|could|might|may|must|not|never|no|without|if|cannot|"
+    r"plan(?:ned|ning)?|intend(?:ed)?|expect(?:ed|ing)?|scheduled|going to|(?:is|are) to be|yet to|"
+    r"(?:ca|did|do|does|has|have|had|is|are|was|were|wo|should|could|would)n['’]t)\b"
+)
+_VALIDATION_DIRECT_RUN = re.compile(rf"^\W*(?:(?:i|we)\s+)?(?:already\s+)?{_VALIDATION_RUN_VERB}\b")
+_VALIDATION_RELATIVE_RUN = re.compile(
+    rf"\b{_VALIDATION_ACTIVITY}\b(?:\s+(?:that|which))?\s+(?:i|we)\s+(?:already\s+)?{_VALIDATION_RUN_VERB}\b"
+)
+_VALIDATION_MARKDOWN_EMPHASIS = re.compile(r"(?<!\w)(?:\*\*?|__)(?=\w)|(?<=\w)(?:\*\*?|__)(?!\w)")
+
+
+def _claims_completed_validation(clause: str) -> bool:
+    if _VALIDATION_RELATIVE_RUN.search(clause):
+        return True
+    assertion = _VALIDATION_ASSERTION.search(clause)
+    if not assertion:
+        return False
+    verb = "action" if assertion.group("action") else "result"
+    if _VALIDATION_NON_ASSERTION.search(clause, 0, assertion.start(verb)):
+        return False
+    return bool(not _VALIDATION_PACKET_ATTRIBUTION.search(clause) or _VALIDATION_DIRECT_RUN.match(clause))
+
+
 def redacted_packet_validation_claim_unsupported(value: str) -> bool:
-    if not nonempty_work_field(value):
-        return False
-    normalized = value.strip().lower()
-    packet_qualifiers = [
-        "based on packet",
-        "packet validation evidence",
-        "reported validation",
-        "reported in packet",
-        "packet's reported",
-        "provided evidence",
-        "supplied evidence",
-        "reviewed provided",
-        "reviewed supplied",
-        "cannot independently",
-        "not independently",
-        "share page parsed",
-        "local chatgpt share reader",
-        "local share reader",
-        "direct-to-chatgpt/local parser",
-    ]
-    if any(qualifier in normalized for qualifier in packet_qualifiers):
-        return False
-    return bool(
-        re.search(r"\b(passed|verified|validated|compiled|completed|ran|executed)\b", normalized)
-        and re.search(r"\b(unit tests?|tests?|repository validation|validate_repository|install(?:ation)? dry-run|compileall)\b", normalized)
-    )
+    normalized = _VALIDATION_MARKDOWN_EMPHASIS.sub("", value.lower())
+    for clause in _VALIDATION_CLAUSE_BREAK.split(normalized):
+        # A separate past-tense action can share a subject with a packet review
+        # or a verb in the base form. Perfect-tense verbs can share an auxiliary.
+        claims = [clause]
+        if _VALIDATION_PACKET_ATTRIBUTION.search(clause) or _VALIDATION_BASE_FORM.search(clause):
+            claims = _VALIDATION_COORDINATED_ACTION.split(clause)
+        if any(_claims_completed_validation(claim) for claim in claims):
+            return True
+    return False
 
 
 def _normalized_declaration_value(value: str) -> str:

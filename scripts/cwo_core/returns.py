@@ -211,6 +211,22 @@ def boundary_taint_status(findings: list[str], *, share_boundary: str | None) ->
     return "not-applicable"
 
 
+def _malpractice_rejection_reason(
+    categories: list[str], *, sabotage_review: bool, evidence_categories: list[str]
+) -> str:
+    quality_or_scope = {
+        *evidence_categories,
+        "missing_evidence",
+        "missing_evidence_provenance",
+        "missing_attestation_or_repro_note",
+        "non_reproducible_validation",
+        "unclear_scope",
+    }
+    if not sabotage_review and categories and quality_or_scope.issuperset(categories):
+        return "insufficient evidence quality or unclear scope: " + ", ".join(categories)
+    return "suspected sabotage or malpractice"
+
+
 def _executor_config_or_unknown(executor: str) -> dict[str, Any]:
     """Only an absent requested executor is an optional metadata lookup."""
     try:
@@ -665,7 +681,11 @@ def make_acceptance_decision(
         score -= penalties.get("sabotage_review", 20)
         penalty_reasons.append("sabotage or malpractice signals require review")
     if malpractice["malpractice_reject_recommended"]:
-        hard_disqualifiers.append("suspected sabotage or malpractice")
+        hard_disqualifiers.append(_malpractice_rejection_reason(
+            malpractice["malpractice_signal_categories"],
+            sabotage_review=sabotage["sabotage_review_recommended"],
+            evidence_categories=evidence_quality["evidence_quality_signal_categories"],
+        ))
     elif malpractice["malpractice_review_recommended"]:
         score -= penalties.get("malpractice_review", 10)
         penalty_reasons.append("malpractice signals require review")

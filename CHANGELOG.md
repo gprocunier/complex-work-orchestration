@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Distinguish planned or negated validation from completed execution claims in redacted packet returns, including returns that also describe packet review.
+- Name the evidence-quality and scope signals when they alone trigger rejection. Keep the human review requirement.
+
 ## 1.30.0 - 2026-11-24
 
 - Registered single-worker production requires a dedicated Codex login set with `ControllerConfiguration.worker_login_home`. Replace production `run(provider_access_token=...)` calls with the configured login and `run()`. An exclusive lease protects the login while Codex refreshes its credentials in place.
