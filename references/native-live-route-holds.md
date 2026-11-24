@@ -10,7 +10,7 @@ verified acceptance.
 
 | Route | Required source decisions | Enforcement before effects |
 | --- | --- | --- |
-| Registered single-worker production | `REGISTERED_N1_LIVE_AVAILABLE` | Original signed workflow, exact finite profile, current provider disclosure adoption and separately supplied authentication before the first claim. The original factory and transport recheck authority at launch and model request writes. |
+| Registered single-worker production | `REGISTERED_N1_LIVE_AVAILABLE` | Original signed workflow, exact finite profile, current provider disclosure adoption and configured dedicated worker login before the first claim. The original factory and transport recheck authority at launch and model request writes. |
 | Raw native or generic maintenance launch | `N1_LIVE_AVAILABLE` | Raw `AppServer` construction and its adjacent `Popen`, unbound model RPCs, maintenance runtime `prepare` and the admitted v8 loader. |
 | N1 host qualification | Signed version 2 qualification permit | The protected controller binds one exact operation, its expiry and the fixed 20-start campaign limit. The factory charges the launch to a private campaign journal before releasing the app-server command. |
 | Native surface probe and qualification | `N1_LIVE_AVAILABLE` | `capture_tool_request` refuses before capture binding or listener startup; its CLI refuses before catalog/evidence writes. `observe_qualification` verifies the original opaque operation, then refuses before qualification output/intent creation. |
@@ -67,13 +67,43 @@ bytes. Set `allowed_effects` to `native-worker`, `provider-request` and
 `target-publication` in that order. The production selector must agree in the
 signed factory specification and the original whole-route admission.
 
-Production authentication is a separate operator choice. The current embedding
-interface accepts a separately provisioned Codex access token through
-`RegisteredN1Workflow.run(provider_access_token=...)`. The token reaches only the
-app-server bootstrap through an owned pipe. The qualification login and its
-launch journal belong to the disposable qualification campaign. Missing
-production authentication refuses before claims, intent or startup. Target
-publication still requires its original independent evidence and authority.
+Sign in once to a new, owner-private worker home using the file credential store.
+The `CODEX_HOME` assignment applies to the sign-in command only.
+
+```bash
+install -d -m 700 -- "$HOME/.cwo-worker-codex"
+CODEX_HOME="$HOME/.cwo-worker-codex" codex -c 'cli_auth_credentials_store="file"' login
+```
+
+Set `worker_login_home` to the absolute path in the installed embedding
+controller's `registered_n1_workflow.ControllerConfiguration` settings. The
+controller passes its existing protected settings alongside that path.
+
+```python
+controller = ControllerConfiguration(
+    **protected_settings,
+    worker_login_home=Path.home() / ".cwo-worker-codex",
+)
+```
+
+The dedicated home keeps worker credential refreshes separate from interactive
+Codex sessions and qualification campaigns. The controller refuses the default
+primary home, its active `CODEX_HOME` if set, and all qualification login homes.
+The worker home must be canonical, with mode `0700` and a mode `0600` `auth.json`
+owned by the controller account. Keep this home dedicated to sign-in so the
+operation's signed configuration and rollout paths can be mounted there.
+
+The signed worker `config.toml` must set `cli_auth_credentials_store = "file"`
+and include `"/cwo/managed-login" = "deny"` in its filesystem permissions table.
+Only the app server receives the projection, and its atomic refresh persists in
+the dedicated home. One app server per login can hold the interlock. The login
+and the controller's `~/.local/state/cwo/registered-worker-logins` directory must
+share an overlay-capable filesystem. Unknown cleanup keeps the lease held for
+controller reconciliation.
+
+Launch with `RegisteredN1Workflow.run()` after adopting execution. Missing or
+unsafe worker login settings refuse before either signed operation is claimed.
+Target publication still requires its original independent evidence and authority.
 
 Live host qualification covered useful output, empty polling with zero stdin
 delivery and observed progress, nonempty input refusal, an out-of-workspace

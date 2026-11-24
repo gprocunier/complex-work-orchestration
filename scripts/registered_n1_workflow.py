@@ -199,13 +199,14 @@ class ControllerConfiguration:
     def __init__(self, *, mission, mission_directive, verification_key, actor_id,
                  identity_source, factory_registry, state_store, native_bundle,
                  publication_bundle, policy_specification, receipt, route, node_id,
-                 ledger, host, controller_state, publication_state, evidence):
+                 ledger, host, controller_state, publication_state, evidence, worker_login_home=None):
         _need(type(evidence) is EvidenceInputs, 'Original source and designated adjudication evidence is required.')
         self.native_bundle, self.publication_bundle = _copy(list(native_bundle)), _copy(list(publication_bundle))
         self.policy = V.freeze_policy(policy_specification)
         self.receipt, self.route, self.node_id = receipt, _copy(route), node_id
         self.ledger, self.host, self.evidence = ledger, host, evidence
         self._evidence_control = evidence._control
+        self._worker_login_home = worker_login_home
         self.state, self.publication_state = H._path(controller_state), H._path(publication_state)
         self.store, self._guard = state_store, None
         self._check_private_roots()
@@ -277,6 +278,8 @@ class RegisteredN1Workflow:
         self._intent = None
         self._disclosure = None
         self._production_operation = None
+        self._worker_login_home = configuration._worker_login_home
+        self._worker_login = None
         self._started = False
         self._publication_ready = False
         if (configuration.state / 'intent.json').exists():
@@ -522,6 +525,29 @@ class RegisteredN1Workflow:
         A.require_maintenance_operation(factory.capability, verifier=self.verifier,
                                         plan=self.config.native_bundle[0])
 
+    def _configured_worker_login(self):
+        c = self.config
+        selection = self._worker_login_home
+        _need(selection is not None and selection == c._worker_login_home,
+              'Registered production requires its original configured worker login home.')
+        home, state = H._path(selection), H._path(R.qualification.worker_login_state())
+        mount = R.qualification.WorkerLoginMount(home, state)
+        R._disjoint((home, state, c.state, c.publication_state, c.host.state, c.host.worker,
+                     c.host.target, c.ledger.root, c.store.directory, R.configured_store().state_root))
+        scripts = H.Path(R.__file__).resolve().parent
+        boundary.require_private_roots((home, state), visible_paths=(scripts, scripts.parent / 'policy',
+                                                                    scripts.parent / 'schemas'))
+        return mount
+
+    def _prepare_production(self, controlled_failure, provider_access_token):
+        _need(self._production_selected(), 'The original registered production execution adoption is required.')
+        _need(not controlled_failure, 'Registered production cannot select a controlled failure.')
+        _need(provider_access_token is None, 'Registered production cannot accept a provider access token.')
+        spec = self.config.native_bundle[0]['registered_n1']
+        R._profile(spec)
+        R._configuration(spec, self.config.host.worker)
+        self._worker_login = self._configured_worker_login()
+
     def run(self, *, controlled_failure=False, provider_access_token=None):
         """Original admitted native path; retained durable intent prevents redispatch."""
         production = (type(self.__dict__.get('config')) is ControllerConfiguration
@@ -530,7 +556,7 @@ class RegisteredN1Workflow:
             R.live_availability.require_registered_n1_live()
         else:
             R.live_availability.require_n1_live()
-            _need(provider_access_token is None, 'Provider attachment requires signed registered production.')
+            _need(provider_access_token is None, 'Registered workflows cannot accept a provider access token.')
         _need(type(controlled_failure) is bool, 'Controlled failure selection must be Boolean.')
         with self._locked():
             if production:
@@ -540,13 +566,7 @@ class RegisteredN1Workflow:
                   'Existing or unknown controller intent requires replay-only recovery, never redispatch.')
             c = self.config
             if production:
-                _need(self._production_selected(),
-                      'The original registered production execution adoption is required.')
-                _need(not controlled_failure, 'Registered production cannot select a controlled failure.')
-                R.require_production_access_token(provider_access_token)
-                spec = c.native_bundle[0]['registered_n1']
-                R._profile(spec)
-                R._configuration(spec, c.host.worker)
+                self._prepare_production(controlled_failure, provider_access_token)
             else:
                 self._started = True
             native = self.verifier.verify_operation(*c.native_bundle)
@@ -570,10 +590,7 @@ class RegisteredN1Workflow:
                       'The original controlled failure producer is unavailable.')
                 R.admitted._original_methods(self.factory, _FACTORY, R._FACTORY_METHODS)
                 self.factory.select_controlled_failure()
-            if production:
-                self.factory.run(provider_access_token=provider_access_token)
-            else:
-                self.factory.run()
+            self.factory.run()
             self._artifact = self.factory.issued_artifact()
             self._require_execution()
             self.target = _TARGET(c.publication_state, c.host, c.policy,

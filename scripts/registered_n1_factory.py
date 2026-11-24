@@ -1,8 +1,8 @@
 """Registered finite N=1 transport with parent custody.
 
 Only a claimed original maintenance capability can select this factory. Worker
-code never runs in the controller. A signed qualification can select an
-isolated dedicated Codex login or a one-shot provider credential attachment.
+code never runs in the controller. Production uses the configured isolated
+worker login. Signed qualification retains its own authentication selection.
 """
 from __future__ import annotations
 
@@ -285,15 +285,9 @@ def _configuration(spec, worker):
 
 
 def _managed_login_config(spec, config, roots):
-    if spec.get(qualification.AUTHENTICATION) == qualification.MANAGED_LOGIN:
+    if spec.get(PRODUCTION_LIVE) is True or spec.get(qualification.AUTHENTICATION) == qualification.MANAGED_LOGIN:
         config['cli_auth_credentials_store'] = 'file'
         roots[str(qualification.LOGIN_MOUNT)] = 'deny'
-
-
-def require_production_access_token(value):
-    """Validate one explicit embedder attachment before claims or startup."""
-    _need(value is not None, "Registered production requires an explicit provider access token.")
-    return provider_network.personal_access_token_bytes(value)
 
 
 def require_production_scope(spec, plan, operation, route):
@@ -589,8 +583,8 @@ class _Containment:
         if not self._provider_network_selected():
             return ()
         token = self.factory._take_provider_access_token()
-        _need(not self.factory.production_live or token is not None,
-              "The original registered production credential attachment is unavailable.")
+        _need(not self.factory.production_live or self._managed_mount() is not None and token is None,
+              "The original registered production worker login is unavailable.")
         self.provider_network = provider_network.ProviderBroker(
             self._record_provider_denial, allow_personal_access_token=token is not None,
             allow_managed_login=self._managed_mount() is not None)
@@ -2133,6 +2127,11 @@ class RegisteredN1Factory:
 
     def _select_managed_login(self):
         qualification.require_authentication_selection(self.spec)
+        if self.production_live:
+            mount = self._production_owner._worker_login
+            _need(type(mount) is qualification.WorkerLoginMount,
+                  "Registered production requires the original configured worker login.")
+            return mount
         if qualification.AUTHENTICATION not in self.spec:
             return None
         _need(self.qualification is not None, "Managed login requires signed qualification.")
@@ -2241,7 +2240,7 @@ class RegisteredN1Factory:
         if self.qualification is not None:
             roots = (*roots, qualification.campaign_directory())
         if self._managed_login is not None:
-            roots = (*roots, self._managed_login.home)
+            roots = (*roots, *self._managed_login.protected_roots())
         return roots
 
     def _worker_writable_roots(self):
@@ -2304,7 +2303,7 @@ class RegisteredN1Factory:
             live_availability.require_registered_n1_live()
             guard = self._production_guard
             owner = _production_guard_owner(guard)
-            _need(owner is self._production_owner and owner.factory is self,
+            _need(owner is self._production_owner and owner.factory is self and owner._worker_login is self._managed_login,
                   "Registered production requires the original workflow's retained factory.")
             guard(self)
         elif self.qualification is None:
@@ -2568,8 +2567,8 @@ class RegisteredN1Factory:
 
     def _prepare_registered_adapter(self):
         self.require_effect()
-        _need(not self.production_live or self._provider_access_token is not None,
-              "Registered production requires an original provider access token before configuration.")
+        _need(not self.production_live or self._managed_lease is not None,
+              "Registered production requires the original worker login lease before configuration.")
         self.record('startup-intent', {'operation': self.operation_id, 'admission': admission._receipt_sha256(self.receipt),
             'execution': json.loads(self.receipt.execution_bytes), 'allowance': json.loads(self.receipt.amounts_bytes)})
         self._provision_configuration()
@@ -2600,8 +2599,6 @@ class RegisteredN1Factory:
         self.record('validated', {'artifact': report['artifact']['sha256'], 'policy': self.policy.report})
 
     def _selected_access_token(self, provider_access_token):
-        if self.production_live:
-            return require_production_access_token(provider_access_token)
         if provider_access_token is not None:
             _need(self.qualification is not None, "Provider credential attachment requires signed qualification.")
             _need(self._managed_login is None, "Only one authentication mode may apply to an original launch.")
@@ -2620,7 +2617,7 @@ class RegisteredN1Factory:
             if _registered_live_profile(self.spec):
                 self._preflight_qualification_thread()
             if self._managed_login is not None:
-                self._managed_lease = qualification.claim_managed_login()
+                self._managed_lease = self._managed_login.claim()
             self._provider_access_token = provider_access_token
             self._started = True
             return True
@@ -2633,7 +2630,7 @@ class RegisteredN1Factory:
             _need(lifetime is None or not lifetime._managed_mount_started or lifetime.contained,
                   "The original managed login namespace remains unresolved.")
             self._managed_login.retire()
-            qualification.release_managed_login(self._managed_lease)
+            self._managed_login.release(self._managed_lease)
             self._managed_lease = None
         except BaseException as failure:
             if primary is None:
@@ -2646,7 +2643,7 @@ class RegisteredN1Factory:
         return token
 
     def run(self, *, provider_access_token=None):
-        """Run once with an optional personal access token from the trusted embedder."""
+        """Run once. Signed qualification can accept a trusted embedder's access token."""
         if not self._claim_run(provider_access_token):
             return self.result
         del provider_access_token

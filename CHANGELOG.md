@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Registered single-worker production requires a dedicated Codex login set with `ControllerConfiguration.worker_login_home`. Replace production `run(provider_access_token=...)` calls with the configured login and `run()`. An exclusive lease protects the login while Codex refreshes its credentials in place.
+
 ## 1.29.0 - 2026-11-24
 
 - Require independently signed approval and an enrolled campaign ledger for contained pool qualification. Bind worker and writer effects to their original identities.
