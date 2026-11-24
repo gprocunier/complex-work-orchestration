@@ -50,13 +50,13 @@
 
 "N11":{"admission":{"$":4},"authority":"Explicit caller-selected binary/environment programme; no outer hook/expected-binary admission on this direct entry.","effect":"Intentional selected --version child programme","gates":[],"manual_decisions":["M12","M13"],"ordering":"Immediately execute selected --version child; only result interpretation follows.","trace_files":[{"$":64},{"$":104}]},
 
-"N12":{"admission":{"$":4},"authority":"Explicit operator execution of cwo-codex, directly from the skill or from its installed wrapper. The operator selects PATH, cwd, HOME/CODEX_HOME, environment and forwarded arguments.","earlier_effects":"Read the selected skill role policy. An unpinned latest-in-family selection can start the bounded catalog child for handshake and model/list; explicit or pinned Sol selection skips the catalog probe.","effect":"Operator Codex launcher","effect_points":["p179","pArchitectExec"],"gates":[],"limits":"The selected Python and Codex executables resolve through PATH. The role adds model, effort and tier overrides before all forwarded arguments. No intrinsic timeout, output or cost bound covers the interactive command. Downstream option precedence remains outside this check.","manual_decisions":["M13"],"ordering":"The installed wrapper selects the skill shell entrypoint. That entrypoint runs the adjacent Python helper, which checks launch settings and resolves Sol policy before replacing itself with Codex using execvp.","trace_files":["scripts/cwo-codex","scripts/launch_architect.py",{"$":275},"scripts/model_catalog_startup.py","scripts/cwo_core/model_catalog_startup.py","scripts/cwo_core/model_identities.py"],"witnesses":["w5c","wArchitectInstalled"]},
+"N12":{"admission":{"$":4},"authority":"Explicit operator execution of cwo-codex, directly from the skill or from its installed wrapper. The operator selects PATH, cwd, HOME/CODEX_HOME, environment and forwarded arguments.","earlier_effects":"Read the selected skill role policy. An unpinned latest-in-family selection can start the bounded catalog child for handshake and model/list; explicit or pinned Sol selection skips the catalog probe.","effect":"Operator Codex launcher","effect_points":["p179","pArchitectExec"],"gates":[],"limits":"The selected Python and Codex executables resolve through PATH. The role adds model, effort and tier overrides before all forwarded arguments. No intrinsic timeout, output or cost bound covers the interactive command. Downstream option precedence remains outside this check.","manual_decisions":["M13"],"ordering":"The installed wrapper selects the skill shell entrypoint. That entrypoint runs the adjacent Python helper, which checks launch settings and resolves Sol policy before replacing itself with Codex using execvp.","trace_files":["scripts/cwo-codex",{"$":354},{"$":275},"scripts/model_catalog_startup.py","scripts/cwo_core/model_catalog_startup.py","scripts/cwo_core/model_identities.py"],"witnesses":["w5c","wArchitectInstalled"]},
 
 "N13":{"admission":{"$":4},"authority":"Explicit operator fixed offline diagnostics only; no native factory, maintenance, model-turn or accepted-artifact authority.","effect":"Disposable repository/listener setup, fixed command/config RPCs, trusted bootstrap/watchdog execution and retained-handle cleanup","gates":[],"limits":"No model/thread/turn, arbitrary command API, stdin delivery or accepted output. Original selected never configuration is unchanged. Diagnostic effects bypass no production hold and establish only enumerated observations; required omissions keep selected-unqualified/confidential unsupported. Private helpers retain trusted internal-caller prerequisites.","manual_decisions":["M25","M33"],"ordering":"Verify the selected executable capabilities in a confined schema process and bind its observed identity. Apply the fixed runtime and configuration, retain the original owner and verified namespace handle, check mounts, then release the bootstrap gate. Bound the fixed RPC and empty-poll observations and clean up independently.","trace_files":[{"$":74},{"$":16},{"$":17},{"$":10},{"$":342}],"witnesses":["w34","w31","w33","pC"]},
 
 "N2":{"admission":{"$":2},"authority":"Explicit probe CLI/model/home/catalog or opaque verified maintenance operation/context and qualification; not worker JSON.","effect":"Probe loopback listener; maintenance preparation/qualification native launch","gate_limits":"The other two checks belong to sibling entrypoints, not this constructor path. Each entry retains its own N1 refusal.","gates":["p1fc"],"limits":"P listener pair proves zero construct/preparer/serve then fake construct/serve/close on admitted binding-drift path; not complete probe session. Maintenance positives in existing runtime families use opaque current operation/context/qualification. Observation mints are process-local capabilities, not external identity. Earlier probe/maintenance construction grants no final egress authority: supported host model-context wire screening is separately reviewed at N10.9, finite reply screening at N10.8; source/pipe controls are not live native qualification.","manual_decisions":["M03","M05","M06","M08","M31"],"ordering":"N1 at each supported entry before proof/listener/output/prepare. Maintenance guard revalidates operation, task/worktree/config, session ledger and qualification before AppServer.","review_gates":["p1c6","p2a3"],"trace_files":[{"$":62},{"$":65},{"$":66},{"$":326},{"$":28}],"witnesses":["w8f","w62"]},
 
-"N3":{"admission":{"$":2},"authority":"Exact protected host/factory/capability/admission and immutable configuration and graph intent. Ordinary N1 requires the source hold. Qualification requires the original registered receiver, signed unexpired version 2 operation permit and an available start under the fixed 20-start campaign limit.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["p343"],"gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch.","gates":["p222"],"limits":"The ordinary hold refuses startup and intent. Existing fake controls retain the ordinary transport. Signed version 2 qualification selects a disposable registered route with 20 total campaign starts, expiry, one start per operation and exact gpt-6.2-sol/xhigh/default tier. The same version 1 journal carries all prior starts forward. An optional repair digest records provenance and uses the same allowance. A contained birth may precede final release refusal. Source-owned provider proxy is app-server only; qualification authentication is selected by the original signed operation and supplies no production or publication authority. Offline witnesses use fake RPC or local TLS only.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37"],"ordering":"Select current N1 or signed qualification and exact role argv before owned birth. Use sealed options and exact bootstrap argv, retained original-parent/birth namespace handles, post-setup mount and intent checks, then the final stdin gate. Qualification records a durable start before app-server release. Tool release retains its own finite-input fence. Managed login acquires a durable campaign interlock before admitted startup and retires it after verified namespace cleanup.","review_gates":["p167","p326"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w50PermitBudget","w50BeforeBirth"]},
+"N3":{"admission":{"$":2},"authority":"Exact protected host/factory/capability/admission and immutable configuration and graph intent. Ordinary N1 requires the source hold. Qualification requires the original registered receiver, signed unexpired version 2 operation permit and an available start under the fixed 20-start campaign limit.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["p343"],"gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch.","gates":["p222"],"limits":"The ordinary hold refuses startup and intent. Existing fake controls retain the ordinary transport. Signed version 2 qualification selects a disposable registered route with 20 total campaign starts, expiry, one start per operation and exact gpt-6.2-sol/xhigh/default tier. The same version 1 journal carries all prior starts forward. An optional repair digest records provenance and uses the same allowance. A contained birth may precede final release refusal. Source-owned provider proxy is app-server only; qualification authentication is selected by the original signed operation and supplies no production or publication authority. Offline witnesses use fake RPC or local TLS only.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37"],"ordering":"Select current N1 or signed qualification and exact role argv before owned birth. Use sealed options and exact bootstrap argv, retained original-parent/birth namespace handles, post-setup mount and intent checks, then the final stdin gate. Qualification records a durable start before app-server release. Tool release retains its own finite-input fence. Managed login acquires a durable campaign interlock before admitted startup and retires it after verified namespace cleanup.","review_gates":["p167","p326"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w50PermitBudget","w50BeforeBirth","w51InterruptClose"]},
 
 "N4":{"admission":{"$":2},"authority":"Base class is not an admitted launcher. Supported shipped subclass is _RegisteredServer from protected factory; arbitrary Python subclasses are external trusted code, not accepted registered factories.","effect":"Registered transport exact base refusal and supported override launch","effect_points":["p187"],"gate_limits":"The abstract _launch_process body refuses unconditionally. Subclass overrides and constructed receiver identity remain manual dispatch limits; the base-type constructor guard precedes the named construction calls.","gates":["p34d"],"limits":"Exact base has zero Popen/binary lookup; positive is the actual _RegisteredServer through N3, not an arbitrary subclass or base AppServer constructor. Do not append all subclasses.","manual_decisions":["M08","M09"],"ordering":"Exact base type refuses before proof/probe/home; base _launch_process also refuses. Virtual override resolves to N3 containment, never ordinary AppServer.__init__ Popen.","review_gates":["pdb"],"trace_files":[{"$":115}],"witnesses":["w91","w4e"]},
 
@@ -192,7 +192,7 @@
 
 "M31":{"conclusion":"Final supported host model-context requests and finite tool replies bind and screen actual producer/frame bytes without granting authority or refunding ambiguous effects.","evidence_contracts":["N2","N10"],"external_trust_limit":"Trusted original internal callers, writer condition and original descriptors remain prerequisites. Source/fake-wire plus real anonymous-pipe controls prove only exact supported host boundaries; no live model/server-built-in/provider/helper screen, universal RPC semantics, native grant/retry/recovery, arbitrary injected Python stream boundedness or profile qualification is inferred. Earlier probe/maintenance construction is not final egress authority. Selected profile remains unqualified; confidential unsupported.","reason":"Shared prepare_json_frame captures canonical producer source, scans complete actual JSON bytes, rejects duplicate/incomplete/nonfinite/typed-different frames and binds decoded producer identity plus unchanged screened bytes. Core method/payload equality selects exact supported host model-context methods; fixed command diagnostics keep their separate unchanged wire behavior. Same-condition native writer rechecks producer/frame/deadline after callouts and before each real-pipe chunk; partial drift terminal-faults the original connection, preserving existing turn intent/reservation and no replay. Writer restoration/termination/containment secondary failures cannot replace the original controlled refusal or disclose cleanup text. Registered replies retain original locked ticket/epoch/authority checks and one-use unknown-send accounting; flush precedes final source/frame scan and physical write. Screening creates no new admission. The required original absolute reply deadline is forwarded unchanged, checked after flush/scan/descriptor/source callouts immediately before the physical write; expired replies send zero bytes and retain unknown-send without a new poll or authority cycle. Inner postbinding deadline failures preserve the original safe AppServerError timeout reason in the permanent reader latch; OutboundRefused retains only the fixed redacted outbound-frame reason. Both terminal paths preserve their original primary, terminate the same connection and prohibit later frames.","review_evidence":"Actual method/source/frame/typed JSON, per-chunk hold/deadline, partial-write fault, primary preservation and original accounting gates reviewed with matched useful/refusal controls; no new authority inferred.","source":["pX","pZ","pm","pq","pT","p3z","p3y","pL","p3ae","p274","pi","pW","pp","pP","p3L","pn"]},
 
-"M32":{"conclusion":"The original registered task is projected completely into bounded immutable model data while original admission, reservations, custody and first failure remain authoritative.","evidence_contracts":["N3","N5","N10"],"external_trust_limit":"Only original protected registered receiver/parent consumers are covered. Pure getters, digests and serialized bindings grant no opaque authority, adoption, model execution, publication or restart. Direct N3.1-.3, inherited N5.3-.6 and registered N10.2/.5/.6/.9 consume this change; N1 raw launch, containment N3.4-.6, adoption/save/ingress, unrelated notify/guarded/raw-thread/finite-reply/denial paths gain no grant. Named untrusted/user fake-native fixtures do not qualify the distinct selected legacy workspace-write/never/network-off identity. Builtin/provider/helper context, live model work, native recovery and confidentiality remain unknown/unsupported; selected-unqualified remains.","reason":"After original receipt validation, pure projection revalidates complete typed input, exact original rendered request/execution and both original/MAX_TASK_BYTES size bounds. All prompt/wrappers/attachments/sources and command/completion/output/expected-artifact/acceptance context are copied; private operational manifests remain outside model prose. Current guards recompute exact bytes. Original request and model bytes have distinct bound digests in actual adapter boundary/control/report and protected dispatch metadata; original receipt, execution options, amounts, expiry, reservations and replay are unchanged. Exact registered receiver and method objects, factory guard and original boundary/profile/workspace checks remain before actual prompt/control checks. First action failure is retained with safe type-only later notes; original transport fault/cleanup facts remain separate. Final summary raises that first primary before success-only session capture, preserving original OutboundRefused cause, partial receipt, unknown/full charge and no artifact/token. Existing final byte scan/hold/deadline is still required, without detector/corpus/threshold exemptions. The registered failure summary passively reads the bounded original worker connection history after the first-failure check. The durable failed turn and one exact matching failed terminal notification are required. Only the allowlisted provider policy category is reported. The original failure, full charge and owned cleanup remain authoritative.","review_evidence":"Accepted concrete factory/offline-host source delta, exact data/receiver/size/dual binding checks, original cleanup/provenance effect linkage, matched complete/drift/useful/sensitive-primary controls and original delivery consumer reviewed; no new authority inferred.","source":["p3q","p3S","p3x","p3V","p3t","p3w","p3n","p3Y","p3W","p3U","p3T","p3g","p3k","p3m","p3s","p3Z","p3r","p3u","p3j","p3R","p3h","p2b1","pRefusalClass"]},
+"M32":{"conclusion":"The original registered task is projected completely into bounded immutable model data while original admission, reservations, custody and first failure remain authoritative.","evidence_contracts":["N3","N5","N10"],"external_trust_limit":"Only original protected registered receiver/parent consumers are covered. Pure getters, digests and serialized bindings grant no opaque authority, adoption, model execution, publication or restart. Direct N3.1-.3, inherited N5.3-.6 and registered N10.2/.5/.6/.9 consume this change; N1 raw launch, containment N3.4-.6, adoption/save/ingress, unrelated notify/guarded/raw-thread/finite-reply/denial paths gain no grant. Named untrusted/user fake-native fixtures do not qualify the distinct selected legacy workspace-write/never/network-off identity. Builtin/provider/helper context, live model work, native recovery and confidentiality remain unknown/unsupported; selected-unqualified remains.","reason":"After original receipt validation, pure projection revalidates complete typed input, exact original rendered request/execution and both original/MAX_TASK_BYTES size bounds. All prompt/wrappers/attachments/sources and command/completion/output/expected-artifact/acceptance context are copied; private operational manifests remain outside model prose. Current guards recompute exact bytes. Original request and model bytes have distinct bound digests in actual adapter boundary/control/report and protected dispatch metadata; original receipt, execution options, amounts, expiry, reservations and replay are unchanged. Exact registered receiver and method objects, factory guard and original boundary/profile/workspace checks remain before actual prompt/control checks. First action failure is retained with safe type-only later notes; original transport fault/cleanup facts remain separate. Final summary raises that first primary before success-only session capture, preserving original OutboundRefused cause, partial receipt, unknown/full charge and no artifact/token. Existing final byte scan/hold/deadline is still required, without detector/corpus/threshold exemptions. The registered failure summary passively reads the bounded original worker connection history after the first-failure check. The durable failed turn and one exact matching failed terminal notification are required. Only the allowlisted provider policy category is reported. The original failure, full charge and owned cleanup remain authoritative. The registered host paces both deferred archive closes at the control poll interval. Step exhaustion retains reconciliation and the existing eight-action cleanup bound.","review_evidence":"Accepted concrete factory/offline-host source delta, exact data/receiver/size/dual binding checks, original cleanup/provenance effect linkage, matched complete/drift/useful/sensitive-primary controls and original delivery consumer reviewed; no new authority inferred.","source":["p3q","p3S","p3x","p3V","p3t","p3w","p3n","p3Y","p3W","p3U","p3T","p3g","p3k","p3m","p3s","p3Z","p3r","p3u","p3j","p3R","p3h","p2b1","pRefusalClass","p51Advance","p51Drive"]},
 
 "M33":{"conclusion":"Required request, reply and event shapes gate compatibility for the selected app-server executable.","evidence_contracts":["N11","N1","N13","N3"],"external_trust_limit":"Direct contract-check and raw transport callers select a trusted installed executable and PATH. The fixed diagnostic binds its selected executable and runtime read-only in a private network and process namespace with only temporary output writable. Schema declarations do not prove effective security policy, execution identity outside the observed run, or live behavior.","reason":"Two bounded app-server schema exports use separate private homes and disposable outputs. The stable export checks fixed diagnostics. The experimental export checks native transport methods and callbacks. Reads use bounded regular files without symlink traversal. The raw live constructor checks the existing native hold before and after compatibility. The fixed diagnostic verifies the executable object and bytes before selected effects, and verifies the mounted copy before opening the execution gate. The signed N1 qualification calls the same fixed launcher before app-server birth and campaign start. It pins the approved executable identity and checks the namespaced tool, string callback namespace, typed completion and refusal result used on that route.","review_evidence":"Both supported executables passed the same offline contract. The copied schema mutation removes a required method and names it on refusal. Selected diagnostic controls distinguish capability refusal, binary replacement and actual containment observations. The signed fixture refuses a missing namespace before birth or start accounting. The ordinary factory skips the qualification preflight.","source":["pSchemaEntry","pSchemaProcess","p28f","pSchemaDiagnostic","pSchemaLauncher","p36SchemaPreflight","p36SchemaSelect","p36SchemaContract"]},
 
@@ -496,9 +496,9 @@
 
 "tests/test_codex_protocol_capabilities.py",
 
-"scripts/cwo_core/supervision/turn_observations.py",
+{"$":353},
 
-"scripts/launch_architect.py",
+{"$":354},
 
 "tests/test_install_script.py",
 
@@ -510,9 +510,11 @@
 
 {"$":328},
 
-"scripts/cwo_core/server_request_preparation.py",
+{"$":347},
 
-"tests/test_server_request_preparation.py"
+"tests/test_server_request_preparation.py",
+
+"tests/test_registered_server_requests.py"
 ],
 
 "points":{
@@ -2541,6 +2543,12 @@
 "p50Remaining":[149,"_check_available",425,"351b11c22b649128140a3022fe9b6395eb7be043a9e47c55839cc661fc9f2c1e"],
 
 "p51":[64,1507,"super().request(*args, **kwargs)",17,1507,49],
+
+"p51Advance":[53,"_advance",347,"561971b387845c7dad5f04a76e69504fc66f53856bdb08da5ff7fe43cc673f94"],
+
+"p51Drive":[53,"_drive",358,"7071dafc82f3f22463d07766a1afa386528b0cdfda67e4d92d000e5e90d47324"],
+
+"p51InterruptClose":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1335,"a09234b4cdb28170470a4a18af191991a206fab4e52df7dd72371fe382040d59"],
 
 "p52":[50,202,{"$":315}],
 
@@ -5107,11 +5115,11 @@
 
 [74,442,18,442,58,"dynamic","1ff0d1b1226bc7ee773fcf499dfb42bc2d8659efd14b871d981033db66b0c1e3",[{"$":9},"XR376"]],
 
-[90,193,19,193,60,"network","e8dc6795e279df7340b3d9dac05d0df36945902b0a5f4621e2d04cbc1d253321",["route","N3.7","p25ProviderSocket"]],
+[90,193,19,193,60,"network",{"$":348},["route","N3.7","p25ProviderSocket"]],
 
 [90,196,12,196,37,"browser","3957bd1da596651000599d34e4261d0723d73a25d13e60c8020136c80d368d74",["route","N3.7","p25ProviderConnect"]],
 
-[90,287,21,287,40,"network","dc4b9d6a8bb142b935cdc7d6ecb03c184bcc2a3b752ae47e176257631a569b90",["route","N3.9","p25StreamPair"]],
+[90,287,21,287,40,"network",{"$":349},["route","N3.9","p25StreamPair"]],
 
 [90,301,15,301,51,"network","1517417878c7639c66e291bf0671cdff0e1f7f2434388562b2580cd142583bcb",["route","N3.10","p25AdoptStream"]],
 
@@ -5119,7 +5127,7 @@
 
 [90,417,9,417,41,"network","a239c3e04154b0cd90f0307e20f274cde0677d2e6ce9659e60daa0c88b599ee4",["route","N3.11","p25AdoptControl"]],
 
-[90,417,54,417,69,"network","2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",["route","N3.11","p25LoopbackSocket"]],
+[90,417,54,417,69,"network",{"$":350},["route","N3.11","p25LoopbackSocket"]],
 
 [90,445,4,445,33,"process","bab1b779be05bd3bf09d1e3ce67d83ca0a862755c22d04a01ccb240b2557c9a6",["route","N3.11","p25ProviderExec"]],
 
@@ -5199,11 +5207,11 @@
 
 [80,279,8,280,109,"process","76d84cf0cb2791d4148c88d3f1734b01e385ef19552810ddb47b129cf7ea150b",["route","N13.1","p92"]],
 
-[80,503,19,503,34,"network","2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",["route","N13.2","pa6"]],
+[80,503,19,503,34,"network",{"$":350},["route","N13.2","pa6"]],
 
 [80,506,15,506,64,"network","77092d9387eadc38a1771895f8133f5afa460db77c59d3b34e4f290874342681",["route","N13.2","pa7"]],
 
-[80,517,17,517,58,"network","e8dc6795e279df7340b3d9dac05d0df36945902b0a5f4621e2d04cbc1d253321",["route","N13.2","p97"]],
+[80,517,17,517,58,"network",{"$":348},["route","N13.2","p97"]],
 
 [80,519,16,519,41,"browser","10754d068f2e2693feabd6bf843854a988f1ab60b4dd97736a463407811a7121",["route","N13.2","p8f"]],
 
@@ -5217,7 +5225,7 @@
 
 [80,1183,9,1183,46,"network","6c6a6b0d8bf3810f2953be09121b28fa30fc7d1a9eb0e4fe3ab8548ac0f9a419",["route","N13.6","p3N"]],
 
-[80,1356,24,1356,43,"network","dc4b9d6a8bb142b935cdc7d6ecb03c184bcc2a3b752ae47e176257631a569b90",["route","N13.6","p3Q"]],
+[80,1356,24,1356,43,"network",{"$":349},["route","N13.6","p3Q"]],
 
 [81,281,15,292,9,"beads","ca25ca29f1044b229809bba59a20345890791fb6b3e28e68ebc8ce0562f04324",["route","B2.1","pb"]],
 
@@ -5421,7 +5429,7 @@
 
 "scripts/model_catalog_startup.py",
 
-"scripts/launch_architect.py",
+{"$":354},
 
 {"$":329},
 
@@ -5496,9 +5504,9 @@
 
 {"contract":"N3","entrypoint":"p2b1","id":"N3.2","manual_decisions":["M08","M09","M10","M26","M32"],"trace_files":[{"$":15},{"$":10},{"$":36}]},
 
-{"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},"scripts/cwo_core/supervision/turn_observations.py",{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout","w50PermitBudget","w50BeforeBirth"]},
+{"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":353},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout","w50PermitBudget","w50BeforeBirth"]},
 
-{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. The original registered version 2 qualification permit and available start under the fixed 20-start limit are checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before any worker birth or campaign start. The optional signed managed login mount is app-server-only and confirmed before the campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33","M43"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29},"scripts/cwo_core/server_request_preparation.py"],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout","w43TimestampEnvelope","w43TimestampStartup","w50PermitBudget","w50BeforeBirth"]},
+{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. The original registered version 2 qualification permit and available start under the fixed 20-start limit are checked before the owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before any worker birth or campaign start. The optional signed managed login mount is app-server-only and confirmed before the campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33","M43"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29},{"$":347}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout","w43TimestampEnvelope","w43TimestampStartup","w50PermitBudget","w50BeforeBirth"]},
 
 {"contract":"N4","entrypoint":"p2a6","gate_chains":[{"calls":[{"call":"p13e","direction":"into","target":"p30d"}],"effect":"p187","gate":"p34d"}],"id":"N4.1"},
 
@@ -5556,7 +5564,7 @@
 
 {"contract":"N10","effect_points":["p29f"],"entrypoint":"pfb","gate_limits":{"$":41},"gates":["p2c3"],"id":"N10.5","manual_decisions":["M08","M09","M12","M31","M32","M34"],"review_gates":["p29a","p2b4","p1da"],"trace_files":[{"$":29},{"$":24},{"$":38},{"$":326},{"$":28},{"$":10},{"$":15},{"$":328}]},
 
-{"admission":{"$":4},"contract":"N10","effect_points":["p37a","p27","p51"],"entrypoint":"p1ac","gates":[],"id":"N10.6","manual_decisions":["M08","M09","M12","M31","M32","M34","M43"],"proof_applicability":{"$":8},"selector":{"$":206},"trace_files":[{"$":29},{"$":24},{"$":10},{"$":38},{"$":15},{"$":328},"scripts/cwo_core/server_request_preparation.py"],"witnesses":["w7e",{"$":339},"w43TimestampEnvelope","w43TimestampStartup"]},
+{"admission":{"$":4},"contract":"N10","effect_points":["p37a","p27","p51"],"entrypoint":"p1ac","gates":[],"id":"N10.6","manual_decisions":["M08","M09","M12","M31","M32","M34","M43"],"proof_applicability":{"$":8},"selector":{"$":206},"trace_files":[{"$":29},{"$":24},{"$":10},{"$":38},{"$":15},{"$":328},{"$":347}],"witnesses":["w7e",{"$":339},"w43TimestampEnvelope","w43TimestampStartup"]},
 
 {"admission":{"$":4},"contract":"N10","effect_points":["p32e"],"entrypoint":"p30b","gates":[],"id":"N10.7","manual_decisions":["M08","M09","M12","M31","M34"],"proof_applicability":{"$":8},"selector":{"$":206},"witnesses":["w7e",{"$":339}]},
 
@@ -6300,7 +6308,23 @@
 
 "346":"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36",
 
+"347":"scripts/cwo_core/server_request_preparation.py",
+
+"348":"e8dc6795e279df7340b3d9dac05d0df36945902b0a5f4621e2d04cbc1d253321",
+
+"349":"dc4b9d6a8bb142b935cdc7d6ecb03c184bcc2a3b752ae47e176257631a569b90",
+
 "35":"live_availability.require_pool_live()",
+
+"350":"2617446c83a90b9754f574d4ea28e3f414333fe0897b2c97dd0d6a9906f80a89",
+
+"351":"self.assertTrue(verified[\"ok\"])",
+
+"352":"self.assertEqual(attempt['charge'], attempt['amount'])",
+
+"353":"scripts/cwo_core/supervision/turn_observations.py",
+
+"354":"scripts/launch_architect.py",
 
 "36":"scripts/registered_n1_workflow.py",
 
@@ -6852,7 +6876,7 @@
 
 "scripts/offline_fake_artifact_promotion.py":["cb211328fb54cd56054422dfe1fdafca446277665354ebef2669fcef36b1351c",420,38543],
 
-"scripts/offline_n1_host.py":["bd4ef838e112a5b122b1b219da09018e9c22b4eabbfeaf360465786a84d71730",420,35525],
+"scripts/offline_n1_host.py":["ba2e0ab79cb86f3ccede938199cadb906f3881bbdd29d5da87cd1f32cb9e8f6a",420,35593],
 
 "scripts/offline_native_adjudication.py":["261f83c85996dfa831a2842e75ffecef2b0d831eadf7bc143f1203bbeda6caaa",420,25338],
 
@@ -7010,7 +7034,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["fce19f17c02971b2bb466207dc36ecfe42dfce4ac46969da0f60ca2f8f26525f",420,133470],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["fef48adbc02a9e1d9939b97f99b4f364e36e028b817ad21985baa5f766954732",420,133470],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7133,6 +7157,8 @@
 "tests/test_registered_outbound_screen.py":["de9f7f9b071365afef9236a20fbeef321d55cbdf941a4c3673646612a7b5949c",420,10270],
 
 "tests/test_registered_provider_network.py":["4810be8c8212226f4ed9896dac4446c9ef38421d1ce85f1df0c80eb168e64112",420,22158],
+
+"tests/test_registered_server_requests.py":["66dc0a6b64a63c56f93ebd8ebad47508fde70bab62f6dfb1c27de7728211d65f",420,85691],
 
 "tests/test_registered_startup_publication.py":["7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",420,13496],
 
@@ -7388,6 +7414,8 @@
 
 "w51":[{"$":122},"p21a",{"$":6},{"$":122},["p2e8"],"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_requires_explicit_allow_flag"],
 
+"w51InterruptClose":["self.assertIsNone(report['artifact'])","p51InterruptClose",{"$":6},"self.assertEqual(receipt['terminal_state'], 'closed')",[],"tests.test_registered_server_requests.RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive"],
+
 "w52":[{"$":123},"p197",{"$":6},{"$":123},[],"tests.test_production_closure.ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls"],
 
 "w53":[{"$":303},"p37d",{"$":1},{"$":303},[],{"$":321}],
@@ -7430,7 +7458,7 @@
 
 "w65":["self.assertEqual((factory.call_count, prepare.call_count, calls), (0, 0, []))","p372",{"$":0},{"$":47},["p144","p375"],{"$":20}],
 
-"w66":["self.assertEqual(profile.read_text(encoding=\"utf-8\"), \"locally modified\\n\")","p320",{"$":0},"self.assertTrue(verified[\"ok\"])",["p1e8"],"tests.test_instruction_profiles.InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove"],
+"w66":["self.assertEqual(profile.read_text(encoding=\"utf-8\"), \"locally modified\\n\")","p320",{"$":0},{"$":351},["p1e8"],"tests.test_instruction_profiles.InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove"],
 
 "w67":["creator.assert_not_called()","p23b",{"$":0},{"$":126},["p372","p15f"],"tests.test_routing_risk_features.RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands"],
 
@@ -7486,7 +7514,7 @@
 
 "w8":[{"$":139},"p2f5",{"$":0},"self.assertEqual(transport.thread_roles, {'EXAMPLE-thread': 'worker'})",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_minor2_thread_rechecks_each_hold_before_intent_rpc_or_binding"],
 
-"w80":["self.assertTrue(verified[\"ok\"])","p1e8",{"$":6},"self.assertTrue(verified[\"ok\"])",[],"tests.test_instruction_profiles.InstructionProfileTests.test_install_verify_remove_does_not_create_default_config"],
+"w80":[{"$":351},"p1e8",{"$":6},{"$":351},[],"tests.test_instruction_profiles.InstructionProfileTests.test_install_verify_remove_does_not_create_default_config"],
 
 "w81":[{"$":149},"p24b",{"$":1},{"$":149},[],{"$":317}],
 
@@ -7542,7 +7570,7 @@
 
 "wF0":["hold_preintent=True","pF4",{"$":1},"'test_exit_between_initial_read_and_reply_drains_tail_atomically'",["pF3","pF0","pF2","pF1"],"tests.test_finite_fixture_progress_acknowledgment.FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent"],
 
-"wF1":["self.assertNotIn(case._finite_success_consumed, [call.args[1] for call in waits.call_args_list])","pF5",{"$":1},"self.assertEqual(attempt['charge'], attempt['amount'])",["pF0","pF1"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join"],
+"wF1":["self.assertNotIn(case._finite_success_consumed, [call.args[1] for call in waits.call_args_list])","pF5",{"$":1},{"$":352},["pF0","pF1"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join"],
 
 "wG":["opening.assert_not_called()","p1i",{"$":1},{"$":146},["pw","p1C","p2P","p2C"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_pid_view_refuses_before_cursor_open"],
 
@@ -7562,7 +7590,7 @@
 
 "wO":["self.assertRaisesRegex(selected.SelectedProbeError, 'private proc')","p2F",{"$":1},{"$":282},["p2M","pv"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_refuses_an_aliased_host_proc_view_before_release"],
 
-"wOverloadControl":["self.assertNotIn('terminal_blockers', report['summary'])","pOverloadTest",{"$":6},"self.assertEqual(attempt['charge'], attempt['amount'])",["pRefusalFixture"],"tests.test_registered_n1_factory.FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure"],
+"wOverloadControl":["self.assertNotIn('terminal_blockers', report['summary'])","pOverloadTest",{"$":6},{"$":352},["pRefusalFixture"],"tests.test_registered_n1_factory.FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure"],
 
 "wP":["self.assertEqual(outer[0], owner.bwrap[0],","p2K",{"$":1},"self.assertEqual(command[:3], [owner.timeout[0], '--signal=KILL', '20'])",["p1F","p1X","p1g","p1Y"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_host_uid_map_boundary_requires_fixed_outer_bootstrap"],
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Honor the registered supervisor's poll interval while closing an interrupted worker, including bounded cleanup after step exhaustion.
+
 ## 1.23.0 - 2026-11-24
 
 - Use one 20-start budget for registered single-worker qualification. Preserve prior journal entries and require newly signed permits that bind the total limit.
