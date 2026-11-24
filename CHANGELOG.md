@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.28.0 - 2026-11-24
+
 - Add a protected N=2 and N=3 pool qualification stage with durable run reservations and checks of worker output and lease settlement. Live pool execution remains held.
 - Require active accounting for the protected pool qualification stage by default. Persist session and turn intents, charge tools before their effects, enforce a whole-run deadline, and hold ambiguous reservations for reconciliation.
 - Stop protected pool qualification when an active effect gate refuses a request during final validation. Verify fixture and lease evidence after owned runtime cleanup.
