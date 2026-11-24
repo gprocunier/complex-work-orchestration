@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.25.0 - 2026-11-24
+
 - Route recorded coding escalations to Sol and explicitly classified interface, visual and computer-use assignments to Terra. Luna remains the first choice for focused native work. Prior routing records remain readable. Current dispatch requires fresh routing evidence under the updated policy.
 
 ## 1.24.0 - 2026-11-24
