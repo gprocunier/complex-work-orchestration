@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.34.0 - 2026-11-24
+
 - Let offline critic synthesis read a host evaluation by its record digest alongside the exact return file.
 
 ## 1.33.1 - 2026-11-24
