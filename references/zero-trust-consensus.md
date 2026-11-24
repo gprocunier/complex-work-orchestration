@@ -48,15 +48,17 @@ implementation, architecture, review, contractor, or synthesis work.
 
 ## Invocation boundary
 
-Save each critic's original return and its audited evaluation JSON. For a
-manual contractor packet, [record the return before evaluation](external-contracting.md#dispatch-flow)
+Save each critic's original return and its audited evaluation JSON or host
+evaluation record digest. For a manual contractor packet, [record the return before evaluation](external-contracting.md#dispatch-flow)
 and use `evaluate_return.py --contractor-packet PACKET --file RETURN --peer-review-required --json`.
-An observed host evaluator can supply its own recorded evaluation JSON.
 
-Create an input list with the return and evaluation files for each lane. Paths
-are relative to the list or absolute. Add the explicit claims you want to
-compare to the entry for the return that made them. Use the claim fields
-described under [Claim Shape](#claim-shape).
+Create an input list with the exact `return` file for each lane. Supply exactly
+one evaluation source per entry. Use `evaluation` for the full evaluation JSON
+file, or use `evaluation_record_sha256` for the digest of an evaluation record
+in the configured host store. When an evaluator reports only a summary and
+`evaluation_record_sha256`, use that digest. File paths are relative to the list
+or absolute. Add explicit claims to the entry for the return that made them.
+Use the claim fields described under [Claim Shape](#claim-shape).
 
 ```json
 [
@@ -76,7 +78,7 @@ described under [Claim Shape](#claim-shape).
   },
   {
     "return": "opus-review.md",
-    "evaluation": "opus-evaluation.json",
+    "evaluation_record_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "zero_trust_claims": [
       {
         "claim_id": "concurrency:retry-budget",

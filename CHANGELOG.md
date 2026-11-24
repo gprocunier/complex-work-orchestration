@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Let offline critic synthesis read a host evaluation by its record digest alongside the exact return file.
+
 ## 1.33.1 - 2026-11-24
 
 - Wait for each worker's durable turn context before interrupting a contained pool calibration cohort.
