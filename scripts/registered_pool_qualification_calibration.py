@@ -10,6 +10,7 @@ from typing import Any, Mapping
 
 from cwo_core import native_pool_qualification_stage as stage
 from cwo_core.invocation_ledger import InvocationLedger
+from cwo_core.native_pool_contracts import POOL_POLL_INTERVAL_MS
 from cwo_core.native_pool_transaction import TransactionRuntime
 from registered_pool_qualification import build_pool_qualification_runtime
 from registered_pool_qualification_capability import (
@@ -112,6 +113,7 @@ def _measure_original_controls(parent, observer):
     for child, control in controls.items():
         _begin_control(parent.limits, observer, child, control)
     _observe_initial_polls(controls, observer)
+    _await_original_contexts(controls)
     for control in controls.values():
         observer.observe_callback(control, "interrupt", agent_id=control.worker.thread_id,
                                   message="STOP: native supervisor decision interrupt")
@@ -141,6 +143,16 @@ def _observe_initial_polls(controls, observer):
         result = observer.observe_callback(controls[child], "check", **_binding(controls[child]))
         _require(result.get("decision") == "continue", "calibration-worker-ended-before-interrupt")
         measured.add(child)
+
+
+def _await_original_contexts(controls):
+    # Codex can acknowledge the turn before its initial context is durable.
+    first = next(iter(controls.values()))
+    while True:
+        ready = tuple(control.worker.calibration_context_ready() for control in controls.values())
+        if all(ready):
+            return
+        first.sleep(seconds=POOL_POLL_INTERVAL_MS / 1000)
 
 
 def _finish_control(observer, control):

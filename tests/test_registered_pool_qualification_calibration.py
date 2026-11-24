@@ -121,11 +121,13 @@ class CallbackCalibrationDriverTests(unittest.TestCase):
             for child, control in parent.controls.items():
                 control.contract = {"state_file": child, "control_turn_id": f"control-{child}"}
                 control.worker.task = {"prompt": "inert fixed task"}
+                control.worker.calibration_context_ready = mock.Mock(return_value=True)
             observer = capability.begin_connected_callback_calibration(parent, _ProtectedParent(), manifest=manifest,
                                                                          directive=_signed(manifest))
             handle = calibration._measure_original_controls(parent, observer)
             self.assertIs(type(handle), capability.ConnectedPoolCallbackCapability)
             self.assertEqual(bound, list(parent.controls))
             for control in parent.controls.values():
+                control.worker.calibration_context_ready.assert_called_once_with()
                 self.assertEqual(control._called, ["arm", "send_input", "mark_dispatched", "check", "interrupt",
                                                    "check", "finalize", "close"])

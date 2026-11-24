@@ -49,6 +49,7 @@ from cwo_core.native_session_boundary import (
     assert_prefix_intact,
     capture_boundary,
     locate_unique_session,
+    record_indices,
     session_source_identity,
     trusted_terminal_event,
     trusted_turn_context,
@@ -516,6 +517,7 @@ class _PoolWorker:
         self.containment = self.wire = None
         self.thread_id = self.turn_id = None
         self._rollout = self._startup = self._startup_prefix = self._writer_prefix = None
+        self._calibration_prefix = None
         self._turn_ready = Event()
         self._result = self._archived = None
         self._start_ns = self._end_ns = None
@@ -647,6 +649,30 @@ class _PoolWorker:
                  and meta[0].get("cwd") == str(self.worktree) and meta[0].get("history_mode") == "legacy",
                  "rollout-session-meta-binding")
 
+    def calibration_context_ready(self):
+        self.require_effect()
+        _require(self.parent.calibration_only and self.turn_id is not None, "original-calibration-turn-required")
+        prefix = self._calibration_prefix or self._startup_prefix
+        try:
+            boundary, rows = self._capture_active_rollout(baseline=prefix)
+        except NativeSessionBoundaryError as failure:
+            if prefix is not None or os.path.lexists(self._rollout) or str(failure) != "trusted session file is missing":
+                raise
+            _require(self.wire.terminal is None, "calibration-worker-ended-before-interrupt")
+            return False
+        _require(prefix is None or boundary["source_identity_sha256"] == prefix["source_identity_sha256"],
+                 "calibration-rollout-replaced")
+        self._verify_session_meta(rows)
+        _require(self.wire.terminal is None and trusted_terminal_event(rows, turn_id=self.turn_id) is None,
+                 "calibration-worker-ended-before-interrupt")
+        self._calibration_prefix = boundary
+        contexts = record_indices(rows, "turn_context")
+        if not contexts:
+            return False
+        _require(len(contexts) == 1, "calibration-turn-context-not-singular")
+        trusted_turn_context(rows, turn_id=self.turn_id, model=MODEL, effort=EFFORT)
+        return True
+
     def _attest_turn(self, pending):
         from cwo_core.native_pool_deferred_attestation import attest_deferred_turn
         from cwo_core.native_pool_deferred_context import QUALIFICATION_TOOL
@@ -765,7 +791,7 @@ class _PoolWorker:
     def _verify_result(self, status):
         from cwo_core.native_pool_qualification_evidence import observe_worker_tools
 
-        prefix = self._writer_prefix or self._startup_prefix
+        prefix = self._writer_prefix or self._calibration_prefix or self._startup_prefix
         boundary, rows = self._capture_active_rollout(baseline=prefix)
         _require(prefix is None or boundary["source_identity_sha256"] == prefix["source_identity_sha256"],
                  "terminal-source-drift")
@@ -797,7 +823,7 @@ class _PoolWorker:
         if self.turn_id is None or self._rollout is None:
             return asdict(WorkerToolObservation())
         try:
-            prefix = self._writer_prefix or self._startup_prefix
+            prefix = self._writer_prefix or self._calibration_prefix or self._startup_prefix
             source = locate_unique_session(self.spool, self.thread_id)
             boundary, rows = _capture_rollout(source.path, self.thread_id, baseline=prefix)
             _require(prefix is None or boundary["source_identity_sha256"] == prefix["source_identity_sha256"],

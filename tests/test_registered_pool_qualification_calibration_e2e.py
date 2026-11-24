@@ -1,6 +1,7 @@
 """Exercise the signed calibration driver and original adapter on inert pipes."""
 
 from contextlib import ExitStack
+import json
 from pathlib import Path
 from threading import Event
 from time import time
@@ -63,6 +64,35 @@ class SignedCalibrationPipeTests(unittest.TestCase):
         for cohort in fixed_pool_qualification_cohorts():
             with self.subTest(size=cohort["size"]), _pool_test_directory() as temporary, ExitStack() as stack:
                 self._run_calibration(Path(temporary), stack, cohort)
+
+    def test_waits_for_durable_context(self):
+        published = set()
+        context_counts_at_interrupt = []
+        capture = adapter._PoolWorker._capture_active_rollout
+        observe = capability.ConnectedCallbackCalibration.observe_callback
+
+        def capture_before_context(worker, **kwargs):
+            boundary, rows = capture(worker, **kwargs)
+            if worker.turn_id and worker.wire.terminal is None and worker.child_id not in published:
+                self.assertFalse(any(row["type"] == "turn_context" for row in rows))
+                record = {"type": "turn_context", "payload": {"turn_id": worker.turn_id,
+                          "model": adapter.MODEL, "effort": adapter.EFFORT}}
+                with worker._rollout.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps(record) + "\n")
+                published.add(worker.child_id)
+            return boundary, rows
+
+        def capture_interrupt(calibration, control, name, **arguments):
+            if name == "interrupt":
+                context_counts_at_interrupt.append(len(published))
+            return observe(calibration, control, name, **arguments)
+
+        with _pool_test_directory() as temporary, ExitStack() as stack:
+            stack.enter_context(mock.patch.object(adapter._PoolWorker, "_capture_active_rollout", capture_before_context))
+            stack.enter_context(mock.patch.object(capability.ConnectedCallbackCalibration, "observe_callback", capture_interrupt))
+            self._run_calibration(Path(temporary), stack, fixed_pool_qualification_cohorts()[0],
+                                  peer_behavior="deferred-context")
+        self.assertEqual(context_counts_at_interrupt, [2, 2])
 
     def test_local_interrupt_revokes_an_original_pending_calibration_reply(self):
         waiting = Event()
@@ -148,12 +178,13 @@ class SignedCalibrationPipeTests(unittest.TestCase):
                                   expect_wire_failure=malformed)
         self.assertEqual(refusals, ["pool-qualification-adapter-revoked-calibration-completion-drift"] if malformed else [])
 
-    def _run_calibration(self, root, stack, cohort, *, expect_wire_failure=False):
+    def _run_calibration(self, root, stack, cohort, *, expect_wire_failure=False, peer_behavior="calibration"):
         peers = []
 
         class Peer(_CalibrationPeer):
             def __init__(self, **settings):
                 super().__init__(**settings)
+                self.behavior = peer_behavior
                 peers.append(self)
 
         def require_inert_scope():

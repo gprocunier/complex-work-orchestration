@@ -97,6 +97,10 @@ for line in sys.stdin:
         response(req, result)
     elif method == 'turn/start':
         assert 'permissions' not in params
+        if behavior == 'deferred-context':
+            append(([] if inputs['existing'] else [meta]) + [event('task_started')])
+            response(req, {'turn': {'id': turn, 'items': [], 'status': 'inProgress'}})
+            continue
         effort = 'low' if behavior == 'wrong-context' else params['effort']
         append(([] if inputs['existing'] else [meta]) + [event('task_started'),
             {'type': 'world_state', 'payload': {'full': True, 'state': {'top_level_tools': {'apply_patch': 'f' * 40}}}},
