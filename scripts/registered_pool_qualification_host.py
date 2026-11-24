@@ -8,7 +8,6 @@ import os
 from pathlib import Path
 
 from cwo_core.beads import run_bd_structured
-from cwo_core.invocation_ledger import InvocationLedger
 from cwo_core.native_authority import canonical_authority_sha256, canonical_json_object
 from cwo_core.native_pool_admission import (
     AdmissionCandidate, BeadsClaimAdapter, PoolAdmissionReservation, reserve_pool_cohort,
@@ -160,10 +159,7 @@ def _reserve_selected(directory, parent, admissions, calibrations, directive, ex
             _require(_request_binding(parent.request_path, current) == request, "protected-request-custody-changed")
 
     guard()
-    ledger_root = stage.contained_campaign_ledger_root()
-    with stage._campaign_custody(ledger_root):
-        stage._require_campaign_budget(stage.PoolQualificationAccounting(InvocationLedger(ledger_root), expires_at),
-                                       len(selected) + len(measured))
+    stage._require_campaign_enrollment(expires_at=expires_at, run_count=len(selected) + len(measured))
     reserved = tuple(_reserve(directory, f"{parent.request_path.name}.{index}", cohort, binding, guard)
                      for index, (cohort, binding) in enumerate(zip(admissions + calibrations, selected + measured), 1))
     return replace(parent, admissions=reserved[:len(admissions)], calibration_admissions=reserved[len(admissions):])

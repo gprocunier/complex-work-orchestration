@@ -18,8 +18,6 @@ from types import MappingProxyType
 import uuid
 from typing import Any, Mapping
 
-from .native_pool_qualification_fixtures import fixed_pool_qualification_cohorts
-
 
 TOOL_POLICY_VERSION = 1
 CORE_RESOURCE_TOOL_POLICY_VERSION = 2
@@ -657,15 +655,6 @@ def prompt_preflight(prompt: str, tool_policy: Mapping[str, Any]) -> dict[str, A
     if not isinstance(prompt, str) or not prompt.strip():
         raise NativeToolIsolationError("prompt-preflight-input-invalid")
     return _scan_prompt(prompt, normalize_tool_policy(tool_policy))
-
-
-def contained_pool_qualification_prompt_preflight(prompt: str) -> dict[str, Any]:
-    """Render the exact fixed qualification prompt receipt before admission."""
-    if type(prompt) is not str or not any(
-        prompt == task["prompt"] for cohort in fixed_pool_qualification_cohorts() for task in cohort["tasks"]
-    ):
-        raise NativeToolIsolationError("contained-pool-qualification-prompt-invalid")
-    return _scan_prompt(prompt, contained_pool_tool_policy())
 
 
 def _scan_prompt(prompt: str, policy: Mapping[str, Any]) -> dict[str, Any]:

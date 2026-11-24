@@ -1229,6 +1229,13 @@ def _require_campaign_budget(accounting: PoolQualificationAccounting, run_count:
                      ("reserved", "invocation-intent", "reconciliation-required")), "campaign-start-unresolved")
 
 
+def _require_campaign_enrollment(*, expires_at: int, run_count: int) -> None:
+    """Check the enrolled campaign's remaining capacity before disposable claims."""
+    root = contained_campaign_ledger_root()
+    with _campaign_custody(root):
+        _require_campaign_budget(PoolQualificationAccounting(InvocationLedger(root), expires_at), run_count)
+
+
 def _reserve_campaign_start(run: PoolQualificationRun, allowance: _StageAllowance) -> tuple[str, bytes]:
     _require_contained_availability()
     allowance.check_custody()

@@ -1063,19 +1063,23 @@ class _PoolParent:
         from cwo_core.native_pool_qualification_stage import PoolQualificationRunLimits
 
         _require(type(limits) is PoolQualificationRunLimits and self.limits is None, "original-stage-limits-required")
-        admission = limits._contained_admission
+        self._require_stage_mode(limits)
+        admission = getattr(limits, "_contained_admission", None)
         _require(type(admission) is _ContainedPoolAdmission and admission._claimed
                  and admission._selection.runtime.start_worker_session.__self__ is self
                  and limits._allowance.campaign_intent is not None, "original-contained-stage-limits-required")
         self.limits = limits
         self.require_effect()
 
+    def _require_stage_mode(self, limits):
+        _require(self.calibration_only is (getattr(limits, "calibration_only", False) is True),
+                 "original-stage-mode-drift")
+
     def require_effect(self):
         native_live_availability.require_pool_qualification()
         native_live_availability.require_registered_n1_live()
         _require(self.limits is not None, "stage-limits-unbound")
-        _require(self.calibration_only is (getattr(self.limits, "calibration_only", False) is True),
-                 "original-stage-mode-drift")
+        self._require_stage_mode(self.limits)
         self.limits.remaining()
         self.limits._require_intent()
 

@@ -30,3 +30,14 @@ def fixed_pool_qualification_cohorts() -> list[dict[str, Any]]:
     """Return fresh copies of the synthetic N=2 and N=3 task definitions."""
     return [{"size": size, "tasks": [_worker_task(size, slot) for slot in range(1, size + 1)]}
             for size in POOL_QUALIFICATION_COHORT_SIZES]
+
+
+def contained_pool_qualification_prompt_preflight(prompt: str) -> dict[str, Any]:
+    """Render the exact fixed qualification prompt receipt before admission."""
+    from .native_tool_isolation import NativeToolIsolationError, _scan_prompt, contained_pool_tool_policy
+
+    if type(prompt) is not str or not any(
+        prompt == task["prompt"] for cohort in fixed_pool_qualification_cohorts() for task in cohort["tasks"]
+    ):
+        raise NativeToolIsolationError("contained-pool-qualification-prompt-invalid")
+    return _scan_prompt(prompt, contained_pool_tool_policy())

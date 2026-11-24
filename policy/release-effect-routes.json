@@ -2726,11 +2726,11 @@
 
 "pC":[77,"_stable_process_identity",123,"326a49937507e27c9af0479e43a64c9506b0a43a61a19035b822e04b6a48ae20"],
 
-"pCQH":[160,"run_registered_pool_qualification",172,"ca3ba87ef2c62ee209b2e73722e88f1f618155c73af3df99e6e404ad441a332a"],
+"pCQH":[160,"run_registered_pool_qualification",168,"ca3ba87ef2c62ee209b2e73722e88f1f618155c73af3df99e6e404ad441a332a"],
 
 "pCQP":[161,"RegisteredPoolQualificationHostTests.test_one_host_call_uses_original_guarded_reservations_and_pinned_factory",119,"106338207fdcca8df4c2db7f61a3463aa613d5f4dbe19e57dbe916681d50dbb9"],
 
-"pCQR":[160,"_reserve",124,"81caf37f9bf515e01d0e2c504c618b4c5fc91647ab3012831698fc66383eff16"],
+"pCQR":[160,"_reserve",123,"81caf37f9bf515e01d0e2c504c618b4c5fc91647ab3012831698fc66383eff16"],
 
 "pCQT":[161,"RegisteredPoolQualificationHostTests.test_expiry_at_original_pre_show_refuses_before_beads_write",138,"f451910334e207d2d43ff4dbec8af53d1c26723b87451efefb9dfaffb781ad8b"],
 
@@ -2792,7 +2792,7 @@
 
 "pPoolPhysicalProof":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",220,"271a98dca46c3c5a43a6d161b294ee6f71bfbcb7fa1a0460d69c1a395922b479"],
 
-"pPoolWireFactory":[157,"build_pool_qualification_runtime",1329,"b4751a465617937a118198d6e1317ab07fdec14dbf53d0e983f992de0e7a3318"],
+"pPoolWireFactory":[157,"build_pool_qualification_runtime",1333,"b4751a465617937a118198d6e1317ab07fdec14dbf53d0e983f992de0e7a3318"],
 
 "pPoolWireNotify":[157,217,"super().notify(method, params)",15,217,45],
 
@@ -2814,13 +2814,13 @@
 
 "pQ":[65,"RegisteredN1Workflow._commit_execution",482,"3c21388b1aa970860dd77173b36f27bf03c3ad13ae77cf7c7d4fafe8a1ef01f8"],
 
-"pQe1":[160,164,"with stage._campaign_custody(ledger_root):"],
+"pQe1":[160,162,"stage._require_campaign_enrollment",4,162,38],
 
 "pQe2":[167,364,"_require(stage.contained_pool_qualification_binding(preparation, planned, accounting=accounting) == binding,"],
 
 "pQe3":[168,"_require_campaign_approval",129,"638a79b3a8e309dde273582b08b3719fab46f7df7df5b31061600077c814375d"],
 
-"pQe7":[160,99,"\"campaign\": CAMPAIGN_BUDGET_ID, \"start_limit\": CAMPAIGN_START_CAP,"],
+"pQe7":[160,98,"\"campaign\": CAMPAIGN_BUDGET_ID, \"start_limit\": CAMPAIGN_START_CAP,"],
 
 "pQe8":[167,148,"\"campaign\": CAMPAIGN_BUDGET_ID, \"start_limit\": CAMPAIGN_START_CAP})"],
 
@@ -3115,7 +3115,7 @@
 ],
 
 "exclusion_texts":[
-"load_prompt_from_args: ",
+"Reads retained source/admission/cohort/control record fields for equality, type checks or digest construction; this lookup does not execute a returned target.",
 
 "Reads parsed CLI Namespace option values for validation or rendering; this span does not invoke the selected option as a callable.",
 
@@ -3125,19 +3125,19 @@
 
 "Reads Playwright page/popup URL or context for origin, response or share observation; browser operations are separately mapped to H4.3.",
 
-"PlaywrightChatGPTRunner._try_social_share_url: ",
+"Reads original function/class/adapter identity or required-method presence and compares it with retained objects; no returned method is invoked at this span.",
 
-"write_private_response: ",
+"Reads concrete transport guard, model, proof or per-thread bookkeeping state for validation/cleanup. This lookup is not a wire send; raw RPC refusal gaps remain deferred finding 7.",
 
 "main: ",
 
-"checked_narrative: ",
+"Exact candidate retained for manual review; no independent pre-call refusal is credited. The named route binds its actual guarded boundary.",
 
 "execute: ",
 
 "_evaluation_candidates: ",
 
-"Reads retained source/admission/cohort/control record fields for equality, type checks or digest construction; this lookup does not execute a returned target.",
+"load_prompt_from_args: ",
 
 "_restriction_states: ",
 
@@ -3183,7 +3183,7 @@
 
 "_same_registration: ",
 
-"Reads original function/class/adapter identity or required-method presence and compares it with retained objects; no returned method is invoked at this span.",
+"PlaywrightChatGPTRunner._try_social_share_url: ",
 
 "_RetainedOwnershipProducer.__init__: ",
 
@@ -3197,7 +3197,7 @@
 
 "AppServer._read_stdout: ",
 
-"Reads concrete transport guard, model, proof or per-thread bookkeeping state for validation/cleanup. This lookup is not a wire send; raw RPC refusal gaps remain deferred finding 7.",
+"write_private_response: ",
 
 "AppServer.require_zero_mcp_endpoints: ",
 
@@ -3343,7 +3343,7 @@
 
 "The EXAMPLE-only bridge branch has its own custody contract, not the production hold. _task invokes the adapter before its internal recheck; the production bridge boundary remains separately bound in _bd. Dynamic guard/custody identity and the EXAMPLE branch require manual review.",
 
-"Exact candidate retained for manual review; no independent pre-call refusal is credited. The named route binds its actual guarded boundary.",
+"checked_narrative: ",
 
 "These exact containment/inspection request candidates invoke request before its method guard. They are not independent wire boundaries. The request wire write retains its direct _require_native_rpc check; allowed containment method selection and receiver identity remain manual.",
 
@@ -3459,9 +3459,9 @@
 ],
 
 "exclusions":{
-"XR001":[[0,1],2,null],
+"XR001":[[11,1],2,null],
 
-"XR002":[[0,1],2,null],
+"XR002":[[11,1],2,null],
 
 "XR003":[[127,"note_submission: ",3],2,null],
 
@@ -3469,15 +3469,15 @@
 
 "XR018":[[127,"_capture_assistant_response: ",4],2,null],
 
-"XR029":[[5,4],2,null],
+"XR029":[[34,4],2,null],
 
-"XR031":[[5,4],2,null],
+"XR031":[[34,4],2,null],
 
 "XR032":[["note_present_response_files: ",3],2,null],
 
-"XR033":[[6,3],2,null],
+"XR033":[[41,3],2,null],
 
-"XR034":[[6,3],2,null],
+"XR034":[[41,3],2,null],
 
 "XR035":[[7,3],2,null],
 
@@ -3495,11 +3495,11 @@
 
 "XR047":[[7,3],2,null],
 
-"XR052":[[8,1],2,null],
+"XR052":[[114,1],2,null],
 
-"XR053":[[8,1],2,null],
+"XR053":[[114,1],2,null],
 
-"XR054":[[8,1],2,null],
+"XR054":[[114,1],2,null],
 
 "XR055":[[9,1],2,null],
 
@@ -3515,33 +3515,33 @@
 
 "XR061":[[9,1],2,null],
 
-"XR066":[[10,11],2,null],
+"XR066":[[10,0],2,null],
 
-"XR067":[[10,11],2,null],
+"XR067":[[10,0],2,null],
 
-"XR068":[[10,11],2,null],
+"XR068":[[10,0],2,null],
 
-"XR069":[[10,11],2,null],
+"XR069":[[10,0],2,null],
 
-"XR070":[[10,11],2,null],
+"XR070":[[10,0],2,null],
 
-"XR071":[["_prepared_sequences: ",11],2,null],
+"XR071":[["_prepared_sequences: ",0],2,null],
 
-"XR072":[[12,11],2,null],
+"XR072":[[12,0],2,null],
 
-"XR073":[[12,11],2,null],
+"XR073":[[12,0],2,null],
 
-"XR074":[[12,11],2,null],
+"XR074":[[12,0],2,null],
 
-"XR075":[[13,11],2,null],
+"XR075":[[13,0],2,null],
 
-"XR076":[[13,11],2,null],
+"XR076":[[13,0],2,null],
 
-"XR077":[[13,11],2,null],
+"XR077":[[13,0],2,null],
 
-"XR083":[[14,11],2,null],
+"XR083":[[14,0],2,null],
 
-"XR084":[[14,11],2,null],
+"XR084":[[14,0],2,null],
 
 "XR088":[["_rename_new_at: ","Selects libc renameat2 for later no-replace local host-record publication. This is a real filesystem effect",143,"routes; filesystem probe witnesses, not this exclusion, assess it."],2,null],
 
@@ -3625,11 +3625,11 @@
 
 "XR136":[["_validate_candidate: ",26],2,null],
 
-"XR137":[[27,11],2,null],
+"XR137":[[27,0],2,null],
 
 "XR138":[[27,"Selects the claim adapter attempt factory for later invocation under B6.1; the dynamic target remains an externally reviewed adapter contract, not a proven hold."],2,"B6.1"],
 
-"XR139":[[27,11],2,null],
+"XR139":[[27,0],2,null],
 
 "XR140":[[27,137,"show_exact",123,"Beads read."],2,"B6.1"],
 
@@ -3637,7 +3637,7 @@
 
 "XR142":[[161,"receipt: ",26],2,null],
 
-"XR143":[["re",161,"live: ",11],2,null],
+"XR143":[["re",161,"live: ",0],2,null],
 
 "XR144":[[28,15],2,null],
 
@@ -3667,13 +3667,13 @@
 
 "XR157":[[31,32],2,null],
 
-"XR158":[[33,34],2,null],
+"XR158":[[33,5],2,null],
 
-"XR159":[[33,34],2,null],
+"XR159":[[33,5],2,null],
 
-"XR160":[[35,34],2,null],
+"XR160":[[35,5],2,null],
 
-"XR161":[[35,34],2,null],
+"XR161":[[35,5],2,null],
 
 "XR162":[["bound_peer_review_record: ","Invokes the supplied return evaluator with pending review inputs, not Playwright evaluate. Arbitrary evaluator implementation remains caller review scope; no browser hold is asserted."],2,null],
 
@@ -3699,133 +3699,133 @@
 
 "XR176":[["AppServer.__init__: ","Reads the construction cleanup exception diagnostic for failure reporting; no transport request is invoked by this lookup."],2,null],
 
-"XR177":[[40,41],2,null],
+"XR177":[[40,6],2,null],
 
-"XR178":[[40,41],2,null],
+"XR178":[[40,6],2,null],
 
-"XR179":[[40,41],2,null],
+"XR179":[[40,6],2,null],
 
-"XR182":[["AppServer._observe_mcp_notification: ",41],2,null],
+"XR182":[["AppServer._observe_mcp_notification: ",6],2,null],
 
-"XR183":[["AppServer._require_mcp_guard: ",41],2,null],
+"XR183":[["AppServer._require_mcp_guard: ",6],2,null],
 
-"XR184":[[42,41],2,null],
+"XR184":[[42,6],2,null],
 
-"XR186":[[42,41],2,null],
+"XR186":[[42,6],2,null],
 
-"XR187":[["AppServer._guard_thread_observation: ",41],2,null],
+"XR187":[["AppServer._guard_thread_observation: ",6],2,null],
 
-"XR188":[[163,": ",41],2,null],
+"XR188":[[163,": ",6],2,null],
 
-"XR189":[[163,"_once_with_guard: ",41],2,null],
+"XR189":[[163,"_once_with_guard: ",6],2,null],
 
-"XR191":[["AppServer.model_discovery: ",41],2,null],
+"XR191":[["AppServer.model_discovery: ",6],2,null],
 
-"XR192":[[43,41],2,null],
+"XR192":[[43,6],2,null],
 
-"XR193":[[43,41],2,null],
+"XR193":[[43,6],2,null],
 
-"XR194":[[44,41],2,null],
+"XR194":[[44,6],2,null],
 
-"XR195":[[44,41],2,null],
+"XR195":[[44,6],2,null],
 
-"XR196":[[45,41],2,null],
+"XR196":[[45,6],2,null],
 
-"XR197":[[45,41],2,null],
+"XR197":[[45,6],2,null],
 
-"XR198":[[46,41],2,null],
+"XR198":[[46,6],2,null],
 
-"XR199":[[46,41],2,null],
+"XR199":[[46,6],2,null],
 
-"XR200":[[47,41],2,null],
+"XR200":[[47,6],2,null],
 
-"XR201":[[47,41],2,null],
+"XR201":[[47,6],2,null],
 
-"XR203":[[47,41],2,null],
+"XR203":[[47,6],2,null],
 
-"XR204":[[47,41],2,null],
+"XR204":[[47,6],2,null],
 
-"XR205":[[47,41],2,null],
+"XR205":[[47,6],2,null],
 
-"XR206":[[47,41],2,null],
+"XR206":[[47,6],2,null],
 
-"XR207":[[47,41],2,null],
+"XR207":[[47,6],2,null],
 
-"XR208":[[47,41],2,null],
+"XR208":[[47,6],2,null],
 
-"XR209":[[47,41],2,null],
+"XR209":[[47,6],2,null],
 
-"XR210":[[47,41],2,null],
+"XR210":[[47,6],2,null],
 
-"XR212":[["AppServer._consume_negative_turn_response_capability: ",41],2,null],
+"XR212":[["AppServer._consume_negative_turn_response_capability: ",6],2,null],
 
-"XR213":[[48,41],2,null],
+"XR213":[[48,6],2,null],
 
-"XR214":[[48,41],2,null],
+"XR214":[[48,6],2,null],
 
-"XR215":[["AppServer._persist_turn_dispatch_record_locked: ",41],2,null],
+"XR215":[["AppServer._persist_turn_dispatch_record_locked: ",6],2,null],
 
-"XR216":[["AppServer.turn_dispatch_record: ",41],2,null],
+"XR216":[["AppServer.turn_dispatch_record: ",6],2,null],
 
-"XR217":[[49,41],2,null],
+"XR217":[[49,6],2,null],
 
-"XR218":[[49,41],2,null],
+"XR218":[[49,6],2,null],
 
-"XR219":[[50,41],2,null],
+"XR219":[[50,6],2,null],
 
-"XR220":[[50,41],2,null],
+"XR220":[[50,6],2,null],
 
-"XR221":[[50,41],2,null],
+"XR221":[[50,6],2,null],
 
-"XR222":[[50,41],2,null],
+"XR222":[[50,6],2,null],
 
-"XR223":[[50,41],2,null],
+"XR223":[[50,6],2,null],
 
-"XR224":[[50,41],2,null],
+"XR224":[[50,6],2,null],
 
-"XR225":[[50,41],2,null],
+"XR225":[[50,6],2,null],
 
-"XR226":[[50,41],2,null],
+"XR226":[[50,6],2,null],
 
-"XR227":[[50,41],2,null],
+"XR227":[[50,6],2,null],
 
-"XR228":[[50,41],2,null],
+"XR228":[[50,6],2,null],
 
-"XR231":[[158,"e_thread: ",41],2,null],
+"XR231":[[158,"e_thread: ",6],2,null],
 
-"XR233":[["AppServer.delete_thread: ",41],2,null],
+"XR233":[["AppServer.delete_thread: ",6],2,null],
 
-"XR234":[[51,41],2,null],
+"XR234":[[51,6],2,null],
 
-"XR235":[[51,41],2,null],
+"XR235":[[51,6],2,null],
 
-"XR236":[[51,41],2,null],
+"XR236":[[51,6],2,null],
 
-"XR237":[[158,155,41],2,null],
+"XR237":[[158,155,6],2,null],
 
-"XR238":[["AppServer.register_",170,41],2,null],
+"XR238":[["AppServer.register_",170,6],2,null],
 
-"XR239":[["AppServer.",170,41],2,null],
+"XR239":[["AppServer.",170,6],2,null],
 
-"XR240":[["AppServer.delet",155,41],2,null],
+"XR240":[["AppServer.delet",155,6],2,null],
 
-"XR241":[["AppServer.record_terminal",149,41],2,null],
+"XR241":[["AppServer.record_terminal",149,6],2,null],
 
-"XR242":[[52,41],2,null],
+"XR242":[[52,6],2,null],
 
-"XR243":[[52,41],2,null],
+"XR243":[[52,6],2,null],
 
-"XR244":[[52,41],2,null],
+"XR244":[[52,6],2,null],
 
-"XR245":[[53,41],2,null],
+"XR245":[[53,6],2,null],
 
-"XR246":[[53,41],2,null],
+"XR246":[[53,6],2,null],
 
-"XR247":[[53,41],2,null],
+"XR247":[[53,6],2,null],
 
-"XR248":[[128,": ",41],2,null],
+"XR248":[[128,": ",6],2,null],
 
-"XR249":[[128,"s: ",41],2,null],
+"XR249":[[128,"s: ",6],2,null],
 
 "XR250":[["AppServer.close: ",54],2,null],
 
@@ -3883,17 +3883,17 @@
 
 "XR280":[["write_export: ","Selects stdout.buffer for later prompt rendering to the existing stream; this lookup launches no programme and sends no browser/RPC request."],2,null],
 
-"XR281":[[64,34],2,null],
+"XR281":[[64,5],2,null],
 
-"XR282":[[64,34],2,null],
+"XR282":[[64,5],2,null],
 
-"XR283":[[65,34],2,null],
+"XR283":[[65,5],2,null],
 
-"XR284":[[65,34],2,null],
+"XR284":[[65,5],2,null],
 
-"XR285":[[65,34],2,null],
+"XR285":[[65,5],2,null],
 
-"XR286":[[65,34],2,null],
+"XR286":[[65,5],2,null],
 
 "XR287":[["GuardedArtifactTarget.publish: ",3],2,null],
 
@@ -3913,59 +3913,59 @@
 
 "XR296":[["LinuxOwnedChildController._complete: ",3],2,null],
 
-"XR297":[[69,34],2,null],
+"XR297":[[69,5],2,null],
 
-"XR298":[[69,34],2,null],
+"XR298":[[69,5],2,null],
 
-"XR299":[[70,34],2,null],
+"XR299":[[70,5],2,null],
 
-"XR300":[[70,34],2,null],
+"XR300":[[70,5],2,null],
 
-"XR301":[[70,34],2,null],
+"XR301":[[70,5],2,null],
 
-"XR302":[["_admission_snapshot: ",11],2,null],
+"XR302":[["_admission_snapshot: ",0],2,null],
 
-"XR303":[["_host_snapshot: ",11],2,null],
+"XR303":[["_host_snapshot: ",0],2,null],
 
 "XR304":[["_diagnostics: ",3],2,null],
 
 "XR305":[["_observe_failure: ",3],2,null],
 
-"XR306":[[71,34],2,null],
+"XR306":[[71,5],2,null],
 
-"XR307":[[71,34],2,null],
+"XR307":[[71,5],2,null],
 
-"XR308":[[71,34],2,null],
+"XR308":[[71,5],2,null],
 
-"XR309":[[71,34],2,null],
+"XR309":[[71,5],2,null],
 
-"XR310":[[64,34],2,null],
+"XR310":[[64,5],2,null],
 
-"XR311":[[72,34],2,null],
+"XR311":[[72,5],2,null],
 
-"XR312":[[72,34],2,null],
+"XR312":[[72,5],2,null],
 
-"XR313":[[73,34],2,null],
+"XR313":[[73,5],2,null],
 
-"XR314":[[73,34],2,null],
+"XR314":[[73,5],2,null],
 
-"XR315":[[73,34],2,null],
+"XR315":[[73,5],2,null],
 
-"XR316":[[72,34],2,null],
+"XR316":[[72,5],2,null],
 
-"XR317":[[74,34],2,null],
+"XR317":[[74,5],2,null],
 
-"XR318":[[74,34],2,null],
+"XR318":[[74,5],2,null],
 
-"XR319":[["_context: ",11],2,null],
+"XR319":[["_context: ",0],2,null],
 
-"XR320":[["_receipt_limits: ",11],2,null],
+"XR320":[["_receipt_limits: ",0],2,null],
 
-"XR321":[[75,34],2,null],
+"XR321":[[75,5],2,null],
 
-"XR322":[[75,34],2,null],
+"XR322":[[75,5],2,null],
 
-"XR323":[[75,34],2,null],
+"XR323":[[75,5],2,null],
 
 "XR325":[["_configuration: ",76],2,null],
 
@@ -3973,15 +3973,15 @@
 
 "XR327":[[77,76],2,null],
 
-"XR328":[[78,11],2,null],
+"XR328":[[78,0],2,null],
 
-"XR329":[[78,11],2,null],
+"XR329":[[78,0],2,null],
 
-"XR330":[[78,11],2,null],
+"XR330":[[78,0],2,null],
 
-"XR331":[[78,11],2,null],
+"XR331":[[78,0],2,null],
 
-"XR332":[["_receipt_sha256: ",11],2,null],
+"XR332":[["_receipt_sha256: ",0],2,null],
 
 "XR333":[["_callbacks: ",17],2,null],
 
@@ -3991,7 +3991,7 @@
 
 "XR336":[["check_control_revocation: ",79],2,null],
 
-"XR337":[["_control_types: ",11],2,null],
+"XR337":[["_control_types: ",0],2,null],
 
 "XR338":[["QualifiedAdjudicationBroker.__init__: ",79],2,null],
 
@@ -4007,15 +4007,15 @@
 
 "XR347":[[142,"truction_cleanup: ",3],2,null],
 
-"XR348":[[142,"ume_raw_stdout_line: ",41],2,null],
+"XR348":[[142,"ume_raw_stdout_line: ",6],2,null],
 
-"XR349":[[82,41],2,null],
+"XR349":[[82,6],2,null],
 
-"XR350":[[82,41],2,null],
+"XR350":[[82,6],2,null],
 
-"XR351":[[83,41],2,null],
+"XR351":[[83,6],2,null],
 
-"XR352":[[83,41],2,null],
+"XR352":[[83,6],2,null],
 
 "XR353":[[129,"bind_dynamic_command: ",84],2,null],
 
@@ -4039,17 +4039,17 @@
 
 "XR366":[[136,"close: ",54],2,null],
 
-"XR367":[[86,34],2,null],
+"XR367":[[86,5],2,null],
 
-"XR368":[[86,34],2,null],
+"XR368":[[86,5],2,null],
 
-"XR369":[[87,34],2,null],
+"XR369":[[87,5],2,null],
 
-"XR370":[[87,34],2,null],
+"XR370":[[87,5],2,null],
 
 "XR371":[["RegisteredN1Factory._effect: ",3],2,null],
 
-"XR373":[["submit: ",34],2,null],
+"XR373":[["submit: ",5],2,null],
 
 "XR374":[["PoolConfiguration.__init__: ",88],2,null],
 
@@ -4229,33 +4229,33 @@
 
 "diagnostic-state-_terminate_owner-624":[[151,"terminate_owner: ",112],111,null],
 
-"guard-scope-23e98ef81a80a3":[113,114,"B4.3"],
+"guard-scope-23e98ef81a80a3":[113,8,"B4.3"],
 
-"guard-scope-2bf0ca7a748226":[["The",157,"wrapper call precedes its callee N1 check. The actual owned spawn in containment.launch retains its direct N1 gate; receiver/lifetime identity is manual."],114,"N3.4"],
+"guard-scope-2bf0ca7a748226":[["The",157,"wrapper call precedes its callee N1 check. The actual owned spawn in containment.launch retains its direct N1 gate; receiver/lifetime identity is manual."],8,"N3.4"],
 
-"guard-scope-33aef003e612bf":[115,114,"N10.2"],
+"guard-scope-33aef003e612bf":[115,8,"N10.2"],
 
-"guard-scope-37c9c0a8bc5300":["The exact-show wrapper invokes run_bd_structured before that callee validates its store/database/actor. The classified wrapper call remains a reviewed candidate; its actual subprocess boundary is bound separately.",114,"B9.2"],
+"guard-scope-37c9c0a8bc5300":["The exact-show wrapper invokes run_bd_structured before that callee validates its store/database/actor. The classified wrapper call remains a reviewed candidate; its actual subprocess boundary is bound separately.",8,"B9.2"],
 
-"guard-scope-3eac6214d7a553":[116,114,"H4.3"],
+"guard-scope-3eac6214d7a553":[116,8,"H4.3"],
 
-"guard-scope-3f9a89efbb66c8":[116,114,"H4.3"],
+"guard-scope-3f9a89efbb66c8":[116,8,"H4.3"],
 
-"guard-scope-4a07b575ef79c3":[["The isolated validator invokes a",157,"before its internal admission. The selected containment launch binds the actual owned spawn; callback/lifetime identity and validator code remain manual trust."],114,"N9.2"],
+"guard-scope-4a07b575ef79c3":[["The isolated validator invokes a",157,"before its internal admission. The selected containment launch binds the actual owned spawn; callback/lifetime identity and validator code remain manual trust."],8,"N9.2"],
 
-"guard-scope-54d98db8fd63cd":[115,114,"N10.2"],
+"guard-scope-54d98db8fd63cd":[115,8,"N10.2"],
 
-"guard-scope-5929110daa092c":["The thread wrapper invokes request before its internal method check; the actual request wire write is separately bound. Constructed receiver/method semantics remain manual.",114,"N10.4"],
+"guard-scope-5929110daa092c":["The thread wrapper invokes request before its internal method check; the actual request wire write is separately bound. Constructed receiver/method semantics remain manual.",8,"N10.4"],
 
-"guard-scope-5bdf5819664888":[115,114,"N10.2"],
+"guard-scope-5bdf5819664888":[115,8,"N10.2"],
 
-"guard-scope-7b887edc672ea4":[115,114,"N10.2"],
+"guard-scope-7b887edc672ea4":[115,8,"N10.2"],
 
-"guard-scope-8828a037e55681":[115,114,"N10.2"],
+"guard-scope-8828a037e55681":[115,8,"N10.2"],
 
-"guard-scope-8b69ed2587a8d1":[115,114,"N10.2"],
+"guard-scope-8b69ed2587a8d1":[115,8,"N10.2"],
 
-"guard-scope-96050b233982b6":[113,114,"B4.3"],
+"guard-scope-96050b233982b6":[113,8,"B4.3"],
 
 "installer-beads-found":["say prints the path from command -v bd.","Command substitution performs lookup only; printed text is not executed.","I1.1"],
 
@@ -4317,11 +4317,13 @@
 
 "transport-writer-serialization-state":[[162,"payload: ","Reads th",132,"serialize writers while releasing the reader condition during backpressure; no caller or native authority follows from this flag."],119,"N10.9"],
 
-"xPoolCalibrationMode":["Fixed lookup of original stage mode","The registered adapter reads a single named mode property after receiving original stage limits. The selected calibration can never use the productive writer.","N4.3"],
+"xPoolCalibrationMode":["Fixed lookup of original stage mode","Mode readback precedes ownership binding and gates later effects. Calibration cannot use the productive writer.","N4.3"],
 
 "xPoolControlNames":["Fixed callback method-name roster","The callback table reads eight literal method names on the registered worker control. Stage approval and exact original artifacts still govern use of any callback.","N4.3"],
 
-"xPoolWireFlag":["Fixed local wire lock state lookup","No dynamic procedure selection occurs. Reply writing remains bound to the original request, pending ledger and protected pipe.","N4.3"]
+"xPoolWireFlag":["Fixed local wire lock state lookup","No dynamic procedure selection occurs. Reply writing remains bound to the original request, pending ledger and protected pipe.","N4.3"],
+
+"xQadm":["Fixed admission lookup on typed limits.","Original claimed admission, retained runtime and campaign intent are required.","N4.3"]
 },
 
 "hits":[
@@ -5301,7 +5303,9 @@
 
 [93,861,21,861,39,"dynamic","f28d36928e27e6b8db6db6abdaf057139f74ee6f9963587a3c14a11ba7f1724c",[{"$":9},"xPoolControlNames"]],
 
-[93,1077,43,1077,90,"dynamic","fb33b2e069c0ccccacb6ede5c9b9c2a8dbde17ba7025469d2d6d45fabcd3ada5",[{"$":9},"xPoolCalibrationMode"]],
+[93,1067,20,1067,65,"dynamic","d4a5a38d6d7b1e8e5b0e48f67f5018e3ac94ce6735d32d74c0f400d7b1cbd287",[{"$":9},"xQadm"]],
+
+[93,1075,43,1075,85,"dynamic","5b98fdb4648598e7c6bbd78a23527e147c48c8b2e3940993f94d56190e602dc9",[{"$":9},"xPoolCalibrationMode"]],
 
 [90,193,19,193,60,"network",{"$":348},["route","N3.7","p25ProviderSocket"]],
 
@@ -6842,7 +6846,7 @@
 
 "@156":["wkqfAbZJ7FI-O0JeN7DX63T_HOCjSSWbG1N-kT2aetg",420,15708],
 
-"@157":["s0yHzxd2Hl0uFJ1FkbEhh73o5QMga8O-7fqFk551xTE",420,70077],
+"@157":["OjqkxUBpBMfkhjT5b_2lAJXUDcn5t8CB-hR2wpgy8To",420,70221],
 
 "@158":["SFTxk66K5QBZNkiGZkQUq6xg_ndoHSK2pNuIH8NgZuk",420,29072],
 
@@ -6850,7 +6854,7 @@
 
 "@16":["Y5m8t72l_omj7a3qEAStJFdblyh5S8fNmDohrdPsS-o",420,20938],
 
-"@160":["PyC-p52uYzfuCMVpAM2-g0Va6IXz-qbMIfPw8V5UWf8",420,11072],
+"@160":["wBwhcl3JkNbJ6wyWQfDMdJN1nyjQqHs_rVb398oPNAQ",420,10828],
 
 "@161":["Z6oPNvjsNm1b_Krf8lnyjBSboUkk3MfiuvfQQYr621U",420,14209],
 
@@ -6866,7 +6870,7 @@
 
 "@167":["GHh0QjxG7N6t9WHxS6yaiZuPpVpUVTv_lhW94elzYY4",493,36252],
 
-"@168":["94-HVyhM2L4e41ZcWm5etEBCeX066HkTJWwP_Jd84kQ",420,89106],
+"@168":["HzJyBM4ZqZn-MhWGRn1KX8Nc-1TE3EtvLfK40bNJX-E",420,89458],
 
 "@17":["ARu5xi70szNYoQbP68bDHBDe4ChByszxGU8enrcoDw8",493,17894],
 
@@ -7176,7 +7180,7 @@
 
 "scripts/cwo_core/native_pool_qualification_evidence.py":["pcx3sUq9yG8--TyrsbdabxMIpY35x3HwNbHlfokbbrw",420,17503],
 
-"scripts/cwo_core/native_pool_qualification_fixtures.py":["NvcuKxtzjET_I2HZzTTfeZ77Fh2MoSvKdN21nVGbz48",420,1338],
+"scripts/cwo_core/native_pool_qualification_fixtures.py":["cfwIf2Lz0sz8iFg4BMMyds6xyF-xXz_fgKy9NZbj5qs",420,1917],
 
 "scripts/cwo_core/native_pool_reporting.py":["VHceIR6sPjnNwPuIfLRah-vB84XMbpgklltFRjfGSLs",420,10077],
 
@@ -7210,7 +7214,7 @@
 
 "scripts/cwo_core/native_tool_activation.py":["7qaUJzDG1TseCVp0brtcg26RJLc7s0D1yZ__Zvm5zQA",420,19753],
 
-"scripts/cwo_core/native_tool_isolation.py":["0DAUbf-zohhUdc8Pub5iOfG66ZPchIkorNVs8sWFp8w",420,33485],
+"scripts/cwo_core/native_tool_isolation.py":["Ef9F-97tGBk8vOx7UzbJm00y_f6WUBsn4U80AUVeMpw",420,32931],
 
 "scripts/cwo_core/native_turn_dispatch.py":["mo7KrNBIdqE3j7e1RGGcHmn89nxPAS65Lvf2RoQI4bs",420,22911],
 
@@ -7424,7 +7428,7 @@
 
 "scripts/validate_public_copy.py":["5jvp0QaFAcImQCY6cXJcXSdDZ5rGGQgzSguKe3H8t8o",420,63926],
 
-"scripts/validate_repository.py":["XI3YX3rDGB_JjnstDyc1ja2OTAsr8kK_WmWCInQ1LMk",420,115947],
+"scripts/validate_repository.py":["_ED0TyWLKSgy2aOhSkPGRo85XMX9jiq5K2tTBiY3gGw",420,115934],
 
 "scripts/validate_run_readiness_plan.py":["Qgbl831AJKP8HfpAZtP_cj91LTnKuHtFDKf02kUmy4Y",493,21103],
 
@@ -7440,7 +7444,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["9Z26thA80U670Kre2MwEGhOplUBGZTmv9rjPcGscEOE",420,134123],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["0Gcytma3bgtymMEaHK0sB8Laoc5ZnOrM0D74CfF3ymI",420,134123],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -7454,7 +7458,7 @@
 
 "tests/test_core_resource_tool_profiles.py":["BLcVQF-zTyYeX3fskFBF-ZnSo4wB5Y5p-rLf7G11O9M",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["9BaRX4Ouz-y_56bK4dSPADY7T8RsEuL4ctaNmJ9T2xE",420,23502],
+"tests/test_cwo_core_import_contract.py":["RXBlbA10hSA21Ti_E9B3yVnccK4Prb_gIsjhtZfMyN4",420,23489],
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 

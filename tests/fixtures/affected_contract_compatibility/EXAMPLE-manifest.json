@@ -444,7 +444,7 @@
     "scripts/cwo_core/native_session_boundary.py": "a2b78248f56e695d5de21acf4af851de4bb3e860f4c9331935de2c0676659cd2",
     "scripts/cwo_core/native_stop_scope.py": "564be5a7f1868f55ddf3adaf79fd209b13cbbfff2a85fa26640a2d4e92f2e886",
     "scripts/cwo_core/native_tool_activation.py": "eea6942730c6d53b1e095a746ebb5c836e9124b73bb340f5c99fff66f9b9cd00",
-    "scripts/cwo_core/native_tool_isolation.py": "d030146dffb3a2185475cf0fb9be6239f1bae993dc848928acd56cf2c585a7cc",
+    "scripts/cwo_core/native_tool_isolation.py": "11ff45fbdeed18193cbcec7b5336c99b4d32fdfe96501b27e14f3401455e329c",
     "scripts/cwo_core/native_turn_dispatch.py": "9a8ecaacd04876a1378fb7b544619c1e69fcf67c4f012eb92ef7f6468408e1bb",
     "scripts/cwo_core/native_worker_contracts.py": "3162aa1846bcd951b14b645754cf9e696b774e5b795cf37fef5e4d7840bdb7a5",
     "scripts/cwo_core/operative_routing.py": "60365ec405738ebf8c59a59deadc442c0817762f38102cc5e7b39d88d5b1bc2c",
