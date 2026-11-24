@@ -585,7 +585,7 @@
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
     "tests/test_registered_finite_tool_wiring.py": "b8f14809e58a2921dcf07ce1f40acc4b40f0fdb30f7c2f295c4171cfa40dfaa7",
     "tests/test_registered_n1_factory.py": "a2336f0c685d0a4038b1f30196f731244ef650a3a0b3ad382a3fbda7c1b623d1",
-    "tests/test_registered_n1_qualification.py": "93e411b85e4134a65e084c015c614a2a2f51c411a707b3db92bdd762868e226f",
+    "tests/test_registered_n1_qualification.py": "0670a42a96c2c1d780c395788c2c5a73d28e1fbf73c07075d98b34858d5e57d1",
     "tests/test_registered_n1_workflow.py": "877f50f79bbb340544c229491f4a12d0c65cc3c2f9bb9368445a0e91a4f81159",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
@@ -2449,7 +2449,7 @@
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
     "tests/test_registered_n1_factory.py": "a2336f0c685d0a4038b1f30196f731244ef650a3a0b3ad382a3fbda7c1b623d1",
-    "tests/test_registered_n1_qualification.py": "93e411b85e4134a65e084c015c614a2a2f51c411a707b3db92bdd762868e226f",
+    "tests/test_registered_n1_qualification.py": "0670a42a96c2c1d780c395788c2c5a73d28e1fbf73c07075d98b34858d5e57d1",
     "tests/test_registered_provider_network.py": "3d9026ebba82005b6ac4881e6edf198d2ff84b4492cd1f767567150e4cc936b4",
     "tests/test_registered_server_requests.py": "a4da28e77d685459ab089a74a364cac9917b7ac844830f28ce741e768b9c8a29"
   },
