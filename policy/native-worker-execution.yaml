@@ -1467,14 +1467,16 @@
     },
     "selection": {
       "sizing": "neutral-before-exact-model-selection",
-      "approved_roles": ["luna", "terra"],
+      "approved_roles": ["luna", "terra", "sol"],
       "primary_role": "luna",
-      "terra_selection": "recorded-fit-risk-or-economics-escalation-only",
+      "sol_selection": "recorded-fit-risk-or-economics-escalation-only",
+      "terra_selection": "interface-visual-computer-use-only",
       "model_substitution": "forbidden"
     },
     "operative_roles": {
       "luna": "luna-first-operative-worker",
-      "terra": "escalation-only-operative-worker"
+      "terra": "interface-visual-computer-use-worker",
+      "sol": "escalation-only-operative-worker"
     },
     "historical_versions": [2, 3],
     "attempt_binding": {

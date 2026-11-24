@@ -32,7 +32,7 @@ profile. Check the actual model against the exact selection for each assignment.
 - The opt-in architect profile loads `prompts/cwo-architect.md` in a fresh session. See `references/cwo-system-prompt.md`.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
 - Prefer review-only workers before implementation unless write ownership is disjoint.
-- In connected Codex work, select the exact model configured for Luna after model-neutral sizing. Terra requires documented nonfit or justified escalation. Sol handles architecture and adjudication. Astra handles unresolved architecture review. Spark records describe historical dispatches.
+- Size native work first. Luna handles focused work. Sol handles recorded coding escalation, architecture and adjudication. Terra handles interface, visual and computer-use work. Astra reviews unresolved architecture. Spark records are historical.
 - Default mode is conservative. Explicit coach requests present coach options before plan creation unless execution was requested; Plan mode asks only questions that change execution.
 - Keep model names and versions in policy and use executor aliases from `policy/executor-registry.yaml` in plans and docs.
 
@@ -103,9 +103,8 @@ three units or six reads warn; four or eleven require replanning.
 
 ## Routing and Maintenance Controls
 
-- Size work before selecting an exact model. The Luna-first portfolio in
-  `policy/native-worker-execution.yaml` uses the roles in `policy/model-roles.yaml`.
-  Record the reason for Terra escalation.
+- Use the exact role models in `policy/model-roles.yaml`. Record the escalation
+  reason for Sol. Set `work_kind` in the estimate for Terra assignments.
 - Current dispatch needs verified model, tool profile, workspace, ownership,
   qualification, source image and attempt bindings. Caller JSON is evidence,
   not a grant. Omitted authority must not revive historical Spark dispatch. The absent-by-default `cyber_fallback` permits one unchanged, same-budget retry only with catalog access and an owner-private mark outside worker roots.

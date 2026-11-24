@@ -221,7 +221,7 @@ class NativeWorkerExecutionPolicySchemaTests(unittest.TestCase):
             approved_roles: {"minItems", "uniqueItems"},
             (*approved_roles, "[]"): {"enum"},
         }
-        expected_required = {(): ["version"], (*active, "operative_roles"): ["luna", "terra"]}
+        expected_required = {(): ["version"], (*active, "operative_roles"): ["luna", "terra", "sol"]}
         constraints = {"minimum", "maximum", "minItems", "uniqueItems", "enum", "minLength", "const"}
         for path, node in _schema_nodes(self.schema):
             with self.subTest(schema_path=path):
@@ -261,8 +261,9 @@ class NativeWorkerExecutionPolicySchemaTests(unittest.TestCase):
         active = ("task_selected_routing",)
         roles = (*active, "selection", "approved_roles")
         cases = (
-            (roles, ["luna", "terra"], True),
-            (roles, ["terra", "luna"], True),
+            (roles, ["luna", "terra", "sol"], True),
+            (roles, ["terra", "luna", "sol"], True),
+            (roles, ["luna", "terra"], False),
             (roles, ["luna"], False),
             (roles, ["luna", "luna"], False),
             (roles, ["luna", "sol"], False),
@@ -279,7 +280,7 @@ class NativeWorkerExecutionPolicySchemaTests(unittest.TestCase):
                 self.assertEqual(reference.is_valid(document), expected)
         _task_selected_policy(self.document)
         with self.assertRaisesRegex(ValueError, "selection values are invalid"):
-            _task_selected_policy(_replace(self.document, roles, ["terra", "luna"]))
+            _task_selected_policy(_replace(self.document, roles, ["terra", "luna", "sol"]))
 
     def test_component_is_registered_and_test_mapping_is_restored(self):
         self.assertEqual(ps.POLICY_SCHEMAS[FILENAME], SCHEMA_NAME)

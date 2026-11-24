@@ -119,7 +119,8 @@ with `workerbee_parallelism.recommended_mode=review-only`,
 `workerbee-parallelism=review-only`, and a Plan-mode
 `workerbee_parallelism` question whose recommended option is
 `review-subagents`. Current native selection sizes the task before choosing a
-qualified exact Luna worker; Terra requires recorded escalation. Historical Spark
+qualified exact Luna worker for focused work. Sol requires a recorded escalation,
+and Terra requires an explicit interface, visual or computer-use classification. Historical Spark
 examples do not approve new dispatches. Do not silently substitute an available
 model. The main thread keeps integration and final acceptance.
 

@@ -823,6 +823,7 @@ def executor_policy_violations(
 
 def _scoring_executors() -> dict[str, dict[str, Any]]:
     registry = load_policy("executor-registry")["executors"]
+    registry.pop("internal_worker_sol", None)
     routing = load_policy("native-worker-execution")["task_selected_routing"]
     if routing["status"] != "active":
         return registry
@@ -831,7 +832,7 @@ def _scoring_executors() -> dict[str, dict[str, Any]]:
     return {
         key: project_executor_model("internal_worker_luna" if key == "internal_worker" else key, executor)
         for key, executor in registry.items()
-        if key != "internal_worker_gpt55"
+        if key not in {"internal_worker_gpt55", "internal_worker_terra"}
     }
 
 

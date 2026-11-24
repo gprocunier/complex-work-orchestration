@@ -196,6 +196,7 @@ WORK_ESTIMATE_SCHEMA_FIELDS = frozenset(
         "work_unit_id",
         "bead_id",
         "requested_model",
+        "work_kind",
         "primary_outcome",
         "parent_estimate_sha256",
         "refinement_authority",
@@ -234,6 +235,7 @@ WORK_ESTIMATE_SCHEMA_FIELDS = frozenset(
 )
 WORK_ESTIMATE_V2_ONLY_FIELDS = frozenset(
     {
+        "work_kind",
         "task_profile",
         "semantic_estimate",
         "pm_estimate",
@@ -1039,6 +1041,15 @@ def _validate_refinement_lineage_shape(payload: Mapping[str, Any]) -> None:
         )
 
 
+def validate_work_kind(payload: Mapping[str, Any]) -> None:
+    if "work_kind" in payload:
+        if payload.get("estimate_contract_version") != 2:
+            raise ValueError("work_kind requires native work-estimate contract version 2")
+        kind = payload["work_kind"]
+        if type(kind) is not str or kind not in ("interface", "visual", "computer-use"):
+            raise ValueError("work_kind must be interface, visual or computer-use when supplied")
+
+
 def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
     estimate_contract_version = _ensure_int(
         payload.get("estimate_contract_version", 1),
@@ -1062,6 +1073,7 @@ def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
     _ensure_nonempty_str(payload.get("work_unit_id"), path="work_unit_id")
     _ensure_nonempty_str(payload.get("bead_id"), path="bead_id")
     _ensure_nonempty_str(payload.get("requested_model"), path="requested_model")
+    validate_work_kind(payload)
     _ensure_nonempty_str(payload.get("primary_outcome"), path="primary_outcome")
     _ensure_list(payload.get("expected_artifacts"), path="expected_artifacts")
     _ensure_list(payload.get("expert_profiles"), path="expert_profiles")

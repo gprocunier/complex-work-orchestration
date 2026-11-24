@@ -22,7 +22,7 @@ from cwo_core.work_sizing import evaluate_work_estimate, is_read_only_work_estim
 
 from tests.test_operative_routing import BUDGET, cache_profile, capability_evidence
 
-LUNA_MODEL, TERRA_MODEL = operative_models()
+LUNA_MODEL, TERRA_MODEL, _ = operative_models()
 
 def maintenance_budget():
     return {

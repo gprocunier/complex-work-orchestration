@@ -157,7 +157,7 @@ def qualified_current_coach(prompt: str, **kwargs):
     classification = classify_work(prompt, **kwargs)
     authority = synthetic_authority()
     if classification["risk_level"] == "high":
-        authority = synthetic_authority(resolve_model("terra"))
+        authority = synthetic_authority(resolve_model("sol"))
         fit = build_task_selected_fit(
             **authority["fit_inputs"], risk_level=classification["risk_level"],
             data_sensitivity=classification["data_sensitivity"], evaluated_at=NOW,

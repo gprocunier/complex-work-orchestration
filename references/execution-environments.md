@@ -9,8 +9,9 @@ require separate verification.
 ## Current use and historical boundary
 
 The standard beginner route is the [first-project tutorial](../docs/get-started.html).
-Current connected native worker selection uses the configured Luna model first
-and Terra for recorded escalation. See `policy/model-roles.yaml`. Historical Spark/v2
+Current native worker selection uses Luna first for focused work, Sol for
+recorded coding escalation and Terra for explicitly classified interface,
+visual or computer-use work. See `policy/model-roles.yaml`. Historical Spark/v2
 role tables, native command recipes and fallback controls below are retained for
 interpreting old artifacts, not for fresh dispatch. Read the active policy and
 [current supervision overview](native-supervision.md) before selecting a worker.
@@ -583,9 +584,10 @@ worker returns, and included in the execution report dashboard.
 
 ### Exceptional Sol break-fix
 
-Sol remains the architect and adjudicator. Operative Sol work is allowed only
-to repair a self-hosting CWO orchestration incident after the operator approves
-that exact exception in the current interaction. Record it before work begins:
+This procedure applies when the Sol architect must repair a self-hosting CWO
+orchestration incident. Obtain operator approval for that exact exception in the
+current interaction and record it before work begins. Routine coding escalation
+uses a separate worker attempt with the ordinary routing controls.
 
 ```bash
 python3 scripts/authorize_sol_breakfix.py \

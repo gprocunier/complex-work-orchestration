@@ -116,9 +116,10 @@ contributions still need evidence checks and permitted access.
 The logos show model options, not endorsements or a qualification matrix.
 
 The next layer turns the plan into bounded assignments. The native delegation
-contract sizes the task first and then selects the exact model configured for
-Luna. Terra requires a recorded escalation. `policy/model-roles.yaml` defines
-the current and previous model for each role.
+contract sizes the task before selecting a model. Luna handles focused native
+work, Sol handles recorded coding escalation, and Terra handles assignments
+explicitly classified as interface, visual or computer-use work.
+`policy/model-roles.yaml` defines the current and previous model for each role.
 Users with Daybreak Blue access may add the optional `cyber_fallback` role and
 mark authorized security work in a private file outside the lead and worker
 write roots. A structured provider refusal can then make one fully charged
@@ -281,9 +282,10 @@ its mechanism and limit. [Understand these limits](https://gprocunier.github.io/
   requirements. `pending-acceptance` means delivered and not yet accepted.
 - **Operator continuation packet:** the handoff block every closeout includes,
   from `templates/operator-handoff-packet.md`.
-- **Model roles:** Sol leads and adjudicates, Astra reviews unresolved
-  architecture, Luna handles primary native work, and Terra handles documented
-  escalation. Spark appears in historical records.
+- **Model roles** include Sol for leadership, adjudication and recorded coding
+  escalation, Astra for unresolved architecture review, Luna for focused native
+  work, and Terra for interface, visual and computer-use work.
+  Spark appears in historical records.
 
 ## More detail
 

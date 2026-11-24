@@ -18,6 +18,7 @@
           "additionalProperties": false,
           "required": ["current", "previous", "selection", "reviewer_rank"],
           "properties": {
+            "purpose": {"type": "string", "minLength": 1},
             "current": {"type": "string", "minLength": 1},
             "previous": {"type": ["string", "null"], "minLength": 1},
             "selection": {"enum": ["explicit", "latest-in-family"]},
@@ -32,6 +33,7 @@
           "additionalProperties": false,
           "required": ["current", "previous", "selection", "reviewer_rank"],
           "properties": {
+            "purpose": {"type": "string", "minLength": 1},
             "current": {"type": "string", "minLength": 1},
             "previous": {"type": ["string", "null"], "minLength": 1},
             "selection": {"enum": ["explicit", "latest-in-family"]},
@@ -44,6 +46,7 @@
           "additionalProperties": false,
           "required": ["current", "previous", "selection"],
           "properties": {
+            "purpose": {"type": "string", "minLength": 1},
             "current": {"type": "string", "minLength": 1},
             "previous": {"type": ["string", "null"], "minLength": 1},
             "selection": {"enum": ["explicit", "latest-in-family"]},
@@ -55,6 +58,7 @@
           "additionalProperties": false,
           "required": ["current", "previous", "selection"],
           "properties": {
+            "purpose": {"type": "string", "minLength": 1},
             "current": {"type": "string", "minLength": 1},
             "previous": {"type": ["string", "null"], "minLength": 1},
             "selection": {"enum": ["explicit", "latest-in-family"]},

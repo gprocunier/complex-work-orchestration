@@ -827,6 +827,7 @@
       "properties": {
         "version": {"const": 3},
         "portfolio_version": {"const": 3},
+        "selector_version": {"const": 1},
         "selected_model": {"enum": [null, "gpt-5.6-luna", "gpt-5.6-terra"]},
         "fit_evidence": {"properties": {"version": {"const": 3}}},
         "qualification": {"properties": {"model": {"$ref": "#/$defs/v3WorkerModel"}}},
@@ -859,8 +860,8 @@
     "v3WorkerModel": {"enum": ["gpt-5.6-luna", "gpt-5.6-terra"]},
     "operativeModelIdentity": {
       "type": "string",
-      "pattern": "^gpt-[1-9][0-9]*(\\.(0|[1-9][0-9]*))*-(luna|terra)$(?![\\s\\S])",
-      "description": "An exact Codex Luna or Terra identity. The route validator verifies the configured model for the operative role."
+      "pattern": "^gpt-[1-9][0-9]*(\\.(0|[1-9][0-9]*))*-(luna|terra|sol)$(?![\\s\\S])",
+      "description": "An exact Luna, Terra or Sol identity. The route validator verifies the configured model for the operative role."
     },
     "identity": {
       "type": "object",
@@ -1034,7 +1035,7 @@
           "type": "integer"
         },
         "selector_version": {
-          "const": 1
+          "enum": [1, 2]
         },
         "binding_rule_version": {
           "const": 1
