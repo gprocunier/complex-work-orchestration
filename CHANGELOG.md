@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Combine recorded critic evaluations with bound adjudications in an offline synthesis report. Preserve peer-review holds and compare explicit claims across provider domains when required.
+
 ## 1.32.1 - 2026-11-24
 
 - Preserve the explicit default service tier in Codex startup readback for contained pool qualification.

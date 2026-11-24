@@ -156,8 +156,10 @@ to define the result, size the whole job and decide which questions need another
 model. The lead drafts a plan; approved reviewers provide separate second
 opinions; synthesis turns supported findings into plan changes before execution.
 The [planning example](https://gprocunier.github.io/complex-work-orchestration/model-synthesis.html#planning-example)
-shows a retry plan revised after two reviews. Its findings are illustrative,
-not recorded model responses or proof that a model combination performs better.
+shows a retry plan revised after two illustrative reviews. Use the
+[offline synthesis report](references/zero-trust-consensus.md#invocation-boundary)
+to combine your own evaluated critic returns and compare explicit claims. The
+lead still adjudicates each return and resolves material disagreement.
 
 ## Keep project memory beyond the conversation
 

@@ -7252,7 +7252,7 @@
 
 "policy/model-roles.yaml":["ts5whoPZ82VNn1DRyC7d5Hi_XecHVzBzZqd8knmlRW0",420,726],
 
-"references/claims-register.md":["49ir-qCWpiEimIcbktw08FkgUOl5Ci0VpYrLZV8lwfM",420,9289],
+"references/claims-register.md":["WjGNamhctIHrpkHWlQ7OCUas616LMjJvXsSpbGB-9kk",420,9803],
 
 "references/cwo-system-prompt.md":["NaUTR-c8I0JleXR4pZHdEBuAPkuhI9NrDO6qVWw7kr8",420,2833],
 
@@ -7509,6 +7509,8 @@
 "scripts/evaluate_proportional_execution.py":["5MTmn-RkqlATAoenwraW_GL9iosewg1BwLeq3YiX8wk",420,1824],
 
 "scripts/evaluate_return.py":["DSZyKnwmKO16v8yLEHZLyzPnyEflt2mvElyCQBKFhLg",493,35638],
+
+"scripts/evaluate_synthesis.py":["lyjVIR6fS562fKoJkrgC3MOA7Xt2GJjm7Wb62YKkRMo",493,9712],
 
 "scripts/evidence_use.py":["YDhwd-mV9n2mCcuh_n34-2p7Y_b9VSYHj41wfBpSv6Q",420,9494],
 
