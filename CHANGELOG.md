@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.31.2 - 2026-11-24
+
 ### Tests
 
 - Expand the return-tripwire regression corpus to 80 hostile cases and check each declared verdict both after the return and inside its Evidence section.
