@@ -204,7 +204,9 @@
 
 "M37":{"conclusion":"The registered launcher may complete cleanup after a natural exit removed the original monitor executable link. The raw original controller report stays unchanged.","evidence_contracts":["N3","N9"],"external_trust_limit":"Only the exact retained original monitor and its existing PIDFD waitid accounting can establish exit and reaping. A disappearing proc link alone grants no effect authority. Namespace containment still requires its own retained evidence. The generic controller and private watchdog retain their original outcomes and wait budget.","reason":"Only an identity-unavailable report with the exact original monitor executable ENOENT, same PID and receipt, retired registration, positive original reaping and exit facts, and no signal can resolve the registered cleanup exception. It does not add a poll, change generic termination outcomes or retry cleanup.","review_evidence":{"$":7},"source":["p25MonitorTerminate","p25MonitorRecovery","p25MonitorReason"]},
 
-"M43":{"conclusion":"The registered reader accepts an optional bounded timestamp on notification envelopes and preserves it as observation metadata. The existing request and response envelopes and source holds remain in force.","evidence_contracts":["N3","N10"],"external_trust_limit":"A timestamp is app-server observation data. Authority, ordering, correlation and deadlines remain bound to the original controller and transport. Offline startup evidence stops before any model turn.","reason":"The exact notification envelope can carry emittedAtMs as a nonnegative signed-64-bit integer. Requests still require their original IDs and envelope. Responses keep their exact result or error form. The controller classifies and retains the original notification frame before handling its method. A remote-control status notification supplies no RPC permission.","review_evidence":{"$":7},"source":["p43MethodEnvelope","p43Classify","p43ReadNotification"]}
+"M43":{"conclusion":"The registered reader accepts an optional bounded timestamp on notification envelopes and preserves it as observation metadata. The existing request and response envelopes and source holds remain in force.","evidence_contracts":["N3","N10"],"external_trust_limit":"A timestamp is app-server observation data. Authority, ordering, correlation and deadlines remain bound to the original controller and transport. Offline startup evidence stops before any model turn.","reason":"The exact notification envelope can carry emittedAtMs as a nonnegative signed-64-bit integer. Requests still require their original IDs and envelope. Responses keep their exact result or error form. The controller classifies and retains the original notification frame before handling its method. A remote-control status notification supplies no RPC permission.","review_evidence":{"$":7},"source":["p43MethodEnvelope","p43Classify","p43ReadNotification"]},
+
+"M51":{"conclusion":"The original registered host paces deferred completion and interrupt archive close within its existing step bounds.","evidence_contracts":["N3"],"external_trust_limit":"Original registered factory and staged archive are prerequisites. Synthetic replies prove host scheduling and the callback sequence only. Interrupted output remains in reconciliation custody.","reason":"Only the original registered host opts in to archive pacing. Both deferred close phases wait the original control poll interval, then resume the same staged close callback. Main step exhaustion during a staged close seals control failure without a second interrupt or archive. Other main step exhaustion retains the control-lost interrupt and eight-action cleanup drain, with the same pacing only while archive close is deferred. The exhausted run requires reconciliation even if cleanup confirms close.","review_evidence":{"$":7},"source":["p2b1","p51Advance","p51Drive"]}
 },
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
@@ -512,7 +514,9 @@
 
 "scripts/cwo_core/server_request_preparation.py",
 
-"tests/test_server_request_preparation.py"
+"tests/test_server_request_preparation.py",
+
+"tests/test_registered_server_requests.py"
 ],
 
 "points":{
@@ -2541,6 +2545,22 @@
 "p50Remaining":[149,"_check_available",425,"351b11c22b649128140a3022fe9b6395eb7be043a9e47c55839cc661fc9f2c1e"],
 
 "p51":[64,1507,"super().request(*args, **kwargs)",17,1507,49],
+
+"p51Advance":[53,"_advance",347,"561971b387845c7dad5f04a76e69504fc66f53856bdb08da5ff7fe43cc673f94"],
+
+"p51CompleteArchive":[152,"RegisteredRequestsTests.test_original_archive_can_complete_after_accelerated_steps_would_end",1379,"c7fee1ce767605a5601b14ebabcf98430f9a173ccaa10aeb78c1e388595c7d5e"],
+
+"p51Drive":[53,"_drive",358,"7071dafc82f3f22463d07766a1afa386528b0cdfda67e4d92d000e5e90d47324"],
+
+"p51DriverFixture":[152,"RegisteredRequestsTests.original_driver_interrupt",1218,"7c0314f938ea3353fb9829bada3c2d1f462a3474289762d9198a82c8f2f45bc0"],
+
+"p51ForcedBound":[152,"RegisteredRequestsTests.test_original_step_exhaustion_interrupt_revokes_pending_approval",1286,"89fb7fcdd6c7e4864545d2fc75bb28119a575033374892ca4b52c7c8c4b84815"],
+
+"p51ForcedClose":[152,"RegisteredRequestsTests.test_original_exhaustion_drain_waits_for_the_staged_archive",1351,"fd1ff221a3a4a768f49203c13361efade078a84fcfaa99558f7e554971b8bfc9"],
+
+"p51HeldArchive":[152,"RegisteredRequestsTests.hold_archive_response",1293,"7b468c3bb0a09c289830f36f2efe6390c2c51b7fc765577ddc060115dff6fbe4"],
+
+"p51InterruptClose":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1335,"a09234b4cdb28170470a4a18af191991a206fab4e52df7dd72371fe382040d59"],
 
 "p52":[50,202,{"$":315}],
 
@@ -5494,7 +5514,7 @@
 
 {"contract":"N3","entrypoint":"pca","id":"N3.1","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w38","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout","w50PermitBudget","w50BeforeBirth"]},
 
-{"contract":"N3","entrypoint":"p2b1","id":"N3.2","manual_decisions":["M08","M09","M10","M26","M32"],"trace_files":[{"$":15},{"$":10},{"$":36}]},
+{"contract":"N3","entrypoint":"p2b1","id":"N3.2","limits":"The ordinary hold refuses startup and intent. Existing fake controls retain the ordinary transport. Signed version 2 qualification selects a disposable registered route with 20 total campaign starts, expiry, one start per operation and exact gpt-6.2-sol/xhigh/default tier. The same version 1 journal carries all prior starts forward. An optional repair digest records provenance and uses the same allowance. A contained birth may precede final release refusal. Source-owned provider proxy is app-server only; qualification authentication is selected by the original signed operation and supplies no production or publication authority. Offline witnesses use fake RPC or local TLS only. The original registered host paces deferred archive close after completion or interrupt at the original control poll interval. The main step bound and the eight-action forced cleanup bound still stop the original callback sequence. Interrupt and exhaustion retain reconciliation and refuse artifact capture.","manual_decisions":["M08","M09","M10","M26","M32","M51"],"trace_files":[{"$":15},{"$":10},{"$":36}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w50PermitBudget","w50BeforeBirth","w51InterruptClose","w51ForcedClose","w51ForcedBound","w51CompleteArchive"]},
 
 {"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The ordinary N1 flag check applies only to the ordinary selection branch. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},"scripts/cwo_core/supervision/turn_observations.py",{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout","w50PermitBudget","w50BeforeBirth"]},
 
@@ -6852,7 +6872,7 @@
 
 "scripts/offline_fake_artifact_promotion.py":["cb211328fb54cd56054422dfe1fdafca446277665354ebef2669fcef36b1351c",420,38543],
 
-"scripts/offline_n1_host.py":["bd4ef838e112a5b122b1b219da09018e9c22b4eabbfeaf360465786a84d71730",420,35525],
+"scripts/offline_n1_host.py":["ba2e0ab79cb86f3ccede938199cadb906f3881bbdd29d5da87cd1f32cb9e8f6a",420,35593],
 
 "scripts/offline_native_adjudication.py":["261f83c85996dfa831a2842e75ffecef2b0d831eadf7bc143f1203bbeda6caaa",420,25338],
 
@@ -7010,7 +7030,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["fce19f17c02971b2bb466207dc36ecfe42dfce4ac46969da0f60ca2f8f26525f",420,133470],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["fef48adbc02a9e1d9939b97f99b4f364e36e028b817ad21985baa5f766954732",420,133470],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7133,6 +7153,8 @@
 "tests/test_registered_outbound_screen.py":["de9f7f9b071365afef9236a20fbeef321d55cbdf941a4c3673646612a7b5949c",420,10270],
 
 "tests/test_registered_provider_network.py":["4810be8c8212226f4ed9896dac4446c9ef38421d1ce85f1df0c80eb168e64112",420,22158],
+
+"tests/test_registered_server_requests.py":["66dc0a6b64a63c56f93ebd8ebad47508fde70bab62f6dfb1c27de7728211d65f",420,85691],
 
 "tests/test_registered_startup_publication.py":["7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",420,13496],
 
@@ -7387,6 +7409,14 @@
 "w50PermitBudget":["with self.assertRaisesRegex(qualification.QualificationError, 'permit does not bind'):","p50PermitBudget",{"$":0},"self.fixture.factory(case).require_launch_selection()",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_permit_requires_signed_version_two_and_exact_integer_start_limit"],
 
 "w51":[{"$":122},"p21a",{"$":6},{"$":122},["p2e8"],"tests.test_authorize_sol_breakfix.AuthorizeSolBreakfixTests.test_requires_explicit_allow_flag"],
+
+"w51CompleteArchive":["self.assertEqual(report['receipt']['terminal_state'], 'completed')","p51CompleteArchive",{"$":6},"self.assertTrue(report['summary']['archived'])",["p51HeldArchive"],"tests.test_registered_server_requests.RegisteredRequestsTests.test_original_archive_can_complete_after_accelerated_steps_would_end"],
+
+"w51ForcedBound":["self.assertIn('interrupt-cleanup-step-bound-exhausted', receipt['errors'])","p51ForcedBound",{"$":12},"self.assertEqual(receipt['actions'].count('close'), 6)",["p51DriverFixture"],"tests.test_registered_server_requests.RegisteredRequestsTests.test_original_step_exhaustion_interrupt_revokes_pending_approval"],
+
+"w51ForcedClose":["self.assertIn('The step bound ended', report['error'])","p51ForcedClose",{"$":6},"self.assertEqual(receipt['terminal_state'], 'closed')",["p51HeldArchive","p51DriverFixture"],"tests.test_registered_server_requests.RegisteredRequestsTests.test_original_exhaustion_drain_waits_for_the_staged_archive"],
+
+"w51InterruptClose":["self.assertIsNone(report['artifact'])","p51InterruptClose",{"$":6},"self.assertEqual(receipt['terminal_state'], 'closed')",["p51HeldArchive","p51DriverFixture"],"tests.test_registered_server_requests.RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive"],
 
 "w52":[{"$":123},"p197",{"$":6},{"$":123},[],"tests.test_production_closure.ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls"],
 

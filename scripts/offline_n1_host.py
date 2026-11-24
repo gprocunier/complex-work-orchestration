@@ -346,7 +346,7 @@ def _inputs(operation_id, task, contract, outputs, max_steps, configuration_pins
 
 def _advance(turn, progress, task=None, *, repositories, pace_archive_close=False):
     if progress is not None and progress["wait_required"]:
-        if pace_archive_close and progress["phase"] == "waiting-close-complete":
+        if pace_archive_close and progress["phase"] in {"waiting-close-complete", "waiting-close-interrupt"}:
             time.sleep(progress["wait_seconds"])
         else:
             time.sleep(0.002)
@@ -369,7 +369,7 @@ def _drive(control, task, adapter, max_steps, repositories, *, pace_archive_clos
         return progress["receipt"], True
     progress = turn.request_interrupt("control-lost")
     for _ in range(8):
-        progress = _advance(turn, progress, repositories=repositories)
+        progress = _advance(turn, progress, repositories=repositories, pace_archive_close=pace_archive_close)
         if progress["status"] == "terminal":
             break
     if progress["status"] != "terminal":

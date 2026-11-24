@@ -1,6 +1,7 @@
 """Original registered caller/lifecycle regressions; EXAMPLE OS effects only."""
 from __future__ import annotations
 
+from contextlib import contextmanager
 import os
 import sys
 import threading
@@ -1233,6 +1234,8 @@ class RegisteredRequestsTests(unittest.TestCase):
                 records.append({'type': 'response_item', 'payload': {'type': 'function_call',
                     'name': 'EXAMPLE_forbidden_tool', 'call_id': 'EXAMPLE-forbidden-call', 'arguments': '{}'}})
                 scenario.path.write_text(''.join(family.json.dumps(r) + '\n' for r in records))
+            elif method == 'turn/interrupt' and route == 'check':
+                process.case.scenario.append_terminal('turn_aborted')
             return value
         archive_type = sys.modules[runtime.RegisteredAdapter.finalize.__module__].StagedThreadArchive
         original_ready = archive_type.completion_ready
@@ -1255,8 +1258,8 @@ class RegisteredRequestsTests(unittest.TestCase):
                 self.assertIsNone(factory.token)
                 expected = 'interrupt:control-lost' if route == 'exhaustion' else 'interrupt'
                 self.assertIsNotNone(results[0].native_report, repr(results[0]) + repr(getattr(results[0], '__notes__', [])))
-                self.assertIsNotNone(results[0].native_report['receipt'], 'Interrupted run lost its receipt')
                 report = results[0].native_report
+                self.assertIsNotNone(report['receipt'], report['error'])
                 receipt = report['receipt']
                 self.assertIn(expected, receipt['decisions'])
                 stored = family.json.loads((case.host.state / 'operation.json').read_bytes())
@@ -1267,9 +1270,14 @@ class RegisteredRequestsTests(unittest.TestCase):
                     self.assertEqual(receipt['terminal_state'], 'control-failed')
                     self.assertIn('interrupt-cleanup-step-bound-exhausted', receipt['errors'])
                     self.assertNotIn('finalize:close-confirmed', receipt['actions'])
+                    self.assertEqual(len(receipt['actions']), 3 + 8)
+                    self.assertEqual(receipt['actions'].count('interrupt'), 1)
+                    self.assertEqual(receipt['actions'].count('finalize:interrupt-confirmed'), 1)
+                    self.assertEqual(receipt['actions'].count('close'), 6)
             finally:
                 release.set()
                 done.wait(12)
+        return factory, case
 
     def test_original_check_decision_interrupt_revokes_pending_approval(self):
         """Original interrupt retains a persisted receipt and revokes approval."""
@@ -1282,12 +1290,17 @@ class RegisteredRequestsTests(unittest.TestCase):
     def test_r3_original_step_exhaustion_with_natural_archive_scheduling(self):
         self.original_driver_interrupt('exhaustion')
 
-    def run_with_held_archive_response(self, case, *, release_response):
-        factory = self.fixture.factory(case)
+    @contextmanager
+    def hold_archive_response(self, *, release_after):
         requested = threading.Event()
-        held = []
-        elapsed = 0.0
+        held, archives, waits = [], [], []
         original_receive = family.RpcProcess.receive
+        archive_type = sys.modules[runtime.RegisteredAdapter.finalize.__module__].StagedThreadArchive
+        original_start = archive_type.start
+
+        def start(archive):
+            archives.append(archive)
+            original_start(archive)
 
         def receive(process, message):
             if message.get('method') == 'thread/archive':
@@ -1297,32 +1310,68 @@ class RegisteredRequestsTests(unittest.TestCase):
                 original_receive(process, message)
 
         def sleep(seconds):
-            nonlocal elapsed
-            archive = factory.adapter._staged_archive
-            if archive is None:
+            if not archives:
                 time.sleep(seconds)
                 return
+            archive, = archives
             self.assertTrue(requested.wait(3), 'EXAMPLE original archive RPC was not issued')
-            if not elapsed:
+            if not waits:
                 self.assertFalse(archive.completion_ready())
-                self.assertIsNone(factory.server.archive_acceptance_proof(archive.thread_id))
-            elapsed += seconds
-            if release_response and elapsed >= 0.25 and not archive.completion_ready():
+                self.assertIsNone(archive.server.archive_acceptance_proof(archive.thread_id))
+            waits.append(seconds)
+            if release_after is not None and sum(waits) >= release_after and not archive.completion_ready():
                 original_receive(*held[0])
                 archive.require_complete(timeout_seconds=3)
 
         host_time = SimpleNamespace(monotonic=time.monotonic, sleep=sleep)
-        with (patch.object(family.RpcProcess, 'receive', receive),
+        with (patch.object(archive_type, 'start', start),
+              patch.object(family.RpcProcess, 'receive', receive),
               patch.object(runtime.native, 'time', host_time)):
+            yield waits
+            archive, = archives
+            self.assertTrue(archive._done.wait(3), 'EXAMPLE archive worker did not settle')
+        self.assertEqual(len(held), 1)
+
+    def test_original_control_interrupt_waits_for_the_staged_archive(self):
+        with self.hold_archive_response(release_after=0.25) as waits:
+            factory, case = self.original_driver_interrupt('check')
+        report = factory.execution
+        receipt = report['receipt']
+        self.assertEqual(receipt['terminal_state'], 'closed')
+        self.assertEqual(receipt['errors'], [])
+        self.assertEqual(receipt['actions'][-4:], ['interrupt', 'finalize:interrupt-confirmed',
+                                                  'close', 'finalize:close-confirmed'])
+        self.assertEqual(waits, [report['binding']['contract']['poll_interval_ms'] / 1000])
+        self.assertTrue(factory.adapter.archived)
+        self.assertEqual(self.fixture.spawned[0].methods.count('turn/interrupt'), 1)
+        self.assertEqual(self.fixture.spawned[0].methods.count('thread/archive'), 1)
+        self.assertIsNone(report['artifact'])
+        self.assertFalse((case.host.state / 'artifact').exists())
+
+    def test_original_exhaustion_drain_waits_for_the_staged_archive(self):
+        with self.hold_archive_response(release_after=0.25) as waits:
+            factory, case = self.original_driver_interrupt('exhaustion')
+        report = factory.execution
+        receipt = report['receipt']
+        self.assertEqual(receipt['terminal_state'], 'closed')
+        self.assertEqual(receipt['errors'], [])
+        self.assertEqual(receipt['actions'], ['arm', 'send-input', 'mark-dispatched',
+            'interrupt', 'finalize:interrupt-confirmed', 'close', 'finalize:close-confirmed'])
+        self.assertEqual(waits, [report['binding']['contract']['poll_interval_ms'] / 1000])
+        self.assertEqual(report['binding']['max_steps'], 3)
+        self.assertIn('The step bound ended', report['error'])
+        self.assertEqual(self.fixture.spawned[0].methods.count('turn/interrupt'), 1)
+        self.assertEqual(self.fixture.spawned[0].methods.count('thread/archive'), 1)
+        self.assertIsNone(report['artifact'])
+        self.assertFalse((case.host.state / 'artifact').exists())
+
+    def run_with_held_archive_response(self, case, *, release_response):
+        factory = self.fixture.factory(case)
+        with self.hold_archive_response(release_after=0.25 if release_response else None):
             try:
                 factory.run()
             except runtime.native.OfflineHostError as failure:
                 self.assertIsNotNone(failure.native_report)
-            finally:
-                archive = factory.adapter._staged_archive
-                self.assertIsNotNone(archive)
-                self.assertTrue(archive._done.wait(3), 'EXAMPLE archive worker did not settle')
-        self.assertEqual(len(held), 1)
         self.assertEqual((case.host.worker / 'result.txt').read_bytes(), family.fixtures.host_fixtures.OUTPUT)
         self.assertTrue(factory.server.lifetime.termination['child_reaped'])
         return factory
