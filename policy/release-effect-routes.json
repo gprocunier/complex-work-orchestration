@@ -198,7 +198,7 @@
 
 "M34":{"conclusion":"The registered qualification route is a separate bounded selection for disposable workers. Ordinary N1, pool and campaign gates and shipped role defaults remain in force.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Trusted original signer, registry, factory, campaign custody and journal implementation remain prerequisites. An issued permit alone does not authorize alternate clients, host intake, publication or promotion. Synthetic starts and wire responses supply offline evidence only.","reason":"A version 2 HMAC qualification permit binds the exact claimed operation digest, expiry, optional repair digest and fixed 20-start campaign limit. The claimed operation binds the signed model plan. Current permit, source, intent and campaign accounting precede launch. The locked private version 1 journal preserves prior rows and checks expiry, operation replay and the single total limit. Fsync precedes the app-server gate. Initial and recheck counts report repair provenance for audit. The registered wire lookup binds the original receiver and restricts it to exact one-use thread/start and turn/start payloads. The signed selection uses OpenAI gpt-6.2-sol, xhigh and default tier.","review_evidence":{"$":7},"source":["p25PermitVerify","p25CampaignStart","p25Enroll","p25RequireSelected","p25RecordStart","p25WireRegistry","p25WireCheck","p25WireTurn","p25RpcGate","p50PermitBody","p50ReadJournal","p50Remaining"]},
 
-"M35":{"conclusion":"Live app-server HTTPS at port 443 permits chatgpt.com, api.openai.com and, with login, auth.openai.com. Production requires its configured file login. Qualification may use its managed file login or a signed attachment. Workspace is read-only. Tools and validators have neither login nor broker.","evidence_contracts":["N3","N9"],"external_trust_limit":"Controller supplies qualification attachments. Codex owns login reads and refresh. Tunnel checks names/port without reading HTTP paths or bodies. Namespace isolation enforces broker use. Local TLS uses a self-signed certificate and public fixture key. Managed mounts require Linux/Bubblewrap writable overlays. Fake refresh and TLS supply no live provider, token or model evidence.","reason":"Signed qualification stages the optional token in an anonymous pipe inherited only by app-server bootstrap. Parent closes its copy after spawn, relay before serving, bootstrap after gated read before exec. A datagram pair passes bounded streams to parent. Exact CONNECT and TLS SNI reject encrypted ClientHello before DNS and bounded public-address dial. Denials are scrubbed. Record failure revokes broker. Approved login supplies the writable layer at the app-server-only alias. Signed config and one rollout/archive spool project separately. Mount identity precedes release and qualification charge. Exclusive durable lease precedes mount and survives uncertain cleanup.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead","p42LoginSelection","p42LeaseClaim","p42LeaseRetire","p42Mounts","p42MountVerify","p42Projection","p42Rollout","p42Archive"]},
+"M35":{"conclusion":"App-server HTTPS443 allows chatgpt.com and api.openai.com plus auth.openai.com with credentials. Production uses configured file login. Pool uses managed login. Single-worker qualification can attach a token or use managed login. Workspace is read-only. Tools and validators lack login and broker.","evidence_contracts":["N3","N9"],"external_trust_limit":"Controller supplies qualification attachments. Codex reads and refreshes logins. Tunnel sees names/port only. Namespace enforces broker use. Managed mounts require Linux/Bubblewrap writable overlays. Local TLS uses a public fixture key and self-signed certificate. Fake TLS and refresh give no live provider, token or model evidence.","reason":"Only app-server bootstrap inherits the optional anonymous qualification pipe. Parent closes its copy after spawn. N3.7 to N3.11 bind network and descriptor checks. Refuse encrypted ClientHello before DNS. Scrub denials and revoke on record failure. Approved login home supplies the app-server-only writable layer, separate from signed config and one rollout/archive spool. Check mount before release or charge. Durable exclusive lease precedes mount and survives uncertain cleanup.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead","p42LoginSelection","p42LeaseClaim","p42LeaseRetire","p42Mounts","p42MountVerify","p42Projection","p42Rollout","p42Archive","pV9"]},
 
 "M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts. A terminal rollout may await original typed item intake until the reply deadline while the wire turn stays open. Production reuses the same finite capture and namespace boundary under its own signed workflow selection.","review_evidence":{"$":7},"source":["p25LiveInput","p36DirectCatalog","p36FiniteAdmit","p36FiniteItem","p36FiniteCommit","p36FiniteReplyDispatch","p36FiniteHistorical","p36FiniteMatch","p36FiniteAwaitOriginal","p36FiniteHistory","p36FiniteBoundary","p36FiniteWaitTerminal","p36FiniteTypedComplete"]},
 
@@ -2792,19 +2792,19 @@
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
-"pPoolAppLaunch":[155,347,"self._appserver.launch(command, self.home)",23,347,65],
+"pPoolAppLaunch":[155,349,"self._appserver.launch(command, self.home)",23,349,65],
 
 "pPoolCalibrationSupport":[159,"SignedCalibrationPipeTests._run_calibration",151,"f541c36b78594d6b67bd34ff62d745c3906cc06468f3cd772f7017fddda68c64"],
 
 "pPoolCalibrationTest":[159,"SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts",62,"f86761ddce9b060fc44ad633cff2872eb36a05301d2732a04a185d8e69baffb1"],
 
-"pPoolFixedWriter":[155,"PoolWorkerContainment.run_writer",398,"6db3348db1096afc62c781d572a5b240505f8cce0a3f43af1e4985d916d170e7"],
+"pPoolFixedWriter":[155,"PoolWorkerContainment.run_writer",400,"6db3348db1096afc62c781d572a5b240505f8cce0a3f43af1e4985d916d170e7"],
 
 "pPoolHostCommandCheck":[155,129,{"$":148}],
 
 "pPoolHostMountCheck":[155,162,{"$":148}],
 
-"pPoolPhysicalProof":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",220,"271a98dca46c3c5a43a6d161b294ee6f71bfbcb7fa1a0460d69c1a395922b479"],
+"pPoolPhysicalProof":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",240,"271a98dca46c3c5a43a6d161b294ee6f71bfbcb7fa1a0460d69c1a395922b479"],
 
 "pPoolWireFactory":[157,"build_pool_qualification_runtime",1333,"b4751a465617937a118198d6e1317ab07fdec14dbf53d0e983f992de0e7a3318"],
 
@@ -2820,11 +2820,11 @@
 
 "pPoolWireTurn":[157,626,"self.wire.request(\"turn/start\", self.turn_parameters())",20,626,75],
 
-"pPoolWorkerStart":[155,"PoolWorkerContainment.launch_appserver",338,"d04170493b003268c8439b5b1996c06cb0c7158b4a67a1952e0ddf1aa53e6675"],
+"pPoolWorkerStart":[155,"PoolWorkerContainment.launch_appserver",340,"d04170493b003268c8439b5b1996c06cb0c7158b4a67a1952e0ddf1aa53e6675"],
 
-"pPoolWriterLaunch":[155,418,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,418,98],
+"pPoolWriterLaunch":[155,420,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,420,98],
 
-"pPoolWriterRefusal":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",250,"97314377336b4efa73eba55a72312886762f5790ea743a7e6f489b25dce84329"],
+"pPoolWriterRefusal":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",270,"97314377336b4efa73eba55a72312886762f5790ea743a7e6f489b25dce84329"],
 
 "pQ":[65,"RegisteredN1Workflow._commit_execution",485,"3c21388b1aa970860dd77173b36f27bf03c3ad13ae77cf7c7d4fafe8a1ef01f8"],
 
@@ -2840,9 +2840,9 @@
 
 "pQt1":[161,"RegisteredPoolQualificationHostTests.test_unenrolled_campaign_refuses_before_disposable_claims",156,"6638ec9d91fb4460cf1566f66725958c2fac0f2ec8d6a1695f7924176a24f04c"],
 
-"pQt6":[156,"PoolConfigurationTests.test_open_source_still_refuses_a_raw_worker_before_private_paths",23,"d426e7186e8cab4d1e129ab8da696f83ed59afd0c3505db109b047533309de9f"],
+"pQt6":[156,"PoolConfigurationTests.test_open_source_still_refuses_a_raw_worker_before_private_paths",24,"d426e7186e8cab4d1e129ab8da696f83ed59afd0c3505db109b047533309de9f"],
 
-"pQt7":[156,"PoolConfigurationTests.test_raw_writer_cannot_replace_original_retained_authorization",34,"827458977bf9e2b2f63faeca6d73cc138b67d6d32f54c40d8303aa876095967a"],
+"pQt7":[156,"PoolConfigurationTests.test_raw_writer_cannot_replace_original_retained_authorization",35,"827458977bf9e2b2f63faeca6d73cc138b67d6d32f54c40d8303aa876095967a"],
 
 "pR":[65,"RegisteredN1Workflow._prepare_execution",461,"1a6513427275f3e5569326ed8ad3d80d88d1f8e130d3dcd6c592065d19bde952"],
 
@@ -2869,6 +2869,10 @@
 "pU":[111,"NativeOutboundScreenTests.test_clean_original_turn_remains_useful_and_single_dispatch",89,"798565ae902efbb6fe4cd66a031bcaaa3abe08b940bd38575daea7cdd23c5393"],
 
 "pV":[111,"NativeOutboundScreenTests.test_screening_consumes_original_total_writer_deadline",155,"19c797b74bea6870312d18d1c237d9516e1781e51a3be7dd7ebd185f67c7c694"],
+
+"pV9":[155,212,"production_live = False",4,212,27],
+
+"pVa":[156,"PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn",221,"d5b8820a6a4516095b55d67023374a4b45f1f583f5d2989ccee6f533ffafb91e"],
 
 "pW":[42,123,"if frame != original:"],
 
@@ -5301,9 +5305,9 @@
 
 [74,442,18,442,58,"dynamic","1ff0d1b1226bc7ee773fcf499dfb42bc2d8659efd14b871d981033db66b0c1e3",[{"$":9},"XR376"]],
 
-[92,347,23,347,65,"browser","9c484d6ee1fe225ae44d161fb109192051c81507b7950fc810e588e73824cc4d",["route","N3.15","pPoolAppLaunch"]],
+[92,349,23,349,65,"browser","9c484d6ee1fe225ae44d161fb109192051c81507b7950fc810e588e73824cc4d",["route","N3.15","pPoolAppLaunch"]],
 
-[92,418,18,418,98,"browser","d9cbc7f72cfe0c855721889fbdb9d18cc5a5b0c478e3057615b67236f5123e57",["route","N3.16","pPoolWriterLaunch"]],
+[92,420,18,420,98,"browser","d9cbc7f72cfe0c855721889fbdb9d18cc5a5b0c478e3057615b67236f5123e57",["route","N3.16","pPoolWriterLaunch"]],
 
 [93,209,15,209,94,{"$":3},"93dbfd4c807302f7ec9b883ea74c5c038f615a8c6a83c8cee125d9c09e07d525",["route","N4.3","pPoolWireRequest"]],
 
@@ -5948,15 +5952,15 @@
 
 {"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["p7a"],"entrypoint":"p7b","id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":[{"$":70},{"$":21}],"witnesses":["w2a"]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Broker dials after exact allowed CONNECT and initial TLS SNI checks. Trusted resolver selects fixed names at port 443, rejecting private/non-global results. At most eight addresses share one deadline and honor revocation. The classifier labels socket.connect as browser; the receiver is TCP. Local TLS supplies the positive control. Authentication host is limited to signed app-server file login or qualification attachment.","review_gates":["p222"],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent","w42Provider"]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Dial follows exact allowed CONNECT and initial TLS SNI. Trusted resolver selects fixed names at port 443 and rejects private/non-global results. Eight candidates at most share one deadline and honor revocation. The scanner labels TCP socket.connect as browser. Local TLS is the control. Auth host requires signed app-server file login or qualification attachment.","review_gates":["p222"],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent","w42Provider"]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent registered live relay control socketpair","effect_points":["p25BrokerPair"],"entrypoint":"p25Broker","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.8","limits":"One anonymous local Unix datagram pair belongs to the original host and gated relay. Only its child end is inherited by the trusted app-server bootstrap. No file or host listener is exposed.","review_gates":["p222"],"witnesses":[{"$":340},"w42Provider"]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent registered live relay control socketpair","effect_points":["p25BrokerPair"],"entrypoint":"p25Broker","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.8","limits":"Original host and gated relay share one anonymous Unix datagram pair. Only child end reaches trusted app-server bootstrap. No file or host listener is exposed.","review_gates":["p222"],"witnesses":[{"$":340},"w42Provider"]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Relay connection-local stream handoff","effect_points":["p25StreamPair","p25RelaySendFD"],"entrypoint":"p25Handoff","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.9","limits":"The relay creates one anonymous Unix stream pair per admitted local connection and hands exactly one end to the original parent using SCM_RIGHTS. The bounded relay owns the other stream. This step cannot itself dial outside the namespace.","review_gates":["p222"],"witnesses":[{"$":340}]},
+{"admission":{"$":4},"contract":"N3","effect":"Relay connection-local stream handoff","effect_points":["p25StreamPair","p25RelaySendFD"],"entrypoint":"p25Handoff","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.9","limits":"Per admitted local connection, relay makes one anonymous Unix stream pair. Bounded relay keeps one end and passes one to original parent via SCM_RIGHTS. This step cannot dial beyond the namespace.","review_gates":["p222"],"witnesses":[{"$":340}]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent adoption of one relay stream descriptor","effect_points":["p25RelayRecvFD","p25AdoptStream"],"entrypoint":"p25Receive","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.10","limits":"Recv accepts one untruncated stream handoff over original control with close-on-exec. Invalid handoffs close received descriptors. The retained stream reaches only the bounded broker handler.","review_gates":["p222"],"witnesses":[{"$":340}]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent adoption of one relay stream descriptor","effect_points":["p25RelayRecvFD","p25AdoptStream"],"entrypoint":"p25Receive","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.10","limits":"Receive one untruncated stream over original control with close-on-exec. Close invalid handoff descriptors. Retained stream reaches only the bounded broker handler.","review_gates":["p222"],"witnesses":[{"$":340}]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Private app-server loopback listener, relay fork and gated execution","effect_points":["p25AdoptControl","p25LoopbackSocket","p25LoopbackBind","p25LoopbackListen","p25RelayFork","p25ProviderExec"],"entrypoint":"p25Bootstrap","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.11","limits":"Trusted bootstrap binds private loopback and releases socket copies before app-server exec. Relay closes the qualification token pipe before serving. After the final gate byte bootstrap reads and closes the pipe and exports the token only to app-server. Relay stays in the same PID namespace on natural exit. Registered app-server source, mounts and callback are parent-owned.","review_gates":["p222"],"witnesses":[{"$":340},"w35AuthTls","w35AuthGate"]},
+{"admission":{"$":4},"contract":"N3","effect":"Private app-server loopback listener, relay fork and gated execution","effect_points":["p25AdoptControl","p25LoopbackSocket","p25LoopbackBind","p25LoopbackListen","p25RelayFork","p25ProviderExec"],"entrypoint":"p25Bootstrap","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.11","limits":"Trusted bootstrap binds private loopback and closes socket copies before app-server exec. Relay closes optional qualification token pipe before serving. Bootstrap reads and closes its end after the final gate byte and exports the token only to app-server. Relay shares its PID namespace through natural exit. Parent owns app-server source, mounts and callback.","review_gates":["p222"],"witnesses":[{"$":340},"w35AuthTls","w35AuthGate"]},
 
 {"admission":{"$":4},"contract":"N3","effect":"Durable qualification start accounting before the app-server byte gate","effect_points":["p25StartAppend","p25StartSync"],"entrypoint":"p25CampaignStart","gate_chains":[],"gates":[],"id":"N3.12","limits":"The original registered factory is the qualification caller of this trusted accounting helper. The private locked version 1 journal retains exact canonical history. The original signed version 2 permit binds the fixed 20-start cap. The operation expiry, replay and one shared total limit govern append. Optional repair provenance is recorded on the same terms. Fsync precedes release. An ambiguous or failed started run remains charged.","manual_decisions":["M34"],"trace_files":[{"$":328},{"$":10}],"witnesses":["w25Permit","w25Budget","w25Expiry",{"$":362},{"$":364}]},
 
@@ -5964,7 +5968,7 @@
 
 {"admission":{"$":4},"contract":"N3","effect":"Registered original monitor termination and exact natural-exit handling","effect_points":["p25MonitorCall"],"entrypoint":"p25MonitorTerminate","gate_chains":[],"gates":[],"id":"N3.14","limits":"The trusted registered launcher invokes only the original controller and receipt. Completing the exceptional ENOENT outcome requires exact original PID/receipt, zero signals, original positive exit and reap, and receipt retirement. The raw report stays intact. Refused observations follow existing cleanup handling. The independent namespace remains separately verified.","manual_decisions":["M10","M26","M37"],"trace_files":[{"$":10},{"$":17},{"$":329}],"witnesses":[{"$":340},"w25MonitorProof","w25OriginalWatchdog"]},
 
-{"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Start one contained qualification app server","effect_points":["pPoolAppLaunch"],"entrypoint":"pPoolWorkerStart","gate_chains":[],"gate_limits":"Original worker identity and verified namespace precede the app-server gate. Physical fixtures substitute the identity check.","gates":[],"id":"N3.15","limits":"Both switches, current approval and exact worker precede private paths. Verify the read-only mount and dedicated login before release; egress uses the broker.","manual_decisions":["M26","MContainedHost"],"review_gates":["pPoolHostCommandCheck","pPoolHostMountCheck"],"trace_files":[{"$":373},{"$":10},{"$":328},{"$":270}],"witnesses":["wPoolPhysical","wQe5"]},
+{"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Start one contained qualification app server","effect_points":["pPoolAppLaunch"],"entrypoint":"pPoolWorkerStart","gate_chains":[],"gate_limits":"Original worker identity and verified namespace precede the app-server gate. Physical fixtures substitute the identity check.","gates":[],"id":"N3.15","limits":"Both switches, current approval and exact worker precede private paths. Check read-only mount and managed login before release. Broker takes no attachment. Inert witness verifies pre-spawn cleanup.","manual_decisions":["M26","MContainedHost","M35"],"review_gates":["pPoolHostCommandCheck","pPoolHostMountCheck"],"trace_files":[{"$":373},{"$":10},{"$":328},{"$":270}],"witnesses":["wPoolPhysical","wQe5","wV9"]},
 
 {"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Open the isolated fixed qualification writer gate","effect_points":["pPoolWriterLaunch"],"entrypoint":"pPoolFixedWriter","gate_chains":[],"gate_limits":"The retained original callback owns the one-shot writer gate. Physical fixtures substitute the identity check.","gates":[],"id":"N3.16","limits":"Retained callback and exact call/deadline authorize the sole writer gate. Mount and path checks precede release; refusals retain cleanup.","manual_decisions":["M26","MContainedHost"],"review_gates":["pPoolHostCommandCheck","pPoolHostMountCheck"],"trace_files":[{"$":373},{"$":10},{"$":328},{"$":270}],"witnesses":["wPoolPhysical","wPoolNoWrite","wQe5"]}
 ],
@@ -6480,7 +6484,7 @@
 
 "326":"scripts/cwo_core/prepared_outbound.py",
 
-"327":"The original registered live factory runs the checked containment launch before selecting this helper. Exact receiver, descriptor and cross-process callbacks require manual review.",
+"327":"Checked containment launch selects the helper. Review original receivers, descriptors and cross-process callbacks.",
 
 "328":"scripts/registered_n1_qualification.py",
 
@@ -6858,9 +6862,9 @@
 
 "@154":["qOB6Jw37i3eJ7nJOEXOKJ1y8LKAd2uaJuywl3j_VmK8",420,60663],
 
-"@155":["6I_RJ01fi6jgIYAjp9FvjQy1sanRLoEASeb0p2CKX2U",420,23213],
+"@155":["SP-I61utrYTpkWLw0DApJztjAwOrQqqDBwbQ--bFW5I",420,23300],
 
-"@156":["wkqfAbZJ7FI-O0JeN7DX63T_HOCjSSWbG1N-kT2aetg",420,15708],
+"@156":["BsRE_cR8yI39pUgtt9nV8ISg0BD9E64I-j8meP6vVvo",420,16960],
 
 "@157":["OjqkxUBpBMfkhjT5b_2lAJXUDcn5t8CB-hR2wpgy8To",420,70221],
 
@@ -7933,6 +7937,8 @@
 "wU":["submit.assert_not_called()","p2i",{"$":1},"self.assertFalse(result['dispatch_authorized'])",["p2u","p2x","p2t","p2v","p3A"],"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary"],
 
 "wV":["self.assert_partial_reservation_is_held(2)","p2j",{"$":1},{"$":297},["p3D","p3C","p2o","p2n"],"tests.test_registered_native_pool_host.PoolTests.test_competing_reservation_between_members_retains_both_original_charges"],
+
+"wV9":["self.assertIsNone(worker._appserver.process)","pVa",{"$":1},"allow_personal_access_token=False, allow_managed_login=True)",[],"tests.test_registered_pool_containment.PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn"],
 
 "wW":["self.assertEqual(self.adoption_state(), before)","p3E",{"$":1},"workflow._require_execution()",["p2l","p2m"],"tests.test_registered_native_pool_host.PoolTests.test_later_invalid_consent_preserves_entire_pool_adoption"],
 

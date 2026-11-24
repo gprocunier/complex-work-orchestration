@@ -209,6 +209,8 @@ class _WriterCall:
 class PoolWorkerContainment:
     """One original worker. A protected parent supplies the effect and callback checks."""
 
+    production_live = False  # This adapter serves only protected pool qualification.
+
     def __init__(self, *, worker_id, worktree, spool, login_slot, executable, executable_sha256,
                  launcher, launcher_sha256, validator, validator_sha256, protected_roots,
                  write_path, expected_utf8, require_effect, peer_worktrees=(), model_catalog=None):

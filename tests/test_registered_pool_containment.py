@@ -3,6 +3,7 @@
 from hashlib import sha256
 from pathlib import Path
 import select
+import socket
 import sys
 import tempfile
 from threading import RLock
@@ -216,6 +217,25 @@ assert sys.stdin.read() == ''
             lifetime._release_writer_gate(call, time.monotonic() + 1)
         with self.assertRaisesRegex(config.PoolContainmentError, 'no longer owns'):
             captures[0]()
+
+    def test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn(self):
+        worker = self._worker(1, self._paths(1))
+        broker = _InertBroker()
+        child_socket, peer_socket = socket.socketpair()
+        with child_socket, peer_socket:
+            broker.child_socket = child_socket
+            with (patch.object(containment.n1.provider_network, 'ProviderBroker', return_value=broker) as create_broker,
+                  patch.object(containment._PoolLifetime, '_command', side_effect=RuntimeError('offline launch stop')),
+                  self.assertRaisesRegex(RuntimeError, '^offline launch stop$')):
+                worker.launch_appserver()
+
+        create_broker.assert_called_once_with(worker._appserver._record_provider_denial,
+                                              allow_personal_access_token=False, allow_managed_login=True)
+        self.assertTrue(broker.closed)
+        self.assertIsNone(worker._appserver.receipt)
+        self.assertIsNone(worker._appserver.process)
+        self.assertEqual(worker.receipt()['observations'], [{'stage': 'login-released', 'observation': {'slot': 1}}])
+        self.assertEqual(sorted(path.name for path in self.state.iterdir()), ['starts.jsonl'])
 
     @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
     def test_physical_pool_worker_boundaries_and_exact_writes(self):

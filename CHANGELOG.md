@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix contained pool qualification startup with dedicated Codex logins.
+
 ## 1.31.0 - 2026-11-24
 
 - Distinguish planned or negated validation from completed execution claims in redacted packet returns, including returns that also describe packet review.
