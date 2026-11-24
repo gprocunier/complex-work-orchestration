@@ -37,6 +37,30 @@ the evidence text for normal evaluation. Extraction does not accept findings.
 Older provenance versions remain historical records and cannot be upgraded into
 a complete current chain by adding fields.
 
+### Direct evaluation of an observed host dispatch
+
+Use `cwo evaluate` to score the exact reply from an existing host-observed
+browser dispatch. Supply the original packet and its independent capture
+references.
+
+```bash
+python scripts/cwo.py evaluate \
+  --private-artifact private/review.provenance.json \
+  --contractor-packet private/packet.json \
+  --packet-source-sha256 "$PACKET_SOURCE_SHA256" \
+  --capture-event "$CAPTURE_EVENT_HASH" --json
+```
+
+The configured host audit store must contain the completed private capture.
+The observed executor dispatch must bind that capture event and the exact
+screened request digest. Evaluation records the exact response digest in the
+host chain and applies the dispatch's review requirements. Its output contains
+the score, review status and record reference.
+
+Browser attestation flags report confirmation of configured UI labels. Exact
+model and session identity come from the original host observation. Live Chrome
+dispatch and qualification of a Pro response remain pending.
+
 Private permissions and audit hashes provide local access hygiene and consistent
 identity. They do not authenticate the provider or protect against another
 process with the same user's access to both the artifacts and trusted audit

@@ -223,11 +223,17 @@ def load_private_response(
     return decoded, {**record, "access_limit": ACCESS_LIMIT}, sha256_bytes(raw)
 
 
-def _private_expectation(args) -> PrivateCaptureExpectation:
-    if not args.packet or not args.packet_source_sha256 or not args.capture_event:
-        raise SystemExit("private intake requires --packet, --packet-source-sha256 and --capture-event")
+def add_private_capture_arguments(parser) -> None:
+    add_candidate_arguments(parser)
+    parser.add_argument("--packet-source-sha256", help="Original packet-load PreparedSource identity.")
+    parser.add_argument("--capture-event", help="Exact persisted chatgpt_browser_dispatch event_hash.")
+
+
+def private_capture_expectation(args, packet_path: str | None) -> PrivateCaptureExpectation:
+    if not packet_path or not args.packet_source_sha256 or not args.capture_event:
+        raise SystemExit("private intake requires the contractor packet, --packet-source-sha256 and --capture-event")
     try:
-        packet = json.loads(Path(args.packet).read_text(encoding="utf-8"))
+        packet = json.loads(Path(packet_path).read_text(encoding="utf-8"))
     except (OSError, UnicodeError, ValueError):
         raise SystemExit("current contractor packet is unreadable or malformed") from None
     if not isinstance(packet, dict):
@@ -341,10 +347,8 @@ Escalation needed: No by default. Escalate if the extracted text requests broade
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest a ChatGPT browser review return into the contractor return flow.")
-    add_candidate_arguments(parser)
+    add_private_capture_arguments(parser)
     parser.add_argument("--packet", help="Independently selected current production contractor packet.")
-    parser.add_argument("--packet-source-sha256", help="Original packet-load PreparedSource identity, not reconstructed options.")
-    parser.add_argument("--capture-event", help="Exact persisted chatgpt_browser_dispatch event_hash.")
     parser.add_argument("source", nargs="?", help="Legacy: ChatGPT share URL or locally saved share HTML.")
     parser.add_argument(
         "--private-artifact",
@@ -368,7 +372,7 @@ def main() -> None:
         provenance_path = Path(args.private_artifact).expanduser()
         assistant_text, provenance, provenance_sha256 = load_private_response(
             provenance_path,
-            expected=_private_expectation(args),
+            expected=private_capture_expectation(args, args.packet),
             packet_sha256=args.packet_sha256,
             dispatch_id=args.dispatch_id,
             bead_id=args.bead,

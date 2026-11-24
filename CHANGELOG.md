@@ -13,6 +13,7 @@
 
 - Preserve the explicit default service tier in Codex startup readback for contained pool qualification.
 - Extract screened browser packet preparation and private response recording for use by browser integrations.
+- Evaluate exact private browser replies when the original host has recorded a matching observed dispatch.
 
 ### Tests
 

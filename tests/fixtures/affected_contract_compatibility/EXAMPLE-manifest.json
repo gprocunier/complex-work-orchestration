@@ -494,7 +494,7 @@
     "scripts/cwo_core/workspace_capture.py": "80273f8a536024990cf07159b18437511566bc01f1c90ddd171fa7d34dd87632",
     "scripts/cwo_core/workspace_transition.py": "f7838c9d953e325d7221bdd8ed8761dfcb175f68710ea04e0bbe72c2c28cb14c",
     "scripts/dispatch_work.py": "4840a3317bb585dd2c2ef7c2e0c05053beb9303e6321fd412315abbb6fa72059",
-    "scripts/evaluate_return.py": "0d26722a7c2628ed7abfcc8b10764bcb33e7c847e5b769af125c8240128584b8",
+    "scripts/evaluate_return.py": "11edf9316f9850b0ce74158426d15f24ef1d2129c7f2bf31c43fd28385d6378d",
     "scripts/evidence_use.py": "60387077e995f67da609cba1fe7df8fb6a7b63f6fd5526078f8d707c1a52bfa4",
     "scripts/generate_manual_dispatch_prompt.py": "fe67204d6af628f6f041138fd2b4cec6bfab70dccf73ad2cbf19fa7cad561316",
     "scripts/guarded_artifact_target.py": "7780fc04a6eae8ffc437681ed1de877491ec901d2500b94df0c92a3725699e1d",
