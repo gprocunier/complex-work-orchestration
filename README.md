@@ -83,6 +83,11 @@ CWO does not include model access; your account supplies it and its quota. Local
 task records do not mean prompts stay offline. Your configured model provider
 receives selected context. Additional outside review is off by default.
 
+### Upgrading from 0.2.0-dev
+
+See the [upgrade note](references/upgrading-from-0.2.md) for review routes,
+custom reviewer profiles and where to find saved audit records and packets.
+
 ## Example: one project across two fresh sessions
 
 On October 15, 2026, before the architect prompt replaced Candidate E, two

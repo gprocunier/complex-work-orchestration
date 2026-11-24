@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Document the upgrade from 0.2.0-dev, including custom reviewer profiles and where to find saved audit records and packets.
+
 ## 1.33.0 - 2026-11-24
 
 - Combine recorded critic evaluations with bound adjudications in an offline synthesis report. Preserve peer-review holds and compare explicit claims across provider domains when required.
