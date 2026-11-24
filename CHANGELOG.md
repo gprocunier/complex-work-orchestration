@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Tests
+
+- Align the archive-interrupt fixture with the original preparation window.
+
 ## 1.32.0 - 2026-11-24
 
 - Let a hand reviewer accept an exact delivered candidate and close its Bead in one command, with acceptance and closure in the host audit.

@@ -1320,7 +1320,8 @@ class RegisteredRequestsTests(unittest.TestCase):
         requested = threading.Event()
         held, archives, waits = [], [], []
         original_receive = family.RpcProcess.receive
-        archive_type = sys.modules[runtime.RegisteredAdapter.finalize.__module__].StagedThreadArchive
+        archive_module = sys.modules[runtime.RegisteredAdapter.finalize.__module__]
+        archive_type = archive_module.StagedThreadArchive
         original_start = archive_type.start
 
         def start(archive):
@@ -1339,7 +1340,8 @@ class RegisteredRequestsTests(unittest.TestCase):
                 time.sleep(seconds)
                 return
             archive, = archives
-            self.assertTrue(requested.wait(3), 'EXAMPLE original archive RPC was not issued')
+            self.assertTrue(requested.wait(archive_module.STAGED_ARCHIVE_TERMINAL_TIMEOUT_SECONDS),
+                            'EXAMPLE original archive RPC was not issued')
             if not waits:
                 self.assertFalse(archive.completion_ready())
                 self.assertIsNone(archive.server.archive_acceptance_proof(archive.thread_id))
