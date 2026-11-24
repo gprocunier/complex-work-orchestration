@@ -14,7 +14,7 @@ import os
 from pathlib import Path
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / 'scripts'), str(ROOT / 'tests')]
@@ -369,12 +369,12 @@ class WorkflowTests(unittest.TestCase):
     @read_only_evidence
     def test_default_local_workflow_refuses_provider_attachment(self):
         self.adopt()
-        with self.assertRaisesRegex(ValueError, 'signed registered production'):
+        with self.assertRaisesRegex(ValueError, 'cannot accept a provider access token'):
             self.workflow.run(provider_access_token='at-EXAMPLE-synthetic-token')
         self.assert_unstarted()
 
     @production_case
-    def test_production_requires_current_adoption_and_explicit_provider_attachment(self):
+    def test_production_requires_current_adoption_and_configured_worker_login(self):
         workflow = self.workflow
         synthetic = 'at-EXAMPLE-synthetic-token'
         with self.assertRaisesRegex(ValueError, 'current execution adoption'):
@@ -398,13 +398,51 @@ class WorkflowTests(unittest.TestCase):
                 workflow.run(provider_access_token=synthetic)
         self.assert_unstarted()
         with patch.dict(os.environ, {'OPENAI_API_KEY': 'EXAMPLE-ambient-token'}):
-            for token in (None, synthetic.encode(), 'EXAMPLE-invalid'):
-                with self.subTest(token_type=type(token)), self.assertRaisesRegex(ValueError, 'access token'):
-                    workflow.run(provider_access_token=token)
-                self.assert_unstarted()
+            with self.assertRaisesRegex(ValueError, 'configured worker login home'):
+                workflow.run()
+        self.assert_unstarted()
+        with self.assertRaisesRegex(ValueError, 'cannot accept a provider access token'):
+            workflow.run(provider_access_token=synthetic)
+        self.assert_unstarted()
         with self.assertRaisesRegex(ValueError, 'controlled failure'):
             workflow.run(controlled_failure=True, provider_access_token=synthetic)
         self.assert_unstarted()
+
+    @production_case
+    def test_production_refuses_protected_login_homes_before_claim(self):
+        home = self.case.host.state.parent / 'EXAMPLE-operator'
+        home.mkdir(mode=0o700)
+        ambient = home / 'EXAMPLE-custom-primary'
+        with (patch.object(W.R.qualification, '_controller_home', return_value=home),
+              patch.dict(os.environ, {'CODEX_HOME': str(ambient)}),
+              patch.object(W.R.qualification.WorkerLoginMount, '_observe_home',
+                           side_effect=AssertionError('protected login must not be opened'))):
+            roots = (home / '.codex', ambient, *(W.R.qualification.managed_login_home(i) for i in (1, 2, 3)))
+            for root in roots:
+                root.mkdir(mode=0o700)
+            alias = home / 'EXAMPLE-alias'
+            alias.symlink_to(roots[-1], target_is_directory=True)
+            for candidate in (home, *roots, *(root / 'EXAMPLE-child' for root in roots), alias):
+                with self.subTest(candidate=candidate):
+                    self.settings['worker_login_home'] = candidate
+                    workflow = self.make_workflow()
+                    workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=self.production_disclosure())
+                    with self.assertRaisesRegex(ValueError, 'primary Codex home|canonical without symlinks'):
+                        workflow.run()
+                    self.assert_unstarted(workflow)
+
+    def configure_worker_login(self):
+        home = self.case.host.state.parent / 'EXAMPLE-worker-login'
+        home.mkdir(mode=0o700)
+        auth = home / 'auth.json'
+        auth.write_text('EXAMPLE dedicated worker login file\n')
+        auth.chmod(0o600)
+        state = home.parent / 'EXAMPLE-worker-login-state'
+        self.enterContext(patch.object(W.R.qualification, 'worker_login_state', return_value=state))
+        self.settings['worker_login_home'] = home
+        self.workflow = self.make_workflow()
+        self.case.scenario.initialize_home = W.R.qualification.LOGIN_MOUNT
+        return self.workflow, home, state
 
     @production_case
     def test_production_refuses_wrong_signed_selection_before_claim(self):
@@ -434,30 +472,30 @@ class WorkflowTests(unittest.TestCase):
         self.assert_unstarted(workflow)
 
     @production_case
-    def test_production_one_original_attachment_and_separate_publication(self):
-        workflow = self.workflow
+    def test_production_uses_configured_worker_login_and_separate_publication(self):
+        workflow, home, state = self.configure_worker_login()
         workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=self.production_disclosure())
-        token = 'at-EXAMPLE-synthetic-token'
-        attachments = []
-        original = W.R._Containment._stage_access_token
-
-        def stage(lifetime, value):
-            attachments.append((lifetime.role, lifetime.factory, value))
-            return original(lifetime, value)
-
-        with (patch.object(W.R._Containment, '_stage_access_token', stage),
+        with (patch.object(W.R._Containment, '_stage_access_token', side_effect=AssertionError('unexpected token attachment')),
               patch.object(F, 'RpcProcess', tools.NamespacedFiniteRpcProcess),
               patch.object(W.R.provider_network, '_dial_provider', side_effect=AssertionError('unexpected provider call')),
-              patch.object(W.R.qualification, 'managed_login_home', side_effect=AssertionError('unexpected managed login')),
+              patch.object(W.R.qualification.WorkerLoginMount, 'confirm', autospec=True) as confirm,
               patch.object(W.R.qualification, '_campaign_directory', side_effect=AssertionError('unexpected campaign')),
               original_finite_completion(self, self.case, workflow)):
             try:
-                result = workflow.run(provider_access_token=token)
+                result = workflow.run()
             except Exception as failure:
                 tools._note_original_poll_refusal(workflow.factory, failure)
                 raise
         self.assertTrue(result['validation_complete'])
-        self.assertEqual(attachments, [('appserver', workflow.factory, token.encode())])
+        mount = workflow.factory._managed_login
+        self.assertEqual(mount.home, home)
+        confirm.assert_called_once_with(mount, ANY, self.case.home)
+        self.assertEqual(list(state.iterdir()), [])
+        self.assertEqual(state.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(workflow.factory.server.lifetime._access_token_fd, -1)
+        self.assertIsNone(workflow.factory._managed_lease)
+        self.assertEqual(workflow.factory.server.lifetime.provider_network._providers,
+                         W.R.provider_network.PROVIDERS | {'auth.openai.com'})
         self.assertIsNone(workflow.factory._provider_access_token)
         self.assertEqual(len(self.fixture.spawned), 3)
         readback = workflow.factory.server._profile_response
@@ -468,15 +506,31 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(workflow._intent['action']['disclosure'], self.production_disclosure())
         for root in (workflow.config.state, workflow.config.host.state, workflow.config.ledger.root):
             for path in root.rglob('*.json*'):
-                self.assertNotIn(token.encode(), path.read_bytes())
+                if path.is_file() and not path.is_symlink():
+                    self.assertNotIn(b'EXAMPLE dedicated worker login file', path.read_bytes())
         with self.assertRaisesRegex(ValueError, 'never redispatch'):
-            workflow.run(provider_access_token=token)
+            workflow.run()
         self.assertFalse((self.case.host.target / 'result.txt').exists())
         with self.assertRaisesRegex(ValueError, 'Separate publication'):
             workflow.publish()
         self.allow_publication()
         self.assertTrue(workflow.publish()['publication']['publication_complete'])
         self.assertEqual((self.case.host.target / 'result.txt').read_bytes(), F.fixtures.host_fixtures.OUTPUT)
+
+    @production_case
+    def test_production_retains_worker_login_lease_when_namespace_cleanup_is_unknown(self):
+        workflow, home, state = self.configure_worker_login()
+        workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=self.production_disclosure())
+        self.case.drift = True
+        with (patch.object(W.R.provider_network, '_dial_provider', side_effect=AssertionError('unexpected provider call')),
+              patch.object(W.R.qualification.WorkerLoginMount, 'confirm'),
+              patch.object(W.R._Containment, '_stop_namespace', side_effect=ValueError('EXAMPLE unknown teardown')),
+              self.assertRaisesRegex(ValueError, 'profile readback')):
+            workflow.run()
+        self.assertFalse(workflow.factory._managed_lifetime.contained)
+        second_controller_mount = W.R.qualification.WorkerLoginMount(home, state)
+        with self.assertRaisesRegex(ValueError, 'unresolved'):
+            second_controller_mount.claim()
 
     def evidence(self):
         helper = E.WorkflowAdjudicationTests('runTest')

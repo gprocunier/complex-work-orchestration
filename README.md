@@ -131,8 +131,9 @@ approved, qualified environment.
 
 [Read the delegation guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html).
 The registered single-worker route is available to an original signed workflow
-with explicit provider disclosure consent and separately supplied production
-authentication. Its app server has provider-only network access. Use observed
+with explicit provider disclosure consent and a dedicated worker login selected
+in the installed controller configuration. Its app server has provider-only
+network access. Use observed
 capability evidence for the executable, configuration and enforced tool profile.
 The worker's actual model must match the selected assignment. Concurrent pools,
 campaigns and new worker-surface qualification remain held. See the

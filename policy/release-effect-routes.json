@@ -56,7 +56,7 @@
 
 "N2":{"admission":{"$":2},"authority":"Explicit probe CLI/model/home/catalog or opaque verified maintenance operation/context and qualification; not worker JSON.","effect":"Probe loopback listener; maintenance preparation/qualification native launch","gate_limits":"The other two checks belong to sibling entrypoints, not this constructor path. Each entry retains its own N1 refusal.","gates":["p1fc"],"limits":"P listener pair proves zero construct/preparer/serve then fake construct/serve/close on admitted binding-drift path; not complete probe session. Maintenance positives in existing runtime families use opaque current operation/context/qualification. Observation mints are process-local capabilities, not external identity. Earlier probe/maintenance construction grants no final egress authority: supported host model-context wire screening is separately reviewed at N10.9, finite reply screening at N10.8; source/pipe controls are not live native qualification.","manual_decisions":["M03","M05","M06","M08","M31"],"ordering":"N1 at each supported entry before proof/listener/output/prepare. Maintenance guard revalidates operation, task/worktree/config, session ledger and qualification before AppServer.","review_gates":["p1c6","p2a3"],"trace_files":[{"$":62},{"$":65},{"$":66},{"$":326},{"$":28}],"witnesses":["w8f","w62"]},
 
-"N3":{"admission":{"$":2},"authority":"Exact protected host/factory/capability/admission and immutable configuration and graph intent. Signed production requires the enabled registered switch and original workflow. Other ordinary N1 remains held. Qualification requires the original registered receiver, signed unexpired version 2 operation permit and an available start under the fixed 20-start campaign limit.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["p343"],"gate_chains":[{"calls":[{"call":{"$":355},"direction":"return","target":{"$":357}}],"effect":"p343","gate":"p222"}],"gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. Ordinary and registered source switches have separate selectors. Workflow adoption and credential checks are contextual at the owned spawn.","gates":["p222"],"limits":"Nonproduction ordinary N1 remains held; its fake controls retain the ordinary transport. Signed production checks current adoption, whole-route receipt, disclosure, token and configuration before claims or intent. Signed version 2 qualification selects a disposable registered route with 20 total campaign starts, expiry, one start per operation and exact gpt-6.2-sol/xhigh/default tier. The same version 1 journal carries all prior starts forward. An optional repair digest records provenance and uses the same allowance. A contained birth may precede final release refusal. The app-server-only broker serves both signed live selections. Qualification authority remains separate. Offline witnesses use fake RPC or local TLS only.","manual_decisions":["M34","M35","M37"],"ordering":"Check the selected ordinary N1, signed registered production or signed qualification admission and exact role argv before owned birth. Use sealed options and exact bootstrap argv, retained original-parent/birth namespace handles, post-setup mount and intent checks, then the final stdin gate. Qualification records a durable start before app-server release. Tool release retains its own finite-input fence. Managed login acquires a durable campaign interlock before admitted startup and retires it after verified namespace cleanup.","review_gates":["p167","p326"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},{"$":362},{"$":364},"w51InterruptClose"]},
+"N3":{"admission":{"$":2},"authority":"Exact protected host/factory/capability/admission and immutable configuration and graph intent. Signed production requires the enabled registered switch and original workflow. Other ordinary N1 remains held. Qualification requires the original registered receiver, signed unexpired version 2 operation permit and an available start under the fixed 20-start campaign limit.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["p343"],"gate_chains":[{"calls":[{"call":{"$":355},"direction":"return","target":{"$":357}}],"effect":"p343","gate":"p222"}],"gate_limits":"The local require_effect check controls spawn. Ordinary and signed branches have distinct source selectors. Earlier workflow, login, factory and constructed receiver checks are manual context.","gates":["p222"],"limits":"Ordinary N1 stays held with fake transport controls. Signed production checks adoption, whole-route receipt, disclosure, configuration and dedicated login before claims or intent. Qualification v2 binds expiry, one start per operation, 20 total, gpt-6.2-sol/xhigh/default and optional repair provenance to the same v1 journal. A contained birth may precede release refusal. App-server-only broker serves both signed routes. Offline evidence uses fake RPC or local TLS.","manual_decisions":["M34","M35","M37"],"ordering":"Check admission and role argv before owned birth. Seal options and bind exact bootstrap argv and original-parent/birth namespace handles. Check mount and intent before the final stdin gate. Fsync qualification start before app-server release. Tools retain the finite-input fence. Durable login lease precedes mount and retires after verified cleanup.","review_gates":["p167","p326"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},{"$":362},{"$":364},"w51InterruptClose"]},
 
 "N4":{"admission":{"$":2},"authority":"Base class is not an admitted launcher. Supported shipped subclass is _RegisteredServer from protected factory; arbitrary Python subclasses are external trusted code, not accepted registered factories.","effect":"Registered transport exact base refusal and supported override launch","effect_points":["p187"],"gate_limits":"The abstract _launch_process body refuses unconditionally. Subclass overrides and constructed receiver identity remain manual dispatch limits; the base-type constructor guard precedes the named construction calls.","gates":["p34d"],"limits":"Exact base has zero Popen/binary lookup; positive is the actual _RegisteredServer through N3, not an arbitrary subclass or base AppServer constructor. Do not append all subclasses.","manual_decisions":["M08","M09"],"ordering":"Exact base type refuses before proof/probe/home; base _launch_process also refuses. Virtual override resolves to N3 containment, never ordinary AppServer.__init__ Popen.","review_gates":["pdb"],"trace_files":[{"$":115}],"witnesses":["w91","w4e"]},
 
@@ -198,7 +198,7 @@
 
 "M34":{"conclusion":"The registered qualification route is a separate bounded selection for disposable workers. Ordinary N1, pool and campaign gates and shipped role defaults remain in force.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Trusted original signer, registry, factory, campaign custody and journal implementation remain prerequisites. An issued permit alone does not authorize alternate clients, host intake, publication or promotion. Synthetic starts and wire responses supply offline evidence only.","reason":"A version 2 HMAC qualification permit binds the exact claimed operation digest, expiry, optional repair digest and fixed 20-start campaign limit. The claimed operation binds the signed model plan. Current permit, source, intent and campaign accounting precede launch. The locked private version 1 journal preserves prior rows and checks expiry, operation replay and the single total limit. Fsync precedes the app-server gate. Initial and recheck counts report repair provenance for audit. The registered wire lookup binds the original receiver and restricts it to exact one-use thread/start and turn/start payloads. The signed selection uses OpenAI gpt-6.2-sol, xhigh and default tier.","review_evidence":{"$":7},"source":["p25PermitVerify","p25CampaignStart","p25Enroll","p25RequireSelected","p25RecordStart","p25WireRegistry","p25WireCheck","p25WireTurn","p25RpcGate","p50PermitBody","p50ReadJournal","p50Remaining"]},
 
-"M35":{"conclusion":"The registered live app-server broker permits HTTPS port 443 for chatgpt.com and api.openai.com. Production uses an explicit Codex personal access token. Qualification may use its signed attachment or dedicated file login. Either authentication permits auth.openai.com at that port. The app-server workspace is read-only. Tool and validator namespaces receive neither login state nor the proxy.","evidence_contracts":["N3","N9"],"external_trust_limit":"The app server manages the dedicated file login. The embedding controller supplies any preprovisioned attachment. The encrypted tunnel checks names and port without inspecting HTTP paths or bodies. Namespace isolation blocks direct traffic outside the explicit proxy audit. Local TLS tests use the bundled self-signed certificate and deliberately public fixture key. Real tokens, public provider connectivity and live Codex model behavior are unverified. The managed mount requires Linux and Bubblewrap writable-overlay support. Synthetic files and same-filesystem rename witnesses do not establish live refresh.","reason":"The original factory checks the signed launch before staging an explicit controller attachment in a private anonymous pipe. Only the app-server bootstrap inherits the read end. The parent releases its copy after owned spawn, the relay closes its copy before serving, and the bootstrap consumes the token after the trusted start gate and closes the pipe before exec. The existing datagram pair transfers bounded stream descriptors to the parent. Exact CONNECT authority and TLS SNI, including refusal of encrypted ClientHello, precede parent DNS and a bounded public-address dial. Denials are scrubbed. Record failure revokes the broker. The qualification-only signed managed-file selector uses the app-server-only fixed namespace alias of the approved passwd-relative login directory. The controller checks metadata and leaves file reads and refresh to Codex. A private overlay projects the signed config and a single operation spool for rollout and archive. The durable exclusive campaign interlock precedes mount preparation. The app-server gate observes mount identities before campaign charge. Uncertain namespace retirement holds the interlock.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead","p42LoginSelection","p42LeaseClaim","p42LeaseRetire","p42Mounts","p42MountVerify","p42Projection","p42Rollout","p42Archive"]},
+"M35":{"conclusion":"Live app-server HTTPS at port 443 permits chatgpt.com, api.openai.com and, with login, auth.openai.com. Production requires its configured file login. Qualification may use its managed file login or a signed attachment. Workspace is read-only. Tools and validators have neither login nor broker.","evidence_contracts":["N3","N9"],"external_trust_limit":"Controller supplies qualification attachments. Codex owns login reads and refresh. Tunnel checks names/port without reading HTTP paths or bodies. Namespace isolation enforces broker use. Local TLS uses a self-signed certificate and public fixture key. Managed mounts require Linux/Bubblewrap writable overlays. Fake refresh and TLS supply no live provider, token or model evidence.","reason":"Signed qualification stages the optional token in an anonymous pipe inherited only by app-server bootstrap. Parent closes its copy after spawn, relay before serving, bootstrap after gated read before exec. A datagram pair passes bounded streams to parent. Exact CONNECT and TLS SNI reject encrypted ClientHello before DNS and bounded public-address dial. Denials are scrubbed. Record failure revokes broker. Approved login supplies the writable layer at the app-server-only alias. Signed config and one rollout/archive spool project separately. Mount identity precedes release and qualification charge. Exclusive durable lease precedes mount and survives uncertain cleanup.","review_evidence":{"$":7},"source":["p25Broker","p25Handoff","p25Receive","p25Bootstrap","p25Egress","p25Names","p25Resolve","p25Dial","p35AttachmentAdmission","p35AttachmentStaging","p35AttachmentRelease","p35RelaySetup","p35RelayCustody","p35AttachmentRead","p42LoginSelection","p42LeaseClaim","p42LeaseRetire","p42Mounts","p42MountVerify","p42Projection","p42Rollout","p42Archive"]},
 
 "M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts. A terminal rollout may await original typed item intake until the reply deadline while the wire turn stays open. Production reuses the same finite capture and namespace boundary under its own signed workflow selection.","review_evidence":{"$":7},"source":["p25LiveInput","p36DirectCatalog","p36FiniteAdmit","p36FiniteItem","p36FiniteCommit","p36FiniteReplyDispatch","p36FiniteHistorical","p36FiniteMatch","p36FiniteAwaitOriginal","p36FiniteHistory","p36FiniteBoundary","p36FiniteWaitTerminal","p36FiniteTypedComplete"]},
 
@@ -206,7 +206,7 @@
 
 "M43":{"conclusion":"The registered reader accepts an optional bounded timestamp on notification envelopes and preserves it as observation metadata. The existing request and response envelopes and source holds remain in force.","evidence_contracts":["N3","N10"],"external_trust_limit":"A timestamp is app-server observation data. Authority, ordering, correlation and deadlines remain bound to the original controller and transport. Offline startup evidence stops before any model turn.","reason":"The exact notification envelope can carry emittedAtMs as a nonnegative signed-64-bit integer. Requests still require their original IDs and envelope. Responses keep their exact result or error form. The controller classifies and retains the original notification frame before handling its method. A remote-control status notification supplies no RPC permission.","review_evidence":{"$":7},"source":["p43MethodEnvelope","p43Classify","p43ReadNotification"]},
 
-"M44":{"conclusion":"The original adopted single-product workflow selects registered production under its own source switch.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Original host/signers and attachment provisioning are trusted. Publication needs separate adoption. Raw, pool, campaign and activation holds remain. No production provider test, qualification journal credit or credential grant to finite workers.","reason":"Check exact signed OpenAI route/model/effort, one product worker/session, original evidence and provider-only consent. Validate the explicit personal access token before claims or intent. Recheck the original adopted workflow, durable action and owned receiver before effects. One checked thread/start and turn/start use signed data and default tier.","review_evidence":{"$":7},"source":["p52A","p52B","p52C","p52D","p52E","p52F","p52G"]},
+"M44":{"conclusion":"Original adopted single-product workflow and its source switch select registered production with a configured file login.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Original host, signers and controller configuration are trusted. Publication needs separate adoption. Raw, pool, campaign and activation holds remain. Offline fixtures grant no production provider or qualification journal credit. Finite workers receive no credentials.","reason":"Check exact signed OpenAI route/model/effort, one worker/session, original evidence and provider-only consent. Require private configured login apart from primary and qualification homes and refuse attachments before claims or intent. Acquire separate durable per-login interlock before mount. Uncertain cleanup retains it. Recheck adoption, durable intent and owned receiver before effects. One checked thread/start and turn/start use signed data and default tier.","review_evidence":{"$":7},"source":["p52A","p52B","p52C","p52D","p52E","p52F","p52G","p55C","p55T","p55L"]},
 
 "MContainedHost":{"conclusion":"The contained qualification switch is on. Original signed campaign authority restricts effects to the protected route.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent supplies approvals and disposable custody. Fixed prompt preview grants no authority; production holds remain separate.","reason":"Claim approval binds campaign and cap 20. Ledger enrollment and capacity precede claims; signed binding precedes calibration. Original approval gates starts and effects.","review_evidence":"Enrollment and raw worker/writer refusal controls; review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8"]}
 },
@@ -600,7 +600,7 @@
 
 "p112":[120,"QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments",186,"32b00495d71f94381e4f8d4ca4ebc76fd51abd6c9443a3a4509c0640bc5c1d25"],
 
-"p113":[64,"_Containment.launch",725,"75b675481961d7be4faed115c2c0a866ff324c18f819dffa72331cd8a0a1258d"],
+"p113":[64,"_Containment.launch",719,"75b675481961d7be4faed115c2c0a866ff324c18f819dffa72331cd8a0a1258d"],
 
 "p114":[116,"OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared",389,"ba6ba5e3d23da891f8d3c7d03cfbd3bcc4d1526f1bacc1b9ccf6b359ada6177a"],
 
@@ -774,7 +774,7 @@
 
 "p166":[73,"main",1554,"fa4f0b1ae6e708db4fc3e79cbda81750537da401ef4d2195fcc9e23c1cf1bb9b"],
 
-"p167":[65,532,"R.live_availability.require_n1_live()"],
+"p167":[65,558,"R.live_availability.require_n1_live()"],
 
 "p168":[67,403,{"$":35}],
 
@@ -970,7 +970,7 @@
 
 "p1ab":[44,1806,"pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get(\"allow_private_dns\")))"],
 
-"p1ac":[64,"_RegisteredServer.request",1561,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
+"p1ac":[64,"_RegisteredServer.request",1555,"17ba947fcedcb7882b400deaab2bb43cfbbc82b9c20e3eb690a990ef4e7e996e"],
 
 "p1ad":[3,538,"method(argument, submission, **options)",19,538,58],
 
@@ -1006,7 +1006,7 @@
 
 "p1bc":[90,"ChatGPTBrowserReviewTests._browser_result",1326,"a9058beb7012505459ffa69a75cc7039ed1546464c2942732822fd7a6a3fd485"],
 
-"p1bd":[64,"RegisteredN1Factory._isolated_validation",2588,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
+"p1bd":[64,"RegisteredN1Factory._isolated_validation",2587,"955d6e6ad15e6f5fe8d56a36c6075fda2fe83c5551ead5702ce04ffe293be0f8"],
 
 "p1be":[8,685,{"$":285},12,685,84],
 
@@ -1214,7 +1214,7 @@
 
 "p20a":[37,1510,"if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:"],
 
-"p20b":[64,"_RegisteredServer._launch_process",1591,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
+"p20b":[64,"_RegisteredServer._launch_process",1585,"37b7a0dd1159b1e58a82c7762aa38d4f8806366d0a2cb12ee27977dc5ff148ea"],
 
 "p20c":[78,"main",218,"4b19f823bfd6636d1a333dfc6aff0b26e633136bec98d21ff065260472d805a5"],
 
@@ -1264,7 +1264,7 @@
 
 "p221":[74,"_run_calibration",5079,"bedbcb87dca6e52463933f6032883c998472bac796b3b9df8b6899e8bcb2344a"],
 
-"p222":[64,715,{"$":148}],
+"p222":[64,709,{"$":148}],
 
 "p224":[74,3638,{"$":284}],
 
@@ -1310,7 +1310,7 @@
 
 "p238":[74,3706,{"$":284}],
 
-"p239":[64,"RegisteredN1Factory.run",2648,"605910c46c37f2fa48aae94ff6154036d1dd9f289b010b6dd8bf90d30c55d9b7"],
+"p239":[64,"RegisteredN1Factory.run",2645,"219bb6943ed32d2562d0526a3c385e62201e565bec72270d7aa70d1071811e5b"],
 
 "p23a":[99,"F5NativeLiveHoldTests.test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control",85,"f207bc2f8e9c15178d0dcbfdf180602184543c6047821684826e1ff49456edea"],
 
@@ -1390,19 +1390,19 @@
 
 "p25Budget":[148,"CampaignTests.test_one_budget_preserves_version_one_history_and_refuses_start_twenty_one",52,"689f4330274bd2c338f29b3dc6f8360f0985cba7fc90513ac613e2ef9aa6e924"],
 
-"p25CampaignStart":[149,"_campaign_start",453,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
+"p25CampaignStart":[149,"_campaign_start",551,"bfd8e79303e5da799553e465681505d9d7ccdda7e67a82734498d2a6c93806b7"],
 
 "p25Dial":[146,"_dial_provider",188,"52fe6a0ece405aa8a79d44bfe33af8eef31e92faa0fc915a65aa287fd780a70a"],
 
 "p25Egress":[146,"ProviderBroker._handle",342,"55dca3e7fb430ad940cc66430d944423566f8882b05f2fefa3f6d243e5158fe7"],
 
-"p25Enroll":[149,"initialize_campaign",344,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
+"p25Enroll":[149,"initialize_campaign",434,"5e23cd7026c85ed94dd7d92e2c1312205222b38306f4fc13134f2771b44f6fd6"],
 
-"p25EnrollHeader":[149,355,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
+"p25EnrollHeader":[149,445,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
 
-"p25EnrollMkdir":[149,349,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
+"p25EnrollMkdir":[149,439,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
 
-"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",547,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
+"p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",574,"d97a817803c34ff61a65336123963b6a7dbfa0057b16ce8993fc860d58d30efa"],
 
 "p25Finite":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1729,"b6c1f8677819f516b64934a1b889d70d363c9760e90c428ef1d3fb133d3fc207"],
 
@@ -1424,25 +1424,25 @@
 
 "p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",100,"4ca0ccd8437fe4c72f3239cdb8b78385d3354d4c8df6ec639e1396242b0a0563"],
 
-"p25MonitorCall":[64,932,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
+"p25MonitorCall":[64,926,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
 
 "p25MonitorProof":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",421,"7f29094575111853598e0e11ee85153f695cff96a2ea2d2f8c0d0212bfb5e19c"],
 
-"p25MonitorReason":[64,953,"return report.get('reason') == str(missing)"],
+"p25MonitorReason":[64,947,"return report.get('reason') == str(missing)"],
 
-"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",943,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
+"p25MonitorRecovery":[64,"_Containment._reaped_monitor_without_exe",937,"f16332b3c7a1a77317279c241dc82e53bb4e6c0fb6b62f65abd074da0ee8ce06"],
 
-"p25MonitorTerminate":[64,"_Containment._terminate_monitor",929,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
+"p25MonitorTerminate":[64,"_Containment._terminate_monitor",923,"f3933c8935cb4342f3cf0817460dfd4d3487fb06cdc04c61a687015521f291a5"],
 
 "p25Names":[146,"_validate_tls_name",143,"272a7c111ff2ec2d2ef0a20a2ac6bd8a5ce14842ac146273067bdc26f739516d"],
 
 "p25OriginalWatchdog":[117,"PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence",684,"03c80a17c82bad214cde5e29feb81bcc65e11e6704ad5daac3b03b09fc6f8fba"],
 
-"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",257,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
+"p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",284,"cce9a00f76de8ebbfeec1c0c36ec2b3865f257ebe6cbd01877a33b7fe9f06cf8"],
 
-"p25PermitSupport0":[148,{"$":330},623,{"$":343}],
+"p25PermitSupport0":[148,{"$":330},650,{"$":343}],
 
-"p25PermitVerify":[149,"verify_qualification_permit",316,"6a66d1125c57eb1c4d75e221237015b7c1524fb5fbed7a566ec0cd2b1ad88502"],
+"p25PermitVerify":[149,"verify_qualification_permit",406,"6a66d1125c57eb1c4d75e221237015b7c1524fb5fbed7a566ec0cd2b1ad88502"],
 
 "p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",377,"8a5c03a7dbf20a8094ccea57838b1f8d023d68885d38d877308b4f60e39b19d5"],
 
@@ -1464,7 +1464,7 @@
 
 "p25Receive":[146,"_receive_handoff",298,"bd7ae12514a91ea23c0045a0956835e9a282eeadac62dab106a0e90426f1414d"],
 
-"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2337,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
+"p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2336,"efeea8265feb96440e9107d2ae304bf76db1580da103830d4e9e64b5a3947cbb"],
 
 "p25RelayFork":[146,405,"if os.fork() != 0:"],
 
@@ -1472,25 +1472,25 @@
 
 "p25RelaySendFD":[146,290,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
 
-"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2316,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
+"p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2315,"433e68904f46f495ae317ed8ae5413910571765ec5c0f6d94067a0b4a78d6492"],
 
 "p25Resolve":[146,"_resolved_provider",176,"2cab59725dc7236d4551ce9000244baf36f857ed37c2e0cfa6b7329514c51aec"],
 
 "p25RpcGate":[42,"_require_native_rpc",217,{"$":356}],
 
-"p25StartAppend":[149,462,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
+"p25StartAppend":[149,560,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
 
-"p25StartSync":[149,463,"os.fsync(descriptor)"],
+"p25StartSync":[149,561,"os.fsync(descriptor)"],
 
 "p25StreamPair":[146,287,{"$":366},21,287,40],
 
-"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",608,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
+"p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",635,"0bb40cd8378d2779409102b90a24981852809bd736d6cbab3b5208c2bb997892"],
 
-"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1248,"a02900fa940a71a9257a0985c2869d384029bb4c15d0fe234f4825aa1acbf333"],
+"p25WireCheck":[64,"_RegisteredServer._check_qualification_wire",1242,"a02900fa940a71a9257a0985c2869d384029bb4c15d0fe234f4825aa1acbf333"],
 
-"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1228,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
+"p25WireRegistry":[64,"_RegisteredServer._register_qualification_rpc",1222,"b812d169eb793f0be9d5247b1c1d1c78bd533591ef9c8f310c040b06eae29a71"],
 
-"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1258,"38f998864b30819188e2bdb914bcdad3bc98bd463c0d68bc7717b41a5dae452c"],
+"p25WireTurn":[64,"_RegisteredServer._check_qualification_turn",1252,"38f998864b30819188e2bdb914bcdad3bc98bd463c0d68bc7717b41a5dae452c"],
 
 "p25b":[19,14,"if destination.exists() or destination.is_symlink():"],
 
@@ -1530,13 +1530,13 @@
 
 "p26c":[43,"WorktreeCapture._resolve_dirs",1934,"759407e0fb8121a074f72d098a7827e410ecd9e99fc1ebc27a5f29ad4bcf5b0b"],
 
-"p26d":[64,"_RegisteredServer.__init__",1198,"1b5333e44e3fd4e056b3659393d845cfcdb19b1161990b12fd14944739686438"],
+"p26d":[64,"_RegisteredServer.__init__",1192,"1b5333e44e3fd4e056b3659393d845cfcdb19b1161990b12fd14944739686438"],
 
 "p26e":[30,329,"self._handle.require_intent()"],
 
 "p26f":[32,783,"completed = subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,"],
 
-"p27":[64,1664,"self.request('thread/start', params, timeout=10)",29,1664,77],
+"p27":[64,1658,"self.request('thread/start', params, timeout=10)",29,1658,77],
 
 "p270":[73,706,"_require_live_activation(profile)"],
 
@@ -1570,7 +1570,7 @@
 
 "p28":[42,398,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,409,13],
 
-"p280":[64,"_CoherentServerRequests",1075,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
+"p280":[64,"_CoherentServerRequests",1069,"587400a88e6a2d6914952e91856167b7afe04f15700c5c2bff350dfd5d43296d"],
 
 "p281":[74,"main",12838,"98e29491d4950b0073e12d53e80b268aff8851f672283e512e1bc1b876d17f06"],
 
@@ -1698,7 +1698,7 @@
 
 "p2a7":[50,242,"if [[ \"$REPLACE\" -eq 1 && \"$DRY_RUN\" -eq 0 ]]; then"],
 
-"p2a8":[64,1593,"self.lifetime.launch(command, self.factory.home)",18,1593,66],
+"p2a8":[64,1587,"self.lifetime.launch(command, self.factory.home)",18,1587,66],
 
 "p2a9":[2,34,"if args.expires_after_bead.strip() != args.bead.strip():"],
 
@@ -1840,7 +1840,7 @@
 
 "p2ed":[59,415,{"$":57}],
 
-"p2ee":[64,2593,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2593,99],
+"p2ee":[64,2592,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2592,99],
 
 "p2f":[8,1317,"page.evaluate(\"() => \" + _GENERATING_JS)",24,1317,64],
 
@@ -1858,7 +1858,7 @@
 
 "p2f6":[43,1563,"self._git([\"ls-files\", \"--stage\", \"-v\", \"--sparse\", \"--full-name\", \"-z\"])",17,1563,90],
 
-"p2f8":[64,727,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
+"p2f8":[64,721,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
 
 "p2f9":[70,87,"require_v8_live_routes(plan)"],
 
@@ -1986,7 +1986,7 @@
 
 "p325":[2,54,"if not all((payload[\"operator_approval_ref\"], payload[\"sol_breakfix_scope\"], payload[\"sol_breakfix_expiry\"])):"],
 
-"p326":[64,2311,{"$":13}],
+"p326":[64,2310,{"$":13}],
 
 "p327":[23,"create_bead",231,"86b606298bf0b24b6e2416b45f7d92a832c408aea4f2ae0d10b3dbd65245b079"],
 
@@ -2046,9 +2046,9 @@
 
 "p341":[34,"_run",251,"043c67cecbd88fe946f19837214aba0a39406c62d7280a03e49f76226ca692af"],
 
-"p342":[64,"RegisteredN1Factory._effect",2474,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
+"p342":[64,"RegisteredN1Factory._effect",2473,"6942aeda6117107d8d42c4ea914d76497c6c1cf5fe6a8b431860cfad1b54a5a7"],
 
-"p343":[64,748,"result = self.controller.spawn_owned("],
+"p343":[64,742,"result = self.controller.spawn_owned("],
 
 "p345":[106,"Issue41DispatchMatrixTests.assert_chrome_actions",454,"dc70cfdfc308230f0a816bf5f1e23ab8f07633551d1d0e76245c01cf095686f0"],
 
@@ -2092,17 +2092,17 @@
 
 "p359":[51,"_LinuxEngine._capability",658,"b13ee7b85d401e179654e9581e68990fa87794af4c3884d10b2c348d19984466"],
 
-"p35AttachmentAdmission":[64,"RegisteredN1Factory._selected_access_token",2602,"a0955db7a7b14c76a980075d5359743385a1a165420903816f06773c21a53f7d"],
+"p35AttachmentAdmission":[64,"RegisteredN1Factory._selected_access_token",2601,"cbeb9b7ce8a7a1cb81f9053c502e10e0413b0688ea98a9691769cea64195e82a"],
 
 "p35AttachmentRead":[146,"_read_access_token",427,"bfcc5ecf74d7f2ae741fe437bd7821bc1e03556fee0712797d4d80e6bedc7a2a"],
 
-"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",793,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
+"p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",787,"db41c7a3057b8a8a349442568f8ff6fc675b562028e6db30e104ffac0e573593"],
 
-"p35AttachmentStaging":[64,"_Containment._stage_access_token",626,"ac3682a1f98321bd9215d8ce36a135638d34c0b0d820026ae7904b43963a5072"],
+"p35AttachmentStaging":[64,"_Containment._stage_access_token",620,"ac3682a1f98321bd9215d8ce36a135638d34c0b0d820026ae7904b43963a5072"],
 
 "p35AuthAbsent":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",85,"286440c9d6e1457ac6b74f25862849cd2d29a19d093692fc22fbe76153d001a0"],
 
-"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",526,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
+"p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",553,"2659e91530284b839ea3847a43b2ded68a3b5af71486f6327c0a5139e1f83239"],
 
 "p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",235,"9d49cbff7cef5e78c2f32e4ce3d50f2d2483dc636827c42edb332215bc575254"],
 
@@ -2162,7 +2162,7 @@
 
 "p36FiniteHistory":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",2060,"e1d0cfb7bfdbe578c269f80af444d6ed2acf1b083cda3e1da648488ebe3d7a60"],
 
-"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1329,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
+"p36FiniteItem":[64,"_RegisteredServer._observe_qualified_tool_item",1323,"e6e25dec2ca706be075f25476dcb3c143c5188fd6730cc10b9839a18afe9d114"],
 
 "p36FiniteLateItem":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1995,"3c0a74115f7ce0df6fe3137e1366db0de9d7b96e9c0a7c927ca9213dcfc8dc8f"],
 
@@ -2184,11 +2184,11 @@
 
 "p36SchemaContract":[141,"_check_n1_qualification",432,"91677c3925bcfef392f0b8e6764eeae75d349df8e78d0e0f6af82a759834d610"],
 
-"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",635,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
+"p36SchemaGate":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",662,"f5decd78eba054b8864d0c8303709809569bb540f448421c97e3376107c6b62e"],
 
-"p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",707,"a58d94e463b863bdb23d71af20c013a791585334be25e21ccb222fa13da1dbac"],
+"p36SchemaPreflight":[64,"_Containment._preflight_qualification_schema",701,"a58d94e463b863bdb23d71af20c013a791585334be25e21ccb222fa13da1dbac"],
 
-"p36SchemaSelect":[149,"require_executable_schema",249,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
+"p36SchemaSelect":[149,"require_executable_schema",339,"fec36dcb1bbb0e74c6768ef07e2c98648ceeb65dbe27cf819a194c1db4a4a488"],
 
 "p36a":[47,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -2230,11 +2230,11 @@
 
 "p37e":[64,68,{"$":248},15,68,49],
 
-"p37f":[64,652,"os.write(descriptor, b'1')",12,652,38],
+"p37f":[64,646,"os.write(descriptor, b'1')",12,646,38],
 
 "p38":[8,1196,"box.evaluate(_FILL_SCRIPT, prompt)",35,1196,69],
 
-"p380":[64,692,{"$":148},8,692,37],
+"p380":[64,686,{"$":148},8,686,37],
 
 "p381":[127,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",999,"123067ba51401c017fbcd93bbd4a458be1ccf2c3bbf2a2fe69246ac2a334e062"],
 
@@ -2242,9 +2242,9 @@
 
 "p383":[127,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",981,"602c3e04a68ca37e55414171182ed0408ad0b56f204914344f9a55f7ff692333"],
 
-"p384":[64,"_Containment._command",549,"611ad6ad37a3e61b600eaa887c579eb1f233185139f1a6d0976442c09cf5be81"],
+"p384":[64,"_Containment._command",543,"611ad6ad37a3e61b600eaa887c579eb1f233185139f1a6d0976442c09cf5be81"],
 
-"p385":[64,827,"os.pidfd_open(pid, 0)",21,827,42],
+"p385":[64,821,"os.pidfd_open(pid, 0)",21,821,42],
 
 "p386":[64,"_namespace_info",163,"4bdd5337d0bd5be726aad740b60874887dcd4cda504fd993a8099cf78f0fc851"],
 
@@ -2254,15 +2254,15 @@
 
 "p389":[127,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",974,"12ec565f34500dc68ccc322dd59d4f0ef136deef5ee8100afc4e3e90fe84bab6"],
 
-"p38a":[64,"_Containment._release_command",681,"fb4d5e08f70f22a0433b3cf5c33ec6231f51eb897bdd59564982c6372c5d45f2"],
+"p38a":[64,"_Containment._release_command",675,"fb4d5e08f70f22a0433b3cf5c33ec6231f51eb897bdd59564982c6372c5d45f2"],
 
-"p38b":[64,"_Containment._retain_namespace",825,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
+"p38b":[64,"_Containment._retain_namespace",819,"46b8fb73c554301df98db9a8647b67e3d092445431eacbdbb172f000721df8e0"],
 
-"p38c":[64,871,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,871,75],
+"p38c":[64,865,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,865,75],
 
-"p38d":[64,685,{"$":249},8,685,34],
+"p38d":[64,679,{"$":249},8,679,34],
 
-"p38e":[64,"_Containment._terminate_claimed",970,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
+"p38e":[64,"_Containment._terminate_claimed",964,"e68edf3b9a6367b17e7405efdedec392d4da3e569c153cd0788ff11e6651d0a8"],
 
 "p38f":[79,165,"bd_json(command)",42,165,58],
 
@@ -2334,19 +2334,19 @@
 
 "p3S":[64,"_observe_adapter_failure",109,"869cdfc10f26047f7317a60cd6ace3e5842a732b4918a543b1f6af4c8ce05c9c"],
 
-"p3T":[64,"RegisteredN1Factory._make_adapter",2451,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
+"p3T":[64,"RegisteredN1Factory._make_adapter",2450,"c1b70d136232624bcf586e42fccd625e7c876331bd31139552b67569ab6190b2"],
 
-"p3U":[64,"RegisteredN1Factory.model_task_binding",2229,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
+"p3U":[64,"RegisteredN1Factory.model_task_binding",2228,"ac515a1fadd02adfa5509df327f062fc6a5768c882cc6da4da4542379dd68abf"],
 
-"p3V":[64,"RegisteredAdapter._current_effective_boundary",1945,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
+"p3V":[64,"RegisteredAdapter._current_effective_boundary",1939,"50b3bded04a02dc399b4371d9404668d35910c096f3bac77018352422411d260"],
 
-"p3W":[64,"RegisteredN1Factory.model_task_bytes",2225,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
+"p3W":[64,"RegisteredN1Factory.model_task_bytes",2224,"15be865f11b166df0a80e47a8e18e094050de0bf4d83476a68fd29cfa7973404"],
 
 "p3X":[111,"NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance",279,"f72d7a5e54a472bcac0502f46b639be46bf7b8a49fc39fad2f28e3f6720eab89"],
 
-"p3Y":[64,"RegisteredN1Factory._require_model_task",2220,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
+"p3Y":[64,"RegisteredN1Factory._require_model_task",2219,"32ef18eb226cd1c8c4b9fc5f2ac07b8d6d6c0f4790e8ca32abafa0277d98441e"],
 
-"p3Z":[64,2221,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2223,74],
+"p3Z":[64,2220,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2222,74],
 
 "p3a":[8,739,{"$":254},26,743,17],
 
@@ -2390,21 +2390,21 @@
 
 "p3f":[76,1488,{"$":217},8,1492,9],
 
-"p3g":[64,"RegisteredN1Factory.record_dispatch",2263,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
+"p3g":[64,"RegisteredN1Factory.record_dispatch",2262,"4657c04c929283f484341051c31ed3cb407148f40f8a03f9aa5d11b193792294"],
 
-"p3h":[64,2271,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2280,9],
+"p3h":[64,2270,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding()},\n        )",38,2279,9],
 
 "p3i":[111,"NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority",301,"7bf973b3e6e53c0e6c5fe7171dead072a12556ad50a9ab58ea29e5bc3cfbbd64"],
 
-"p3j":[64,1974,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1976,93],
+"p3j":[64,1968,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1970,93],
 
-"p3k":[64,"RegisteredN1Factory.guard",2191,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
+"p3k":[64,"RegisteredN1Factory.guard",2190,"26b9041742c46314db1c403c9cbedd261f0be6fb73650efa41974a7dfe942fe2"],
 
 "p3l":[111,"NativeOutboundScreenTests.registered_fixture",37,"2cc9dcf7da58c4f77b488c6c3a7dce0e94203e087fa5a2b9acff27ac22cf0842"],
 
 "p3m":[64,94,"_need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes\n          and _snapshot(selected['execution']) == receipt.execution_bytes,\n          'The model task requires the exact original admitted request and execution.')",4,96,87],
 
-"p3n":[64,"_registered_adapter_method",2026,"88b40aa962ff9eb5983972d1e01896c040041c3dc08942079ce05f44186bc9ae"],
+"p3n":[64,"_registered_adapter_method",2020,"88b40aa962ff9eb5983972d1e01896c040041c3dc08942079ce05f44186bc9ae"],
 
 "p3o":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1810,"17047d1e00da00116bfc945cbbf5295dd0f5b881d3e128bfd3d80bfc268a5c4b"],
 
@@ -2412,17 +2412,17 @@
 
 "p3q":[64,"_model_task",91,"1e7f83afba24a773dbce985590786eb56a82c0c5f30d40e24cb25deeefab38f1"],
 
-"p3r":[64,1947,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1947,99],
+"p3r":[64,1941,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1941,99],
 
 "p3s":[64,104,"_need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),\n          'The complete model task exceeds its original admitted byte allowance.')",4,105,82],
 
-"p3t":[64,"RegisteredAdapter.final_summary",1952,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
+"p3t":[64,"RegisteredAdapter.final_summary",1946,"26a97bc0f1d7b33c8c36a693bb70b7c81e030609a8f4bea7595477ed7897dbf1"],
 
-"p3u":[64,1972,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1973,80],
+"p3u":[64,1966,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1967,80],
 
 "p3v":[111,"NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent",313,"448bff8184737597bf2cf9104a880623c7f0c7b36d91472f0423f5c5adecb5ed"],
 
-"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1964,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
+"p3w":[64,"RegisteredAdapter._validate_effective_boundary",1958,"78bb259f5da90b32396c41c9c24604d2dd9f7227f8221a1ebe1a33f1344b3a04"],
 
 "p3x":[64,"_require_summary_primary",121,"ee253260a8982eca8f9b9b7617ac6dbdbdf49dcfb656ae4790273801f3e9cde6"],
 
@@ -2438,31 +2438,31 @@
 
 "p42":[8,677,{"$":254},26,681,17],
 
-"p42Archive":[149,"ManagedLoginMount.confirm_archived",207,"b52e8ee2fded973437991fbd7ce4f47a40fcb69ed62bd9f2f77470c1a3eea338"],
+"p42Archive":[149,"ManagedLoginMount.confirm_archived",244,"b52e8ee2fded973437991fbd7ce4f47a40fcb69ed62bd9f2f77470c1a3eea338"],
 
 "p42Interlock":[148,"CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release",113,"acf85bb27912d3e6d203555ce7f4fb4f4b9e97a4e694d95f22d838c81b00a722"],
 
-"p42LeaseClaim":[149,"claim_managed_login",380,"20386d1d706e5400393d48fc4a4f32ac7857c37be2c1bbf41de1e6469f9334d6"],
+"p42LeaseClaim":[149,"claim_managed_login",470,"b9625ea455e222d4103429428a90e7fc486ad3e63cd06d477fa389f3177fdb13"],
 
-"p42LeaseRetire":[64,"RegisteredN1Factory._retire_managed_login",2628,"ca2c4dc74dad3324410da99c84a57263e6883f38cf6456cc355f367b9a1f01ef"],
+"p42LeaseRetire":[64,"RegisteredN1Factory._retire_managed_login",2625,"052af546ffa02934ec6c8b762f2102e3773717f2ebd749cfe61db56855f421c4"],
 
-"p42LoginSelection":[64,"RegisteredN1Factory._select_managed_login",2134,"7afdf6915afbe268fdf048ca7bfbd6f3efc39c8d064787bc85bbb127f25113fc"],
+"p42LoginSelection":[64,"RegisteredN1Factory._select_managed_login",2128,"64fc3d6c29dfe813dc50dea1bad32b1f0755bfdaa38206ba445975f4830cff65"],
 
-"p42MountVerify":[64,"_Containment._confirm_login_mount",673,"04d0e792136607c7609f9afa4d68370267cd17185f760ba22e3c483992492eed"],
+"p42MountVerify":[64,"_Containment._confirm_login_mount",667,"04d0e792136607c7609f9afa4d68370267cd17185f760ba22e3c483992492eed"],
 
-"p42Mounts":[64,"_Containment._appserver_mounts",537,"f2650cfc0f101963ccfde8658277281eec6c7292915170cab5ffcc0151ce5f23"],
+"p42Mounts":[64,"_Containment._appserver_mounts",531,"f2650cfc0f101963ccfde8658277281eec6c7292915170cab5ffcc0151ce5f23"],
 
-"p42Namespace":[148,"ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes",206,"4f16c4f92862debb13b92196ea293af3f7a097be7b4f1dd19d44b4b0d007d5da"],
+"p42Namespace":[148,"ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes",209,"8abadaafc3c076001168ed2092434d2de15de97dbe60b498e346200c235cc859"],
 
-"p42Precharge":[148,"FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace",365,"3d5d8d26e305ffa0017b7d3168f4f2e52bd0d14756c6e57a5600289d42c2593a"],
+"p42Precharge":[148,"FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace",392,"3d5d8d26e305ffa0017b7d3168f4f2e52bd0d14756c6e57a5600289d42c2593a"],
 
-"p42Projection":[149,"ManagedLoginMount.prepare",148,"2f15c0e5211efe830f098372a2f14e963584903ee902969e06463b6dbc9471cb"],
+"p42Projection":[149,"ManagedLoginMount.prepare",184,"c418d2ff2c35045737b73c46da0047d5d0e4a758e74b5ee59dd4db833aa07f86"],
 
 "p42Provider":[147,"ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist",110,"cbcfc8f9988446c042ac5c53e586916786ecd672d83e9ea540b9e8ac7e8736d2"],
 
-"p42Rollout":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",409,"61c13ce09d2ea62b2731bf164faa5a969939146acfab5b1b3a5dddd2d9aa086d"],
+"p42Rollout":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",436,"61c13ce09d2ea62b2731bf164faa5a969939146acfab5b1b3a5dddd2d9aa086d"],
 
-"p42Unresolved":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",375,"ce1b7f7a372f3c205d2141ad468fea166d831755f9d6b8923037d21850e4912d"],
+"p42Unresolved":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",402,"ce1b7f7a372f3c205d2141ad468fea166d831755f9d6b8923037d21850e4912d"],
 
 "p43":[23,187,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,195,9],
 
@@ -2470,13 +2470,13 @@
 
 "p43MethodEnvelope":[150,"_check_method_envelope",199,"86eeb2273f741419d07fcca70d56136682ab8b136f5b7e7974555bd781a7e9ac"],
 
-"p43ReadNotification":[64,"_RegisteredServer._protocol_lines",1293,"cf5864e9618ec5fb6e4e243e0e5905f8e71c1df862933d0d6dd0f40d89837dd5"],
+"p43ReadNotification":[64,"_RegisteredServer._protocol_lines",1287,"cf5864e9618ec5fb6e4e243e0e5905f8e71c1df862933d0d6dd0f40d89837dd5"],
 
 "p43TimestampPositive":[151,"ServerRequestPreparationTests.test_timestamped_notification_preserves_the_actual_frame",344,"02dcd021f899614f2ae19ef830d3d4c9bb566901e391483f9d8cce3de8e90fe7"],
 
 "p43TimestampRefusal":[151,"ServerRequestPreparationTests.test_timestamped_envelope_refuses_bad_timestamps_and_non_notifications",353,"df3bcd847124c2b1c516b7c89cb06226a3ddbcfef35068665ef1acb48d76eb3e"],
 
-"p43TimestampStartup":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",691,"e379cf6d90a5836349060ab544e7aa88e80887b780718a4c92fea74c9d743cea"],
+"p43TimestampStartup":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",718,"e379cf6d90a5836349060ab544e7aa88e80887b780718a4c92fea74c9d743cea"],
 
 "p44":[8,683,{"$":250},12,683,115],
 
@@ -2506,17 +2506,17 @@
 
 "p50":[8,1057,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1057,72],
 
-"p50BeforeBirth":[148,"FactoryQualificationTests.test_total_limit_refuses_before_any_worker_or_configuration",584,"5257a14fd52d0456b297adcd65fd57d94d85a8340868a4bf20c7a3845442cdef"],
+"p50BeforeBirth":[148,"FactoryQualificationTests.test_total_limit_refuses_before_any_worker_or_configuration",611,"5257a14fd52d0456b297adcd65fd57d94d85a8340868a4bf20c7a3845442cdef"],
 
-"p50PermitBody":[149,"_StartRequest.authorization",297,"9388aa989fcc29ee673ed00b9bbb272b6fb8f3a9fe1521bdf31af602c4272c1b"],
+"p50PermitBody":[149,"_StartRequest.authorization",387,"9388aa989fcc29ee673ed00b9bbb272b6fb8f3a9fe1521bdf31af602c4272c1b"],
 
-"p50PermitBudget":[148,"FactoryQualificationTests.test_permit_requires_signed_version_two_and_exact_integer_start_limit",560,"eab4559f41df921005bafa42665135a5a95c7397f99805cd670b09cf69b10b0b"],
+"p50PermitBudget":[148,"FactoryQualificationTests.test_permit_requires_signed_version_two_and_exact_integer_start_limit",587,"eab4559f41df921005bafa42665135a5a95c7397f99805cd670b09cf69b10b0b"],
 
-"p50ReadJournal":[149,"_read_starts",411,"d8e8be2e1341b6050dbe47315b12623ba39dc4dd6958098a16a322bb6c645551"],
+"p50ReadJournal":[149,"_read_starts",509,"d8e8be2e1341b6050dbe47315b12623ba39dc4dd6958098a16a322bb6c645551"],
 
-"p50Remaining":[149,"_check_available",437,"351b11c22b649128140a3022fe9b6395eb7be043a9e47c55839cc661fc9f2c1e"],
+"p50Remaining":[149,"_check_available",535,"351b11c22b649128140a3022fe9b6395eb7be043a9e47c55839cc661fc9f2c1e"],
 
-"p51":[64,1563,"super().request(*args, **kwargs)",17,1563,49],
+"p51":[64,1557,"super().request(*args, **kwargs)",17,1557,49],
 
 "p51Advance":[53,"_advance",347,"561971b387845c7dad5f04a76e69504fc66f53856bdb08da5ff7fe43cc673f94"],
 
@@ -2528,27 +2528,27 @@
 
 "p52A":[35,24,"if REGISTERED_N1_LIVE_AVAILABLE is not True:"],
 
-"p52B":[65,508,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
+"p52B":[65,511,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
 
-"p52C":[64,295,"_need(value is not None, \"Registered production requires an explicit provider access token.\")"],
+"p52C":[149,122,"_need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),"],
 
-"p52D":[64,2329,"_need(self.production_live and type(server) is _RegisteredServer and self.server is server"],
+"p52D":[64,2328,"_need(self.production_live and type(server) is _RegisteredServer and self.server is server"],
 
-"p52E":[65,"RegisteredN1Workflow._production_selected",409,"e4c1a4f73fe39afcb067e228d6aae82e7618713b181e8aff846e8caf536cda60"],
+"p52E":[65,"RegisteredN1Workflow._production_selected",412,"e4c1a4f73fe39afcb067e228d6aae82e7618713b181e8aff846e8caf536cda60"],
 
-"p52F":[64,"_RegisteredServer._register_production_rpc",1238,"9084b12bda478dc9246eff61adbfed0209eae2258d46ac9714b75b16ab9d4b2b"],
+"p52F":[64,"_RegisteredServer._register_production_rpc",1232,"9084b12bda478dc9246eff61adbfed0209eae2258d46ac9714b75b16ab9d4b2b"],
 
-"p52G":[65,"RegisteredN1Workflow._require_production_execution",511,"9be441c025cab219418339227280ed10918223bfc19ebd3aed5f0181dba02453"],
+"p52G":[65,"RegisteredN1Workflow._require_production_execution",514,"9be441c025cab219418339227280ed10918223bfc19ebd3aed5f0181dba02453"],
 
-"p52a":[153,"WorkflowTests.test_production_requires_current_adoption_and_explicit_provider_attachment",376,"8f8f9d803bb3baaa238fc4971a2cb6e1e2102acf5ad0975607cb1b62c22fb812"],
+"p52a":[153,"WorkflowTests.test_production_requires_current_adoption_and_configured_worker_login",376,"8e88f1869447b10d17242520bd31b35ceb021861d1b30815398ce626bbae3da1"],
 
 "p52f":[127,"FactoryTests.test_signed_registered_production_requires_the_original_workflow_guard",1735,"13d5fe4e692050f4d808bd972dbbc8550fcfce251d55e2d68ce35a25fbdfac78"],
 
-"p52p":[153,"WorkflowTests.test_production_one_original_attachment_and_separate_publication",436,"cad48f385f57e6ac4dbd053debd582e459bf1258b6a530674ebc41ab0b3aedfa"],
+"p52p":[153,"WorkflowTests.test_production_uses_configured_worker_login_and_separate_publication",474,"5cfeb434a7d97f7868ac4c6328960d90f57f7b6a304d99fadc0dfaa842f53f41"],
 
 "p52r":[99,"F5NativeLiveHoldTests.test_registered_production_source_decision_leaves_raw_launch_and_rpc_held",72,"32053d858e77c84f717f1b70e5371b6665374c10cdf163639375f8b53ab1b43a"],
 
-"p52s":[153,"WorkflowTests.test_production_refuses_wrong_signed_selection_before_claim",409,"6d67741d1a9f1e20231aa2f8461d8e0860a4facb56c6f83f7ee4b7c0693084ea"],
+"p52s":[153,"WorkflowTests.test_production_refuses_wrong_signed_selection_before_claim",447,"6d67741d1a9f1e20231aa2f8461d8e0860a4facb56c6f83f7ee4b7c0693084ea"],
 
 "p52w":[154,"FakeAppServerTransportTests.test_registered_production_rechecks_authority_after_partial_turn_write",1058,"921f6523992d36041fd4550b64c9d6ad7de68725c636ef0c8f3701130ed61d91"],
 
@@ -2559,6 +2559,20 @@
 "p54":[75,272,"subprocess.run(\n            [sys.executable, str(Path(__file__).resolve()), \"--list-test-methods\",\n             *map(str, paths), \"--discovery-output\", str(output)],\n            cwd=working_directory, env=_worker_environment(start_directory, Path(temporary)),\n            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,\n        )",17,277,9],
 
 "p55":[124,"ControlledOutputScheduleTests.test_queued_archive_response_preserves_selected_original_rejection",85,"a2f923d77ea8a811750cc804e8709fca51c22c28bd45f4aaef39ffe6b2ff68c7"],
+
+"p55A":[148,"ManagedLoginNamespaceTests.assert_atomic_refresh_and_runtime_isolation",227,"d55e092003daa0b2e1207f9bba1fdf01bc149c4dd9f47098034f43021f398b09"],
+
+"p55C":[65,531,"_need(selection is not None and selection == c._worker_login_home,"],
+
+"p55H":[153,"WorkflowTests.test_production_refuses_protected_login_homes_before_claim",411,"6f2d359c0a3843f52fd6929c3c432372daa146c903283298635ac552efd884d1"],
+
+"p55L":[149,"WorkerLoginMount.claim",292,"3e10db2082f190c36a4ebbeafae66d28aace5f978544bd7140dd827bd186214d"],
+
+"p55R":[148,"ManagedLoginNamespaceTests.test_real_worker_mount_persists_refresh_without_qualification_campaign",217,"efefbcc43e61e3ba0e64968830b009ef7d7f4a9543541a158c98bec7d4c5810b"],
+
+"p55T":[65,545,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
+
+"p55l":[153,"WorkflowTests.test_production_retains_worker_login_lease_when_namespace_cleanup_is_unknown",520,"58273ddde13226e25ce6eea41f1fbbc3db7e27f399b2805b5224a9ba3dd10a90"],
 
 "p56":[124,"ControlledOutputScheduleTests.test_archive_observer_preserves_bootstrap_phase_and_rpc_failures",45,"8d5be7c39bf83b573366cd7b98a8f5f0acad14fa50c114a8387b864ff06cfa9e"],
 
@@ -2768,9 +2782,9 @@
 
 "pN":[129,"FiniteReplyWireTests.test_flush_source_mutation_refuses_instead_of_sending_an_unbound_frame",131,"6a15ba3165814c1fca7c3551f1bff41c13ecde0435e492d5d8897e63ddfcd6f1"],
 
-"pN1LaunchCommand":[64,"_Containment._require_launch_command",713,"95358e47a56c37c44b7453ecea4c9df44b319ee47b2a748b0a8cd86c20ad5447"],
+"pN1LaunchCommand":[64,"_Containment._require_launch_command",707,"95358e47a56c37c44b7453ecea4c9df44b319ee47b2a748b0a8cd86c20ad5447"],
 
-"pN1LaunchCommandCall":[64,726,"self._require_launch_command(command)"],
+"pN1LaunchCommandCall":[64,720,"self._require_launch_command(command)"],
 
 "pO":[129,"FiniteReplyWireTests.test_flush_or_scan_crossing_original_deadline_cannot_write",138,"13db522ce4edb84fb9a70b89c19ae9e35ec880fdecee4692a96fc188a91e8203"],
 
@@ -2812,7 +2826,7 @@
 
 "pPoolWriterRefusal":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",250,"97314377336b4efa73eba55a72312886762f5790ea743a7e6f489b25dce84329"],
 
-"pQ":[65,"RegisteredN1Workflow._commit_execution",482,"3c21388b1aa970860dd77173b36f27bf03c3ad13ae77cf7c7d4fafe8a1ef01f8"],
+"pQ":[65,"RegisteredN1Workflow._commit_execution",485,"3c21388b1aa970860dd77173b36f27bf03c3ad13ae77cf7c7d4fafe8a1ef01f8"],
 
 "pQe1":[160,162,"stage._require_campaign_enrollment",4,162,38],
 
@@ -2830,7 +2844,7 @@
 
 "pQt7":[156,"PoolConfigurationTests.test_raw_writer_cannot_replace_original_retained_authorization",34,"827458977bf9e2b2f63faeca6d73cc138b67d6d32f54c40d8303aa876095967a"],
 
-"pR":[65,"RegisteredN1Workflow._prepare_execution",458,"1a6513427275f3e5569326ed8ad3d80d88d1f8e130d3dcd6c592065d19bde952"],
+"pR":[65,"RegisteredN1Workflow._prepare_execution",461,"1a6513427275f3e5569326ed8ad3d80d88d1f8e130d3dcd6c592065d19bde952"],
 
 "pRefusalClass":[143,"provider_policy_blocker",24,"4602fc7f3eac31aa4a2ba9ae0e9437d3d649c4b5c88b7f92e55ae862e061410f"],
 
@@ -2838,7 +2852,7 @@
 
 "pRefusalTest":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1873,"d25bd981c37a3d70434db9139eb0683a106c182dd635e4eaad9024a83f0ce81a"],
 
-"pS":[65,"RegisteredN1Workflow._validate_execution",468,"9de7b62e0f7fdca9d868e2d5d7c98b9bad4eeadccca416586a9461d417690e7e"],
+"pS":[65,"RegisteredN1Workflow._validate_execution",471,"9de7b62e0f7fdca9d868e2d5d7c98b9bad4eeadccca416586a9461d417690e7e"],
 
 "pSchemaDiagnostic":[77,"SelectedNativeProbe.__init__",244,"d85d59ea250d08417882d99f7d004e780ea1e4a0b5466456e89e7a1c7998a23c"],
 
@@ -2954,7 +2968,7 @@
 
 "pc9":[130,"ReleaseEffectRoutesTests._git_pair",1421,"9ea51b3dd775b09c05711df0fc22507e51ad2470e896207c95ab8744467f27a5"],
 
-"pca":[65,"RegisteredN1Workflow.run",525,"efd89f97cfd2375ca8fe94f6a9ae932bc4398f414b8de5aeab99217e115995e9"],
+"pca":[65,"RegisteredN1Workflow.run",551,"915afbfb68a413d9389b0cb05928ec573f9282733b73d54ba48e9b29b3399ab0"],
 
 "pcb":[139,"TrustedGitTests.test_only_fixed_trustworthy_paths_are_used",1148,"2946ac6f272afaed87623cacefadaff01adf3d7fa950ed2d38855913bf6fdc60"],
 
@@ -2964,7 +2978,7 @@
 
 "pce":[12,"main",846,"d0017093d8849ce4efedc6c4462bee8f1bcbdd348d8f24efcf40614272f997e6"],
 
-"pcf":[64,715,{"$":148}],
+"pcf":[64,709,{"$":148}],
 
 "pd":[8,876,"page.evaluate(_SNAPSHOT_SCRIPT, [marker])",20,876,61],
 
@@ -5245,39 +5259,39 @@
 
 [72,132,13,132,51,"dynamic","634fa128c02d9c9ccbe9f792b9c0cec527c554c3b64f8f3f7218f32b4bc5985f",[{"$":9},"XR357"]],
 
-[72,769,25,769,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
+[72,763,25,763,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
 
-[72,934,31,934,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
+[72,928,31,928,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
 
-[72,1051,12,1051,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
+[72,1045,12,1045,61,"dynamic","ab031d87cb9f9c946884bdaf230c1bba80c11269705595063266d079fc94f45e",[{"$":9},"XR360"]],
 
-[72,1109,15,1109,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
+[72,1103,15,1103,57,"dynamic","622c88cf102ffd4fc90c2eee4f7594eed7bc22193cfc9916cf5b98c4dc731e1e",[{"$":9},"XR361"]],
 
-[72,1506,20,1506,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
+[72,1500,20,1500,53,"dynamic","0d318a3bdfe68e9cd0c0d17732d285aefe70a9bc1ef33b3f34e65de0968d9735",[{"$":9},"XR362"]],
 
-[72,1563,17,1563,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
+[72,1557,17,1557,49,{"$":3},"d33ec5ef246e0d555320f9fa59d302d2a959c4fb5ea763fd99c5fde8aa4250fd",["route","N10.6","p51"]],
 
-[72,1573,49,1573,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
+[72,1567,49,1567,81,"dynamic","46734eb32805911b832fcd61d8dc41e1bc0d1b9b77b8e56c02854f40824a9775",[{"$":9},"XR363"]],
 
-[72,1593,18,1593,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
+[72,1587,18,1587,66,"browser","ce609ccadd9d91ee4e4cdd408903cdde6cbc5647db30b33d6994aaab2937b552",[{"$":9},"guard-scope-2bf0ca7a748226"]],
 
-[72,1664,29,1664,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
+[72,1658,29,1658,77,{"$":3},"b9d984b5b8f953ff0f5c8c7a50fd8f8183b8dd2c7239339da4bbe779b5678779",["route","N10.6","p27"]],
 
-[72,1834,16,1834,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
+[72,1828,16,1828,43,"dynamic","a9b584ec3ad9c0b489da615b449679dddbc16fe72849ed8c8a3a0b61160ccc96",[{"$":9},"XR366"]],
 
-[72,1992,17,1992,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
+[72,1986,17,1986,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
 
-[72,1993,39,1993,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
+[72,1987,39,1987,72,"dynamic","9783c0e80ce6a54b492386422401d58093cdab7fdf2e1d1e89ffdc2812cae7b9",[{"$":9},"XR368"]],
 
-[72,2012,15,2012,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
+[72,2006,15,2006,76,"dynamic","e8a8181d6a580aa0d88482e180536d51bbc36046ecfe9531cfc2f5ed2ae80b8b",[{"$":9},"XR446"]],
 
-[72,2043,16,2043,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
+[72,2037,16,2037,65,"dynamic","b5a5804237aa6142583d2fbb92f199960a9b042a5f84c62fe12b32544565fc56",[{"$":9},"XR369"]],
 
-[72,2045,18,2045,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
+[72,2039,18,2039,60,"dynamic","465f5602d1552ab10e05e8a2bc3b7baf035fb233bbe643cc2dc6eca92d1aadc5",[{"$":9},"XR370"]],
 
-[72,2482,29,2482,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
+[72,2481,29,2481,68,"dynamic","7e17ee838a55a8fff3643859c6aaabf9f725158d702d496bd8344b276f846065",[{"$":9},"XR371"]],
 
-[72,2593,22,2593,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
+[72,2592,22,2592,99,"browser","2a81d843e4bf19636f2d238999e4cbb85464e16fadb27798e3633dceff488a39",[{"$":9},"guard-scope-4a07b575ef79c3"]],
 
 [73,38,7,38,42,"dynamic","f6934272bce56a1ce7cebbe4386aacc09a74f1141872418c5f0b7011111d7163",[{"$":9},"XR373"]],
 
@@ -5694,13 +5708,13 @@
 
 {"contract":"N2","effect_points":["p1c3","p20"],"entrypoint":"p276","gates":["p2a3"],"id":"N2.4","review_gates":["p1fc","p1c6"]},
 
-{"contract":"N3","entrypoint":"pca","id":"N3.1","manual_decisions":["M08","M09","M10","M26","M32","M34","M35","M44"],"review_gates":["p167","p326","p52A","p52B","p52C"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w38","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout",{"$":362},{"$":364},"w52A","w52S"]},
+{"contract":"N3","entrypoint":"pca","id":"N3.1","manual_decisions":["M08","M09","M10","M26","M32","M34","M35","M44"],"review_gates":["p167","p326","p52A","p52B","p52C","p55C","p55T"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w38","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout",{"$":362},{"$":364},"w52A","w52S"]},
 
 {"contract":"N3","entrypoint":"p2b1","id":"N3.2","manual_decisions":["M08","M09","M10","M26","M32","M44"],"trace_files":[{"$":15},{"$":10},{"$":36}]},
 
-{"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check is on the actual spawn path. Earlier workflow/factory selection and constructed receiver and lifecycle details require manual review. The original adopted workflow and separate source switch select production. The ordinary and qualification branches retain their own checks. Identity, size and model checks remain contextual data checks.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35","M44"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":353},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout",{"$":362},{"$":364},"w52F"]},
+{"contract":"N3","entrypoint":"p239","gate_limits":"The local require_effect check controls spawn. Original adoption and its source switch select production. Ordinary and qualification retain their own checks. Earlier workflow, login and factory selection, receiver/lifecycle identity, size and model are manual context.","id":"N3.3","manual_decisions":["M08","M09","M10","M26","M32","M34","M35","M44"],"review_gates":["p167","p326","p3m","p3s","p3Z","p3r","p3u","p3j"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":353},{"$":329},{"$":328},{"$":29}],"witnesses":["w43","w3e","wZ","wg","wi","wh","wPolicyRefusal","wOverloadControl","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout",{"$":362},{"$":364},"w52F","w55Lease"]},
 
-{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"The ordinary source hold refuses startup. Production rechecks the original adopted workflow and explicit attachment before owned launch. The separate qualification branch checks its version 2 permit and available start under the fixed 20-start limit before owned launch. The constructed lifetime.launch wrapper precedes the callee checks. The actual spawn follows the local require_effect check. Original receiver, signed permit selection and lifetime identity remain manual. A contained birth can precede a later release refusal. The signed app-server launch also checks the exact contained schema before worker birth or any qualification campaign start. The optional signed managed login mount is app-server-only and confirmed before the campaign start.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33","M43","M44"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29},{"$":347}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout","w43TimestampEnvelope","w43TimestampStartup",{"$":362},{"$":364},"w52F"]},
+{"contract":"N3","entrypoint":"p113","id":"N3.4","limits":"Ordinary hold refuses startup. Before owned launch, production rechecks adoption and leased worker login. Qualification checks v2 permit and remaining starts under the 20-start cap. Constructed lifetime.launch precedes internal checks. Local require_effect precedes spawn. Receiver, permit and lifetime identity require manual review. Contained birth can precede refusal. Signed app-server checks exact contained schema before birth or charge and confirms file mounts before release.","manual_decisions":["M08","M09","M10","M26","M34","M35","M37","M33","M43","M44"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29},{"$":347}],"witnesses":["w43","w25Permit","w25Budget","w25Expiry","w25Models",{"$":340},"w35AuthEarlyCleanup","w36SchemaGate","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout","w43TimestampEnvelope","w43TimestampStartup",{"$":362},{"$":364},"w52F","w55Lease","w55R"]},
 
 {"contract":"N4","entrypoint":"p2a6","gate_chains":[{"calls":[{"call":"p13e","direction":"into","target":"p30d"}],"effect":"p187","gate":"p34d"}],"id":"N4.1"},
 
@@ -5934,7 +5948,7 @@
 
 {"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["p7a"],"entrypoint":"p7b","id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":[{"$":70},{"$":21}],"witnesses":["w2a"]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Host broker calls this helper only after exact allowed CONNECT and initial TLS SNI. Resolve fixed names at port 443 through the trusted host resolver and reject private/non-global results. Up to eight address candidates share one deadline and respect revocation. The scanner labels socket.connect as browser family by name; the concrete receiver is a TCP socket. Synthetic local TLS is the positive control. The fixed authentication hostname is admitted only for a signed app-server launch using the dedicated Codex file login or an attached personal access token.","review_gates":["p222"],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent","w42Provider"]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["p25HostResolve","p25ProviderSocket","p25ProviderConnect"],"entrypoint":"p25Dial","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.7","limits":"Broker dials after exact allowed CONNECT and initial TLS SNI checks. Trusted resolver selects fixed names at port 443, rejecting private/non-global results. At most eight addresses share one deadline and honor revocation. The classifier labels socket.connect as browser; the receiver is TCP. Local TLS supplies the positive control. Authentication host is limited to signed app-server file login or qualification attachment.","review_gates":["p222"],"witnesses":[{"$":340},"w25ProviderSNI","w25ProviderPrivate","w35AuthTls","w35AuthAbsent","w42Provider"]},
 
 {"admission":{"$":4},"contract":"N3","effect":"Parent registered live relay control socketpair","effect_points":["p25BrokerPair"],"entrypoint":"p25Broker","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.8","limits":"One anonymous local Unix datagram pair belongs to the original host and gated relay. Only its child end is inherited by the trusted app-server bootstrap. No file or host listener is exposed.","review_gates":["p222"],"witnesses":[{"$":340},"w42Provider"]},
 
@@ -5942,7 +5956,7 @@
 
 {"admission":{"$":4},"contract":"N3","effect":"Parent adoption of one relay stream descriptor","effect_points":["p25RelayRecvFD","p25AdoptStream"],"entrypoint":"p25Receive","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.10","limits":"Recv accepts one untruncated stream handoff over original control with close-on-exec. Invalid handoffs close received descriptors. The retained stream reaches only the bounded broker handler.","review_gates":["p222"],"witnesses":[{"$":340}]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Private app-server loopback listener, relay fork and gated execution","effect_points":["p25AdoptControl","p25LoopbackSocket","p25LoopbackBind","p25LoopbackListen","p25RelayFork","p25ProviderExec"],"entrypoint":"p25Bootstrap","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.11","limits":"The trusted bootstrap binds private loopback and releases its socket copies before app-server exec. The relay closes the optional token pipe before serving. The bootstrap consumes and closes the read end after the final trusted byte and exports the token only in the app-server environment. The same PID namespace contains the relay, including on natural app-server exit. Registered live app-server source, mounts and callback are parent-owned.","review_gates":["p222"],"witnesses":[{"$":340},"w35AuthTls","w35AuthGate"]},
+{"admission":{"$":4},"contract":"N3","effect":"Private app-server loopback listener, relay fork and gated execution","effect_points":["p25AdoptControl","p25LoopbackSocket","p25LoopbackBind","p25LoopbackListen","p25RelayFork","p25ProviderExec"],"entrypoint":"p25Bootstrap","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.11","limits":"Trusted bootstrap binds private loopback and releases socket copies before app-server exec. Relay closes the qualification token pipe before serving. After the final gate byte bootstrap reads and closes the pipe and exports the token only to app-server. Relay stays in the same PID namespace on natural exit. Registered app-server source, mounts and callback are parent-owned.","review_gates":["p222"],"witnesses":[{"$":340},"w35AuthTls","w35AuthGate"]},
 
 {"admission":{"$":4},"contract":"N3","effect":"Durable qualification start accounting before the app-server byte gate","effect_points":["p25StartAppend","p25StartSync"],"entrypoint":"p25CampaignStart","gate_chains":[],"gates":[],"id":"N3.12","limits":"The original registered factory is the qualification caller of this trusted accounting helper. The private locked version 1 journal retains exact canonical history. The original signed version 2 permit binds the fixed 20-start cap. The operation expiry, replay and one shared total limit govern append. Optional repair provenance is recorded on the same terms. Fsync precedes release. An ambiguous or failed started run remains charged.","manual_decisions":["M34"],"trace_files":[{"$":328},{"$":10}],"witnesses":["w25Permit","w25Budget","w25Expiry",{"$":362},{"$":364}]},
 
@@ -6570,6 +6584,8 @@
 
 "375":"scripts/run_native_pool_qualification.py",
 
+"376":"self.assertEqual(json.loads(self.auth.read_bytes()), {\n            'tokens': {'refresh_token': 'EXAMPLE rotated token'}, 'last_refresh': '2026-11-24T00:00:00Z'})",
+
 "38":"scripts/registered_server_requests.py",
 
 "39":"23a9127df77c97fb58c8251023c2f298a4ca6fe9ad53fef07fb2769164fe810e",
@@ -6780,7 +6796,7 @@
 
 "@126":["NqXOJOLIrA5eeXFiqlRar7Xf-7w0KfbghesQl-9Vnjk",420,289560],
 
-"@127":["ojNvDGhdCkA4sfMBlvcxJE72UKOgs604Kj-9p8G2I9E",420,140063],
+"@127":["0wYMNv3yyfe4RWwGYdbWjRMhFG1hc8cNGDwdD6l7CHM",420,140080],
 
 "@128":["JYF6v8vwaWnCtK6XBt255a-OoFIzRYKxp97o7NN_UHc",420,39405],
 
@@ -6826,9 +6842,9 @@
 
 "@147":["PZAm67qCAFtqxIgebt8ZjS_4S0SSzR92dWcVDkzJNrQ",420,22181],
 
-"@148":["BnCkKpbCwdeAw5V4jCxac9KOH79zwHB12Ys0hY1eV9E",420,39053],
+"@148":["sTykj15MQFCUoiMVYLm2VeDJ_ecXRBHEC3ToPJi3u9g",420,40680],
 
-"@149":["vRC2lrdXL7pAkP49tM9WiFwRVBpxWrHyeD7IorvqJHw",420,20647],
+"@149":["lUD9WPLvcr-TSYgNG_d9h7RPsCDgp0Rrvo0eCjUPIJE",420,24263],
 
 "@15":["kj44mIUTMk9bW2mWGBbUnV8JaLJLEk6lz40G9XBK_Jg",493,25692],
 
@@ -6838,7 +6854,7 @@
 
 "@152":["pNoo531oVFmrCJp0o2TKyZF7eshEgw8oznQedouciik",420,86900],
 
-"@153":["h39Q95u7NAVEwilJH0oS0MZcw8L5u5NoRFoOkaT4EVk",420,53891],
+"@153":["CuqMGzDB0GZv-Sfn1tn3_IRYpEDgfWZUOq4xuI_Zd_M",420,57339],
 
 "@154":["qOB6Jw37i3eJ7nJOEXOKJ1y8LKAd2uaJuywl3j_VmK8",420,60663],
 
@@ -6976,9 +6992,9 @@
 
 "@63":["tm10A55j93J78MTbwt0ynQOqShXJVMVUY7-geMJRG-g",420,53007],
 
-"@64":["a45Y4KArf4O7bZiLsjcktpGz5Ju_Gv0qO4Jl6_Ly0AQ",420,139230],
+"@64":["Ng2qfsPmHJKDu2tnSEqCrrJm_WC7RCUf8Eg1LnXnrcw",420,139210],
 
-"@65":["7NExT7gqa1nSPSb7ngTu-e-FHN2qSydIcXIqofUA0Qw",420,37080],
+"@65":["Oft1jGWDYkDkU4zs3wMu9uiDZw-tC2N3WO1WbJJEETc",420,38248],
 
 "@66":["yydJmz2r25lUIDAVnbkKz-KUmgOVux6iavYDEax4IK8",420,2228],
 
@@ -7444,7 +7460,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["0Gcytma3bgtymMEaHK0sB8Laoc5ZnOrM0D74CfF3ymI",420,134123],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["gbTEk-S4xQm1VrD5XyFBhwMbvzHxt36aDsgr6IWjkjw",420,134123],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -7642,7 +7658,7 @@
 
 "w42Interlock":["with self.assertRaisesRegex(qualification.QualificationError, 'changed'):","p42Interlock",{"$":1},"qualification.release_managed_login(second)",[],"tests.test_registered_n1_qualification.CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release"],
 
-"w42Namespace":["assert not Path({str(self.auth)!r}).exists()","p42Namespace",{"$":1},"self.assertEqual(self.auth.read_bytes(), b'EXAMPLE refreshed login\\n')",[],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"],
+"w42Namespace":["assert not Path({str(self.auth)!r}).exists()","p42Namespace",{"$":1},{"$":376},["p55A"],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"],
 
 "w42Precharge":["self.assertEqual(qualification.campaign_usage()['total'], 0)","p42Precharge",{"$":1},"self.assertTrue(factory._managed_lifetime.contained)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace"],
 
@@ -7696,9 +7712,9 @@
 
 "w52":[{"$":123},"p197",{"$":6},{"$":123},[],"tests.test_production_closure.ProductionClosureTests.test_host_acceptance_refusals_have_zero_calls_and_writes_with_positive_controls"],
 
-"w52A":["self.assertFalse(workflow.config.store.read_state()['operations'])","p52a",{"$":0},{"$":358},["p52z","p52p"],"tests.test_registered_n1_workflow.WorkflowTests.test_production_requires_current_adoption_and_explicit_provider_attachment"],
+"w52A":["self.assertFalse(workflow.config.store.read_state()['operations'])","p52a",{"$":0},{"$":358},["p52z","p52p","p55H"],"tests.test_registered_n1_workflow.WorkflowTests.test_production_requires_current_adoption_and_configured_worker_login"],
 
-"w52F":["self.assertEqual(self.spawned, [])","p52f",{"$":0},"self.assertEqual(attachments, [('appserver', workflow.factory, token.encode())])",["p52p"],"tests.test_registered_n1_factory.FactoryTests.test_signed_registered_production_requires_the_original_workflow_guard"],
+"w52F":["self.assertEqual(self.spawned, [])","p52f",{"$":0},"self.assertEqual(mount.home, home)",["p52p"],"tests.test_registered_n1_factory.FactoryTests.test_signed_registered_production_requires_the_original_workflow_guard"],
 
 "w52R":["spawn.assert_not_called()","p52r",{"$":12},"T._require_native_rpc('thread/archive', raw)",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_registered_production_source_decision_leaves_raw_launch_and_rpc_held"],
 
@@ -7711,6 +7727,10 @@
 "w54":[{"$":136},"p37d",{"$":6},{"$":136},[],{"$":321}],
 
 "w55":["self.assertEqual(len(effects.mock_calls), 0, \"held entry reached a browser effect\")","p11e",{"$":0},"effects.factory.assert_called_once_with()",["p2f1","p1ea","p13a","p1f4","p178","p21f","p1b2"],"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_direct_custom_local_and_browser_modes_cannot_bypass_shipped_denials"],
+
+"w55Lease":["with self.assertRaisesRegex(ValueError, 'unresolved'):\n            second_controller_mount.claim()","p55l",{"$":1},"self.assertEqual(list(state.iterdir()), [])",["p52p"],"tests.test_registered_n1_workflow.WorkflowTests.test_production_retains_worker_login_lease_when_namespace_cleanup_is_unknown"],
+
+"w55R":["assert not Path({str(self.auth)!r}).exists()","p55R",{"$":1},{"$":376},["p55A"],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_worker_mount_persists_refresh_without_qualification_campaign"],
 
 "w56":[{"$":291},"p201",{"$":1},{"$":291},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_records_attestation"],
 

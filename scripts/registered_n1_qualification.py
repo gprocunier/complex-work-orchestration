@@ -83,9 +83,44 @@ def _login_name(slot, first, suffix=''):
     return first + ('' if slot == 1 else '-' + str(slot)) + suffix
 
 
+def _controller_home():
+    return Path(pwd.getpwuid(os.getuid()).pw_dir)
+
+
 def managed_login_home(slot=1):
     """The controller's dedicated login is independent of caller environment and spec paths."""
-    return Path(pwd.getpwuid(os.getuid()).pw_dir) / _login_name(slot, '.cwo-qual-codex')
+    return _controller_home() / _login_name(slot, '.cwo-qual-codex')
+
+
+def worker_login_state():
+    """Private interlocks for the installed controller, shared across checkouts."""
+    return _controller_home() / '.local' / 'state' / 'cwo' / 'registered-worker-logins'
+
+
+def _login_identity(path):
+    try:
+        info = path.stat()
+    except FileNotFoundError:
+        return None
+    return info.st_dev, info.st_ino
+
+
+def _login_overlap(left, right):
+    if left.is_relative_to(right) or right.is_relative_to(left):
+        return True
+    left_id, right_id = _login_identity(left), _login_identity(right)
+    return ((left_id is not None and left_id in map(_login_identity, right.parents))
+            or (right_id is not None and right_id in map(_login_identity, (left, *left.parents))))
+
+
+def require_worker_login_location(home):
+    roots = [_controller_home() / '.codex', *(managed_login_home(slot) for slot in (1, 2, 3))]
+    ambient = os.environ.get('CODEX_HOME')
+    if ambient:
+        roots.append(Path(ambient).expanduser())
+    for root in roots:
+        _need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),
+              'The worker login must be separate from the primary Codex home and all qualification homes.')
 
 
 def _file_identity(info):
@@ -100,8 +135,9 @@ _RUNTIME_PROJECTIONS = ('session_index.jsonl', 'installation_id', '.sandbox_migr
 class ManagedLoginMount:
     """Use the approved home as the overlay's writable layer, with operation-local state below it."""
 
-    def __init__(self, home):
+    def __init__(self, home, *, work_root=None):
         self.home = home
+        self._work_root = work_root
         self.identity = self._observe_home()[0]
         self.lower = self.work = None
         self.existing_runtime = ()
@@ -154,7 +190,8 @@ class ManagedLoginMount:
             if name in (*_SESSION_STORES, *_DIRECTORY_PROJECTIONS):
                 target.mkdir(mode=0o700, exist_ok=True)
             (self.lower / name).symlink_to(target)
-        self.work = Path(tempfile.mkdtemp(prefix='managed-login-work-', dir=campaign_directory()))
+        work_root = campaign_directory() if self._work_root is None else self._work_root
+        self.work = Path(tempfile.mkdtemp(prefix='managed-login-work-', dir=work_root))
         _need(self.work.stat().st_dev == self.identity[0],
               'The dedicated login and campaign state must share an overlay-capable filesystem.')
 
@@ -216,6 +253,59 @@ class ManagedLoginMount:
             if overlay_work.is_dir():
                 overlay_work.chmod(0o700)
             shutil.rmtree(self.work)
+
+    def claim(self):
+        return claim_managed_login()
+
+    def release(self, nonce):
+        release_managed_login(nonce)
+
+    def protected_roots(self):
+        return (self.home,)
+
+
+class WorkerLoginMount(ManagedLoginMount):
+    """A production worker's overlay and durable interlock for its original login inode."""
+
+    def __init__(self, home, state):
+        require_worker_login_location(home)
+        super().__init__(home, work_root=state)
+        self._lease_name = f'login-{self.identity[0]:x}-{self.identity[1]:x}.lock'
+
+    @staticmethod
+    def _observe_auth(directory):
+        auth = ManagedLoginMount._observe_auth(directory)
+        for name in ('auth.json.lock', 'auth.lock'):
+            try:
+                lock = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            _need(stat.S_ISREG(lock.st_mode) and stat.S_IMODE(lock.st_mode) == 0o600
+                  and lock.st_uid == os.getuid() and lock.st_nlink == 1,
+                  'The worker login requires a private authentication lock file.')
+        return auth
+
+    def _require_original_home(self):
+        identity, _auth = self._observe_home()
+        _need(identity == self.identity, 'The original worker login directory changed.')
+
+    def claim(self):
+        require_worker_login_location(self.home)
+        self._require_original_home()
+        directory = host_records._directory(self._work_root, create=True, private=True)
+        with authority._state_descriptor(directory):
+            _need(os.fstat(directory).st_dev == self.identity[0],
+                  'The worker login and interlock must share an overlay-capable filesystem.')
+            return _claim_login(directory, self._lease_name)
+
+    def release(self, nonce):
+        self._require_original_home()
+        directory = host_records._directory(self._work_root, private=True)
+        with authority._state_descriptor(directory):
+            _release_login(directory, self._lease_name, nonce)
+
+    def protected_roots(self):
+        return self.home, self._work_root
 
 
 def require_model_selection(spec, plan, operation):
@@ -333,7 +423,7 @@ def verify_qualification_permit(value, capability, verifier):
 def _campaign_directory():
     # An installed controller uses the same custody across source clones and
     # release updates. A worktree, environment or run input cannot select it.
-    return Path(pwd.getpwuid(os.getuid()).pw_dir) / '.local' / 'state' / 'cwo' / CAMPAIGN
+    return _controller_home() / '.local' / 'state' / 'cwo' / CAMPAIGN
 
 
 def campaign_directory():
@@ -380,23 +470,31 @@ def _login_lease_name(slot):
 def claim_managed_login(slot=1):
     """Leave a durable interlock across controller crashes and unresolved namespaces."""
     lease = _login_lease_name(slot)
-    nonce = uuid.uuid4().hex
     with _journal(include_directory=True) as (_, directory):
-        try:
-            # O_EXCL also leaves a blocking entry after a partial write.
-            host_records._write_at(directory, lease, nonce.encode())
-        except FileExistsError as exc:
-            raise QualificationError('A managed login launch remains unresolved.') from exc
+        return _claim_login(directory, lease)
+
+
+def _claim_login(directory, lease):
+    nonce = uuid.uuid4().hex
+    try:
+        # O_EXCL also leaves a blocking entry after a partial write.
+        host_records._write_at(directory, lease, nonce.encode())
+    except FileExistsError as exc:
+        raise QualificationError('A managed login launch remains unresolved.') from exc
     return nonce
 
 
 def release_managed_login(nonce, slot=1):
     lease = _login_lease_name(slot)
     with _journal(include_directory=True) as (_, directory):
-        observed = host_records._read_at(directory, lease, 32)
-        _need(observed == nonce.encode(), 'The original managed login lease changed.')
-        os.unlink(lease, dir_fd=directory)
-        os.fsync(directory)
+        _release_login(directory, lease, nonce)
+
+
+def _release_login(directory, lease, nonce):
+    observed = host_records._read_at(directory, lease, 32)
+    _need(observed == nonce.encode(), 'The original managed login lease changed.')
+    os.unlink(lease, dir_fd=directory)
+    os.fsync(directory)
 
 
 def _check_row(row, expected_sequence, previous):

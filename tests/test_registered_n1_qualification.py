@@ -149,7 +149,7 @@ class ManagedLoginNamespaceTests(unittest.TestCase):
         self.login = self.root / 'EXAMPLE-dedicated-login'
         self.login.mkdir(mode=0o700)
         self.auth = self.login / 'auth.json'
-        self.auth.write_bytes(b'EXAMPLE original login\n')
+        self.auth.write_bytes(b'{"tokens":{"refresh_token":"EXAMPLE original token"}}\n')
         self.auth.chmod(0o600)
         for name in ('auth.json.lock', 'auth.lock'):
             (self.login / name).touch(mode=0o600)
@@ -165,12 +165,15 @@ class ManagedLoginNamespaceTests(unittest.TestCase):
         self.validator = family.runtime_validator()
         self.factory = SimpleNamespace(spec={'launcher': self.launcher,
             'configuration_files': {'config.toml': '', 'rules/default.rules': ''}, 'validator': self.validator},
-            host=SimpleNamespace(worker=worker), _managed_lease='EXAMPLE-lease',
+            host=SimpleNamespace(worker=worker), _managed_lease=None,
             host_records=SimpleNamespace(assert_worker_roots_excluded=lambda roots: None))
-        self.enterContext(patch.object(qualification, '_campaign_directory', return_value=self.root))
-        self.mount = qualification.ManagedLoginMount(self.login)
-        self.mount.prepare(self.spool)
-        self.addCleanup(self.mount.retire)
+
+    def prepare_mount(self, mount):
+        self.mount = mount
+        self.factory._managed_lease = mount.claim()
+        self.addCleanup(mount.release, self.factory._managed_lease)
+        self.addCleanup(mount.retire)
+        mount.prepare(self.spool)
 
     def witness(self, role, program):
         lifetime = runtime._Containment(self.factory, role=role)
@@ -204,6 +207,24 @@ class ManagedLoginNamespaceTests(unittest.TestCase):
                     process.kill()
 
     def test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes(self):
+        self.enterContext(patch.object(qualification, '_campaign_directory', return_value=self.root / 'campaign'))
+        qualification.initialize_campaign()
+        self.prepare_mount(qualification.ManagedLoginMount(self.login))
+        self.assert_atomic_refresh_and_runtime_isolation()
+        with self.assertRaisesRegex(qualification.QualificationError, 'unresolved'):
+            qualification.claim_managed_login()
+
+    def test_real_worker_mount_persists_refresh_without_qualification_campaign(self):
+        self.enterContext(patch.object(qualification, '_campaign_directory',
+                                      side_effect=AssertionError('production must not open campaign state')))
+        state = self.root / 'worker-lease-state'
+        self.prepare_mount(qualification.WorkerLoginMount(self.login, state))
+        self.assert_atomic_refresh_and_runtime_isolation()
+        another = qualification.WorkerLoginMount(self.login, state)
+        with self.assertRaisesRegex(qualification.QualificationError, 'unresolved'):
+            another.claim()
+
+    def assert_atomic_refresh_and_runtime_isolation(self):
         ready = "import os, sys\nfrom pathlib import Path\nprint('EXAMPLE ready', flush=True)\nassert sys.stdin.read(1) == '1'\n"
         self.witness('appserver', ready + r'''
 home = Path(os.environ['CODEX_HOME'])
@@ -216,11 +237,15 @@ except OSError:
 else:
     raise AssertionError('The signed config is writable')
 auth = home / 'auth.json'
-assert auth.read_bytes() == b'EXAMPLE original login\n'
-update = home / 'EXAMPLE-auth-refresh'
-update.write_bytes(b'EXAMPLE refreshed login\n')
-update.chmod(0o600)
-os.replace(update, auth)
+import fcntl, json, tempfile
+assert json.loads(auth.read_bytes())['tokens']['refresh_token'] == 'EXAMPLE original token'
+with (home / 'auth.json.lock').open('r+b') as lock:
+    fcntl.flock(lock, fcntl.LOCK_EX)
+    with tempfile.NamedTemporaryFile(dir=home, prefix='.auth-', delete=False) as update:
+        update.write(b'{"tokens":{"refresh_token":"EXAMPLE rotated token"},"last_refresh":"2026-11-24T00:00:00Z"}\n')
+        update.flush()
+        os.fsync(update.fileno())
+    os.replace(update.name, auth)
 for name in ('log', 'tmp', 'shell_snapshots'):
     runtime = home / name
     assert not (runtime / 'EXAMPLE previous').exists()
@@ -230,7 +255,9 @@ rollout.write_bytes(b'EXAMPLE turn')
 os.replace(rollout, home / 'archived_sessions' / rollout.name)
 print('EXAMPLE done')
 ''')
-        self.assertEqual(self.auth.read_bytes(), b'EXAMPLE refreshed login\n')
+        self.assertEqual(json.loads(self.auth.read_bytes()), {
+            'tokens': {'refresh_token': 'EXAMPLE rotated token'}, 'last_refresh': '2026-11-24T00:00:00Z'})
+        self.assertEqual(self.auth.stat().st_mode & 0o777, 0o600)
         self.assertEqual({path.name for path in self.login.iterdir()},
                          {'auth.json', 'auth.json.lock', 'auth.lock', 'log', 'tmp'})
         for name in ('log', 'tmp'):

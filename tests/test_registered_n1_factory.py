@@ -1495,7 +1495,7 @@ class FactoryTests(unittest.TestCase):
                 + ''.join(f'{feature} = false\n' for feature in runtime.qualification.disabled_features())
                 + '[features.code_mode]\nenabled = true\ndirect_only_tool_namespaces = '
                 + json.dumps([runtime.qualification.FINITE_TOOL_NAMESPACE]) + '\n')
-        if managed_login:
+        if managed_login or is_production:
             login_deny = f'{json.dumps(str(runtime.qualification.LOGIN_MOUNT))} = "deny"\n'
             spec['configuration_files']['config.toml'] = ('cli_auth_credentials_store = "file"\n'
                 + spec['configuration_files']['config.toml'].replace('"/" = "deny"\n', '"/" = "deny"\n' + login_deny))
