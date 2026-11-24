@@ -930,9 +930,14 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
                 observed.append(True)
             return original(server, message, response, deadline, refusal=refusal)
 
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self._positive_finite_completion(case), \
-                patch.object(family.runtime._RegisteredServer, '_commit_tool_reply', commit):
-            result = factory.run()
+        try:
+            with (patch.object(family, 'RpcProcess', DynamicRpcProcess),
+                  self._positive_finite_completion(case), _fixture_poll_ticket_clock(factory),
+                  patch.object(family.runtime._RegisteredServer, '_commit_tool_reply', commit)):
+                result = factory.run()
+        except BaseException as failure:
+            _note_original_poll_refusal(factory, failure)
+            raise
         self.assertEqual(observed, [True])
         self.assertEqual(result['attempt']['outcome'], 'completed')
         self.assertEqual(case.poll_observation,
@@ -1463,13 +1468,22 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(case.poll_state, 'running')
 
     def test_nonzero_exit_after_command_reply_refuses_poll_and_full_charge(self):
-        case = self.fixture.case(finite_tool_mode='captured-host-tools', tool_exit_before_poll=7)
+        case = self.fixture.case(finite_tool_mode='captured-host-tools', tool_exit_before_poll=7,
+                                 no_fake_scheduler=True)
         factory = self.fixture.factory(case)
-        with patch.object(family, 'RpcProcess', DynamicRpcProcess), self.assertRaises(BaseException):
+        with (patch.object(family, 'RpcProcess', DynamicRpcProcess),
+              self.assertRaises(family.runtime.native.OfflineHostError) as rejected):
             factory.run()
+        self.assertTrue(self.fixture.spawned[0].replies, str(rejected.exception))
         self.assertTrue(self.fixture.spawned[0].replies[0]['result']['success'])
         self.assertFalse(any(reply.get('result', {}).get('success') is True
                              for reply in self.fixture.spawned[0].replies[1:]))
+        self.assertEqual(factory.server.finite_input.terminal_code, 7)
+        rows = [json.loads(path.read_bytes()) for path in
+                (factory.records / 'transport-observations').glob('observation-*.json')]
+        self.assertEqual([row['observation'] for row in rows if row['stage'] == 'finite-tool-refusal'], [{
+            'tool': 'finite_poll', 'call': 'EXAMPLE-poll-call', 'reason': 'FiniteInputError',
+            'message': 'The owned tool exited with a nonzero status.'}])
         attempt = self.fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'unknown')
         self.assertEqual(attempt['charge'], attempt['amount'])

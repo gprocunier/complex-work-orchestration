@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from itertools import permutations
-from contextlib import ExitStack, nullcontext
+from contextlib import ExitStack, contextmanager, nullcontext
 import os
 import threading
 import time
@@ -12,6 +12,30 @@ from unittest.mock import patch
 
 from tests import test_registered_n1_factory as family
 import registered_finite_input as finite
+
+
+class _PipeTicketClock:
+    """Schedule only the direct test ticket; let host and cleanup clocks run."""
+
+    sleep = staticmethod(time.sleep)
+
+    def __init__(self):
+        self._ticket = threading.local()
+
+    def monotonic(self):
+        sample = getattr(self._ticket, 'now', None)
+        return time.monotonic() if sample is None else sample
+
+    @contextmanager
+    def at(self, tick):
+        self._ticket.now = tick
+        try:
+            yield
+        finally:
+            del self._ticket.now
+
+    def expire(self, deadline):
+        self._ticket.now = deadline + .05
 
 
 class ToolLines:
@@ -1702,22 +1726,25 @@ class FiniteInputTests(unittest.TestCase):
         original = finite.select.select
         entered = threading.Event()
         before_bytes = gate.output_bytes_seen
-        deadline = time.monotonic() + 1.5
-        ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
-            turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
-            approval_id=approval, deadline=deadline)
+        clock = _PipeTicketClock()
+        start = time.monotonic()
+        deadline = start + 1.5
 
         def late(reads, writes, errors, timeout=None):
             if len(reads) == 1 and gate._pipe_stat(reads[0]) == gate.output_stat:
-                self.assertGreater(deadline, time.monotonic(), 'the original ticket must be live at pipe entry')
+                self.assertGreater(deadline, clock.monotonic(), 'the original ticket must be live at pipe entry')
                 entered.set()
-                time.sleep(max(0, deadline - time.monotonic()) + .05)
+                clock.expire(deadline)
                 return [], [], []
             return original(reads, writes, errors, timeout)
 
-        with patch.object(finite.select, 'select', late), self.assertRaisesRegex(
-                finite.FiniteInputError, 'The poll deadline expired during pipe observation.'):
-            gate.poll(ticket, timeout=.1)
+        with patch.object(finite, 'time', clock), clock.at(start):
+            ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
+                turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
+                approval_id=approval, deadline=deadline)
+            with patch.object(finite.select, 'select', late), self.assertRaisesRegex(
+                    finite.FiniteInputError, 'The poll deadline expired during pipe observation.'):
+                gate.poll(ticket, timeout=.1)
         self.assertTrue(entered.is_set(), 'the deadline schedule must cross the original pipe wait')
         self.assertEqual(gate.output_bytes_seen, before_bytes)
         self.assertTrue(tool._termination_finished.wait(8),
@@ -1816,15 +1843,15 @@ class FiniteInputTests(unittest.TestCase):
         self.assertIsNone(factory.token)
 
     def test_close_during_pipe_wait_revokes_next_ticket(self):
+        approval = 'EXAMPLE-before-close'
         case, factory, tool, _stream, read, release, result = self._active(
-            hold_admission=True, allow_original_turn_response=True)
+            hold_admission=True, allow_original_turn_response=True, prepared_poll_approval=approval)
         gate = factory.server.finite_input
-        ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
-            turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
-            approval_id='EXAMPLE-before-close', deadline=time.monotonic() + 3)
         entered, resume, closed = threading.Event(), threading.Event(), threading.Event()
         original = finite.select.select
         polled = []
+        clock = _PipeTicketClock()
+        start = time.monotonic()
 
         def paused(reads, writes, errors, timeout=None):
             if len(reads) == 1 and gate._pipe_stat(reads[0]) == gate.output_stat:
@@ -1834,7 +1861,8 @@ class FiniteInputTests(unittest.TestCase):
 
         def poll():
             try:
-                polled.append(gate.poll(ticket))
+                with clock.at(start):
+                    polled.append(gate.poll(ticket))
             except BaseException as error:
                 polled.append(error)
 
@@ -1842,16 +1870,19 @@ class FiniteInputTests(unittest.TestCase):
             gate.close()
             closed.set()
 
-        with patch.object(finite.select, 'select', paused):
+        with patch.object(finite, 'time', clock), patch.object(finite.select, 'select', paused), ExitStack() as workers:
+            with clock.at(start):
+                ticket = gate.reserve(b'', thread_id=case.scenario.thread_id,
+                    turn_id=case.scenario.turn_id, item_id='EXAMPLE-command-call',
+                    approval_id=approval, deadline=start + 3)
             worker = threading.Thread(target=poll, daemon=True)
             worker.start()
-            self.assertTrue(entered.wait(3))
+            workers.callback(family.finish_worker, self, worker, resume, join_seconds=3)
+            self.assertTrue(entered.wait(3), f'The original pipe wait was not reached. Poll outcome {polled!r}')
             closer = threading.Thread(target=close, daemon=True)
             closer.start()
+            workers.callback(family.finish_worker, self, closer, resume, join_seconds=3)
             self.assertTrue(closed.wait(.5), 'close must remain responsive during pipe wait')
-            resume.set()
-            worker.join(3)
-            closer.join(3)
         self.assertIsInstance(polled[0], finite.FiniteInputError)
         self.assertTrue(closed.is_set())
         self.assertTrue(tool.contained)
