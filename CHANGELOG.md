@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.27.0 - 2026-11-24
+
 - Enable registered single-worker native execution with provider-only network access, explicit provider disclosure consent and separately supplied production authentication.
 
 ### Tests
