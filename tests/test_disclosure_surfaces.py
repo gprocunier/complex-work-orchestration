@@ -19,6 +19,7 @@ from tests import test_outbound_screen as helpers
 from tests import test_prepared_outbound as preparation_tests
 from tests.local_invocation_fixtures import isolate_local_invocation_ledgers
 
+import browser_request
 import chatgpt_browser_review as browser
 import dispatch_work
 import generate_manual_dispatch_prompt as manual
@@ -161,7 +162,9 @@ class DisclosureSurfaceTests(helpers._OutboundHelpers, unittest.TestCase):
             args = Namespace(packet=str(path), prompt_file=None, allow_degraded_packet=False, allow_unlinked_packet=False)
             sources = []
             try:
-                with helpers.with_provenance(packet), patch.object(browser, "render_packet_prompt", side_effect=lambda p: rendered(p, row, control=control)):
+                with helpers.with_provenance(packet), patch.object(
+                    browser_request, "render_packet_prompt", side_effect=lambda p: rendered(p, row, control=control)
+                ):
                     prompt, _ = browser.load_prompt_from_args(args, prepared_sources=sources)
                 runner = browser.PlaywrightChatGPTRunner({"selectors": {}, "chrome_user_data_dir": tmp})
                 runner.prepared_sources = tuple(sources)
