@@ -1055,6 +1055,50 @@ class FakeAppServerTransportTests(unittest.TestCase):
             self.assertNotIn(b"\n", prefixes[0])
             server.process.terminate.assert_called_once()
 
+    def test_registered_production_rechecks_authority_after_partial_turn_write(self) -> None:
+        from tests.test_run_native_pool_live_canaries import AmbiguousTurnDispatchTests
+
+        defining = transport("app_server")
+        fixture = AmbiguousTurnDispatchTests()
+        self.addCleanup(fixture.doCleanups)
+        with tempfile.TemporaryDirectory() as temporary:
+            server, ledger, _state, _writer, thread_id, _turns = fixture.server(Path(temporary), "absent")
+            read_fd, write_fd = os.pipe()
+            self.addCleanup(os.close, read_fd)
+            stream = os.fdopen(write_fd, "w")
+            self.addCleanup(stream.close)
+            server.process.stdin = stream
+            guard = mock.Mock(side_effect=defining.live_availability.require_registered_n1_live)
+            whole_frame = mock.Mock()
+            defining._PRODUCTION_RPC.register(server, (guard, whole_frame, "default"))
+            self.addCleanup(defining._PRODUCTION_RPC.pop, server, None)
+            write = os.write
+
+            def revoke(fd, data):
+                if fd == write_fd:
+                    defining.live_availability.REGISTERED_N1_LIVE_AVAILABLE = False
+                    return write(fd, data[:7])
+                return write(fd, data)
+
+            with (
+                mock.patch.object(defining, "time", wraps=time) as clock,
+                mock.patch.multiple(defining.live_availability,
+                                    N1_LIVE_AVAILABLE=False, REGISTERED_N1_LIVE_AVAILABLE=True),
+                mock.patch.object(os, "write", side_effect=revoke),
+            ):
+                clock.monotonic.side_effect = itertools.count(0.0, 0.001)
+                with self.assertRaises(runner.AmbiguousTurnStartError) as caught:
+                    server.start_turn(thread_id, "Explain the local function.", timeout=0.03, ambiguity_timeout=0)
+            self.assertGreaterEqual(guard.call_count, 4)
+            whole_frame.assert_called_once()
+            method, request = whole_frame.call_args.args
+            self.assertEqual((method, request['params']['serviceTier']), ('turn/start', 'default'))
+            self.assertEqual(os.read(read_fd, 8), b'{"id":1')
+            self.assertEqual(server._reader_error, "native-registered-n1-live-unavailable")
+            self.assertEqual(caught.exception.record['wire_write_attempt_count'], 1)
+            self.assertEqual(ledger.summary()['unresolved_turn_intent_count'], 1)
+            server.process.terminate.assert_called_once()
+
     def test_faulted_turn_keeps_charge_without_waiting_for_dead_reader(self) -> None:
         from tests.test_run_native_pool_live_canaries import AmbiguousTurnDispatchTests
         fixture = AmbiguousTurnDispatchTests()

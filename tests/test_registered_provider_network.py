@@ -293,7 +293,7 @@ class ProviderNamespaceTests(unittest.TestCase):
         self.records = queue.Queue()
         self.factory = SimpleNamespace(spec={'launcher': self.launcher, 'executable': str(executable),
             'validator': self.validator, 'configuration_files': {}}, host=SimpleNamespace(worker=self.worker),
-            operation_id='EXAMPLE-provider-witness', server=None, require_effect=lambda: None,
+            operation_id='EXAMPLE-provider-witness', production_live=False, server=None, require_effect=lambda: None,
             host_records=SimpleNamespace(assert_worker_roots_excluded=lambda roots: None),
             record=lambda stage, observation: self.records.put((stage, observation)),
             _take_provider_access_token=lambda: None,

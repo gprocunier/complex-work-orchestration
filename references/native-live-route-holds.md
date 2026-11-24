@@ -1,20 +1,17 @@
 # Native live route holds
 
-`scripts/cwo_core/native_live_availability.py` supplies three independent source
-decisions, all shipped as `False`: `N1_LIVE_AVAILABLE`, `POOL_LIVE_AVAILABLE`,
-and `CAMPAIGN_LIVE_AVAILABLE`. They are not read from a plan, environment,
-constructor enable switch, approval file or CLI option. The activation preview
-also retains its own default-off `LIVE_ACTIVATION_AVAILABLE` decision in
-`run_native_pool_activation_preview.py`. Its accepted-child close route uses pool
-receipts and is held independently by `LIVE_ACTIVATION_AVAILABLE` and the selected
-N1/pool holds. It is not constrained by production verified acceptance today;
-restoring N1/pool alone cannot restore the preview. Any future restoration must
-resolve that separate closure contract before claiming verified acceptance.
-No route is restored or live qualification claimed.
+`scripts/cwo_core/native_live_availability.py` enables the registered
+single-worker production decision. `N1_LIVE_AVAILABLE`, `POOL_LIVE_AVAILABLE`
+and `CAMPAIGN_LIVE_AVAILABLE` remain `False`. These decisions come from installed
+source. Activation preview retains its independent `LIVE_ACTIVATION_AVAILABLE`
+hold in `run_native_pool_activation_preview.py`. Its accepted-child close route
+uses pool receipts and would require a separate closure review before claiming
+verified acceptance.
 
 | Route | Required source decisions | Enforcement before effects |
 | --- | --- | --- |
-| Production N1 | `N1_LIVE_AVAILABLE` | Raw `AppServer` construction and its adjacent `Popen`; registered workflow `run`, factory `run`/`require_effect`, and containment `launch`; maintenance runtime `prepare`; admitted v8 loader before operation claim. |
+| Registered single-worker production | `REGISTERED_N1_LIVE_AVAILABLE` | Original signed workflow, exact finite profile, current provider disclosure adoption and separately supplied authentication before the first claim. The original factory and transport recheck authority at launch and model request writes. |
+| Raw native or generic maintenance launch | `N1_LIVE_AVAILABLE` | Raw `AppServer` construction and its adjacent `Popen`, unbound model RPCs, maintenance runtime `prepare` and the admitted v8 loader. |
 | N1 host qualification | Signed version 2 qualification permit | The protected controller binds one exact operation, its expiry and the fixed 20-start campaign limit. The factory charges the launch to a private campaign journal before releasing the app-server command. |
 | Native surface probe and qualification | `N1_LIVE_AVAILABLE` | `capture_tool_request` refuses before capture binding or listener startup; its CLI refuses before catalog/evidence writes. `observe_qualification` verifies the original opaque operation, then refuses before qualification output/intent creation. |
 | Registered pool and retry | `N1_LIVE_AVAILABLE` and `POOL_LIVE_AVAILABLE` | Pool host execute entry and each member, plus approved retry entry and effect. `PoolConfiguration.enabled=True` cannot replace either source decision. |
@@ -42,11 +39,8 @@ with shared flags on and its dedicated hold off, before input reads, server star
 and closure, plus controls with all required decisions patched on.
 
 The historical transport extraction and archived source fixtures remain
-historical records. The current raw transport deliberately adds the default-off launch
-hold after that extraction; it no longer claims historical byte identity.
-Restoration remains an operator decision with the separately required live
-qualification and deployment review. These flags themselves do not validate a
-live qualification record.
+historical records. Raw transport retains its source hold. Additional live
+routes require their own qualification and operator decision.
 
 ## Explicit launcher binding hold
 
@@ -57,6 +51,34 @@ supply explicit executable and `CODEX_HOME` bindings, or a verified capture
 binding, through the constructor contract and satisfy all existing source
 holds and qualification requirements. This change documents that refusal; it
 restores no route.
+
+## Registered single-worker production
+
+The original signed registered workflow can select `production_live: true`
+for one worker and one session. Its operator execution adoption binds the exact
+request and OpenAI provider disclosure. The app server uses a read-only checkout,
+provider-only HTTPS relay and the original finite-tool profile. The finite command
+and validator run in separate network namespaces. The host checks the selected
+model, effort and default tier before submitting work.
+
+Call `adopt_execution` with `boundary` set to `provider-only`, `provider` set to
+`openai`, and `request_sha256` set to the digest of the original rendered request
+bytes. Set `allowed_effects` to `native-worker`, `provider-request` and
+`target-publication` in that order. The production selector must agree in the
+signed factory specification and the original whole-route admission.
+
+Production authentication is a separate operator choice. The current embedding
+interface accepts a separately provisioned Codex access token through
+`RegisteredN1Workflow.run(provider_access_token=...)`. The token reaches only the
+app-server bootstrap through an owned pipe. The qualification login and its
+launch journal belong to the disposable qualification campaign. Missing
+production authentication refuses before claims, intent or startup. Target
+publication still requires its original independent evidence and authority.
+
+Live host qualification covered useful output, empty polling with zero stdin
+delivery and observed progress, nonempty input refusal, an out-of-workspace
+refusal before spawn, signed exhaustion, charges, archive and original cleanup.
+Production admission and authentication isolation have offline witnesses.
 
 ## Registered single-worker host qualification
 

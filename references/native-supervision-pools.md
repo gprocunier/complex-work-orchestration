@@ -1,8 +1,7 @@
 # Native Supervision Pools
 
-A pool lets one trusted host supervise a fixed group of workers. Concurrent
-execution is unavailable in this release: registered single-worker, pool and
-campaign routes ship with default-off source holds. The contract bounds groups
+A pool lets one trusted host supervise a fixed group of workers. Pool and
+campaign execution remain held by their source decisions. The contract bounds groups
 to N=1..3; it does not make assignment preparation, integration or publication
 concurrent. Ordinary productive pool plans additionally require trusted-controller
 launcher authority, and no such controller ships. Supplying a controller or
@@ -49,7 +48,7 @@ preserved and architect/operator adjudication recorded before remediation.
 
 This reference is for operators deciding whether to use CWO's concurrent native
 worker supervision. Start with [Native Worker Supervision](native-supervision.md)
-for the held single-worker contract. A concurrent pool contract lets one trusted
+for the registered single-worker contract. A concurrent pool contract lets one trusted
 host control a fixed cohort of already-created native worker supervisors within
 the policy ceiling; it does not make packet construction, precommit, critics,
 integration, retry, replay, or

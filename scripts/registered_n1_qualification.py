@@ -257,10 +257,10 @@ def require_executable_schema(executable, digest):
         raise QualificationError(str(exc)) from exc
 
 
-def check_thread_model(params, response):
+def check_thread_model(params, response, *, reasoning_effort=EFFORT):
     _need(all(params.get(key) == value for key, value in thread_selectors().items())
-          and response.get('reasoningEffort') == EFFORT and response.get('serviceTier') == TIER,
-          'Actual qualification reasoning effort or service tier differs.')
+          and response.get('reasoningEffort') == reasoning_effort and response.get('serviceTier') == TIER,
+          'Actual registered live reasoning effort or service tier differs.')
     thread = response.get('thread', {})
     _need(thread.get('ephemeral') is False,
           'The qualification thread must use its private persistent rollout.')

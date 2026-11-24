@@ -31,6 +31,11 @@ def read_only_evidence(method):
     return method
 
 
+def production_case(method):
+    method.production_case = True
+    return read_only_evidence(method)
+
+
 def evidence_snapshot(evidence):
     """Observe retained review files without replacing any product recheck."""
     roots = {evidence.root, *(host._ledger.root.parent for host, *_ in evidence._completed)}
@@ -166,6 +171,9 @@ class WorkflowTests(unittest.TestCase):
                          materialize_on_turn_start=True, no_fake_scheduler=True)
                     if self._testMethodName == 'test_c1_real_registered_native_validation_separate_consent_and_real_publication'
                     else {})
+        if getattr(method, 'production_case', False):
+            selected = dict(production=True, production_model=F.resolve_model('astra'),
+                            production_effort='high', no_fake_scheduler=True, archive_schedule='settled')
         self.case = self.fixture.case(**selected)
         c, a = self.case, self.fixture.authority
         a.mission['scope']['workspace_roots'].append(str(c.host.target))
@@ -218,6 +226,11 @@ class WorkflowTests(unittest.TestCase):
             'boundary': 'local-only', 'allowed_effects': ['native-worker', 'target-publication'],
             'request_sha256': hashlib.sha256(self.case.receipt.request_bytes).hexdigest()})
 
+    def production_disclosure(self):
+        return {'boundary': 'provider-only', 'provider': 'openai',
+                'allowed_effects': ['native-worker', 'provider-request', 'target-publication'],
+                'request_sha256': hashlib.sha256(self.case.receipt.request_bytes).hexdigest()}
+
     def run_native(self, *, expected_children=2, archive_schedule='concurrent'):
         if archive_schedule == 'settled':
             F.settle_original_archive(self.fixture, self.case)
@@ -234,6 +247,14 @@ class WorkflowTests(unittest.TestCase):
 
     def allow_publication(self):
         self.workflow.adopt_publication(adoption_id='EXAMPLE_CURRENT_PUBLICATION')
+
+    def assert_unstarted(self, workflow=None):
+        workflow = workflow or self.workflow
+        self.assertFalse(workflow._started)
+        self.assertIsNone(workflow.factory)
+        self.assertFalse(list(workflow.config.state.iterdir()))
+        self.assertFalse(workflow.config.store.read_state()['operations'])
+        self.assertFalse(self.fixture.spawned)
 
     def fresh_controller(self):
         # Fake process replacement: real fresh module registries, host, policy,
@@ -344,6 +365,114 @@ class WorkflowTests(unittest.TestCase):
         self.settings['native_bundle'] = (plan, operation, directive)
         with self.assertRaisesRegex(ValueError, 'External execution purpose'):
             self.make_workflow()
+
+    @read_only_evidence
+    def test_default_local_workflow_refuses_provider_attachment(self):
+        self.adopt()
+        with self.assertRaisesRegex(ValueError, 'signed registered production'):
+            self.workflow.run(provider_access_token='at-EXAMPLE-synthetic-token')
+        self.assert_unstarted()
+
+    @production_case
+    def test_production_requires_current_adoption_and_explicit_provider_attachment(self):
+        workflow = self.workflow
+        synthetic = 'at-EXAMPLE-synthetic-token'
+        with self.assertRaisesRegex(ValueError, 'current execution adoption'):
+            workflow.run(provider_access_token=synthetic)
+        self.assert_unstarted()
+        with self.assertRaisesRegex(ValueError, 'provider-only disclosure consent'):
+            self.adopt()
+        consent = self.production_disclosure()
+        for changes in ({'provider': 'EXAMPLE-other'}, {'request_sha256': '0' * 64},
+                        {'allowed_effects': ['native-worker', 'target-publication']},
+                        {'extra': 'EXAMPLE'}):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, 'provider-only disclosure consent'):
+                workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=consent | changes)
+        workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=consent)
+        with patch.object(workflow.config, '_guard', lambda: None):
+            with self.assertRaisesRegex(ValueError, 'current execution adoption'):
+                workflow.run(provider_access_token=synthetic)
+        self.assert_unstarted()
+        with patch.object(W.R.live_availability, 'REGISTERED_N1_LIVE_AVAILABLE', False):
+            with self.assertRaises(W.R.live_availability.NativeLiveUnavailable):
+                workflow.run(provider_access_token=synthetic)
+        self.assert_unstarted()
+        with patch.dict(os.environ, {'OPENAI_API_KEY': 'EXAMPLE-ambient-token'}):
+            for token in (None, synthetic.encode(), 'EXAMPLE-invalid'):
+                with self.subTest(token_type=type(token)), self.assertRaisesRegex(ValueError, 'access token'):
+                    workflow.run(provider_access_token=token)
+                self.assert_unstarted()
+        with self.assertRaisesRegex(ValueError, 'controlled failure'):
+            workflow.run(controlled_failure=True, provider_access_token=synthetic)
+        self.assert_unstarted()
+
+    @production_case
+    def test_production_refuses_wrong_signed_selection_before_claim(self):
+        original = self.settings['native_bundle']
+        changes = (({'production_live': False}, 'signed registered production'),
+                   ({'production_live': 1}, 'signed registered production'),
+                   ({'provider': 'EXAMPLE-other'}, 'OpenAI provider'),
+                   ({'max_steps': 63}, 'whole-route production'))
+        for patch_spec, message in changes:
+            with self.subTest(selection=patch_spec):
+                plan, operation, _directive = copy.deepcopy(original)
+                plan['registered_n1'].update(patch_spec)
+                signed = self.fixture.authority.reseal(plan, operation)
+                self.settings['native_bundle'] = plan, operation, signed
+                workflow = self.make_workflow()
+                with self.assertRaisesRegex(ValueError, message):
+                    workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION',
+                                             disclosure_consent=self.production_disclosure())
+                self.assert_unstarted(workflow)
+        plan, operation, _directive = copy.deepcopy(original)
+        operation['reservation']['max_concurrency'] = 2
+        self.settings['native_bundle'] = plan, operation, self.fixture.authority.reseal(plan, operation)
+        workflow = self.make_workflow()
+        with self.assertRaisesRegex(ValueError, 'one product worker and one reserved session'):
+            workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION',
+                                     disclosure_consent=self.production_disclosure())
+        self.assert_unstarted(workflow)
+
+    @production_case
+    def test_production_one_original_attachment_and_separate_publication(self):
+        workflow = self.workflow
+        workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=self.production_disclosure())
+        token = 'at-EXAMPLE-synthetic-token'
+        attachments = []
+        original = W.R._Containment._stage_access_token
+
+        def stage(lifetime, value):
+            attachments.append((lifetime.role, lifetime.factory, value))
+            return original(lifetime, value)
+
+        with (patch.object(W.R._Containment, '_stage_access_token', stage),
+              patch.object(F, 'RpcProcess', tools.NamespacedFiniteRpcProcess),
+              patch.object(W.R.provider_network, '_dial_provider', side_effect=AssertionError('unexpected provider call')),
+              patch.object(W.R.qualification, 'managed_login_home', side_effect=AssertionError('unexpected managed login')),
+              patch.object(W.R.qualification, '_campaign_directory', side_effect=AssertionError('unexpected campaign')),
+              original_finite_completion(self, self.case, workflow)):
+            result = workflow.run(provider_access_token=token)
+        self.assertTrue(result['validation_complete'])
+        self.assertEqual(attachments, [('appserver', workflow.factory, token.encode())])
+        self.assertIsNone(workflow.factory._provider_access_token)
+        self.assertEqual(len(self.fixture.spawned), 3)
+        readback = workflow.factory.server._profile_response
+        self.assertEqual((readback['model'], readback['reasoningEffort'], readback['modelProvider']),
+                         (F.resolve_model('astra'), 'high', 'openai'))
+        self.assertEqual(readback['serviceTier'], 'default')
+        self.assertEqual(readback['thread']['historyMode'], 'legacy')
+        self.assertEqual(workflow._intent['action']['disclosure'], self.production_disclosure())
+        for root in (workflow.config.state, workflow.config.host.state, workflow.config.ledger.root):
+            for path in root.rglob('*.json*'):
+                self.assertNotIn(token.encode(), path.read_bytes())
+        with self.assertRaisesRegex(ValueError, 'never redispatch'):
+            workflow.run(provider_access_token=token)
+        self.assertFalse((self.case.host.target / 'result.txt').exists())
+        with self.assertRaisesRegex(ValueError, 'Separate publication'):
+            workflow.publish()
+        self.allow_publication()
+        self.assertTrue(workflow.publish()['publication']['publication_complete'])
+        self.assertEqual((self.case.host.target / 'result.txt').read_bytes(), F.fixtures.host_fixtures.OUTPUT)
 
     def evidence(self):
         helper = E.WorkflowAdjudicationTests('runTest')

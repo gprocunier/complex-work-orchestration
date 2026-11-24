@@ -69,6 +69,19 @@ class F5NativeLiveHoldTests(unittest.TestCase):
             self.assertEqual(launch.call_count, 1)
             capabilities.assert_called_once()
 
+    def test_registered_production_source_decision_leaves_raw_launch_and_rpc_held(self):
+        self.assertIs(A.REGISTERED_N1_LIVE_AVAILABLE, True)
+        raw = T.AppServer.__new__(T.AppServer)
+        with mock.patch.object(T.subprocess, 'Popen', side_effect=FakeLaunchReached) as spawn:
+            A.require_registered_n1_live()
+            with self.assertRaisesRegex(A.NativeLiveUnavailable, 'native-n1-live-unavailable'):
+                T.AppServer(executable='/EXAMPLE/fake-codex', codex_home='/EXAMPLE/home')
+            for method in ('thread/start', 'turn/start', 'thread/resume', 'command/exec'):
+                with self.subTest(method=method), self.assertRaises(A.NativeLiveUnavailable):
+                    T._require_native_rpc(method, raw)
+            T._require_native_rpc('thread/archive', raw)
+        spawn.assert_not_called()
+
     def test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control(self):
         fixture = NF.FactoryTests('runTest')
         fixture._outcome = self._outcome
