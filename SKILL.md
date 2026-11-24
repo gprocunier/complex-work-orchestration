@@ -24,8 +24,9 @@ Beads tracking is mandatory for non-trivial work. In ordinary Codex sessions, ha
 
 ## Operating Defaults
 
-Registered native single-worker, pool and campaign live routes have default-off source holds in this
-release. Activation preview and new worker-surface qualification are held too.
+Registered single-worker production requires the original signed workflow,
+provider disclosure consent and separately supplied production authentication.
+Raw native launch, pools, campaigns, activation and surface qualification retain source holds.
 Use observed host capability evidence for the executable, configuration and tool
 profile. Check the actual model against the exact selection for each assignment.
 
@@ -125,9 +126,8 @@ three units or six reads warn; four or eleven require replanning.
   to waive a gate. Disclose genuine access/outage/security boundaries plainly.
 - No stopped worker resumes. Use fresh identities after terminal failure;
   realignment remains nonaccepted. Containment precedes owned-state restoration.
-- Registered single-worker, pool and campaign live routes ship held by default-off
-  source decisions; new worker-surface qualification is held too. These holds cannot
-  be overridden by plan, environment or CLI enable switches.
+- Use the [registered single-worker production requirements](references/native-live-route-holds.md#registered-single-worker-production)
+  for provider-connected native work. Other native routes require their own source decisions.
 - Native pool work additionally needs trusted-controller factory authority (not shipped), so
   the version-2 launcher refuses ordinary plans, even `--validate-only`. Cohorts
   stay N=1..3; concurrency needs actual compatible capability evidence.

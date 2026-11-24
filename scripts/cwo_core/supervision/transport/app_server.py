@@ -98,7 +98,8 @@ _HOST_MODEL_CONTEXT_METHODS = frozenset({
     "thread/metadata/update",
 })
 _QUALIFICATION_RPC = _IdentityCapabilityRegistry()
-_QUALIFICATION_EFFECT_RPCS = frozenset({"thread/start", "turn/start"})
+_PRODUCTION_RPC = _IdentityCapabilityRegistry()
+_REGISTERED_EFFECT_RPCS = frozenset({"thread/start", "turn/start"})
 
 
 def _prepare_native_frame(payload, method):
@@ -209,33 +210,39 @@ def _explicit_launch_home(executable, codex_home) -> Path:
     return Path(codex_home).resolve()
 
 
+def _registered_rpc_binding(transport):
+    return _QUALIFICATION_RPC.get(transport) or _PRODUCTION_RPC.get(transport)
+
+
 def _require_native_rpc(method: str, transport=None) -> None:
     """Keep only the reviewed containment RPCs usable under the closed hold."""
     if method not in {"initialize", "initialized", "thread/read", "turn/interrupt", "thread/archive",
                       "thread/delete", "model/list", "mcpServerStatus/list"}:
-        binding = _QUALIFICATION_RPC.get(transport)
+        binding = _registered_rpc_binding(transport)
         if binding is None:
             live_availability.require_n1_live()
-        elif method in _QUALIFICATION_EFFECT_RPCS:
+        elif method in _REGISTERED_EFFECT_RPCS:
             binding[0]()
         else:
-            raise live_availability.NativeLiveUnavailable("native-qualification-rpc-unavailable")
+            reason = ("native-qualification-rpc-unavailable" if _QUALIFICATION_RPC.get(transport) is not None
+                      else "native-registered-production-rpc-unavailable")
+            raise live_availability.NativeLiveUnavailable(reason)
 
 
 def _qualification_wire_guard(transport, method, payload):
-    binding = _QUALIFICATION_RPC.get(transport)
-    if binding is not None and method in _QUALIFICATION_EFFECT_RPCS:
+    binding = _registered_rpc_binding(transport)
+    if binding is not None and method in _REGISTERED_EFFECT_RPCS:
         binding[1](method, payload)
 
 
 def _qualification_turn_options(transport):
-    binding = _QUALIFICATION_RPC.get(transport)
+    binding = _registered_rpc_binding(transport)
     return {} if binding is None else {"serviceTier": binding[2]}
 
 
 def _qualification_thread_unmaterialized(transport, payload, error):
     """Classify only the pinned cold-history diagnostic for the original thread."""
-    if _QUALIFICATION_RPC.get(transport) is None or payload["method"] != "thread/read" or error["code"] != -32600:
+    if _registered_rpc_binding(transport) is None or payload["method"] != "thread/read" or error["code"] != -32600:
         return False
     thread_id = transport.thread_id
     params = payload["params"]

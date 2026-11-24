@@ -12,6 +12,7 @@ import hashlib
 import json
 import os
 import stat
+from types import MethodType
 
 import registered_n1_factory as R
 import registered_host_root_boundary as boundary
@@ -275,6 +276,7 @@ class RegisteredN1Workflow:
         self._receipt = R.admitted._admission_snapshot(configuration.receipt)
         self._intent = None
         self._disclosure = None
+        self._production_operation = None
         self._started = False
         self._publication_ready = False
         if (configuration.state / 'intent.json').exists():
@@ -404,12 +406,46 @@ class RegisteredN1Workflow:
                 'publication': [str(c.publication_state), c.publication_identity],
                 'source_image': self._image, 'evidence': evidence, 'disclosure': self._disclosure}
 
+    def _production_selected(self):
+        c = self.config
+        plan, operation, _directive = c.native_bundle
+        spec = plan['registered_n1']
+        execution = json.loads(self._receipt.execution_bytes)
+        options = execution['options']
+        admitted = options.get('registered_n1')
+        field = R.PRODUCTION_LIVE
+        if field not in spec and (type(admitted) is not dict or field not in admitted):
+            return False
+        _need(spec.get(field) is True and type(admitted) is dict and admitted.get(field) is True,
+              'Exact signed registered production selection is required.')
+        _need(spec.get('provider') == execution.get('provider') == R.qualification.PROVIDER,
+              'Registered production requires the original OpenAI provider.')
+        bound_spec = {key: value for key, value in spec.items() if key != 'admission_sha256'}
+        _need(_encode(options) == _encode({'registered_n1': bound_spec})
+              and spec.get('admission_sha256') == R.admission._receipt_sha256(self._receipt)
+              and all(execution.get(key) == spec.get(key) for key in ('model', 'effort')),
+              'Original whole-route production admission differs from the signed selection.')
+        _need(R.qualification.MODEL_SELECTION not in spec and R.qualification.AUTHENTICATION not in spec,
+              'Registered production cannot use qualification selection or authentication.')
+        R.require_production_scope(spec, plan, operation, c.route)
+        R.admitted._require_primary(self._receipt)
+        return True
+
     def _execution_disclosure(self, *, adoption_id, disclosure_consent):
         _need(type(adoption_id) is str and 0 < len(adoption_id) <= 80,
               'A bounded current adoption ID is required.')
-        _need(disclosure_consent == {'boundary': 'local-only', 'allowed_effects': ['native-worker', 'target-publication'],
-                                    'request_sha256': hashlib.sha256(self._receipt.request_bytes).hexdigest()},
-              'Explicit exact local disclosure consent is required.')
+        request_sha256 = hashlib.sha256(self._receipt.request_bytes).hexdigest()
+        if self._production_selected():
+            expected = {
+                'boundary': 'provider-only', 'provider': R.qualification.PROVIDER,
+                'allowed_effects': ['native-worker', 'provider-request', 'target-publication'],
+                'request_sha256': request_sha256}
+            _need(type(disclosure_consent) is dict and _encode(disclosure_consent) == _encode(expected),
+                  'Explicit exact provider-only disclosure consent is required.')
+        else:
+            _need(disclosure_consent == {'boundary': 'local-only', 'allowed_effects': ['native-worker', 'target-publication'],
+                                        'request_sha256': request_sha256},
+                  'Explicit exact local disclosure consent is required.')
         return _copy(disclosure_consent)
 
     def _execution_state(self):
@@ -467,30 +503,77 @@ class RegisteredN1Workflow:
         self._execution_current()
         self.verifier._current()
 
-    def run(self, *, controlled_failure=False):
+    def _require_production_adoption(self):
+        guard = self.config._guard
+        _need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,
+              'Original current execution adoption is required for registered production.')
+
+    def _require_production_execution(self, factory):
+        _need(self._started and type(factory) is _FACTORY and self.factory is factory
+              and factory.capability is self._production_operation,
+              'Registered production requires the original adopted workflow and claimed factory.')
+        self._require_production_adoption()
+        intent = self._load('intent.json')
+        _need(intent == self._intent and _encode(intent['action']) == self._selected_action
+              and intent['adoption'] == self._adoption,
+              'Original durable production execution adoption changed.')
+        # Revalidating the opaque claim invokes the original configured
+        # execution authority check and verifies the exact signed plan.
+        A.require_maintenance_operation(factory.capability, verifier=self.verifier,
+                                        plan=self.config.native_bundle[0])
+
+    def run(self, *, controlled_failure=False, provider_access_token=None):
         """Original admitted native path; retained durable intent prevents redispatch."""
-        R.live_availability.require_n1_live()
+        production = (type(self.__dict__.get('config')) is ControllerConfiguration
+                      and self._production_selected())
+        if production:
+            R.live_availability.require_registered_n1_live()
+        else:
+            R.live_availability.require_n1_live()
+            _need(provider_access_token is None, 'Provider attachment requires signed registered production.')
         _need(type(controlled_failure) is bool, 'Controlled failure selection must be Boolean.')
         with self._locked():
+            if production:
+                self._require_production_adoption()
             self._require_execution()
             _need(not self._started and not list(self.config.state.iterdir()),
                   'Existing or unknown controller intent requires replay-only recovery, never redispatch.')
-            self._started = True
             c = self.config
+            if production:
+                _need(self._production_selected(),
+                      'The original registered production execution adoption is required.')
+                _need(not controlled_failure, 'Registered production cannot select a controlled failure.')
+                R.require_production_access_token(provider_access_token)
+                spec = c.native_bundle[0]['registered_n1']
+                R._profile(spec)
+                R._configuration(spec, c.host.worker)
+            else:
+                self._started = True
             native = self.verifier.verify_operation(*c.native_bundle)
-            native.claim()
+            if not production:
+                native.claim()
             publication = self.verifier.verify_operation(*c.publication_bundle)
+            if production:
+                self._started = True
+                native.claim()
             publication.claim()
             self._save('intent.json', {'action': json.loads(self._selected_action), 'adoption': self._adoption})
             self._intent = self._load('intent.json')
+            selection = {}
+            if production:
+                self._production_operation = native
+                selection['production_guard'] = self._require_production_execution
             self.factory = _FACTORY(native, self.verifier, receipt=c.receipt, route=c.route,
-                node_id=c.node_id, ledger=c.ledger, host=c.host, policy=c.policy)
+                node_id=c.node_id, ledger=c.ledger, host=c.host, policy=c.policy, **selection)
             if controlled_failure:
                 _need('select_controlled_failure' in R._FACTORY_METHODS,
                       'The original controlled failure producer is unavailable.')
                 R.admitted._original_methods(self.factory, _FACTORY, R._FACTORY_METHODS)
                 self.factory.select_controlled_failure()
-            self.factory.run()
+            if production:
+                self.factory.run(provider_access_token=provider_access_token)
+            else:
+                self.factory.run()
             self._artifact = self.factory.issued_artifact()
             self._require_execution()
             self.target = _TARGET(c.publication_state, c.host, c.policy,
@@ -589,3 +672,7 @@ class RegisteredN1Workflow:
             self._sync_record(name)
         self._publication = adoption['directive']
         self._publication_ready = True
+
+
+PRODUCTION_EXECUTION_GUARD = RegisteredN1Workflow._require_production_execution
+_EXECUTION_CURRENT = RegisteredN1Workflow._execution_current

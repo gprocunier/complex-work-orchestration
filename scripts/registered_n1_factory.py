@@ -1,4 +1,4 @@
-"""Registered finite N=1 transport with parent custody and no route activation.
+"""Registered finite N=1 transport with parent custody.
 
 Only a claimed original maintenance capability can select this factory. Worker
 code never runs in the controller. A signed qualification can select an
@@ -24,6 +24,7 @@ import threading
 import time
 import tomllib
 import weakref
+from types import MethodType
 from typing import NamedTuple
 
 import linux_owned_children as owned
@@ -45,7 +46,7 @@ from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import record_received_return
 from cwo_core.process_identity import parse_proc_stat
 from cwo_core.supervision.transport.app_server import (
-    AppServerError, _QUALIFICATION_RPC, _checked_native_frame, _prepare_native_frame, domain_sha256,
+    AppServerError, _PRODUCTION_RPC, _QUALIFICATION_RPC, _checked_native_frame, _prepare_native_frame, domain_sha256,
 )
 from cwo_core.supervision.transport.errors import AppServerRpcError
 from cwo_core.supervision.turn_observations import provider_policy_blocker
@@ -54,6 +55,7 @@ from registered_host_root_boundary import require_private_roots
 
 native = admitted.native
 admission = admitted.admission_api
+PRODUCTION_LIVE = 'production_live'
 _ADAPTERS = weakref.WeakKeyDictionary()
 _LOCK = threading.RLock()
 _FALSE = dict.fromkeys(admitted.FALSE_FIELDS, False)
@@ -239,15 +241,19 @@ def _cold_spool(home, configured):
                           "An unregistered initial spool file is present; no parent data may be mounted.")
 
 
+def _registered_live_profile(spec):
+    return qualification.MODEL_SELECTION in spec or spec.get(PRODUCTION_LIVE) is True
+
+
 def _profile(spec):
     start, observed = spec['thread_start'], spec['profile_readback']
-    is_qualification = qualification.MODEL_SELECTION in spec
-    policy = qualification.APPROVAL_POLICY if is_qualification else 'untrusted'
+    live_profile = _registered_live_profile(spec)
+    policy = qualification.APPROVAL_POLICY if live_profile else 'untrusted'
     _need(set(start) == {'permissions', 'approvalPolicy', 'approvalsReviewer', 'ephemeral'},
           "Only the named permissions selector is supported; legacy/mixed selectors refuse.")
     _need(type(start['permissions']) is str and bool(start['permissions']), "A named profile is required.")
     _need(start['approvalPolicy'] == policy and start['approvalsReviewer'] == 'user'
-          and start['ephemeral'] is (not is_qualification), "The finite no-grants approval profile is required.")
+          and start['ephemeral'] is (not live_profile), "The finite no-grants approval profile is required.")
     expected = {'activePermissionProfile': {'id': start['permissions'], 'extends': None},
                 'approvalPolicy': policy, 'approvalsReviewer': 'user'}
     _need(observed == expected, "Reported profile fallback or drift is refused.")
@@ -270,7 +276,7 @@ def _configuration(spec, worker):
                 'model_reasoning_effort': spec['effort'], 'service_tier': 'default',
                 'permissions': {spec['thread_start']['permissions']: {
                     'filesystem': {'/': 'deny', str(worker): 'write'}, 'network': {'enabled': False}}}}
-    if qualification.MODEL_SELECTION in spec:
+    if _registered_live_profile(spec):
         expected['features'] = qualification.configuration_features()
         roots = expected['permissions'][spec['thread_start']['permissions']]['filesystem']
         roots[str(worker)] = 'read'
@@ -282,6 +288,36 @@ def _managed_login_config(spec, config, roots):
     if spec.get(qualification.AUTHENTICATION) == qualification.MANAGED_LOGIN:
         config['cli_auth_credentials_store'] = 'file'
         roots[str(qualification.LOGIN_MOUNT)] = 'deny'
+
+
+def require_production_access_token(value):
+    """Validate one explicit embedder attachment before claims or startup."""
+    _need(value is not None, "Registered production requires an explicit provider access token.")
+    return provider_network.personal_access_token_bytes(value)
+
+
+def require_production_scope(spec, plan, operation, route):
+    """Check the signed selection before claims and again at the factory boundary."""
+    _need(spec.get(PRODUCTION_LIVE) is True and spec.get('finite_tool_mode') == finite_calls.LIVE_CAPTURE_MODE,
+          "Registered production requires the signed live finite tool mode.")
+    _need(spec['provider'] == qualification.PROVIDER,
+          "Registered production requires the original OpenAI provider.")
+    _need(operation['role'] == 'product' and len(route['nodes']) == 1
+          and len(plan['children']) == plan['required_session_count'] == 1
+          and operation['reservation']['sessions'] == operation['reservation']['max_concurrency'] == 1,
+          "Registered production requires one product worker and one reserved session.")
+    _need(spec['model'] == plan['selected_model'] == operation['model'] == plan['children'][0]['requested_model'],
+          "Registered production requires the original signed model selection.")
+
+
+def _production_guard_owner(guard):
+    _need(type(guard) is MethodType, "The original registered workflow guard is required.")
+    from registered_n1_workflow import ControllerConfiguration, PRODUCTION_EXECUTION_GUARD, RegisteredN1Workflow
+
+    owner = guard.__self__
+    _need(type(owner) is RegisteredN1Workflow and guard.__func__ is PRODUCTION_EXECUTION_GUARD
+          and type(owner.config) is ControllerConfiguration, "The original registered workflow guard is required.")
+    return owner
 
 
 class _DeadlineInput:
@@ -547,12 +583,14 @@ class _Containment:
 
     def _provider_network_selected(self):
         return (self.role == 'appserver' and type(self.factory) is RegisteredN1Factory
-                and self.factory.qualification is not None)
+                and _registered_live_profile(self.factory.spec))
 
     def _provider_network_fds(self):
         if not self._provider_network_selected():
             return ()
         token = self.factory._take_provider_access_token()
+        _need(not self.factory.production_live or token is not None,
+              "The original registered production credential attachment is unavailable.")
         self.provider_network = provider_network.ProviderBroker(
             self._record_provider_denial, allow_personal_access_token=token is not None,
             allow_managed_login=self._managed_mount() is not None)
@@ -668,7 +706,7 @@ class _Containment:
 
     def _preflight_qualification_schema(self):
         factory = self.factory
-        if self.role == 'appserver' and type(factory) is RegisteredN1Factory and factory.qualification is not None:
+        if self.role == 'appserver' and type(factory) is RegisteredN1Factory and _registered_live_profile(factory.spec):
             qualification.require_executable_schema(factory.spec['executable'], factory.spec['executable_sha256'])
             factory.require_effect()
 
@@ -1166,7 +1204,7 @@ class _RegisteredServer(RegisteredAppServer):
         self.finite_input = RegisteredFiniteInput(factory, self)
         self.finite_tools = None
         self.qualified_tool_evidence = (finite_calls.QualifiedToolEvidence(self)
-                                        if _qualification_operation_metadata(factory) is not None else None)
+                                        if _registered_live_profile(factory.spec) else None)
         self._tool_queue = None
         self._tool_cleanup_lock = threading.Lock()
         self._tool_cleanup_scheduled = False
@@ -1179,6 +1217,7 @@ class _RegisteredServer(RegisteredAppServer):
         super().__init__(requested_model=factory.spec['model'], reasoning_effort=factory.spec['effort'],
                          operation_metadata=_qualification_operation_metadata(factory))
         self._register_qualification_rpc()
+        self._register_production_rpc()
 
     def _register_qualification_rpc(self):
         factory = self.factory
@@ -1190,26 +1229,36 @@ class _RegisteredServer(RegisteredAppServer):
                 qualification.TIER,
             ))
 
+    def _register_production_rpc(self):
+        factory = self.factory
+        if type(self) is _RegisteredServer and type(factory) is RegisteredN1Factory and factory.production_live:
+            self._qualification_rpcs = set()
+            _PRODUCTION_RPC.register(self, (
+                lambda: RegisteredN1Factory.require_production_rpc(factory, self),
+                lambda method, request: _RegisteredServer._check_qualification_wire(self, method, request),
+                qualification.TIER,
+            ))
+
     def _check_qualification_wire(self, method, request):
         _need(type(request.get('id')) is int and method not in self._qualification_rpcs,
-              "Only one registered qualification thread and turn may start.")
+              "Only one registered live thread and turn may start.")
         params = request['params']
         if method == 'thread/start':
-            _need(params == self.factory._thread_start_parameters(), "Qualification thread selectors differ.")
+            _need(params == self.factory._thread_start_parameters(), "Registered live thread selectors differ.")
         else:
             self._check_qualification_turn(request, params)
         self._qualification_rpcs.add(method)
 
     def _check_qualification_turn(self, request, params):
         record = self._turn_dispatch_records.get(self.thread_id, {})
-        pins = {'threadId': self.thread_id, 'model': qualification.MODEL,
-                'effort': qualification.EFFORT, 'serviceTier': qualification.TIER,
+        pins = {'threadId': self.thread_id, 'model': self.factory.spec['model'],
+                'effort': self.factory.spec['effort'], 'serviceTier': qualification.TIER,
                 'input': [{'type': 'text', 'text': self.factory.model_task_bytes().decode(), 'text_elements': []}]}
         _need(self._qualification_rpcs == {'thread/start'}
               and record.get('wire_request_sha256') == domain_sha256(request, domain='app-server-single-wire-request')
               and set(params) == set(pins) | {'clientUserMessageId', 'responsesapiClientMetadata'}
               and all(params.get(key) == value for key, value in pins.items()),
-              "Qualification turn differs from the registered model, effort, tier or original task.")
+              "Registered live turn differs from the model, effort, tier or original task.")
 
     def _default_executable(self):
         return self.factory.spec['executable']
@@ -1479,6 +1528,7 @@ class _RegisteredServer(RegisteredAppServer):
 
     def _begin_worker_shutdown(self):
         _QUALIFICATION_RPC.pop(self, None)
+        _PRODUCTION_RPC.pop(self, None)
         with self._worker_lock:
             self._workers_closed = True
 
@@ -1816,8 +1866,8 @@ def _check_response(factory, params, response):
     expected = {'model': spec['model'], 'modelProvider': spec['provider'],
                 'cwd': str(factory.host.worker), 'runtimeWorkspaceRoots': [str(factory.host.worker)]}
     _need(all(response.get(key) == value for key, value in expected.items()), "Actual thread identity differs.")
-    if factory.qualification is not None:
-        qualification.check_thread_model(params, response)
+    if _registered_live_profile(spec):
+        qualification.check_thread_model(params, response, reasoning_effort=spec['effort'])
     _need(set(params) == set(factory._thread_start_parameters()),
           "Mixed or unbound thread selectors.")
     mode = spec.get('finite_tool_mode')
@@ -1840,7 +1890,7 @@ class RegisteredAdapter(native.LiveThreadAdapter):
             factory = _ADAPTERS.get(self)
             if not (error.qualification_thread_unmaterialized is True
                     and (error.method, error.code) == ('thread/read', -32600)
-                    and factory is not None and factory.server is self.server and factory.qualification is not None
+                    and factory is not None and factory.server is self.server and _registered_live_profile(factory.spec)
                     and self.thread_response['thread'].get('historyMode') == qualification.HISTORY_MODE):
                 raise
             self._pending_window_is_open_locked()
@@ -1981,7 +2031,7 @@ class RegisteredN1Factory:
     """One parent-selected operation. Construction grants no effect authority."""
 
     def __init__(self, capability, verifier, *, receipt, route, node_id, ledger, host, policy,
-                 review_target=None, qualification_permit=None):
+                 review_target=None, qualification_permit=None, production_guard=None):
         self.capability, self.verifier = capability, verifier
         require_maintenance_operation(capability, verifier=verifier)
         store = getattr(verifier._state_reader, '__self__', None)
@@ -2017,6 +2067,9 @@ class RegisteredN1Factory:
         self._ledger_handles = admitted._ledger_handles(ledger)
         self._qualification_start = None
         self._provider_access_token = None
+        self._production_live = self.spec.get(PRODUCTION_LIVE) is True
+        self._production_owner = self._authorize_production(production_guard, operation, qualification_permit)
+        self._production_guard = production_guard
         self._qualification_permit = copy.deepcopy(qualification_permit)
         self._qualification = self._authorize_qualification(self._qualification_permit, operation)
         self._managed_lease = self._managed_lifetime = None
@@ -2036,6 +2089,28 @@ class RegisteredN1Factory:
     @property
     def qualification(self):
         return self._qualification
+
+    @property
+    def production_live(self):
+        return self._production_live
+
+    def _authorize_production(self, guard, operation, qualification_permit):
+        if not self.production_live:
+            _need(guard is None, "A production guard requires signed registered production.")
+            return None
+        live_availability.require_registered_n1_live()
+        _need(qualification_permit is None and self.review_target is None
+              and qualification.MODEL_SELECTION not in self.spec and qualification.AUTHENTICATION not in self.spec,
+              "Registered production requires an ordinary product operation without qualification authority.")
+        owner = _production_guard_owner(guard)
+        config = owner.config
+        _need(self.verifier is owner.verifier is config.verifier and self.receipt == config.receipt
+              and self.route == config.route and self.node_id == config.node_id
+              and self.host is config.host and self.ledger is config.ledger and self.policy is config.policy
+              and [self.plan, operation] == config.native_bundle[:2],
+              "Registered production requires the original workflow's exact claimed operation and admission.")
+        require_production_scope(self.spec, self.plan, operation, self.route)
+        return owner
 
     def _authorize_qualification(self, permit, operation):
         if permit is None:
@@ -2068,6 +2143,10 @@ class RegisteredN1Factory:
             _need(set(spec) - {qualification.AUTHENTICATION} == fields | {qualification.MODEL_SELECTION, 'finite_tool_mode'}
                   and spec['finite_tool_mode'] == 'captured-live-host-tools',
                   "Qualification requires the signed live finite tool mode.")
+        elif self.production_live:
+            _need(set(spec) == fields | {PRODUCTION_LIVE, 'finite_tool_mode'}
+                  and spec['finite_tool_mode'] == finite_calls.LIVE_CAPTURE_MODE,
+                  "Registered production requires the signed live finite tool mode.")
         else:
             _need(set(spec) == fields or (set(spec) == fields | {'finite_tool_mode'}
                   and spec['finite_tool_mode'] == 'captured-host-tools'), "Unsupported factory input fields.")
@@ -2215,7 +2294,14 @@ class RegisteredN1Factory:
         self.guard()
 
     def require_launch_selection(self):
-        if self.qualification is None:
+        if self.production_live:
+            live_availability.require_registered_n1_live()
+            guard = self._production_guard
+            owner = _production_guard_owner(guard)
+            _need(owner is self._production_owner and owner.factory is self,
+                  "Registered production requires the original workflow's retained factory.")
+            guard(self)
+        elif self.qualification is None:
             live_availability.require_n1_live()
             _need(qualification.MODEL_SELECTION not in self.spec, "Qualification requires its signed permit.")
         else:
@@ -2231,6 +2317,16 @@ class RegisteredN1Factory:
         _need(self.qualification is not None and self._qualification_start is not None,
               "The original qualification start receipt is required for model RPCs.")
         self.require_launch_selection()
+
+    def require_production_rpc(self, server):
+        try:
+            _need(self.production_live and type(server) is _RegisteredServer and self.server is server
+                  and server.factory is self and server.lifetime.provider_network is not None
+                  and server.lifetime.receipt is not None and server.lifetime.process is server.process,
+                  "Registered production requires the original owned transport receiver.")
+            self.require_effect()
+        except Exception as failure:
+            raise live_availability.NativeLiveUnavailable('native-registered-production-authorization-unavailable') from failure
 
     def record_qualification_start(self):
         if self.qualification is not None:
@@ -2281,7 +2377,7 @@ class RegisteredN1Factory:
         if mode in finite_calls.CAPTURE_MODES:
             params.update(finite_calls.RegisteredFiniteToolCalls.thread_parameters(
                 live_capture=mode == finite_calls.LIVE_CAPTURE_MODE))
-        if self.qualification is not None:
+        if _registered_live_profile(self.spec):
             params.update(qualification.thread_selectors())
         return params
 
@@ -2308,9 +2404,9 @@ class RegisteredN1Factory:
         self._require_finite_capture(finite_calls.FAKE_CAPTURE_MODE)
 
     def require_finite_live_capture(self):
-        """Require the signed live qualification and original app-server."""
-        _need(self.qualification is not None and type(self.server) is _RegisteredServer,
-              "Live finite capture requires the original qualification selection.")
+        """Require the signed live selection and original app-server."""
+        _need(_registered_live_profile(self.spec) and type(self.server) is _RegisteredServer,
+              "Live finite capture requires the original registered live selection.")
         self.require_launch_selection()
         self._require_finite_capture(finite_calls.LIVE_CAPTURE_MODE)
 
@@ -2466,6 +2562,8 @@ class RegisteredN1Factory:
 
     def _prepare_registered_adapter(self):
         self.require_effect()
+        _need(not self.production_live or self._provider_access_token is not None,
+              "Registered production requires an original provider access token before configuration.")
         self.record('startup-intent', {'operation': self.operation_id, 'admission': admission._receipt_sha256(self.receipt),
             'execution': json.loads(self.receipt.execution_bytes), 'allowance': json.loads(self.receipt.amounts_bytes)})
         self._provision_configuration()
@@ -2496,6 +2594,8 @@ class RegisteredN1Factory:
         self.record('validated', {'artifact': report['artifact']['sha256'], 'policy': self.policy.report})
 
     def _selected_access_token(self, provider_access_token):
+        if self.production_live:
+            return require_production_access_token(provider_access_token)
         if provider_access_token is not None:
             _need(self.qualification is not None, "Provider credential attachment requires signed qualification.")
             _need(self._managed_login is None, "Only one authentication mode may apply to an original launch.")
@@ -2511,7 +2611,7 @@ class RegisteredN1Factory:
                 _need(self.result is not None, "Unknown execution requires reconciliation, never redispatch.")
                 self.guard()
                 return False
-            if self.qualification is not None:
+            if _registered_live_profile(self.spec):
                 self._preflight_qualification_thread()
             if self._managed_login is not None:
                 self._managed_lease = qualification.claim_managed_login()

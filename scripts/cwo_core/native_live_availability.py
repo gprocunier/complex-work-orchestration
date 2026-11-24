@@ -1,4 +1,4 @@
-"""Independent, default-off holds for native model effects.
+"""Independent source decisions for native model effects.
 
 These are installed source decisions, never plan, environment or CLI inputs.
 Offline fixtures patch only the required decisions while replacing all model
@@ -6,6 +6,7 @@ and process effects. Restoration still requires the operator's separate review.
 """
 
 N1_LIVE_AVAILABLE = False
+REGISTERED_N1_LIVE_AVAILABLE = True
 POOL_LIVE_AVAILABLE = False
 CAMPAIGN_LIVE_AVAILABLE = False
 
@@ -17,6 +18,11 @@ class NativeLiveUnavailable(RuntimeError):
 def require_n1_live() -> None:
     if N1_LIVE_AVAILABLE is not True:
         raise NativeLiveUnavailable("native-n1-live-unavailable")
+
+
+def require_registered_n1_live() -> None:
+    if REGISTERED_N1_LIVE_AVAILABLE is not True:
+        raise NativeLiveUnavailable("native-registered-n1-live-unavailable")
 
 
 def require_pool_live() -> None:

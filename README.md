@@ -130,11 +130,13 @@ approved, qualified environment.
 [![CWO delegation, fanout, live supervision and acceptance flow](docs/illustrations/supervised-delegation.svg)](https://gprocunier.github.io/complex-work-orchestration/#supervised-execution)
 
 [Read the delegation guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html).
-The registered single-worker route, concurrent pools and live campaigns are
-unavailable in this release under default-off source holds. A host needs
-observed capability evidence for its executable, configuration and enforced
-tool profile. The worker's actual model must match the selected assignment.
-New worker-surface qualification is also held.
+The registered single-worker route is available to an original signed workflow
+with explicit provider disclosure consent and separately supplied production
+authentication. Its app server has provider-only network access. Use observed
+capability evidence for the executable, configuration and enforced tool profile.
+The worker's actual model must match the selected assignment. Concurrent pools,
+campaigns and new worker-surface qualification remain held. See the
+[registered single-worker requirements](references/native-live-route-holds.md#registered-single-worker-production).
 The pool contract bounds groups to three and additionally requires a trusted
 controller, which is not shipped.
 
@@ -216,12 +218,13 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
 - **Checks are cooperative.** Helper gates refuse when they are invoked and
   their inputs fail; supervision checks classify a worker's recorded activity
   when the lead runs them. Neither stops a lead that skips them.
-- **No boundary of its own.** CWO works inside whatever sandbox and approval
-  policy the host is configured with. A lead launched with Codex `--yolo` has
-  those checks disabled, and CWO supplies nothing in their place.
+- **Boundaries depend on the entry point.** The lead uses its host sandbox
+  and approval policy. Codex `--yolo` disables those checks for the lead.
+  Registered single-worker execution uses the verified provider-only app-server
+  namespace and separate networkless command and validator namespaces.
 - **Disabled in this version:** local HTTP dispatch, live browser dispatch and
-  browser model confirmation; registered native single-worker, pool and
-  campaign live routes; new worker-surface qualification; live native activation
+  browser model confirmation; raw native launch, concurrent pools and
+  live campaigns; new worker-surface qualification; live native activation
   (`run_native_pool_activation_preview.py run --enable-tech-preview`);
   risk narrowing (`--risk-scope` and `--risk-evidence-dir`
   are refused); and ordinary productive pool plans.

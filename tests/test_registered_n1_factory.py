@@ -506,7 +506,7 @@ class RpcProcess(children.FakeChild):
                 case.test.assertTrue(self.diagnostic_written.wait(2))
             response = scenario.thread_response(mutable=True)
             response.update(case.spec['profile_readback'], model=case.spec['model'], modelProvider=case.spec['provider'])
-            if runtime.qualification.MODEL_SELECTION in case.spec:
+            if runtime.qualification.MODEL_SELECTION in case.spec or case.spec.get('production_live') is True:
                 response.update(reasoningEffort=case.spec['effort'], serviceTier=params['serviceTier'])
                 response['thread'].update(ephemeral=params['ephemeral'], historyMode=params.get('historyMode'))
             response.pop('sandbox')
@@ -1467,23 +1467,30 @@ class FactoryTests(unittest.TestCase):
                 'validation_policy': policy.report, 'max_steps': changes.pop('max_steps', 64), 'purpose': 'local-engineering',
                 'implementation_sha256': runtime.implementation_sha256()}
         is_qualification = changes.pop('qualification', False)
+        is_production = changes.pop('production', False)
+        live_profile = is_qualification or is_production
         managed_login = changes.pop('managed_login', False)
         if is_qualification:
             spec = runtime.qualification.bind_model_selection(spec, managed_login=managed_login)
+        if is_production:
+            spec.update(production_live=True, provider=runtime.qualification.PROVIDER,
+                        model=changes.pop('production_model', spec['model']),
+                        effort=changes.pop('production_effort', spec['effort']))
+        if live_profile:
             spec['thread_start'].update(approvalPolicy='never', ephemeral=False)
             spec['profile_readback']['approvalPolicy'] = 'never'
         finite_tool_mode = changes.pop('finite_tool_mode',
-            'captured-live-host-tools' if is_qualification else None)
+            'captured-live-host-tools' if live_profile else None)
         if finite_tool_mode is not None:
             spec['finite_tool_mode'] = finite_tool_mode
         approval = spec['thread_start']['approvalPolicy']
-        access = 'read' if is_qualification else 'write'
+        access = 'read' if live_profile else 'write'
         spec['configuration_files'] = {'rules/default.rules': '', 'config.toml':
             f'default_permissions = "EXAMPLE_ROOT_DENY"\napproval_policy = "{approval}"\napprovals_reviewer = "user"\n'
-            f'model = "{spec["model"]}"\nmodel_reasoning_effort = "xhigh"\nservice_tier = "default"\n'
+            f'model = "{spec["model"]}"\nmodel_reasoning_effort = "{spec["effort"]}"\nservice_tier = "default"\n'
             '[permissions.EXAMPLE_ROOT_DENY.filesystem]\n"/" = "deny"\n'
             + json.dumps(str(host.worker)) + f' = "{access}"\n[permissions.EXAMPLE_ROOT_DENY.network]\nenabled = false\n'}
-        if is_qualification:
+        if live_profile:
             spec['configuration_files']['config.toml'] += ('[features]\n'
                 + ''.join(f'{feature} = false\n' for feature in runtime.qualification.disabled_features())
                 + '[features.code_mode]\nenabled = true\ndirect_only_tool_namespaces = '
@@ -1499,7 +1506,7 @@ class FactoryTests(unittest.TestCase):
                            'state_identity': copy.deepcopy(host._state_identity)}
         if changes.pop('executable_pin_mismatch', False):
             spec['executable_sha256'] = hashlib.sha256(b'EXAMPLE different executable').hexdigest()
-        route = example_route()
+        route = example_route(tiny=is_production)
         node = route['nodes'][0]
         node['prompt'] = changes.pop('task_prompt', node['prompt'])
         node['execution'].update(model=spec['model'], provider=spec['provider'], effort=spec['effort'], options={'registered_n1': copy.deepcopy(spec)})
@@ -1530,6 +1537,8 @@ class FactoryTests(unittest.TestCase):
         self._boundaries(case)
         self._authority(case)
         case.qualification_permit = None
+        if live_profile:
+            self._prepare_live_profile(case)
         if is_qualification:
             self._prepare_qualification(case)
         if archive_schedule == 'settled':
@@ -1555,7 +1564,7 @@ class FactoryTests(unittest.TestCase):
         plan['selected_model'] = case.spec['model']
         plan['children'][0]['requested_model'] = case.spec['model']
         operation['model'] = case.spec['model']
-        if runtime.qualification.MODEL_SELECTION in case.spec:
+        if runtime.qualification.MODEL_SELECTION in case.spec or case.spec.get('production_live') is True:
             plan['required_session_count'] = plan['budget']['reserved_sessions'] = 1
             operation['reservation']['sessions'] = 1
         directive = a.reseal(plan, operation)
@@ -1563,11 +1572,13 @@ class FactoryTests(unittest.TestCase):
         case.capability.claim()
         case.verifier = a.verifier
 
-    def _prepare_qualification(self, case):
+    def _prepare_live_profile(self, case):
         import selected_native_containment as selected
 
         self.enterContext(patch.object(runtime.live_availability, 'N1_LIVE_AVAILABLE', False))
         case.schema_check = self.enterContext(patch.object(selected, 'check_codex_capabilities'))
+
+    def _prepare_qualification(self, case):
         directory = case.host.state.parent / runtime.qualification.CAMPAIGN
         self.enterContext(patch.object(runtime.qualification, '_campaign_directory', return_value=directory))
         runtime.qualification.initialize_campaign()
@@ -1720,6 +1731,15 @@ class FactoryTests(unittest.TestCase):
         case.factory = factory
         self.addCleanup(self.drain_factory_workers, factory)
         return factory
+
+    def test_signed_registered_production_requires_the_original_workflow_guard(self):
+        case = self.case(production=True)
+        for options in ({}, {'production_guard': lambda _factory: None}):
+            with self.subTest(options=options), self.assertRaisesRegex(ValueError, 'original registered workflow'):
+                self.factory(case, **options)
+        self.assertFalse((case.home / 'config.toml').exists())
+        self.assertFalse((case.host.state / 'registered-startup.json').exists())
+        self.assertEqual(self.spawned, [])
 
     def drain_factory_workers(self, factory):
         if type(factory.server) is _ORIGINAL_REGISTERED_SERVER:

@@ -4,9 +4,9 @@
 pool capacity. Its `native_supervision_pool.capacity` object separates three
 different limits:
 
-These limits describe the held contract. Registered single-worker, pool and
-campaign live execution remain unavailable under default-off source holds;
-changing a capacity value or supplying an opt-in cannot override them.
+These limits describe the held pool contract. Pool and campaign live execution
+require their own source decisions. A capacity value or opt-in supplies no
+launch authority.
 
 | Canonical field | Meaning | Current value |
 | --- | --- | --- |

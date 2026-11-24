@@ -1,14 +1,15 @@
 # Native supervision: current and historical contracts
 
-The registered single-worker route, concurrent pools, live campaigns and
-activation preview are held in this release. New worker-surface qualification is
-also held. The contracts below describe required controls; they do not enable a
-live route. See [the live holds](native-live-route-holds.md).
+The registered single-worker route requires the original signed workflow,
+explicit provider disclosure consent and separately supplied production
+authentication. Concurrent pools, live campaigns, activation preview and
+new worker-surface qualification remain held. See the
+[registered production requirements](native-live-route-holds.md#registered-single-worker-production).
 
 Running multiple supervised native workers concurrently is experimental and disabled by default.
-Current default-off source holds keep live execution unavailable. No shipped
-trusted controller unlocks these routes; plans, receipts, environment settings
-and CLI switches cannot override the holds.
+The concurrent routes retain default-off source decisions and require a trusted
+controller. Plans, receipts, environment settings and CLI switches supply no
+launch authority.
 
 For a new assignment, estimate the whole task before selecting a worker. Luna
 is the first choice for focused native work. Sol handles escalation when the
@@ -351,14 +352,13 @@ salvage chain.
 
 ## Multi-Worker Concurrency Tech Preview
 
-The live registered single-worker, pool and campaign routes are held by
-default-off source decisions in this release. New worker-surface qualification
-is held too. The following capacity contract does not enable execution; any
-future restoration still requires supervision and all existing admission checks.
+Concurrent pool and campaign routes retain their source holds. The following
+capacity contract describes the approved single-worker route and the limits of
+any future concurrent route.
 
 | Capacity | Status | Additional requirements |
 | --- | --- | --- |
-| One worker | Live route held | Source restoration and trusted single-worker controls |
+| One worker | Registered route available | Original signed workflow, provider disclosure adoption and separate production authentication |
 | Two workers | Live route held | Source restoration, fresh same-host capability receipt and safe fixed cohort |
 | Three workers | Live route held | Same requirements; contract hard ceiling |
 | Four or more | Blocked | Not represented by the operative contract |
