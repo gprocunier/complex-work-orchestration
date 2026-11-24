@@ -75,7 +75,7 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     validate_capability_rendered_command,
     validate_materialization_evidence,
 )
-from cwo_core.native_pool import NativePoolCoordinator  # noqa: E402
+from cwo_core.native_pool import LegacyNativePoolExecutionRetired  # noqa: E402
 from cwo_core.native_pool_capacity import load_pool_capacity  # noqa: E402
 from cwo_core.native_pool_capacity_compat import (  # noqa: E402
     LEGACY_CONCURRENT_CAPACITY,
@@ -118,7 +118,6 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     seal_artifact,
     validate_capability_receipt,
     validate_completion_evidence_policy,
-    validate_pool_receipt,
     write_private_artifact,
     zero_token_usage,
 )
@@ -131,7 +130,7 @@ from cwo_core.native_pool_preflight import (  # noqa: E402
     require_pool_preflight,
     validate_pool_preflight_result,
 )
-from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402
+from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
 from cwo_core.native_pool_scheduler import select_earliest_deadline  # noqa: E402
 from cwo_core.native_pool_schedulability import (  # noqa: E402
     PoolSchedulabilityError,
@@ -7576,104 +7575,11 @@ def run_pool_canary(
     expected_bound_manifest_validation: Mapping[str, Any] | None = None,
     interrupt_after: list[int | None] | None = None,
 ) -> dict[str, Any]:
+    """Refuse the retired v1 pool canary before preparing a worker."""
     live_availability.require_campaign_live()
     live_availability.require_pool_live()
     live_availability.require_n1_live()
-    (
-        contract,
-        child_contracts,
-        adapters,
-        monitor,
-        pool_preflights,
-    ) = build_pool_inputs(
-        server,
-        capability_receipt,
-        campaign_manifest,
-        root=root,
-        integration=integration,
-        pool_name=pool_name,
-        worktrees=worktrees,
-        mutable=mutable,
-        prompts=prompts,
-        expected_tokens=expected_tokens,
-        completion_evidence_policies=completion_evidence_policies,
-        tool_policies=tool_policies,
-        read_only_command_authorities=read_only_command_authorities,
-        pre_thread_start_check=pre_thread_start_check,
-        pre_allocation_check=pre_allocation_check,
-        expected_bound_manifest_validation=expected_bound_manifest_validation,
-        interrupt_after=interrupt_after,
-    )
-    child_ids = list(adapters)
-
-    def read_child_evidence(*, child_id: str, state_file: str) -> dict[str, Any]:
-        child_contract = next(
-            child for child in contract["children"] if child["child_id"] == child_id
-        )
-        if state_file != child_contract["state_file"]:
-            raise AppServerError("child-evidence-state-file-mismatch")
-        if (
-            adapters[child_id].completion_evidence_policy
-            != child_contract["completion_evidence_policy"]
-        ):
-            raise AppServerError("child-completion-evidence-policy-mismatch")
-        if adapters[child_id].tool_policy != child_contract["tool_policy"]:
-            raise AppServerError("child-tool-policy-mismatch")
-        return adapters[child_id].evidence()
-
-    coordinator = NativePoolCoordinator(
-        contract,
-        child_contracts,
-        {child_id: adapters[child_id].prompt for child_id in child_ids},
-        {child_id: adapters[child_id].callbacks() for child_id in child_ids},
-        pool_callbacks={
-            "monotonic_ns": time.monotonic_ns,
-            "sleep": pool_sleep,
-            "now_utc": iso,
-            "read_child_evidence": read_child_evidence,
-            "compare_workspaces": monitor.compare,
-        },
-        lease_registry=PoolLeaseRegistry(root / f"{pool_name}-leases.json"),
-        capability_receipt=capability_receipt,
-        state_file=root / f"{pool_name}-pool-state.json",
-        decision_file=root / f"{pool_name}-pool-decision.json",
-    )
-    started = time.monotonic_ns()
-    receipt = coordinator.run()
-    elapsed = (time.monotonic_ns() - started) / 1_000_000_000
-    terminal_state = coordinator.progress()["state"]
-    receipt_errors = validate_pool_receipt(
-        receipt, contract=contract, terminal_state=terminal_state
-    )
-    if receipt_errors:
-        raise AppServerError("live-pool-receipt-invalid:" + ";".join(receipt_errors))
-    if interrupt_after is None and receipt.get("accepting") is not True:
-        first_fault = receipt.get("first_protected_fault")
-        raise LivePoolProtectedFault(first_fault)
-    summaries = [adapters[child_id].final_summary() for child_id in child_ids]
-    worker_seconds = float(receipt["worker_seconds"])
-    improvement = (
-        (worker_seconds - float(receipt["pool_wall_seconds"])) / worker_seconds
-        if worker_seconds > 0
-        else 0.0
-    )
-    return {
-        "pool_name": pool_name,
-        "pool_id": contract["pool_id"],
-        "pool_epoch": contract["pool_epoch"],
-        "contract_sha256": contract["contract_sha256"],
-        "preflight": pool_preflights,
-        "receipt": receipt,
-        "receipt_validation_errors": receipt_errors,
-        "terminal_state_sha256": terminal_state["state_sha256"],
-        "elapsed_seconds": round(elapsed, 3),
-        "elapsed_improvement_ratio": round(improvement, 6),
-        "sessions": summaries,
-        "workspace": {
-            "evidence": monitor.last_report["evidence"] if monitor.last_report else None,
-            "phase": monitor.last_report["phase"] if monitor.last_report else None,
-        },
-    }
+    raise LegacyNativePoolExecutionRetired()
 
 
 def validate_campaign(
@@ -13123,6 +13029,8 @@ def main() -> int:
         live_availability.require_campaign_live()
         live_availability.require_pool_live()
         live_availability.require_n1_live()
+        # Keep the frozen campaign body for historical source verification.
+        raise LegacyNativePoolExecutionRetired()
         if not _valid_uuid_text(args.campaign_nonce):
             raise AppServerError("campaign-nonce-invalid")
         path_arguments: dict[str, Path] = {

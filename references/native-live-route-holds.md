@@ -16,7 +16,7 @@ verified acceptance.
 | Native surface probe and qualification | `N1_LIVE_AVAILABLE` | `capture_tool_request` refuses before capture binding or listener startup; its CLI refuses before catalog/evidence writes. `observe_qualification` verifies the original opaque operation, then refuses before qualification output/intent creation. |
 | Registered pool and retry | `N1_LIVE_AVAILABLE` and `POOL_LIVE_AVAILABLE` | Pool host execute entry and each member, plus approved retry entry and effect. `PoolConfiguration.enabled=True` cannot replace either source decision. |
 | Activation preview | Dedicated `LIVE_ACTIVATION_AVAILABLE` plus N1 for `n1-read-only` and `n1-mutable`; additionally pool for `n2-read-only` | Run entry checks the dedicated hold and N1 before loading inputs; the loaded profile is checked before claims, ledger creation, reservation or launch. Server creation, ledger transport RPC entry points, worker-contract allocation and accepted-child closure recheck the dedicated hold and selected profile. |
-| Campaign | N1, pool and campaign | Main entry, preclaim validation, global claim acquisition, server construction, `build_pool_inputs` and `run_pool_canary`. A supplied server or a pre-move validator tree cannot replace a held source decision. |
+| Campaign | N1, pool and campaign | Main and `run_pool_canary` also refuse as retired before input reads or allocation. Preclaim, global claim acquisition, server construction and `build_pool_inputs` retain the three source checks. |
 | Admitted v8 multiworker plan | N1 and pool | The loader checks the actual child count before consuming the verified operation or importing its runtime adapter. The concrete installed maintenance runtime supports exactly one worker child and one precommit session; it does not implement a multiworker maintenance cohort. |
 
 The raw transport's N1 decision is a shared prerequisite because its concrete
@@ -44,13 +44,10 @@ routes require their own qualification and operator decision.
 
 ## Explicit launcher binding hold
 
-The activation-preview launcher and campaign launcher still construct bare
-`AppServer()`. With explicit launcher binding this always refuses, including when every availability
-flag is patched on. Their routes remain unavailable. Any later restoration must
-supply explicit executable and `CODEX_HOME` bindings, or a verified capture
-binding, through the constructor contract and satisfy all existing source
-holds and qualification requirements. This change documents that refusal; it
-restores no route.
+The activation-preview launcher constructs bare `AppServer()`. The constructor
+requires explicit executable and `CODEX_HOME` bindings or a verified capture
+binding, in addition to the source holds and qualification requirements. The
+legacy campaign launcher refuses before reaching server construction.
 
 ## Registered single-worker production
 

@@ -17,10 +17,30 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_control import build_control_turn_contract  # noqa: E402
-from cwo_core.native_pool import NativePoolCoordinator, NativePoolError  # noqa: E402
+from cwo_core.native_pool import (  # noqa: E402
+    LegacyNativePoolExecutionRetired,
+    NativePoolCoordinator,
+    NativePoolError,
+    _build_admitted_pool_coordinator,
+    run_native_pool,
+)
+from cwo_core.native_pool_admission import (  # noqa: E402
+    AdmissionCandidate,
+    PoolAdmissionReservation,
+    build_admission_child_binding,
+    build_dispatch_context,
+    consume_pool_admission,
+)
+from cwo_core.native_pool_capacity import load_pool_capacity  # noqa: E402
 from cwo_core.native_pool_contracts import (  # noqa: E402
+    ADMISSION_TOP_BINDING_FIELDS,
+    ADMITTED_POOL_CONTRACT_SCHEMA,
+    ADMITTED_POOL_VERSION,
+    DEFAULT_COMPLETION_POLICY,
+    admission_child_render_hashes,
     canonical_sha256,
     seal_artifact,
+    validate_pool_contract,
     validate_pool_receipt,
     validate_pool_state,
     write_private_artifact,
@@ -31,16 +51,19 @@ from cwo_core.native_pool_leases import (  # noqa: E402
     PoolLeaseRegistry,
     capture_owner_identity,
 )
+from cwo_core.native_pool_proportionality import pool_proportionality_check  # noqa: E402
 from cwo_core.native_stop_scope import (  # noqa: E402
     policy_scope_authority,
     verify_operator_scope_directive,
 )
+from tests.test_native_pool_admission import _live, _reserve  # noqa: E402
 from tests.test_native_pool_contracts import (  # noqa: E402
     child as pool_child,
     control_request,
     pool_contract,
     sha,
 )
+from tests.test_native_pool_proportionality import _fixture  # noqa: E402
 
 
 class FakeClock:
@@ -130,6 +153,52 @@ class FakeAdapter:
         }
 
 
+def _reserve_fixture_contract(contract: dict) -> tuple[dict, PoolAdmissionReservation]:
+    """Bind a scheduler fixture to a real one-use reservation with in-memory claims."""
+    children = contract["children"]
+    cap = len(children)
+    readiness, estimates, items, policy = _fixture([600] * cap)
+    assessment = pool_proportionality_check(
+        readiness, estimates, requested_workers=cap, policy_document=policy,
+    )
+    bindings = {}
+    for child, bead_id in zip(children, sorted(estimates), strict=True):
+        bindings[bead_id] = build_admission_child_binding(
+            readiness,
+            estimates[bead_id],
+            bead_id=bead_id,
+            child_id=child["child_id"],
+            packet_id=child["packet_id"],
+            packet_sha256=child["packet_sha256"],
+            worktree_identity_sha256=canonical_sha256(child["worktree_identity"]),
+        )
+    candidate = AdmissionCandidate(readiness, estimates, assessment, bindings)
+    reserved, _runner = _reserve(candidate, items, policy_document=policy)
+    if not reserved.admitted:
+        raise AssertionError(reserved.receipt)
+    receipt = reserved.receipt
+    for child, claim in zip(children, receipt["claims"], strict=True):
+        child.update(bindings[claim["bead_id"]])
+        child["claim_sha256"] = claim["claim_sha256"]
+        child["hard_budget"] = {**child["hard_budget"], "full_suite_runs": 0, "mutations": 1}
+        child.update(admission_child_render_hashes(child))
+    contract.update(
+        {
+            field: receipt[field]
+            for field in ADMISSION_TOP_BINDING_FIELDS - {"admission_reservation_sha256"}
+        },
+        version=ADMITTED_POOL_VERSION,
+        schema=ADMITTED_POOL_CONTRACT_SCHEMA,
+        completion_policy=DEFAULT_COMPLETION_POLICY,
+        admission_reservation_sha256=receipt["reservation_sha256"],
+        aggregate_hard_budget={
+            field: sum(child["hard_budget"][field] for child in children)
+            for field in contract["aggregate_hard_budget"]
+        },
+    )
+    return seal_artifact(contract, "contract_sha256"), reserved
+
+
 class PoolHarness:
     def __init__(
         self,
@@ -147,7 +216,6 @@ class PoolHarness:
         usage_sequence_by_child: dict[str, list[dict]] | None = None,
         dispositions_by_child: dict[str, tuple[str, str]] | None = None,
         protected_fault_reasons_by_child: dict[str, list[str]] | None = None,
-        budget_overrides: dict[str, int] | None = None,
         read_only: bool = False,
         read_only_children: set[str] | None = None,
         control_file: Path | None = None,
@@ -163,8 +231,6 @@ class PoolHarness:
                 )
         live_owner = capture_owner_identity()
         self.contract["owner"] = live_owner
-        if budget_overrides:
-            self.contract["aggregate_hard_budget"].update(budget_overrides)
         if self.capability is not None:
             self.capability["host_identity"] = live_owner
             self.capability = seal_artifact(self.capability, "receipt_sha256")
@@ -182,7 +248,7 @@ class PoolHarness:
             )
             self.child_contracts[child_id] = control
             child["control_contract_sha256"] = control["contract_sha256"]
-        self.contract = seal_artifact(self.contract, "contract_sha256")
+        self.contract, self.reservation = _reserve_fixture_contract(self.contract)
         decision_sets = decisions or [["complete"] for _ in range(cap)]
         self.adapters = {
             f"child-{index}": FakeAdapter(
@@ -212,25 +278,70 @@ class PoolHarness:
             owner_alive=lambda _owner: True,
             now=self.clock.now_utc,
         )
+        self.root = Path(temporary)
         self.control_file = control_file
-        self.coordinator = NativePoolCoordinator(
+        self.policy_document = policy_document
+        self.pool_callbacks = {
+            "monotonic_ns": self.clock.monotonic_ns,
+            "sleep": self.clock.sleep,
+            "now_utc": self.clock.now_utc,
+            "read_child_evidence": self.read_child_evidence,
+            "compare_workspaces": self.compare_workspaces,
+        }
+        self.start()
+
+    def build_coordinator(self, leases: list[dict], dispatch: dict) -> NativePoolCoordinator:
+        return _build_admitted_pool_coordinator(
             self.contract,
             self.child_contracts,
             self.tasks,
             {child_id: adapter.callbacks() for child_id, adapter in self.adapters.items()},
-            pool_callbacks={
-                "monotonic_ns": self.clock.monotonic_ns,
-                "sleep": self.clock.sleep,
-                "now_utc": self.clock.now_utc,
-                "read_child_evidence": self.read_child_evidence,
-                "compare_workspaces": self.compare_workspaces,
-            },
+            pool_callbacks=self.pool_callbacks,
             lease_registry=self.registry,
             capability_receipt=self.capability,
-            state_file=Path(temporary) / "pool-state.json",
-            decision_file=Path(temporary) / "pool-decision.json",
-            control_file=control_file,
-            policy_document=policy_document,
+            preacquired_leases=leases,
+            reservation_receipt=self.reservation.receipt,
+            dispatch_receipt=dispatch,
+            state_file=self.root / "pool-state.json",
+            decision_file=self.root / "pool-decision.json",
+            control_file=self.control_file,
+            policy_document=self.policy_document,
+        )
+
+    def start(self) -> None:
+        # The public bridge runs to completion inside its commit. Scheduler
+        # tests drive individual steps after the same admission consumer commits.
+        limits = load_pool_capacity(self.policy_document)
+        self.leases = self.registry.acquire_many(self.contract, list(self.adapters), capacity_limits=limits)
+        receipt = self.reservation.receipt
+        context = build_dispatch_context(
+            receipt,
+            pool_contract_sha256=self.contract["contract_sha256"],
+            preflight_request_sha256=sha("scheduler-fixture-request"),
+            preflight_result_sha256=sha("scheduler-fixture-result"),
+            lease_set_sha256=canonical_sha256({"leases": self.leases}),
+        )
+
+        def commit(dispatch: dict) -> None:
+            self.coordinator = self.build_coordinator(self.leases, dispatch)
+
+        self.dispatch = consume_pool_admission(
+            self.reservation.capability,
+            receipt,
+            context,
+            claim_adapter=self.reservation.claim_adapter,
+            live_revalidate=_live,
+            commit=commit,
+            now=self.clock.now_utc(),
+        )
+
+    def validate_receipt(self, receipt: dict, *, terminal_state: dict) -> list[str]:
+        return validate_pool_receipt(
+            receipt,
+            contract=self.contract,
+            terminal_state=terminal_state,
+            admission_reservation=self.reservation.receipt,
+            dispatch_receipt=self.dispatch,
         )
 
     def read_child_evidence(self, *, child_id: str, state_file: str) -> dict:
@@ -304,6 +415,50 @@ def assert_state_lock_released(test: unittest.TestCase, temporary: str) -> None:
 
 
 class NativePoolCoordinatorTests(unittest.TestCase):
+    def test_legacy_public_execution_refuses_before_any_effect(self) -> None:
+        contract, capability = pool_contract(cap=1)
+        contract["owner"] = capture_owner_identity()
+        child = contract["children"][0]
+        task = "bounded task"
+        control = build_control_turn_contract(
+            state_file=child["state_file"],
+            agent_id=child["agent_id"],
+            control_turn_id=child["control_turn_id"],
+            task_sha256=hashlib.sha256(task.encode("utf-8")).hexdigest(),
+            poll_interval_ms=contract["scheduler"]["poll_interval_ms"],
+        )
+        child["control_contract_sha256"] = control["contract_sha256"]
+        contract = seal_artifact(contract, "contract_sha256")
+        self.assertEqual(validate_pool_contract(contract), [])
+        for entry in (NativePoolCoordinator, run_native_pool):
+            with self.subTest(entry=entry.__name__), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                adapter = FakeAdapter(FakeClock(), ["complete"])
+                child_callbacks = {
+                    name: mock.Mock(side_effect=callback) for name, callback in adapter.callbacks().items()
+                }
+                pool_callbacks = {
+                    name: mock.Mock(side_effect=AssertionError(f"unexpected {name} callback"))
+                    for name in ("monotonic_ns", "now_utc", "sleep", "read_child_evidence", "compare_workspaces")
+                }
+                registry = PoolLeaseRegistry(root / "leases.json")
+                with self.assertRaisesRegex(LegacyNativePoolExecutionRetired, "^legacy-pool-execution-retired$"):
+                    entry(
+                        contract,
+                        {"child-0": control},
+                        {"child-0": task},
+                        {"child-0": child_callbacks},
+                        pool_callbacks=pool_callbacks,
+                        lease_registry=registry,
+                        capability_receipt=capability,
+                        state_file=root / "state.json",
+                        decision_file=root / "decision.json",
+                        control_file=root / "control.json",
+                    )
+                self.assertTrue(all(callback.call_count == 0 for callback in pool_callbacks.values()))
+                self.assertTrue(all(callback.call_count == 0 for callback in child_callbacks.values()))
+                self.assertEqual(list(root.iterdir()), [])
+
     @staticmethod
     def _add_noncallback_invoke_time(
         harness: PoolHarness,
@@ -630,7 +785,12 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertIn("interrupt", harness.adapters["child-0"].calls)
             self.assertEqual(harness.adapters["child-1"].calls, [])
             self.assertEqual(
-                receipt["child_dispositions"],
+                [
+                    {key: disposition[key] for key in (
+                        "child_id", "runtime_disposition", "session_disposition", "artifact_disposition",
+                    )}
+                    for disposition in receipt["child_dispositions"]
+                ],
                 [
                     {
                         "child_id": "child-0",
@@ -655,11 +815,7 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 [],
             )
             self.assertEqual(
-                validate_pool_receipt(
-                    receipt,
-                    contract=harness.contract,
-                    terminal_state=state,
-                ),
+                harness.validate_receipt(receipt, terminal_state=state),
                 [],
             )
 
@@ -671,9 +827,8 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(receipt["admission_order"], ["child-0"])
             self.assertEqual(receipt["terminal_order"], ["child-0"])
             self.assertEqual(
-                validate_pool_receipt(
+                harness.validate_receipt(
                     receipt,
-                    contract=harness.contract,
                     terminal_state=harness.coordinator.progress()["state"],
                 ),
                 [],
@@ -807,7 +962,10 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(receipt["admission_order"], [])
             self.assertIn("initial-workspace-comparison-failed", receipt["reasons"])
             self.assertEqual(harness.adapters["child-0"].calls, [])
-            self.assertEqual(receipt["lease_evidence"], [])
+            self.assertEqual(
+                [lease["lifecycle_state"] for lease in receipt["lease_evidence"]],
+                ["released"],
+            )
 
     def test_read_only_fast_path_retains_only_boundary_comparisons(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -1093,7 +1251,10 @@ class NativePoolCoordinatorTests(unittest.TestCase):
 
             self.assertIs(raised.exception, original_error)
             self.assertEqual(harness.adapters["child-0"].calls, [])
-            self.assertEqual(harness.registry.snapshot(), [])
+            self.assertEqual(
+                [lease["lifecycle_state"] for lease in harness.registry.snapshot()],
+                ["release-pending"],
+            )
             state = json.loads((Path(temporary) / "pool-state.json").read_text(encoding="utf-8"))
             self.assertEqual(validate_pool_state(state, contract=harness.contract), [])
             self.assertEqual(state["status"], "control-failed")
@@ -1189,11 +1350,12 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             harness = PoolHarness(temporary, cap=1)
             original_error = RuntimeError("root failure")
             real_flock = fcntl.flock
+            state_lock_fd = harness.coordinator._state_lock_handle.fileno()
             unlock_failed = False
 
             def flaky_flock(file_descriptor: int, operation: int) -> None:
                 nonlocal unlock_failed
-                if operation == fcntl.LOCK_UN and not unlock_failed:
+                if file_descriptor == state_lock_fd and operation == fcntl.LOCK_UN and not unlock_failed:
                     unlock_failed = True
                     raise OSError("unlock failed")
                 real_flock(file_descriptor, operation)
@@ -1504,45 +1666,6 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                     harness.compare_phases,
                 )
 
-    def test_partial_dispatch_lease_collision_has_strict_nonaccepting_receipt(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            harness = PoolHarness(temporary, cap=1)
-            harness.registry.acquire(harness.contract, "child-0")
-            receipt = harness.coordinator.run()
-            self.assertFalse(receipt["accepting"])
-            self.assertEqual(receipt["admission_order"], [])
-            self.assertEqual(receipt["lease_evidence"], [])
-            self.assertEqual(harness.adapters["child-0"].calls, [])
-            self.assertTrue(any("lease-id-already-active" in reason for reason in receipt["reasons"]))
-
-
-    def test_cohort_lease_allocation_error_yields_zero_callbacks(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            harness = PoolHarness(temporary, cap=2)
-            with mock.patch.object(
-                harness.registry,
-                "acquire_many",
-                side_effect=PoolLeaseError("lease-registry-write-failed"),
-            ) as acquire:
-                receipt = harness.coordinator.run()
-            acquire.assert_called_once_with(
-                harness.coordinator.contract,
-                ["child-0", "child-1"],
-                capacity_limits=harness.coordinator.capacity_limits,
-            )
-            self.assertFalse(receipt["accepting"])
-            self.assertEqual(receipt["admission_order"], [])
-            self.assertEqual(receipt["lease_evidence"], [])
-            self.assertEqual(harness.registry.snapshot(), [])
-            self.assertEqual(harness.adapters["child-0"].calls, [])
-            self.assertEqual(harness.adapters["child-1"].calls, [])
-            self.assertTrue(
-                any(
-                    "lease-registry-write-failed" in reason
-                    for reason in receipt["reasons"]
-                )
-            )
-
     def test_state_file_tamper_is_detected_before_next_adapter_callback(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(temporary, cap=1)
@@ -1750,8 +1873,8 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                 "released_max_active_workers"
             ] = 2
             with self.assertRaisesRegex(
-                NativePoolError,
-                "requested-capacity-not-released",
+                PoolLeaseError,
+                "admitted-capacity-not-released",
             ):
                 PoolHarness(temporary, cap=3, policy_document=reduced_policy)
 
@@ -1759,42 +1882,23 @@ class NativePoolCoordinatorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(temporary, cap=1)
             with self.assertRaisesRegex(NativePoolError, "pool-state-lock-unavailable"):
-                NativePoolCoordinator(
-                    harness.contract,
-                    harness.child_contracts,
-                    harness.tasks,
-                    {
-                        child_id: adapter.callbacks()
-                        for child_id, adapter in harness.adapters.items()
-                    },
-                    pool_callbacks={
-                        "monotonic_ns": harness.clock.monotonic_ns,
-                        "sleep": harness.clock.sleep,
-                        "now_utc": harness.clock.now_utc,
-                        "read_child_evidence": harness.read_child_evidence,
-                        "compare_workspaces": harness.compare_workspaces,
-                    },
-                    lease_registry=harness.registry,
-                    capability_receipt=harness.capability,
-                    state_file=Path(temporary) / "pool-state.json",
-                )
+                harness.build_coordinator(harness.leases, harness.dispatch)
             harness.coordinator.run()
 
     def test_aggregate_exhaustion_interrupts_every_admitted_child(self) -> None:
         usage = zero_usage()
-        usage["tool_calls"] = 3
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(
                 temporary,
                 cap=2,
                 usage_by_child={"child-0": usage},
-                budget_overrides={"tool_calls": 2},
             )
+            usage["tool_calls"] = harness.contract["aggregate_hard_budget"]["tool_calls"] + 1
             receipt = harness.coordinator.run()
             self.assertFalse(receipt["accepting"])
             self.assertIn("aggregate-tool-calls-exhausted", receipt["reasons"])
             self.assertIn("aggregate-budget-exhausted", receipt["reasons"])
-            self.assertEqual(receipt["final_aggregate_usage"]["tool_calls"], 3)
+            self.assertEqual(receipt["final_aggregate_usage"]["tool_calls"], usage["tool_calls"])
             self.assertEqual(receipt["stop_scope"], "cohort")
             self.assertNotEqual(receipt["stop_scope"], "publication")
 
@@ -1816,26 +1920,6 @@ class NativePoolCoordinatorTests(unittest.TestCase):
                     phase.startswith("after-child-0-")
                     for phase in harness.compare_phases
                 )
-            )
-
-
-    def test_second_child_lease_collision_yields_zero_pool_callbacks(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            harness = PoolHarness(
-                temporary,
-                cap=2,
-                decisions=[["continue"], ["complete"]],
-            )
-            harness.registry.acquire(harness.contract, "child-1")
-            receipt = harness.coordinator.run()
-            self.assertFalse(receipt["accepting"])
-            self.assertEqual(receipt["admission_order"], [])
-            self.assertEqual(harness.adapters["child-0"].calls, [])
-            self.assertEqual(harness.adapters["child-1"].calls, [])
-            self.assertEqual(receipt["lease_evidence"], [])
-            self.assertEqual(
-                [lease["lease_id"] for lease in harness.registry.snapshot()],
-                ["lease-1"],
             )
 
 
