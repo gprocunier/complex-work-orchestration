@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import build_contractor_packet  # noqa: E402
-from cwo_core import audit, host_records  # noqa: E402
+from cwo_core import audit, browser_capture, host_records  # noqa: E402
 from cwo_core.outbound_screen import require_clean  # noqa: E402
 from cwo_core.prepared_outbound import PreparedSource  # noqa: E402
 from cwo_core.private_artifact import sha256_bytes  # noqa: E402
@@ -99,6 +99,42 @@ class BrowserProvenanceTests(unittest.TestCase):
             self.assertEqual(persisted[key], value, key)
         self.assertFalse(self.text in self.store.audit_file.read_text(), "response body entered audit")
         self.assertIn("same-user", self.expected().access_limit)
+
+    def test_trusted_host_publishes_exact_response_for_independent_intake(self):
+        from ingest_chatgpt_share_return import load_private_response
+
+        metadata = {**self.packet, "packet_source_sha256": self.packet_source}
+        directory = browser_capture.resolve_response_dir(str(self.base / "returns"))
+        artifact = browser_capture.write_private_response(
+            directory, metadata=metadata, prompt=self.prompt, browser_result=self.browser,
+        )
+        provenance_path = Path(artifact["provenance_path"])
+        with self.assertRaisesRegex(SystemExit, "independently selected"):
+            load_private_response(provenance_path)
+        with self.assertRaisesRegex(SystemExit, "independent audit provenance digest"):
+            load_private_response(provenance_path, expected=self.expected())
+
+        result = {**metadata, "epic_id": metadata.get("epic_id"), "prompt_sha256": artifact_hash(self.prompt),
+                  "status": "completed", "response_artifact": artifact,
+                  "response_text": self.text, "conversation_url": self.browser["conversation_url"]}
+        event = browser_capture.record_browser_dispatch(result, quota_info={})
+        self.assertEqual(event["event_type"], "chatgpt_browser_dispatch")
+        self.assertEqual(artifact["capture_event_hash"], event["event_hash"])
+        expected = self.expected(capture_event_hash=event["event_hash"])
+        text, provenance, digest = load_private_response(provenance_path, expected=expected)
+        self.assertEqual(text.encode("utf-8"), self.text.encode("utf-8"))
+        self.assertTrue(provenance["capture_complete"])
+        self.assertEqual(digest, event["private_provenance_sha256"])
+        self.assertEqual(event["response_sha256"], sha256_bytes(self.text.encode("utf-8")))
+        self.assertIsNone(provenance["model_attestation"])
+        self.assertFalse(provenance["share"]["created"])
+        persisted = self.store.audit_events()[-1]
+        self.assertEqual(persisted, event)
+        self.assertNotIn("response_text", persisted)
+        self.assertNotIn("conversation_url", persisted)
+        audit_text = json.dumps(persisted, ensure_ascii=False)
+        self.assertNotIn(self.text.strip(), audit_text)
+        self.assertNotIn(self.browser["conversation_url"], audit_text)
 
     def test_missing_expectations_and_missing_independent_pins_refuse(self):
         with self.assertRaises(SystemExit):

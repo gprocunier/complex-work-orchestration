@@ -32,9 +32,9 @@
 
 "H3":{"admission":{"$":4},"authority":"Trusted caller chooses host/port/allow_private_dns/pinned address/SSL context; callers do not get release authority by invoking helpers.","effect":"Direct endpoint DNS/pinned socket/TLS helpers","effect_points":["p237","p27d","p2c5"],"gate_chains":[{"calls":[{"call":"p2f3","direction":"into","target":"p259"}],"effect":"p237","gate":"p2a2"}],"gates":["p2a2","p10c"],"limits":"Raw helper has no global local-invocation hold. Refused hostname/literal IP zero DNS; allowed private hostname exactly one getaddrinfo, then address policy. Pinned connect exact addr/port/timeout; TLS wrap_socket is socket/TLS effect, not write. DNS intrinsic deadline absent.","manual_decisions":["M14","M15"],"ordering":"Syntax/credentials/hostname policy before DNS where possible; resolved address policy necessarily after DNS. _preflight_local_model sends through caller-supplied opener; raw low-level helper invocation is not guarded by H1 hold.","trace_files":[{"$":68}],"witnesses":["w45"]},
 
-"H4":{"admission":{"$":2},"authority":"Shipped false flag remains decisive. Test-only true is not workload/aggregate restoration. Config owner-only outside repository, permitted ChatGPT origin and localhost CDP; trusted Playwright/page receiver, selectors operator-selected. Trusted offline parent issues exact execution admission; config cannot.","effect":"Browser runtime/start/CDP/profile/page/navigation/labels/Send","effect_points":["p379","p37c","p377","p358","pf"],"gate_chains":[{"calls":[{"call":"p215","direction":"into","target":"p1c7"},{"call":"p172","direction":"into","target":"p1ce"}],"effect":"p379","gate":"p127"},{"calls":[{"call":"p172","direction":"into","target":"p1ce"}],"effect":"p379","gate":"p337"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p157","direction":"into","target":"p363"}],"effect":"pf","gate":"p278"}],"gates":["p23e","p127","p337","p278"],"limits":"Three entries x CDP/profile zero factory/start/attach/launch/goto/Send when held. Matching enabled fake reaches selected lifecycle/Send once (confirmation zero Send). Final submitted bytes screened after request ID and origin/readability. Mismatch label/final scan zero Send permits earlier fake lifecycle/navigation/selection. Dormant legacy share UI not enabled. Runner hold witness covers the inner run and confirmation holds; it does not isolate the redundant outer run hold. Final-byte screening has its own Send witness. Main containment is witnessed separately on the main route and does not qualify actual browser Send. Destination URL refusals precede startup; later config drift refuses the next effect after any earlier benign connection. Local profile/executable paths are captured but are not disclosed URL content.","manual_decisions":["M16","M17"],"ordering":"main compound !dry && !available before config/prompt/effects; each runner entry checks before Playwright import/start; validated destination URLs are screened and bound to frozen inputs before the runtime factory, with current config/source checks before start, connection, profile launch, navigation, fill and Send; pre-Send origin/readability/model confirmation and _submit_prompt frame/document checks before fill/Send; state may-have-been-submitted before click, submitted only after pressed; cleanup preserves uncertainty.","review_gates":["p311"],"trace_files":[{"$":18},{"$":11},{"$":26},{"$":22},{"$":326},{"$":14}],"witnesses":["w55","w57","w6c","w56","w60","w85","w88","w48"]},
+"H4":{"admission":{"$":2},"authority":"Shipped false flag remains decisive. Test-only true is not workload/aggregate restoration. Config owner-only outside repository, permitted ChatGPT origin and localhost CDP; trusted Playwright/page receiver, selectors operator-selected. Trusted offline parent issues exact execution admission; config cannot.","effect":"Browser runtime/start/CDP/profile/page/navigation/labels/Send","effect_points":["p379","p37c","p377","p358","pf"],"gate_chains":[{"calls":[{"call":"p215","direction":"into","target":"p1c7"},{"call":"p172","direction":"into","target":"p1ce"}],"effect":"p379","gate":"p127"},{"calls":[{"call":"p172","direction":"into","target":"p1ce"}],"effect":"p379","gate":"p337"},{"calls":[{"call":"browser-request-screen-call","direction":"return","target":"browser-request-screen-body"},{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p157","direction":"into","target":"p363"}],"effect":"pf","gate":"p278"}],"gates":["p23e","p127","p337","p278"],"limits":"Three entries x CDP/profile zero factory/start/attach/launch/goto/Send when held. Matching enabled fake reaches selected lifecycle/Send once (confirmation zero Send). Final submitted bytes screened after request ID and origin/readability. Mismatch label/final scan zero Send permits earlier fake lifecycle/navigation/selection. Dormant legacy share UI not enabled. Runner hold witness covers the inner run and confirmation holds; it does not isolate the redundant outer run hold. Final-byte screening has its own Send witness. Main containment is witnessed separately on the main route and does not qualify actual browser Send. Destination URL refusals precede startup; later config drift refuses the next effect after any earlier benign connection. Local profile/executable paths are captured but are not disclosed URL content.","manual_decisions":["M16","M17"],"ordering":"main compound !dry && !available before config/prompt/effects; each runner entry checks before Playwright import/start; validated destination URLs are screened and bound to frozen inputs before the runtime factory, with current config/source checks before start, connection, profile launch, navigation, fill and Send; pre-Send origin/readability/model confirmation and _submit_prompt frame/document checks before fill/Send; state may-have-been-submitted before click, submitted only after pressed; cleanup preserves uncertainty.","review_gates":["p311"],"trace_files":[{"$":18},{"$":11},{"$":26},{"$":22},{"$":326},{"$":14},"scripts/browser_request.py"],"witnesses":["w55","w57","w6c","w56","w60","w85","w88","w48"]},
 
-"H5":{"admission":{"$":2},"authority":"Code-owned default pin set; library caller supplying pins deliberately selects external Python program and cannot treat output as adjudication/closure authority.","effect":"Pinned external share-reader programme; private artifact local-only","gate_chains":[{"calls":[{"call":"p123","direction":"return","target":"p2aa"}],"effect":"p122","gate":"p132"}],"gates":["p132"],"limits":"Default-bound empty pins refuse before reader open/exec. Explicit pins select verified regular capped bytes executed by sys.executable -I -c, never reopens path, timeout selected. Private response input is separate local bytes. Pinned reader arbitrary downstream network remains trusted; no real share effect or restoration.","manual_decisions":["M17","M18"],"ordering":"Default empty pin before file IO/child; explicit pins bytes verified before subprocess; main validates source and output separately. share_status reports disabled; no source edge from supported _run to dormant sharing methods.","trace_files":[{"$":11},{"$":30},{"$":14}],"witnesses":["w8e","w84"]},
+"H5":{"admission":{"$":2},"authority":"Code-owned default pin set; library caller supplying pins deliberately selects external Python program and cannot treat output as adjudication/closure authority.","effect":"Pinned external share-reader programme; private artifact local-only","gate_chains":[{"calls":[{"call":"p123","direction":"return","target":"p2aa"}],"effect":"p122","gate":"p132"}],"gates":["p132"],"limits":"Default-bound empty pins refuse before reader open/exec. Explicit pins select verified regular capped bytes executed by sys.executable -I -c, never reopens path, timeout selected. Private response input is separate local bytes. Pinned reader arbitrary downstream network remains trusted; no real share effect or restoration.","manual_decisions":["M17","M18"],"ordering":"Default empty pin before file IO/child; explicit pins bytes verified before subprocess; main validates source and output separately. share_status reports disabled; no source edge from supported _run to dormant sharing methods.","trace_files":[{"$":11},{"$":30},{"$":14},"scripts/cwo_core/browser_capture.py"],"witnesses":["w8e","w84"]},
 
 "H6":{"authority":"Operator chooses preview port; documentation handler path boundary. Probe requires exact native capability/selected original process and no source authority from captured request.","effect":"Operator docs listener and held probe listener","limits":"Preview constructor/address assertion is bind-policy proof, not a refusal; foreground serve unbounded by design. Probe refusal/fake lifecycle N2. No real socket exercised by fake constructors. Handler prefix/CSP does not authenticate arbitrary substituted handler.","manual_decisions":["M14"],"ordering":"Preview constructor then try serve_forever finally server_close; probe N1 before binding/preparer; process/thread/config/tool/containment checks follow. Probe listener cleanup keeps unknown failures unproved.","trace_files":[{"$":62},{"$":114}]},
 
@@ -570,15 +570,23 @@
 
 {"$":385},
 
+"scripts/browser_request.py",
+
+"scripts/cwo_core/browser_capture.py",
+
 {"$":386}
 ],
 
 "points":{
+"browser-request-screen-body":[174,"prepare_browser_submission",73,"u7LdwN2Hkt-z3qQVtHVu1Y10NXCvLZbVgIufVb6vxq0"],
+
+"browser-request-screen-call":[8,722,"prepare_browser_submission(submitted, capture=capture, source=source)",27,722,96],
+
 "p0":[37,2009,"with capability._lock:"],
 
 "p1":[14,55,"subprocess.check_output(git + ['rev-parse', name], text=True)",15,55,76],
 
-"p10":[8,1125,"page.keyboard.press(\"Escape\")",12,1125,41],
+"p10":[8,1081,"page.keyboard.press(\"Escape\")",12,1081,41],
 
 "p100":[11,171,"runpy.run_path(str(paths[1]), run_name=\"__w21_measurement__\")"],
 
@@ -602,7 +610,7 @@
 
 "p10a":[73,"run_live_activation",1065,"1Mq90kk6UWUToa8Ur-sgW1tCh1Dgd6UMIMTtddozRbc"],
 
-"p10b":[8,"PlaywrightChatGPTRunner._submit_guarded",1179,"_eZtSYuMRBxgnh5EfcdyXyiqbrEsGdLldZnVyEHZL_k"],
+"p10b":[8,"PlaywrightChatGPTRunner._submit_guarded",1135,"_eZtSYuMRBxgnh5EfcdyXyiqbrEsGdLldZnVyEHZL_k"],
 
 "p10c":[44,751,"if literal is not None:"],
 
@@ -616,7 +624,7 @@
 
 "p110":[59,498,"bridge([\"--db\", str(state.custody / \"EXAMPLE.db\"),\n                   \"--actor\", \"EXAMPLE-qualified-closure\", *args])",11,499,66],
 
-"p111":[90,"ChatGPTBrowserReviewTests._fake_playwright_modules",1629,"uplwzPjh28n5YKR2gwxfJx4QpyObF4CW8cB2nRjMDDE"],
+"p111":[90,"ChatGPTBrowserReviewTests._fake_playwright_modules",1630,"uplwzPjh28n5YKR2gwxfJx4QpyObF4CW8cB2nRjMDDE"],
 
 "p112":[120,"QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments",186,"MrAEldcflDgeT41MpOvHb9UavWyUQ6OkUJwGQLxcHSU"],
 
@@ -634,13 +642,13 @@
 
 "p119":[15,"main",588,"1PO0mATJmFLdBYd-7ok34HnjQifkGRsznraNrjwB4Ic"],
 
-"p11a":[8,1341,"candidate.click(timeout=750)",20,1341,48],
+"p11a":[8,1297,"candidate.click(timeout=750)",20,1297,48],
 
 "p11b":[115,"ProfileInputTests.test_finite_nonempty_refuses_before_process_and_empty_poll_uses_same_selection",142,"nakRXdPE1i0Ma0-YpwJzkwK_47IaX1s4mYSiDKf07lQ"],
 
 "p11c":[78,275,"if unmet:"],
 
-"p11d":[8,"main",1866,"gzt6IpDPkHw_MK0Eg632ia6SVAzC0r0YidL3rXBWx4s"],
+"p11d":[8,"main",1616,"gzt6IpDPkHw_MK0Eg632ia6SVAzC0r0YidL3rXBWx4s"],
 
 "p11e":[106,"Issue41DispatchMatrixTests.test_direct_custom_local_and_browser_modes_cannot_bypass_shipped_denials",294,"5tirTesVTjKEkosp8UqYoTTGQ79ebgbka2JI_qZ5qCw"],
 
@@ -656,13 +664,13 @@
 
 "p123":[48,92,"require_trusted_reader(reader, pins)",11,92,47],
 
-"p124":[8,746,"self._select_page(context)",23,746,49],
+"p124":[8,702,"self._select_page(context)",23,702,49],
 
 "p125":[139,"MetadataScopeTests.test_within_capture_indirection_retarget_is_incomplete",498,"EAxFWYOM2TT85egjGgCw-rMxznve50u5YipwZJ6XMIU"],
 
 "p126":[136,"ScaffoldDependencyValidationTests.test_missing_references_and_duplicate_effective_keys_are_refused",419,"4n5hAySN2tKbKv9IwBbxKYNMYiZ3zKXPWQvGtfV-la4"],
 
-"p127":[8,1900,"if not args.dry_run and not BROWSER_DISPATCH_AVAILABLE:"],
+"p127":[8,1650,"if not args.dry_run and not BROWSER_DISPATCH_AVAILABLE:"],
 
 "p128":[120,"QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects",393,"pj0rsAAQqmk08hQ2bwdX5Jq2jU0aP65Lsq8pi66vk9U"],
 
@@ -706,17 +714,17 @@
 
 "p13b":[59,491,"return state.bridge(args)"],
 
-"p13c":[8,{"$":197},1060,{"$":188}],
+"p13c":[8,{"$":197},1016,{"$":188}],
 
 "p13d":[74,12832,{"$":43}],
 
 "p13e":[61,57,"self._launch_registered_transport(home, binding, startup_config)",12,57,76],
 
-"p14":[8,726,"sync_playwright()",18,726,35],
+"p14":[8,682,"sync_playwright()",18,682,35],
 
 "p140":[136,"ScaffoldDependencyValidationTests.assert_main_rejected",339,"7Drfc7ZT0-zZQIdSUN-4EkERjJcsFOwb6OUNWkzKgL0"],
 
-"p141":[8,666,{"$":252}],
+"p141":[8,622,{"$":252}],
 
 "p142":[43,"WorktreeCapture.run",2559,"47UBzNt637IUtvxWCpJR7so77qZ0gacMK2dlQQGNpuk"],
 
@@ -740,7 +748,7 @@
 
 "p14c":[130,"ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive",1152,"HZdlKGF-6HS9lMjLrq7EUQZ3sx2DNlpGigVOi9pkgYo"],
 
-"p14d":[8,"PlaywrightChatGPTRunner._try_social_share_url",1539,"7HtQIm6llslCL5B1vPsI1JkdxP5YkYso5tN8NWpRyY8"],
+"p14d":[8,"PlaywrightChatGPTRunner._try_social_share_url",1495,"7HtQIm6llslCL5B1vPsI1JkdxP5YkYso5tN8NWpRyY8"],
 
 "p14e":[43,"trusted_git_private",581,"BudjkN9N8hzq3deTDxxyxM1gPa4i_0KbvqBwDxWcf4M"],
 
@@ -762,7 +770,7 @@
 
 "p156":[34,"prepare_activation_plan",1294,"p-ij8pQTY7jVgUrFYNE4AG3MLvC9vveRRM17dtU7rmQ"],
 
-"p157":[8,1181,"self._press_until_ready(box, origin, timeout_ms, guard)",15,1181,70],
+"p157":[8,1137,"self._press_until_ready(box, origin, timeout_ms, guard)",15,1137,70],
 
 "p158":[136,"example_plan",43,"ibaGSIpq5tH57uhJEMizDUPdIwZQ3xgBxViEc7zkX3I"],
 
@@ -798,7 +806,7 @@
 
 "p168":[67,403,{"$":35}],
 
-"p169":[8,"PlaywrightChatGPTRunner._insert_prompt",1183,"hb79obu3pgBj-Xem8fD4m9YIQuReOOhgnBIZSAOr8Gk"],
+"p169":[8,"PlaywrightChatGPTRunner._insert_prompt",1139,"hb79obu3pgBj-Xem8fD4m9YIQuReOOhgnBIZSAOr8Gk"],
 
 "p16a":[3,"_BrowserAction._call",483,"4O1gNkZ15y0j4PQM4YD4n_RTwU0jO5_W0_FNb8loX7c"],
 
@@ -818,7 +826,7 @@
 
 "p171":[43,412,"if not _trustworthy(real):"],
 
-"p172":[8,698,"self._run(prompt)",19,698,36],
+"p172":[8,654,"self._run(prompt)",19,654,36],
 
 "p173":[42,363,"self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,"],
 
@@ -828,13 +836,13 @@
 
 "p176":[52,"remove",100,"yOok9dEC4iarU6yf9GU3F6HsB2oHOHOMruAMfklhvhY"],
 
-"p177":[8,1563,{"$":228}],
+"p177":[8,1519,{"$":228}],
 
 "p178":[80,"Handle",20,"AQPYq9ORiUkSFzpW8ezVe045LJzcQv3pfmkAu0BNjAQ"],
 
 "p179":[20,4,"exec python3 -B -- \"$(dirname -- \"$0\")/launch_architect.py\" \"$@\""],
 
-"p17a":[8,896,"self._page_snapshot(page)",19,896,44],
+"p17a":[8,852,"self._page_snapshot(page)",19,852,44],
 
 "p17b":[41,1500,"need(raw == encoded(current) + b\"\\n\", \"stale or mismapped trace; generate a fresh evidence step\")"],
 
@@ -842,11 +850,11 @@
 
 "p17d":[56,"main",42,"P75W-S5l2t50fDHHEV7AUng2KkX2pZWNDjxdJanvTRw"],
 
-"p17e":[8,{"$":201},1143,{"$":178}],
+"p17e":[8,{"$":201},1099,{"$":178}],
 
 "p17f":[17,51,{"$":98}],
 
-"p18":[8,734,{"$":253},26,734,98],
+"p18":[8,690,{"$":253},26,690,98],
 
 "p180":[10,161,"server = AppServer(requested_model=requested_model,"],
 
@@ -870,13 +878,13 @@
 
 "p18a":[39,130,"if not _duration(grace_seconds, MAX_GRACE_SECONDS) or not _duration(min_age_seconds, MAX_MIN_AGE_SECONDS) or type(allow_kill) is not bool:"],
 
-"p18b":[8,1180,"self._insert_prompt(page, prompt, request_id, guard)",22,1180,74],
+"p18b":[8,1136,"self._insert_prompt(page, prompt, request_id, guard)",22,1136,74],
 
 "p18c":[48,"load_private_response",199,"sw0hoAVZ-oY4RUjTRsjlmBAcTxsCrxaaBcZCdZH0NNI"],
 
 "p18d":[86,"ConnectedBrowserTests.test_connected_capture_persists_the_complete_chain",291,"IH7dVgnp7AX8Y_6WDZNx_IIQaAhcJAmVEEoeqIFpjUs"],
 
-"p18e":[8,"PlaywrightChatGPTRunner._create_share_link",1350,"CvTCIsKPqSr0koDuh7cFgtkdMj5H3jerTpKLprXy2fQ"],
+"p18e":[8,"PlaywrightChatGPTRunner._create_share_link",1306,"CvTCIsKPqSr0koDuh7cFgtkdMj5H3jerTpKLprXy2fQ"],
 
 "p18f":[43,"trusted_git_succeeds",536,"5cZKMH3EPavtAWI0KfuAduRPt45Ze22-C0T3UGnE0Jo"],
 
@@ -1024,11 +1032,11 @@
 
 "p1bb":[131,"ReleaseFilesystemTests.test_actual_source_snapshot_and_runtime_identities_are_bound",110,"uokk8eUBk0pq-hUSUMkia9VSdFHonvZfozOLMpYr9fg"],
 
-"p1bc":[90,"ChatGPTBrowserReviewTests._browser_result",1326,"qQWL63ASUFRZ_6aadcxwOe0VRkZMKUJzKCL9emo_1IU"],
+"p1bc":[90,"ChatGPTBrowserReviewTests._browser_result",1327,"qQWL63ASUFRZ_6aadcxwOe0VRkZMKUJzKCL9emo_1IU"],
 
 "p1bd":[64,"RegisteredN1Factory._isolated_validation",2587,"lV1uatFeb1_o1Wo2xgdf2i_oPFVR6tVwLOBP_ik74Pg"],
 
-"p1be":[8,685,{"$":285},12,685,84],
+"p1be":[8,641,{"$":285},12,641,84],
 
 "p1bf":[51,640,"self._capability()",12,640,30],
 
@@ -1048,7 +1056,7 @@
 
 "p1c6":[32,429,{"$":13}],
 
-"p1c7":[8,{"$":203},693,{"$":181}],
+"p1c7":[8,{"$":203},649,{"$":181}],
 
 "p1c8":[73,188,"result, latency = self.server.start_thread("],
 
@@ -1060,9 +1068,9 @@
 
 "p1cc":[74,12833,{"$":35}],
 
-"p1cd":[8,753,"self._confirm_configured_labels(page, timeout_ms)",36,753,85],
+"p1cd":[8,709,"self._confirm_configured_labels(page, timeout_ms)",36,709,85],
 
-"p1ce":[8,{"$":199},705,{"$":168}],
+"p1ce":[8,{"$":199},661,"jKjk--Iapm_VQ50vDjXvpvuRkUd8xqEPL5dYZTtgIZU"],
 
 "p1cf":[136,"observed_main",54,"mMhcWjRDJyY5GY_4ReKpHawpqf1bXgJYZ6CD38NEOks"],
 
@@ -1082,7 +1090,7 @@
 
 "p1d6":[16,208,"if disposition in OPEN_DISPOSITIONS and close:"],
 
-"p1d7":[8,"PlaywrightChatGPTRunner._submit_and_capture",830,"GxV5opSwrU2yFIAakbjz2lJ0mW7gCP45Qr89S5F-i1c"],
+"p1d7":[8,"PlaywrightChatGPTRunner._submit_and_capture",786,"GxV5opSwrU2yFIAakbjz2lJ0mW7gCP45Qr89S5F-i1c"],
 
 "p1d8":[15,113,"output = subprocess.check_output("],
 
@@ -1100,7 +1108,7 @@
 
 "p1df":[23,"add_dependency",347,{"$":177}],
 
-"p1e":[8,728,"manager.start()",21,728,36],
+"p1e":[8,684,"manager.start()",21,684,36],
 
 "p1e0":[130,"ReleaseEffectRoutesTests._driver_pair",1444,"-91-odVuLzHrmAize7uXBmwjiOIWTjnzObvWTBrQ65A"],
 
@@ -1108,7 +1116,7 @@
 
 "p1e2":[109,"MaintenanceRuntimeTests.test_independent_product_validation_observes_real_artifact_without_closing_bead",550,"9RPZ48t8tVAI_7gkzXAyw0vHEBhvMQoilpG0tgFsTso"],
 
-"p1e3":[90,"ChatGPTBrowserReviewTests.write_config",81,"a17AOSbWN3T_J_TwSXbEhNSr0aXY70t7A3MVz120LYg"],
+"p1e3":[90,"ChatGPTBrowserReviewTests.write_config",82,"a17AOSbWN3T_J_TwSXbEhNSr0aXY70t7A3MVz120LYg"],
 
 "p1e4":[67,"RegisteredNativePoolHost._run_member",401,"nSlH2H8hkUCZtwFm3kAvozkUsnqkSTJHmcWQfaXjJXg"],
 
@@ -1126,7 +1134,7 @@
 
 "p1eb":[16,"checked_disposition",203,"CuIZFUUHRzU06C829BoFPSJst5wE69cS2VR6bhq3kqQ"],
 
-"p1ec":[8,837,{"$":287},16,837,123],
+"p1ec":[8,793,{"$":287},16,793,123],
 
 "p1ed":[57,"produce",280,"-zwcwUOqkteOIAFQpFXP6F4qwEE0Jyz2SQyX7b1jvlM"],
 
@@ -1148,11 +1156,11 @@
 
 "p1f5":[42,1344,"self.request(\n            \"thread/start\",\n            params,\n            timeout=30,\n        )",26,1348,9],
 
-"p1f6":[8,1162,"self._submit_guarded(page, prompt, request_id, timeout_ms, guard)",19,1162,84],
+"p1f6":[8,1118,"self._submit_guarded(page, prompt, request_id, timeout_ms, guard)",19,1118,84],
 
 "p1f7":[74,13456,"capture_input_source_identities(paths)",28,13456,66],
 
-"p1f8":[8,1036,{"$":283},20,1036,95],
+"p1f8":[8,992,{"$":283},20,992,95],
 
 "p1f9":[2,57,"if not args.dry_run:"],
 
@@ -1212,17 +1220,17 @@
 
 "p20":[33,561,"AppServer(requested_model=scope[\"model\"], reasoning_effort=\"low\", tool_surface_proof=proof,\n            operation_metadata=metadata)",17,562,40],
 
-"p200":[90,"ChatGPTBrowserReviewTests.test_default_run_never_creates_a_share",2466,"Y3mju4zWBmvKHleA6ykqYJaREYbbCLAQkhV7cJJpGDw"],
+"p200":[90,"ChatGPTBrowserReviewTests.test_default_run_never_creates_a_share",2468,"Y3mju4zWBmvKHleA6ykqYJaREYbbCLAQkhV7cJJpGDw"],
 
-"p201":[90,"ChatGPTBrowserReviewTests.test_model_confirmation_records_attestation",655,"KxKSPZSHMPSW0NhdyL5T3YPIviiqlo_hFq6MLQQNOMI"],
+"p201":[90,"ChatGPTBrowserReviewTests.test_model_confirmation_records_attestation",656,"KxKSPZSHMPSW0NhdyL5T3YPIviiqlo_hFq6MLQQNOMI"],
 
-"p202":[90,"ChatGPTBrowserReviewTests.test_model_confirmation_rejects_mismatched_visible_label",690,"cnOkjNjeeIZn9RaO6JxgBg0Amsr7lrYo3DhEEi2jgmU"],
+"p202":[90,"ChatGPTBrowserReviewTests.test_model_confirmation_rejects_mismatched_visible_label",691,"cnOkjNjeeIZn9RaO6JxgBg0Amsr7lrYo3DhEEi2jgmU"],
 
 "p203":[87,"BrowserProvenanceTests.setUp",36,"GQ0cQ90W0Bf8Gr_b2NYJNypN8hLijzJKbWgKAgCP3Ts"],
 
 "p204":[74,13123,{"$":43}],
 
-"p205":[8,"PlaywrightChatGPTRunner._page_snapshot",872,"6ZbrT1z6acdDyUVQPuVPFnSBKo6tGunNkBALP8gi5aQ"],
+"p205":[8,"PlaywrightChatGPTRunner._page_snapshot",828,"6ZbrT1z6acdDyUVQPuVPFnSBKo6tGunNkBALP8gi5aQ"],
 
 "p206":[87,"BrowserProvenanceTests.test_real_preparation_and_persisted_sanitizer_positive",93,"9sPMvHT7yn95MYjBeOHeituB83ewKE0SD7D2mhIQhIQ"],
 
@@ -1256,19 +1264,19 @@
 
 "p214":[78,281,"bead = create_bead("],
 
-"p215":[8,1958,"runner.run(prompt)",33,1958,51],
+"p215":[8,1708,"runner.run(prompt)",33,1708,51],
 
 "p216":[31,"MaintenanceAuthorityVerifier._current",381,"F2RP0cRrQ-KpRNN-yc-0y8vc_x9s-k_C68aSra-pk-w"],
 
 "p217":[50,2,"set -euo pipefail"],
 
-"p218":[8,1941,"PlaywrightChatGPTRunner(config).confirm_model_only()",29,1941,81],
+"p218":[8,1691,"PlaywrightChatGPTRunner(config).confirm_model_only()",29,1691,81],
 
 "p219":[32,750,"self._guard()"],
 
 "p21a":[84,"AuthorizeSolBreakfixTests.test_requires_explicit_allow_flag",67,"fpjKoo0q0LcDUwoDkLOPYIHLPh-1zuhQibZjDjCciWw"],
 
-"p21b":[90,"ChatGPTBrowserReviewTests.write_confirmation_config",96,"INAGtfMD97eqS6hIrKWZ4xR88R4RV5SAc57905twQqw"],
+"p21b":[90,"ChatGPTBrowserReviewTests.write_confirmation_config",97,"INAGtfMD97eqS6hIrKWZ4xR88R4RV5SAc57905twQqw"],
 
 "p21c":[37,1575,"transition = claim_adapter.claim("],
 
@@ -1304,7 +1312,7 @@
 
 "p22c":[67,"RegisteredNativePoolHost.run",351,"Kd0H9qsOl-AKE-jD5KVtxz5L7eMuV8nCTHRSmqqqFug"],
 
-"p22d":[8,"PlaywrightChatGPTRunner._response_in_progress",1314,"lWrHq6_VTpT_e2p3_o18GYlC5OgNyo3WjROGYaoadOk"],
+"p22d":[8,"PlaywrightChatGPTRunner._response_in_progress",1270,"lWrHq6_VTpT_e2p3_o18GYlC5OgNyo3WjROGYaoadOk"],
 
 "p22e":[36,"validate_release_patch_result",14364,"TKHRA4xMWQdLp0XUzA8AjW76YBJ1-3KpfZ989wSMRj4"],
 
@@ -1320,7 +1328,7 @@
 
 "p233":[86,"ConnectedBrowserTests.test_share_wrong_content_conversation_purpose_and_expiry_refuse_before_effect",262,"22aFgFyTkQapFyUeKpVdiGm7VWGJ5hRJrqa_CuWhI6U"],
 
-"p234":[8,{"$":87},1024,{"$":81}],
+"p234":[8,{"$":87},980,{"$":81}],
 
 "p235":[73,697,"if LIVE_ACTIVATION_AVAILABLE is not True:"],
 
@@ -1340,11 +1348,11 @@
 
 "p23d":[16,334,"checked_disposition(args.disposition, close=bool(args.close))",18,334,79],
 
-"p23e":[8,706,{"$":96}],
+"p23e":[8,662,{"$":96}],
 
 "p23f":[9,230,"result = subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)"],
 
-"p24":[8,674,"browser.new_context()",71,674,92],
+"p24":[8,630,"browser.new_context()",71,630,92],
 
 "p240":[73,"_start_activation_server",705,"NKqSr6NP4KARqwOhQ-uxj_ZbZVISRLMnzwl6052riHs"],
 
@@ -1540,7 +1548,7 @@
 
 "p267":[30,379,"handle.require_intent()"],
 
-"p268":[8,{"$":200},1011,{"$":224}],
+"p268":[8,{"$":200},967,{"$":224}],
 
 "p269":[25,"execute_checked_command",256,"7zekzdELvv8QB0JaxiM2Npdv75cIfRZCAsQ4tpSq3oo"],
 
@@ -1562,7 +1570,7 @@
 
 "p271":[121,"R1ActivationPreviewHoldTests.test_r1_closure_rechecks_before_plan_or_beads_reads_with_all_on_fake_control",76,"cVsmDJLy0j3SZRAkuELJam2tsd4P53wrOVKhRrzyIHo"],
 
-"p272":[90,"ChatGPTBrowserReviewTests.test_model_confirmation_requires_selected_attribute_when_configured",723,"xdCKMn_jzR5fIfcAXKPza85FttjQp8A6YtT81IDMkkY"],
+"p272":[90,"ChatGPTBrowserReviewTests.test_model_confirmation_requires_selected_attribute_when_configured",724,"xdCKMn_jzR5fIfcAXKPza85FttjQp8A6YtT81IDMkkY"],
 
 "p273":[16,329,{"$":257}],
 
@@ -1572,7 +1580,7 @@
 
 "p277":[107,"ControllerTests.test_missing_handle_wait_capabilities_refuse_before_creation",562,"50g-SW3u4GRo3lWzRLonZAkJTyb-sCIFmgbCbCr3NkQ"],
 
-"p278":[8,766,"screened = require_clean(submitted, surface=\"ChatGPT browser Send\")"],
+"p278":[174,75,"screened = require_clean(submitted, surface=\"ChatGPT browser Send\")"],
 
 "p279":[86,"ConnectedBrowserTests.test_final_callbacks_revalidate_original_execution_and_inputs",354,"NapzSJKUI7e6Lip98DLvtWm86a5aRYJlPnh8wiwVSzA"],
 
@@ -1586,7 +1594,7 @@
 
 "p27e":[3,34,"if not condition:"],
 
-"p27f":[8,839,"self._wait_for_stable_response(page, before_text, response_timeout, stable_wait, request_id=request_id)",32,839,135],
+"p27f":[8,795,"self._wait_for_stable_response(page, before_text, response_timeout, stable_wait, request_id=request_id)",32,795,135],
 
 "p28":[42,398,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,409,13],
 
@@ -1614,7 +1622,7 @@
 
 "p28c":[13,"main",10,"6mR_49CAgg5bWvfDrCiT9nnLyZ_gzeFrYISZZsQSGiw"],
 
-"p28d":[8,"PlaywrightChatGPTRunner._message_snapshot",894,"Asa8Ri3hG05AU3Dw4ylcmxsOYMbfGJkHVRhW4tOg1mE"],
+"p28d":[8,"PlaywrightChatGPTRunner._message_snapshot",850,"Asa8Ri3hG05AU3Dw4ylcmxsOYMbfGJkHVRhW4tOg1mE"],
 
 "p28e":[73,211,{"$":58}],
 
@@ -1636,7 +1644,7 @@
 
 "p297":[22,214,"libc.pidfd_spawn(ctypes.byref(descriptor), _cstring(executable),\n            ctypes.byref(actions), ctypes.byref(attributes), arguments, environment)",17,215,84],
 
-"p299":[90,"ChatGPTBrowserReviewTests.test_model_confirmation_requires_explicit_selectors",643,"POlNJ69lZtBZgmzzNuaooPbXCoCaG9O22QBAFFKYsZY"],
+"p299":[90,"ChatGPTBrowserReviewTests.test_model_confirmation_requires_explicit_selectors",644,"POlNJ69lZtBZgmzzNuaooPbXCoCaG9O22QBAFFKYsZY"],
 
 "p29a":[42,219,"if method not in {\"initialize\", \"initialized\", \"thread/read\", \"turn/interrupt\", \"thread/archive\",\n                      \"thread/delete\", \"model/list\", \"mcpServerStatus/list\"}:"],
 
@@ -1782,7 +1790,7 @@
 
 "p2c7":[75,"main",550,"z1w2A6R7g7xvMQSzNFvcCnTfJulrQxsznbA4FckQHbI"],
 
-"p2c8":[8,677,{"$":233}],
+"p2c8":[8,633,{"$":233}],
 
 "p2c9":[70,88,"capability.claim()  # Durable one-shot ownership precedes module effects."],
 
@@ -1802,7 +1810,7 @@
 
 "p2d0":[50,257,"mkdir -p \"$PROFILE\""],
 
-"p2d2":[8,{"$":198},1049,{"$":236}],
+"p2d2":[8,{"$":198},1005,{"$":236}],
 
 "p2d3":[54,237,"_need(os.environ.get(\"CWO_PY\") in (\"312\", \"314\"), \"The fixed offline runner is required.\")"],
 
@@ -1822,7 +1830,7 @@
 
 "p2db":[134,"FullAutoAuthorizationLauncherTests.test_global_claim_path_forwards_gate_scoped_operator_authorities",15455,"z6lthdMzowK9n39Ix7iGqtHSzHI9K_0ucyU3Rdb3qYU"],
 
-"p2dc":[8,"PlaywrightChatGPTRunner._wait_for_stable_response",1264,"x5isrLDCqkAg_odvVT3Y51FBTXgGWYFYnKYfxKdmriY"],
+"p2dc":[8,"PlaywrightChatGPTRunner._wait_for_stable_response",1220,"x5isrLDCqkAg_odvVT3Y51FBTXgGWYFYnKYfxKdmriY"],
 
 "p2dd":[43,"run_git",434,{"$":213}],
 
@@ -1832,7 +1840,7 @@
 
 "p2e":[25,303,"subprocess.run([shutil.which(\"bash\") or \"/usr/bin/bash\", \"-n\", str(artifact)], cwd=cwd, env=environment, text=True, capture_output=True, timeout=spec[\"timeout_seconds\"], shell=False)",19,303,201],
 
-"p2e0":[8,751,{"$":285},16,751,88],
+"p2e0":[8,707,{"$":285},16,707,88],
 
 "p2e1":[73,1086,"approval = read_private_json("],
 
@@ -1862,7 +1870,7 @@
 
 "p2ee":[64,2592,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2592,99],
 
-"p2f":[8,1317,"page.evaluate(\"() => \" + _GENERATING_JS)",24,1317,64],
+"p2f":[8,1273,"page.evaluate(\"() => \" + _GENERATING_JS)",24,1273,64],
 
 "p2f0":[76,"try_dep",1482,"Ht0_g_gmd-1btvmtNb_hqR4pBPTqMRSRSXY9vbINkRs"],
 
@@ -1934,13 +1942,13 @@
 
 "p2z":[70,"_load_pool_request",31,"r9sMMAAKftxPbu_dXuF_CFGrA4UVmycyF52u-kN15Xs"],
 
-"p3":[8,666,"manager.start()",21,666,36],
+"p3":[8,622,"manager.start()",21,622,36],
 
 "p30":[75,410,"subprocess.Popen(\n            command, cwd=working_directory,\n            env=_worker_environment(start_directory, Path(temporary.name)),\n            stdout=log_file, stderr=subprocess.STDOUT, text=True,\n        )",18,414,9],
 
-"p301":[8,1359,{"$":251}],
+"p301":[8,1315,{"$":251}],
 
-"p302":[90,"ChatGPTBrowserReviewTests._run_with_fake_browser",1719,"kTbp8nxGOGVYHaWjEHl8_42vx4TfOn1vUuR8t8kZg80"],
+"p302":[90,"ChatGPTBrowserReviewTests._run_with_fake_browser",1720,"kTbp8nxGOGVYHaWjEHl8_42vx4TfOn1vUuR8t8kZg80"],
 
 "p304":[41,1506,"_review(directory, json.loads(review_raw), current, digest(raw))",14,1506,78],
 
@@ -1966,7 +1974,7 @@
 
 "p310":[34,"_bd",307,"KFETYMWutiy7oKdtIJlQ737RvnwT7ECcasLo1V831NY"],
 
-"p311":[8,653,{"$":96}],
+"p311":[8,609,{"$":96}],
 
 "p312":[22,"AtomicChild",43,"35UYEtop-eG3HqVAfE4HDDCvc7e7uB5rLtcf5Qb7o84"],
 
@@ -2010,7 +2018,7 @@
 
 "p327":[23,"create_bead",231,"hrYGKYvwsktuJBa0X32SqDLECK6k8q4NELPb1lJFsHk"],
 
-"p328":[8,756,"self._message_snapshot(page)",34,756,62],
+"p328":[8,712,"self._message_snapshot(page)",34,712,62],
 
 "p329":[43,"WorktreeCapture._git",1542,"lXu6_ArjpCYeUEmR_L2Xs7reKAgMAGXD542i66JeQZw"],
 
@@ -2026,7 +2034,7 @@
 
 "p32f":[51,831,"def spawn_owned(self, session_id: str, argv: list[str] | tuple[str, ...], workspace: str) -> dict[str, Any]:"],
 
-"p33":[8,1384,"candidate.click(timeout=timeout_ms, force=True)",20,1384,67],
+"p33":[8,1340,"candidate.click(timeout=timeout_ms, force=True)",20,1340,67],
 
 "p330":[118,"ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io",563,"ug2xa73xV5_Uk9Se95BK231VkjHDbYHr9-OhjHYGhJE"],
 
@@ -2042,7 +2050,7 @@
 
 "p336":[45,"main",263,"SYKe6IB5kiJJ1HcLXvi1qg-JFb7vbUzPsYwO5x-UYow"],
 
-"p337":[8,694,{"$":96}],
+"p337":[8,650,{"$":96}],
 
 "p338":[93,"SuccessfulClosureUnavailableTests.test_no_form_of_successful_closure_writes_to_beads",176,"PjH3B6Au7z0S5mRrh7ijQAq64kD6cHW3mw99yxlwITI"],
 
@@ -2052,11 +2060,11 @@
 
 "p33b":[32,"_Runtime.prepare",428,"OBTLkV2Ew7wXiG0UzklCycWxMJJgCEHG4pY2W5jI93k"],
 
-"p33c":[8,{"$":202},651,{"$":242}],
+"p33c":[8,{"$":202},607,{"$":242}],
 
-"p33d":[8,532,"self._share_method(\"create\")(expectation, timeout_seconds=timeout_seconds,\n                                            max_output_bytes=max_output_bytes)",15,533,78],
+"p33d":[8,488,"self._share_method(\"create\")(expectation, timeout_seconds=timeout_seconds,\n                                            max_output_bytes=max_output_bytes)",15,489,78],
 
-"p33e":[90,"ChatGPTBrowserReviewTests._drive_fake_browser",1657,"oVYs85yKH-odMxlW3CMspNRC3ji9C-cECkgMPnBbgD4"],
+"p33e":[90,"ChatGPTBrowserReviewTests._drive_fake_browser",1658,"oVYs85yKH-odMxlW3CMspNRC3ji9C-cECkgMPnBbgD4"],
 
 "p33f":[6,"main",471,"5fbQ8I4dJCGqRH3RPggJrAzwWZBVy6aVKGHY5tKL1NM"],
 
@@ -2074,7 +2082,7 @@
 
 "p346":[32,"build_transaction_runtime",823,"egd2XmRFK1Cvq8BR0HR32mgTZ5xovnhX0Y8tpPhb8FM"],
 
-"p347":[90,"ChatGPTBrowserReviewTests.test_selection_opens_menu_before_clicking_option",763,"fcPESIkRST43gZCr1HxV-jDnCAQLbUXApzhjHYlpQ5I"],
+"p347":[90,"ChatGPTBrowserReviewTests.test_selection_opens_menu_before_clicking_option",764,"fcPESIkRST43gZCr1HxV-jDnCAQLbUXApzhjHYlpQ5I"],
 
 "p348":[2,69,"payload = record_audit_event(payload)"],
 
@@ -2098,7 +2106,7 @@
 
 "p351":[43,"WorktreeCapture._dirs",1548,"RyInlKdBKwbYhDsTBCa-7-OCgTXi5_PVtGLlXm54Cs0"],
 
-"p352":[87,"BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal",117,"GBCZC7XLKsWdI3VdJOUgU1lNxI3ibjQhbOSqJ4uhO0Y"],
+"p352":[87,"BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal",153,"GBCZC7XLKsWdI3VdJOUgU1lNxI3ibjQhbOSqJ4uhO0Y"],
 
 "p353":[20,2,"set -eu"],
 
@@ -2106,9 +2114,9 @@
 
 "p355":[49,326,"entries=\"$(projection_list --list-entries)\" || die \"source does not satisfy the installed projection ($PROJECTION); nothing was installed\""],
 
-"p357":[8,521,"if name not in self._share_methods:"],
+"p357":[8,477,"if name not in self._share_methods:"],
 
-"p358":[8,769,{"$":286},42,772,17],
+"p358":[8,725,{"$":286},42,728,17],
 
 "p359":[51,"_LinuxEngine._capability",658,"sT7nuF1AHheWVOlYHmiZD6h3lK9MOITRCyw0jRmYRGY"],
 
@@ -2148,11 +2156,11 @@
 
 "p360":[33,"check_qualification",714,"39Sg3J1c7FiISAQ5oHZn0NQuTdkq549EnHCh3-6aaJk"],
 
-"p361":[90,"ChatGPTBrowserReviewTests.test_valid_packet_final_send_screen_refuses_encoded_context",1724,"aJJ6SbKPP_yDVRIBBoLPhhMm89AbKjIHF0oq9e5VjBM"],
+"p361":[90,"ChatGPTBrowserReviewTests.test_valid_packet_final_send_screen_refuses_encoded_context",1725,"b0gpQXzql8IaMG2rUztw3nCR2XeUMabfVulU6e8ki0M"],
 
 "p362":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",282,"unBrQK_u5qxP9XYmXcmIccEH4BNijTBImzuJ0BT1emg"],
 
-"p363":[8,"PlaywrightChatGPTRunner._press_until_ready",1206,"TmNEOql7iVpkR3ADKxFK4ze6pbDEd8Hv3GD8vOmCfnc"],
+"p363":[8,"PlaywrightChatGPTRunner._press_until_ready",1162,"TmNEOql7iVpkR3ADKxFK4ze6pbDEd8Hv3GD8vOmCfnc"],
 
 "p364":[34,788,{"$":209},4,796,5],
 
@@ -2236,15 +2244,15 @@
 
 "p375":[97,"DocumentationToolTests.test_preview_main_binds_only_loopback_and_closes_the_server",77,"C0fhpAkIe1_63qMujFR9Mh6vcv3s9BbBv_0WkaqFIak"],
 
-"p377":[8,739,{"$":233}],
+"p377":[8,695,{"$":233}],
 
-"p379":[8,728,{"$":252}],
+"p379":[8,684,{"$":252}],
 
 "p37a":[42,1002,{"$":288},23,1002,83],
 
 "p37b":[74,3707,"turn, _latency = self.server.start_turn(self.thread_id, message)"],
 
-"p37c":[8,734,{"$":225}],
+"p37c":[8,690,{"$":225}],
 
 "p37d":[100,"FirstProjectTests.test_starter_fails_and_reference_satisfies_contract",28,"6QsNMgcEvRHLouyEPORp5MbAHtDAF1XVD6Ig1UhudKc"],
 
@@ -2252,7 +2260,7 @@
 
 "p37f":[64,646,"os.write(descriptor, b'1')",12,646,38],
 
-"p38":[8,1196,"box.evaluate(_FILL_SCRIPT, prompt)",35,1196,69],
+"p38":[8,1152,"box.evaluate(_FILL_SCRIPT, prompt)",35,1152,69],
 
 "p380":[64,686,{"$":148},8,686,37],
 
@@ -2368,7 +2376,7 @@
 
 "p3Z":[64,2220,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2222,74],
 
-"p3a":[8,739,{"$":254},26,743,17],
+"p3a":[8,695,{"$":254},26,699,17],
 
 "p3a0":[3,548,"_require(self._kind == \"share\" and self._state == \"ready\", \"Share action is one use.\")",8,548,94],
 
@@ -2406,7 +2414,7 @@
 
 "p3d":[76,1674,"create_bead(\n            epic_plan[\"title\"],\n            issue_type=\"epic\",\n            priority=1,\n            labels=epic_plan[\"labels\"],\n            skills=epic_plan[\"skills\"],\n            description=args.description or \"Policy-routed complex work epic.\",\n            acceptance=str(epic_plan[\"acceptance\"]),\n            design=str(epic_plan[\"design\"]),\n            notes=str(epic_plan[\"notes\"]),\n            metadata=epic_plan[\"metadata\"],\n        )",15,1685,9],
 
-"p3e":[8,672,{"$":253},26,672,98],
+"p3e":[8,628,{"$":253},26,628,98],
 
 "p3f":[76,1488,{"$":217},8,1492,9],
 
@@ -2450,13 +2458,13 @@
 
 "p3z":[40,"prepare_json_frame",30,"eqL54mVfm5OkPvtf6FhWBsJNkZpfu4uQ_JgQHxMWINw"],
 
-"p4":[8,1563,{"$":228},20,1563,66],
+"p4":[8,1519,{"$":228},20,1519,66],
 
 "p40":[43,462,"subprocess.Popen(\n        [git.path, \"-C\", str(root), *INERT_GIT_CONFIG, *args],\n        env=environment,\n        stdin=subprocess.DEVNULL,\n        stdout=subprocess.PIPE,\n        stderr=subprocess.PIPE,\n    )",14,468,5],
 
-"p41":[8,1380,"candidate.click(timeout=timeout_ms)",16,1380,51],
+"p41":[8,1336,"candidate.click(timeout=timeout_ms)",16,1336,51],
 
-"p42":[8,677,{"$":254},26,681,17],
+"p42":[8,633,{"$":254},26,637,17],
 
 "p42Archive":[149,"ManagedLoginMount.confirm_archived",244,"tS6O4v3tlzQ3mR-9fOT0ekD8tp7WK9ny93RwwaPuozg"],
 
@@ -2498,7 +2506,7 @@
 
 "p43TimestampStartup":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",718,"43nPbZClg2NJBgq1ROeqiOgIh7eAcYpMkv6nTJ10POo"],
 
-"p44":[8,683,{"$":250},12,683,115],
+"p44":[8,639,{"$":250},12,639,115],
 
 "p45":[42,419,{"$":310},12,419,42],
 
@@ -2506,25 +2514,25 @@
 
 "p47":[9,212,"subprocess.run(\n        [*RUFF_COMMAND, \"--no-respect-gitignore\", *inventory],\n        cwd=root, capture_output=True, text=True, check=False, env=env,\n    )",13,215,5],
 
-"p48":[8,747,{"$":250},16,747,119],
+"p48":[8,703,{"$":250},16,703,119],
 
-"p49":[8,1194,"box.evaluate(_STAMP_SCRIPT, request_id)",22,1194,61],
+"p49":[8,1150,"box.evaluate(_STAMP_SCRIPT, request_id)",22,1150,61],
 
 "p4a":[54,242,"subprocess.Popen([sys.executable, \"-I\", \"-S\", \"-c\", _CHILD], cwd=worker,\n            env={}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)",16,243,90],
 
-"p4b":[8,664,"sync_playwright()",18,664,35],
+"p4b":[8,620,"sync_playwright()",18,620,35],
 
-"p4c":[8,1045,"page.get_by_text(str(label), exact=False).first.click(timeout=timeout_ms)",20,1045,93],
+"p4c":[8,1001,"page.get_by_text(str(label), exact=False).first.click(timeout=timeout_ms)",20,1001,93],
 
-"p4d":[8,1359,{"$":251},16,1359,82],
+"p4d":[8,1315,{"$":251},16,1315,82],
 
-"p4e":[8,1037,"page.locator(str(selector)).first.click(timeout=timeout_ms)",20,1037,79],
+"p4e":[8,993,"page.locator(str(selector)).first.click(timeout=timeout_ms)",20,993,79],
 
-"p4f":[8,1365,"page.locator(str(copy_selector)).first.click(timeout=timeout_ms)",16,1365,80],
+"p4f":[8,1321,"page.locator(str(copy_selector)).first.click(timeout=timeout_ms)",16,1321,80],
 
 "p5":[15,113,"subprocess.check_output(\n        [\"ps\", \"-u\", str(os.getuid()), \"-o\", \"pid=,ppid=,etimes=,stat=,comm=,args=\"],\n        text=True,\n    )",13,116,5],
 
-"p50":[8,1057,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1057,72],
+"p50":[8,1013,"page.locator(str(open_selector)).first.click(timeout=timeout_ms)",8,1013,72],
 
 "p50BeforeBirth":[148,"FactoryQualificationTests.test_total_limit_refuses_before_any_worker_or_configuration",611,"UlehT9UtBFayl63NZf1X2U2FqDQIaKS_IMejhFRCze8"],
 
@@ -2614,7 +2622,7 @@
 
 "p5f":[24,"validate_private_capture",302,"wb9eW69tRCkkhouZa6jCWR9MkugrX3KLG37kU19cDA0"],
 
-"p6":[8,1018,"context.new_page()",54,1018,72],
+"p6":[8,974,"context.new_page()",54,974,72],
 
 "p60":[24,"select_private_capture",241,"twQf4ilBj4RjfXdpThGgGndgzDgl1d0BPaQplSx1rFM"],
 
@@ -2630,11 +2638,11 @@
 
 "p64t":[156,"PoolConfigurationTests.test_default_tier_contract",76,"S0cNBp6hxSLxGrVfuL5Pn9Hav81X-zFjDOpNuv4DFdg"],
 
-"p65":[8,"BrowserRunnerAdapter.send",497,"ZH4IHj7vOlpY_oN3BmvAnGZNbHEJTvDv2F73Fb52BYQ"],
+"p65":[8,"BrowserRunnerAdapter.send",453,"ZH4IHj7vOlpY_oN3BmvAnGZNbHEJTvDv2F73Fb52BYQ"],
 
-"p66":[8,501,"target.evaluate(_SEND_SCRIPT, submission)",20,501,61],
+"p66":[8,457,"target.evaluate(_SEND_SCRIPT, submission)",20,457,61],
 
-"p66C":[174,116,"_await_original_contexts(controls)"],
+"p66C":[176,116,"_await_original_contexts(controls)"],
 
 "p66e":[159,"SignedCalibrationPipeTests.test_waits_for_owned_empty_rollout",97,"PIGjvsi8lCZeihVSelkw1LIzQucRH1DcfWmbkVfUdCU"],
 
@@ -2658,7 +2666,7 @@
 
 "p6f":[118,"ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures",441,"DwFzAdbfUgO8hQ5_cJUS4_JztIwjHWHGBGmvDd_dBGw"],
 
-"p7":[8,736,"browser.new_context()",71,736,92],
+"p7":[8,692,"browser.new_context()",71,692,92],
 
 "p70":[28,228,"_need(type(source_context) is dict"],
 
@@ -3112,13 +3120,13 @@
 
 "pcf":[64,709,{"$":148}],
 
-"pd":[8,876,"page.evaluate(_SNAPSHOT_SCRIPT, [marker])",20,876,61],
+"pd":[8,832,"page.evaluate(_SNAPSHOT_SCRIPT, [marker])",20,832,61],
 
 "pd0":[121,"R1ActivationPreviewHoldTests.test_r1_entry_holds_precede_reads_and_claims_with_all_on_fake_control",30,"CwBds8d1uCJR2_OlBGBithBu1m4NiehntAl9H1rWKuc"],
 
 "pd1":[43,"WorktreeCapture._run_bound",2606,"pKOcFA8UqqJUISnZCVIBYd8dlgOc0kfLNeyeVhkoTK4"],
 
-"pd2":[8,1287,"self._response_in_progress(page)",30,1287,62],
+"pd2":[8,1243,"self._response_in_progress(page)",30,1243,62],
 
 "pd3":[49,368,"if ! python3 -B \"$CHECKER\" --source-dir \"$SOURCE_DIR\" --installed-dir \"$INSTALL_STAGE_DIR\" --write-manifest --check; then"],
 
@@ -3178,9 +3186,9 @@
 
 "pef":[22,267,"os.execve(request['executable'],request['argv'],{})"],
 
-"pf":[8,1217,"guard.press(button)",24,1217,43],
+"pf":[8,1173,"guard.press(button)",24,1173,43],
 
-"pf1":[8,1466,"locator.evaluate(\n                    \"\"\"el => {\n  const rect = el.getBoundingClientRect();\n  if (!rect || rect.width <= 0 || rect.height <= 0) {\n    return false;\n  }\n  const viewport = {\n    width: window.innerWidth || document.documentElement.clientWidth,\n    height: window.innerHeight || document.documentElement.clientHeight,\n  };\n  return rect.right >= 0 && rect.bottom >= 0 && rect.left <= viewport.width && rect.top <= viewport.height;\n}\"\"\"\n                )",16,1478,17],
+"pf1":[8,1422,"locator.evaluate(\n                    \"\"\"el => {\n  const rect = el.getBoundingClientRect();\n  if (!rect || rect.width <= 0 || rect.height <= 0) {\n    return false;\n  }\n  const viewport = {\n    width: window.innerWidth || document.documentElement.clientWidth,\n    height: window.innerHeight || document.documentElement.clientHeight,\n  };\n  return rect.right >= 0 && rect.bottom >= 0 && rect.left <= viewport.width && rect.top <= viewport.height;\n}\"\"\"\n                )",16,1434,17],
 
 "pf2":[116,{"$":56},260,{"$":49}],
 
@@ -3188,7 +3196,7 @@
 
 "pf4":[29,"HostRecordStore.audit_events",412,"LHuZA-t6GsT4iCk6IneHIrnDZieBK-VIZogOINpoLXA"],
 
-"pf5":[90,"ChatGPTBrowserReviewTests.test_selection_does_not_click_loose_text_when_confirmation_required",807,"pHxvNA93SgFrffGd0rJtlgN5CAyrACup_HkALv88dZc"],
+"pf5":[90,"ChatGPTBrowserReviewTests.test_selection_does_not_click_loose_text_when_confirmation_required",808,"pHxvNA93SgFrffGd0rJtlgN5CAyrACup_HkALv88dZc"],
 
 "pf6":[74,"_start_campaign_server",12831,"sslKVaBhn0sTa2L9XtFV_JRUmHAkzG2_3YAbHubo8WU"],
 
@@ -3196,7 +3204,7 @@
 
 "pf8":[38,1940,"if final_horizon_errors:"],
 
-"pf9":[8,672,{"$":225}],
+"pf9":[8,628,{"$":225}],
 
 "pfa":[38,1626,"require_recovery_authority(plan, runtime)"],
 
@@ -4503,101 +4511,95 @@
 
 [2,234,15,234,56,"browser","73cfe637971840a22284b868ba45afd81287381995c5a0bc8e53047d18b2bbb1",["route","H5.7","p39c"]],
 
-[3,374,11,374,44,"dynamic","f95c6d3829ed85c6295a213b7ae9bdd5a4cc907455c6f6892cf229ace7fe9f48",[{"$":9},"XR001"]],
+[3,330,11,330,44,"dynamic","f95c6d3829ed85c6295a213b7ae9bdd5a4cc907455c6f6892cf229ace7fe9f48",[{"$":9},"XR001"]],
 
-[3,384,11,384,56,"dynamic","a77d96730f4872c08135ca99f2412940ad66d9270821aa1a08635a2331a45c4d",[{"$":9},"XR002"]],
+[3,340,11,340,56,"dynamic","a77d96730f4872c08135ca99f2412940ad66d9270821aa1a08635a2331a45c4d",[{"$":9},"XR002"]],
 
-[3,468,18,468,47,"dynamic","6843911e2566a716719eacf1fe28ecd3278eb310fcfa1917af714a323b46cb23",[{"$":9},"share-lookup-4"]],
+[3,424,18,424,47,"dynamic","6843911e2566a716719eacf1fe28ecd3278eb310fcfa1917af714a323b46cb23",[{"$":9},"share-lookup-4"]],
 
-[3,501,20,501,61,"browser","3ad45495ca8dd48710e755a13e8b44935d7a4f6ff1f4d90b5f5a5ba69eb43b52",["route","H4.6","p66"]],
+[3,457,20,457,61,"browser","3ad45495ca8dd48710e755a13e8b44935d7a4f6ff1f4d90b5f5a5ba69eb43b52",["route","H4.6","p66"]],
 
-[3,514,22,514,63,"dynamic","b40d2a49bda50f343efd147693cbd26a5a140ba90ab6c2b937e6186f2288640f",[{"$":9},"share-lookup-5"]],
+[3,470,22,470,63,"dynamic","b40d2a49bda50f343efd147693cbd26a5a140ba90ab6c2b937e6186f2288640f",[{"$":9},"share-lookup-5"]],
 
-[3,515,42,515,76,"dynamic",{"$":163},[{"$":9},"share-lookup-6"]],
+[3,471,42,471,76,"dynamic",{"$":163},[{"$":9},"share-lookup-6"]],
 
-[3,515,84,515,119,"dynamic",{"$":150},[{"$":9},"share-lookup-7"]],
+[3,471,84,471,119,"dynamic",{"$":150},[{"$":9},"share-lookup-7"]],
 
-[3,516,23,516,60,"dynamic",{"$":212},[{"$":9},"share-lookup-8"]],
+[3,472,23,472,60,"dynamic",{"$":212},[{"$":9},"share-lookup-8"]],
 
-[3,516,68,516,107,"dynamic",{"$":157},[{"$":9},"share-lookup-9"]],
+[3,472,68,472,107,"dynamic",{"$":157},[{"$":9},"share-lookup-9"]],
 
-[3,635,44,635,73,"dynamic",{"$":34},[{"$":9},"XR003"]],
+[3,591,44,591,73,"dynamic",{"$":34},[{"$":9},"XR003"]],
 
-[3,664,18,664,35,"browser",{"$":171},["route","H4.4","p4b"]],
+[3,620,18,620,35,"browser",{"$":171},["route","H4.4","p4b"]],
 
-[3,666,21,666,36,"browser",{"$":227},["route","H4.4","p3"]],
+[3,622,21,622,36,"browser",{"$":227},["route","H4.4","p3"]],
 
-[3,672,26,672,98,"browser",{"$":184},["route","H4.4","p3e"]],
+[3,628,26,628,98,"browser",{"$":184},["route","H4.4","p3e"]],
 
-[3,674,71,674,92,"browser",{"$":167},["route","H4.4","p24"]],
+[3,630,71,630,92,"browser",{"$":167},["route","H4.4","p24"]],
 
-[3,677,26,681,17,"browser",{"$":244},["route","H4.4","p42"]],
+[3,633,26,637,17,"browser",{"$":244},["route","H4.4","p42"]],
 
-[3,683,12,683,115,"browser",{"$":186},["route","H4.4","p44"]],
+[3,639,12,639,115,"browser",{"$":186},["route","H4.4","p44"]],
 
-[3,726,18,726,35,"browser",{"$":171},["route","H4.3","p14"]],
+[3,682,18,682,35,"browser",{"$":171},["route","H4.3","p14"]],
 
-[3,728,21,728,36,"browser",{"$":227},["route","H4.3","p1e"]],
+[3,684,21,684,36,"browser",{"$":227},["route","H4.3","p1e"]],
 
-[3,734,26,734,98,"browser",{"$":184},["route","H4.3","p18"]],
+[3,690,26,690,98,"browser",{"$":184},["route","H4.3","p18"]],
 
-[3,736,71,736,92,"browser",{"$":167},["route","H4.3","p7"]],
+[3,692,71,692,92,"browser",{"$":167},["route","H4.3","p7"]],
 
-[3,739,26,743,17,"browser",{"$":244},["route","H4.3","p3a"]],
+[3,695,26,699,17,"browser",{"$":244},["route","H4.3","p3a"]],
 
-[3,747,16,747,119,"browser",{"$":186},["route","H4.3","p48"]],
+[3,703,16,703,119,"browser",{"$":186},["route","H4.3","p48"]],
 
-[3,757,63,757,87,"dynamic",{"$":183},[{"$":9},"XR016"]],
+[3,713,63,713,87,"dynamic",{"$":183},[{"$":9},"XR016"]],
 
-[3,876,20,876,61,"browser","c118493c22fb55a17270318d5517bdcae835553d7c502959cdbaf9e0a82dc084",["route","H4.3","pd"]],
+[3,832,20,832,61,"browser","c118493c22fb55a17270318d5517bdcae835553d7c502959cdbaf9e0a82dc084",["route","H4.3","pd"]],
 
-[3,978,46,978,70,"dynamic",{"$":183},[{"$":9},"XR018"]],
+[3,934,46,934,70,"dynamic",{"$":183},[{"$":9},"XR018"]],
 
-[3,1018,54,1018,72,"browser","cfbe7321e63edefa018136f2931b7b7fdea9666df5380e95584c6b49b7b9825e",["route","H4.3","p6"]],
+[3,974,54,974,72,"browser","cfbe7321e63edefa018136f2931b7b7fdea9666df5380e95584c6b49b7b9825e",["route","H4.3","p6"]],
 
-[3,1037,20,1037,79,"browser","ccd35bde35e60c5787a4009a0ebc14e12abf4245105c53d59cec99c92729c78f",["route","H4.3","p4e"]],
+[3,993,20,993,79,"browser","ccd35bde35e60c5787a4009a0ebc14e12abf4245105c53d59cec99c92729c78f",["route","H4.3","p4e"]],
 
-[3,1045,20,1045,93,"browser","1e907f4a583d07cd8b1b29997e892b0c7238978605c674a695f63c8af4e179be",["route","H4.3","p4c"]],
+[3,1001,20,1001,93,"browser","1e907f4a583d07cd8b1b29997e892b0c7238978605c674a695f63c8af4e179be",["route","H4.3","p4c"]],
 
-[3,1057,8,1057,72,"browser","cc459dfbb991dd7af44549a8ace9f2b159ecef09e39932f49415da196e1adc7d",["route","H4.3","p50"]],
+[3,1013,8,1013,72,"browser","cc459dfbb991dd7af44549a8ace9f2b159ecef09e39932f49415da196e1adc7d",["route","H4.3","p50"]],
 
-[3,1125,12,1125,41,"browser","a7f8a2f7d999b749e954688e8b59626e94dc35c8aa5ff274d9e7ca66ec965a20",["route","H4.3","p10"]],
+[3,1081,12,1081,41,"browser","a7f8a2f7d999b749e954688e8b59626e94dc35c8aa5ff274d9e7ca66ec965a20",["route","H4.3","p10"]],
 
-[3,1194,22,1194,61,"browser","dd0053c0d50efdb46ef0a58454c14460363253de85b643286356347e9d86958c",["route","H4.3","p49"]],
+[3,1150,22,1150,61,"browser","dd0053c0d50efdb46ef0a58454c14460363253de85b643286356347e9d86958c",["route","H4.3","p49"]],
 
-[3,1196,35,1196,69,"browser","2bef60b616b413da94153bda4b06afd36d690f2307eddb1acf672b20520ce0e1",["route","H4.3","p38"]],
+[3,1152,35,1152,69,"browser","2bef60b616b413da94153bda4b06afd36d690f2307eddb1acf672b20520ce0e1",["route","H4.3","p38"]],
 
-[3,1217,24,1217,43,"browser","319a48cea245163f2958a48f2c1862cedaeea95567f3e3dfb72574e765f13c63",["route","H4.3","pf"]],
+[3,1173,24,1173,43,"browser","319a48cea245163f2958a48f2c1862cedaeea95567f3e3dfb72574e765f13c63",["route","H4.3","pf"]],
 
-[3,1317,24,1317,64,"browser","52944e202475537bcab2560bed3ca14e69b388284baaa30df94154aa231a8ddb",["route","H4.3","p2f"]],
+[3,1273,24,1273,64,"browser","52944e202475537bcab2560bed3ca14e69b388284baaa30df94154aa231a8ddb",["route","H4.3","p2f"]],
 
-[3,1341,20,1341,48,"browser","f726adeae9a21249c3f1e89a9a578ccefcdc01052c97f0db8af8d3d22704a52a",[{"$":9},"guard-scope-3eac6214d7a553"]],
+[3,1297,20,1297,48,"browser","f726adeae9a21249c3f1e89a9a578ccefcdc01052c97f0db8af8d3d22704a52a",[{"$":9},"guard-scope-3eac6214d7a553"]],
 
-[3,1359,16,1359,82,"browser","5e30e514b205c4bd2e4b718f1633a43fdf8ee6f3e605d0d8431ccd1becb4bd93",["route","H5.3","p4d"]],
+[3,1315,16,1315,82,"browser","5e30e514b205c4bd2e4b718f1633a43fdf8ee6f3e605d0d8431ccd1becb4bd93",["route","H5.3","p4d"]],
 
-[3,1365,16,1365,80,"browser","7020ab046cbe78043127bfe60a3e469d46ccc5cd3c9da787668fb086ca891e25",["route","H5.3","p4f"]],
+[3,1321,16,1321,80,"browser","7020ab046cbe78043127bfe60a3e469d46ccc5cd3c9da787668fb086ca891e25",["route","H5.3","p4f"]],
 
-[3,1380,16,1380,51,"browser","f09d25be1a177dae2c0aebcd4a25586dfb5552939bb37fff6482bb401106234e",["route","H5.3","p41"]],
+[3,1336,16,1336,51,"browser","f09d25be1a177dae2c0aebcd4a25586dfb5552939bb37fff6482bb401106234e",["route","H5.3","p41"]],
 
-[3,1384,20,1384,67,"browser","bb2962fa1784c8438d399e7b6033615a4de92ea568490bd987fa510c8c529641",["route","H5.3","p33"]],
+[3,1340,20,1340,67,"browser","bb2962fa1784c8438d399e7b6033615a4de92ea568490bd987fa510c8c529641",["route","H5.3","p33"]],
 
-[3,1466,16,1478,17,"browser","8ea674bf3d393feeb96bc445201e8b0004faac8a9fc4b1fa8bf7d72bc919e6aa",[{"$":9},"guard-scope-3f9a89efbb66c8"]],
+[3,1422,16,1434,17,"browser","8ea674bf3d393feeb96bc445201e8b0004faac8a9fc4b1fa8bf7d72bc919e6aa",[{"$":9},"guard-scope-3f9a89efbb66c8"]],
 
-[3,1544,18,1544,48,"dynamic","3b1f8ccaa3ca0702a93c53ee89a8e3c7de9273641386e70dcec489a1d002b419",[{"$":9},"XR029"]],
+[3,1500,18,1500,48,"dynamic","3b1f8ccaa3ca0702a93c53ee89a8e3c7de9273641386e70dcec489a1d002b419",[{"$":9},"XR029"]],
 
-[3,1563,20,1563,66,"browser","f2f2d2be23709ebc4f6962f4bf947b8ccb186f4769dadae583f08e6d15e23afd",["route","H5.4","p4"]],
+[3,1519,20,1519,66,"browser","f2f2d2be23709ebc4f6962f4bf947b8ccb186f4769dadae583f08e6d15e23afd",["route","H5.4","p4"]],
 
-[3,1565,67,1565,92,"dynamic","c2d4946e602fa189c7a6ea5dc716f28ef85eb0d2261525845b9238ecc24ffd7f",[{"$":9},"XR031"]],
+[3,1521,67,1521,92,"dynamic","c2d4946e602fa189c7a6ea5dc716f28ef85eb0d2261525845b9238ecc24ffd7f",[{"$":9},"XR031"]],
 
-[3,1648,23,1648,52,"dynamic",{"$":34},[{"$":9},"XR032"]],
+[3,1728,75,1728,104,"dynamic",{"$":34},[{"$":9},"XR035"]],
 
-[3,1694,19,1694,58,"dynamic",{"$":174},[{"$":9},"XR033"]],
-
-[3,1704,19,1704,58,"dynamic",{"$":174},[{"$":9},"XR034"]],
-
-[3,1978,75,1978,104,"dynamic",{"$":34},[{"$":9},"XR035"]],
-
-[3,2029,21,2029,50,"dynamic",{"$":34},[{"$":9},"XR036"]],
+[3,1779,21,1779,50,"dynamic",{"$":34},[{"$":9},"XR036"]],
 
 [4,212,13,215,5,"process","56aab273a72c95246ecbf801710da6782bb2c0d818fd6a09455069be25cb171a",["route","X6.1","p47"]],
 
@@ -4727,9 +4729,17 @@
 
 [16,1259,22,1259,42,"dynamic","6f6a6b6ca036689cc1a8af7bea396ba7c7053bc58edc06c1588fb16e7c398bcf",[{"$":9},"XR084"]],
 
+[96,78,23,78,52,"dynamic",{"$":34},[{"$":9},"XR032"]],
+
+[96,127,19,127,58,"dynamic",{"$":174},[{"$":9},"XR033"]],
+
+[96,137,19,137,58,"dynamic",{"$":174},[{"$":9},"XR034"]],
+
 [17,303,19,303,201,"process","d7d50e37a90f83b03a2b5f66488c178de6c5c3fb35dff46852c89636eb833835",["route","X1.2","p2e"]],
 
 [17,334,24,334,180,"process","0318cdc4a67405070420233f967833b92593b974af59cca55e64031469568a0e",["route","X1.2","p2b"]],
+
+[94,28,22,29,71,"beads","75f6bcc2873cedfdbef96c2223bf2c5091002f80e8cd311f3899b97a48b99436",["route","B10.6","p70q"]],
 
 [86,466,8,468,35,"process","18ebe3f1df7b8c2416e17cfef42ffaddd4e79ccdd47a478ee8dfa937f3a02744",["route","N11.4","pSchemaProcess"]],
 
@@ -4798,6 +4808,16 @@
 [24,629,39,629,79,"dynamic",{"$":39},[{"$":9},"XR118"]],
 
 [24,644,51,644,91,"dynamic",{"$":39},[{"$":9},"XR119"]],
+
+[95,111,14,111,79,"beads","d8e0714def0bdc15c4f5d74632fa58c59daf1dea6e59dd89315bdac428239677",["route","B10.7","p70H"]],
+
+[95,130,26,130,71,"beads","45f85697f1634e93cd4a5a53f4962ec0d0182ba09c64002952055ea83c55448a",["route","B10.7","p70V"]],
+
+[95,148,15,148,48,"beads","ab2405cdf94d02885e95cdc9b096a47725ff807ad31197140e2172b262fc4d40",[{"$":9},"XR70adapter"]],
+
+[95,173,4,173,56,"beads","11bf99f5445d9d2a239a32e83c53b2ac411df181fc252c262444dd5b2ee302c0",["route","B11.1","p70A"]],
+
+[95,248,8,248,60,"beads","8f6f2d6b141fa7121b1ca53778a893d5f5917c58647c63487e92e8c47d09c0b4",["route","B12.1","p70e"]],
 
 [87,43,25,43,54,{"$":3},"7d0bf249b1e98a45cf8a3194955f73655e2ef94de188905e3083f2c0541ad111",[{"$":9},"public-model-list-catalog-read"]],
 
@@ -5589,19 +5609,7 @@
 
 [84,2574,7,2574,35,"dynamic","66a339e6322b74fea8133b75bed5791305a9d34d910742112ba7390a31c5c4f7",[{"$":9},"XR416"]],
 
-[85,389,14,389,47,"dynamic","8eaf1f84aedb7d9844918bfedd8db1d69c82a042bfef4512bf974efa3f9754d5",[{"$":9},"XR417"]],
-
-[94,28,22,29,71,"beads","75f6bcc2873cedfdbef96c2223bf2c5091002f80e8cd311f3899b97a48b99436",["route","B10.6","p70q"]],
-
-[95,111,14,111,79,"beads","d8e0714def0bdc15c4f5d74632fa58c59daf1dea6e59dd89315bdac428239677",["route","B10.7","p70H"]],
-
-[95,130,26,130,71,"beads","45f85697f1634e93cd4a5a53f4962ec0d0182ba09c64002952055ea83c55448a",["route","B10.7","p70V"]],
-
-[95,148,15,148,48,"beads","ab2405cdf94d02885e95cdc9b096a47725ff807ad31197140e2172b262fc4d40",[{"$":9},"XR70adapter"]],
-
-[95,173,4,173,56,"beads","11bf99f5445d9d2a239a32e83c53b2ac411df181fc252c262444dd5b2ee302c0",["route","B11.1","p70A"]],
-
-[95,248,8,248,60,"beads","8f6f2d6b141fa7121b1ca53778a893d5f5917c58647c63487e92e8c47d09c0b4",["route","B12.1","p70e"]]
+[85,389,14,389,47,"dynamic","8eaf1f84aedb7d9844918bfedd8db1d69c82a042bfef4512bf974efa3f9754d5",[{"$":9},"XR417"]]
 ],
 
 "paths":[
@@ -5795,7 +5803,9 @@
 
 {"$":377},
 
-{"$":378}
+{"$":378},
+
+"scripts/cwo_core/browser_capture.py"
 ],
 
 "schema":"bounded-primitives-v2"
@@ -5964,7 +5974,7 @@
 
 {"contract":"H4","entrypoint":"p1c7","gate_limits":{"$":55},"id":"H4.2"},
 
-{"contract":"H4","effect_points":["p379","p37c","p377","p358","pf","p14","p1e","p18","p7","p3a","p48","pd","p6","p10","p49","p38","pf","p2f","p4e","p4c","p50"],"entrypoint":"p1ce","gate_chains":[{"calls":[{"call":"p215","direction":"into","target":"p1c7"},{"call":"p172","direction":"into","target":"p1ce"}],"effect":"p379","gate":"p127"},{"calls":[{"call":"p172","direction":"into","target":"p1ce"}],"effect":"p379","gate":"p337"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p157","direction":"into","target":"p363"}],"effect":"pf","gate":"p278"},{"calls":[{"call":"p328","direction":"into","target":"p28d"},{"call":"p17a","direction":"into","target":"p205"}],"effect":"pd","gate":"p23e"},{"calls":[{"call":"p124","direction":"into","target":"p268"}],"effect":"p6","gate":"p23e"},{"calls":[{"call":"p1cd","direction":"into","target":"p13c"}],"effect":"p10","gate":"p23e"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p18b","direction":"into","target":"p169"}],"effect":"p49","gate":"p23e"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p18b","direction":"into","target":"p169"}],"effect":"p38","gate":"p23e"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p27f","direction":"into","target":"p2dc"},{"call":"pd2","direction":"into","target":"p22d"}],"effect":"p2f","gate":"p23e"},{"calls":[{"call":"p2e0","direction":"into","target":"p234"}],"effect":"p4e","gate":"p23e"},{"calls":[{"call":"p2e0","direction":"into","target":"p234"}],"effect":"p4c","gate":"p23e"},{"calls":[{"call":"p2e0","direction":"into","target":"p234"},{"call":"p1f8","direction":"into","target":"p2d2"}],"effect":"p50","gate":"p23e"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p157","direction":"into","target":"p363"}],"effect":"pf","gate":"p23e"}],"gate_limits":{"$":55},"id":"H4.3","limits":"Three entries x CDP/profile zero factory/start/attach/launch/goto/Send when held. Matching enabled fake reaches selected lifecycle/Send once (confirmation zero Send). Final submitted bytes screened after request ID and origin/readability. Mismatch label/final scan zero Send permits earlier fake lifecycle/navigation/selection. Dormant legacy share UI not enabled. Runner hold witness covers the inner run and confirmation holds; it does not isolate the redundant outer run hold. Final-byte screening has its own Send witness. Main containment is witnessed separately on the main route and does not qualify actual browser Send. Dormant share-button/viewport helpers have no supported runner call chain and can perform browser operations if directly invoked. They retain exact individual manual candidate dispositions, without borrowing runner admission. Destination URL refusals precede startup; later config drift refuses the next effect after any earlier benign connection. Local profile/executable paths are captured but are not disclosed URL content."},
+{"contract":"H4","effect_points":["p379","p37c","p377","p358","pf","p14","p1e","p18","p7","p3a","p48","pd","p6","p10","p49","p38","pf","p2f","p4e","p4c","p50"],"entrypoint":"p1ce","gate_chains":[{"calls":[{"call":"p215","direction":"into","target":"p1c7"},{"call":"p172","direction":"into","target":"p1ce"}],"effect":"p379","gate":"p127"},{"calls":[{"call":"p172","direction":"into","target":"p1ce"}],"effect":"p379","gate":"p337"},{"calls":[{"call":"browser-request-screen-call","direction":"return","target":"browser-request-screen-body"},{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p157","direction":"into","target":"p363"}],"effect":"pf","gate":"p278"},{"calls":[{"call":"p328","direction":"into","target":"p28d"},{"call":"p17a","direction":"into","target":"p205"}],"effect":"pd","gate":"p23e"},{"calls":[{"call":"p124","direction":"into","target":"p268"}],"effect":"p6","gate":"p23e"},{"calls":[{"call":"p1cd","direction":"into","target":"p13c"}],"effect":"p10","gate":"p23e"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p18b","direction":"into","target":"p169"}],"effect":"p49","gate":"p23e"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p18b","direction":"into","target":"p169"}],"effect":"p38","gate":"p23e"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p27f","direction":"into","target":"p2dc"},{"call":"pd2","direction":"into","target":"p22d"}],"effect":"p2f","gate":"p23e"},{"calls":[{"call":"p2e0","direction":"into","target":"p234"}],"effect":"p4e","gate":"p23e"},{"calls":[{"call":"p2e0","direction":"into","target":"p234"}],"effect":"p4c","gate":"p23e"},{"calls":[{"call":"p2e0","direction":"into","target":"p234"},{"call":"p1f8","direction":"into","target":"p2d2"}],"effect":"p50","gate":"p23e"},{"calls":[{"call":"p358","direction":"into","target":"p1d7"},{"call":"p1ec","direction":"into","target":"p17e"},{"call":"p1f6","direction":"into","target":"p10b"},{"call":"p157","direction":"into","target":"p363"}],"effect":"pf","gate":"p23e"}],"gate_limits":{"$":55},"id":"H4.3","limits":"Three entries x CDP/profile zero factory/start/attach/launch/goto/Send when held. Matching enabled fake reaches selected lifecycle/Send once (confirmation zero Send). Final submitted bytes screened after request ID and origin/readability. Mismatch label/final scan zero Send permits earlier fake lifecycle/navigation/selection. Dormant legacy share UI not enabled. Runner hold witness covers the inner run and confirmation holds; it does not isolate the redundant outer run hold. Final-byte screening has its own Send witness. Main containment is witnessed separately on the main route and does not qualify actual browser Send. Dormant share-button/viewport helpers have no supported runner call chain and can perform browser operations if directly invoked. They retain exact individual manual candidate dispositions, without borrowing runner admission. Destination URL refusals precede startup; later config drift refuses the next effect after any earlier benign connection. Local profile/executable paths are captured but are not disclosed URL content."},
 
 {"contract":"H4","effect_points":["p141","pf9","p2c8","p4b","p3","p3e","p24","p42","p44","p4e","p4c","p50"],"entrypoint":"p33c","gate_chains":[{"calls":[{"call":"p218","direction":"into","target":"p33c"}],"effect":"p141","gate":"p127"},{"calls":[{"call":"p1be","direction":"into","target":"p234"}],"effect":"p4e","gate":"p311"},{"calls":[{"call":"p1be","direction":"into","target":"p234"}],"effect":"p4c","gate":"p311"},{"calls":[{"call":"p1be","direction":"into","target":"p234"},{"call":"p1f8","direction":"into","target":"p2d2"}],"effect":"p50","gate":"p311"}],"gate_limits":{"$":55},"gates":["p311","p127"],"id":"H4.4","review_gates":["p337","p23e","p278"]},
 
@@ -6285,8 +6295,6 @@
 "166":"4fb1e950480161e109303247cc67e8c8ef51273b9dea1e272154999cdda8abaa",
 
 "167":"50dcafff9f105e5887b4c81fc1dcc9aad9a51301cc206c577a924af68a1dd69b",
-
-"168":"53ffb8279fdfaf700dcccac5dbc58421ee59d3d34f0aef46dcf70c1882eddcad",
 
 "169":"55092020f9126d0761a6f12d37e5187701104eb7e344b5e29964d98dca92648b",
 
@@ -7080,7 +7088,11 @@
 
 "@173":["tIkyVbbIbTVNZCaImn05K0UH-u2yrf0xgJPSbv-JxUk",420,8495],
 
-"@174":["qBuFjmJ4J-pRWXryHjO8RcrYazA2ukmqrtz5qo-Jyaw",420,8550],
+"@174":["vqYB7alT52EU5YQEhl38rkq6bhN9J9foKP_1UbNVqmM",420,4722],
+
+"@175":["_erCbCx5_5ca8oPuESeXYMpI9HQv8JbPLvxsxNJ9maI",420,12940],
+
+"@176":["qBuFjmJ4J-pRWXryHjO8RcrYazA2ukmqrtz5qo-Jyaw",420,8550],
 
 "@18":["eeWhgdqzZxdBINbx0XseT7DQyIMEE_YvaJiCe2PZPCI",420,27248],
 
@@ -7218,7 +7230,7 @@
 
 "@79":["GOmDAXa6omwKrmnNx-DOfNe01WTu6hWk7jTpFMsN8FM",493,6479],
 
-"@8":["Z0-gi8pZbDKuwFZ7vhy0qgYM90KuvYZ4nzIorEFlWqg",493,100544],
+"@8":["fkKsLKpbICXYIFBayFCb_4DCI2SLScPKShBZiyJldu8",493,87181],
 
 "@80":["m_X8Mh1rzRi0f4E9Bw9cNPAZVfrXN9p5_RN-vpgsTgw",420,11195],
 
@@ -7232,9 +7244,9 @@
 
 "@85":["VXgH8WxgEMKedfcuIUpmeRy1BgM-b2Yu_3rIFdEOznI",420,35682],
 
-"@86":["rDV8baGUNtk1ShjcF6VtJlg9BTVQaScjt0Dn2sIM6RE",420,27314],
+"@86":["XVWJTF7tMi9LBedksiJNFRMw258vQ4svNasA5V_R3N8",420,27339],
 
-"@87":["tC9J7Lvtu2MXBi5IvmGp-Uty-pvpTu40-3NDWf0Cl50",420,10146],
+"@87":["or6ghD3HRLio-ElSZ0lrY1nmrTFRiRap3UjRISAFw6w",420,12471],
 
 "@88":["48qRf-wZ0gOSGpSdDyIA19OfbHtBzAqCwbq5hqa5NQU",420,21997],
 
@@ -7242,7 +7254,7 @@
 
 "@9":["5bzlm98aIwSUJ7uujDKGYv6mSSW0yRx0gjDcmsYs5uw",420,49677],
 
-"@90":["zVrdbv0nsdses5hoPG5wIiezX7TxwQxlnd8DgVvtVQM",420,133744],
+"@90":["Wpj52cVTf992ZGoNF17INVZr_0Z_8m9meS5hW5XIvrg",420,133777],
 
 "@91":["8bo2Ko10KjXGKAGCyNHSD3DXmUarepMFADnxqTNXszs",420,27959],
 
@@ -7286,7 +7298,7 @@
 
 "scripts/comparative_evaluation.py":["ae57ncXO5FhyB_n11e3VVAjpK4YVaYCf0uC1w_VNq7I",420,6574],
 
-"scripts/cwo_core/__init__.py":["gTyyEIAqWG_NH7dLFHQfS-o_tpgJo7MJgN8Ah5ynKJE",420,3797],
+"scripts/cwo_core/__init__.py":["jMMPbHsNoJo-Qzk1GpAdwn5pbIPGp6lm6RgVvCT70mA",420,3820],
 
 "scripts/cwo_core/access_profiles.py":["2lC0xX3ZK3Ut05NAyEuODqb3Q78Tw8DuakVP-4ppiqQ",420,12119],
 
@@ -7634,7 +7646,7 @@
 
 "scripts/validate_public_copy.py":["5jvp0QaFAcImQCY6cXJcXSdDZ5rGGQgzSguKe3H8t8o",420,63926],
 
-"scripts/validate_repository.py":["prGtj3B1v4CI_7DOW6_BaEMIZzOdhO1HLNnB6lCzBqg",420,116157],
+"scripts/validate_repository.py":["AFQqMu68nZ-52N9ZZlrn5luJEPBmQIazdJkJBBbcinc",420,116255],
 
 "scripts/validate_run_readiness_plan.py":["Qgbl831AJKP8HfpAZtP_cj91LTnKuHtFDKf02kUmy4Y",493,21103],
 
@@ -7650,7 +7662,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["QvA0KSNmpgmC_WVOJHFRkSJfjWaK2ECQy8bL8NfT4ao",420,134123],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["D0C0scOb2Rw7aucNWOlOL8XUSA_6sKaWD3PGEI4pc4I",420,134123],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -7664,7 +7676,7 @@
 
 "tests/test_core_resource_tool_profiles.py":["BLcVQF-zTyYeX3fskFBF-ZnSo4wB5Y5p-rLf7G11O9M",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["Ar5jDfX9jnfSVC_rMRxRxSu1IaeFaNbKtB-c5RLm5Oo",420,23712],
+"tests/test_cwo_core_import_contract.py":["xA8ugbarUIcjqJwXbIriFUcsG1_XMxBuTT_EMCASM10",420,23810],
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 

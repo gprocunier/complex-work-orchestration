@@ -64,7 +64,6 @@
     "scripts/chatgpt_browser_review.py::build_result": 17,
     "scripts/chatgpt_browser_review.py::load_browser_config": 18,
     "scripts/chatgpt_browser_review.py::main": 30,
-    "scripts/chatgpt_browser_review.py::write_private_response": 21,
     "scripts/check_code_health.py::_python_files_in_tree.scan_directory": 17,
     "scripts/check_codex_worker_surface.py::capture_tool_request": 49,
     "scripts/check_documentation.py::check": 16,
@@ -91,6 +90,7 @@
     "scripts/cwo_core/beads_ready_set.py::build_ready_set_evidence": 45,
     "scripts/cwo_core/beads_ready_set.py::candidate_conflicts": 18,
     "scripts/cwo_core/beads_ready_set.py::evaluate_ready_candidate": 123,
+    "scripts/cwo_core/browser_capture.py::write_private_response": 21,
     "scripts/cwo_core/checked_command.py::execute_checked_command": 29,
     "scripts/cwo_core/checked_command.py::normalize_command_spec": 24,
     "scripts/cwo_core/coach.py::_normalize_workerbee_planned_delegation": 19,
@@ -692,9 +692,15 @@
       "from": "scripts/codex_tool_surface.py::validate_surface_proof",
       "to": "scripts/cwo_core/codex_tool_surface.py::validate_surface_proof",
       "reason": "Byte-identical tool-surface move with old-path module alias compatibility."
+    },
+    {
+      "from": "scripts/chatgpt_browser_review.py::write_private_response",
+      "to": "scripts/cwo_core/browser_capture.py::write_private_response",
+      "reason": "Share private browser capture publication across transports."
     }
   ],
   "consumed_batches": {
-    "transport-extraction-2026-10-23-local": "dd1c67b7dbf40f9a5a04878a092f6aa67babadb23586d18b6ebf887762257721"
+    "transport-extraction-2026-10-23-local": "dd1c67b7dbf40f9a5a04878a092f6aa67babadb23586d18b6ebf887762257721",
+    "browser-capture-writer": "6977b09c893e0f3289e380cac35c4de465686be21cc29a242ec0b0c706b4e62d"
   }
 }

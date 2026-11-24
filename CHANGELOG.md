@@ -12,6 +12,7 @@
 ## 1.32.1 - 2026-11-24
 
 - Preserve the explicit default service tier in Codex startup readback for contained pool qualification.
+- Extract screened browser packet preparation and private response recording for use by browser integrations.
 
 ### Tests
 

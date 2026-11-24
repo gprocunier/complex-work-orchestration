@@ -14,41 +14,37 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
-from generate_manual_dispatch_prompt import render_packet_prompt
-from cwo_core.chatgpt_urls import CHATGPT_SHARE_URL_RE, approved_chatgpt_origin, valid_chatgpt_share_url
-from cwo_core.paths import REPO_ROOT, assert_repo_safe_path, assert_safe_output_path, cwo_temp_dir
-from cwo_core.private_artifact import (
-    PrivateArtifactError,
-    PrivateDirectory,
-    artifact_path,
-    note_present_artifacts,
-    note_retained_by_name,
-    sha256_bytes,
+from generate_manual_dispatch_prompt import render_packet_prompt as render_packet_prompt
+from browser_request import EXECUTOR_KEY, REQUEST_ID_RE, bound_request, load_browser_packet_prompt, prepare_browser_submission
+from cwo_core import browser_capture
+from cwo_core.browser_capture import (
+    note_present_response_files,
+    private_response_names,
+    resolve_response_dir,
+    write_private_response,
 )
+from cwo_core.chatgpt_urls import CHATGPT_SHARE_URL_RE, approved_chatgpt_origin, valid_chatgpt_share_url
+from cwo_core.paths import REPO_ROOT, assert_repo_safe_path, assert_safe_output_path
+from cwo_core.private_artifact import PrivateArtifactError, sha256_bytes
 from cwo_core.util import (
     atomic_write_text,
     artifact_hash,
     make_dispatch_id,
 )
-from cwo_core.audit import enforce_contracting_quota, record_audit_event, require_packet_build_audit
-from cwo_core.packet_provenance import require_production_contractor_packet
-from cwo_core.packets import contractor_packet_language_metadata, find_residual_private_context
+from cwo_core.audit import enforce_contracting_quota, require_packet_build_audit
+from cwo_core.packets import find_residual_private_context
 from cwo_core.outbound_screen import require_clean, require_text_disclosure
 from cwo_core.prepared_outbound import PreparedSource
 from cwo_core.browser_provenance import (
     PRIVATE_RESPONSE_ARTIFACT_TYPE as PRIVATE_RESPONSE_ARTIFACT_TYPE,
     PRIVATE_RESPONSE_VERSION as PRIVATE_RESPONSE_VERSION,
-    build_private_provenance,
-    capture_audit_fields,
 )
 from cwo_core.policy import load_policy
-from cwo_core.telemetry import safe_text_hash, telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 from browser_action_dispatch import BrowserActionRefused, RegisteredBrowserParent
 from browser_share_consent import OfflineDOMShareBoundary as OfflineDOMShareBoundary
 from cwo_core.invocation_ledger import InvocationLedgerError
 
-EXECUTOR_KEY = "chatgpt_pro_browser_master_reviewer"
 DEFAULT_CONFIG_ENV = "CWO_CHATGPT_BROWSER_CONFIG"
 DEFAULT_CONFIG_PATH = "~/.config/cwo/chatgpt-browser.json"
 
@@ -162,7 +158,6 @@ _SEND_SCRIPT = r"""(button, submission) => {
   return 'pressed';
 }"""
 CONVERSATION_ID_RE = re.compile(r"/c/([A-Za-z0-9-]{8,})")
-REQUEST_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 DEFAULT_MAX_PROMPT_CHARS = 50000
 LOCAL_CDP_HOSTS = {"127.0.0.1", "localhost", "::1"}
 FORBIDDEN_CONFIG_KEYS = {
@@ -319,56 +314,17 @@ def enforce_prompt_size(prompt: str, config: dict[str, Any]) -> None:
         )
 
 
-def bound_request(prompt: str, request_id: str) -> str:
-    """Return the exact text submitted: the prompt and a fresh per-submission request id.
-
-    The id ties the observed user turn to this submission. A conversation that
-    only contains the same prompt does not carry it.
-    """
-    if not REQUEST_ID_RE.match(request_id):
-        raise ValueError("request id must be 32 lowercase hexadecimal characters")
-    return f"{prompt.rstrip()}\n\nCWO request id: {request_id}"
-
-
 def load_prompt_from_args(args: argparse.Namespace, *, prepared_sources: list | None = None) -> tuple[str, dict[str, Any]]:
     if bool(args.packet) == bool(args.prompt_file):
         raise SystemExit("Provide exactly one of --packet or --prompt-file")
     if args.packet:
-        from generate_manual_dispatch_prompt import load_packet_file
-        files: list = []
-        packet = load_packet_file(args.packet, captures=files)
-        source = {"packet": packet, "options": vars(args)}
-        capture = PreparedSource.capture(source, files)
-        require_production_contractor_packet(
-            packet, allow_degraded_packet=args.allow_degraded_packet, allow_unlinked_packet=args.allow_unlinked_packet
+        prompt, metadata, capture, source = load_browser_packet_prompt(
+            args.packet, vars(args), allow_degraded_packet=args.allow_degraded_packet,
+            allow_unlinked_packet=args.allow_unlinked_packet,
         )
-        expected_language, expected_language_source = contractor_packet_language_metadata(packet)
-        if packet.get("executor") != EXECUTOR_KEY:
-            raise SystemExit(f"packet executor must be {EXECUTOR_KEY}")
-        profile = packet.get("expert_profile") if isinstance(packet.get("expert_profile"), dict) else {}
-        captured = capture.value()
-        prompt = render_packet_prompt(captured["packet"])
-        capture.require_unchanged(captured)
-        capture.require_unchanged(source)
         if prepared_sources is not None:
             prepared_sources.append((capture, source))
-        return prompt, {
-            "dispatch_id": packet.get("dispatch_id"),
-            "bead_id": packet.get("bead_id"),
-            "epic_id": packet.get("epic_id"),
-            "packet_sha256": packet.get("packet_sha256"),
-            "subject": packet.get("subject"),
-            "packet_source_sha256": capture.sha256,
-            "executor": packet.get("executor"),
-            "provider_key": packet.get("provider_key"),
-            "provider_family": packet.get("provider_family"),
-            "provider_retention_class": packet.get("provider_retention_class"),
-            "job_description_label": packet.get("job_description_label"),
-            "expert_profile": profile.get("path"),
-            "share_boundary": packet.get("share_boundary"),
-            "expected_return_language": expected_language,
-            "expected_return_language_source": expected_language_source,
-        }
+        return prompt, metadata
     if not args.allow_degraded_packet:
         raise SystemExit("ChatGPT prompt-file dispatch bypasses packet validation; use --packet or pass --allow-degraded-packet for an operator-only degraded dispatch")
     if not getattr(args, "rehearsal", False):
@@ -763,8 +719,8 @@ class PlaywrightChatGPTRunner:
                     raise SystemExit("the page is not on a ChatGPT origin; the prompt was not sent")
                 if not before_messages.get("available"):
                     raise SystemExit("the conversation could not be read before submission; the prompt was not sent")
-                screened = require_clean(submitted, surface="ChatGPT browser Send")
-                prepared = capture.bind(source, screened)
+                prepared = prepare_browser_submission(submitted, capture=capture, source=source)
+                screened = prepared.payload
                 self._require_current_source(prepared, source, screened.data)
                 captured, response_text = self._submit_and_capture(
                     page, screened.text(), timeout_ms, request_id, prepared, source,
@@ -1593,160 +1549,6 @@ def share_status(config: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def resolve_response_dir(raw: str | None) -> Path:
-    """Return the owner-only directory for private responses (outside the repository).
-
-    The path is read the way the artifact writer reads it: absolute, with no
-    ``..`` component to normalize away. It must lie outside the repository both
-    as written and with symlinks resolved; the writer then refuses any
-    symlinked component.
-    """
-    if not raw:
-        return cwo_temp_dir(purpose="chatgpt-browser-returns")
-    path = Path(raw).expanduser()
-    if not path.is_absolute():
-        raise SystemExit("--response-dir must be an absolute path")
-    try:
-        path = artifact_path(path)
-    except PrivateArtifactError as exc:
-        raise SystemExit("--response-dir must not contain a '..' component") from exc
-    if is_relative_to(path, REPO_ROOT) or is_relative_to(path.resolve(), REPO_ROOT):
-        raise SystemExit("--response-dir must live outside the repository")
-    return path
-
-
-def private_response_names(metadata: dict[str, Any]) -> tuple[str, str]:
-    """Fresh ``(provenance, response)`` file names for one capture.
-
-    A caller fixes them before anything is written, so that a failure at any
-    point afterwards can be checked against these names.
-    """
-    stem = re.sub(r"[^A-Za-z0-9._-]+", "-", str(metadata.get("dispatch_id") or "dispatch")).strip(".-") or "dispatch"
-    run_id = f"{stem}-{dt.datetime.now(dt.UTC).strftime('%Y%m%dT%H%M%SZ')}-{secrets.token_hex(4)}"
-    return f"{run_id}.provenance.json", f"{run_id}.response.txt"
-
-
-def note_present_response_files(exc: BaseException, response_dir: Path, names: tuple[str, ...],
-                                published: list[str] | tuple[str, ...] = ()) -> None:
-    """Note on ``exc`` each planned private response file that exists (or cannot be checked), and each one known to
-    have been published (``published``) even if it is no longer found by name."""
-    present = []
-    for name in names:
-        path = response_dir / name
-        try:
-            os.lstat(path)
-        except FileNotFoundError:
-            if any(Path(known).name == name for known in published):
-                present.append(f"{path} (published, but no longer at that path)")
-            continue
-        except OSError:
-            present.append(f"{path} (could not be checked)")
-            continue
-        present.append(str(path))
-    if present:
-        note = "private response files present after the failure: " + ", ".join(present)
-        if note not in getattr(exc, "__notes__", []):
-            exc.add_note(note)
-
-
-def write_private_response(
-    response_dir: Path,
-    *,
-    metadata: dict[str, Any],
-    prompt: str,
-    browser_result: dict[str, Any],
-    retained: list[str] | None = None,
-    names: tuple[str, str] | None = None,
-) -> dict[str, Any]:
-    """Persist the response privately and return a digest reference.
-
-    The response text never enters the dispatch result, stdout or the audit log.
-    An unverified capture is still stored, marked incomplete, as diagnostic
-    material that ingestion refuses as a return. Both files are written through
-    one pinned directory descriptor, provenance first: it holds identities and
-    the response digest but no response text, and ingest refuses it while the
-    response file it names is missing. Nothing is deleted on failure; the error
-    (or, for an interruption, an exception note) names any file that was
-    published, and every published path is appended to ``retained`` as soon
-    as it is known, so a caller can still report it after a later failure.
-    """
-    text = browser_result.get("response_text")
-    if not isinstance(text, str) or not text.strip():
-        raise SystemExit("browser response capture is empty; no private response artifact was written")
-    response_bytes = text.encode("utf-8")
-    provenance_name, response_name = names or private_response_names(metadata)
-    provenance = build_private_provenance(
-        metadata, prompt, browser_result, response_file=response_name, captured_at=now_utc(),
-    )
-    response_sha256 = provenance["response_sha256"]
-    complete = provenance["capture_complete"]
-    provenance_bytes = (json.dumps(provenance, indent=2, sort_keys=True) + "\n").encode("utf-8")
-    try:
-        directory = PrivateDirectory.open(response_dir, create=True)
-    except PrivateArtifactError as exc:
-        raise SystemExit(f"could not open the private response directory: {exc}") from exc
-    published = retained if retained is not None else []
-    try:
-        try:
-            try:
-                provenance_path = directory.write(provenance_name, provenance_bytes)
-            except BaseException as exc:
-                if getattr(exc, "retained_artifact", None) is not None:
-                    published.append(str(exc.retained_artifact))  # type: ignore[attr-defined]
-                if isinstance(exc, PrivateArtifactError):
-                    raise SystemExit(f"could not write private response provenance: {exc}") from exc
-                raise
-            published.append(str(provenance_path))
-            try:
-                response_path = directory.write(response_name, response_bytes)
-                published.append(str(response_path))
-            except BaseException as exc:
-                if getattr(exc, "retained_artifact", None) is not None and str(exc.retained_artifact) not in published:
-                    published.append(str(exc.retained_artifact))  # type: ignore[attr-defined]
-                present = directory.contains(response_name)
-                if present:
-                    retained = (f"the provenance {provenance_path} and the response {directory.path / response_name} are both "
-                                "retained; ingest accepts the pair only if the response matches its recorded digest")
-                elif present is False:
-                    retained = f"the provenance {provenance_path} is retained without its response file, and ingest refuses it"
-                else:
-                    retained = f"the provenance {provenance_path} is retained; whether the response file exists could not be checked"
-                if isinstance(exc, PrivateArtifactError):
-                    raise SystemExit(f"could not write private response artifact ({exc}); {retained}") from exc
-                exc.add_note(retained)
-                raise
-            reference = {
-                "provenance_path": str(provenance_path),
-                "response_path": str(response_path),
-                "response_sha256": response_sha256,
-                "provenance_sha256": sha256_bytes(provenance_bytes),
-                "capture_audit_fields": capture_audit_fields(provenance, sha256_bytes(provenance_bytes)),
-                "response_chars": len(text),
-                "capture_complete": complete,
-                "capture_incomplete_reasons": provenance["capture_incomplete_reasons"],
-            }
-            # The return stays inside the try with the finally, so CPython keeps the
-            # closing code it runs on the way out inside the outer handler.
-            return reference
-        except BaseException as exc:
-            # Covers the whole transaction, including the instructions between a
-            # publication and its bookkeeping: whatever exists is named.
-            for path in note_present_artifacts(exc, directory, [provenance_name, response_name]):
-                if path not in published:
-                    published.append(path)
-            raise
-        finally:
-            directory.close()
-    except BaseException as exc:
-        # Also covers closing the directory and the way into that cleanup, after
-        # which the descriptor may be gone: check by name.
-        for path in note_retained_by_name(exc, [directory.path / provenance_name, directory.path / response_name],
-                                          published + directory.published_paths):
-            if path not in published:
-                published.append(path)
-        raise
-
-
 def build_result(
     *,
     prompt: str,
@@ -1799,68 +1601,16 @@ def build_result(
 
 
 def record_browser_dispatch(result, args, quota_info):
-    attestation = result.get("model_attestation") if isinstance(result.get("model_attestation"), dict) else {}
     telemetry_kind = "browser_dispatch"
     if args.dry_run:
         telemetry_kind = "browser_rehearsal"
     elif args.confirm_only:
         telemetry_kind = "browser_confirmation"
-    live_submission = telemetry_kind == "browser_dispatch"
-    event = record_audit_event(
-        {
-            "event_type": "chatgpt_browser_dispatch",
-            **(result.get("response_artifact") or {}).get("capture_audit_fields", {}),
-            "quota_event_type": quota_info.get("quota_event_type"),
-            "quota_stage": "consumed" if quota_info.get("quota_checked") else None,
-            "dispatch_id": result["dispatch_id"],
-            "bead_id": result["bead_id"],
-            "epic_id": result["epic_id"],
-            "executor_key": result["executor"],
-            **waiver_audit_fields(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"]),
-            "provider_key": result["provider_key"],
-            "executor_external": True,
-            "dispatch_mode": "browser_automation",
-            "share_boundary": result["share_boundary"],
-            "packet_sha256": result["packet_sha256"],
-            "prompt_sha256": result["prompt_sha256"],
-            "quota_remaining": quota_info.get("quota_remaining"),
-            "share_url_present": bool(result.get("share_url")),
-            "response_artifact_present": bool(result.get("response_artifact")),
-            "response_sha256": (result.get("response_artifact") or {}).get("response_sha256"),
-            "share_link_method": result.get("share_link_method"),
-            "model_attestation_present": bool(result.get("model_attestation")),
-            "status": result["status"],
-            "failure_stage": result.get("failure_stage"),
-            **telemetry_fields(
-                telemetry_kind=telemetry_kind,
-                telemetry_status=result["status"],
-                telemetry_missing_reason="browser-ui-token-usage-unavailable" if live_submission else None,
-                agent_model_calls=1 if live_submission else 0,
-                retry_count=0,
-                model=result.get("model"),
-                model_label=result.get("model_label"),
-                reasoning_label=result.get("reasoning_label"),
-                provider_family=result.get("provider_family"),
-                provider_retention_class=result.get("provider_retention_class"),
-                job_description_label=result.get("job_description_label"),
-                expert_profile=result.get("expert_profile"),
-                elapsed_seconds=result.get("elapsed_seconds") if live_submission else None,
-                prompt_chars=result.get("prompt_chars"),
-                response_chars=result.get("response_chars"),
-                share_url_sha256=safe_text_hash(result.get("share_url")),
-                share_url_chars=len(str(result.get("share_url") or "")) if result.get("share_url") else None,
-                failure_reason_sha256=safe_text_hash(result.get("failure_reason")),
-                failure_reason_chars=len(str(result.get("failure_reason") or "")) if result.get("failure_reason") else None,
-                model_attestation_status=attestation.get("status"),
-                model_attestation_required=attestation.get("required"),
-                expected_return_language=result.get("expected_return_language"),
-                expected_return_language_source=result.get("expected_return_language_source"),
-            ),
-        }
+    return browser_capture.record_browser_dispatch(
+        result, quota_info=quota_info, telemetry_kind=telemetry_kind,
+        telemetry_missing_reason="browser-ui-token-usage-unavailable" if telemetry_kind == "browser_dispatch" else None,
+        waiver_fields=waiver_audit_fields(args, ["allow_degraded_packet", "allow_unlinked_packet", "audit"]),
     )
-    if result.get("response_artifact"):
-        result["response_artifact"]["capture_event_hash"] = event["event_hash"]
-    return event
 
 
 def main() -> None:

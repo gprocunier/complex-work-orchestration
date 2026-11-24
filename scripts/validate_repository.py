@@ -96,6 +96,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "chatgpt_urls": set(),
     "path_contract": set(),
     "private_artifact": set(),
+    "browser_capture": {"audit", "browser_provenance", "paths", "private_artifact", "telemetry"},
     "browser_provenance": {
         "audit", "candidate_identity", "chatgpt_urls", "outbound_screen",
         "packet_provenance", "private_artifact", "util",
