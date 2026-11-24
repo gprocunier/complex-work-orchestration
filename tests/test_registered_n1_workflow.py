@@ -451,7 +451,11 @@ class WorkflowTests(unittest.TestCase):
               patch.object(W.R.qualification, 'managed_login_home', side_effect=AssertionError('unexpected managed login')),
               patch.object(W.R.qualification, '_campaign_directory', side_effect=AssertionError('unexpected campaign')),
               original_finite_completion(self, self.case, workflow)):
-            result = workflow.run(provider_access_token=token)
+            try:
+                result = workflow.run(provider_access_token=token)
+            except Exception as failure:
+                tools._note_original_poll_refusal(workflow.factory, failure)
+                raise
         self.assertTrue(result['validation_complete'])
         self.assertEqual(attachments, [('appserver', workflow.factory, token.encode())])
         self.assertIsNone(workflow.factory._provider_access_token)

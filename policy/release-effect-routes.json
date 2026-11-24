@@ -2514,7 +2514,7 @@
 
 "p52f":[127,"FactoryTests.test_signed_registered_production_requires_the_original_workflow_guard",1735,"13d5fe4e692050f4d808bd972dbbc8550fcfce251d55e2d68ce35a25fbdfac78"],
 
-"p52p":[153,"WorkflowTests.test_production_one_original_attachment_and_separate_publication",436,"c2638a2b9fef50d89193f02c324174be83a2e05ecb906724a22da8d2eb40c18b"],
+"p52p":[153,"WorkflowTests.test_production_one_original_attachment_and_separate_publication",436,"cad48f385f57e6ac4dbd053debd582e459bf1258b6a530674ebc41ab0b3aedfa"],
 
 "p52r":[99,"F5NativeLiveHoldTests.test_registered_production_source_decision_leaves_raw_launch_and_rpc_held",72,"32053d858e77c84f717f1b70e5371b6665374c10cdf163639375f8b53ab1b43a"],
 
@@ -2708,9 +2708,9 @@
 
 "pF2":[126,"RegisteredFiniteToolWiringTests.test_exit_between_initial_read_and_reply_drains_tail_atomically",757,"e89024b485b277239d541ed51ab4c96ee76b83d24a92e4b07012477345084e6b"],
 
-"pF3":[140,"FiniteFixtureProgressTests.success_consumers",123,"6512505989b3603a07d4d766589b7439fe5a2396b1ba2fc69c6fdbb144502bc9"],
+"pF3":[140,"FiniteFixtureProgressTests.success_consumers",159,"6512505989b3603a07d4d766589b7439fe5a2396b1ba2fc69c6fdbb144502bc9"],
 
-"pF4":[140,"FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent",106,"efa6e0d1fcd29deb977e3108cf6cc1cd8dbaa68fac4d7ade0f27643d2f12d15d"],
+"pF4":[140,"FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent",142,"efa6e0d1fcd29deb977e3108cf6cc1cd8dbaa68fac4d7ade0f27643d2f12d15d"],
 
 "pF5":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",833,"416ec88722887755694115c4962bc03b5d5389870d4db51db7490c12923201ff"],
 
@@ -7000,7 +7000,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["06aae8199e311faba3b1764b756bf51a6f7c87a091c1b98fbe048a862e6eae04",420,133470],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["d4fd55499950b194642ef8fb18675d06372fdc528004f65528638982da53dfe6",420,133470],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7056,7 +7056,7 @@
 
 "tests/test_f5_native_live_holds.py":["8a10ea8f2423c4c1b43c428759a407170e363a8403e7bcfc1c9263d4a5b35ded",420,29698],
 
-"tests/test_finite_fixture_progress_acknowledgment.py":["c335349771c883c613295c1abd667e6a870aef6d79ec36b43372b142239956ff",420,27829],
+"tests/test_finite_fixture_progress_acknowledgment.py":["966f50fde466583060fcb0dce898c6bd7e479efba639f551bcc2e2f3444637d2",420,29691],
 
 "tests/test_first_project.py":["8c834f22ee213349cd540aa2bb6ad388aacf415789555313d8ebb5c47b734913",420,2675],
 
@@ -7118,7 +7118,7 @@
 
 "tests/test_registered_n1_qualification.py":["93e411b85e4134a65e084c015c614a2a2f51c411a707b3db92bdd762868e226f",420,37352],
 
-"tests/test_registered_n1_workflow.py":["e75111aa892fe6504474ea5326f370cb9633df270506f4d418f8b6a2ce87d27d",420,53730],
+"tests/test_registered_n1_workflow.py":["877f50f79bbb340544c229491f4a12d0c65cc3c2f9bb9368445a0e91a4f81159",420,53891],
 
 "tests/test_registered_native_pool_host.py":["25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",420,39405],
 

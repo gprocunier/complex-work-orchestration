@@ -21,7 +21,7 @@ def original_poll_ticket_clock(selected_producer):
     gate_type = wiring.gate_module.RegisteredFiniteInput
     producer_type = wiring.finite_tools.RegisteredFiniteToolCalls
     original_reserve, original_read = gate_type.reserve, gate_type._poll_dynamic
-    original_poll = producer_type._poll
+    original_poll = producer_type._poll_input
     sample = threading.local()
 
     def monotonic():
@@ -32,12 +32,12 @@ def original_poll_ticket_clock(selected_producer):
         reading = getattr(sample, 'reading', None)
         return reserved if reading is None else reserved + (now - reading)
 
-    def poll(producer, params, deadline):
+    def poll(producer, params, deadline, *, request=None):
         if producer is not selected_producer():
-            return original_poll(producer, params, deadline)
+            return original_poll(producer, params, deadline, request=request)
         sample.gate = producer.server.finite_input
         try:
-            return original_poll(producer, params, deadline)
+            return original_poll(producer, params, deadline, request=request)
         finally:
             sample.__dict__.clear()
 
@@ -57,13 +57,49 @@ def original_poll_ticket_clock(selected_producer):
 
     clock = SimpleNamespace(monotonic=monotonic, sleep=time.sleep)
     with patch.object(wiring.gate_module, 'time', clock), \
-            patch.object(producer_type, '_poll', poll), \
+            patch.object(producer_type, '_poll_input', poll), \
             patch.object(gate_type, 'reserve', reserve), \
             patch.object(gate_type, '_poll_dynamic', read):
         yield
 
 
 class FiniteFixtureProgressTests(unittest.TestCase):
+    def test_captured_poll_ticket_clock_resumes_at_the_original_pipe_observation(self):
+        gate_type = wiring.gate_module.RegisteredFiniteInput
+        producer_type = wiring.finite_tools.RegisteredFiniteToolCalls
+        gate, original_request = object(), object()
+        producer = SimpleNamespace(server=SimpleNamespace(finite_input=gate))
+        clock = SimpleNamespace(now=100.0, sleep=time.sleep)
+        clock.monotonic = lambda: clock.now
+        samples = []
+
+        def reserve(selected, chars, *, deadline):
+            self.assertIs(selected, gate)
+            self.assertEqual(chars, b'')
+            clock.now += 1.25
+            samples.append(wiring.gate_module.time.monotonic())
+            return SimpleNamespace(deadline=deadline)
+
+        def observe(selected, issued, timeout):
+            self.assertIs(selected, gate)
+            self.assertEqual(issued.deadline, 101)
+            self.assertEqual(timeout, 0)
+            clock.now += .25
+            samples.append(wiring.gate_module.time.monotonic())
+
+        def poll(selected, params, deadline, *, request):
+            self.assertIs(selected, producer)
+            self.assertIs(request, original_request)
+            ticket = gate_type.reserve(gate, b'', deadline=deadline)
+            return gate_type._poll_dynamic(gate, ticket, 0)
+
+        with (patch(__name__ + '.time', clock), patch.object(gate_type, 'reserve', reserve),
+              patch.object(gate_type, '_poll_dynamic', observe), patch.object(producer_type, '_poll_input', poll),
+              original_poll_ticket_clock(lambda: producer)):
+            producer_type._poll_input(producer, {}, 101, request=original_request)
+            self.assertEqual(wiring.gate_module.time.monotonic(), 101.5)
+        self.assertEqual(samples, [100.0, 100.25])
+
     def run_owned_selector(self, method, releases):
         """Own every started worker before the original nested test can start it."""
         owner = wiring.RegisteredFiniteToolWiringTests(method)
