@@ -20,7 +20,7 @@ from typing import Any, Iterator
 
 import close_bead_with_summary as closure
 import prepare_delivery_closure as original
-from cwo_core import beads
+from cwo_core import beads, closure_checks
 from cwo_core.errors import CWOPolicyError
 import production_closure_authority as production_authority
 
@@ -75,7 +75,7 @@ def _sources() -> tuple[tuple[str, bytes], ...]:
     modules = (closure, original, original.combined, original.producer, original.artifacts,
                original.validation, original.ci, original.rb,
                original.combined.validators, original.combined.final_review,
-               original.combined.validators.cc, original.validation.HOST, beads,
+               original.combined.validators.cc, original.validation.HOST, beads, closure_checks,
                production_authority, production_authority.host_records, production_authority.host_acceptance)
     paths = sorted({str(Path(module.__file__).resolve()) for module in modules} | {str(Path(__file__).resolve())})
     return tuple((name, hashlib.sha256(Path(name).read_bytes()).digest()) for name in paths)
@@ -555,17 +555,15 @@ def _task(state: _State, expected: dict[str, Any]) -> None:
 
 
 def _closed_prerequisites(state: _State, bead_id: str) -> None:
-    """Query complete directed edges; show omits reverse children by default."""
-    for kind, direction in (("blocks", "down"), ("parent-child", "up")):
-        raw = _bd(state, ["dep", "list", "--json", "--type", kind,
-                          "--direction", direction, "--", bead_id]).encode()
-        _need(len(raw) <= MAX_CONTROL, "prerequisite projection exceeds the control bound")
-        rows = original._read(b'{"relationships":' + raw + b'}')["relationships"]
-        _need(type(rows) is list, "authoritative prerequisite list is required")
-        for row in rows:
-            _need(type(row) is dict and type(row.get("id")) is str and bool(row["id"])
-                  and row.get("dependency_type") == kind, "authoritative prerequisite identity/type is required")
-            _need(row.get("status") == "closed", "nonclosed blocker or child prevents production closure")
+    def decode(raw: str, key: str) -> Any:
+        data = raw.encode()
+        _need(len(data) <= MAX_CONTROL, f"{key} projection exceeds the control bound")
+        return original._read(b'{"relationships":' + data + b'}')["relationships"]
+
+    try:
+        closure_checks.require_closed_prerequisites(lambda args: _bd(state, args), bead_id, decode=decode)
+    except closure_checks.PrerequisiteError as exc:
+        raise original.ClosureError(str(exc)) from exc
 
 
 def _adopt_observation(observation: Any, value: dict[str, Any], native: Any) -> Any:

@@ -251,6 +251,16 @@ AUDIT_BOOLEAN_FIELDS = {
     "waiver_required",
 }
 AUDIT_STRING_FIELDS = {
+    "baseline_sha256",
+    "candidate_sha256",
+    "manual_database_sha256",
+    "manual_delivery_session",
+    "manual_summary_sha256",
+    "manual_delivery_event",
+    "manual_reviewer",
+    "manual_review_session",
+    "manual_review_note",
+    "manual_acceptance_event",
     "private_provenance_sha256",
     "private_capture_binding_sha256",
     "packet_source_sha256",

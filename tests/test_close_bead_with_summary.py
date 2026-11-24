@@ -255,14 +255,14 @@ class RequirementBaselineLeavesClosureDisabledTests(unittest.TestCase):
                                      why="baseline recorded", evidence=[recorded], baseline=str(fixtures / "baseline-v1.json")))
                     run_bd.assert_not_called()
 
-    def test_the_command_line_takes_no_baseline_or_acceptance_input(self) -> None:
+    def test_baseline_and_amendment_flags_cannot_authorize_success(self) -> None:
         import contextlib
         import io
 
         from close_bead_with_summary import main
 
         fixtures = ROOT / "tests" / "fixtures" / "requirement-baseline"
-        for option in ("--baseline", "--amendment", "--acceptance-record"):
+        for option, expected in (("--baseline", 1), ("--amendment", 1), ("--acceptance-record", 2)):
             argv = ["--bead", "proj-abc", "--disposition", "completed", "--why", "baseline recorded", "--close",
                     option, str(fixtures / "baseline-v1.json")]
             with self.subTest(option=option), patch("close_bead_with_summary.run_bd") as run_bd, \
@@ -270,7 +270,7 @@ class RequirementBaselineLeavesClosureDisabledTests(unittest.TestCase):
                     self.assertRaises(SystemExit) as raised:
                 main(argv)
             run_bd.assert_not_called()
-            self.assertEqual(raised.exception.code, 2)
+            self.assertEqual(raised.exception.code, expected)
 
 
 class CandidateIdentityLeavesClosureDisabledTests(unittest.TestCase):
@@ -317,13 +317,13 @@ class CandidateIdentityLeavesClosureDisabledTests(unittest.TestCase):
                                          candidate=str(repo)))
                         run_bd.assert_not_called()
 
-    def test_the_command_line_takes_no_candidate_input(self) -> None:
+    def test_candidate_and_repository_flags_cannot_authorize_success(self) -> None:
         import contextlib
         import io
 
         from close_bead_with_summary import main
 
-        for option in ("--candidate", "--candidate-identity", "--bead-json", "--repo"):
+        for option, expected in (("--candidate", 1), ("--candidate-identity", 2), ("--bead-json", 2), ("--repo", 1)):
             argv = ["--bead", "proj-abc", "--disposition", "completed", "--why", "candidate verified", "--close",
                     option, "candidate.json"]
             with self.subTest(option=option), patch("close_bead_with_summary.run_bd") as run_bd, \
@@ -331,7 +331,7 @@ class CandidateIdentityLeavesClosureDisabledTests(unittest.TestCase):
                     self.assertRaises(SystemExit) as raised:
                 main(argv)
             run_bd.assert_not_called()
-            self.assertEqual(raised.exception.code, 2)
+            self.assertEqual(raised.exception.code, expected)
 
 
 class ReviewRoundTwoTests(unittest.TestCase):

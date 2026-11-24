@@ -1689,6 +1689,57 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             with self.assertRaisesRegex(R.Refused, "decoded inventory string budget exceeded by source binding digests"):
                 R._source_binding_layout(stored, compact=False)
 
+    def test_point_digest_encoding_preserves_legacy_point_and_trace_identities(self):
+        root, _output, _review = self.example(compact=True)
+        path = root / R.INVENTORY
+        value, _digest = R.inventory(root)
+        expected = R.trace(root)
+        self.assertEqual(json.loads(path.read_bytes())["points"], value["points"])
+        value.update(point_digest_encoding="sha256-base64url-v1",
+                     shared_strings={"18": value["points"]["test"][3]})
+        raw = R.inventory_bytes(value)
+        path.write_bytes(raw)
+        stored = json.loads(raw)
+        self.assertRegex(stored["points"]["entry"][3], r"^[A-Za-z0-9_-]{43}$")
+        self.assertEqual(stored["points"]["test"][3], {"$": 18})
+        for key in ("gate", "effect"):
+            self.assertEqual(stored["points"][key], value["points"][key])
+        loaded, _digest = R.inventory(root)
+        self.assertEqual(loaded["points"], value["points"])
+        self.assertEqual(R.inventory_bytes(loaded), raw)
+        self.assertEqual(R._routes(stored), R._routes(value))
+        observed = R.trace(root)
+        for field in ("routes", "sites", "primitive_hits", "primitive_coverage"):
+            self.assertEqual(observed[field], expected[field])
+
+    def test_point_digest_encoding_refuses_corrupt_and_undeclared_rows(self):
+        root, _output, _review = self.example(compact=True)
+        path = root / R.INVENTORY
+        value, _digest = R.inventory(root)
+        value["point_digest_encoding"] = "sha256-base64url-v1"
+        stored = json.loads(R.inventory_bytes(value))
+        valid = stored["points"]["entry"][3]
+        alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+        noncanonical = valid[:-1] + alphabet[alphabet.index(valid[-1]) + 1]
+        for malformed in (None, True, valid[:-1], valid + "=", noncanonical, value["points"]["entry"][3]):
+            with self.subTest(digest=malformed):
+                altered = copy.deepcopy(stored)
+                altered["points"]["entry"][3] = malformed
+                path.write_bytes(R._inventory_sections(altered) + b"\n")
+                with self.assertRaisesRegex(R.Refused, "point digest|canonical inventory layout"):
+                    R.inventory(root)
+        path.write_bytes(R._inventory_sections({**stored, "point_digest_encoding": "other"}) + b"\n")
+        with self.assertRaisesRegex(R.Refused, "point digest encoding"):
+            R.inventory(root)
+        undeclared = {key: item for key, item in stored.items() if key != "point_digest_encoding"}
+        path.write_bytes(R._inventory_sections(undeclared) + b"\n")
+        with self.assertRaisesRegex(R.Refused, "stale entrypoint body or location"):
+            R.trace(root)
+        expanded = R._string_layout(stored, compact=False)
+        with patch.object(R, "MAX_FILE", len(R.encoded(expanded))):
+            with self.assertRaisesRegex(R.Refused, "decoded inventory string budget exceeded by point digests"):
+                R._point_digest_layout(expanded, compact=False)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -32,13 +32,13 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   checks the worker's recorded activity while it runs, and completion alone is
   not acceptance. These checks are cooperative: the lead runs them, and nothing
   stops a lead that skips one.
-- **Keeps delivered work open until it is accepted.** Delivered work is recorded
-  as `pending-acceptance` through narrative summaries. The separate
-  [verified closure library](references/run-readiness.md#verified-closure-library)
-  joins the original accepted requirement baseline, exact candidate and current
-  evidence. This enabled library route requires an embedding host's verified,
-  single-use acceptance, a separated adjudicator and no open blockers or children.
-  The narrative CLI still records `pending-acceptance`.
+- **Keeps delivered work open until it is accepted.** The lead records a
+  `pending-acceptance` delivery. A reviewer working by hand can accept and close
+  it in one command using the exact candidate digest they reviewed. Closure
+  requires the current requirement baseline and no open blockers or children.
+  [Accept a delivery by hand](references/run-readiness.md#accepting-a-delivery-by-hand)
+  or see the [verified closure library](references/run-readiness.md#verified-closure-library)
+  for embedding hosts.
 
 The [Limits](#limits) section lists what CWO does not do.
 
@@ -235,8 +235,7 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   separated from the executor, with all required clearances and no open blockers
   or children. Host records provide integrity within the host trust boundary;
   an unrestricted same-user writer can mint or replace them. The shipped review
-  host producer remains held by `LOCAL_INVOCATION_AVAILABLE`; the narrative CLI
-  still records `pending-acceptance`.
+  host producer remains held by `LOCAL_INVOCATION_AVAILABLE`.
 - **Cleanup detects and prunes by default.** The CLI supplies no controller
   capability, so termination requests report `termination-unavailable`.
   Explicit in-process callers may supply the original controller's opaque

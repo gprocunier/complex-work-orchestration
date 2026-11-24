@@ -301,16 +301,14 @@ adjudication is the handoff decision.
 
 ## Closing Beads
 
-`scripts/close_bead_with_summary.py` records closure memory, but it does not
-consume verified completion authority. Before any Beads write it refuses
-`completed` and every other success disposition. Caller narratives cannot stand
-in for the verified library consumer below. Nothing is written when it refuses.
+`scripts/close_bead_with_summary.py` records closure memory. Before any Beads
+write it refuses `completed` and every other success disposition.
 
 These outcomes remain available:
 
 | Disposition | Use | Bead afterwards |
 | --- | --- | --- |
-| `pending-acceptance` | The work is delivered and validated as far as the lead can tell; acceptance is not verified | Open; the operator decides whether to close it |
+| `pending-acceptance` | The lead has delivered the work for review | Open until accepted |
 | `deferred` | The work is postponed | Open |
 | `superseded`, `split` | The work continues in other Beads | May be closed with `--close` |
 | `rejected`, `abandoned` | The work will not be delivered | May be closed with `--close` |
@@ -318,6 +316,53 @@ These outcomes remain available:
 Planning, readiness validation and `--dry-run` previews of these outcomes are
 unaffected. Recording a baseline, candidate or narrative summary alone never
 authorizes completion.
+
+### Accepting a delivery by hand
+
+Record the [requirement baseline and exact candidate](#candidate-identity) on
+the Bead first. From the project checkout, the delivering lead posts a bound
+delivery using the existing `pending-acceptance` command. In this example,
+`$CWO` is the path to the installed skill or its source checkout.
+
+```bash
+python3 "$CWO/scripts/close_bead_with_summary.py" --bead "$bead" \
+  --disposition pending-acceptance --why "Ready for hand review" \
+  --baseline "$baseline" --candidate "$candidate"
+```
+
+The reviewer checks the baseline criteria and the exact candidate, including
+the uncommitted content identified in its manifest. Keep the candidate digest
+shown in the delivery and use it in the acceptance command. Run the command
+in the foreground of an ordinary Linux terminal, outside the delivering
+session and the Codex or Claude process tree. The terminal can use the same
+account and shell that launched Codex.
+
+```bash
+python3 "$CWO/scripts/cwo.py" accept-delivery --bead "$bead" \
+  --baseline "$baseline" --candidate "$candidate" \
+  --reviewed-candidate "$reviewed_candidate_digest" \
+  --note "Reviewed the changes and checked the baseline criteria."
+```
+
+Both commands accept `--repo` to select a project from another directory and
+repeatable `--amendment` arguments in the order applied. They use the selected
+project's Beads database or the one selected by `BEADS_DIR`. A prior narrative
+summary can be left in place and the lead can post a bound delivery for review.
+
+The command checks the current baseline and candidate references, live
+candidate identity, and the status of blockers and children. The host audit
+chain records the reviewer's local account and process session, the time, the
+review note, and both digests. It records the acceptance before attempting to
+close and adds the closure receipt after reading the closed Bead back. If the
+close result is uncertain, rerunning the command checks for that specific
+close and records it if confirmed. It will issue at most one close for the
+recorded delivery.
+
+Process ancestry and foreground terminal ownership are observed by the
+kernel. They distinguish a normal reviewer shell from the recorded delivering
+process and known agent descendants within the verified host's integrity
+boundary. Unrestricted processes that can directly change Beads or rewrite
+the host audit history remain outside that boundary.
 
 ### Verified closure library
 

@@ -132,6 +132,8 @@ __all__ = [
     "typed_artifact_requirement",
     "risk_features",
     "candidate_identity",
+    "closure_checks",
+    "manual_delivery",
     "routing",
     "routing_signals",
     "synthesis",

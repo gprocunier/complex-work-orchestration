@@ -22,6 +22,7 @@ COMMANDS = {
     "import-telemetry": "import_execution_telemetry.py",
     "status-report": "render_execution_status_report.py",
     "close-bead": "close_bead_with_summary.py",
+    "accept-delivery": "accept_delivery.py",
     "cleanup-stale-agents": "cleanup_stale_agents.py",
     "temp": "cwo_temp.py",
     "continue": "continue_sprint.py",

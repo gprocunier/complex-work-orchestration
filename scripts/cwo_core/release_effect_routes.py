@@ -23,6 +23,7 @@ MAX_DECODED_EXCLUSION_TEXT = 580 * 1024
 MAX_FILE = 2 * 1024 * 1024
 MAX_TOTAL = 128 * 1024 * 1024
 MAX_FILES = 12000
+SHA256_BASE64URL = "sha256-base64url-v1"
 WITNESS_SEMANTICS = {
     "zero-effect-refusal": "zero-effect-and-matched-positive",
     "operator-contract": "operator-selection-and-limits",
@@ -131,7 +132,36 @@ def inventory_bytes(value):
     """Sorted keys, authored array order, compact rows with blank separators."""
     expanded = _string_layout(value, compact=False, prune=True)
     bindings = _source_binding_layout(_witness_layout(expanded, compact=True), compact=True)
-    return _inventory_sections(_string_layout(bindings, compact=True, prune=True)) + b"\n"
+    points = _point_digest_layout(bindings, compact=True)
+    return _inventory_sections(_string_layout(points, compact=True, prune=True)) + b"\n"
+
+
+def _point_digest_layout(value, *, compact):
+    """Encode only declaration digests. Keep exact text spans and shared digests."""
+    field = "point_digest_encoding"
+    if field not in value:
+        return value
+    need(value[field] == SHA256_BASE64URL, "point digest encoding refused")
+    table = value.get("points")
+    need(type(table) is dict, "point table required")
+    shared = set(value.get("shared_strings", {}).values())
+    points = {key: _point_digest_row(row, shared, compact=compact) for key, row in table.items()}
+    result = {**value, "points": points}
+    if not compact:
+        need(len(encoded(result)) <= MAX_FILE, "decoded inventory string budget exceeded by point digests")
+    return result
+
+
+def _point_digest_row(row, shared, *, compact):
+    need(type(row) is list and len(row) in {3, 4, 6}, "point row width refused")
+    if type(row[1]) is not str:
+        need(len(row) != 4, "point declaration symbol required")
+        return row
+    need(len(row) == 4, "point declaration row width refused")
+    sha = _sha256_hex(row[3], True, "point")
+    if compact and sha not in shared:
+        sha = _sha256_base64(bytes.fromhex(sha))
+    return [*row[:3], sha]
 
 
 def _source_binding_identity(row, columns, compact_digests):
@@ -140,7 +170,7 @@ def _source_binding_identity(row, columns, compact_digests):
         need(len(row) == len(columns), "source binding row width refused")
         row = dict(zip(columns, row))
     need(type(row) is dict and set(row) == set(columns), "source binding identity fields refused")
-    digest_hex = _source_binding_hex(row["sha256"], compact_digests)
+    digest_hex = _sha256_hex(row["sha256"], compact_digests, "source binding")
     row = {**row, "sha256": digest_hex}
     need(type(row["mode"]) is int and 0 <= row["mode"] <= 0o7777
          and type(row["size"]) is int and row["size"] >= 0, "source binding mode or size refused")
@@ -1298,7 +1328,7 @@ def _check_script_bindings(value, files):
 def inventory(root):
     data, _identity = read_file(root, INVENTORY, MAX_INVENTORY)
     stored = json.loads(data)
-    value = _string_layout(stored, compact=False)
+    value = _point_digest_layout(_string_layout(stored, compact=False), compact=False)
     need(value["schema"] == "compact-release-routes-v1", "inventory schema refused")
     ids = [route["id"] for route in value["routes"]]
     need(ids and len(ids) == len(set(ids)), "missing or duplicate routes")
@@ -1326,7 +1356,8 @@ def _table_witness(value, key):
 
 def _routes(value):
     """Expand only explicit shared inventory references; no inferred edges."""
-    value = _witness_layout(_string_layout(value, compact=False, prune=True), compact=False)
+    expanded = _string_layout(value, compact=False, prune=True)
+    value = _witness_layout(_point_digest_layout(expanded, compact=False), compact=False)
     if "contracts" not in value:
         return value["routes"]
     rows = []
@@ -1563,28 +1594,28 @@ def _source_binding_paths(value, *, compact):
     return {aliases.get(path, path): row for path, row in expanded.items()}
 
 
-def _source_binding_base64(data):
+def _sha256_base64(data):
     from base64 import urlsafe_b64encode
 
     return urlsafe_b64encode(data).decode("ascii").rstrip("=")
 
 
-def _source_binding_hex(value, compact_digests):
+def _sha256_hex(value, compact_digests, scope):
     from base64 import urlsafe_b64decode
 
     if type(value) is str and re.fullmatch(r"[0-9a-f]{64}", value) is not None:
         return value
     need(compact_digests and type(value) is str and re.fullmatch(r"[A-Za-z0-9_-]{43}", value) is not None,
-         "source binding digest refused")
+         f"{scope} digest refused")
     raw = urlsafe_b64decode(value + "=")
-    need(len(raw) == 32 and _source_binding_base64(raw) == value, "noncanonical source binding digest refused")
+    need(len(raw) == 32 and _sha256_base64(raw) == value, f"noncanonical {scope} digest refused")
     return raw.hex()
 
 
 def _source_binding_rows(value, bindings, columns, *, compact):
     field = "source_binding_digest_encoding"
     compact_digests = field in value
-    need(not compact_digests or value[field] == "sha256-base64url-v1", "source binding digest encoding refused")
+    need(not compact_digests or value[field] == SHA256_BASE64URL, "source binding digest encoding refused")
     expanded = {**value, "source_bindings": bindings}
     rows, delta = {}, 0
     for path, row in bindings.items():
@@ -1593,7 +1624,7 @@ def _source_binding_rows(value, bindings, columns, *, compact):
             stored = row[0] if type(row) is list else row["sha256"]
             delta += 64 - len(stored)
             if compact:
-                identity["sha256"] = _source_binding_base64(bytes.fromhex(identity["sha256"]))
+                identity["sha256"] = _sha256_base64(bytes.fromhex(identity["sha256"]))
         rows[path] = [identity[key] for key in columns] if compact else identity
     if compact_digests:
         need(len(encoded(expanded)) + delta <= MAX_FILE, "decoded inventory string budget exceeded by source binding digests")
