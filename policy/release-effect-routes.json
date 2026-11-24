@@ -6666,7 +6666,7 @@
 
 "scripts/cwo_core/native_pool_config.py":["a6a498b3beb95552e11bc4af834ce0b467210d7ddcae315618ae568b44374d14",420,44141],
 
-"scripts/cwo_core/native_pool_contracts.py":["d428cec0cf58ff3f34ea428d0ba958a6d936a35f0eb29d2cb5d8ab2de9b0567d",420,124342],
+"scripts/cwo_core/native_pool_contracts.py":["e26d46dff8c53c1b2958c3580665674537190411b68ec9efe6dd40ea47ade512",420,124542],
 
 "scripts/cwo_core/native_pool_leases.py":["4827e94d1dc892392e7cea24e8fd26572c74a2989854c2274ced29f2d1c2c8eb",420,25629],
 
@@ -7034,7 +7034,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["60b81103ca1eba94f80d9de3ffbae7eb8728aa30ef53eda0b46064efe2e51e73",420,133470],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["2cfadeea4d5d1eb1b10f8521152345cb4109072b862bca5de78300219b289f60",420,133470],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7112,7 +7112,7 @@
 
 "tests/test_local_invocation_reservation.py":["61fc7e4dfa8e8a4aa2233e66dc522fc6e9aeba3cd1af02c947cad53669b8caf4",420,40692],
 
-"tests/test_maintenance_native_runtime.py":["5ada83a8b794fb663c2f5f36250b61b3c3f8392ad8e3e8329447354f01f95653",420,55611],
+"tests/test_maintenance_native_runtime.py":["c05f20657b196a1b883e5779576249dcf9c22d9463df3a7a66875bcbe0c7cc1a",420,57221],
 
 "tests/test_native_activation_preview.py":["a1e1cd5cb44683e98c8a3b7acc8da4531221381d16e45f403287b3d53d63b84c",420,54819],
 
