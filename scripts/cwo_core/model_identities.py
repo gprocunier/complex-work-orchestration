@@ -14,7 +14,7 @@ TERRA_MODEL = "gpt-5.6-terra"
 LUNA_MODEL = "gpt-5.6-luna"
 
 MODEL_ROLES = ("sol", "astra", "luna", "terra")
-OPERATIVE_ROLES = ("luna", "terra")
+OPERATIVE_ROLES = ("luna", "terra", "sol")
 CYBER_FALLBACK_ROLE = "cyber_fallback"
 CYBER_FALLBACK_MODEL = "gpt-daybreak-blue-latest"
 CYBER_FALLBACK_ACCESS_PROGRAM = "daybreakBlue"
@@ -39,7 +39,7 @@ def _validate_role(role: str, entry: Any) -> None:
     if role in ("sol", "astra"):
         required.add("reviewer_rank")
     launch_fields = {"reasoning_effort", "service_tier"} if role == "sol" else set()
-    if not isinstance(entry, Mapping) or not required <= set(entry) <= required | {"pin"} | launch_fields:
+    if not isinstance(entry, Mapping) or not required <= set(entry) <= required | {"pin", "purpose"} | launch_fields:
         raise ValueError(f"model-roles {role} fields are invalid")
     if entry["selection"] not in ("explicit", "latest-in-family"):
         raise ValueError(f"model-roles {role} selection is invalid")
@@ -201,8 +201,8 @@ def role_for_model(
     return role if resolve_model(role, config=config, catalog=catalog) == model else None
 
 
-def operative_models() -> tuple[str, str]:
-    return resolve_model("luna"), resolve_model("terra")
+def operative_models() -> tuple[str, ...]:
+    return tuple(resolve_model(role) for role in OPERATIVE_ROLES)
 
 
 def cyber_fallback_availability(

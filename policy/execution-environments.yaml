@@ -65,7 +65,8 @@
         "execution_lifecycle_owner": "CWO",
         "concurrent_bead_execution": "disabled-by-default"
       },
-      "notes": "Connected CWO: Sol owns architecture and integration. Luna is the operative first choice after task sizing. Terra requires recorded escalation. The operative_routing block describes historical v2 records. Current dispatch is governed by task_selected_routing in native-worker-execution."
+      "task_selected_executors": ["internal_worker_luna", "internal_worker_terra", "internal_worker_sol"],
+      "notes": "Sol owns architecture and integration and handles recorded coding escalation. Luna handles focused native work after sizing. Terra handles interface, visual and computer-use work. The operative_routing block describes historical v2 records. Current dispatch is governed by task_selected_routing in native-worker-execution."
     },
     "connected-codex-glm-primary": {
       "display_name": "Connected Codex PM plus GLM-5.2 Primary Architect",
@@ -144,6 +145,7 @@
         "execution_lifecycle_owner": "CWO",
         "concurrent_bead_execution": "disabled-by-default"
       },
+      "task_selected_executors": ["internal_worker_luna", "internal_worker_terra", "internal_worker_sol"],
       "notes": "Experimental first-pass path for airgap preparation. Codex shell coordinates as PM; GLM-5.2 BF16 Thinking owns architecture decisions as no-write local evidence; Codex 5.6 Sol is the internal second-opinion lane and the connected default architect."
     },
     "connected-opencode-exemplar": {

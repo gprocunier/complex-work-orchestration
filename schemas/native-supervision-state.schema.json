@@ -32,7 +32,7 @@
     "requested_model": {
       "anyOf": [
         {"enum": ["gpt-5.3-codex-spark", "gpt-5.5"]},
-        {"type": "string", "pattern": "^gpt-[1-9][0-9]*(\\.(0|[1-9][0-9]*))*-(luna|terra)$(?![\\s\\S])"}
+        {"type": "string", "pattern": "^gpt-[1-9][0-9]*(\\.(0|[1-9][0-9]*))*-(luna|terra|sol)$(?![\\s\\S])"}
       ],
       "description": "Recorded packet identity. The supervision entry point verifies the bound packet and requested model."
     },

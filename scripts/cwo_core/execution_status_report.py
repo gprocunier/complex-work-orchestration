@@ -1692,7 +1692,9 @@ def _is_native_disposition_record(record: dict[str, Any]) -> bool:
     if isinstance(record.get("artifact_validation"), dict):
         return True
     model = _clean(record.get("model")) or _clean(record.get("workerbee_actual_model"))
-    return model == SPARK_MODEL or model_family_role(model) in OPERATIVE_ROLES
+    # Sol also leads architecture and reviews. A Sol identity alone cannot
+    # establish a worker disposition without the worker evidence above.
+    return model == SPARK_MODEL or model_family_role(model) in set(OPERATIVE_ROLES) - {"sol"}
 
 
 def _sol_breakfix_summary(records: list[dict[str, Any]]) -> dict[str, Any]:

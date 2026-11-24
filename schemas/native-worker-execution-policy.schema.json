@@ -438,15 +438,16 @@
           "type": "object", "additionalProperties": false,
           "properties": {
             "sizing": {"type": "string"},
-            "approved_roles": {"type": "array", "items": {"enum": ["luna", "terra"]}, "minItems": 2, "uniqueItems": true},
+            "approved_roles": {"type": "array", "items": {"enum": ["luna", "terra", "sol"]}, "minItems": 3, "uniqueItems": true},
             "primary_role": {"const": "luna"},
+            "sol_selection": {"type": "string"},
             "terra_selection": {"type": "string"},
             "model_substitution": {"type": "string"}
           }
         },
         "operative_roles": {
-          "type": "object", "additionalProperties": false, "required": ["luna", "terra"],
-          "properties": {"luna": {"type": "string"}, "terra": {"type": "string"}}
+          "type": "object", "additionalProperties": false, "required": ["luna", "terra", "sol"],
+          "properties": {"luna": {"type": "string"}, "terra": {"type": "string"}, "sol": {"type": "string"}}
         },
         "historical_versions": {"const": [2, 3]},
         "attempt_binding": {"type": "object", "additionalProperties": false, "properties": {"exact_identity_required": {"type": "boolean"}, "provenance_required": {"type": "boolean"}, "scope_required": {"type": "boolean"}, "budget_required": {"type": "boolean"}, "stopped_session_reuse": {"type": "string"}, "session_substitution": {"type": "string"}}},

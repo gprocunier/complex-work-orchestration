@@ -740,7 +740,7 @@
 
 "p165":[78,272,"if unmet:"],
 
-"p166":[73,"main",1554,"005ac47978816b3ef414109f301c120e45aa8fd55225f56969a8c5d437051a47"],
+"p166":[73,"main",1554,"fa4f0b1ae6e708db4fc3e79cbda81750537da401ef4d2195fcc9e23c1cf1bb9b"],
 
 "p167":[65,472,"R.live_availability.require_n1_live()"],
 
@@ -6472,11 +6472,11 @@
 ],
 
 "source_bindings":{
-"policy/model-roles.yaml":["f1b87b2782590676df717862770925039225444fe69bf034cf258834076fc075",420,507],
+"policy/model-roles.yaml":["b6ce708683d9f3654d9f50d1c82edde478bf5de70757307366a77c9279a5456d",420,726],
 
 "policy/qualification-target.yaml":["0d69dde80205fa799fa2c8dd3aabd5ede48b08fe20cdcd4e7e931328f5c0d181",420,20299],
 
-"references/claims-register.md":["f3feb00cb738c65cd453fd5a3fa1871380d7cc8c4dec8c022f515b920ba97b05",420,8645],
+"references/claims-register.md":["1172d358ba121e576aea35a2cb9dd273b813bddbd659b405aad4e5f4caf840f0",420,8735],
 
 "references/cwo-system-prompt.md":["35a51347e73c234265797478a591dd101b803e4ba123d36b0ceeaa556c3b92bf",420,2833],
 
@@ -6590,7 +6590,7 @@
 
 "scripts/cwo_core/execution_enhancement_metrics.py":["37a4ca2849403e4948ae80bf94d798733817c808505b77cc274b867735908cbd",420,3891],
 
-"scripts/cwo_core/execution_status_report.py":["f8d9bf474bd8ddd902ad223bb1d6d448b89cffaa1eb9c380ac3675fcd475239d",420,115309],
+"scripts/cwo_core/execution_status_report.py":["e43e09fc597e7f8c132a9b7fc4812c0f3640cb47a3001c8270435fa832a1c29f",420,115471],
 
 "scripts/cwo_core/frozen_protocol.py":["b9dcda16865c200ad29727c0b13c89b167d1b39c9c836ad65e60e245a019a6f2",420,25676],
 
@@ -6628,7 +6628,7 @@
 
 "scripts/cwo_core/model_catalog_startup.py":["0eab2e78e670d470619c4709d18fc14cc548a0d9ed96233b923229484e30c6f2",420,2045],
 
-"scripts/cwo_core/model_identities.py":["32c66a238c0ffbeb648bb6cc357644edc7452a39b3af73781bc90760bc9b18ed",420,10335],
+"scripts/cwo_core/model_identities.py":["60e803948e48ca172a341c77fc9ebb61b1d97388dc4bf95cffdf01562d8783f6",420,10362],
 
 "scripts/cwo_core/model_identity_scope.py":["e841859834c27ae731cde14ae0411da86a9009bbfbc9dea9ae2ebb5b482a59e1",420,10784],
 
@@ -6716,7 +6716,7 @@
 
 "scripts/cwo_core/native_worker_contracts.py":["3162aa1846bcd951b14b645754cf9e696b774e5b795cf37fef5e4d7840bdb7a5",420,48251],
 
-"scripts/cwo_core/operative_routing.py":["925b285f8c9b5140c317ede7ff1d9f9c870070771ace3053ca7c85530680e882",420,123703],
+"scripts/cwo_core/operative_routing.py":["60365ec405738ebf8c59a59deadc442c0817762f38102cc5e7b39d88d5b1bc2c",420,126498],
 
 "scripts/cwo_core/outbound_screen.py":["cb160e0e0ee6967c5beef8a748daee9e73f7bcdd135f75481fbc0ec4c13482c6",420,124664],
 
@@ -6734,7 +6734,7 @@
 
 "scripts/cwo_core/peer_review_identity.py":["7c532cedc57ace3b7b442f2be99d12ab8db4ee24931216e847a703d2a38fded7",420,8532],
 
-"scripts/cwo_core/policy.py":["f9af666fe43d42807a071bf38dd7e23fef62a399c3d3503b531fd66405ffbbc7",420,14999],
+"scripts/cwo_core/policy.py":["88a9a59af06958c49fbf301bcb7e868856d0dd46af79337f10345fd19612b311",420,15078],
 
 "scripts/cwo_core/policy_schema.py":["49c38103ea50a093e16fef9c0a3d6feed3a6df7740f40ff5a13b669ca70db581",420,26198],
 
@@ -6776,7 +6776,7 @@
 
 "scripts/cwo_core/risk_features.py":["894ada759b8d000443b693a0ad382401fe2f64a519696aa039a20070443cf275",420,11188],
 
-"scripts/cwo_core/routing.py":["83590e314bee56da4e1bc138700adb482dbd9e071f74374b7762383d880cb5d6",420,71774],
+"scripts/cwo_core/routing.py":["f466c024ef56b197d4df22410a07c2d158198d3b8dcf112fa2a954c3e8c7ba6b",420,71851],
 
 "scripts/cwo_core/routing_signals.py":["6c32034033ae49cb45a38f63315825d648af53ac45455b2ee48249938d446246",420,8583],
 
@@ -6812,7 +6812,7 @@
 
 "scripts/cwo_core/waivers.py":["dd27ea554c45d372b8f5967b833bff3e2cf74cad9fc9767dd18683229c5cd106",420,1570],
 
-"scripts/cwo_core/work_sizing.py":["bf21141229a035ce1b3cdd208c9210ae5898a9381117b1afb17c6d295e52189a",420,107707],
+"scripts/cwo_core/work_sizing.py":["68789f3f22f3a392407432843eadced5d418ba5df9c6d22b6ef9967b30472441",420,108246],
 
 "scripts/cwo_core/workgraph_markdown.py":["f135fb64e2e62747178a3521792d4cb934d2b4680a7560b9ecc20290b6404cb3",420,374],
 
@@ -6980,7 +6980,7 @@
 
 "scripts/run_checked_command_sequence.py":["67cb839861408e9e834d1d70bcbc460b98edd5a28e6649106cd2c196e6cd5062",420,1903],
 
-"scripts/run_native_pool_activation_preview.py":["ba8d6118af6dba182381e69f7354cd743434f320e678253e5ae0d36e42307b94",420,56364],
+"scripts/run_native_pool_activation_preview.py":["b345a67f7ecea8846f089e0e36d25f3f38abc332cdaf83257356df1fd1050b25",420,56428],
 
 "scripts/run_native_pool_live_canaries.py":["8e828c470f95f69ad0becc2a81c63307f36472ebc57fc90eaee403181adc50c6",420,611327],
 
@@ -7002,9 +7002,9 @@
 
 "scripts/supervise_native_pool.py":["daba0c7e673b65099a99497b5328746fda9cb81299894ed8545c0dbf2a6d2f12",493,10958],
 
-"scripts/supervise_native_precommit.py":["33546249e89e2446664a91afc7db6a71a4213082f60e074c236db41db5b07125",420,9105],
+"scripts/supervise_native_precommit.py":["4490b30d2c3d4942979345d89d7b7fc5683f07feca83610c92e641fbb4c3d0cf",420,9158],
 
-"scripts/supervise_native_worker.py":["48c46bf1173e7d158943953e6e8930c0e49573910142ffc992127cdbe0e1b48e",420,115209],
+"scripts/supervise_native_worker.py":["875d093966b82524073cd71ab5f46b48754240879fe36a289e27e17faa7a6784",420,115264],
 
 "scripts/sync_native_pool_capacity.py":["69524cb00be779407de2a0890d9570df86b4b9dd28ed3bdd0809a2ec93741a89",493,1360],
 
@@ -7016,7 +7016,7 @@
 
 "scripts/validate_public_copy.py":["e63be9d1068501c22640263a71725c5d2743679ac61908334a0b8a7b71fcb7ca",420,63926],
 
-"scripts/validate_repository.py":["93ca6ba584d3558a8785039f494ff0389cf667abc7aabfb6587ee9eafbbb6894",420,114861],
+"scripts/validate_repository.py":["9a44fa7090823020c3948ba4d93904f6b8bbdf6a469e8ab986382b5c3e1f78f7",420,114971],
 
 "scripts/validate_run_readiness_plan.py":["4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",493,21103],
 
@@ -7034,7 +7034,7 @@
 
 "tests/browser_provenance_fixture.py":["b80be223117c06826c8b288892c926f2de78a2153451eb7eaa77f33bb940537b",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["c6ca89e269a3e54bef646df772e70deaa06ba8517d47d2cec11b54bddc7da6a8",420,133470],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["60b81103ca1eba94f80d9de3ffbae7eb8728aa30ef53eda0b46064efe2e51e73",420,133470],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",420,11976],
 
@@ -7182,7 +7182,7 @@
 
 "tests/test_turn_observations.py":["9b6df5f09e4e8728943714c5c13aa41adc678c013282abd832caaf2eaf032f08",420,24093],
 
-"tests/test_validate_repository.py":["51ed65b6483060dc752d8a0a6d7d6d42dd0a873c5ef507d5066a16561739ccf8",420,38401],
+"tests/test_validate_repository.py":["84d695a8e7ed4c7786342a764a3f57d9edb45038ce8712e5fea5e737962465f9",420,38621],
 
 "tests/test_w20_affected_contract_w13.py":["beedac9fff562628a3347ba78f2c6ac12fd8c66b528faa09d7a84f18d3b606ab",420,91690],
 

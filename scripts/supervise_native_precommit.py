@@ -114,7 +114,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     from model_catalog_startup import configure_cli_model_catalog
-
+    from cwo_core.model_identities import OPERATIVE_ROLES
     try:
         authority_arguments = private_authority_arguments(
             getattr(args,"current_authority_file",None),getattr(args,"current_authority_sha256",None))
@@ -124,7 +124,7 @@ def main() -> int:
             print(render_fit_prompt(_load(args.work_plan, "work plan")), end="")
             return 0
         if args.command == "create":
-            configure_cli_model_catalog(("luna", "terra"))
+            configure_cli_model_catalog(OPERATIVE_ROLES)
             result = create_precommit_state(
                 packet_id=args.packet_id,
                 attempt_nonce=args.attempt_nonce,
@@ -190,7 +190,7 @@ def main() -> int:
             print("precommit receipt valid")
             return 0
         if args.command == "deterministic-receipt":
-            configure_cli_model_catalog(("luna", "terra"))
+            configure_cli_model_catalog(OPERATIVE_ROLES)
             result = make_deterministic_receipt(
                 packet_id=args.packet_id,
                 attempt_nonce=args.attempt_nonce,

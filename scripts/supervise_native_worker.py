@@ -2547,8 +2547,8 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     from model_catalog_startup import configure_cli_model_catalog
-
-    configure_cli_model_catalog(("luna", "terra"))
+    from cwo_core.model_identities import OPERATIVE_ROLES
+    configure_cli_model_catalog(OPERATIVE_ROLES)
     try:
         authority_args = private_authority_arguments(args.current_authority_file, args.current_authority_sha256)
     except ValueError as exc:

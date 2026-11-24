@@ -10,8 +10,17 @@ Current default-off source holds keep live execution unavailable. No shipped
 trusted controller unlocks these routes; plans, receipts, environment settings
 and CLI switches cannot override the holds.
 
-For a new assignment, estimate the whole task before selecting a worker. Current
-routing selects Luna first. Terra needs a recorded fit, risk or cost reason.
+For a new assignment, estimate the whole task before selecting a worker. Luna
+is the first choice for focused native work. Sol handles escalation when the
+attempt records a fit, risk or cost reason bound to its fit evidence.
+
+For an assignment primarily about an interface, visual material or computer
+use, set `work_kind` to `interface`, `visual` or `computer-use` in the version 2
+native work estimate under `fit_inputs.work_estimate`. This classification
+selects the Terra lane even when the task includes coding. Omit `work_kind`
+for general coding or other work. Terra selection requires the explicit field;
+task descriptions alone do not classify work.
+
 A current launch must bind the exact selected model,
 source revision and context, task scope, candidate and attempt identities, and
 allowance through the fit check (`precommit`), scoped brief (`packet`) and exact
@@ -81,10 +90,6 @@ model is not an input to this controller and never changes.
 
 This is a parent integration contract. The default-off native route holds remain
 in force, so adding the role or mark does not activate live dispatch.
-
-OpenAI describes Terra as suited to writing, visual understanding and computer
-use. Terra remains the escalation role. A future policy may send escalations
-based on coding difficulty to Sol. [OpenAI model guide](https://learn.chatgpt.com/docs/models#recommended-models).
 
 The Spark/v2 examples below are retained to interpret historical artifacts. An
 old packet passing its format check does not approve a new dispatch. Start with

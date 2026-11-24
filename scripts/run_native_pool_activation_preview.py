@@ -1558,8 +1558,9 @@ def main(argv: list[str] | None = None) -> int:
             result = generate_activation_key(args.control_root)
         elif args.command == "prepare":
             from model_catalog_startup import configure_cli_model_catalog
+            from cwo_core.model_identities import OPERATIVE_ROLES
 
-            configure_cli_model_catalog(("luna", "terra"))
+            configure_cli_model_catalog(OPERATIVE_ROLES)
             path, plan = prepare_activation_plan(
                 args.control_root,
                 profile=args.profile,

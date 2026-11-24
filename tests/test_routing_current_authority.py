@@ -1,7 +1,11 @@
 """Public role-based routing evaluated with offline capability evidence."""
 import copy
 import json
+import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 from tests.test_operative_routing import (
@@ -9,9 +13,11 @@ from tests.test_operative_routing import (
 )
 from cwo_core import operative_routing as routing
 from cwo_core import policy
-from cwo_core.model_identities import operative_models
+from cwo_core.model_identities import operative_models, resolve_model
 from cwo_core.routing import classify_work
 from cwo_core.policy import load_policy
+from cwo_core.work_sizing import evaluate_work_estimate
+from prepare_native_worker import build_native_worker_packet, validate_native_worker_packet
 from tests.historical_policy_fixtures import historical_v2_policy
 
 
@@ -46,6 +52,117 @@ def synthetic_authority(model=None):
 
 
 class PublicCurrentAuthorityTests(unittest.TestCase):
+    def assert_cli_and_packet_match(self, text, authority, route):
+        model = route['selected_model']
+        with tempfile.TemporaryDirectory() as workdir:
+            path = Path(workdir) / 'current-authority.json'
+            path.write_text(json.dumps(authority), encoding='utf-8')
+            result = subprocess.run(
+                [sys.executable, 'scripts/route_work.py', '--json', '--current-authority', str(path),
+                 '--operative-evaluated-at', NOW, text], cwd=ROOT, capture_output=True, text=True, check=True,
+            )
+            self.assertEqual(json.loads(result.stdout)['operative_route'], route)
+            with patch.object(routing, '_now_iso', return_value=NOW):
+                packet = build_native_worker_packet(
+                    bead_id=CONTEXT['bead_id'], lane='review', workdir=workdir, allowed_paths=['.'],
+                    acceptance_checks=['Review the scoped assignment.'], requested_model=model,
+                    operative_routing=route, current_authority=authority,
+                )
+                self.assertEqual(packet['requested_model'], model)
+                self.assertEqual(validate_native_worker_packet(packet), [])
+                dispatch_errors = validate_native_worker_packet(packet, dispatchable=True, current_authority=authority)
+                self.assertIn('packet release state is operative-dispatch-forbidden', dispatch_errors)
+                self.assertFalse(any(error.startswith('operative_routing:') for error in dispatch_errors), dispatch_errors)
+
+    def test_coding_difficulty_escalates_to_sol(self):
+        sol = resolve_model('sol')
+        authority = synthetic_authority(sol)
+        authority.pop('qualifications')
+        inputs = authority['fit_inputs']
+        inputs['work_estimate'] = work_plan(requested_model=sol)
+        fit = routing.build_task_selected_fit(**inputs, evaluated_at=NOW)
+        self.assertFalse(fit['classifications']['luna_fit'])
+        authority['escalation'] = {
+            'kind': 'fit', 'reason': 'The implementation exceeds the Luna sizing limits.',
+            'evidence_sha256': 'c' * 64, 'fit_sha256': fit['fit_sha256'],
+            'attempt_id': authority['attempt']['attempt_id'],
+        }
+        route = classify_work('Bounded CWO implementation', current_authority=authority,
+                              operative_evaluated_at=NOW)['operative_route']
+        self.assertTrue(route['dispatch_authorized'], route['stop_reason'])
+        self.assertEqual(route['selected_model'], sol)
+        self.assertEqual(route['selected_executor'], 'internal_worker_sol')
+        self.schema_check(route)
+        self.assertEqual(routing.validate_operative_route_for_model(
+            route, sol, current_authority=authority, now=NOW), [])
+        self.assert_cli_and_packet_match('Bounded CWO implementation', authority, route)
+
+        for invalid_escalation in (None, dict(authority['escalation'], fit_sha256='d' * 64)):
+            with self.subTest(escalation=invalid_escalation):
+                denied = routing.resolve_operative_route(
+                    current_authority=dict(authority, escalation=invalid_escalation), evaluated_at=NOW)
+                self.assertFalse(denied['dispatch_authorized'])
+                self.assertTrue(denied['protected_stop'])
+
+    def test_general_escalation_cannot_select_terra(self):
+        terra = resolve_model('terra')
+        authority = synthetic_authority(terra)
+        inputs = authority['fit_inputs']
+        inputs['work_estimate'] = work_plan(requested_model=terra)
+        fit = routing.build_task_selected_fit(**inputs, evaluated_at=NOW)
+        authority['escalation'] = {
+            'kind': 'fit', 'reason': 'The implementation exceeds the Luna sizing limits.',
+            'evidence_sha256': 'c' * 64, 'fit_sha256': fit['fit_sha256'],
+            'attempt_id': authority['attempt']['attempt_id'],
+        }
+        result = classify_work('Computer use and visual work', current_authority=authority,
+                               operative_evaluated_at=NOW)['operative_route']
+        self.assertFalse(result['dispatch_authorized'])
+        self.assertTrue(result['protected_stop'])
+        self.assertIsNone(result['selected_model'])
+
+    def test_explicit_interface_visual_or_computer_use_selects_terra(self):
+        luna = resolve_model('luna')
+        terra = resolve_model('terra')
+        for work_kind in ('interface', 'visual', 'computer-use'):
+            with self.subTest(work_kind=work_kind):
+                authority = synthetic_authority(terra)
+                inputs = authority['fit_inputs']
+                inputs['work_estimate'] = evaluate_work_estimate(dict(inputs['work_estimate'], work_kind=work_kind))
+                route = classify_work('Bounded task', current_authority=authority,
+                                      operative_evaluated_at=NOW)['operative_route']
+                self.assertTrue(route['dispatch_authorized'], route['stop_reason'])
+                self.assertEqual(route['selected_model'], terra)
+                self.assertEqual(route['selected_executor'], 'internal_worker_terra')
+                self.schema_check(route)
+                self.assertEqual(routing.validate_operative_route_for_model(
+                    route, terra, current_authority=authority, now=NOW), [])
+                self.assert_cli_and_packet_match('Bounded task', authority, route)
+
+                wrong_model = routing.resolve_operative_route(
+                    current_authority=dict(authority, bound_model=luna), evaluated_at=NOW)
+                self.assertFalse(wrong_model['dispatch_authorized'])
+                inputs['work_estimate']['work_kind'] = 'interface' if work_kind != 'interface' else 'visual'
+                self.assertTrue(routing.validate_operative_route_for_model(
+                    route, terra, current_authority=authority, now=NOW))
+
+    def test_malformed_work_kind_fails_closed(self):
+        for work_kind in (None, True, ['interface'], 'Interface', 'interface ', 'coding'):
+            with self.subTest(work_kind=work_kind):
+                authority = synthetic_authority()
+                estimate = authority['fit_inputs']['work_estimate']
+                estimate['work_kind'] = work_kind
+                with self.assertRaisesRegex(ValueError, 'work_kind'):
+                    evaluate_work_estimate(estimate)
+                route = routing.resolve_operative_route(current_authority=authority, evaluated_at=NOW)
+                self.assertFalse(route['dispatch_authorized'])
+                self.assertTrue(route['protected_stop'])
+
+        authority = synthetic_authority()
+        authority['fit_inputs']['work_estimate'].update(estimate_contract_version=1, work_kind='visual')
+        route = routing.resolve_operative_route(current_authority=authority, evaluated_at=NOW)
+        self.assertTrue(route['protected_stop'])
+
     def test_route_schema_accepts_a_version_four_stop_record(self):
         try:
             import jsonschema
@@ -55,6 +172,20 @@ class PublicCurrentAuthorityTests(unittest.TestCase):
                               operative_evaluated_at=NOW)['operative_route']
         schema = json.loads((ROOT / 'schemas/operative-routing-state.schema.json').read_text())
         jsonschema.Draft202012Validator(schema).validate(route)
+
+    def test_prior_v4_selector_remains_readable_but_cannot_authorize_dispatch(self):
+        terra = resolve_model('terra')
+        authority = synthetic_authority(terra)
+        estimate = authority['fit_inputs']['work_estimate']
+        authority['fit_inputs']['work_estimate'] = evaluate_work_estimate(dict(estimate, work_kind='visual'))
+        route = routing.resolve_operative_route(current_authority=authority, evaluated_at=NOW)
+        route.pop('route_sha256')
+        route.update(selector_version=1, role='escalation-only-operative-worker')
+        route['route_sha256'] = routing._canonical_sha256(route)
+        self.schema_check(route)
+        self.assertEqual(routing.validate_operative_route_for_model(route, terra, historical_parse=True), [])
+        self.assertEqual(routing.validate_operative_route_for_model(route, terra),
+                         ['prior routing selector is parseable but requires fresh evidence for current dispatch'])
 
     def test_historical_v3_route_remains_exact_evidence(self):
         route = json.loads((ROOT / 'tests/fixtures/historical-operative-route-v3.json').read_text())
@@ -81,7 +212,7 @@ class PublicCurrentAuthorityTests(unittest.TestCase):
         jsonschema.Draft202012Validator(schema).validate(route)
 
     def test_public_authorized_luna_positive_through_actual_evaluator(self):
-        luna, terra = operative_models()
+        luna = resolve_model('luna')
         native = copy.deepcopy(load_policy('native-worker-execution'))
         native['task_selected_routing']['status'] = 'active'
         native['task_selected_routing']['activation'].update(active=True, dispatch_authority=True)
@@ -97,29 +228,6 @@ class PublicCurrentAuthorityTests(unittest.TestCase):
             self.schema_check(route)
             self.assertEqual(routing.validate_operative_route_for_model(
                 route, luna, current_authority=authority, now=NOW), [])
-
-            authority = synthetic_authority(terra)
-            authority['fit_inputs']['work_estimate'] = work_plan(requested_model=terra)
-            fit = routing.build_task_selected_fit(**authority['fit_inputs'], evaluated_at=NOW)
-            self.assertFalse(fit['classifications']['luna_fit'])
-            authority['escalation'] = {
-                'kind': 'fit', 'reason': 'Synthetic work outside the Luna-fit shape.',
-                'evidence_sha256': 'c' * 64, 'fit_sha256': fit['fit_sha256'],
-                'attempt_id': authority['attempt']['attempt_id'],
-            }
-            route = classify_work('Bounded CWO implementation', current_authority=authority,
-                                  operative_evaluated_at=NOW)['operative_route']
-            self.assertTrue(route['dispatch_authorized'], route['stop_reason'])
-            self.assertEqual(route['selected_model'], terra)
-            self.schema_check(route)
-            self.assertEqual(routing.validate_operative_route_for_model(
-                route, terra, current_authority=authority, now=NOW), [])
-            unrecorded = copy.deepcopy(authority)
-            unrecorded['escalation'] = None
-            refused = classify_work('Bounded CWO implementation', current_authority=unrecorded,
-                                    operative_evaluated_at=NOW)['operative_route']
-            self.assertFalse(refused['dispatch_authorized'])
-            self.assertEqual(refused['stop_reason'], 'terra-selection-requires-recorded-escalation')
 
     def test_current_route_does_not_require_a_model_qualification(self):
         authority = synthetic_authority()

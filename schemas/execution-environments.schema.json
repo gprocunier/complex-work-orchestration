@@ -64,6 +64,11 @@
               "live_evidence_required": {"type": "boolean"}
             }
           },
+          "task_selected_executors": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "uniqueItems": true
+          },
           "constraints": {
             "type": "object",
             "additionalProperties": false,

@@ -80,11 +80,11 @@ def _surface(executor: str, model: str) -> dict:
 
 def capability_evidence(
     *, quota: str = "usable", capacity: str = "available",
-    operative_models: tuple[str, str] = (LUNA_MODEL, TERRA_MODEL),
+    operative_models: tuple[str, ...] = (LUNA_MODEL, TERRA_MODEL),
 ) -> dict:
     spark = _surface("internal_worker", SPARK_MODEL)
     spark.update(quota_status=quota, capacity_status=capacity)
-    luna, terra = operative_models
+    luna, terra, *sol = operative_models
     return {
         "source": "trusted-control-plane-session-metadata",
         "observed_at": NOW,
@@ -96,6 +96,7 @@ def capability_evidence(
             _surface("internal_worker_luna", luna),
             _surface("local_secure_review_worker", "local-secure-review-model"),
             _surface("claude_architecture_critic", "claude-opus-4-6"),
+            *(_surface("internal_worker_sol", model) for model in sol),
         ],
     }
 

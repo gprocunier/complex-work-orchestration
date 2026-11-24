@@ -186,7 +186,8 @@ _EXECUTOR_CODEX_MODELS = {
     "frontier_architect": ("sol", "Codex Sol main architect"),
     "codex_architecture_critic": ("sol", "Codex Sol architecture critic"),
     "internal_worker_luna": ("luna", "Codex Luna operative worker"),
-    "internal_worker_terra": ("terra", "Codex Terra escalation worker"),
+    "internal_worker_terra": ("terra", "Terra interface, visual and computer-use worker"),
+    "internal_worker_sol": ("sol", "Sol escalation worker"),
 }
 
 

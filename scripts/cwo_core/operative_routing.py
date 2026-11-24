@@ -79,13 +79,17 @@ TASK_SELECTED_FIT_FIELDS = {
     "fit_sha256",
 }
 _HISTORICAL_TASK_SELECTED_PORTFOLIO = (LUNA_MODEL, TERRA_MODEL)
+_HISTORICAL_TASK_SELECTED_ROLES = ("luna", "terra")
+_HISTORICAL_TERRA_ROLE = "escalation-only-operative-worker"
 NONOPERATIVE_ROLE = "historical-nonoperative"
 TASK_SELECTED_ROLES = {
     "luna": "luna-first-operative-worker",
-    "terra": "escalation-only-operative-worker",
+    "terra": "interface-visual-computer-use-worker",
+    "sol": "escalation-only-operative-worker",
 }
 TASK_SELECTED_EXECUTORS = {role: f"internal_worker_{role}" for role in OPERATIVE_ROLES}
 TASK_SELECTED_VERSION = 4
+_TASK_SELECTED_SELECTOR_VERSION = 2
 _TASK_SELECTED_ESCALATION_KINDS = {"fit", "risk", "economics"}
 _HISTORICAL_ESCALATION_KINDS = _TASK_SELECTED_ESCALATION_KINDS | {"qualification"}
 
@@ -192,6 +196,14 @@ def _environment_contract(
     return primary_model, primary_executor, approved
 
 
+def _task_selected_environment_executors(
+    environment: str, environments: Mapping[str, Any], version: int,
+) -> list[str]:
+    if version == TASK_SELECTED_VERSION:
+        return _string_list(_mapping(environments.get(environment)).get("task_selected_executors"))
+    return _environment_contract(environment, environments)[2]
+
+
 def operative_policy_sha256(execution_environment: str = "connected-codex") -> str:
     native, routing, registry, environments = _policy_bundle()
     _, _, approved = _environment_contract(execution_environment, environments)
@@ -257,7 +269,7 @@ def _validate_task_selected_rules(source: Mapping[str, Any], historical: bool, h
         )
         roles = {
             LUNA_MODEL: TASK_SELECTED_ROLES["luna"],
-            TERRA_MODEL: TASK_SELECTED_ROLES["terra"],
+            TERRA_MODEL: _HISTORICAL_TERRA_ROLE,
             SPARK_MODEL: NONOPERATIVE_ROLE,
         }
         history = {"readable": True, "nonoperative_for_v3": True, "new_dispatch_authority": False}
@@ -265,7 +277,8 @@ def _validate_task_selected_rules(source: Mapping[str, Any], historical: bool, h
     else:
         selection.update(
             approved_roles=list(OPERATIVE_ROLES), primary_role="luna",
-            terra_selection="recorded-fit-risk-or-economics-escalation-only",
+            sol_selection="recorded-fit-risk-or-economics-escalation-only",
+            terra_selection="interface-visual-computer-use-only",
         )
         roles = TASK_SELECTED_ROLES
         history = [2, 3]
@@ -301,7 +314,7 @@ def _validate_bounded_semantic_readonly(readonly: Any) -> None:
             raise ValueError("task selected bounded semantic readonly policy limit is invalid")
 
 
-def _task_selected_portfolio(version: int) -> tuple[str, str]:
+def _task_selected_portfolio(version: int) -> tuple[str, ...]:
     return _HISTORICAL_TASK_SELECTED_PORTFOLIO if version == 3 else operative_models()
 
 
@@ -310,7 +323,7 @@ def task_selected_policy_sha256(
 ) -> str:
     native, _, registry, environments = _policy_bundle()
     routing, _ = _task_selected_policy(native, version=version)
-    _, _, approved = _environment_contract(execution_environment, environments)
+    approved = _task_selected_environment_executors(execution_environment, environments, version)
     portfolio_executors = {
         key: _mapping(registry.get(key))
         for key in approved
@@ -324,6 +337,7 @@ def task_selected_policy_sha256(
     }
     if version == TASK_SELECTED_VERSION:
         projection["model_roles"] = dict(zip(OPERATIVE_ROLES, _task_selected_portfolio(version)))
+        projection["task_selected_executors"] = approved
     return _canonical_sha256(projection)
 
 
@@ -1022,6 +1036,25 @@ def _task_selected_budget_covers(
     return _aggregate_budget_covers(work_estimate, budget)
 
 
+def _task_selected_lane_fit(
+    role: str, version: int, work_estimate: Mapping[str, Any], classifications: Mapping[str, Any],
+) -> tuple[str, str, str | None]:
+    terra_work = version == TASK_SELECTED_VERSION and "work_kind" in work_estimate
+    if terra_work:
+        if role == "terra":
+            return "preferred", "explicit-interface-visual-or-computer-use", None
+        return "ineligible", "", "explicit-work-kind-requires-terra"
+    if role == "luna":
+        if classifications.get("luna_fit") is True:
+            return "preferred", "luna-fit-work", None
+        return "ineligible", "", "luna-fit-required"
+    if role == "sol":
+        return "compatible", "sol-escalation-portfolio-member", None
+    if version == 3:
+        return "compatible", "terra-escalation-portfolio-member", None
+    return "ineligible", "", "terra-requires-explicit-work-kind"
+
+
 def _task_selected_candidate_fit(
     *,
     executor_key: str,
@@ -1106,15 +1139,11 @@ def _task_selected_candidate_fit(
         exclusions.append("model-headroom-insufficient")
     if not aggregate_budget_sufficient:
         exclusions.append("aggregate-budget-insufficient")
-    is_luna = role == "luna"
-    luna_fit = classifications.get("luna_fit") is True
-    if is_luna and not luna_fit:
-        exclusions.append("luna-fit-required")
+    task_fit, lane_reason, lane_exclusion = _task_selected_lane_fit(role, version, work_estimate, classifications)
+    if lane_exclusion is not None:
+        exclusions.append(lane_exclusion)
 
     eligible = not exclusions
-    task_fit = "compatible"
-    if is_luna:
-        task_fit = "preferred" if luna_fit else "ineligible"
     inclusions = []
     if eligible:
         inclusions = [
@@ -1122,11 +1151,11 @@ def _task_selected_candidate_fit(
             "operative-controls-valid",
             "executor-risk-and-sensitivity-eligible",
             "headroom-and-aggregate-budget-sufficient",
-            "luna-fit-work" if is_luna else "terra-escalation-portfolio-member",
+            lane_reason,
         ]
         if maintenance:
             inclusions.append("fresh-context-window-covers-estimate")
-        if is_luna and classifications.get("bounded_semantic_readonly") is True:
+        if role == "luna" and classifications.get("bounded_semantic_readonly") is True:
             inclusions.append("bounded-semantic-readonly-fit")
     return {
         "executor": executor_key,
@@ -1202,8 +1231,9 @@ def build_task_selected_fit(
     neutral_sha = canonical_work_estimate_sha256(neutral)
     policy_sha = task_selected_policy_sha256(execution_environment, version=version)
     classifications = _classify_task_selected_fit(estimate, cache, policy, task_policy, evaluated)
-    _, _, approved_executors = _environment_contract(execution_environment, environments)
+    approved_executors = _task_selected_environment_executors(execution_environment, environments, version)
     role_models = _task_selected_portfolio(version)
+    roles = _HISTORICAL_TASK_SELECTED_ROLES if version == 3 else OPERATIVE_ROLES
     executor_by_role = _task_selected_executor_map(version, approved_executors, registry)
     candidates = [
         _task_selected_candidate_fit(
@@ -1222,7 +1252,7 @@ def build_task_selected_fit(
             risk_level=risk_level,
             data_sensitivity=data_sensitivity,
         )
-        for rank, (role, model) in enumerate(zip(OPERATIVE_ROLES, role_models), start=1)
+        for rank, (role, model) in enumerate(zip(roles, role_models), start=1)
     ]
     fit: dict[str, Any] = {
         "fit_type": "cwo-task-selected-fit",
@@ -1249,7 +1279,7 @@ def _task_selected_executor_map(version: int, approved: list[str], registry: Map
         return {role: key for role, key in TASK_SELECTED_EXECUTORS.items() if key in approved}
     executor_by_model = {_string(_mapping(registry.get(key)).get("model_label")): key for key in approved}
     return {role: executor_by_model.get(model, "")
-            for role, model in zip(OPERATIVE_ROLES, _HISTORICAL_TASK_SELECTED_PORTFOLIO)}
+            for role, model in zip(_HISTORICAL_TASK_SELECTED_ROLES, _HISTORICAL_TASK_SELECTED_PORTFOLIO)}
 
 
 def validate_task_selected_fit(
@@ -1439,10 +1469,11 @@ def _validate_authorized_route_shape(route: Mapping[str, Any], version: int, err
     _route_shape_error(errors, route.get("stop_reason") is None, "authorized route stop_reason must be null")
     _route_shape_error(errors, route.get("policy_active") is True, "authorized route policy must be active")
     role = _shape_model_role(route.get("selected_model"), version)
-    _route_shape_error(errors, role is not None, "authorized route model is invalid")
+    role_label = _route_role_label(role, route.get("selector_version"))
+    _route_shape_error(errors, role_label is not None, "authorized route model is invalid for its selector")
     _route_shape_error(errors, route.get("selected_executor") == TASK_SELECTED_EXECUTORS.get(role),
                        "authorized route executor does not match model")
-    _route_shape_error(errors, route.get("role") == TASK_SELECTED_ROLES.get(role),
+    _route_shape_error(errors, route.get("role") == role_label,
                        "authorized route role does not match model")
     _route_shape_error(errors, route.get("reasoning_effort") == "high", "authorized route reasoning_effort is invalid")
     required = {"work_estimate_sha256", "neutral_work_estimate_sha256", "fit_evidence", "fit_sha256",
@@ -1462,6 +1493,17 @@ def _validate_authorized_route_shape(route: Mapping[str, Any], version: int, err
     if isinstance(route.get("attempt"), Mapping):
         _route_shape_error(errors, route["attempt"].get("fresh_segment") is True,
                            "authorized route requires a fresh attempt")
+
+
+def _route_role_label(role: str | None, selector_version: Any) -> str | None:
+    if selector_version == 1:
+        return {"luna": TASK_SELECTED_ROLES["luna"], "terra": _HISTORICAL_TERRA_ROLE}.get(role)
+    return TASK_SELECTED_ROLES.get(role)
+
+
+def _valid_selector_version(selector: Any, route_version: int) -> bool:
+    return type(selector) is int and (selector == 1 or (route_version == TASK_SELECTED_VERSION
+                                                       and selector == _TASK_SELECTED_SELECTOR_VERSION))
 
 
 def validate_task_selected_route_shape(value: Any) -> list[str]:
@@ -1490,8 +1532,9 @@ def validate_task_selected_route_shape(value: Any) -> list[str]:
     _route_shape_error(errors, type(route.get("risk_level")) is str and route["risk_level"] in RISK_ORDER, "risk_level is invalid")
     _route_shape_error(errors, type(route.get("data_sensitivity")) is str and route["data_sensitivity"] in DATA_SENSITIVITY_ORDER, "data_sensitivity is invalid")
     _route_shape_time(route.get("evaluated_at"), "evaluated_at", errors)
-    for field, expected in (("portfolio_version", version), ("selector_version", 1), ("binding_rule_version", 1)):
+    for field, expected in (("portfolio_version", version), ("binding_rule_version", 1)):
         _route_shape_error(errors, type(route.get(field)) is int and route[field] == expected, f"{field} is invalid")
+    _route_shape_error(errors, _valid_selector_version(route.get("selector_version"), version), "selector_version is invalid")
     for field in ("dispatch_authorized", "protected_stop", "policy_active"):
         _route_shape_error(errors, type(route.get(field)) is bool, f"{field} must be a boolean")
     _route_shape_error(errors, route.get("budget_reset") is False, "budget_reset must be false")
@@ -1830,6 +1873,9 @@ def _normalize_current_authority(value: Any) -> dict[str, Any]:
     for field in ("work_estimate", "cache_profile", "capability_evidence", "context"):
         if not isinstance(fit_inputs.get(field), Mapping):
             raise ValueError(f"current authority fit_inputs {field} must be an object")
+    from .work_sizing import validate_work_kind
+
+    validate_work_kind(fit_inputs["work_estimate"])
     _normalize_current_budget(fit_inputs.get("aggregate_budget"))
     provenance = _exact_mapping(
         source.get("provenance"), _CURRENT_AUTHORITY_PROVENANCE_FIELDS, "current authority provenance"
@@ -1859,7 +1905,8 @@ def _normalize_current_authority(value: Any) -> dict[str, Any]:
 
 def _validate_authority_qualifications(qualifications: Any) -> None:
     portfolio = operative_models()
-    if not isinstance(qualifications, Mapping) or set(qualifications) != set(portfolio):
+    legacy_portfolio = set(portfolio) - {portfolio[OPERATIVE_ROLES.index("sol")]}
+    if not isinstance(qualifications, Mapping) or set(qualifications) not in (legacy_portfolio, set(portfolio)):
         raise ValueError("current authority qualifications are invalid")
     for model in portfolio:
         if qualifications.get(model) is None:
@@ -1912,7 +1959,7 @@ def _blocked_task_selected_route(
         "policy_active": policy_active,
         "policy_sha256": task_selected_policy_sha256(execution_environment),
         "portfolio_version": TASK_SELECTED_VERSION,
-        "selector_version": 1,
+        "selector_version": _TASK_SELECTED_SELECTOR_VERSION,
         "binding_rule_version": 1,
         "work_estimate_sha256": None,
         "neutral_work_estimate_sha256": None,
@@ -1927,7 +1974,7 @@ def _blocked_task_selected_route(
         "budget_reset": False,
         "role": None,
         "reasoning_effort": None,
-        "selection_reason": "C1 preserves current authority for later selection; it does not authorize dispatch.",
+        "selection_reason": "Current routing evidence did not authorize dispatch.",
         "candidate_exclusions": [],
     }
     route["route_sha256"] = _canonical_sha256(route)
@@ -1980,6 +2027,16 @@ def _task_policy_active(task_policy: Mapping[str, Any]) -> bool:
             and task_policy["activation"]["dispatch_authority"] is True)
 
 
+def _sol_escalation_refusal(role: str, escalation: Any, fit_sha256: str) -> str | None:
+    if role != "sol":
+        return None
+    if not isinstance(escalation, Mapping) or escalation.get("kind") not in _TASK_SELECTED_ESCALATION_KINDS:
+        return "sol-selection-requires-recorded-escalation"
+    if escalation.get("fit_sha256") != fit_sha256:
+        return "sol-escalation-fit-mismatch"
+    return None
+
+
 def _selected_task_route(
     *,
     authority: Mapping[str, Any],
@@ -1997,9 +2054,9 @@ def _selected_task_route(
     if authority.get("attempt_state") != "ready" or attempt.get("fresh_segment") is not True:
         return None, "current-authority-attempt-not-ready"
     model = authority.get("bound_model")
-    primary_model, escalation_model = operative_models()
-    if model not in (primary_model, escalation_model):
+    if model not in operative_models():
         return None, "current-authority-bound-model-missing-or-invalid"
+    role = model_family_role(model)
     fit = build_task_selected_fit(
         work_estimate=_mapping(inputs.get("work_estimate")),
         cache_profile=_mapping(inputs.get("cache_profile")),
@@ -2014,12 +2071,8 @@ def _selected_task_route(
     candidate = next((item for item in fit["candidates"] if item.get("model") == model), None)
     if not isinstance(candidate, Mapping) or candidate.get("eligible") is not True:
         return None, "current-authority-bound-model-ineligible"
-    escalation = authority.get("escalation")
-    if model == escalation_model:
-        if not isinstance(escalation, Mapping) or escalation.get("kind") not in _TASK_SELECTED_ESCALATION_KINDS:
-            return None, "terra-selection-requires-recorded-escalation"
-        if escalation.get("fit_sha256") != fit["fit_sha256"]:
-            return None, "terra-escalation-fit-mismatch"
+    if refusal := _sol_escalation_refusal(role, authority.get("escalation"), fit["fit_sha256"]):
+        return None, refusal
     qualification = None
     if _mapping(inputs.get("aggregate_budget")).get("mode") == "maintenance-unbounded":
         qualification, error = _current_route_qualification(authority, model, _parse_time(evaluated_at, "evaluated_at"))
@@ -2046,7 +2099,7 @@ def _selected_task_route(
         "policy_active": True,
         "policy_sha256": fit["policy_sha256"],
         "portfolio_version": TASK_SELECTED_VERSION,
-        "selector_version": 1,
+        "selector_version": _TASK_SELECTED_SELECTOR_VERSION,
         "binding_rule_version": 1,
         "work_estimate_sha256": fit["work_estimate_sha256"],
         "neutral_work_estimate_sha256": fit["neutral_work_estimate_sha256"],
@@ -2059,12 +2112,13 @@ def _selected_task_route(
         "attempt": deepcopy(attempt),
         "aggregate_budget": deepcopy(_mapping(inputs.get("aggregate_budget"))),
         "budget_reset": False,
-        "role": TASK_SELECTED_ROLES["luna" if model == primary_model else "terra"],
+        "role": TASK_SELECTED_ROLES[role],
         "reasoning_effort": "high",
-        "selection_reason": (
-            "Luna-first current selection."
-            if model == primary_model else "Terra selection with recorded escalation."
-        ),
+        "selection_reason": {
+            "luna": "Luna selection for focused work.",
+            "terra": "Terra selection for interface, visual or computer-use work.",
+            "sol": "Sol selection with recorded escalation.",
+        }[role],
         "candidate_exclusions": [
             {"model": item["model"], "exclusion_reasons": deepcopy(item["exclusion_reasons"])}
             for item in fit["candidates"] if item.get("eligible") is not True
@@ -2451,6 +2505,8 @@ def validate_operative_route_for_model(
             return []
         if value.get("version") == 3:
             return ["historical v3 route is parseable but cannot authorize new dispatch"]
+        if value.get("selector_version") != _TASK_SELECTED_SELECTOR_VERSION:
+            return ["prior routing selector is parseable but requires fresh evidence for current dispatch"]
         return _validate_current_task_route(value, requested_model, work_estimate, now, current_authority)
     if value.get("route_type") != "cwo-operative-route" or value.get("version") != 2:
         return ["operative routing metadata must be a supported cwo-operative-route"]

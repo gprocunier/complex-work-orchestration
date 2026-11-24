@@ -310,8 +310,10 @@ Pages copy.
 
 ## Current operative model choice
 
-The active `task_selected_routing` policy sizes work before selecting the
-configured Luna model. Terra requires a recorded fit, risk or cost reason.
+The active `task_selected_routing` policy sizes work before selecting a model.
+Luna handles focused native work. Sol handles recorded escalation for fit,
+risk or cost. Terra handles work explicitly classified as `interface`, `visual`
+or `computer-use` in the native work estimate's `work_kind` field.
 Spark and GPT-5.5 version-2 routes remain readable but
 cannot authorize new dispatch. The coach/renderer is not admission authority;
 qualification, source/scope/attempt and unchanged budget bindings still apply.

@@ -56,7 +56,8 @@ class ValidateRepositoryTests(unittest.TestCase):
 <p>id="concurrency-preview"</p>
 <p>no unsupervised opt-out</p>
 <p>configured Luna model</p>
-<p>Terra handles documented escalation</p>
+<p>Sol handles recorded coding escalation</p>
+<p>Terra handles explicitly classified interface, visual and computer-use work</p>
 <p>Do not silently substitute an available model</p>
 <p>Save the control state and register monitoring before sending the assignment</p>
 <p>enforced filesystem/network boundaries</p>
@@ -276,7 +277,8 @@ class ValidateRepositoryTests(unittest.TestCase):
             'concurrency section anchor': ('id="concurrency-preview"', 'REMOVED_CONTRACT'),
             'mandatory supervision': ('no unsupervised opt-out', 'REMOVED_CONTRACT'),
             'configured Luna role': ('configured Luna model', 'REMOVED_CONTRACT'),
-            'Terra escalation role': ('Terra handles documented escalation', 'REMOVED_CONTRACT'),
+            'Sol escalation role': ('Sol handles recorded coding escalation', 'REMOVED_CONTRACT'),
+            'Terra assignment': ('Terra handles explicitly classified interface, visual and computer-use work', 'REMOVED_CONTRACT'),
             'no model substitution': ('Do not silently substitute an available model', 'REMOVED_CONTRACT'),
             'persistence before triggering': ('Save the control state and register monitoring before sending the assignment', 'REMOVED_CONTRACT'),
             'enforced effect boundary': ('enforced filesystem/network boundaries', 'REMOVED_CONTRACT'),

@@ -37,6 +37,7 @@ class CentralModelIdentityTests(unittest.TestCase):
 
         self.assertEqual(_policy_model(), resolve_model("luna"))
         self.assertEqual(_policy_model(resolve_model("terra")), resolve_model("terra"))
+        self.assertEqual(_policy_model(resolve_model("sol")), resolve_model("sol"))
         with self.assertRaisesRegex(SystemExit, "historical-nonoperative"):
             _policy_model(SPARK)
 
@@ -46,6 +47,7 @@ class CentralModelIdentityTests(unittest.TestCase):
 
         snapshot = load_policy("executor-registry")
         for executor, role in (("internal_worker_luna", "luna"), ("internal_worker_terra", "terra"),
+                               ("internal_worker_sol", "sol"),
                                ("frontier_architect", "sol"), ("codex_architecture_critic", "sol")):
             with self.subTest(executor=executor):
                 self.assertEqual(executor_config(executor)["model_label"], resolve_model(role))
