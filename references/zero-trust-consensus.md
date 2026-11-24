@@ -48,12 +48,73 @@ implementation, architecture, review, contractor, or synthesis work.
 
 ## Invocation boundary
 
-The checked-in Python helper `evaluate_synthesis_inputs` must be invoked explicitly
-with evaluated input records and comparable claims. Routing can emit
-`zero_trust_consensus_required`; that flag does not execute the comparison. No
-checked-in dispatch CLI directly calls this helper. Individual-return evaluation
-is a separate path through `evaluate_return.py` and `cwo_core/returns.py`.
-Tests exercise the helper directly; they are not live multi-provider runs.
+Save each critic's original return and its audited evaluation JSON. For a
+manual contractor packet, [record the return before evaluation](external-contracting.md#dispatch-flow)
+and use `evaluate_return.py --contractor-packet PACKET --file RETURN --peer-review-required --json`.
+An observed host evaluator can supply its own recorded evaluation JSON.
+
+Create an input list with the return and evaluation files for each lane. Paths
+are relative to the list or absolute. Add the explicit claims you want to
+compare to the entry for the return that made them. Use the claim fields
+described under [Claim Shape](#claim-shape).
+
+```json
+[
+  {
+    "return": "codex-review.md",
+    "evaluation": "codex-evaluation.json",
+    "zero_trust_claims": [
+      {
+        "claim_id": "concurrency:retry-budget",
+        "category": "concurrency",
+        "key": "retry-budget",
+        "value": "one shared counter",
+        "claim_type": "design_judgment",
+        "evidence": "Retry budget section in codex-review.md"
+      }
+    ]
+  },
+  {
+    "return": "opus-review.md",
+    "evaluation": "opus-evaluation.json",
+    "zero_trust_claims": [
+      {
+        "claim_id": "concurrency:retry-budget",
+        "category": "concurrency",
+        "key": "retry-budget",
+        "value": "one shared counter",
+        "claim_type": "design_judgment",
+        "evidence": "Retry budget section in opus-review.md"
+      }
+    ]
+  }
+]
+```
+
+```bash
+python3 scripts/evaluate_synthesis.py --inputs critic-inputs.json \
+  --candidate retry-plan-revision-3 --scope retry-plan-design \
+  --route route.json --adjudications return-adjudications.json
+```
+
+`--route` reads the JSON from `route_work.py --json` and carries its
+consensus requirement and provider-conflict flags into the report. To require
+claim comparison directly, pass `--zero-trust-required`. The optional
+adjudications file contains existing [adjudication records](#adjudication),
+which still govern recommended primary use. The report checks each evaluation
+against the current policy and its recorded dispatch and exact received bytes.
+Where the dispatch records the candidate and scope, that binding must match.
+For older dispatches the report identifies candidate and scope as operator-selected.
+
+The command reads local evidence and prints a JSON report for the architect.
+Prepared manual-review dispatches still need observed peer-review evidence
+when required. `status: ready` means the supplied records meet the synthesis
+policy. Implementation or closure requires its own decision. The offline
+workflow test uses fake observed Codex and Claude returns for agreement and
+disagreement. Live route checks are separate.
+
+The Python helper `evaluate_synthesis_inputs` also accepts explicit input,
+dispatch and adjudication records using the contract below.
 
 Different models can broaden review evidence, but model count is not a measured
 accuracy guarantee. Default local/OpenShift aliases form one local trust domain;
