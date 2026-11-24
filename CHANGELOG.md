@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve the explicit default service tier in Codex startup readback for contained pool qualification.
+
 ### Tests
 
 - Align the archive-interrupt fixture with the original preparation window.
