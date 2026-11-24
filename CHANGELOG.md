@@ -7,6 +7,7 @@
 ### Tests
 
 - Stabilize the managed-login rollout fixture while retaining its original archive and cleanup checks.
+- Keep finite input and tool exit fixtures tied to the poll and turn events they verify under variable scheduling.
 
 ## 1.26.0 - 2026-11-24
 
