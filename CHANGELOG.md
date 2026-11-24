@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.24.0 - 2026-11-24
+
 - Honor the registered supervisor's poll interval while closing an interrupted worker, including bounded cleanup after step exhaustion.
 
 ### Tests
