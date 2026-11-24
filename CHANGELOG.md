@@ -2,9 +2,12 @@
 
 ## Unreleased
 
+- Let a configured registered single-worker controller route a standing-approved assignment through its original admission and dedicated login, then post the exact validated candidate for independent hand acceptance.
+
+## 1.33.1 - 2026-11-24
+
 - Wait for each worker's durable turn context before interrupting a contained pool calibration cohort.
 - Document the upgrade from 0.2.0-dev, including custom reviewer profiles and where to find saved audit records and packets.
-- Let a configured registered single-worker controller route a standing-approved assignment through its original admission and dedicated login, then post the exact validated candidate for independent hand acceptance.
 
 ## 1.33.0 - 2026-11-24
 
