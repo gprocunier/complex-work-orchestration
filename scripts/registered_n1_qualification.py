@@ -22,9 +22,8 @@ from cwo_core import native_session_boundary
 from cwo_core.model_identities import MODEL_ROLES
 
 CAMPAIGN = 'native-single-worker-host-qualification'
-INITIAL_LIMIT = 10
-RECHECK_LIMIT = 5
-START_LIMIT = INITIAL_LIMIT + RECHECK_LIMIT
+START_LIMIT = 20
+_PERMIT_VERSION = 2
 MODEL = 'gpt-6.2-sol'
 EFFORT = 'xhigh'
 TIER = 'default'
@@ -292,7 +291,8 @@ class _StartRequest:
 
     def authorization(self):
         self.check()
-        return {'authorization_type': 'registered-n1-qualification-permit', **_HEADER,
+        return {'authorization_type': 'registered-n1-qualification-permit', 'campaign': CAMPAIGN,
+                'version': _PERMIT_VERSION, 'start_limit': START_LIMIT,
                 'operation_sha256': self.operation_sha256, 'expires_at': self.expires_at,
                 'repair_sha256': self.repair_sha256}
 
@@ -315,8 +315,9 @@ def verify_qualification_permit(value, capability, verifier):
           and type(value['authorization']) is dict, 'A signed qualification permit is required.')
     body = value['authorization']
     request = _StartRequest(capability.operation_sha256, body.get('expires_at'), body.get('repair_sha256'))
-    _need(request.authorization() == body and type(body.get('version')) is int,
-          'The qualification permit does not bind this campaign and operation.')
+    _need(type(body.get('version')) is int and type(body.get('start_limit')) is int
+          and request.authorization() == body,
+          'The qualification permit does not bind this campaign, operation and start limit.')
     authority._directive(value['directive'], key=verifier._key, actor=verifier._actor,
         identity=verifier._identity, action=authority.canonical_authority_sha256(body),
         parent=verifier._directive_hash)
@@ -407,9 +408,6 @@ def _read_starts(descriptor):
         _need(line == host_records._json(row), 'Qualification campaign record is incomplete.')
         _check_row(row, index, starts)
         starts[row['operation_sha256']] = row
-    usage = _usage(starts)
-    _need(usage['initial'] <= INITIAL_LIMIT and usage['rechecks'] <= RECHECK_LIMIT,
-          'Qualification campaign accounting exceeds its bounds.')
     return starts
 
 
@@ -419,20 +417,14 @@ def _usage(starts):
 
 
 def campaign_usage():
-    """Read durable started-run counts without using or extending a permit."""
+    """Read durable total and repair-provenance counts without consuming a start."""
     with _journal() as descriptor:
         return _usage(_read_starts(descriptor))
 
 
 def _check_available(request, starts):
     _need(request.operation_sha256 not in starts, 'This qualification operation already started.')
-    usage = _usage(starts)
-    _need(usage['total'] < START_LIMIT, 'The qualification campaign start limit was reached.')
-    if request.repair_sha256 is None:
-        _need(usage['initial'] < INITIAL_LIMIT, 'The initial qualification start limit was reached.')
-    else:
-        _need(usage['initial'] > 0 and usage['rechecks'] < RECHECK_LIMIT,
-              'The qualification recheck start limit or required initial run is unavailable.')
+    _need(len(starts) < START_LIMIT, 'The qualification campaign start limit was reached.')
 
 
 def require_available(request, started):

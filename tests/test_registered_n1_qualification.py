@@ -18,7 +18,7 @@ import registered_n1_qualification as qualification
 import selected_native_containment as selected
 from cwo_core.codex_protocol_capabilities import CapabilityError
 from cwo_core import model_identities
-from cwo_core.maintenance_authority import MaintenanceAuthorityError
+from cwo_core.maintenance_authority import MaintenanceAuthorityError, canonical_authority_sha256
 from cwo_core.outbound_screen import OutboundRefused
 from cwo_core.supervision.transport.app_server import AppServer
 
@@ -48,20 +48,37 @@ class CampaignTests(unittest.TestCase):
             repair_sha256=repair,
         )
 
-    def test_one_budget_survives_new_controllers_and_signed_rechecks(self):
+    def test_one_budget_preserves_version_one_history_and_refuses_start_twenty_one(self):
+        journal = self.directory / 'starts.jsonl'
+        header = b'{"campaign":"native-single-worker-host-qualification","version":1}\n'
+        self.assertEqual(journal.read_bytes(), header)
+        history = bytearray(header)
         for index in range(10):
-            qualification._campaign_start(self.record(index))
-        with self.assertRaisesRegex(qualification.QualificationError, 'initial.*limit'):
-            qualification._campaign_start(self.record(10))
+            row = {'sequence': index + 1, 'operation_sha256': f'{index:064x}',
+                   'repair_sha256': None if index < 5 else 'a' * 64, 'started_at': 1700000000 + index}
+            history.extend((json.dumps(row, sort_keys=True, separators=(',', ':')) + '\n').encode())
+        journal.write_bytes(history)
+        self.assertEqual(qualification.campaign_usage(), {'initial': 5, 'rechecks': 5, 'total': 10})
+        sixth_recheck = qualification._campaign_start(self.record(10, repair='b' * 64))
+        self.assertEqual((sixth_recheck['sequence'], sixth_recheck['repair_sha256']), (11, 'b' * 64))
+        requests = [self.record(index, repair=None if index < 17 else 'b' * 64) for index in range(11, 20)]
         with ThreadPoolExecutor(max_workers=4) as workers:
-            rows = list(workers.map(qualification._campaign_start,
-                [self.record(index, repair='a' * 64) for index in range(10, 15)]))
-        self.assertEqual(sorted(row['sequence'] for row in rows), list(range(11, 16)))
-        self.assertEqual(qualification.campaign_usage(), {'initial': 10, 'rechecks': 5, 'total': 15})
-        with self.assertRaisesRegex(qualification.QualificationError, 'campaign.*limit'):
-            qualification._campaign_start(self.record(15, repair='b' * 64))
+            rows = list(workers.map(qualification._campaign_start, requests))
+        self.assertEqual(sorted(row['sequence'] for row in rows), list(range(12, 21)))
+        self.assertEqual(qualification.campaign_usage(), {'initial': 11, 'rechecks': 9, 'total': 20})
+        full_journal = journal.read_bytes()
+        self.assertTrue(full_journal.startswith(history))
+        for repair in (None, 'b' * 64):
+            with self.assertRaisesRegex(qualification.QualificationError, 'campaign.*limit'):
+                qualification._campaign_start(self.record(20, repair=repair))
         with self.assertRaises(FileExistsError):
             qualification.initialize_campaign()
+        self.assertEqual(journal.read_bytes(), full_journal)
+
+    def test_repair_digest_does_not_require_an_initial_start(self):
+        start = qualification._campaign_start(self.record(0, repair='a' * 64))
+        self.assertEqual(start['repair_sha256'], 'a' * 64)
+        self.assertEqual(qualification.campaign_usage(), {'initial': 0, 'rechecks': 1, 'total': 1})
 
     def test_expiry_replay_missing_or_corrupt_accounting_fail_closed(self):
         with self.assertRaisesRegex(qualification.QualificationError, 'expired'):
@@ -507,15 +524,39 @@ class FactoryQualificationTests(unittest.TestCase):
         self.assertEqual(qualification.campaign_usage()['total'], 0)
         self.assertEqual(self.fixture.spawned, [])
 
-    def test_initial_limit_refuses_before_any_worker_or_configuration(self):
+    def test_permit_requires_signed_version_two_and_exact_integer_start_limit(self):
+        case = self.fixture.case(qualification=True)
+        permit = case.qualification_permit
+        body = permit['authorization']
+        legacy = {**body, 'version': 1}
+        legacy.pop('start_limit', None)
+        signer = self.fixture.authority
+        for invalid in (legacy, {**body, 'version': 1}, {**body, 'version': 2.0},
+                        {**body, 'start_limit': 21}, {**body, 'start_limit': 15}, {**body, 'start_limit': 20.0}):
+            directive = signer.sign(canonical_authority_sha256(invalid), qualification.CAMPAIGN,
+                                    parent=canonical_authority_sha256(signer.directive))
+            with self.subTest(authorization=invalid):
+                with self.assertRaisesRegex(qualification.QualificationError, 'permit does not bind'):
+                    self.fixture.factory(case, qualification_permit={'authorization': invalid, 'directive': directive})
+        wrong_signature = {'authorization': body, 'directive': signer.sign(
+            canonical_authority_sha256({**body, 'start_limit': 21}), qualification.CAMPAIGN,
+            parent=canonical_authority_sha256(signer.directive))}
+        with self.assertRaises(MaintenanceAuthorityError):
+            self.fixture.factory(case, qualification_permit=wrong_signature)
+        self.assertEqual((body['version'], body['start_limit']), (2, 20))
+        self.fixture.factory(case).require_launch_selection()
+        self.assertEqual(qualification.campaign_usage()['total'], 0)
+        self.assertEqual(self.fixture.spawned, [])
+
+    def test_total_limit_refuses_before_any_worker_or_configuration(self):
         case = self.fixture.case(qualification=True)
         expires_at = case.qualification_permit['authorization']['expires_at']
-        for index in range(qualification.INITIAL_LIMIT):
+        for index in range(20):
             qualification._campaign_start(
                 qualification._StartRequest(f'{index:064x}', expires_at, None))
-        with self.assertRaisesRegex(qualification.QualificationError, 'initial.*limit'):
+        with self.assertRaisesRegex(qualification.QualificationError, 'campaign.*limit'):
             self.fixture.factory(case).run()
-        self.assertEqual(qualification.campaign_usage()['total'], qualification.INITIAL_LIMIT)
+        self.assertEqual(qualification.campaign_usage()['total'], 20)
         self.assertFalse((case.home / 'config.toml').exists())
         self.assertEqual(self.fixture.spawned, [])
 

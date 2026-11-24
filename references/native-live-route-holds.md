@@ -15,7 +15,7 @@ No route is restored or live qualification claimed.
 | Route | Required source decisions | Enforcement before effects |
 | --- | --- | --- |
 | Production N1 | `N1_LIVE_AVAILABLE` | Raw `AppServer` construction and its adjacent `Popen`; registered workflow `run`, factory `run`/`require_effect`, and containment `launch`; maintenance runtime `prepare`; admitted v8 loader before operation claim. |
-| N1 host qualification | Signed qualification permit | The protected controller binds one exact operation and expiry. The factory charges the launch to a private campaign journal before releasing the app-server command. |
+| N1 host qualification | Signed version 2 qualification permit | The protected controller binds one exact operation, its expiry and the fixed 20-start campaign limit. The factory charges the launch to a private campaign journal before releasing the app-server command. |
 | Native surface probe and qualification | `N1_LIVE_AVAILABLE` | `capture_tool_request` refuses before capture binding or listener startup; its CLI refuses before catalog/evidence writes. `observe_qualification` verifies the original opaque operation, then refuses before qualification output/intent creation. |
 | Registered pool and retry | `N1_LIVE_AVAILABLE` and `POOL_LIVE_AVAILABLE` | Pool host execute entry and each member, plus approved retry entry and effect. `PoolConfiguration.enabled=True` cannot replace either source decision. |
 | Activation preview | Dedicated `LIVE_ACTIVATION_AVAILABLE` plus N1 for `n1-read-only` and `n1-mutable`; additionally pool for `n2-read-only` | Run entry checks the dedicated hold and N1 before loading inputs; the loaded profile is checked before claims, ledger creation, reservation or launch. Server creation, ledger transport RPC entry points, worker-contract allocation and accepted-child closure recheck the dedicated hold and selected profile. |
@@ -65,8 +65,17 @@ operation for a disposable workspace. The qualification model selection binds
 all roles in that operation to the same model, effort and service tier. The
 factory verifies the exact thread identity before opening the turn and records
 actual finite-input observations from the original app-server exchange and owned
-tool pipe. The private campaign journal allows ten initial starts and up to five
-signed rechecks after a repair. Failed starts consume the same allowance.
+tool pipe. The campaign allows 20 total starts. Each exact operation can start
+once, and failed or uncertain starts consume the same allowance. Any signed
+qualification operation can use an available start. A permit can include an
+optional repair digest for provenance. The journal reports initial and recheck
+counts alongside the total for audit.
+
+Existing version 1 campaign journals and their prior starts carry forward in
+place. Continue using the existing journal without re-enrollment. The controller
+must issue version 2 permits before starting any remaining operations. Each
+version 2 permit signs the exact operation, expiry, optional repair digest and
+fixed campaign limit of 20.
 
 The app server uses a host-owned relay for HTTPS to `api.openai.com` and
 `chatgpt.com`. The relay checks the destination and TLS server name and records
