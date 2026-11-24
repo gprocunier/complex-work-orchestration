@@ -311,7 +311,8 @@
     "tests/fixtures/outbound_screening/seed-corpus.json": 420,
     "tests/test_finite_fixture_progress_acknowledgment.py": 420,
     "tests/test_registered_startup_publication.py": 420,
-    "scripts/cwo_core/native_pool_deferred_context.py": 420
+    "scripts/cwo_core/native_pool_deferred_context.py": 420,
+    "scripts/delegate_internal_work.py": 420
   },
   "files": {
     "policy/acceptance-policy.yaml": "783bd8ec8440ca3d12a1efa0b01542c110171eccf25794839a2686f78d75d998",
@@ -483,7 +484,7 @@
     "scripts/cwo_core/supervision/turn_observations.py": "1e28ced04c8a439287179e18a683e4be076d22ec23ed6ca5bbd09bcbc5c206f2",
     "scripts/cwo_core/synthesis.py": "ee57a7db005f5bab572d145e6e326e4867c0601e9188c96fb052307601f66591",
     "scripts/cwo_core/synthesis_inputs.py": "1ab5c6c75540c0d022df3151750d7fad8b4d523d0fa8ca1776f1f587679ebaeb",
-    "scripts/cwo_core/telemetry.py": "70d95961827a5e8edec8aa4eb1e31948fc7a4ed3cf5b037e0992e8867fc5d568",
+    "scripts/cwo_core/telemetry.py": "a9826ad35d6d89cbd5b626cfe04a67eaffd625e54ab76a2249127f4217a69921",
     "scripts/cwo_core/typed_artifact_requirement.py": "b193db816372482206aab6f34e06cf0239437761683880f49204b87c08ca0e2a",
     "scripts/cwo_core/types.py": "e3d3f0a4908090aa7405ffbab3dc288689ac7592589be3b095ce33bb73c5ded8",
     "scripts/cwo_core/util.py": "c4172ab8755f97d17f4e92873c90a094fd4ad52bc04fdb6af77ceff274f31b77",
@@ -529,9 +530,9 @@
     "scripts/registered_finite_input.py": "fc91cad44ce60b5633a399ee9b610689690154a15ba41cc0a5a95ba0e95db9cd",
     "scripts/registered_finite_tool_calls.py": "b66d74039e63f7727bf0c4dbc2dd329d03aa4a15c954c55463bfa078c2511be8",
     "scripts/registered_host_root_boundary.py": "615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",
-    "scripts/registered_n1_factory.py": "360daa7ec3e61c9283bb6b67484a82aeb266fd60bb44251ff048352e75e7adcc",
+    "scripts/registered_n1_factory.py": "c9c3671a4df8177c793a95f560abddd4860cab20760ad27c41b3a470dfa33811",
     "scripts/registered_n1_qualification.py": "9540fd58f2ef72bf9349880d1bf77d87b44fb020e0a7446bbe8d1e0a350f2091",
-    "scripts/registered_n1_workflow.py": "39fb758c65836240e4538cecdf032ef6e883670fad0b637758ed566c92441137",
+    "scripts/registered_n1_workflow.py": "d545adfe9fa353d2850c0feeaeee1cdca7f3a2fff2798c704c44ca09145611db",
     "scripts/registered_native_pool_client.py": "cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",
     "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
     "scripts/registered_native_pool_retry.py": "261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",
@@ -608,7 +609,8 @@
     "tests/fixtures/outbound_screening/seed-corpus.json": "7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",
     "tests/test_finite_fixture_progress_acknowledgment.py": "966f50fde466583060fcb0dce898c6bd7e479efba639f551bcc2e2f3444637d2",
     "tests/test_registered_startup_publication.py": "7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",
-    "scripts/cwo_core/native_pool_deferred_context.py": "f653d3f9a1ce01957fc8b4b3ad3745b4f4a776f54be0eefa2a68e1af52bf42ad"
+    "scripts/cwo_core/native_pool_deferred_context.py": "f653d3f9a1ce01957fc8b4b3ad3745b4f4a776f54be0eefa2a68e1af52bf42ad",
+    "scripts/delegate_internal_work.py": "ebd0a11f7c446e18322a4a79cfdb2173bf1193dd818968f27cfe3c8aed6a3fe1"
   },
   "historical_files": {
     "238ddfb22c52f5e753bc5b24ba1e24b30df7b347": {
@@ -1808,6 +1810,7 @@
       "scripts/cwo_core/adjudication_source.py",
       "scripts/cwo_core/maintenance_authority.py",
       "scripts/cwo_core/native_authority.py",
+      "scripts/delegate_internal_work.py",
       "scripts/guarded_artifact_target.py",
       "scripts/offline_artifact_validation.py",
       "scripts/qualified_workflow_adjudication.py",
@@ -2353,6 +2356,14 @@
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/native_pool_contracts.py",
       "scripts/cwo_core/native_tool_isolation.py"
+    ],
+    "scripts/delegate_internal_work.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/native_authority.py",
+      "scripts/cwo_core/routing.py",
+      "scripts/cwo_core/util.py",
+      "scripts/prepare_local_admission.py",
+      "scripts/prepare_native_worker.py"
     ]
   },
   "portable_contract_evidence": {

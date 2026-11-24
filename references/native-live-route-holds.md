@@ -110,6 +110,46 @@ delivery and observed progress, nonempty input refusal, an out-of-workspace
 refusal before spawn, signed exhaustion, charges, archive and original cleanup.
 Production admission and authentication isolation have offline witnesses.
 
+### Standing-approved delegation
+
+An embedding controller with an original signed registered workflow can call
+`everyday_delegation.delegate(workflow, task, baseline=..., summary=...)`.
+Pass `standing_delegation` as a `delegate_internal_work.StandingDelegation`
+and `standing_directive` as the signed operator approval to
+`ControllerConfiguration`. The controller signs the action digest from
+`StandingDelegation.approval_scope` with `sign_controller_directive`, using
+the original mission directive's digest as the parent. The same protected
+controller can issue the directive when it accepts the lead's request under
+the user's existing standing approval. That scope binds the
+Bead, project database, baseline, exact admission, both preapproved operations
+and OpenAI disclosure. The eligible route selects one `internal_worker`
+assignment without a required pre-dispatch peer review. The controller holds
+the signing key outside worker-visible roots and checks the dedicated login
+before signing current dispatch authority or launching a worker.
+
+The installed `cwo delegate` parser accepts the exact task, baseline and delivery
+summary. A trusted caller invokes it in-process with
+`cwo.main(arguments, delegation_workflow=workflow)`. The standalone command
+refuses without that typed workflow. Fresh installation still needs a protected
+controller bootstrap. The present registered profile requires a preapproved
+finite command and the expected output sizes and digests.
+
+The call checks the baseline reference on the open Bead, runs the registered
+worker's original finite command, and posts its exact validated worktree
+candidate for independent hand review. The registered worker receives a
+read-only checkout and can invoke only the preapproved command and empty polls.
+The host returns the arguments for the existing hand-close command. Keep the
+original worker checkout available for review. When that checkout does not
+resolve the project's Beads database, set the existing absolute `BEADS_DIR`
+selector to the original project database for the host and the reviewer.
+After an interrupted delivery write, the host can use `cwo delegate --resume`
+with the original task, baseline and summary. A restarted host reconstructs the
+original protected configuration before supplying the workflow. Resumption
+requires signed completed custody and unchanged admission accounting. An expired
+dispatch admission permits only this completed-custody replay. An unknown or
+unfinished worker attempt requires reconciliation.
+[Hand acceptance procedure](run-readiness.md#accepting-a-delivery-by-hand).
+
 ## Registered single-worker host qualification
 
 A trusted embedding controller prepares and signs one finite single-worker

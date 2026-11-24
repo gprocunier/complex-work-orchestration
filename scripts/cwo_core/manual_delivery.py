@@ -20,6 +20,7 @@ CLOSED = "manual_delivery_closed"
 _OPEN = ("open", "in_progress")
 _AGENT_EXECUTABLES = {"codex", "claude"}
 _RECEIPT_LABEL = "Manual delivery receipt "
+_ORIGIN_FIELDS = ("dispatch_id", "dispatch_record_sha256", "return_sha256", "return_record_sha256")
 
 
 def _need(condition: bool, reason: str) -> None:
@@ -157,7 +158,36 @@ def _store(delivery: Delivery) -> host_records.HostRecordStore:
 
 
 def record_delivery(args: argparse.Namespace, summary: str) -> str:
-    delivery = Delivery.from_args(args)
+    return post_delivery(Delivery.from_args(args), summary)
+
+
+def require_origin(store: host_records.HostRecordStore, delivery: Delivery, origin: dict[str, Any],
+                   *, database: str) -> None:
+    """Resolve a native delivery's original dispatch and captured return from the host chain."""
+    if not origin:
+        return
+    _need(set(origin) == set(_ORIGIN_FIELDS), "the original native dispatch and return receipts are required")
+    dispatch = store.require_dispatch(origin["dispatch_id"])
+    metadata = dispatch["evaluation_metadata"]
+    _need(dispatch["_record_sha256"] == origin["dispatch_record_sha256"]
+          and dispatch["bead_id"] == delivery.bead_id and dispatch["dispatch_role"] == "executor"
+          and dispatch["packet_sha256"] and dispatch["executor"] and dispatch["provider_key"]
+          and metadata.get("dispatch_mode") == "registered-native-n1"
+          and metadata.get("delivery_baseline_sha256") == delivery.chain["digest"]
+          and metadata.get("delivery_database_sha256") == database,
+          "the original native dispatch must bind this Bead, packet, baseline and Beads database")
+    receipt = store.require_return(origin["dispatch_id"], origin["return_sha256"])
+    _need(receipt["_record_sha256"] == origin["return_record_sha256"]
+          and receipt["return_sha256"] == origin["return_sha256"]
+          and receipt["capture_provenance"] == "host-capture-v1", "the original native return receipt changed")
+
+
+def _origin(event: dict[str, Any]) -> dict[str, Any]:
+    return {key: event[key] for key in _ORIGIN_FIELDS if key in event}
+
+
+def post_delivery(delivery: Delivery, summary: str, *, origin: dict[str, Any] | None = None) -> str:
+    origin = {} if origin is None else origin
     session = delivery_session()
     store = _store(delivery)
     database, run_bd = project_beads(delivery.root)
@@ -165,17 +195,24 @@ def record_delivery(args: argparse.Namespace, summary: str) -> str:
     delivery.check(task)
     _need(task.get("status") in _OPEN, "only an open Bead can record a delivery")
     binding = delivery.binding(database)
+    require_origin(store, delivery, origin, database=database)
     summary += f"\nCandidate for hand review: {binding['candidate_sha256']}\n"
-    receipt = store.record_audit_event(dict(event_type=RECORDED, **binding,
-                                            manual_delivery_session=session,
-                                            manual_summary_sha256=artifact_hash(summary)))
+    if origin:
+        summary += f"Original registered dispatch: {origin['dispatch_id']}\n"
+    receipt, posted = _delivery_receipt(store, task, binding, origin, session, artifact_hash(summary))
     comment = f"{summary}\n{_RECEIPT_LABEL}{receipt['event_hash']}"
-    run_bd(["comment", "--", delivery.bead_id, comment])
+    if not posted:
+        run_bd(["comment", "--", delivery.bead_id, comment])
     return comment + "\n"
 
 
 def _matches(event: dict[str, Any], **fields: Any) -> bool:
     return all(event.get(key) == value for key, value in fields.items())
+
+
+def _preserve_origin(events: list[dict[str, Any]], binding: dict[str, Any]) -> None:
+    _need(not any(_matches(event, event_type=RECORDED, **binding) and _origin(event) for event in events),
+          "use the original registered delivery for this candidate")
 
 
 def _posted_deliveries(events: list[dict[str, Any]], task: dict[str, Any],
@@ -196,14 +233,50 @@ def _posted_deliveries(events: list[dict[str, Any]], task: dict[str, Any],
     return posted
 
 
+def _native_retry(events, task, binding, origin, session, summary_digest):
+    matching = [event for event in events if _matches(event, event_type=RECORDED, **binding, **origin)]
+    if not matching:
+        return None, False
+    _need(matching[-1]["manual_summary_sha256"] == summary_digest,
+          "retry the original registered delivery with the same summary")
+    for event in reversed(_posted_deliveries(events, task, binding)):
+        if event in matching and event["manual_summary_sha256"] == summary_digest:
+            return event, True
+    return next((event for event in reversed(matching) if _matches(event, manual_delivery_session=session,
+                       manual_summary_sha256=summary_digest)), None), False
+
+
+def _delivery_receipt(store, task, binding, origin, session, summary_digest):
+    with store._guarded_state(create=True) as (state, lock):
+        events = host_records._audit_snapshot(state, store.limits)
+        if origin:
+            receipt, posted = _native_retry(events, task, binding, origin, session, summary_digest)
+            if receipt is not None:
+                return receipt, posted
+        else:
+            _preserve_origin(events, binding)
+        return _append(store, state, lock, event_type=RECORDED, **binding, **origin,
+                       manual_delivery_session=session, manual_summary_sha256=summary_digest), False
+
+
+def _delivery_sessions(events, deliveries, event, binding):
+    origin = _origin(event)
+    if not origin:
+        _preserve_origin(events, binding)
+        return deliveries
+    original = [item for item in events if _matches(item, event_type=RECORDED, **binding, **origin)]
+    return [*deliveries, *original]
+
+
 def _current_delivery(events: list[dict[str, Any]], task: dict[str, Any],
                       binding: dict[str, Any], ancestry: tuple[str, ...]) -> dict[str, Any]:
     deliveries = _posted_deliveries(events, task, binding)
     _need(bool(deliveries), "no host-recorded delivery comment is available for hand review")
     event = deliveries[-1]
     _need(_matches(event, **binding), "the reviewed candidate and baseline must match the latest delivery")
+    sessions = _delivery_sessions(events, deliveries, event, binding)
     _need(not any(_matches(item, **binding) and item.get("manual_delivery_session") in ancestry
-                  for item in deliveries), "the delivering session cannot accept its own delivery")
+                  for item in sessions), "the delivering session cannot accept its own delivery")
     return event
 
 
@@ -218,14 +291,15 @@ def _acceptance(events: list[dict[str, Any]], event: dict[str, Any]) -> dict[str
 
 
 def _claim(store: host_records.HostRecordStore, task: dict[str, Any], binding: dict[str, Any],
-           reviewer: str, ancestry: tuple[str, ...], note: str) -> tuple[dict[str, Any], bool]:
+           reviewer: str, ancestry: tuple[str, ...], note: str, *, pending_hash: str) -> tuple[dict[str, Any], bool]:
     with store._guarded_state(create=True) as (state, lock):
         events = host_records._audit_snapshot(state, store.limits)
         event = _current_delivery(events, task, binding, ancestry)
+        _need(event["event_hash"] == pending_hash, "the delivery changed before acceptance was recorded")
         existing = _acceptance(events, event)
         if existing is not None:
             return existing, False
-        source = dict(manual_delivery_event=event["event_hash"], **binding)
+        source = dict(manual_delivery_event=event["event_hash"], **binding, **_origin(event))
         _need(task.get("status") in _OPEN, "only an open delivered Bead can be accepted")
         accepted = _append(store, state, lock, event_type=ACCEPTED, **source,
                            manual_reviewer=reviewer, manual_review_session=ancestry[0], manual_review_note=note)
@@ -234,7 +308,7 @@ def _claim(store: host_records.HostRecordStore, task: dict[str, Any], binding: d
 
 def _confirm_close(store: host_records.HostRecordStore, accepted: dict[str, Any],
                    binding: dict[str, Any]) -> dict[str, Any]:
-    source = dict(manual_acceptance_event=accepted["event_hash"], **binding)
+    source = dict(manual_acceptance_event=accepted["event_hash"], **binding, **_origin(accepted))
     with store._guarded_state(create=True) as (state, lock):
         events = host_records._audit_snapshot(state, store.limits)
         for event in reversed(events):
@@ -263,11 +337,13 @@ def accept_delivery(args: argparse.Namespace) -> dict[str, Any]:
     task = delivery.task(run_bd)
     events = store.audit_events()
     pending = _current_delivery(events, task, binding, ancestry)
+    origin = _origin(pending)
+    require_origin(store, delivery, origin, database=database)
     accepted, claimed = _acceptance(events, pending), False
     if accepted is None:
         delivery.check(task)
         require_closed_prerequisites(run_bd, delivery.bead_id)
-        accepted, claimed = _claim(store, task, binding, reviewer, ancestry, note)
+        accepted, claimed = _claim(store, task, binding, reviewer, ancestry, note, pending_hash=pending["event_hash"])
     reason = f"Manual delivery accepted ({accepted['event_hash']})"
     if claimed:
         task = delivery.task(run_bd)
@@ -276,9 +352,11 @@ def accept_delivery(args: argparse.Namespace) -> dict[str, Any]:
               "the delivery changed after acceptance was recorded")
         delivery.check(task)
         require_closed_prerequisites(run_bd, delivery.bead_id)
+        require_origin(store, delivery, origin, database=database)
         _close(run_bd, delivery.bead_id, reason)
     current = delivery.task(run_bd)
     _need(current.get("status") == "closed" and current.get("close_reason") == reason,
           "acceptance was recorded, but closure is unconfirmed. A retry only checks for the original close")
     closure = _confirm_close(store, accepted, binding)
-    return dict(closed=True, **binding, acceptance_event=accepted["event_hash"], closure_event=closure["event_hash"])
+    return dict(closed=True, **binding, **origin, acceptance_event=accepted["event_hash"],
+                closure_event=closure["event_hash"])

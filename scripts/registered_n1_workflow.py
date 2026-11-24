@@ -11,9 +11,12 @@ import fcntl
 import hashlib
 import json
 import os
+import shlex
 import stat
+from threading import Lock
 from types import MethodType
 
+import delegate_internal_work as D
 import registered_n1_factory as R
 import registered_host_root_boundary as boundary
 import guarded_artifact_target as G
@@ -199,13 +202,22 @@ class ControllerConfiguration:
     def __init__(self, *, mission, mission_directive, verification_key, actor_id,
                  identity_source, factory_registry, state_store, native_bundle,
                  publication_bundle, policy_specification, receipt, route, node_id,
-                 ledger, host, controller_state, publication_state, evidence, worker_login_home=None):
-        _need(type(evidence) is EvidenceInputs, 'Original source and designated adjudication evidence is required.')
+                 ledger, host, controller_state, publication_state, evidence, worker_login_home=None,
+                 standing_delegation=None, standing_directive=None):
+        self._standing_delegation = standing_delegation
+        self._standing_directive = _encode(standing_directive)
+        if standing_delegation is None:
+            _need(type(evidence) is EvidenceInputs and standing_directive is None,
+                  'Original source and designated adjudication evidence is required.')
+        else:
+            _need(type(standing_delegation) is D.StandingDelegation and evidence is None
+                  and type(standing_directive) is dict,
+                  'Standing delegation requires an original signed standing approval for one assignment.')
         self.native_bundle, self.publication_bundle = _copy(list(native_bundle)), _copy(list(publication_bundle))
         self.policy = V.freeze_policy(policy_specification)
         self.receipt, self.route, self.node_id = receipt, _copy(route), node_id
         self.ledger, self.host, self.evidence = ledger, host, evidence
-        self._evidence_control = evidence._control
+        self._evidence_control = None if evidence is None else evidence._control
         self._worker_login_home = worker_login_home
         self.state, self.publication_state = H._path(controller_state), H._path(publication_state)
         self.store, self._guard = state_store, None
@@ -219,6 +231,20 @@ class ControllerConfiguration:
         self.state_identity = H._identity(self.state)
         self.publication_identity = H._identity(self.publication_state)
         self._bootstrap()
+        if standing_delegation is not None:
+            self._standing_approval()
+
+    def _standing_approval(self):
+        scope = self._standing_delegation.approval_scope(receipt=self.receipt,
+            operation=self.native_bundle[1], publication=self.publication_bundle[1])
+        verifier = self.verifier
+        directive = json.loads(self._standing_directive)
+        try:
+            A._directive(directive, key=verifier._key, actor=verifier._actor, identity=verifier._identity,
+                         action=digest(scope), parent=verifier._directive_hash)
+        except A.MaintenanceAuthorityError as exc:
+            raise ValueError('The original standing approval does not match the assignment scope.') from exc
+        return scope, digest(directive)
 
     def _check_private_roots(self):
         scripts = H.Path(R.__file__).resolve().parent
@@ -269,6 +295,8 @@ class RegisteredN1Workflow:
         _need(type(configuration) is ControllerConfiguration, 'Protected controller bootstrap is required.')
         self.config = configuration
         self._source_control = configuration._evidence_control
+        self._standing_delegation = configuration._standing_delegation
+        self._delegation, self._delegation_lock = None, Lock()
         self.verifier = configuration.verifier
         self._adoption = self._publication = self._artifact = self.factory = None
         self._selected_action = None
@@ -286,7 +314,8 @@ class RegisteredN1Workflow:
             self._restore_initial()
 
     def _restore_initial(self):
-        action = self._load('intent.json')['action']
+        intent = self._load('intent.json')
+        action = intent['action']
         c = self.config
         _need(action['roots'] == [[path, list(identity)] for path, identity in c.roots],
               'Original custody roots changed on restart.')
@@ -295,6 +324,11 @@ class RegisteredN1Workflow:
             _need(original[field] == c.initial[field], 'Original repository identity changed on restart.')
         c.initial = _copy(original)
         c.host._initial = _copy(original)
+        if self._standing_delegation is not None:
+            self._delegation = _encode(action['evidence'])
+            self._disclosure, self._adoption = action['disclosure'], intent['adoption']
+            self._selected_action = _encode(action)
+            c._guard = self._execution_current
 
     @contextmanager
     def _descriptor(self, descriptor):
@@ -383,8 +417,25 @@ class RegisteredN1Workflow:
         try:
             return self._current_action()
         except BaseException as failure:
-            self._source_control.refuse(failure)
+            if self._source_control is not None:
+                self._source_control.refuse(failure)
             raise
+
+    def _current_evidence(self):
+        c = self.config
+        if self._standing_delegation is not None:
+            _need(c._standing_delegation is self._standing_delegation and self._delegation is not None,
+                  'The original standing delegation approval is required.')
+            return D.current(self, json.loads(self._delegation))
+        _need(type(c.evidence) is EvidenceInputs and c.evidence._control is self._source_control,
+              'Original source and designated adjudication evidence is required.')
+        return c.evidence.current()
+
+    def _require_admission_inputs(self):
+        c = self.config
+        _need(R.admission._receipt_sha256(c.receipt) == R.admission._receipt_sha256(self._receipt)
+              and _encode(c.route) == self._receipt.route_input_bytes and c.node_id == self._receipt.node_id,
+              'Original request or whole route changed.')
 
     def _current_action(self):
         c = self.config
@@ -393,12 +444,8 @@ class RegisteredN1Workflow:
               'Registered controller or installed source image changed.')
         _need(R.RegisteredN1Factory is _FACTORY and G.GuardedArtifactTarget is _TARGET,
               'Original factory or publisher changed.')
-        _need(R.admission._receipt_sha256(c.receipt) == R.admission._receipt_sha256(self._receipt)
-              and _encode(c.route) == self._receipt.route_input_bytes and c.node_id == self._receipt.node_id,
-              'Original request or whole route changed.')
-        _need(type(c.evidence) is EvidenceInputs and c.evidence._control is self._source_control,
-              'Original source and designated adjudication evidence is required.')
-        evidence = c.evidence.current()
+        self._require_admission_inputs()
+        evidence = self._current_evidence()
         return {'purpose': 'registered-local-engineering-v1', 'request_sha256': hashlib.sha256(self._receipt.request_bytes).hexdigest(),
                 'route': c.route, 'admission_sha256': R.admission._receipt_sha256(self._receipt),
                 'native_bundle': c.native_bundle, 'publication_bundle': c.publication_bundle,
@@ -489,6 +536,10 @@ class RegisteredN1Workflow:
 
     def adopt_execution(self, *, adoption_id, disclosure_consent):
         """Current parent adoption, distinct from task-risk or evidence acceptance."""
+        _need(self._standing_delegation is None, 'Standing delegation requires the original lead assignment.')
+        return self._adopt_execution(adoption_id=adoption_id, disclosure_consent=disclosure_consent)
+
+    def _adopt_execution(self, *, adoption_id, disclosure_consent):
         prepared = self._prepare_execution(adoption_id=adoption_id,
                                            disclosure_consent=disclosure_consent)
         commit = self._validate_execution(prepared)
@@ -496,6 +547,70 @@ class RegisteredN1Workflow:
         self._require_execution_state(prepared[0])
         self._commit_execution(commit)
         return result
+
+    def delegate(self, task, *, database):
+        """Dispatch the exact lead assignment from protected standing approval."""
+        R.live_availability.require_registered_n1_live()
+        with self._delegation_lock:
+            _need(self._standing_delegation is not None and self._delegation is None,
+                  'A fresh original standing delegation approval is required.')
+            _need(self._production_selected(), 'Standing delegation requires registered single-worker admission.')
+            self._configured_worker_login()
+            return self._delegate(task, database)
+
+    def resume_delegation(self, task, *, database):
+        """Recover the original completed assignment without making a new claim."""
+        with self._delegation_lock:
+            _need(self._standing_delegation is not None and self._delegation is not None,
+                  'Original standing delegation custody is required for resumption.')
+            D.original_assignment(self, task, database)
+            return self.recover()
+
+    def _require_completed_attempt(self, saved):
+        expected = saved['ledger']['attempt']
+        attempt = self.config.ledger.attempt(expected['reservation_id'])
+        _need(attempt == expected and attempt['outcome'] == 'completed',
+              'Original completed admission accounting changed or is unknown.')
+
+    def _completed_delegation_custody(self):
+        try:
+            saved = self._load('custody.json')
+        except FileNotFoundError:
+            return False
+        _need('delivery_origin' in saved, 'Original signed delegation custody is required.')
+        self._require_completed_attempt(saved)
+        return True
+
+    def _delegate(self, task, database):
+        c = self.config
+        c.check_storage()
+        self._require_admission_inputs()
+        state = self.verifier._current()
+        _, operation, _ = _operation(self.verifier, c.native_bundle)
+        _, publication, _ = _operation(self.verifier, c.publication_bundle)
+        for approved in (operation, publication):
+            _need(approved['revocation_generation'] == state['revocation_generation']
+                  and approved['operation_id'] not in state['operations'],
+                  'Standing delegation requires current, unclaimed operation approval.')
+        delegation, packet = D.authorize(self, task, operation, publication, database=database)
+        self._delegation = _encode(delegation)
+        disclosure = {'boundary': 'provider-only', 'provider': R.qualification.PROVIDER,
+                      'allowed_effects': ['native-worker', 'provider-request', 'target-publication'],
+                      'request_sha256': delegation['approval']['scope']['request_sha256']}
+        try:
+            self._adopt_execution(adoption_id='everyday-delegation-execution', disclosure_consent=disclosure)
+        except BaseException:
+            self._delegation = None
+            raise
+        return {**self.run(), 'packet': packet, 'packet_sha256': delegation['dispatch']['packet_sha256']}
+
+    def _delegation_dispatch(self):
+        if self._standing_delegation is None:
+            return {}, {}
+        delegation = self._current_evidence()
+        scope = delegation['approval']['scope']
+        return delegation['dispatch'], {'delivery_baseline_sha256': scope['baseline_sha256'],
+                                        'delivery_database_sha256': scope['database_sha256']}
 
     def _execution_current(self):
         _need(self._adoption is not None and _encode(self._action()) == self._selected_action,
@@ -528,6 +643,9 @@ class RegisteredN1Workflow:
     def _configured_worker_login(self):
         c = self.config
         selection = self._worker_login_home
+        if selection is None and self._standing_delegation is not None:
+            command = shlex.join(['python3', str(_SOURCE.with_name('setup_delegation.py'))])
+            raise ValueError(f'Delegation is not set up. Run this command.\n{command}')
         _need(selection is not None and selection == c._worker_login_home,
               'Registered production requires its original configured worker login home.')
         home, state = H._path(selection), H._path(R.qualification.worker_login_state())
@@ -604,11 +722,20 @@ class RegisteredN1Workflow:
         body = V.publication_custody(host, report, expected, policy, token.report,
                                     self.target.operation)
         directive = self._sign(body, 'original-validated-custody', self.target.operation.operation_sha256)
+        origin = {} if self._standing_delegation is None else {'delivery_origin': self._delivery_origin(report)}
         self._save('custody.json', {'custody': body, 'directive': directive,
-            'ledger': self.factory.result, 'host_initial': self.config.initial})
+            'ledger': self.factory.result, 'host_initial': self.config.initial, **origin})
+
+    def _delivery_origin(self, report):
+        factory = self.factory
+        raw = H._read(factory.host.state, 'operation.json', H.MAX_RECORD_BYTES)
+        _need(json.loads(raw) == report, 'The original native return changed after validation.')
+        return {'dispatch_id': factory.dispatch_id, 'dispatch_record_sha256': factory.dispatch_record_sha256,
+                'return_sha256': hashlib.sha256(raw).hexdigest(), 'return_record_sha256': factory.return_record_sha256}
 
     def adopt_publication(self, *, adoption_id):
         """Separate current adoption of the actual issued immutable artifact/target."""
+        _need(self._standing_delegation is None, 'Standing delegation delivers the candidate for independent hand review.')
         with self._locked():
             self._require_execution()
             _need(self._artifact is not None and self._publication_ready,
@@ -621,6 +748,7 @@ class RegisteredN1Workflow:
             return _copy(directive)
 
     def publish(self):
+        _need(self._standing_delegation is None, 'Standing delegation delivers the candidate for independent hand review.')
         with self._locked():
             self._require_execution()
             _need(self._artifact is not None and self._publication_ready and self._publication is not None,
@@ -661,10 +789,7 @@ class RegisteredN1Workflow:
         _claimed_row(self.verifier, native_op)
         _need(saved['host_initial'] == c.initial, 'Original host custody changed.')
         # Original durable admission result is compared; no settlement/release.
-        result = saved['ledger']
-        attempt = c.ledger.attempt(result['attempt']['reservation_id'])
-        _need(attempt == result['attempt'] and attempt['outcome'] == 'completed',
-              'Original completed admission accounting changed or is unknown.')
+        self._require_completed_attempt(saved)
         publication = _recover_publication_claim(self.verifier, c.publication_bundle)
         body = saved['custody']
         token = V.reissue_publication_observation(c.host, body['report'], body['expected_target'],
