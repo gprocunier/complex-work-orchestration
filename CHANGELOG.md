@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Use one 20-start budget for registered single-worker qualification. Preserve prior journal entries and require newly signed permits that bind the total limit.
+
 ## 1.22.0 - 2026-11-23
 
 - Use legacy rollout history for native qualification and wait within the existing startup window when the app server confirms that the original thread has yet to materialize.
