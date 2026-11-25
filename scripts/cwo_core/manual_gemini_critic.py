@@ -18,10 +18,9 @@ from .policy_schema import strict_json_loads
 
 
 _CONVERSATION_ID = re.compile(r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}')
-_REQUEST_SUFFIX = re.compile(
-    r'(?:\n<ADDITIONAL_METADATA>\n[^\r\n<>]{1,512}\n</ADDITIONAL_METADATA>)?'
-    r'(?:\n<USER_SETTINGS_CHANGE>\n[^\r\n<>]{1,512}\n</USER_SETTINGS_CHANGE>)?'
-)
+_REQUEST_OPEN = '<USER_REQUEST>\n'
+_REQUEST_CLOSE = '</USER_REQUEST>'
+_METADATA_TAG = re.compile(r'</?[A-Z][A-Z_0-9]*(?=[\s/>])[^<>]*>')
 
 
 def _require(condition, message):
@@ -66,6 +65,37 @@ def _transcript_steps(raw):
     return request, response
 
 
+def _metadata_only(suffix: str) -> bool:
+    for name in ('ADDITIONAL_METADATA', 'USER_SETTINGS_CHANGE'):
+        opening = f'\n<{name}>\n'
+        if not suffix.startswith(opening):
+            continue
+        body, end, suffix = suffix[len(opening):].partition(f'\n</{name}>')
+        if not body or not end:
+            return False
+        nested = _METADATA_TAG.findall(body)
+        if nested and (name != 'ADDITIONAL_METADATA' or nested != ['<PLAN>', '</PLAN>']):
+            return False
+    return not suffix
+
+
+def _matches_request(content: str, prompt: str) -> bool:
+    # Plan mode may prepend its command and reuse the prompt's final LF as
+    # the separator. Always locate the close from the exact prompt length.
+    for command in ('', '/plan '):
+        prefix = _REQUEST_OPEN + command + prompt
+        if not content.startswith(prefix):
+            continue
+        tail = content[len(prefix):]
+        if tail.startswith('\n'):
+            tail = tail[1:]
+        elif not prompt.endswith('\n'):
+            continue
+        if tail.startswith(_REQUEST_CLOSE) and _metadata_only(tail[len(_REQUEST_CLOSE):]):
+            return True
+    return False
+
+
 def _completed_return(prompt, stdout, transcript, conversation_id, expected_model):
     completion = _object(stdout)
     _require(type(conversation_id) is str and _CONVERSATION_ID.fullmatch(conversation_id)
@@ -74,9 +104,7 @@ def _completed_return(prompt, stdout, transcript, conversation_id, expected_mode
     _require(completion.get('status') == 'SUCCESS' and type(completion.get('num_turns')) is int
              and completion['num_turns'] == 1, 'Gemini CLI must report one successful turn')
     request, response = _transcript_steps(transcript)
-    prefix = '<USER_REQUEST>\n' + _utf8(prompt) + '\n</USER_REQUEST>'
-    content = request['content']
-    _require(content.startswith(prefix) and _REQUEST_SUFFIX.fullmatch(content[len(prefix):]),
+    _require(_matches_request(request['content'], _utf8(prompt)),
              'Gemini transcript request differs from the exact screened prompt')
     model = response.get('model')
     _require(type(model) is str and model == expected_model,

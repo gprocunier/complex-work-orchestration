@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 
 from cwo_core.errors import CWOPolicyError
 from cwo_core.host_records import HostRecordStore
-from cwo_core.manual_gemini_critic import record_gemini_critic_completion
+from cwo_core.manual_gemini_critic import _completed_return, record_gemini_critic_completion
 from cwo_core.policy import configured_gemini_critic
 
 
@@ -85,6 +85,33 @@ class ManualGeminiCriticTests(unittest.TestCase):
         with self.assertRaisesRegex(CWOPolicyError, 'prompt differs from the prepared dispatch'):
             self._record(rows=[request, response], screened_prompt=other.encode())
         self.assertEqual(self.store.audit_events(), before)
+
+    def test_plan_mode_wraps_exact_screened_text_and_multiline_metadata(self):
+        prompt = self.prompt + '\n'
+        content = (f'<USER_REQUEST>\n/plan {prompt}</USER_REQUEST>\n'
+                   '<ADDITIONAL_METADATA>\nTimestamp line.\n<PLAN>\nFirst line.\nSecond line.\n</PLAN>\n'
+                   '</ADDITIONAL_METADATA>\n<USER_SETTINGS_CHANGE>\nFirst setting.\nSecond setting.\n'
+                   '</USER_SETTINGS_CHANGE>')
+        _, response = self.rows
+
+        def validate(text):
+            request = dict(self.rows[0], content=text)
+            transcript = b''.join(json.dumps(row).encode() + b'\n' for row in (request, response))
+            return _completed_return(prompt.encode(), json.dumps(self.stdout).encode(), transcript,
+                                     self.conversation, self.config['model'])
+
+        self.assertEqual(validate(content), (self.config['model'], self.answer.encode()))
+        for alternate in (
+            content.replace('/plan ', '/other '),
+            content.replace('/plan ', '/plan  '),
+            content.replace(prompt, prompt.rstrip('\n')),
+            content.replace('First line.', '<USER_REQUEST>\nAnother request.\n</USER_REQUEST>'),
+            content.replace('First line.', '<PLAN>\nNested plan.\n</PLAN>'),
+            content.replace('First setting.', '<ADDITIONAL_METADATA>\nDuplicate.\n</ADDITIONAL_METADATA>'),
+            content + '\n<OTHER_SOURCE>extraneous source</OTHER_SOURCE>',
+        ):
+            with self.subTest(case=len(alternate)), self.assertRaisesRegex(CWOPolicyError, 'exact screened prompt'):
+                validate(alternate)
 
     def test_discards_invalid_artifacts_before_any_host_write(self):
         before = self.store.audit_events()
