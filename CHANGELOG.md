@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Let a configured registered single-worker controller route a standing-approved assignment through its original admission and dedicated login, then post the exact validated candidate for independent hand acceptance.
 - Add guided setup for the separate Codex worker sign-in, with an isolated startup check and a standalone command for existing installs.
 
 ## 1.35.2 - 2026-11-24

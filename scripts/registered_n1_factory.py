@@ -2267,6 +2267,7 @@ class RegisteredN1Factory:
         _need(type(self) is not RegisteredN1Factory or self.qualification is None,
               "Qualification dispatch evidence stays in disposable worker custody.")
         registered = registered_review_model(self.spec['provider'], self.spec['model']) or {}
+        dispatch, metadata = ({}, {}) if self._production_owner is None else self._production_owner._delegation_dispatch()
         self.dispatch_record_sha256 = self.host_records.write_dispatch(
             dispatch_id=self.dispatch_id,
             dispatch_role='peer-review' if self.review_target is not None else 'executor',
@@ -2275,7 +2276,8 @@ class RegisteredN1Factory:
             request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),
             review_target=self.review_target,
             evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',
-                                 'registered_task': self.model_task_binding()},
+                                 'registered_task': self.model_task_binding(), **metadata},
+            **dispatch,
         )
 
     def _record_qualification_dispatch(self, session_id, response):

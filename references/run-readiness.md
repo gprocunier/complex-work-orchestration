@@ -319,9 +319,15 @@ authorizes completion.
 
 ### Accepting a delivery by hand
 
+For a registered assignment, the embedding host posts the candidate and
+delivery from the original worker checkout. It retains the original dispatch
+and return receipts and supplies the exact baseline, candidate and digest for
+the command below. Run the independent review against that checkout with the
+same project Beads database. [Configured host procedure](native-live-route-holds.md#standing-approved-delegation).
+
 Record the [requirement baseline and exact candidate](#candidate-identity) on
-the Bead first. From the project checkout, the delivering lead posts a bound
-delivery using the existing `pending-acceptance` command. In this example,
+the Bead first. A lead posting a delivery by hand uses the existing
+`pending-acceptance` command from the project checkout. In this example,
 `$CWO` is the path to the installed skill or its source checkout.
 
 ```bash
