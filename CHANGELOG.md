@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Tests
+
+- Preserve archive failures that occur after the registered exhaustion fixture observes the archive request.
+
 ## 1.36.4 - 2026-11-25
 
 - Recognize Codex's final-answer notification when verifying a pool worker's completion marker.
