@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retire the archived study CLI's `digest`, `schedule`, `lock`, `score` and `template` commands. Use `v1.33.0` for those offline commands. The current CLI validates the frozen archive and continues to refuse `run`.
+
 ## 1.39.0 - 2026-11-25
 
 - Delegate from ordinary checkouts with up to 64 MiB of captured worktree data and a 16 MiB limit per file.

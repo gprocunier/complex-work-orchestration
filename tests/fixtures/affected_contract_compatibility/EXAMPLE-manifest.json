@@ -373,7 +373,7 @@
     "scripts/check_installed_skill.py": "a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",
     "scripts/cleanup_stale_agents.py": "923e38988513324f5b5b69961816d49d5f0968b24b124ea5cf8d06f5704afc98",
     "scripts/codex_tool_surface.py": "36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",
-    "scripts/cwo_core/__init__.py": "b404fca56f1b4c876d78f872633c35019a4d895ea5c67d54044f4a4f8c53e304",
+    "scripts/cwo_core/__init__.py": "160aea6de5d3366050eabc413132cb568a7459f41ee813ece94f68ba01b82cc8",
     "scripts/cwo_core/access_profiles.py": "da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",
     "scripts/cwo_core/adjudication.py": "fa1661792c179819faf2a03382836326f04af919f8f95ebff6b9c70b2a18100d",
     "scripts/cwo_core/adjudication_binding.py": "187c16651357d8103bc018a5c521a8500a2ab77dbba598093f8002b057343fc3",

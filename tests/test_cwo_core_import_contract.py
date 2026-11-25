@@ -66,7 +66,6 @@ ALLOWED_IMPORTS = {
     "synthesis_inputs": {"policy"},
     "coach": {"model_identities", "operative_routing", "routing", "synthesis", "types", "util"},
     "frozen_protocol": set(),
-    "comparative_evaluation": {"frozen_protocol"},
     "epic_convergence": set(),
     "packets": {"errors", "paths", "policy", "return_language", "util"},
     "packet_provenance": {"audit", "packets"},

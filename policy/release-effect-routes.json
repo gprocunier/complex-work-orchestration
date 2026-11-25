@@ -844,7 +844,7 @@
 
 "b9":[15,"main",588,"1PO0mATJmFLdBYd-7ok34HnjQifkGRsznraNrjwB4Ic"],
 
-"bA":[103,"InstallerProjectionTests.test_signal_after_the_previous_install_moved_restores_it",645,"Y8ok20igq_L-SxFobep6-RCdr_l9317-2HVzLYfjmcE"],
+"bA":[103,"InstallerProjectionTests.test_signal_after_the_previous_install_moved_restores_it",654,"Y8ok20igq_L-SxFobep6-RCdr_l9317-2HVzLYfjmcE"],
 
 "bB":[3,"_require",33,"Rki6vjjzcFcE1_4vhXXNmvoU1-21V5_Pm62JYF2tsuY"],
 
@@ -1416,7 +1416,7 @@
 
 "fh":[73,"ActivationLedgerTransport.start_thread",166,"E-htdIqfldc791xVKVx5yVS2BajZ9tSeX4310X6Pq-M"],
 
-"fi":[75,410,{"$":256}],
+"fi":[75,409,{"$":256}],
 
 "fj":[9,212,{"$":98}],
 
@@ -1444,7 +1444,7 @@
 
 "fv":[132,"RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands",592,"KciK5sHaQpwjMVJzvdvG45L4EMa0UO3njoiKhj3_uHU"],
 
-"fw":[103,"InstallerProjectionTests.test_missing_required_entry_refuses_install_and_dry_run_without_change",598,"IgYG_0EaCFhEydPeKMkBMAua7ymNBWWP167FMqMm5SM"],
+"fw":[103,"InstallerProjectionTests.test_missing_required_entry_refuses_install_and_dry_run_without_change",607,"IgYG_0EaCFhEydPeKMkBMAua7ymNBWWP167FMqMm5SM"],
 
 "fx":[9,230,"result = subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)"],
 
@@ -1502,7 +1502,7 @@
 
 "gN":[60,358,"return self.opener.open(req, timeout=min(timeout, remaining))"],
 
-"gO":[75,"main",550,"z1w2A6R7g7xvMQSzNFvcCnTfJulrQxsznbA4FckQHbI"],
+"gO":[75,"main",549,"z1w2A6R7g7xvMQSzNFvcCnTfJulrQxsznbA4FckQHbI"],
 
 "gP":[8,635,{"$":233}],
 
@@ -2136,7 +2136,7 @@
 
 "lP":[50,243,{"$":315}],
 
-"lQ":[75,272,"subprocess.run(\n            [sys.executable, str(Path(__file__).resolve()), \"--list-test-methods\",\n             *map(str, paths), \"--discovery-output\", str(output)],\n            cwd=working_directory, env=_worker_environment(start_directory, Path(temporary)),\n            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,\n        )",17,277,9],
+"lQ":[75,271,"subprocess.run(\n            [sys.executable, str(Path(__file__).resolve()), \"--list-test-methods\",\n             *map(str, paths), \"--discovery-output\", str(output)],\n            cwd=working_directory, env=_worker_environment(start_directory, Path(temporary)),\n            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,\n        )",17,276,9],
 
 "lR":[22,"spawn",231,"pjxxu4_nrFIvhgOnlJOG2M_V00cX9zpaxX0lXy1NnJI"],
 
@@ -2162,7 +2162,7 @@
 
 "lc":[70,"_load_pool_request",31,"r9sMMAAKftxPbu_dXuF_CFGrA4UVmycyF52u-kN15Xs"],
 
-"ld":[75,410,"subprocess.Popen(\n            command, cwd=working_directory,\n            env=_worker_environment(start_directory, Path(temporary.name)),\n            stdout=log_file, stderr=subprocess.STDOUT, text=True,\n        )",18,414,9],
+"ld":[75,409,"subprocess.Popen(\n            command, cwd=working_directory,\n            env=_worker_environment(start_directory, Path(temporary.name)),\n            stdout=log_file, stderr=subprocess.STDOUT, text=True,\n        )",18,413,9],
 
 "le":[11,51,"subprocess.run([*command, *inventory], cwd=root, env=env,\n                            capture_output=True, text=True, check=False)",13,52,72],
 
@@ -2252,7 +2252,7 @@
 
 "mK":[8,1299,"candidate.click(timeout=750)",20,1299,48],
 
-"mL":[75,554,"if args.workers < 1:"],
+"mL":[75,553,"if args.workers < 1:"],
 
 "mM":[78,272,"if unmet:"],
 
@@ -5777,9 +5777,9 @@
 
 [76,14317,33,14319,13,"dynamic","a3-mx37U93yt3gv4n9Y8x5IrfHVsSt6sh_8LH9YTEoA",[{"$":9},"XR404"]],
 
-[77,272,17,277,9,"process","lAX-zUK4AIVcn4IZaYm5ZV1TlDefknrp6hLUmaf_vGc",["route","X6.4","lQ"]],
+[77,271,17,276,9,"process","lAX-zUK4AIVcn4IZaYm5ZV1TlDefknrp6hLUmaf_vGc",["route","X6.4","lQ"]],
 
-[77,410,18,414,9,"process","oXS_ERA9oU90iYO6ZIAy5BxbDI_UKRezBbSFPe169mo",["route","X6.4","ld"]],
+[77,409,18,413,9,"process","oXS_ERA9oU90iYO6ZIAy5BxbDI_UKRezBbSFPe169mo",["route","X6.4","ld"]],
 
 [78,1478,8,1482,9,"beads","kWsGB2edrugNRfu-CSihGM1sK4fqLY_2kHClBhXQidI",["route","B1.1","x"]],
 
@@ -7206,7 +7206,7 @@
 
 "@102":["z0d7XIKeGuIvS182ynQT8e9ggJk1bf-GMlPBOsbcBlk",420,24743],
 
-"@103":["QrO48M93EDcLgomUEKxPzdqrzK3UQ1qAaeabjBR0a_I",420,43442],
+"@103":["djXTMMXIOvHJmEVruh-6yCkyczebcRQhX5TO4iGtr_A",420,44030],
 
 "@104":["XuZz79hXd0CVgfE0OAj7kfl3-62JCtSrbicLTJ16E18",420,9428],
 
@@ -7524,7 +7524,7 @@
 
 "@74":["nJmgMeXRllG6nIbxsjF4WsV7MX7TWH6L45-9f6gQtPw",420,607683],
 
-"@75":["KqB1bJz1VDu3whWmCFdLM2WyKZHM_p4tkXrAXzF2VXY",493,27154],
+"@75":["FZD62tTqBcU4axLx6Pl6wvk1p-8OZY26SE2Nqfn3osk",493,27108],
 
 "@76":["S6CxjL7UtJZvyti9Wv0g7FkbWcTCi87rplqmyEP7EHA",493,77617],
 
@@ -7580,7 +7580,7 @@
 
 "policy/model-roles.yaml":["ts5whoPZ82VNn1DRyC7d5Hi_XecHVzBzZqd8knmlRW0",420,726],
 
-"references/claims-register.md":["dvyZKPvVDp71022sVdqb-o5WbNuECTDx9FSjVoBrAy4",420,15860],
+"references/claims-register.md":["_hN7rBuQsWC1B08_KBV3mu2y9pyae31a2kKqEPFYmDk",420,15924],
 
 "references/cwo-system-prompt.md":["NaUTR-c8I0JleXR4pZHdEBuAPkuhI9NrDO6qVWw7kr8",420,2833],
 
@@ -7600,9 +7600,9 @@
 
 "scripts/codex_tool_surface.py":["Nu0ql5HOoRnsFt0CLhBT8glgXOogaK4EzxvcEGGf30U",420,469],
 
-"scripts/comparative_evaluation.py":["ae57ncXO5FhyB_n11e3VVAjpK4YVaYCf0uC1w_VNq7I",420,6574],
+"scripts/comparative_evaluation.py":["BvLNyTirvieN46vVUMLLTZHoEvtyjqkxifJytJnUdKU",420,3825],
 
-"scripts/cwo_core/__init__.py":["tAT8pW8bTIdtePhyYzw1AZpNiV6lxn1UBE9KT4xT4wQ",420,3860],
+"scripts/cwo_core/__init__.py":["FgrqbeXTNmBQ6rxBMTLLVop0WfQe6BPs6U9ougG4LMg",420,3830],
 
 "scripts/cwo_core/access_profiles.py":["2lC0xX3ZK3Ut05NAyEuODqb3Q78Tw8DuakVP-4ppiqQ",420,12119],
 
@@ -7627,8 +7627,6 @@
 "scripts/cwo_core/codex_hook_enforcement.py":["uYjwBis1TPGT7DUoRiFoy4KPJyHSnQRlc8ePae4WhaA",420,8633],
 
 "scripts/cwo_core/codex_protocol_pin.py":["X2Xiv-3DzLsfUkjGP6F8TXtgplhr-TBEdB4VejXJS70",420,29437],
-
-"scripts/cwo_core/comparative_evaluation.py":["E5fX8mEKkqEcLBqpHDKzUxdnxcPivIEnxsHKkaqf3wA",420,107355],
 
 "scripts/cwo_core/cyber_fallback.py":["1IUEL4nKYBcg6n6hfShuKSzAky9v4SAKzpZN9HaT968",420,20119],
 
@@ -7958,7 +7956,7 @@
 
 "scripts/validate_public_copy.py":["Nh2VF3xdNxmpccEZqUMcJTUD9LW-oEhvzOCJKawL4hc",420,62905],
 
-"scripts/validate_repository.py":["VtqIlEDwACtAHQ4LIGUtkLAeD5NtX3Nplu0YKmojzIc",420,116382],
+"scripts/validate_repository.py":["ijPFNjkz_ZgqAa_-A_DVvqRwGxPcPD1MBoLfNKokKzY",420,116331],
 
 "scripts/validate_run_readiness_plan.py":["Qgbl831AJKP8HfpAZtP_cj91LTnKuHtFDKf02kUmy4Y",493,21103],
 
@@ -7974,7 +7972,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["DtPy9AYh0CF-4geOnYpVAh9JOzM4oU5l8eRnlW4aMyw",420,136082],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["uuKjrdY9DRWxuykmhsoSW7_95l7RR8EPwdhYBvhpa7g",420,136082],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -7988,7 +7986,7 @@
 
 "tests/test_core_resource_tool_profiles.py":["BLcVQF-zTyYeX3fskFBF-ZnSo4wB5Y5p-rLf7G11O9M",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["Oxvw4X6BHYF4V2V5hE1Engae6s1ZjB3-maM_RpCtJJA",420,24066],
+"tests/test_cwo_core_import_contract.py":["gXWQEm0gE6sz392JYpsPsRhwtyMsrn12V_RMk9bcbLQ",420,24015],
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 

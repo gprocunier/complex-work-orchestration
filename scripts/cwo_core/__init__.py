@@ -50,7 +50,6 @@ __all__ = [
     "execution_enhancement_metrics",
     "execution_status_report",
     "frozen_protocol",
-    "comparative_evaluation",
     "git_store",
     "harness",
     "host_records",
