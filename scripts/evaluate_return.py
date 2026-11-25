@@ -9,6 +9,7 @@ from typing import Any
 
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.returns import mark_advisory_return as _mark_advisory
+from cwo_core.adjudication import dispatch_provenance
 from cwo_core.audit import record_audit_event
 from cwo_core.browser_provenance import BROWSER_PREPARATION_TRACE_FIELDS, candidate_context, select_private_capture
 from cwo_core.errors import CWOPolicyError
@@ -219,13 +220,39 @@ def _require_browser_preparation_match(dispatch: dict, provenance: dict) -> None
         raise SystemExit("private response does not match the recorded browser preparation")
 
 
-def _apply_browser_review_requirements(args: argparse.Namespace, metadata: dict) -> None:
-    required = metadata.get("peer_review_required", False)
+def _apply_review_requirements(
+    args: argparse.Namespace, metadata: dict, *, source: str, default_required: bool | None,
+) -> None:
+    required = metadata.get("peer_review_required", default_required)
     domains = metadata.get("provider_conflict_domains", [])
     if type(required) is not bool or type(domains) is not list or any(type(item) is not str for item in domains):
-        raise SystemExit("observed browser dispatch has invalid review requirements")
+        raise SystemExit(f"{source} has invalid review requirements")
     args.peer_review_required = args.peer_review_required or required
     args.provider_conflict_domain = list(dict.fromkeys([*domains, *args.provider_conflict_domain]))
+
+
+def _apply_manual_review_requirements(args: argparse.Namespace, packet: dict, raw: bytes) -> bool:
+    store = configured_store()
+    dispatch_id = packet["dispatch_id"]
+    if not store.find("dispatch", dispatch_id=dispatch_id):
+        return False
+    dispatch = store.require_dispatch(dispatch_id)
+    metadata = _as_dict(dispatch.get("evaluation_metadata"))
+    expected = {
+        "dispatch_role": "executor",
+        "provider": dispatch_provenance(packet)["provider_family"],
+        **{key: packet[key] for key in ("bead_id", "packet_sha256", "executor", "provider_key")},
+    }
+    if metadata.get("dispatch_mode") != "manual_ui" or any(
+        dispatch.get(key) != value for key, value in expected.items()
+    ):
+        raise SystemExit("contractor packet does not match the recorded manual dispatch")
+    if args.audit:
+        receipt = store.require_return(dispatch_id, hashlib.sha256(raw).hexdigest())
+        if receipt["dispatch_record_sha256"] != dispatch["_record_sha256"]:
+            raise SystemExit("return receipt does not match the recorded manual dispatch")
+    _apply_review_requirements(args, metadata, source="recorded manual dispatch", default_required=None)
+    return True
 
 
 def _historical_browser_input(args: argparse.Namespace) -> tuple[dict, dict, bytes]:
@@ -255,7 +282,7 @@ def _contractor_evaluation_input(args: argparse.Namespace) -> tuple[dict, bytes 
         packet, metadata, raw = load(args)
     except CWOPolicyError as failure:
         raise SystemExit(str(failure)) from failure
-    _apply_browser_review_requirements(args, metadata)
+    _apply_review_requirements(args, metadata, source="observed browser dispatch", default_required=False)
     evaluation_metadata = contractor_packet_evaluation_metadata(packet)
     evaluation_metadata["dispatch_mode"] = metadata["dispatch_mode"]
     return evaluation_metadata, raw
@@ -449,7 +476,22 @@ def _record_private_intake(dispatch_id: str | None, browser_return: bytes | None
             raise SystemExit(str(failure)) from failure
 
 
-def _record_host_evaluation(text: str, result: dict[str, Any]) -> str | None:
+def _prepare_evaluation_binding(
+    args: argparse.Namespace, packet: dict, raw: bytes, browser_return: bytes | None,
+) -> bool:
+    if browser_return is not None:
+        _record_private_intake(packet["dispatch_id"], browser_return, args)
+        return True
+    try:
+        return bool(packet) and _apply_manual_review_requirements(args, packet, raw)
+    except CWOPolicyError as failure:
+        raise SystemExit(str(failure)) from failure
+
+
+def _record_host_evaluation(text: str, result: dict[str, Any], *, tracked: bool = True) -> str | None:
+    # A legacy evaluation stays unbound if a dispatch is added while it is scored.
+    if not tracked:
+        return None
     from cwo_core.host_acceptance import record_received_evaluation
     try:
         return record_received_evaluation(text, result)
@@ -686,7 +728,7 @@ def main() -> None:
         if eligible is not True:
             return_text = ""
 
-    _record_private_intake(dispatch_id, browser_return, args)
+    tracked = _prepare_evaluation_binding(args, contractor_packet_metadata, return_bytes, browser_return)
     result = _evaluate_current_return(
         return_text,
         bead_id=bead_id,
@@ -736,7 +778,7 @@ def main() -> None:
         _mark_advisory(result)
     record = None
     if args.audit:
-        record = _record_host_evaluation(return_text, result)
+        record = _record_host_evaluation(return_text, result, tracked=tracked)
         audit_path = Path(args.audit_file) if args.audit_file else None
         record_audit_event(
             {

@@ -513,7 +513,7 @@
     "scripts/cwo_core/workspace_transition.py": "f7838c9d953e325d7221bdd8ed8761dfcb175f68710ea04e0bbe72c2c28cb14c",
     "scripts/delegate_internal_work.py": "20a85eb2da7768b81103867ddc866aad1be6ae743c2da6b6a382480a5d647d95",
     "scripts/dispatch_work.py": "4840a3317bb585dd2c2ef7c2e0c05053beb9303e6321fd412315abbb6fa72059",
-    "scripts/evaluate_return.py": "933e2b4f4bcdda04ceda92e8e39812d3b37c639c95078575c1eaffb2476e3a8e",
+    "scripts/evaluate_return.py": "321b71a90aca2899861a664e24a28cb520977c4aa5edb85d38b22352e44d1af2",
     "scripts/evidence_use.py": "60387077e995f67da609cba1fe7df8fb6a7b63f6fd5526078f8d707c1a52bfa4",
     "scripts/generate_manual_dispatch_prompt.py": "97461ab7370d911a0b8923511d638feb46eb5eeb19e7463277fbd05a46532c52",
     "scripts/guarded_artifact_target.py": "7780fc04a6eae8ffc437681ed1de877491ec901d2500b94df0c92a3725699e1d",
