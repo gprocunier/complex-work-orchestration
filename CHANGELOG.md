@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Resume interrupted delivery without starting another worker.
+
 - Preserve refused pool qualification results with their cleanup, lease, and accounting evidence.
 - Name the registered writer and require its successful reply in the fixed pool qualification task.
 

@@ -13,6 +13,7 @@ COMMANDS = {
     "scaffold": "scaffold_workgraph.py",
     "beads-brief": "build_beads_brief.py",
     "build-packet": "build_contractor_packet.py",
+    "delegate": "everyday_delegation.py",
     "dispatch": "dispatch_work.py",
     "manual-prompt": "generate_manual_dispatch_prompt.py",
     "browser-review": "chatgpt_browser_review.py",
@@ -39,12 +40,16 @@ def print_help() -> None:
     print("Run `python3 scripts/cwo.py <command> --help` for command-specific help.")
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None, *, delegation_workflow=None) -> None:
     args = list(sys.argv[1:] if argv is None else argv)
     if not args or args[0] in {"-h", "--help"}:
         print_help()
         return
     command = args.pop(0)
+    if command == "delegate":
+        from everyday_delegation import main as delegate
+
+        raise SystemExit(delegate(args, workflow=delegation_workflow))
     target = COMMANDS.get(command)
     if target is None:
         print(f"unknown cwo command: {command}", file=sys.stderr)
