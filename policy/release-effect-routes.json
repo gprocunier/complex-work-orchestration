@@ -644,7 +644,7 @@
 
 "9":[8,"PlaywrightChatGPTRunner._try_social_share_url",1497,"7HtQIm6llslCL5B1vPsI1JkdxP5YkYso5tN8NWpRyY8"],
 
-"A":[64,742,"result = self.controller.spawn_owned("],
+"A":[64,770,"result = self.controller.spawn_owned("],
 
 "B":[8,727,{"$":286},42,730,17],
 
@@ -666,9 +666,9 @@
 
 "K":[175,"DelegationSetupTests.test_fake_device_login_checks_startup_then_saves_only_worker_path",89,"tqsTKKHIxjXE0KgJpcOLffekpY3eXrH59LJDLw1wK5M"],
 
-"L":[65,676,"if c._worker_login_error is not None:"],
+"L":[65,681,"if c._worker_login_error is not None:"],
 
-"M":[65,678,"if selection is None:"],
+"M":[65,683,"if selection is None:"],
 
 "N":[146,333,{"$":366},42,333,61],
 
@@ -688,7 +688,7 @@
 
 "V":[120,"QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments",186,"MrAEldcflDgeT41MpOvHb9UavWyUQ6OkUJwGQLxcHSU"],
 
-"W":[64,"_Containment.launch",719,"dbZ1SBlh175PrtEVwsCoZv8yTBj4Gd_6cjMc2KChJY0"],
+"W":[64,"_Containment.launch",747,"dbZ1SBlh175PrtEVwsCoZv8yTBj4Gd_6cjMc2KChJY0"],
 
 "X":[115,"ProfileInputTests.test_supporting_input_reaches_actual_fake_process_once_with_original_bindings",163,"mu4b5KoPoZ6LwMHOo-Vfx3p_N5U04RhCrul2s3eG6E4"],
 
@@ -804,7 +804,7 @@
 
 "aq":[23,361,{"$":258}],
 
-"ar":[64,"_RegisteredServer.request",1555,"F7qUf87ct4grQA3qqyu0PPu8grnCDj62kKmQ705-mW4"],
+"ar":[64,"_RegisteredServer.request",1583,"F7qUf87ct4grQA3qqyu0PPu8grnCDj62kKmQ705-mW4"],
 
 "as":[76,1716,"try_dep(blocked, blocker, dependency_type)",16,1716,58],
 
@@ -872,9 +872,9 @@
 
 "bN":[64,68,{"$":248},15,68,49],
 
-"bO":[64,"_Containment._release_command",675,"-01eCPcPIqBDOzz1wz7GIx9R64l73VlWSYLGNyxdRfI"],
+"bO":[64,"_Containment._release_command",703,"-01eCPcPIqBDOzz1wz7GIx9R64l73VlWSYLGNyxdRfI"],
 
-"bP":[64,"_Containment._terminate_claimed",964,"5o7fO5pjZ7F-dAXv3t7DktTaPlacFTzQeI_xHmZR0Kg"],
+"bP":[64,"_Containment._terminate_claimed",992,"5o7fO5pjZ7F-dAXv3t7DktTaPlacFTzQeI_xHmZR0Kg"],
 
 "bQ":[79,165,"bd_json(command)",42,165,58],
 
@@ -936,7 +936,7 @@
 
 "bt":[76,"try_dep",1482,"Ht0_g_gmd-1btvmtNb_hqR4pBPTqMRSRSXY9vbINkRs"],
 
-"bu":[64,721,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
+"bu":[64,749,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
 
 "bv":[37,439,"if pre.get(\"status\") != \"open\" or pre_assignee not in (None, \"\"):"],
 
@@ -948,7 +948,7 @@
 
 "bz":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",679,"RdM82WY4Rym3TDm4i0KVKoNz_2KZCdABI3lijGyPrD8"],
 
-"c":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",224,"5me4iS_8jVKbwZt15cpdaxlzbeH4oHobe_dOw4F8e5k"],
+"c":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",304,"jxyxUwC272tRWlg5LSye-TQbVsBm6RXtRb8Q3PAYqJs"],
 
 "c0":[48,"main",353,"JxllWLGW9t3Jd4KCCumWY0F18Ef_7_BEwsFRVawXgQI"],
 
@@ -1090,7 +1090,7 @@
 
 "d6":[90,"ChatGPTBrowserReviewTests._browser_result",1327,"qQWL63ASUFRZ_6aadcxwOe0VRkZMKUJzKCL9emo_1IU"],
 
-"d7":[64,"RegisteredN1Factory._isolated_validation",2591,"lV1uatFeb1_o1Wo2xgdf2i_oPFVR6tVwLOBP_ik74Pg"],
+"d7":[64,"RegisteredN1Factory._isolated_validation",2616,"lV1uatFeb1_o1Wo2xgdf2i_oPFVR6tVwLOBP_ik74Pg"],
 
 "d8":[51,640,"self._capability()",12,640,30],
 
@@ -1272,7 +1272,7 @@
 
 "eY":[37,1510,"if isinstance(raw_issue_ids, list) and len(raw_issue_ids) >= 4:"],
 
-"eZ":[64,"_RegisteredServer._launch_process",1585,"N7eg3RFZseWKgsd2KqONT4gGNm0KLLEu4nl33F_xSOo"],
+"eZ":[64,"_RegisteredServer._launch_process",1613,"N7eg3RFZseWKgsd2KqONT4gGNm0KLLEu4nl33F_xSOo"],
 
 "ea":[21,"main",44,"IgAulEK2M7iX9IUlv4Ss0OGT_gtWptNcqagr_ax3WaA"],
 
@@ -1326,13 +1326,13 @@
 
 "ez":[50,298,"quote_cmd \"${cmd[@]}\""],
 
-"f":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",449,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
+"f":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",577,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
 
 "f0":[99,"F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write",131,"yKwa8PLCMe6n7YGjgoVtCPfdC9PTa573eaPkGx8CTek"],
 
 "f1":[43,"WorktreeCapture._resolve_dirs",1934,"dZQH4PuBIaB09y0Jingn5BDs2emfwevCel8prUvPWws"],
 
-"f2":[64,"_RegisteredServer.__init__",1192,"G1Mz5E4_1OBWs2WTk9hFz82xmxFhmQsS_RSURzloZDg"],
+"f2":[64,"_RegisteredServer.__init__",1220,"G1Mz5E4_1OBWs2WTk9hFz82xmxFhmQsS_RSURzloZDg"],
 
 "f3":[30,329,"self._handle.require_intent()"],
 
@@ -1440,7 +1440,7 @@
 
 "ft":[74,3705,{"$":284}],
 
-"fu":[64,"RegisteredN1Factory.run",2649,"IZu2lD7TLSVi0FJqPDheYiAeVlvscicNeqcNEHGBHls"],
+"fu":[64,"RegisteredN1Factory.run",2674,"IZu2lD7TLSVi0FJqPDheYiAeVlvscicNeqcNEHGBHls"],
 
 "fv":[132,"RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands",592,"KciK5sHaQpwjMVJzvdvG45L4EMa0UO3njoiKhj3_uHU"],
 
@@ -1530,7 +1530,7 @@
 
 "gb":[8,797,"self._wait_for_stable_response(page, before_text, response_timeout, stable_wait, request_id=request_id)",32,797,135],
 
-"gc":[64,"_CoherentServerRequests",1069,"WHQAqI5qLWkUlS6RhWFnt6_gTxVwDFwr_zUN_V1DKW0"],
+"gc":[64,"_CoherentServerRequests",1097,"WHQAqI5qLWkUlS6RhWFnt6_gTxVwDFwr_zUN_V1DKW0"],
 
 "gd":[74,"main",12744,"nXUsaB8mQ0E90ix-EhxkMnsDmai341ahB8cGl86g888"],
 
@@ -1580,7 +1580,7 @@
 
 "h":[185,"RegisteredLeadProjectTests.test_project_database_changes_do_not_drift_registered_target_or_retry",33,"VEN-CyQcFdT_LUlahTIfNrzf8Lk63OzfG3aerIE-9-U"],
 
-"h0":[64,"RegisteredN1Factory._effect",2477,"aUKu2mEXEH2NQsTqkU12SXxsHPX-aotDGGDPrRtUpac"],
+"h0":[64,"RegisteredN1Factory._effect",2502,"aUKu2mEXEH2NQsTqkU12SXxsHPX-aotDGGDPrRtUpac"],
 
 "h1":[106,"Issue41DispatchMatrixTests.assert_chrome_actions",454,"3HDP38MIIw8KgWv18eI6uPB2M1UdHQ52JFwBzwlWhvA"],
 
@@ -1726,23 +1726,23 @@
 
 "i9":[8,1152,"box.evaluate(_STAMP_SCRIPT, request_id)",22,1152,61],
 
-"iA":[64,"_Containment._command",543,"YRrWrTej5htgDqqIfFeesfIzGFE58abQl2RCwJz1voE"],
+"iA":[64,"_Containment._command",571,"YRrWrTej5htgDqqIfFeesfIzGFE58abQl2RCwJz1voE"],
 
-"iB":[64,821,"os.pidfd_open(pid, 0)",21,821,42],
+"iB":[64,849,"os.pidfd_open(pid, 0)",21,849,42],
 
-"iC":[64,"_namespace_info",163,"S91TN9C9W-cmqtdAtgh0iH3NTNpQT9mTqAmc948PyFE"],
+"iC":[64,"_namespace_info",191,"S91TN9C9W-cmqtdAtgh0iH3NTNpQT9mTqAmc948PyFE"],
 
-"iD":[64,"_namespace_info_bytes",147,"Uf4fytyiwwVmIH7GrEtD_RgktzMsdvWUgQQTOyupytQ"],
+"iD":[64,"_namespace_info_bytes",175,"Uf4fytyiwwVmIH7GrEtD_RgktzMsdvWUgQQTOyupytQ"],
 
 "iE":[127,"RealLauncherArgumentsTests.test_real_registered_gate_observes_completed_mounts_before_useful_command",964,"77HrB9hraXF8sILOPRUtKf-bXnR3-KBUY1gKzVfr8Mc"],
 
 "iF":[127,"RealLauncherArgumentsTests.test_real_registered_revocation_after_mount_observation_never_executes_command",974,"EuxWXzRQDcaMzDIt1Z1PDvE23u9e6BAK_E4-kP6EurY"],
 
-"iG":[64,"_Containment._retain_namespace",819,"Rrj7c8VUMB35jbmoZHtn49CSRFQx6svbsXLwAHId-OA"],
+"iG":[64,"_Containment._retain_namespace",847,"Rrj7c8VUMB35jbmoZHtn49CSRFQx6svbsXLwAHId-OA"],
 
-"iH":[64,865,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,865,75],
+"iH":[64,893,"signal.pidfd_send_signal(self.namespace_handle, signal.SIGKILL)",12,893,75],
 
-"iI":[64,679,{"$":249},8,679,34],
+"iI":[64,707,{"$":249},8,707,34],
 
 "iJ":[120,"QualifiedReviewTest.test_final_transport_delay_passes_exact_remaining_admission_or_runtime",176,"n3iE6Rm8Ay2nATkbMq65FURQRensCJe1F-QqUm50Xic"],
 
@@ -1818,15 +1818,15 @@
 
 "it":[74,3706,"turn, _latency = self.server.start_turn(self.thread_id, message)"],
 
-"iu":[64,646,"os.write(descriptor, b'1')",12,646,38],
+"iu":[64,674,"os.write(descriptor, b'1')",12,674,38],
 
 "iv":[8,1154,"box.evaluate(_FILL_SCRIPT, prompt)",35,1154,69],
 
-"iw":[64,686,{"$":148},8,686,37],
+"iw":[64,714,{"$":148},8,714,37],
 
 "ix":[127,"RealLauncherArgumentsTests.test_real_namespace_stops_even_when_original_monitor_cleanup_raises",999,"EjBnulFAHAF_vNk7vUpFi-HM8sO78qL-aSRqwqM04GI"],
 
-"iy":[64,"_launcher_argv",142,"T_FezBZal4Jn2SKobvwdLPCxQt-gT0qjOdfTYaMfjgE"],
+"iy":[64,"_launcher_argv",170,"T_FezBZal4Jn2SKobvwdLPCxQt-gT0qjOdfTYaMfjgE"],
 
 "iz":[127,"RealLauncherArgumentsTests.assert_real_namespace_stopped_after_monitor_failure",981,"YCw-BKaMo35VQUFxGC7QQIrQtW8gSRQ0T5pV9_9pIzM"],
 
@@ -1904,11 +1904,11 @@
 
 "jZ":[155,"PoolWorkerContainment._release_login",645,"vPgg9fqYjgFq9jQnXBlWpk4XCqCrHcECiBe3A7byAEk"],
 
-"ja":[65,"RegisteredN1Workflow._production_selected",484,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
+"ja":[65,"RegisteredN1Workflow._production_selected",489,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
 
-"jb":[64,"_RegisteredServer._register_production_rpc",1232,"kISxK9pHjckkbv9hrb_tAgnq4iWNRqyXFLdbFqudSys"],
+"jb":[64,"_RegisteredServer._register_production_rpc",1260,"kISxK9pHjckkbv9hrb_tAgnq4iWNRqyXFLdbFqudSys"],
 
-"jc":[65,"RegisteredN1Workflow._require_production_execution",657,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
+"jc":[65,"RegisteredN1Workflow._require_production_execution",662,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
 
 "jd":[153,"WorkflowTests.test_production_requires_current_adoption_and_configured_worker_login",382,"SOKBojMQfm0KVuZZYQrqsR7_nZS9sa5bsY-g1IpLtew"],
 
@@ -2010,7 +2010,7 @@
 
 "kP":[27,147,"subprocess.run(\n        [str(binary), \"--version\"],\n        check=False,\n        capture_output=True,\n        text=True,\n        timeout=10,\n        env=None if codex_home is None else dict(os.environ, CODEX_HOME=str(codex_home),\n                                                PATH=str(binary.parent) + os.pathsep + os.defpath),\n    )",16,155,5],
 
-"kQ":[64,1658,"self.request('thread/start', params, timeout=10)",29,1658,77],
+"kQ":[64,1686,"self.request('thread/start', params, timeout=10)",29,1686,77],
 
 "kR":[42,398,"self.request(\n                \"initialize\",\n                {\n                    \"clientInfo\": {\n                        \"name\": \"cwo-supervisor-concurrency-canary\",\n                        \"title\": \"CWO supervisor concurrency canary\",\n                        \"version\": \"1.0.0\",\n                    },\n                    \"capabilities\": {\"experimentalApi\": True},\n                },\n                timeout=10,\n            )",24,409,13],
 
@@ -2130,7 +2130,7 @@
 
 "lM":[8,1323,"page.locator(str(copy_selector)).first.click(timeout=timeout_ms)",16,1323,80],
 
-"lN":[64,1557,"super().request(*args, **kwargs)",17,1557,49],
+"lN":[64,1585,"super().request(*args, **kwargs)",17,1585,49],
 
 "lO":[50,202,{"$":315}],
 
@@ -2186,7 +2186,7 @@
 
 "lo":[77,1356,{"$":366},24,1356,43],
 
-"lp":[64,2220,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2222,74],
+"lp":[64,2249,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2251,74],
 
 "lq":[8,697,{"$":254},26,701,17],
 
@@ -2198,15 +2198,15 @@
 
 "lu":[8,630,{"$":253},26,630,98],
 
-"lv":[64,1968,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1970,93],
+"lv":[64,1996,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1998,93],
 
-"lw":[64,94,"_need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes\n          and _snapshot(selected['execution']) == receipt.execution_bytes,\n          'The model task requires the exact original admitted request and execution.')",4,96,87],
+"lw":[64,122,"_need(admission.planner.render_request(selected).encode('utf-8') == receipt.request_bytes\n          and _snapshot(selected['execution']) == receipt.execution_bytes,\n          'The model task requires the exact original admitted request and execution.')",4,124,87],
 
-"lx":[64,1941,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1941,99],
+"lx":[64,1969,"_need(factory is not None, 'Only the original registered factory can bind the model task.')",8,1969,99],
 
-"ly":[64,104,"_need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),\n          'The complete model task exceeds its original admitted byte allowance.')",4,105,82],
+"ly":[64,132,"_need(0 < len(data) <= min(len(receipt.request_bytes), native.MAX_TASK_BYTES),\n          'The complete model task exceeds its original admitted byte allowance.')",4,133,82],
 
-"lz":[64,1966,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1967,80],
+"lz":[64,1994,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1995,80],
 
 "m":[176,"_worker_home",20,"qGa20j-EivAoGQioKRaz5CxcJzu1C7sL_b2h_kuXa2M"],
 
@@ -2316,7 +2316,7 @@
 
 "mq":[12,"write_install_manifest",726,"jyHxEAX0aChJ7GShgQ1wwjmRN_8eKMq2Dwg5FwFFscw"],
 
-"mr":[64,709,{"$":148}],
+"mr":[64,737,{"$":148}],
 
 "ms":[49,374,"if ! python3 -B \"$CHECKER\" --source-dir \"$SOURCE_DIR\" --installed-dir \"$INSTALL_STAGE_DIR\" --write-manifest --check; then"],
 
@@ -2334,7 +2334,7 @@
 
 "mz":[177,70,"run_bd(['comment', '--', delivery.bead_id, line])",4,70,53],
 
-"n":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",91,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
+"n":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",120,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
 
 "n0":[133,"LauncherAuthorityTests.test_pool_request_missing_protection_refuses_before_open",105,"K-Q_pkk-bX_GAzMTxxzACVb8qTeAfkKtwGRsKEmc8Fo"],
 
@@ -2372,7 +2372,7 @@
 
 "nH":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4973,"RT_laVUqRXyolUYIargaAmVK7jbM1r3ZQbEieAoFGyA"],
 
-"nI":[64,1587,"self.lifetime.launch(command, self.factory.home)",18,1587,66],
+"nI":[64,1615,"self.lifetime.launch(command, self.factory.home)",18,1615,66],
 
 "nJ":[17,422,{"$":325}],
 
@@ -2384,7 +2384,7 @@
 
 "nN":[59,542,"_bd(state, [\"show\", \"--json\", \"--include-comments\", \"--\", expected[\"id\"]])",10,542,84],
 
-"nO":[64,2596,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2596,99],
+"nO":[64,2621,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2621,99],
 
 "nP":[13,25,"print(json.dumps(result, sort_keys=True))"],
 
@@ -2542,45 +2542,45 @@
 
 "od":[117,"PrivatePidCIApplicabilityTests.test_original_watchdog_exit_reap_and_error_free_close_reports_are_required",489,"1lpv_KmvdH27h5SAJqZOuTgvdvBSjDktRxnBYJX8ZyE"],
 
-"oe":[64,116,"adapter.server._fail_transport(failure)",8,116,47],
+"oe":[64,144,"adapter.server._fail_transport(failure)",8,144,47],
 
-"of":[64,"_observe_adapter_failure",109,"hpzfwQ8mBH9zF6YM1qzj5YQqcytJGKVDsfavTIzgXJw"],
+"of":[64,"_observe_adapter_failure",137,"hpzfwQ8mBH9zF6YM1qzj5YQqcytJGKVDsfavTIzgXJw"],
 
-"og":[64,"RegisteredN1Factory._make_adapter",2454,"wbcNE2IyYkvPWG5C_M1iXnyHYzG9MROVUrZ1aathkLI"],
+"og":[64,"RegisteredN1Factory._make_adapter",2479,"wbcNE2IyYkvPWG5C_M1iXnyHYzG9MROVUrZ1aathkLI"],
 
-"oh":[64,"RegisteredN1Factory.model_task_binding",2228,"rFFaH63QKt-lUJ3zJ_Bi_GpXaMiCzG2k2kVCN53Wir8"],
+"oh":[64,"RegisteredN1Factory.model_task_binding",2257,"rFFaH63QKt-lUJ3zJ_Bi_GpXaMiCzG2k2kVCN53Wir8"],
 
-"oi":[64,"RegisteredAdapter._current_effective_boundary",1939,"ULO97QSgLcOZtDcdlARmjTWRDAlvO6x3AYNSQiQR0mA"],
+"oi":[64,"RegisteredAdapter._current_effective_boundary",1967,"ULO97QSgLcOZtDcdlARmjTWRDAlvO6x3AYNSQiQR0mA"],
 
-"oj":[64,"RegisteredN1Factory.model_task_bytes",2224,"Fb6GXxGxZt8KgOR6jhjglAUN4L9Ng0dqaP0pz6eXNAQ"],
+"oj":[64,"RegisteredN1Factory.model_task_bytes",2253,"Fb6GXxGxZt8KgOR6jhjglAUN4L9Ng0dqaP0pz6eXNAQ"],
 
 "ok":[111,"NativeOutboundScreenTests.test_registered_model_task_preserves_complete_original_context_and_acceptance",279,"9y16XlSkcrysBQL0a2Ob5Gv3uKSfw5-tLyjj9nIOq4k"],
 
-"ol":[64,"RegisteredN1Factory._require_model_task",2219,"Mu8Y6yJs0cjEufxfKsB7jW1sD0eQ6Moyq6-gJ32YRB4"],
+"ol":[64,"RegisteredN1Factory._require_model_task",2248,"Mu8Y6yJs0cjEufxfKsB7jW1sD0eQ6Moyq6-gJ32YRB4"],
 
-"om":[64,"RegisteredN1Factory.record_dispatch",2264,"8k7FbO7rEM9_mDqTloamBmZEGArZer7UAX77kz3ziWA"],
+"om":[64,"RegisteredN1Factory.record_dispatch",2289,"8k7FbO7rEM9_mDqTloamBmZEGArZer7UAX77kz3ziWA"],
 
-"on":[64,2273,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding(), **metadata},\n            **dispatch,\n        )",38,2283,9],
+"on":[64,2298,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding(), **metadata},\n            **dispatch,\n        )",38,2308,9],
 
 "oo":[111,"NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority",301,"e_lzs-blPA5sX-cXHerQcqElVq1QqatY6inlvDz7vWQ"],
 
-"op":[64,"RegisteredN1Factory.guard",2190,"JrkEF0LEYxTbHEA8nL7dJh8L5vtzZQ76QZdKff6UL-I"],
+"op":[64,"RegisteredN1Factory.guard",2219,"stDXBtnz2K6H9lZmtQhAdn68-gNtbOhAKsiiLlPngMM"],
 
-"oq":[64,"_registered_adapter_method",2020,"iLQKqWL_nrWYOXLR4BiWwEAEHD3AiUIHnOBfRBhrya4"],
+"oq":[64,"_registered_adapter_method",2048,"iLQKqWL_nrWYOXLR4BiWwEAEHD3AiUIHnOBfRBhrya4"],
 
 "or":[127,"FactoryTests.test_original_rpc_useful_capture_validation_and_no_redispatch",1810,"FwR9HgDaABFr_JRcu_UpXdD1uIHT4Si_09gL_CaKXEs"],
 
 "os":[111,"NativeOutboundScreenTests.test_registered_model_refusal_preserves_first_failure_without_session",249,"XdVHa000pH_BeU9HMR18Mwj7tzyqcrC3hp6ptxCGP2U"],
 
-"ot":[64,"_model_task",91,"Hn-Dr7okp3PbzphVkHhutWqCwMXzDUDiTLJd7u-rOPE"],
+"ot":[64,"_model_task",119,"Hn-Dr7okp3PbzphVkHhutWqCwMXzDUDiTLJd7u-rOPE"],
 
-"ou":[64,"RegisteredAdapter.final_summary",1946,"Jql7wPHXszyMNqaTu3C3yB4DBgmo9L6nWVR37XiX2_E"],
+"ou":[64,"RegisteredAdapter.final_summary",1974,"Jql7wPHXszyMNqaTu3C3yB4DBgmo9L6nWVR37XiX2_E"],
 
 "ov":[111,"NativeOutboundScreenTests.test_original_useful_host_keeps_strict_path_screening_under_long_temporary_parent",313,"RIv_gYRzdZe_LPkQSogGI8fwx7NtkUcvBCP1xa3ste0"],
 
-"ow":[64,"RegisteredAdapter._validate_effective_boundary",1958,"eLsln12pCzI5bEHJwkYE0t2fcif4Ihoevhoz8TRLOgQ"],
+"ow":[64,"RegisteredAdapter._validate_effective_boundary",1986,"eLsln12pCzI5bEHJwkYE0t2fcif4Ihoevhoz8TRLOgQ"],
 
-"ox":[64,"_require_summary_primary",121,"7iUyYKiYLsqPm5t2F6xtvb30nc-2Vq5HkCc4AfPpzeY"],
+"ox":[64,"_require_summary_primary",149,"7iUyYKiYLsqPm5t2F6xtvb30nc-2Vq5HkCc4AfPpzeY"],
 
 "oy":[40,"_unique_frame_object",21,"j-F_KMWKqtHKwwG5NxbmgaavCDV2vFTZ5Lu1l1uLJuc"],
 
@@ -2640,11 +2640,11 @@
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
-"pQ":[65,"RegisteredN1Workflow._commit_execution",557,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
+"pQ":[65,"RegisteredN1Workflow._commit_execution",562,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
 
-"pR":[65,"RegisteredN1Workflow._prepare_execution",533,"GmUTQnJ18-VWkybtitPYDYjR-OEw09zWxZIGXRm96VI"],
+"pR":[65,"RegisteredN1Workflow._prepare_execution",538,"GmUTQnJ18-VWkybtitPYDYjR-OEw09zWxZIGXRm96VI"],
 
-"pS":[65,"RegisteredN1Workflow._validate_execution",543,"nee2Lg9_3KnYaOLV18mLm61O6tzMpBZYapRh1BdpDn4"],
+"pS":[65,"RegisteredN1Workflow._validate_execution",548,"nee2Lg9_3KnYaOLV18mLm61O6tzMpBZYapRh1BdpDn4"],
 
 "pT":[42,"AppServer._raise_failed_turn_start",2224,"jyvTcLfJWtdc4Pr_WbtEifwaRUEU4VXJU_IAkb1vocc"],
 
@@ -2776,7 +2776,7 @@
 
 "qU":[130,"ReleaseEffectRoutesTests._git_pair",1421,"nqUbPdd1sJwFcR3w_CJQflGtJHDoliB8lauHREZ_J6U"],
 
-"qV":[65,"RegisteredN1Workflow.run",699,"kVr7-2ikE9k4mwywWSjsVz-SgnM7c9VLpI6bKbM5mrA"],
+"qV":[65,"RegisteredN1Workflow.run",704,"keCPTrMJdrX_-8weI0C8TPIZf15rFwA1YaWDRovuhcM"],
 
 "qW":[139,"TrustedGitTests.test_only_fixed_trustworthy_paths_are_used",1148,"KUasbycq-u2HYjys762v8BrfPX-pUO0tOIVZE79v3GA"],
 
@@ -2928,7 +2928,7 @@
 
 "rz":[177,64,"if any(comment.get('text') == line for comment in task['comments'] if type(comment) is dict):"],
 
-"s":[64,709,{"$":148}],
+"s":[64,737,{"$":148}],
 
 "t":[175,"GuidedInstallerTests.test_confirmed_prompt_runs_the_same_standalone_setup",197,"tsFmk96o7sS2hpMTCRBqYQ5du_Y1oeKSuMrP0KP1DCY"],
 
@@ -2972,23 +2972,23 @@
 
 "ur":[170,350,"reviewer_session()",25,350,43],
 
-"us":[65,693,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
+"us":[65,698,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
 
 "ut":[148,"ManagedLoginNamespaceTests.assert_atomic_refresh_and_runtime_isolation",227,"1V4JIAPaoLLhIH-buh_fAbwUnE3Z9HCYA09DAh85iwk"],
 
 "uu":[153,"WorkflowTests.assert_unstarted",256,"c6Lr1V3xkHMxJ-HAT_ueKkb0X1pTYyhDb2OxFroHS40"],
 
-"uv":[64,2332,"_need(self.production_live and type(server) is _RegisteredServer and self.server is server"],
+"uv":[64,2357,"_need(self.production_live and type(server) is _RegisteredServer and self.server is server"],
 
 "uw":[149,122,"_need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),"],
 
-"ux":[65,654,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
+"ux":[65,659,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
 
 "uz":[8,995,"page.locator(str(selector)).first.click(timeout=timeout_ms)",20,995,79],
 
 "v":[34,1310,"if root == source or root.is_relative_to(source):"],
 
-"v0":[65,706,"R.live_availability.require_n1_live()"],
+"v0":[65,711,"R.live_availability.require_n1_live()"],
 
 "v1":[8,1139,"self._press_until_ready(box, origin, timeout_ms, guard)",15,1139,70],
 
@@ -3020,7 +3020,7 @@
 
 "vG":[8,{"$":202},609,{"$":242}],
 
-"vH":[64,2314,{"$":13}],
+"vH":[64,2339,{"$":13}],
 
 "vI":[52,94,"if path.read_bytes() != expected and not force:"],
 
@@ -3096,7 +3096,7 @@
 
 "vs":[170,226,"run_bd([\"comment\", \"--\", delivery.bead_id, comment])",8,226,60],
 
-"vt":[65,674,"_need(selection == c._worker_login_home,"],
+"vt":[65,679,"_need(selection == c._worker_login_home,"],
 
 "vu":[35,24,"if REGISTERED_N1_LIVE_AVAILABLE is not True:"],
 
@@ -3118,7 +3118,7 @@
 
 "x1":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",662,"9d7NeOugVLiGTQyDA3CYCVabtUD0SEIcl-M3YQfGti4"],
 
-"x2":[64,"_RegisteredServer._observe_qualified_tool_item",1323,"5uJd7CynBr4HXyVHbcs8FDxRiP1nMMwQuYOaGK_p0RQ"],
+"x2":[64,"_RegisteredServer._observe_qualified_tool_item",1351,"5uJd7CynBr4HXyVHbcs8FDxRiP1nMMwQuYOaGK_p0RQ"],
 
 "x3":[146,"_start_relay",438,"e-a3Ldrss6FKF1bvcnZh0i_1ZlrmCkeUz1G7dagB8O4"],
 
@@ -3144,9 +3144,9 @@
 
 "xF":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",436,"YcE84J0upisnMb8WT6palpk5FGrPq1sbOl3d0tmqCG0"],
 
-"xG":[64,"_Containment._confirm_login_mount",667,"BNDnkhNmB8dgn5r6TWg3AmfNFxhfdguiLjxIOZJJLu0"],
+"xG":[64,"_Containment._confirm_login_mount",695,"BNDnkhNmB8dgn5r6TWg3AmfNFxhfdguiLjxIOZJJLu0"],
 
-"xH":[64,"RegisteredN1Factory._retire_managed_login",2629,"BSr1Rv-gKTTsbIt2LyEC43c3F_Lr10nP5h21aFX0IcQ"],
+"xH":[64,"RegisteredN1Factory._retire_managed_login",2654,"BSr1Rv-gKTTsbIt2LyEC43c3F_Lr10nP5h21aFX0IcQ"],
 
 "xI":[63,"QualifiedToolEvidence._project",249,"R8FoXs-UmY3cvB_ltC1XtYKrWO_YgrgIN6SwYgeC7lk"],
 
@@ -3158,13 +3158,13 @@
 
 "xM":[146,313,"message, descriptors, flags, _address = socket.recv_fds(control, 1, 1, socket.MSG_CMSG_CLOEXEC)"],
 
-"xN":[64,"RegisteredN1Factory.record_qualification_start",2340,"7-6oJl_rlkQOkQfSrjBL922xWA2hA4MNTp5ktaOUfLs"],
+"xN":[64,"RegisteredN1Factory.record_qualification_start",2365,"7-6oJl_rlkQOkQfSrjBL922xWA2hA4MNTp5ktaOUfLs"],
 
 "xO":[146,"_receive_handoff",312,"vXrhJRSpHqI8AEWglWg16aKC7q2sYtqxBqDpBCbxQU0"],
 
 "xP":[147,"ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect",131,"EGSob4OxAS5eiFrkQHWXImUiU4gIeN4N1wVLqjpzPvg"],
 
-"xQ":[64,926,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
+"xQ":[64,954,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
 
 "xR":[146,178,"answers = socket.getaddrinfo(host + '.', 443, type=socket.SOCK_STREAM,"],
 
@@ -3212,7 +3212,7 @@
 
 "xp":[63,"_tool_specs",66,"LGozXb1Juzm8kqHJ0m60XstQARtlISkbTl977zag18A"],
 
-"xq":[64,947,"return report.get('reason') == str(missing)"],
+"xq":[64,975,"return report.get('reason') == str(missing)"],
 
 "xr":[77,"_schema_launcher",201,"hiksp3oukBxkFyXHVDodoe6r0XsGpPTLrPnP1gj9EfI"],
 
@@ -3224,7 +3224,7 @@
 
 "xv":[146,"_fork_relay",426,"Ff-BZQJrJkd6jumVue2QNPEMe5Qvbgqo0yzWLLsFhvI"],
 
-"xw":[64,"_RegisteredServer._register_qualification_rpc",1222,"uBLRaet5Pwvp1SR7HB0ceL1TNZHvnI8xDAQLBurimnE"],
+"xw":[64,"_RegisteredServer._register_qualification_rpc",1250,"uBLRaet5Pwvp1SR7HB0ceL1TNZHvnI8xDAQLBurimnE"],
 
 "xx":[149,"verify_qualification_permit",406,"ambRElxX6xxNdeIhI3AVt8FST7X77XpWbsDNKxrYhQI"],
 
@@ -3260,7 +3260,7 @@
 
 "yC":[172,"ManualAcceptanceTests.assert_refused",97,"Y5KsHkNrZUBvf4VC0CaFSq0NwKMkWV0Ch7uK4wWIF-E"],
 
-"yD":[64,"_Containment._appserver_mounts",531,"8mUM_A8QGWPM_ehlgncoHuxscpKRUXDKtf_MAVHOXyM"],
+"yD":[64,"_Containment._appserver_mounts",559,"8mUM_A8QGWPM_ehlgncoHuxscpKRUXDKtf_MAVHOXyM"],
 
 "yE":[8,686,{"$":252}],
 
@@ -3310,7 +3310,7 @@
 
 "yb":[148,"CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release",113,"rPhbsnkS0-bSA1Vc5_T7T0uel6TmlNlfItg4yBsApyI"],
 
-"yd":[64,"_RegisteredServer._check_qualification_wire",1242,"oCkA-pQKcaklegmFwoadOEApu0wV0P4jT0glqhrL8zM"],
+"yd":[64,"_RegisteredServer._check_qualification_wire",1270,"oCkA-pQKcaklegmFwoadOEApu0wV0P4jT0glqhrL8zM"],
 
 "ye":[149,561,"os.fsync(descriptor)"],
 
@@ -3324,7 +3324,7 @@
 
 "yk":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",336,"nUnL_3zvXnjC8y5M49UPLSSD3GNoJ8Qu2zMiFbxXUlQ"],
 
-"yp":[64,"_RegisteredServer._check_qualification_turn",1252,"OPmYhkswgZGI4r25FLza07yYvUY8DWi8dxe0Gl2uRSw"],
+"yp":[64,"_RegisteredServer._check_qualification_turn",1280,"OPmYhkswgZGI4r25FLza07yYvUY8DWi8dxe0Gl2uRSw"],
 
 "yq":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",478,"ilwDp9vyCoCUzOpXg4sfjQI9aIhdONh3MItPYOObGdU"],
 
@@ -3348,11 +3348,11 @@
 
 "z":[34,"_create_beads_graph",775,"6Vh_3JzQK1AINUhq5sKIKnhKAajQho4aSgPb2FeIT1M"],
 
-"z0":[64,"RegisteredN1Factory._require_qualification_selection",2319,"Qz5okE9G9JWuMX7YrlQTkQVxdl7FwPbZQGegtKeNZJI"],
+"z0":[64,"RegisteredN1Factory._require_qualification_selection",2344,"Qz5okE9G9JWuMX7YrlQTkQVxdl7FwPbZQGegtKeNZJI"],
 
 "z1":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",141,"eqjCvMW3CCfISe33c0PPQWNj9NI41DSaLJWGVsBwvro"],
 
-"z2":[64,"_Containment._reaped_monitor_without_exe",937,"8WMys8ehp3MXJ5wkHcguU7tObA-2ti9lq9B02g7ozgY"],
+"z2":[64,"_Containment._reaped_monitor_without_exe",965,"8WMys8ehp3MXJ5wkHcguU7tObA-2ti9lq9B02g7ozgY"],
 
 "z3":[141,"check_codex_capabilities",495,"jFkGaIFgIoadDXfMGbfODpAL456LiNe7LUUp_GN4-Vo"],
 
@@ -3364,7 +3364,7 @@
 
 "z7":[150,"_check_method_envelope",199,"hu6yJz90FBnQf8ynDVYTZoKrixNvW355dFVb14Gn6aw"],
 
-"z8":[64,"RegisteredN1Factory._select_managed_login",2128,"ZPw9bCnf6BPcUN6hutMrHwdVv9qjgga6RFl19IMM_2U"],
+"z8":[64,"RegisteredN1Factory._select_managed_login",2156,"ZPw9bCnf6BPcUN6hutMrHwdVv9qjgga6RFl19IMM_2U"],
 
 "z9":[141,"_check_n1_qualification",432,"kWd8OSW8_vOS8Ljmdk7q5100nfjnjQ4PavgqdZg01hA"],
 
@@ -3386,9 +3386,9 @@
 
 "zI":[63,"RegisteredFiniteToolCalls.receive",814,{"$":346}],
 
-"zJ":[64,"_Containment._stage_access_token",620,"rDaCofmDIb2SFdjONqE1Y400wLDYIAJq55BLQ5Y6UHI"],
+"zJ":[64,"_Containment._stage_access_token",648,"rDaCofmDIb2SFdjONqE1Y400wLDYIAJq55BLQ5Y6UHI"],
 
-"zK":[64,"_Containment._release_provider_descriptor",787,"20HHowV7ioo0lEJWj4_2_GdbViAo5tsw4QT_rA5XNZM"],
+"zK":[64,"_Containment._release_provider_descriptor",815,"20HHowV7ioo0lEJWj4_2_GdbViAo5tsw4QT_rA5XNZM"],
 
 "zL":[146,315,"socket.socket(fileno=descriptors[0])",15,315,51],
 
@@ -3398,7 +3398,7 @@
 
 "zO":[151,"ServerRequestPreparationTests.test_timestamped_envelope_refuses_bad_timestamps_and_non_notifications",353,"3zvNhHEkwrHFFrfInLBiJqPdvP7zUGhmXvGstI126z4"],
 
-"zP":[64,"_RegisteredServer._protocol_lines",1287,"z1hk6WGOxftuTiQ-DlkF-OccHfhikz0NbdD0DYmDfdU"],
+"zP":[64,"_RegisteredServer._protocol_lines",1315,"z1hk6WGOxftuTiQ-DlkF-OccHfhikz0NbdD0DYmDfdU"],
 
 "zQ":[126,"RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item",785,"vsSd0qAIgEgLfcpHfylBrFqaN1Nn62Ad_EN3tvOBwXE"],
 
@@ -3418,15 +3418,15 @@
 
 "zY":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",378,"JxqY3KRsPFpDptFhspTub3G_vLf6GgRg1pwaOVkitHk"],
 
-"zZ":[64,"_Containment._preflight_qualification_schema",701,"pY2U5GO4Y72yPXGvIMATp5FYUzS-JeIcyyIvoT2h26w"],
+"zZ":[64,"_Containment._preflight_qualification_schema",729,"pY2U5GO4Y72yPXGvIMATp5FYUzS-JeIcyyIvoT2h26w"],
 
-"za":[64,720,"self._require_launch_command(command)"],
+"za":[64,748,"self._require_launch_command(command)"],
 
 "zb":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1939,"AALX7IPvFjXdUWuu0Tw2ewCkOi1m1sHQlMsmoxmw9WE"],
 
 "zc":[148,{"$":330},650,{"$":343}],
 
-"zd":[64,"_Containment._require_launch_command",707,"lTWOR6VsN8RLdFPs6kyd9EsxnuR7KnSLCozYbCCtVEc"],
+"zd":[64,"_Containment._require_launch_command",735,"lTWOR6VsN8RLdFPs6kyd9EsxnuR7KnSLCozYbCCtVEc"],
 
 "ze":[147,{"$":334},49,{"$":335}],
 
@@ -3438,7 +3438,7 @@
 
 "zi":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",455,"Cay30SPJmnKAChtR0NRIfv2Szpqjqe3rZMak5LZ5ftA"],
 
-"zj":[64,"_Containment._terminate_monitor",923,"85M8iTXLQ0LzzwgXRg39TTSH-wbNwExhpocBVSHykaU"],
+"zj":[64,"_Containment._terminate_monitor",951,"85M8iTXLQ0LzzwgXRg39TTSH-wbNwExhpocBVSHykaU"],
 
 "zk":[141,466,"subprocess.run(command, cwd=root, env=env, check=True, timeout=_SCHEMA_SECONDS,\n                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,\n                       umask=0o077)",8,468,35],
 
@@ -3464,7 +3464,7 @@
 
 "zv":[63,"QualifiedToolEvidence._wait_original_call",275,"WamUfl3W5z51Ipe0azl4MPNwf677FbTglClMsnB0ZGQ"],
 
-"zw":[64,"RegisteredN1Factory._selected_access_token",2605,"y-ubfOinocuB-QU8UC4Q4EE7BojqmKlpF2nOpkGV6Co"],
+"zw":[64,"RegisteredN1Factory._selected_access_token",2630,"y-ubfOinocuB-QU8UC4Q4EE7BojqmKlpF2nOpkGV6Co"],
 
 "zx":[127,"FactoryTests.assert_terminal_worker_failure",1829,"osH5ulByQ7HU651Sb7wBNY402iq8B6v1Tq1oNutli60"],
 
@@ -5629,45 +5629,45 @@
 
 [70,971,22,973,61,"browser","05yiNWvXwO4L_yP-Joj7WAI1RcgkLgyaPseRVmrT9bc",["route","N9.1","kD"]],
 
-[71,110,14,110,61,"dynamic",{"$":241},[{"$":9},"as"]],
+[71,138,14,138,61,"dynamic",{"$":241},[{"$":9},"as"]],
 
-[71,122,14,122,61,"dynamic",{"$":241},[{"$":9},"au"]],
+[71,150,14,150,61,"dynamic",{"$":241},[{"$":9},"au"]],
 
-[71,132,13,132,51,"dynamic","Y0-hKMAtnJzL6feSucDOxSfFVMO2T48_chjzK0vFmF8",[{"$":9},"XR357"]],
+[71,160,13,160,51,"dynamic","Y0-hKMAtnJzL6feSucDOxSfFVMO2T48_chjzK0vFmF8",[{"$":9},"XR357"]],
 
-[71,763,25,763,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
+[71,791,25,791,67,"dynamic",{"$":79},[{"$":9},"XR358"]],
 
-[71,928,31,928,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
+[71,956,31,956,73,"dynamic",{"$":79},[{"$":9},"XR359"]],
 
-[71,1045,12,1045,61,"dynamic","qwMdh8ufnJRohL2vIwwbuoDBEmlwVZUGMmbQefyU9F4",[{"$":9},"XR360"]],
+[71,1073,12,1073,61,"dynamic","qwMdh8ufnJRohL2vIwwbuoDBEmlwVZUGMmbQefyU9F4",[{"$":9},"XR360"]],
 
-[71,1103,15,1103,57,"dynamic","YiyIzxAv_U_JDC7uT3WU7te8Ihk8_JkWz1uYxNxzHh4",[{"$":9},"XR361"]],
+[71,1131,15,1131,57,"dynamic","YiyIzxAv_U_JDC7uT3WU7te8Ihk8_JkWz1uYxNxzHh4",[{"$":9},"XR361"]],
 
-[71,1500,20,1500,53,"dynamic","DTGKO9_mjpzQwNF3MtKFrv5wqbwe8zs_NOZd4JaNlzU",[{"$":9},"XR362"]],
+[71,1528,20,1528,53,"dynamic","DTGKO9_mjpzQwNF3MtKFrv5wqbwe8zs_NOZd4JaNlzU",[{"$":9},"XR362"]],
 
-[71,1557,17,1557,49,{"$":3},"0z7F7yRuDVVTIPn6WdMC0qlZxPtep2P9mcX96KpCUP0",["route","N10.6","lN"]],
+[71,1585,17,1585,49,{"$":3},"0z7F7yRuDVVTIPn6WdMC0qlZxPtep2P9mcX96KpCUP0",["route","N10.6","lN"]],
 
-[71,1567,49,1567,81,"dynamic","RnNOsygFkRuDL81h2NxB4bwNG5t3uOVsAoVPQIJKl3U",[{"$":9},"XR363"]],
+[71,1595,49,1595,81,"dynamic","RnNOsygFkRuDL81h2NxB4bwNG5t3uOVsAoVPQIJKl3U",[{"$":9},"XR363"]],
 
-[71,1587,18,1587,66,"browser","zmCcyt2dke5OTN1AiQPN3my8VkfbMLM9aZSqqyk3tVI",[{"$":9},"B"]],
+[71,1615,18,1615,66,"browser","zmCcyt2dke5OTN1AiQPN3my8VkfbMLM9aZSqqyk3tVI",[{"$":9},"B"]],
 
-[71,1658,29,1658,77,{"$":3},"udmEtbj5U_8PXIx6UP2PgYO43SxyOTOdpLvnebVnh3k",["route","N10.6","kQ"]],
+[71,1686,29,1686,77,{"$":3},"udmEtbj5U_8PXIx6UP2PgYO43SxyOTOdpLvnebVnh3k",["route","N10.6","kQ"]],
 
-[71,1828,16,1828,43,"dynamic","qbWE7DrZwLSJ2mFbRJZ53dvBb-coSe2MijoLYRYMzJY",[{"$":9},"XR366"]],
+[71,1856,16,1856,43,"dynamic","qbWE7DrZwLSJ2mFbRJZ53dvBb-coSe2MijoLYRYMzJY",[{"$":9},"XR366"]],
 
-[71,1986,17,1986,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
+[71,2014,17,2014,39,"dynamic",{"$":52},[{"$":9},"XR367"]],
 
-[71,1987,39,1987,72,"dynamic","l4PA6AzmpUtJI4ZCJAHVgJPNq3_fLh0eif_cKBLK57k",[{"$":9},"XR368"]],
+[71,2015,39,2015,72,"dynamic","l4PA6AzmpUtJI4ZCJAHVgJPNq3_fLh0eif_cKBLK57k",[{"$":9},"XR368"]],
 
-[71,2006,15,2006,76,"dynamic","6KgYHWpYCqDYhILhgFNtUbvDYEbs_pUxz8L17SroC4s",[{"$":9},"XR446"]],
+[71,2034,15,2034,76,"dynamic","6KgYHWpYCqDYhILhgFNtUbvDYEbs_pUxz8L17SroC4s",[{"$":9},"XR446"]],
 
-[71,2037,16,2037,65,"dynamic","taWAQjeqYUJYPS-7kvGZlgqbBCpfhMYv4SsyVEVl_FY",[{"$":9},"XR369"]],
+[71,2065,16,2065,65,"dynamic","taWAQjeqYUJYPS-7kvGZlgqbBCpfhMYv4SsyVEVl_FY",[{"$":9},"XR369"]],
 
-[71,2039,18,2039,60,"dynamic","Rl9WAtFVKrEOBeiivDt7rwNfsjO75kPMLcbsqS0arcU",[{"$":9},"XR370"]],
+[71,2067,18,2067,60,"dynamic","Rl9WAtFVKrEOBeiivDt7rwNfsjO75kPMLcbsqS0arcU",[{"$":9},"XR370"]],
 
-[71,2485,29,2485,68,"dynamic","fhfug4pVqP_zZDhZxqqr-fclFY1wLUlr2DRLJ2-EYGU",[{"$":9},"XR371"]],
+[71,2510,29,2510,68,"dynamic","fhfug4pVqP_zZDhZxqqr-fclFY1wLUlr2DRLJ2-EYGU",[{"$":9},"XR371"]],
 
-[71,2596,22,2596,99,"browser","KoHYQ-S_GWNvLSOJmeTLuFRk4W-tsneY42M9zv9Iijk",[{"$":9},"G"]],
+[71,2621,22,2621,99,"browser","KoHYQ-S_GWNvLSOJmeTLuFRk4W-tsneY42M9zv9Iijk",[{"$":9},"G"]],
 
 [72,38,7,38,42,"dynamic","9pNCcrzlahznzrvkOGqswJp08RQYckGMXwtwEREdcWM",[{"$":9},"XR373"]],
 
@@ -7378,9 +7378,9 @@
 
 "@182":["jqOLXHY61GJlpzpSHksvEoTW3OyXC3W4vkYA6u1V160",420,49777],
 
-"@183":["hZ9OCAcxT2lYutk26xHPAORgTC-Z91RYq-RxqVoPlcI",420,20859],
+"@183":["Q0GxkL7PgKlyxlC3JBvhQYY0vTK2yHDQr9-Jw_LHkg4",420,20710],
 
-"@184":["iN1Ps9ksOUb7VbfmPrvs3Jwb7Q76tiVJLn1RJxdXpy0",420,28074],
+"@184":["t6mvz5w6g01A4vAAUkXqXTqpnf8Y4IBTGUURn_DZmnE",420,35730],
 
 "@185":["eqDtyBZIB-px7tRa9ln2n_tpTN1X-Tu_0ZVEbQQ-hCc",420,4641],
 
@@ -7496,9 +7496,9 @@
 
 "@63":["tm10A55j93J78MTbwt0ynQOqShXJVMVUY7-geMJRG-g",420,53007],
 
-"@64":["NuTUVbOdmwJibai2ftSES-ZlWnG54cXEpoOCNZLFfvc",420,139494],
+"@64":["rRqeMPMPn--NtM4zMU12PKyKHeY9fRp6vEzoUkNJLls",420,140662],
 
-"@65":["w0yedCczKmWhG6zjZbYPXawSyQ1VX2vuj2b0vXqOqQQ",420,46919],
+"@65":["hKiGaocBj0TVJiyD-uRdLBw2BqxG8J4arVzhB8OmHIQ",420,47336],
 
 "@66":["yydJmz2r25lUIDAVnbkKz-KUmgOVux6iavYDEax4IK8",420,2228],
 
@@ -7906,7 +7906,7 @@
 
 "scripts/record_native_model_capability.py":["zPi7jGxi4MLTshotBUkybSFVU5QUi5jc14XT14xr7yg",420,4186],
 
-"scripts/registered_delegation_approval.py":["hJEPlLipj-Q35S-jd4tQJwZmXaLD6C3vNwql9G4WMTI",420,13129],
+"scripts/registered_delegation_approval.py":["swBr864WgU9B1lwxqeOok6aRYavDsma6S3NdXlveZyM",420,13067],
 
 "scripts/registered_host_root_boundary.py":["YVEJAkpd-rBiWkErHbDfheVtG_bm-K2cfOzcr3RS6DY",420,1303],
 
@@ -7968,7 +7968,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["-nIO9wInRaCrILb6wGUwLUR3vm0H40Izn5feNu419UI",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["aGv0pg2GOmLwpJ6OXt7wK4WDsL1p5rxxv-oFwsWpjmo",420,136048],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 

@@ -1,12 +1,14 @@
 """Prepare a known output through the ordinary protected controller."""
 from argparse import Namespace
-from contextlib import chdir, redirect_stderr
+from contextlib import ExitStack, chdir, redirect_stderr
 import ctypes
+from functools import partial
 from hashlib import sha256
 from io import StringIO
 import json
 from pathlib import Path
 import shlex
+from shutil import rmtree
 import sys
 import tempfile
 import time
@@ -34,6 +36,7 @@ class DelegationPreparationTests(unittest.TestCase):
             repositories.setUp()
         self.addCleanup(repositories.doCleanups)
         self.root, self.project = repositories.root, repositories.target
+        self.git = repositories.git
         self.store = host_records.HostRecordStore.for_tests(self.root / 'EXAMPLE-host-records')
         self.enterContext(patch.object(host_records, 'configured_store', return_value=self.store))
         self.enterContext(patch.object(preparation.runtime, 'configured_store', return_value=self.store))
@@ -87,6 +90,32 @@ class DelegationPreparationTests(unittest.TestCase):
                    'task': 'Update the project documentation for the scoped result file.',
                    'chain': self.chain, 'output_path': 'result.txt', 'output_text': "Literal 'text' $(ignored)\n"}
         return preparation.prepare(**dict(request, **changes))
+
+    def seed_wide_project(self):
+        directory = self.project / ('example-' + 'a' * 72) / ('example-' + 'b' * 72)
+        directory.mkdir(parents=True)
+        for index in range(48):
+            (directory / (f'example-{index:02d}-' + 'c' * 65 + '.txt')).write_bytes(b'EXAMPLE\n')
+        self.git(self.project, 'add', '--', directory.relative_to(self.project))
+        self.git(self.project, 'commit', '--quiet', '-m', 'Add the wide manifest fixture')
+
+    def test_wide_manifest_fits_fixed_output_admission(self):
+        self.seed_wide_project()
+        pending = self.prepare()
+        self.addCleanup(preparation.discard_unretained, pending)
+        original = pending._host._initial
+        route = json.loads(pending._receipt.route_input_bytes)
+        node = route['nodes'][0]
+        request_budget = (route['limits']['tokens'] - route['projection_policy']['input_overhead_tokens']
+                          - node['execution']['output_tokens_upper'])
+        self.assertTrue(original['target']['complete'])
+        self.assertGreater(len(preparation.runtime.native._json_bytes(original)), request_budget)
+        self.assertLess(len(pending._receipt.request_bytes), 8192)
+        custody = node['execution']['options']['registered_n1']['custody']
+        self.assertNotIn('initial', custody)
+        self.assertEqual(custody['initial_sha256'], preparation.runtime.native._digest(original))
+        self.assertFalse(pending._verifier._current()['operations'])
+        self.assertFalse(pending._ledger.root.exists())
 
     def test_prepare_builds_fresh_bounded_offer_without_signing_ops(self):
         original_sign = preparation.authority.sign_controller_directive
@@ -155,6 +184,57 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertFalse(reopened.verifier._current()['operations'])
         self.assertFalse(reopened.config.ledger.root.exists())
 
+    def test_legacy_inline_custody_reopens_with_original_signed_admission(self):
+        original = preparation._specification
+
+        def inline(host, ledger, *args):
+            spec = original(host, ledger, *args)
+            spec['custody'] = preparation.runtime.custody_binding(host, ledger, compact=False)
+            return spec
+
+        with patch.object(preparation, '_specification', side_effect=inline):
+            pending = self.prepare()
+        workflow = self.fixture_redeem(pending)
+        preparation.entry.retain_approved_assignment(workflow)
+        task = json.loads(pending._receipt.selected_node_bytes)['prompt']
+        with chdir(self.project):
+            reopened = preparation.entry.open_assignment(task, self.chain)
+        self.assertEqual(reopened.config.receipt, pending._receipt)
+        self.assertEqual(reopened.config.native_bundle, workflow.config.native_bundle)
+        self.assertEqual(reopened.config._standing_approval(), workflow.config._standing_approval())
+        self.assertEqual(reopened.config.native_bundle[0]['registered_n1']['custody']['initial'], pending._host._initial)
+
+    def test_compact_approval_refuses_target_drift_before_retention(self):
+        pending = self.prepare()
+        self.addCleanup(preparation.discard_unretained, pending)
+        (pending._host.target / 'seed.txt').write_bytes(b'EXAMPLE same-commit target drift\n')
+        with self.assertRaisesRegex(ValueError, 'Current repository state differs from original compact custody'):
+            self.fixture_redeem(pending)
+        self.assertFalse(pending._verifier._current()['operations'])
+        self.assertFalse(pending._ledger.root.exists())
+        preparation.discard_unretained(pending)
+        self.assertFalse(pending._host.state.parent.exists())
+
+    def test_retained_compact_approval_refuses_target_drift_or_replaced_worker(self):
+        pending = self.prepare()
+        workflow = self.fixture_redeem(pending)
+        preparation.entry.retain_approved_assignment(workflow)
+        task = json.loads(pending._receipt.selected_node_bytes)['prompt']
+        host = pending._host
+        extra = host.target / 'unexpected.txt'
+        with chdir(self.project):
+            extra.write_bytes(b'EXAMPLE untracked target drift\n')
+            with self.assertRaisesRegex(ValueError, 'Original compact registered custody differs'):
+                preparation.entry.open_assignment(task, self.chain)
+            extra.unlink()
+            self.assertEqual(preparation.entry.open_assignment(task, self.chain).config.receipt, pending._receipt)
+            host.worker.rename(host.worker.with_name('retired-worker'))
+            preparation._clone(host.target, host.worker)
+            with self.assertRaisesRegex(ValueError, 'Original compact registered custody differs'):
+                preparation.entry.open_assignment(task, self.chain)
+        self.assertFalse(pending._verifier._current()['operations'])
+        self.assertFalse(pending._ledger.root.exists())
+
     def test_registered_packet_binds_exact_request_and_model_projection_without_capability_assertions(self):
         pending = self.prepare()
         workflow = self.fixture_redeem(pending)
@@ -222,6 +302,7 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertTrue(retained._host.state.parent.exists())
 
     def test_prepared_registered_packet_dispatches_and_closes_after_independent_review(self):
+        self.seed_wide_project()
         fixture, inputs, task = self.fake_execution()
         workflow, case = inputs.workflow, inputs.case
         baseline = self.project / 'EXAMPLE-baseline.json'
@@ -258,7 +339,12 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertEqual(pending_target := case.host._observe()['target'], case.host._initial['target'])
         effects_at_failure = len(self.bead['comments'])
         recovered = self.reopen(task, case.ledger)
-        with (patch.object(manual_delivery, 'project_beads', side_effect=self.writable_project_db),
+        self.assertEqual(recovered.config.receipt, workflow.config.receipt)
+        self.assertEqual(recovered.config.native_bundle, workflow.config.native_bundle)
+        self.assertEqual(recovered.config._standing_approval(), workflow.config._standing_approval())
+        self.assert_expired_workflow_refuses_replaced_ledger_parent(recovered, task)
+        with (patch.object(recovered.config.ledger, 'clock', return_value=recovered.config.receipt.expires_at),
+              patch.object(manual_delivery, 'project_beads', side_effect=self.writable_project_db),
               patch.object(manual_delivery, 'delivery_session', return_value='EXAMPLE-restart')):
             result = everyday_delegation.delegate(recovered, task, baseline=baseline, summary=summary, resume=True)
         self.assertIsNone(recovered.factory)
@@ -283,6 +369,48 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertEqual(closed['dispatch_id'], observed[0]['dispatch_id'])
         self.assertTrue(closed['closed'])
         self.assertEqual(case.host._observe()['target'], pending_target)
+
+    def assert_expired_workflow_refuses_replaced_ledger_parent(self, workflow, task):
+        ledger = workflow.config.ledger
+        parent = ledger.root.parent
+        original = parent.with_name('original-control')
+        with ExitStack() as restore:
+            parent.rename(original)
+            restore.callback(original.rename, parent)
+            parent.mkdir(mode=0o700)
+            restore.callback(parent.rmdir)
+            for original_child in original.iterdir():
+                if original_child.name == ledger.root.name:
+                    continue
+                replacement_child = parent / original_child.name
+                original_child.rename(replacement_child)
+                restore.callback(replacement_child.rename, original_child)
+            ledger.root.mkdir()
+            ledger.root.chmod(0o755)
+            restore.callback(rmtree, ledger.root)
+            resume = partial(workflow.resume_delegation, task, database=self.database)
+            with (patch.object(ledger, 'clock', return_value=workflow.config.receipt.expires_at) as clock,
+                  patch.object(ledger, 'attempt', wraps=ledger.attempt) as attempt):
+                for action, reason in ((workflow.run, 'replay-only recovery'),
+                                       (resume, 'Original compact registered custody differs')):
+                    with self.assertRaises(ValueError) as refusal:
+                        action()
+                    observed = (clock.call_count, attempt.call_count, ledger.root.stat().st_mode & 0o777,
+                                sorted(path.name for path in ledger.root.iterdir()))
+                    self.assertEqual(observed, (0, 0, 0o755, []))
+                    self.assertIn(reason, str(refusal.exception))
+
+    def test_compact_dispatch_refuses_target_drift_before_claims(self):
+        fixture, inputs, task = self.fake_execution()
+        config = inputs.workflow.config
+        (config.host.target / 'seed.txt').write_bytes(b'EXAMPLE state changed after reopening\n')
+        with self.assertRaisesRegex(ValueError, 'Current repository state differs from original compact custody'):
+            effects.run_fixture(self, inputs, call=lambda: inputs.workflow.delegate(task, database=self.database))
+        self.assertIsNone(inputs.workflow.factory)
+        self.assertFalse(fixture.spawned)
+        self.assertFalse(config.store.read_state()['operations'])
+        self.assertFalse(config.ledger.root.exists())
+        self.assertFalse(list(config.state.iterdir()))
 
     def test_drifted_actual_thread_refuses_before_task_turn_or_output(self):
         fixture, inputs, task = self.fake_execution()
