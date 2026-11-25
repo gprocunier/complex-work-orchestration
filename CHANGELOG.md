@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.36.4 - 2026-11-25
+
 - Recognize Codex's final-answer notification when verifying a pool worker's completion marker.
 
 ## 1.36.3 - 2026-11-25
