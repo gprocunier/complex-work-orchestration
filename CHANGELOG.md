@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.38.1 - 2026-11-25
+
 ### Tests
 
 - Wait for the registered cancellation reply to settle before the staged archive fixture publishes terminal evidence.
