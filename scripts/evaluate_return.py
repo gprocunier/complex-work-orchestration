@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from cwo_core.returns import make_acceptance_decision
+from cwo_core.returns import mark_advisory_return as _mark_advisory
 from cwo_core.audit import record_audit_event
 from cwo_core.browser_provenance import BROWSER_PREPARATION_TRACE_FIELDS, candidate_context, select_private_capture
 from cwo_core.errors import CWOPolicyError
@@ -435,28 +436,6 @@ def _evaluate_current_return(*args: Any, **kwargs: Any) -> dict[str, Any]:
         return make_acceptance_decision(*args, **kwargs)
     except CWOPolicyError as exc:
         raise SystemExit(str(exc)) from exc
-
-
-def _mark_advisory(result: dict[str, Any]) -> None:
-    # Explicit nonproduction outputs retain diagnostics but never become
-    # clean acceptance evidence, including through cooperative consumers.
-    result["result_class"] = "advisory-nonproduction"
-    result["implementation_blocked"] = True
-    result["accepted_for_use"] = False
-    result["evidence_use_hold"] = True
-    result["adjudication_required"] = True
-    result["human_adjudication_required"] = True
-    result["execution_permitted"] = False
-    if result.get("verdict") in {"accept", "partial-accept", "clarify"}:
-        result["verdict"] = "escalate"
-    if result.get("recommended_disposition") in {
-            "accept-findings", "accept-bounded-findings", "request-clarification"}:
-        result["recommended_disposition"] = "architect-adjudication"
-    result["hold_reasons"] = list(result.get("hold_reasons") or []) + ["nonproduction-advisory: unqualified source"]
-    if result.get("hold_classification") in {None, "", "none"}:
-        result["hold_classification"] = "nonproduction-advisory"
-    if result.get("recommended_synthesis_use") not in {"reject", "quarantine", "partial-only", "open-risk"}:
-        result["recommended_synthesis_use"] = "open-risk"
 
 
 def _record_private_intake(dispatch_id: str | None, browser_return: bytes | None, args: argparse.Namespace) -> None:

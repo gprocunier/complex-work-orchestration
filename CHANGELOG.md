@@ -8,6 +8,7 @@
 - Reduce duplicate checkout evidence in registered delivery recovery records.
 - Give registered commands a 30-second request window for checkout rechecks and execution.
 - Lead fixed pool qualification tasks with the registered writer call and explain that the worker checkout is read-only.
+- Include saved Codex architecture critiques alongside recorded critic returns in synthesis reports. The Codex lane retains its advisory hold, exact return digest, candidate, and scope.
 
 ### Tests
 
