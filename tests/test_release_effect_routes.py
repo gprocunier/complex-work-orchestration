@@ -1740,6 +1740,41 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
             with self.assertRaisesRegex(R.Refused, "decoded inventory string budget exceeded by point digests"):
                 R._point_digest_layout(expanded, compact=False)
 
+    def test_primitive_digest_encoding_preserves_exact_hits_with_either_path_layout(self):
+        code = "import subprocess\nsubprocess.run(['EXAMPLE-1'])\nsubprocess.run(['EXAMPLE-2'])\n"
+        root, value, _hits = self.primitive_example(code, "exclude")
+        path = root / R.INVENTORY
+        expected = R.trace(root)
+        self.assertEqual(R.inventory(root)[0]["primitive_coverage"], value["primitive_coverage"])
+        for compact_paths in (False, True):
+            with self.subTest(compact_paths=compact_paths):
+                if compact_paths:
+                    self.compact_primitive_paths(value)
+                coverage = value["primitive_coverage"]
+                coverage["hit_digest_encoding"] = "sha256-base64url-v1"
+                value["shared_strings"] = {"7": coverage["hits"][1][6]}
+                raw = R.inventory_bytes(value)
+                path.write_bytes(raw)
+                stored = json.loads(raw)["primitive_coverage"]
+                self.assertRegex(stored["hits"][0][6], r"^[A-Za-z0-9_-]{43}$")
+                self.assertEqual(stored["hits"][1][6], {"$": 7})
+                self.assertEqual(R.inventory_bytes(R.inventory(root)[0]), raw)
+                observed = R.trace(root)
+                for field in ("routes", "primitive_hits", "primitive_coverage"):
+                    self.assertEqual(observed[field], expected[field])
+
+        invalid = json.loads(raw)
+        digest = invalid["primitive_coverage"]["hits"][0][6]
+        invalid["primitive_coverage"]["hits"][0][6] = digest + "="
+        path.write_bytes(R._inventory_sections(invalid) + b"\n")
+        with self.assertRaisesRegex(R.Refused, "primitive hit digest"):
+            R.inventory(root)
+        invalid["primitive_coverage"]["hits"][0][6] = digest
+        invalid["primitive_coverage"].pop("hit_digest_encoding")
+        path.write_bytes(R._inventory_sections(invalid) + b"\n")
+        with self.assertRaisesRegex(R.Refused, "full SHA256 required"):
+            R.trace(root)
+
 
 if __name__ == "__main__":
     unittest.main()
