@@ -133,7 +133,8 @@ def inventory_bytes(value):
     expanded = _string_layout(value, compact=False, prune=True)
     bindings = _source_binding_layout(_witness_layout(expanded, compact=True), compact=True)
     points = _point_digest_layout(bindings, compact=True)
-    return _inventory_sections(_string_layout(points, compact=True, prune=True)) + b"\n"
+    hits = _hit_digest_layout(points, compact=True)
+    return _inventory_sections(_string_layout(hits, compact=True, prune=True)) + b"\n"
 
 
 def _point_digest_layout(value, *, compact):
@@ -158,10 +159,33 @@ def _point_digest_row(row, shared, *, compact):
         need(len(row) != 4, "point declaration symbol required")
         return row
     need(len(row) == 4, "point declaration row width refused")
-    sha = _sha256_hex(row[3], True, "point")
+    return [*row[:3], _inventory_sha256(row[3], shared, compact=compact, scope="point")]
+
+
+def _inventory_sha256(value, shared, *, compact, scope):
+    sha = _sha256_hex(value, True, scope)
     if compact and sha not in shared:
-        sha = _sha256_base64(bytes.fromhex(sha))
-    return [*row[:3], sha]
+        return _sha256_base64(bytes.fromhex(sha))
+    return sha
+
+
+def _hit_digest_layout(value, *, compact):
+    """Store full primitive SHA256 values without changing path or disposition rows."""
+    coverage = value.get("primitive_coverage")
+    field = "hit_digest_encoding"
+    if type(coverage) is not dict or field not in coverage:
+        return value
+    need(coverage[field] == SHA256_BASE64URL, "primitive hit digest encoding refused")
+    hits = coverage.get("hits")
+    need(type(hits) is list and all(type(row) is list and len(row) == 8 for row in hits),
+         "primitive hit row required")
+    shared = set(value.get("shared_strings", {}).values())
+    rows = [[*row[:6], _inventory_sha256(row[6], shared, compact=compact, scope="primitive hit"), row[7]]
+            for row in hits]
+    result = {**value, "primitive_coverage": {**coverage, "hits": rows}}
+    if not compact:
+        need(len(encoded(result)) <= MAX_FILE, "decoded inventory string budget exceeded by primitive hit digests")
+    return result
 
 
 def _source_binding_identity(row, columns, compact_digests):
@@ -1268,6 +1292,8 @@ def _expanded_primitive_coverage(coverage, contents):
     need(isinstance(coverage, dict) and coverage.get("schema") in ("bounded-primitives-v1", "bounded-primitives-v2"),
          "primitive coverage schema required")
     coverage = _expanded_exclusions(coverage)
+    if "hit_digest_encoding" in coverage:
+        coverage = {key: item for key, item in coverage.items() if key != "hit_digest_encoding"}
     rows = coverage.get("hits", [])
     need(isinstance(rows, list), "primitive hit rows required")
     need(all(isinstance(row, list) and len(row) == 8 for row in rows), "primitive hit row required")
@@ -1328,7 +1354,8 @@ def _check_script_bindings(value, files):
 def inventory(root):
     data, _identity = read_file(root, INVENTORY, MAX_INVENTORY)
     stored = json.loads(data)
-    value = _point_digest_layout(_string_layout(stored, compact=False), compact=False)
+    points = _point_digest_layout(_string_layout(stored, compact=False), compact=False)
+    value = _hit_digest_layout(points, compact=False)
     need(value["schema"] == "compact-release-routes-v1", "inventory schema refused")
     ids = [route["id"] for route in value["routes"]]
     need(ids and len(ids) == len(set(ids)), "missing or duplicate routes")

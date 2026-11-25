@@ -8,25 +8,31 @@ from pathlib import Path
 import sys
 
 import everyday_delegation_delivery as delivery_records
+import registered_delegation_entry as entry
 import registered_n1_workflow as native
-from cwo_core import candidate_identity, host_records, manual_delivery, requirement_baseline
+from cwo_core import candidate_identity, host_records, manual_delivery, requirement_baseline, workspace_capture
 from cwo_core.native_live_availability import NativeLiveUnavailable
+
+
+def _baseline(baseline, amendments):
+    baseline_path = str(Path(baseline).resolve(strict=True))
+    amendment_paths = tuple(str(Path(path).resolve(strict=True)) for path in amendments)
+    chain = requirement_baseline.resolve_chain(manual_delivery._read_record(baseline_path),
+        [manual_delivery._read_record(path) for path in amendment_paths])
+    return baseline_path, amendment_paths, chain
 
 
 def _delivery_inputs(workflow, baseline, amendments):
     if type(workflow) is not native.RegisteredN1Workflow:
         raise ValueError('An original configured registered workflow is required.')
-    baseline_path = str(Path(baseline).resolve(strict=True))
-    amendment_paths = tuple(str(Path(path).resolve(strict=True)) for path in amendments)
-    chain = requirement_baseline.resolve_chain(manual_delivery._read_record(baseline_path),
-        [manual_delivery._read_record(path) for path in amendment_paths])
+    baseline_path, amendment_paths, chain = _baseline(baseline, amendments)
     standing = workflow.config._standing_delegation
     if (standing is None or chain['digest'] != standing.baseline_sha256
             or chain['bead_id'] != workflow.config.route['parent_id']):
         raise ValueError('The Bead and requirement baseline must match the standing delegation.')
     root = workflow.config.host.worker
-    return Namespace(bead=chain['bead_id'], repo=str(root), baseline=baseline_path,
-                     amendment=amendment_paths), chain
+    return Namespace(bead=chain['bead_id'], repo=str(root), project=str(workflow.config.project),
+                     baseline=baseline_path, amendment=amendment_paths), chain
 
 
 def _open_task(delivery, run_bd):
@@ -74,10 +80,10 @@ def deliver(workflow, *, baseline: str | Path, amendments: Sequence[str | Path] 
     candidate = candidate_identity.capture_candidate(root, chain=chain,
         base_commit=report['binding']['worker_identity']['head_commit'],
         scope_paths=sorted(entry['path'] for entry in report['artifact']['files']))
-    delivery = manual_delivery.Delivery(args.bead, root, chain, candidate)
+    delivery = manual_delivery.Delivery(args.bead, root, chain, candidate, Path(args.project))
     store = host_records.configured_store()
-    store.require_outside_worker_roots((root, workflow.config.host.target))
-    database, run_bd = manual_delivery.project_beads(root)
+    store.require_outside_worker_roots((root, workflow.config.host.target, delivery.database_root))
+    database, run_bd = manual_delivery.project_beads(Path(args.project))
     task = _open_task(delivery, run_bd)
     delivery_records.verify_candidate(workflow, delivery, database=database)
     digest = candidate_identity.candidate_digest(candidate)
@@ -91,9 +97,9 @@ def delegate(workflow, task, *, baseline: str | Path,
              amendments: Sequence[str | Path] = (), summary: str, resume: bool = False) -> dict:
     """Deliver a standing-approved assignment or resume delivery from completed custody."""
     args, chain = _delivery_inputs(workflow, baseline, amendments)
-    root = workflow.config.host.worker
-    database, run_bd = manual_delivery.project_beads(root)
-    _open_task(manual_delivery.Delivery(args.bead, root, chain, {}), run_bd)
+    root, project = Path(args.repo), Path(args.project)
+    database, run_bd = manual_delivery.project_beads(project)
+    _open_task(manual_delivery.Delivery(args.bead, root, chain, {}, project), run_bd)
     if resume:
         workflow.resume_delegation(task, database=database)
     else:
@@ -101,8 +107,20 @@ def delegate(workflow, task, *, baseline: str | Path,
     return deliver(workflow, baseline=args.baseline, amendments=args.amendment, summary=summary)
 
 
+def _installed_assignment(args):
+    if not args.resume and native.login_config.read_worker_login_home() is None:
+        raise ValueError(native.delegation_setup_message())
+    _baseline_path, _amendment_paths, chain = _baseline(args.baseline, args.amendment)
+    try:
+        return entry.open_assignment(args.task, chain)
+    except entry.StandingApprovalMissing as exc:
+        if args.resume:
+            raise
+        raise ValueError(f'{exc} Use the cwo-delegation approval tool in the local cwo-codex session.') from None
+
+
 def main(argv: list[str] | None = None, *, workflow=None) -> int:
-    """Installed command for callers embedding the protected controller."""
+    """Run the standing-approved assignment selected from the lead's project."""
     cli = ArgumentParser(description=__doc__)
     cli.add_argument('--task', required=True, help='The original admitted lead assignment.')
     cli.add_argument('--baseline', required=True, type=Path, help='The original requirement baseline JSON.')
@@ -110,13 +128,12 @@ def main(argv: list[str] | None = None, *, workflow=None) -> int:
     cli.add_argument('--summary', required=True, help='The delivery note for independent review.')
     cli.add_argument('--resume', action='store_true', help='Resume the same completed assignment without dispatching.')
     args = cli.parse_args(argv)
-    if type(workflow) is not native.RegisteredN1Workflow:
-        print('delegate: A protected delegation controller must supply the original workflow.', file=sys.stderr)
-        return 1
     try:
+        if workflow is None:
+            workflow = _installed_assignment(args)
         result = delegate(workflow, args.task, baseline=args.baseline, amendments=args.amendment,
                           summary=args.summary, resume=args.resume)
-    except (NativeLiveUnavailable, OSError, ValueError, SystemExit) as exc:
+    except (NativeLiveUnavailable, OSError, ValueError, SystemExit, workspace_capture.WorkspaceDiscoveryError) as exc:
         print(f'delegate: {exc}', file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, sort_keys=True))

@@ -65,6 +65,45 @@ class SignedCalibrationPipeTests(unittest.TestCase):
             with self.subTest(size=cohort["size"]), _pool_test_directory() as temporary, ExitStack() as stack:
                 self._run_calibration(Path(temporary), stack, cohort)
 
+    def test_slow_close_receipt(self):
+        measure = capability._measure_action_ms
+
+        for receipt_fails in (False, True):
+            events = []
+
+            def measure_close(action):
+                result, elapsed = measure(action)
+                if result == {"ack": "closed"}:
+                    events.append("close-measured")
+                    return result, 251.0
+                return result, elapsed
+
+            def record(peer, name, observation):
+                self.assertTrue(peer.closed and peer.process.poll() == 0)
+                self.assertEqual(events, ["close-measured"])
+                events.append((name, observation))
+                if receipt_fails:
+                    raise OSError("EXAMPLE private receipt failure")
+
+            with self.subTest(receipt_fails=receipt_fails), _pool_test_directory() as temporary, ExitStack() as stack:
+                stack.enter_context(mock.patch.object(capability, "_measure_action_ms", measure_close))
+                stack.enter_context(mock.patch.object(_CalibrationPeer, "record", record, create=True))
+                with self.assertRaisesRegex(capability.CallbackCalibrationError, "observed-callback-exceeds-certification") as raised:
+                    self._run_calibration(Path(temporary), stack, fixed_pool_qualification_cohorts()[0])
+            self.assertEqual(len(events), 2)
+            name, observation = events[1]
+            self.assertEqual(name, "calibration-slow-close")
+            self.assertEqual(set(observation), {"total_us", "archive_us", "monitor_exit_reap_us", "namespace_exit_us",
+                             "broker_close_us", "termination_receipt_us", "lease_release_us", "protocol_close_us"})
+            self.assertEqual(observation["total_us"], 251_000)
+            for phase in ("archive_us", "protocol_close_us"):
+                self.assertGreater(observation[phase], 0)
+            self.assertTrue(all(value is None or type(value) is int and 0 <= value <= 3_600_000_000
+                                for value in observation.values()))
+            notes = getattr(raised.exception, "__notes__", [])
+            self.assertEqual("calibration-slow-close-record-failed" in notes, receipt_fails)
+            self.assertNotIn("EXAMPLE private receipt failure", notes)
+
     def test_waits_for_durable_context(self):
         published = set()
         context_counts_at_interrupt = []

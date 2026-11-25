@@ -126,7 +126,7 @@ three units or six reads warn; four or eleven require replanning.
   to waive a gate. Disclose genuine access/outage/security boundaries plainly.
 - No stopped worker resumes. Use fresh identities after terminal failure;
   realignment remains nonaccepted. Containment precedes owned-state restoration.
-- For provider-connected native work, use `cwo delegate` through a configured registered single-worker host. The host supplies standing approval, original admission, budget and login.
+- For one known text output, use `cwo-delegation` in local `cwo-codex` to get the operator's standing approval, then run `cwo delegate` with the same task and baseline.
   Lead-run supervision checks are advisory. [Production requirements](references/native-live-route-holds.md#standing-approved-delegation).
 - Native pool work additionally needs trusted-controller factory authority (not shipped), so
   the version-2 launcher refuses ordinary plans, even `--validate-only`. Cohorts

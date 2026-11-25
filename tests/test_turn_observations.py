@@ -18,12 +18,22 @@ from types import MappingProxyType, ModuleType
 import unittest
 from unittest import mock
 
+from tests.historical_campaign_launcher import launcher_before_retirement
+
 
 ROOT = Path(__file__).resolve().parents[1]
 OWNER = "cwo_core.supervision.turn_observations"
 RUNTIME = "cwo_core.maintenance_native_runtime"
 FACADE = "run_native_pool_live_canaries"
 OWNER_PATH = "scripts/cwo_core/supervision/turn_observations.py"
+PRE_RETIREMENT_FACADE_PIN = (
+    "8e828c470f95f69ad0becc2a81c63307f36472ebc57fc90eaee403181adc50c6",
+    "84a86ffc12284ae36087ae534c1e24cb36fc9052da8fc09f401a5acb38a18638",
+)
+ARCHIVED_FACADE_PIN = (
+    "a07f4f1a7d7f84d7fc22cb9feae4027a43c46379a9665f2814b11eb47cb73682",
+    "dd82c23c15c9b7c68198ed1043bfdf43a3c656a15cd681dd40018e2813180df5",
+)
 
 
 @contextmanager
@@ -197,13 +207,62 @@ class TurnObservationTests(unittest.TestCase):
             source = source.replace(current, previous)
         return source
 
+    def _assert_facade_projection(self, source: str, pin: tuple[str, str]) -> None:
+        full, projected = pin
+        self.assertEqual(
+            hashlib.sha256(source.encode()).hexdigest(),
+            projected,
+            f"canary-body projection of historical facade {full} drifted",
+        )
+
+    def _facade_projection_before_pool_retirement(self, source: str) -> str:
+        entries = [
+            node for node in ast.parse(source).body
+            if isinstance(node, ast.FunctionDef) and node.name == "run_pool_canary"
+        ]
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        lines = source.splitlines(keepends=True)
+        start, end = entry.body[0].lineno - 1, entry.end_lineno
+        self.assertEqual(
+            "".join(lines[start:end]),
+            '    """Refuse the retired v1 pool canary before preparing a worker."""\n'
+            "    live_availability.require_campaign_live()\n"
+            "    live_availability.require_pool_live()\n"
+            "    live_availability.require_n1_live()\n"
+            "    raise LegacyNativePoolExecutionRetired()\n",
+        )
+        # The signature and all surrounding source stay in the archived hash projection.
+        source = "".join([*lines[:start], "    pass\n", *lines[end:]])
+        replacements = (
+            (
+                "from cwo_core.native_pool import LegacyNativePoolExecutionRetired  # noqa: E402\n",
+                "from cwo_core.native_pool import NativePoolCoordinator  # noqa: E402\n",
+            ),
+            (
+                "    validate_completion_evidence_policy,\n    write_private_artifact,\n",
+                "    validate_completion_evidence_policy,\n    validate_pool_receipt,\n    write_private_artifact,\n",
+            ),
+            (
+                "from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402\n",
+                "from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402\n",
+            ),
+            (inspect.getsource(self.facade.main), launcher_before_retirement(self.facade)),
+        )
+        for current, previous in replacements:
+            self.assertEqual(source.count(current), 1)
+            source = source.replace(current, previous, 1)
+        self._assert_facade_projection(source, PRE_RETIREMENT_FACADE_PIN)
+        return source
+
     def test_f5_current_facade_source_and_archived_helper_syntax_are_pinned(self):
         source = Path(self.facade.__file__).read_bytes()
         self.assertEqual(
             hashlib.sha256(source).hexdigest(),
-            "8e828c470f95f69ad0becc2a81c63307f36472ebc57fc90eaee403181adc50c6",
+            "5d466ed931620e83c1c62be7874ce921cfcbaca9f38cbf95962de9aa5b8ee11a",
         )
-        historical = self._facade_before_registered_finite_evidence(source.decode())
+        before_retirement = self._facade_projection_before_pool_retirement(source.decode())
+        historical = self._facade_before_registered_finite_evidence(before_retirement)
         # Reconstruct the original facade from exact campaign-adapter
         # additions and the single docstring-line change, retaining occurrence
         # checks before comparing the preserved historical digest.
@@ -230,10 +289,7 @@ class TurnObservationTests(unittest.TestCase):
         )
         self.assertEqual(historical.count(current_docstring_line), 1)
         historical = historical.replace(current_docstring_line, original_docstring_line, 1)
-        self.assertEqual(
-            hashlib.sha256(historical.encode()).hexdigest(),
-            "a07f4f1a7d7f84d7fc22cb9feae4027a43c46379a9665f2814b11eb47cb73682",
-        )
+        self._assert_facade_projection(historical, ARCHIVED_FACADE_PIN)
         for name, digest in (
             ("turn_from_thread", "67cbf63780dc9e42275a541295ebfa7a2078e755796d39d9a1b836085f370573"),
             ("turn_items", "31876101d8d58e12889513eb357e1433b1c8a98ae3a8991198cea07b49a6123b"),

@@ -10,13 +10,12 @@ tool-surface blobs must be a reviewed pair derived from the history V6 binds,
 and no moved source may exist. The production identity table is pinned by a
 public digest projection; neutral disposable Git objects exercise the gate.
 
-The launcher cases drive the real runner ``main()`` offline: every input is a
-private placeholder file, the operative authorization validator is stubbed to
-accept (no real Generation 12 proof chain can be built offline), and every
-effect is a spy: process launch (Git passes through, read-only commands only),
-``thread/start``, the global claim and every other durable write, and a
-before/after hash of every file under the case directory. The cases differ
-only in the tree the authorization and manifest name.
+The tree cases run the verified pre-retirement launcher offline. Every input
+is a private placeholder file and the operative authorization validator is
+stubbed to accept. The fixture spies on process launch, thread start, the
+global claim and every durable write. It allows read-only Git commands and
+checks before/after hashes of the case files. The current launcher refuses
+even the previously accepted tree before reaching the validator or any effect.
 """
 
 from __future__ import annotations
@@ -42,6 +41,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import run_native_pool_live_canaries as LIVE  # noqa: E402
 from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
+from tests.historical_campaign_launcher import run_historical_launcher
 from tests.real_beads_fixture import configure_git_fixture
 
 
@@ -434,8 +434,8 @@ def _tree_state(root: Path) -> dict[str, str]:
     }
 
 
-def drive_launcher(directory: Path, repository: Path, tree: str) -> dict:
-    """Run the real runner main() offline with ``tree`` as checkpoint and candidate."""
+def drive_launcher(directory: Path, repository: Path, tree: str, *, historical: bool) -> dict:
+    """Run the selected launcher offline with the same checkpoint and candidate tree."""
 
     inputs = directory / "inputs"
     outputs = directory / "outputs"
@@ -516,7 +516,7 @@ def drive_launcher(directory: Path, repository: Path, tree: str) -> dict:
         stack.enter_context(redirect_stderr(stderr))
         stack.enter_context(redirect_stdout(io.StringIO()))
         try:
-            return_code = LIVE.main()
+            return_code = run_historical_launcher(LIVE) if historical else LIVE.main()
         except SystemExit as exc:  # argparse refusal: recorded, never a pass
             return_code = f"system-exit:{exc.code}"
     lines = [line for line in stderr.getvalue().splitlines() if line.startswith("{")]
@@ -538,7 +538,7 @@ def drive_launcher(directory: Path, repository: Path, tree: str) -> dict:
 
 
 class PostMoveCampaignGateLauncherTests(unittest.TestCase):
-    """The gate on the operative path: the runner main() and its preclaim checks."""
+    """Historical preclaim checks and the current launcher refusal."""
 
     maxDiff = None
 
@@ -551,10 +551,10 @@ class PostMoveCampaignGateLauncherTests(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls._temporary.cleanup()
 
-    def drive(self, label: str) -> dict:
+    def drive(self, label: str, *, historical: bool = True) -> dict:
         with tempfile.TemporaryDirectory() as directory:
             return drive_launcher(Path(directory) / "case", self.repository.root,
-                                  self.repository.trees[label])
+                                  self.repository.trees[label], historical=historical)
 
     def assert_no_effect(self, record: dict) -> None:
         self.assertEqual(record["return_code"], 1)
@@ -585,6 +585,15 @@ class PostMoveCampaignGateLauncherTests(unittest.TestCase):
                 expected_writes = {name: 0 for name in record["write_effect_calls"]}
                 expected_writes["acquire_global_campaign_claim"] = 1
                 self.assertEqual(record["write_effect_calls"], expected_writes)
+
+    def test_current_launcher_refuses_before_the_historical_gate(self) -> None:
+        record = self.drive("pre-move", historical=False)
+        self.assertEqual(record["failure_code"], "legacy-pool-execution-retired")
+        self.assert_no_effect(record)
+        self.assertEqual(record["operative_validator_calls"], 0)
+        self.assertEqual(record["git_commands"], [])
+        self.assertEqual(record["preclaim_stub_calls"], {name: 0 for name in _PRECLAIM_STUBS})
+        self.assertEqual(record["write_effect_calls"], {name: 0 for name in record["write_effect_calls"]})
 
     def test_v6_on_a_post_move_tree_is_refused_before_any_effect(self) -> None:
         record = self.drive("post-move")

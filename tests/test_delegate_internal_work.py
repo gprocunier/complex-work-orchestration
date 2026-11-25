@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import ctypes
 import hashlib
 import json
 import unittest
@@ -75,16 +76,39 @@ def _settings(fixture, case):
                 publication_state=pubstate, evidence=None)
 
 
-def make_workflow(test, *, baseline_sha256=BASELINE, task=TASK, configure_login=True, capabilities=None):
+def _setup_worker_login(test, store, renameat2):
+    from tests.test_setup_delegation import DelegationSetupTests
+
+    setup = DelegationSetupTests('runTest')
+    setup.setUp()
+    test.addCleanup(F.cleanup_helper, test, setup)
+    setup.store = store
+    state = setup.worker_home.parent / 'EXAMPLE-worker-login-state'
+    test.enterContext(patch.object(W.R.qualification, 'worker_login_state', return_value=state))
+    with patch.object(ctypes.CDLL.return_value, 'renameat2', new=renameat2, create=True):
+        status = setup.invoke()
+    test.assertEqual(status, 0, setup.err.getvalue())
+    setup.login.assert_called_once()
+    setup.probe.assert_called_once()
+    test.assertEqual(setup.configured(), setup.worker_home)
+    return setup.worker_home
+
+
+def make_workflow(test, *, baseline_sha256=BASELINE, task=TASK, configure_login=True,
+                  capabilities=None, from_setup=False, separate_project=False):
+    renameat2 = ctypes.CDLL(None, use_errno=True).renameat2 if from_setup else None
     fixture = F.FactoryTests('runTest')
     fixture.setUp()
     test.addCleanup(F.cleanup_helper, test, fixture)
     with patch.object(F, 'example_route', _route):
         case = fixture.case(production=True, production_model=resolve_model('luna'), production_effort='high',
                             task_prompt=task, no_fake_scheduler=True, archive_schedule='settled')
+    project = fixture.repositories.clone('EXAMPLE-lead') if separate_project else None
     settings = _settings(fixture, case)
     test.enterContext(patch.object(routing, '_now_iso', return_value=NOW))
-    if configure_login:
+    if from_setup:
+        saved_login = _setup_worker_login(test, fixture.host_records, renameat2)
+    elif configure_login:
         home = case.host.state.parent / 'EXAMPLE-worker-login'
         home.mkdir(mode=0o700)
         auth = home / 'auth.json'
@@ -93,16 +117,21 @@ def make_workflow(test, *, baseline_sha256=BASELINE, task=TASK, configure_login=
         test.enterContext(patch.object(W.R.qualification, 'worker_login_state',
                                        return_value=home.parent / 'EXAMPLE-worker-login-state'))
         settings['worker_login_home'] = home
+    if configure_login or from_setup:
         case.scenario.initialize_home = W.R.qualification.LOGIN_MOUNT
     evidence = capability_evidence(operative_models=operative_models()) if capabilities is None else capabilities
     settings['standing_delegation'] = StandingDelegation(baseline_sha256=baseline_sha256, database_sha256=DATABASE,
-        capability_evidence=evidence, cache_profile=cache_profile(total=8_000, stable=0))
+        capability_evidence=evidence, cache_profile=cache_profile(total=8_000, stable=0),
+        project=str(project) if project is not None else None)
     scope = settings['standing_delegation'].approval_scope(receipt=case.receipt,
         operation=settings['native_bundle'][1], publication=settings['publication_bundle'][1])
     settings['standing_directive'] = W.A.sign_controller_directive(verification_key=fixture.authority.key,
         actor_id=fixture.authority.actor, identity_source=fixture.authority.identity, action_sha256=W.digest(scope),
         directive_id='EXAMPLE-standing-delegation', parent_receipt_sha256=W.digest(settings['mission_directive']))
     workflow = W.RegisteredN1Workflow(W.ControllerConfiguration(**settings))
+    if from_setup:
+        test.assertNotIn('worker_login_home', settings)
+        test.assertEqual(workflow._worker_login_home, saved_login)
 
     class FactoryReference:
         @property
@@ -184,8 +213,9 @@ class EverydayDelegationTests(unittest.TestCase):
     def test_missing_login_reports_setup_before_signing(self):
         inputs = make_workflow(self, configure_login=False)
         with (patch.object(inputs.workflow, '_sign', side_effect=AssertionError('unexpected signing')),
-              self.assertRaisesRegex(ValueError, 'Delegation is not set up')):
+              self.assertRaisesRegex(ValueError, 'Delegation is not set up') as refusal):
             inputs.workflow.delegate(inputs.task, database=DATABASE)
+        self.assertEqual(str(refusal.exception), W.delegation_setup_message())
         self.assert_unstarted(inputs)
 
     def test_unsafe_login_refuses_before_signing_and_same_workflow_can_retry(self):

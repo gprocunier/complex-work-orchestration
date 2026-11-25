@@ -257,6 +257,7 @@
     "tests/fixtures/registered-provider-network/EXAMPLE-local-tls.pem": 420,
     "tests/fixtures/w20_affected_contract_w13/golden-b8f6251.json": 420,
     "tests/fixtures/w20_affected_contract_w13/source-pins-2026-10-23.json": 420,
+    "tests/historical_campaign_launcher.py": 420,
     "tests/historical_policy_fixtures.py": 420,
     "tests/native_precommit_fixtures.py": 420,
     "tests/real_beads_fixture.py": 420,
@@ -312,6 +313,8 @@
     "tests/test_finite_fixture_progress_acknowledgment.py": 420,
     "tests/test_registered_startup_publication.py": 420,
     "scripts/cwo_core/native_pool_deferred_context.py": 420,
+    "scripts/registered_worker_login_config.py": 420,
+    "scripts/setup_delegation.py": 420,
     "scripts/delegate_internal_work.py": 420
   },
   "files": {
@@ -421,7 +424,7 @@
     "scripts/cwo_core/native_live_allocation_ledger.py": "503c274ff75ab385878d8663eb243e7e7c1d3c51d32555a9cf3bed0e4a39bef0",
     "scripts/cwo_core/native_live_availability.py": "def575e245658c8d0dcad42c545280bb73fb452ea419ddb11eeed72cea3de8c0",
     "scripts/cwo_core/native_live_campaign_contracts.py": "8f168387bc992e9d92aad0b24966ad5325f7c800d14ed4472efa316fb437e3d8",
-    "scripts/cwo_core/native_pool.py": "a607f7ecb169ee0f0fdc440f854ab732836f852743482f05cb54cb222db48fc3",
+    "scripts/cwo_core/native_pool.py": "85f96d2be8cc31f1b48be905a97f02333832949fac63cdc9ef1ea63a3afbceea",
     "scripts/cwo_core/native_pool_admission.py": "f4f29487bcd26ecda0cf4cd361db5d3b78ad72880b003b5b19b9e1386d189cce",
     "scripts/cwo_core/native_pool_admitted.py": "4351cd67d57db3f9f3d7ed0df457a0b93d305287d6d297291981234097b8e61d",
     "scripts/cwo_core/native_pool_capacity.py": "ba981b5f7c4b9653c72b697dbe58c81fe76120267d518c0f1944908599fb39d2",
@@ -500,7 +503,7 @@
     "scripts/generate_manual_dispatch_prompt.py": "fe67204d6af628f6f041138fd2b4cec6bfab70dccf73ad2cbf19fa7cad561316",
     "scripts/guarded_artifact_target.py": "7780fc04a6eae8ffc437681ed1de877491ec901d2500b94df0c92a3725699e1d",
     "scripts/import_execution_telemetry.py": "bc5531f6014a7afde377b71f752dc668657561ba6c59a2c9ed2d3dc7bf663f75",
-    "scripts/install.sh": "cbc9a1a3e85edd398ced21203e83a90f02168ccbde15f95e1f1c92d35477252e",
+    "scripts/install.sh": "0befb7520d9bc0efd7e5d0fad963501b6dbd3049d75dead9481ea68ccc5d874b",
     "scripts/linux_owned_children.py": "288e7b58debf019fe3290493bf199512863954be6fc065f148c18606fc0a4fb0",
     "scripts/model_catalog_startup.py": "ca86340346abea3e40e4d77be2733055ae46bb53f7fcad2ae2e0de05fd044c34",
     "scripts/offline_admitted_n1.py": "c2a509afff234db565f35225c36bc5eea9a9e9fef52fe562f9040e07946b9236",
@@ -530,19 +533,19 @@
     "scripts/registered_finite_input.py": "fc91cad44ce60b5633a399ee9b610689690154a15ba41cc0a5a95ba0e95db9cd",
     "scripts/registered_finite_tool_calls.py": "b66d74039e63f7727bf0c4dbc2dd329d03aa4a15c954c55463bfa078c2511be8",
     "scripts/registered_host_root_boundary.py": "615109024a5dfab0625a412b1db0df85e56d1bf6e6f8ad9c7cecdcaf7452e836",
-    "scripts/registered_n1_factory.py": "c9c3671a4df8177c793a95f560abddd4860cab20760ad27c41b3a470dfa33811",
+    "scripts/registered_n1_factory.py": "36e4d455b39d9b02626da8b67ed4844be6655a71b9e1c5c4a683823592c57ef7",
     "scripts/registered_n1_qualification.py": "9540fd58f2ef72bf9349880d1bf77d87b44fb020e0a7446bbe8d1e0a350f2091",
-    "scripts/registered_n1_workflow.py": "d545adfe9fa353d2850c0feeaeee1cdca7f3a2fff2798c704c44ca09145611db",
+    "scripts/registered_n1_workflow.py": "753a76cf0d47ff39eeb009a7197b3cda9b99eb34ec486d8977a8d0d105cf4afe",
     "scripts/registered_native_pool_client.py": "cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",
     "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
     "scripts/registered_native_pool_retry.py": "261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",
-    "scripts/registered_provider_network.py": "0b77e914fc1df528cf95392948bafb43d3b2a1582dfb39f02aec0c5ab9e82d18",
+    "scripts/registered_provider_network.py": "01769c5e05bc26def2f6a03ebecbcb6eb2e60292824316155f3798e71f20fa79",
     "scripts/registered_server_requests.py": "2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd",
     "scripts/render_execution_status_report.py": "e46dbf44101e51a17d127eebaeddbe7e3c6f3b7290e09e8aac899975d16cd615",
     "scripts/route_work.py": "df875375e2611c71775dbca6ab20fab7daece7ddb9f8f74cfdf45a705ec73b66",
     "scripts/run_admitted_native_pool_transaction.py": "41a760ee30302f9d67a9a9e86001f2fbf1f64c4d67ad9bd9abf98c1fbae160f5",
     "scripts/run_native_pool_activation_preview.py": "b345a67f7ecea8846f089e0e36d25f3f38abc332cdaf83257356df1fd1050b25",
-    "scripts/run_native_pool_live_canaries.py": "8e828c470f95f69ad0becc2a81c63307f36472ebc57fc90eaee403181adc50c6",
+    "scripts/run_native_pool_live_canaries.py": "5d466ed931620e83c1c62be7874ce921cfcbaca9f38cbf95962de9aa5b8ee11a",
     "scripts/scaffold_workgraph.py": "fe6fc0c20566c9425bf5e6fee261d028410d56596806fd924cb21f01d481152f",
     "scripts/setup_workspace_database.py": "f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd",
     "scripts/validate_run_readiness_plan.py": "4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",
@@ -552,6 +555,7 @@
     "tests/fixtures/registered-provider-network/EXAMPLE-local-tls.pem": "48bc9ff28b36e10206f4d2d8755b191a04e2a9f28ae6659a3b93c25cbce56ec7",
     "tests/fixtures/w20_affected_contract_w13/golden-b8f6251.json": "30e5c8c25946135c84d636b75cad81091395d006448f8b2e2e4f7b41858259af",
     "tests/fixtures/w20_affected_contract_w13/source-pins-2026-10-23.json": "0f2576ba8ed904551de6508ce98f639d445abe68c5d3261f3acb5d21536ecbe8",
+    "tests/historical_campaign_launcher.py": "88908a443879eb0749b72aff542e10402a40de1f355e95a5eb691edeb6134e3f",
     "tests/historical_policy_fixtures.py": "5a809bd26a65b6e7f818b7e8b79c3c9bb0bd3dc3de5e4d855a39f8c2210436ce",
     "tests/native_precommit_fixtures.py": "28221028c68294b88337fe9d16173a85468e82575098dc6afe5e298e174403dd",
     "tests/real_beads_fixture.py": "2a511efad89d9ddb9a5c8dfea76e45eb440d9d5c5bf27405e228ca93c3a46275",
@@ -565,9 +569,9 @@
     "tests/test_native_canary_contracts.py": "e0a4e3ec89d4af8e2e686da513ab37f6d04ee1755e2be47a22c0ad3782adc067",
     "tests/test_native_live_allocation_ledger.py": "cc8c7c74dd44e63425c31b7f72af6a130a77f5b595aa2b02c9b06b91d350bf60",
     "tests/test_native_live_campaign_generation12.py": "ac3d04fa002e5b0134ebd1179e3507e3bd85244fca2cb127d38ebecd6bd7dddc",
-    "tests/test_native_pool.py": "82e471addd7dbff883e8cf79e6fb964d18baf9954128e044b2ed88cf3f602430",
+    "tests/test_native_pool.py": "e0acd6cd422b8f03ca6434b9e566f9583f6f106b03cd78e243b386cb2beeb3ee",
     "tests/test_native_pool_admission.py": "ff2f3205ad88d81bf9003c8209cb6da2d71b59b0ed77399426159bbeb9226701",
-    "tests/test_native_pool_admission_contracts.py": "cc131c2ec5f9c2e246d9e29413619de39e5bc76af16cf0d92d6ab7485f5445e0",
+    "tests/test_native_pool_admission_contracts.py": "8ea38b5c763ad46265a73a521e4b2f1284d6dcec970b75b8be4600eaed55d7ad",
     "tests/test_native_pool_config.py": "0826b0b65b11b93a1f0cc0edda4cd23169b4dde773507fb2e5ebf5a99a954d7f",
     "tests/test_native_pool_contracts.py": "3439cbaedbf891e5b1baf903f721d28633bd7ea1c85386becbf7e9c6c8c5ca75",
     "tests/test_native_pool_preflight.py": "9652cc113f052b4a76812400aeb7a19deb478f4711075844313e69ccf5da47c0",
@@ -586,18 +590,18 @@
     "tests/test_registered_finite_input.py": "33786717c01a7dcba7b329674e6a94f2759f5f4b9c71a7b108bbaa4bc378d28a",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
     "tests/test_registered_finite_tool_wiring.py": "36a5ce24e2c8ac0e5e797162aa545aafb5dffbbc3429f6e085eb1097ef559e39",
-    "tests/test_registered_n1_factory.py": "d3060c36fdf2c9f7b8456c0661d6d68d1321146d6173c70d183c1d0fa97b0873",
+    "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
     "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
-    "tests/test_registered_n1_workflow.py": "0aea8c1b30c1d0666ff927e7d6d9f7fc8458a440e07d66543aae31b88fd977f3",
-    "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
+    "tests/test_registered_n1_workflow.py": "bc497ff6916c73ef3e59fcfa0821d05046539010b8e63229d0580e5f65e01606",
+    "tests/test_registered_native_pool_host.py": "b360554f45dd46116799fe7d0c31665a4b89531f610e589cd6b2c68fe941cf10",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
-    "tests/test_registered_provider_network.py": "3d9026ebba82005b6ac4881e6edf198d2ff84b4492cd1f767567150e4cc936b4",
+    "tests/test_registered_provider_network.py": "dcad39f3aa3e9c8aeccc6ab5f800ff2cc322baa8b8cc9dc4e388d7c965fc9c78",
     "tests/test_registered_server_requests.py": "67ae9075bcdf60fff0d411a7d09391a1dc7497b9c5e71cbb5d24a60f21738f9d",
     "tests/test_route_feasibility_preparation.py": "45b615f5e7ad013c166846ba499c34c525452011539ed5de4eecbab6c8a5416f",
-    "tests/test_run_admitted_native_pool_transaction.py": "531a7ebd4d5ed5623dbcb711d468889b934736398f48cae00ee1567398c4818a",
+    "tests/test_run_admitted_native_pool_transaction.py": "f670ae613b3fd959ea7c5792065f5d7a84f4f53e5fcdb763222ab0ef032e76cf",
     "tests/test_run_native_pool_live_canaries.py": "2d8b59bc4e130ab51fc0d3e05a01646a03dc7471519b7e4d2248e2cd76a80d15",
     "tests/test_run_readiness_plan.py": "e6e91c1894e4ce096eba5e5e92501ea05a9f60804c0425552ae4f5a7f9ffb8b7",
-    "tests/test_w20_affected_contract_w13.py": "beedac9fff562628a3347ba78f2c6ac12fd8c66b528faa09d7a84f18d3b606ab",
+    "tests/test_w20_affected_contract_w13.py": "d194dcf9f233bb214541aaa076c7c6b30ee204fb97a43309d0edf3637556f617",
     "tests/test_workflow_adjudication.py": "d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5",
     "tests/fixtures/affected_contract_compatibility/legacy-transport-before-bounds.txt": "264522cef555c0682227edf927ec1ab57dbee8776d8e360722c3d2e8fd874566",
     "scripts/cwo_core/qualification_target.py": "75f7c8cb444f1d5ac1f6ac415ead7cd9f74064da37e9550a7bd45d4de69ecd55",
@@ -610,7 +614,9 @@
     "tests/test_finite_fixture_progress_acknowledgment.py": "966f50fde466583060fcb0dce898c6bd7e479efba639f551bcc2e2f3444637d2",
     "tests/test_registered_startup_publication.py": "7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",
     "scripts/cwo_core/native_pool_deferred_context.py": "f653d3f9a1ce01957fc8b4b3ad3745b4f4a776f54be0eefa2a68e1af52bf42ad",
-    "scripts/delegate_internal_work.py": "ebd0a11f7c446e18322a4a79cfdb2173bf1193dd818968f27cfe3c8aed6a3fe1"
+    "scripts/registered_worker_login_config.py": "f5fe6cd43edd5cac532395e9ac09be8f4b96883c976c9284ba581b8f24c7eb45",
+    "scripts/setup_delegation.py": "2a97b28e94ff6c24f3f4e57246ae178a69e80d708cd2568598b7dce4956dcaa5",
+    "scripts/delegate_internal_work.py": "20a85eb2da7768b81103867ddc866aad1be6ae743c2da6b6a382480a5d647d95"
   },
   "historical_files": {
     "238ddfb22c52f5e753bc5b24ba1e24b30df7b347": {
@@ -1815,7 +1821,8 @@
       "scripts/offline_artifact_validation.py",
       "scripts/qualified_workflow_adjudication.py",
       "scripts/registered_host_root_boundary.py",
-      "scripts/registered_n1_factory.py"
+      "scripts/registered_n1_factory.py",
+      "scripts/registered_worker_login_config.py"
     ],
     "scripts/registered_native_pool_client.py": [
       "scripts/registered_native_pool_host.py"
@@ -1957,6 +1964,7 @@
       "tests/test_local_admission_preparation.py",
       "tests/test_w20_affected_contract_w13.py"
     ],
+    "tests/historical_campaign_launcher.py": [],
     "tests/historical_policy_fixtures.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/native_live_campaign_contracts.py",
@@ -2033,10 +2041,15 @@
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/native_control.py",
       "scripts/cwo_core/native_pool.py",
+      "scripts/cwo_core/native_pool_admission.py",
+      "scripts/cwo_core/native_pool_capacity.py",
       "scripts/cwo_core/native_pool_contracts.py",
       "scripts/cwo_core/native_pool_leases.py",
+      "scripts/cwo_core/native_pool_proportionality.py",
       "scripts/cwo_core/native_stop_scope.py",
-      "tests/test_native_pool_contracts.py"
+      "tests/test_native_pool_admission.py",
+      "tests/test_native_pool_contracts.py",
+      "tests/test_native_pool_proportionality.py"
     ],
     "tests/test_native_pool_admission.py": [
       "scripts/cwo_core/__init__.py",
@@ -2244,7 +2257,10 @@
       "tests/test_registered_n1_factory.py"
     ],
     "tests/test_registered_n1_workflow.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/host_records.py",
       "scripts/registered_n1_workflow.py",
+      "scripts/setup_delegation.py",
       "tests/test_registered_finite_tool_wiring.py",
       "tests/test_registered_n1_factory.py",
       "tests/test_workflow_adjudication.py"
@@ -2322,6 +2338,7 @@
       "scripts/cwo_core/supervision/turn_observations.py",
       "scripts/run_native_pool_live_canaries.py",
       "scripts/verify_affected_historical_contract.py",
+      "tests/historical_campaign_launcher.py",
       "tests/historical_policy_fixtures.py",
       "tests/test_codex_tool_surface.py",
       "tests/test_native_live_campaign_generation12.py",
@@ -2356,6 +2373,18 @@
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/native_pool_contracts.py",
       "scripts/cwo_core/native_tool_isolation.py"
+    ],
+    "scripts/registered_worker_login_config.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/host_records.py"
+    ],
+    "scripts/setup_delegation.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/host_records.py",
+      "scripts/cwo_core/paths.py",
+      "scripts/registered_n1_qualification.py",
+      "scripts/registered_worker_login_config.py",
+      "scripts/selected_native_containment.py"
     ],
     "scripts/delegate_internal_work.py": [
       "scripts/cwo_core/__init__.py",
@@ -2471,9 +2500,9 @@
   "registered_current_scope": "Current imports, source bytes/modes and neutral offline compatibility inputs are independently bound. verify_fixture_checkpoint is explicitly fixture-only: archived IDs are non-reverified metadata, historical_artifacts_verified=false and all effect/current/semantic authority is false. verify_checkpoint and the process entry remain strict original Git verification without fixture fallback. Signed qualification permit and provider relay dependencies and their offline witnesses are separately bound current source; fixture mode confers no qualification or live effect authority.",
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
-    "tests/test_registered_n1_factory.py": "d3060c36fdf2c9f7b8456c0661d6d68d1321146d6173c70d183c1d0fa97b0873",
+    "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
     "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
-    "tests/test_registered_provider_network.py": "3d9026ebba82005b6ac4881e6edf198d2ff84b4492cd1f767567150e4cc936b4",
+    "tests/test_registered_provider_network.py": "dcad39f3aa3e9c8aeccc6ab5f800ff2cc322baa8b8cc9dc4e388d7c965fc9c78",
     "tests/test_registered_server_requests.py": "67ae9075bcdf60fff0d411a7d09391a1dc7497b9c5e71cbb5d24a60f21738f9d"
   },
   "roots": [

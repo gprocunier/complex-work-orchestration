@@ -16,7 +16,7 @@ verified acceptance.
 | Native surface probe and qualification | `N1_LIVE_AVAILABLE` | `capture_tool_request` refuses before capture binding or listener startup; its CLI refuses before catalog/evidence writes. `observe_qualification` verifies the original opaque operation, then refuses before qualification output/intent creation. |
 | Registered pool and retry | `N1_LIVE_AVAILABLE` and `POOL_LIVE_AVAILABLE` | Pool host execute entry and each member, plus approved retry entry and effect. `PoolConfiguration.enabled=True` cannot replace either source decision. |
 | Activation preview | Dedicated `LIVE_ACTIVATION_AVAILABLE` plus N1 for `n1-read-only` and `n1-mutable`; additionally pool for `n2-read-only` | Run entry checks the dedicated hold and N1 before loading inputs; the loaded profile is checked before claims, ledger creation, reservation or launch. Server creation, ledger transport RPC entry points, worker-contract allocation and accepted-child closure recheck the dedicated hold and selected profile. |
-| Campaign | N1, pool and campaign | Main entry, preclaim validation, global claim acquisition, server construction, `build_pool_inputs` and `run_pool_canary`. A supplied server or a pre-move validator tree cannot replace a held source decision. |
+| Campaign | N1, pool and campaign | Main and `run_pool_canary` also refuse as retired before input reads or allocation. Preclaim, global claim acquisition, server construction and `build_pool_inputs` retain the three source checks. |
 | Admitted v8 multiworker plan | N1 and pool | The loader checks the actual child count before consuming the verified operation or importing its runtime adapter. The concrete installed maintenance runtime supports exactly one worker child and one precommit session; it does not implement a multiworker maintenance cohort. |
 
 The raw transport's N1 decision is a shared prerequisite because its concrete
@@ -44,13 +44,10 @@ routes require their own qualification and operator decision.
 
 ## Explicit launcher binding hold
 
-The activation-preview launcher and campaign launcher still construct bare
-`AppServer()`. With explicit launcher binding this always refuses, including when every availability
-flag is patched on. Their routes remain unavailable. Any later restoration must
-supply explicit executable and `CODEX_HOME` bindings, or a verified capture
-binding, through the constructor contract and satisfy all existing source
-holds and qualification requirements. This change documents that refusal; it
-restores no route.
+The activation-preview launcher constructs bare `AppServer()`. The constructor
+requires explicit executable and `CODEX_HOME` bindings or a verified capture
+binding, in addition to the source holds and qualification requirements. The
+legacy campaign launcher refuses before reaching server construction.
 
 ## Registered single-worker production
 
@@ -67,17 +64,27 @@ bytes. Set `allowed_effects` to `native-worker`, `provider-request` and
 `target-publication` in that order. The production selector must agree in the
 signed factory specification and the original whole-route admission.
 
-Sign in once to a new, owner-private worker home using the file credential store.
-The `CODEX_HOME` assignment applies to the sign-in command only.
+Accept the installer's delegation setup prompt or pass `--setup-delegation`.
+For an existing installation, run this command from the installed skill directory.
 
 ```bash
-install -d -m 700 -- "$HOME/.cwo-worker-codex"
-CODEX_HOME="$HOME/.cwo-worker-codex" codex -c 'cli_auth_credentials_store="file"' login
+python3 scripts/setup_delegation.py
 ```
 
-Set `worker_login_home` to the absolute path in the installed embedding
-controller's `registered_n1_workflow.ControllerConfiguration` settings. The
-controller passes its existing protected settings alongside that path.
+Setup uses the account's `.cwo-worker-codex` directory by default. Use
+`--worker-home` to choose another dedicated directory and `--codex-home` to
+identify a custom main Codex home to keep separate. Setup observes app-server
+startup and cleanup in an isolated scratch home before using Codex device
+sign-in with the file credential store. For this check put the standalone Codex
+release's `bin` directory first on `PATH`. The isolated process mounts the
+selected executable and system runtime. A package launcher that needs sibling
+files can fail in that environment. The check sends no model task.
+
+Setup checks the worker login permissions and lease, then saves the path as `worker_login_home` in
+`../.cwo-host-state/<package>/worker-login.json`, relative to the skill root.
+
+A registered single-worker controller can use the saved setting or supply
+`worker_login_home` explicitly alongside its protected settings.
 
 ```python
 controller = ControllerConfiguration(
@@ -112,8 +119,22 @@ Production admission and authentication isolation have offline witnesses.
 
 ### Standing-approved delegation
 
-An embedding controller with an original signed registered workflow can call
-`everyday_delegation.delegate(workflow, task, baseline=..., summary=...)`.
+In the local `cwo-codex` session, use `cwo-delegation`'s
+`authorize_assignment` tool for an open Bead with a requirement baseline.
+Supply the exact task, baseline path, applied amendments in order if any,
+and one project-relative output path with its exact UTF-8 text. Codex shows
+the assignment, output, provider and budget in its foreground form. An
+affirmative choice there allows the controller to retain that exact scope.
+A matching retained approval is reused.
+
+The approval server is a child of the local Codex foreground process and uses
+that process's private stdio pipes. The registered worker runs in separate
+mount and process namespaces with only the registered finite tool surface.
+The worker cannot access controller state or signing keys. Unrestricted
+processes running as the controller account are part of the trusted host.
+
+The protected controller retains an already approved `RegisteredN1Workflow`
+with `registered_delegation_entry.retain_approved_assignment(workflow)`.
 Pass `standing_delegation` as a `delegate_internal_work.StandingDelegation`
 and `standing_directive` as the signed operator approval to
 `ControllerConfiguration`. The controller signs the action digest from
@@ -127,12 +148,14 @@ assignment without a required pre-dispatch peer review. The controller holds
 the signing key outside worker-visible roots and checks the dedicated login
 before signing current dispatch authority or launching a worker.
 
-The installed `cwo delegate` parser accepts the exact task, baseline and delivery
-summary. A trusted caller invokes it in-process with
-`cwo.main(arguments, delegation_workflow=workflow)`. The standalone command
-refuses without that typed workflow. Fresh installation still needs a protected
-controller bootstrap. The present registered profile requires a preapproved
-finite command and the expected output sizes and digests.
+After retention, run `cwo delegate --task <exact task> --baseline <file>
+--summary <delivery note>` from the approved project checkout. The command
+selects by the checkout, Beads database, Bead, exact task and resolved baseline.
+It verifies the retained custody against a separate project key in the private
+installation host store and checks the original approval again. It refuses a
+missing or changed approval. The dedicated worker login supplies authentication.
+The registered profile uses a finite writer bound to the approved output size
+and digest.
 
 The call checks the baseline reference on the open Bead, runs the registered
 worker's original finite command, and posts its exact validated worktree
@@ -143,9 +166,9 @@ original worker checkout available for review. When that checkout does not
 resolve the project's Beads database, set the existing absolute `BEADS_DIR`
 selector to the original project database for the host and the reviewer.
 After an interrupted delivery write, the host can use `cwo delegate --resume`
-with the original task, baseline and summary. A restarted host reconstructs the
-original protected configuration before supplying the workflow. Resumption
-requires signed completed custody and unchanged admission accounting. An expired
+with the original task, baseline and summary in the same checkout. The command
+reopens the original protected configuration. Resumption requires signed
+completed custody and unchanged admission accounting. An expired
 dispatch admission permits only this completed-custody replay. An unknown or
 unfinished worker attempt requires reconciliation.
 [Hand acceptance procedure](run-readiness.md#accepting-a-delivery-by-hand).

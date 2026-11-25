@@ -21,6 +21,14 @@ Here, **admission** means the trusted host has approved this exact group to run;
 **receipt** records what a check or execution observed. A receipt alone is not
 permission to launch.
 
+Direct execution of a v1 pool contract returns
+`legacy-pool-execution-retired` before invoking callbacks, acquiring leases,
+or persisting state. Use `supervise_native_pool.py validate` and `status` to
+inspect existing v1 artifacts. A trusted host dispatches an admitted v2 pool
+through `run_admitted_native_pool` with the original reservation and one-use
+capability. The launcher replays preflight and commits a dispatch receipt
+before the coordinator invokes worker callbacks.
+
 ## Threat Model And Claim Boundaries
 
 Assets are worker-session identities, nonces, control turns, state files,
@@ -428,10 +436,12 @@ hash-binds both private artifacts through `tool_trace_sha256` and
 inspection-only. A trace mismatch or closure failure cannot emit an accepted
 v2 result.
 
-## Trusted Live Canary Gate
+## Historical Live Canary Gate
 
-The release canary is a separate, single-shot controller:
-`scripts/run_native_pool_live_canaries.py`. It requires the immutable campaign
+The legacy campaign launcher and pool canary entry refuse before reading
+campaign inputs or allocating workers. The historical release canary used
+`scripts/run_native_pool_live_canaries.py` as a single-shot controller. Its
+evidence chain required the immutable campaign
 authorization artifact, the active outer authority, the exact predecessor authorization
 and campaign manifest, an accepting independent Spark receipt, plus
 independently adjudicated pre-mutation and pre-live Sol steering receipts. All

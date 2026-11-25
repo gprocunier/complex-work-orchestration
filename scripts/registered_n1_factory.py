@@ -2241,6 +2241,8 @@ class RegisteredN1Factory:
             roots = (*roots, qualification.campaign_directory())
         if self._managed_login is not None:
             roots = (*roots, *self._managed_login.protected_roots())
+        if self._production_owner is not None:
+            roots = (*roots, *self._production_owner.config._project_roots())
         return roots
 
     def _worker_writable_roots(self):

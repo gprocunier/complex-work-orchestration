@@ -612,9 +612,12 @@ class PoolTests(unittest.TestCase):
         for index in (0, 2):
             with self.subTest(failed=index):
                 self.cohort(3, archive_schedule='settled', shared_source=True)
+                for member in self.fixtures:
+                    member.case.settle_reply = True
                 self.fixtures[index].case.bad_output = True
                 self.adopt()
-                with self.assertRaises(ValueError):
+                with self.assertRaisesRegex(P.R.validation.ValidationError,
+                                            'Independent expected output comparisons failed'):
                     self.host.run(self.config.request('execute'))
                 self.assertEqual(self.host.status()['states'], ['validated'] * index + ['failed'] + ['held'] * (2 - index))
                 self.assert_accounting(index + 1)

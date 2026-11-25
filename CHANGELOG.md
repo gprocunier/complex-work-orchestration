@@ -3,6 +3,33 @@
 ## Unreleased
 
 - Let a configured registered single-worker controller route a standing-approved assignment through its original admission and dedicated login, then post the exact validated candidate for independent hand acceptance.
+- Add guided setup for the separate Codex worker sign-in, with an isolated startup check and a standalone command for existing installs.
+
+## 1.35.2 - 2026-11-24
+
+### Tests
+
+- Settle accepting replies in the registered pool launcher and validation fixtures.
+
+## 1.35.1 - 2026-11-24
+
+- Close active provider streams promptly when a contained worker shuts down and retain phase timings for slow calibration closes.
+
+## 1.35.0 - 2026-11-24
+
+- Require v2 admission for native pool dispatch. Direct execution of v1 pools and the legacy campaign launcher now refuse before worker or state effects. Existing v1 pool artifacts remain valid for inspection.
+
+### Tests
+
+- Wait for approval reply publication in the registered request fixture.
+
+## 1.34.1 - 2026-11-24
+
+- Wake the provider broker promptly when a contained worker shuts down.
+
+## 1.34.0 - 2026-11-24
+
+- Let offline critic synthesis read a host evaluation by its record digest alongside the exact return file.
 
 ## 1.33.1 - 2026-11-24
 

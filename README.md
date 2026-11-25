@@ -27,10 +27,10 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   them itself: local HTTP dispatch (`dispatch_work.py --execute-local`) and live
   browser dispatch are disabled, so you send the exported request and bring the
   response back.
-- **Connects registered single-worker dispatch to hand review.** A trusted
-  embedding host can use the standing approval for a bounded native assignment,
-  deliver the exact validated result and leave it open for an independent
-  reviewer. The installed command requires that protected host.
+- **Connects registered single-worker dispatch to hand review.** The installed
+  launcher uses Codex's foreground approval for an exact registered assignment.
+  The controller retains that approval so `cwo delegate` can deliver the
+  validated result and leave it open for an independent reviewer.
   The older lead-run supervision checks are advisory.
 - **Keeps delivered work open until it is accepted.** The lead records a
   `pending-acceptance` delivery. A reviewer working by hand can accept and close
@@ -138,9 +138,10 @@ approved, qualified environment.
 The registered single-worker route uses an original signed workflow with
 explicit OpenAI disclosure consent and a dedicated worker login. The host
 checks the selected model, software, workspace and tool profile. Its app
-server has provider-only network access. A trusted embedding host can use
-`cwo delegate` to send an eligible internal assignment through that route and
-post a bound delivery for hand acceptance. See the [configured host and single-worker requirements](references/native-live-route-holds.md#standing-approved-delegation).
+server has provider-only network access. After the protected controller retains
+the approval, run `cwo delegate` from the project checkout to send the exact
+eligible assignment and post a bound delivery for hand acceptance. See the
+[configured host and single-worker requirements](references/native-live-route-holds.md#standing-approved-delegation).
 The pool contract bounds groups to three and additionally requires a trusted
 controller, which is not shipped.
 

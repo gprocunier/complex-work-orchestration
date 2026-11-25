@@ -4,13 +4,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256
 import json
+from pathlib import Path
 import re
 
 import prepare_local_admission as admission
+import registered_n1_factory as registered
 from prepare_native_worker import build_native_worker_packet, load_native_worker_policy
+from cwo_core.model_identities import resolve_model
 from cwo_core.native_authority import canonical_authority_sha256 as digest
 from cwo_core.routing import classify_work
 from cwo_core.util import packet_payload_hash
+from cwo_core.workspace_capture import worktree_top_level
+
+
+REGISTERED_PERMISSION_PROFILE = 'cwo_standing_delegation'
+PROJECT_CONTROLLER_IDENTITY = 'cwo-protected-project-controller'
+_REGISTERED_EXECUTOR = 'internal_worker_luna'
 
 
 def _need(condition, message):
@@ -30,8 +39,10 @@ class StandingDelegation:
     database_sha256: str
     capability_bytes: bytes
     cache_bytes: bytes
+    project: str | None
+    project_identity: tuple[int, int, int] | None
 
-    def __init__(self, *, baseline_sha256, database_sha256, capability_evidence, cache_profile):
+    def __init__(self, *, baseline_sha256, database_sha256, capability_evidence, cache_profile, project=None):
         _need(type(baseline_sha256) is str and re.fullmatch(r'sha256:[0-9a-f]{64}', baseline_sha256),
               'Standing delegation requires the frozen delivery baseline digest.')
         _need(type(database_sha256) is str and re.fullmatch(r'[0-9a-f]{64}', database_sha256),
@@ -42,11 +53,15 @@ class StandingDelegation:
         object.__setattr__(self, 'database_sha256', database_sha256)
         object.__setattr__(self, 'capability_bytes', admission.reconciliation._encode(capability_evidence))
         object.__setattr__(self, 'cache_bytes', admission.reconciliation._encode(cache_profile))
+        _need(project is None or (type(project) is str and 0 < len(project) <= 4096 and '\0' not in project),
+              'Standing delegation requires bounded original project coordinates.')
+        object.__setattr__(self, 'project', project)
+        object.__setattr__(self, 'project_identity', _project_identity(project) if project is not None else None)
 
     def approval_scope(self, *, receipt, operation, publication):
         """Return the exact action for a protected operator standing directive."""
         node = json.loads(receipt.selected_node_bytes)
-        return {'purpose': 'registered-delegation-for-hand-review',
+        scope = {'purpose': 'registered-delegation-for-hand-review',
                 'native_operation_sha256': digest(operation), 'publication_operation_sha256': digest(publication),
                 'admission_sha256': admission._receipt_sha256(receipt),
                 'request_sha256': sha256(receipt.request_bytes).hexdigest(),
@@ -56,6 +71,27 @@ class StandingDelegation:
                 'cache_sha256': sha256(self.cache_bytes).hexdigest(),
                 'provider': 'openai', 'disclosure': 'provider-only', 'workspace': operation['workspace'],
                 'target': publication['workspace'], 'admission_expires_at': receipt.expires_at}
+        if self.project is not None:
+            scope.update(project=self.project, project_identity=list(self.project_identity))
+        return scope
+
+
+def _project_identity(project):
+    path = Path(project)
+    _need(path.is_absolute() and worktree_top_level(path) == project,
+          'Standing delegation requires the canonical lead project checkout.')
+    info = path.stat(follow_symlinks=False)
+    return info.st_dev, info.st_ino, info.st_mode
+
+
+def project_checkout(host, standing):
+    if standing is None or standing.project is None:
+        return host.target
+    _need(_project_identity(standing.project) == standing.project_identity,
+          'The original lead project changed identity.')
+    _need(standing.project_identity[:2] != tuple(host._initial['target_identity']['root'][:2]),
+          'An explicit lead project requires a separate immutable native target.')
+    return Path(standing.project)
 
 
 def original_assignment(workflow, task, database):
@@ -139,11 +175,55 @@ def _packet(node, route, scope, operation, authority):
     return packet
 
 
+def _registered_selection(workflow):
+    spec = workflow.config.native_bundle[0]['registered_n1']
+    if spec['thread_start']['permissions'] != REGISTERED_PERMISSION_PROFILE:
+        return False
+    _need(workflow.verifier._identity == PROJECT_CONTROLLER_IDENTITY and workflow._production_selected(),
+          'The registered delegation packet requires the original protected project controller and admission.')
+    return True
+
+
+def _registered_packet(workflow, node, routing, scope, operation, amounts):
+    config = workflow.config
+    spec = config.native_bundle[0]['registered_n1']
+    execution = node['execution']
+    selected = routing['selected_executor']
+    _need(execution['executor'] == _REGISTERED_EXECUTOR and spec['model'] == resolve_model('luna')
+          and selected['provider_family'] == execution['provider'] == spec['provider'] == scope['provider']
+          and selected['provider_key'] == 'internal_codex',
+          'The internal route differs from the original registered delegation packet selection.')
+    task = registered._model_task(config.receipt, spec, config.policy.report)
+    project = {'project': scope['project']} if 'project' in scope else {}
+    return {'packet_type': 'cwo-registered-delegation-packet', 'version': 1,
+            'scope': {'bead_id': scope['bead_id'], 'workspace': scope['workspace'], 'target': scope['target'],
+                      'allowed_paths': operation['write_paths'], **project},
+            'standing_scope_sha256': digest(scope), 'admission_sha256': scope['admission_sha256'],
+            'request_sha256': scope['request_sha256'], 'model_task_sha256': sha256(task).hexdigest(),
+            'budget': amounts, 'execution': {'executor': execution['executor'], 'provider_key': selected['provider_key'],
+                'model': execution['model'], 'effort': execution['effort']}}
+
+
+def _authorize_registered(workflow, node, routing, scope, operation, amounts, parent):
+    packet = _registered_packet(workflow, node, routing, scope, operation, amounts)
+    packet_sha256 = packet_payload_hash(packet)
+    route_sha256 = digest({key: routing[key] for key in ('route', 'recommended_executor', 'share_boundary',
+                                                         'risk_level', 'dispatch_sensitivity')})
+    action = {'scope': scope, 'registered_packet_sha256': packet_sha256, 'internal_route_sha256': route_sha256}
+    directive = workflow._sign(action, 'everyday-delegation-registered-packet', parent)
+    workflow._verify(action, directive, parent)
+    return {'approval': action, 'directive': directive, 'route_sha256': route_sha256,
+            'dispatch': {'bead_id': scope['bead_id'], 'executor': packet['execution']['executor'],
+                         'provider_key': packet['execution']['provider_key'], 'packet_sha256': packet_sha256}}, packet
+
+
 def authorize(workflow, task, operation, publication, *, database):
     """Sign the exact route input under the current protected standing mission."""
     node, amounts = _assignment(workflow, task, operation, publication, database)
-    _route(node, None)
+    routing = _route(node, None)
     scope, parent = workflow.config._standing_approval()
+    if _registered_selection(workflow):
+        return _authorize_registered(workflow, node, routing, scope, operation, amounts, parent)
     authority = _authority(workflow, node, amounts, scope, operation)
     action = {'scope': scope, 'current_authority_sha256': digest(authority)}
     directive = workflow._sign(action, 'everyday-delegation-current-route', parent)
@@ -176,4 +256,8 @@ def current(workflow, delegation):
     else:
         admission._live(receipt, config.ledger)
     workflow._verify(action, delegation['directive'], parent)
+    if _registered_selection(workflow):
+        _need(action.get('registered_packet_sha256') == delegation['dispatch']['packet_sha256']
+              and action.get('internal_route_sha256') == delegation['route_sha256'],
+              'The original registered delegation packet or screening route changed.')
     return delegation

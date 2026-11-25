@@ -1883,7 +1883,7 @@ class FactoryTests(unittest.TestCase):
         self.assertNotIn('terminal_blockers', report['summary'])
 
     def test_same_rpc_denies_grants_stdin_and_unknown_context_before_useful_command(self):
-        case = self.case(archive_schedule='settled', probe_approvals=[
+        case = self.case(archive_schedule='settled', settle_reply=True, probe_approvals=[
             {'additionalPermissions': {'network': {'enabled': True}}, 'reason': 'EXAMPLE ordinary retry'},
             {'kind': 'writeStdin', 'reason': 'EXAMPLE empty or nonempty input is unknown'},
             {'itemId': 'EXAMPLE-unknown-item', 'reason': 'EXAMPLE reassuring text'},

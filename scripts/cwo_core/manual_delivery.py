@@ -82,7 +82,8 @@ def _read_record(path: str) -> dict[str, Any]:
 
 
 def add_delivery_arguments(cli: argparse.ArgumentParser, *, required: bool = False) -> None:
-    cli.add_argument("--repo", help="Top of the project working tree (default: current directory).")
+    cli.add_argument("--repo", help="Top of the candidate working tree (default: current directory).")
+    cli.add_argument("--project", help="Original project root for a registered delivery in a separate checkout.")
     cli.add_argument("--baseline", required=required, help="The initial requirement baseline JSON.")
     cli.add_argument("--amendment", action="append", default=[], help="An applied amendment, in order. Repeatable.")
     cli.add_argument("--candidate", required=required, help="The exact candidate identity JSON.")
@@ -94,6 +95,11 @@ class Delivery:
     root: Path
     chain: dict[str, Any]
     candidate: dict[str, Any]
+    project: Path | None = None
+
+    @property
+    def database_root(self) -> Path:
+        return self.root if self.project is None else self.project
 
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> Delivery:
@@ -101,7 +107,9 @@ class Delivery:
         baseline = _read_record(args.baseline)
         chain = requirement_baseline.resolve_chain(baseline, [_read_record(path) for path in args.amendment])
         _need(args.bead == chain["bead_id"], "the baseline belongs to a different Bead")
-        return cls(chain["bead_id"], Path(args.repo or ".").resolve(strict=True), chain, _read_record(args.candidate))
+        project = vars(args).get('project')
+        return cls(chain["bead_id"], Path(args.repo or ".").resolve(strict=True), chain, _read_record(args.candidate),
+                   Path(project).resolve(strict=True) if project else None)
 
     def binding(self, database: str) -> dict[str, Any]:
         return dict(bead_id=self.bead_id, manual_database_sha256=database,
@@ -153,7 +161,7 @@ def project_beads(root: Path) -> tuple[str, Callable[[list[str]], str]]:
 
 def _store(delivery: Delivery) -> host_records.HostRecordStore:
     store = host_records.configured_store()
-    store.require_outside_worker_roots((delivery.root,))
+    store.require_outside_worker_roots((delivery.root, delivery.database_root))
     return store
 
 
@@ -165,6 +173,7 @@ def require_origin(store: host_records.HostRecordStore, delivery: Delivery, orig
                    *, database: str) -> None:
     """Resolve a native delivery's original dispatch and captured return from the host chain."""
     if not origin:
+        _need(delivery.project is None, "use the original registered delivery for this candidate")
         return
     _need(set(origin) == set(_ORIGIN_FIELDS), "the original native dispatch and return receipts are required")
     dispatch = store.require_dispatch(origin["dispatch_id"])
@@ -176,10 +185,22 @@ def require_origin(store: host_records.HostRecordStore, delivery: Delivery, orig
           and metadata.get("delivery_baseline_sha256") == delivery.chain["digest"]
           and metadata.get("delivery_database_sha256") == database,
           "the original native dispatch must bind this Bead, packet, baseline and Beads database")
+    _require_checkout(delivery, metadata)
     receipt = store.require_return(origin["dispatch_id"], origin["return_sha256"])
     _need(receipt["_record_sha256"] == origin["return_record_sha256"]
           and receipt["return_sha256"] == origin["return_sha256"]
           and receipt["capture_provenance"] == "host-capture-v1", "the original native return receipt changed")
+
+
+def _require_checkout(delivery: Delivery, metadata: dict[str, Any]) -> None:
+    checkout = metadata.get('delivery_checkout')
+    if checkout is None:
+        _need(delivery.project is None, "a separate delivery checkout requires original registered custody")
+        return
+    info = delivery.root.stat()
+    _need(str(delivery.root) == checkout and str(delivery.database_root) == metadata.get('delivery_project')
+          and [info.st_dev, info.st_ino, info.st_mode] == metadata.get('delivery_checkout_identity'),
+          "the registered delivery checkout or original project changed")
 
 
 def _origin(event: dict[str, Any]) -> dict[str, Any]:
@@ -190,7 +211,7 @@ def post_delivery(delivery: Delivery, summary: str, *, origin: dict[str, Any] | 
     origin = {} if origin is None else origin
     session = delivery_session()
     store = _store(delivery)
-    database, run_bd = project_beads(delivery.root)
+    database, run_bd = project_beads(delivery.database_root)
     task = delivery.task(run_bd)
     delivery.check(task)
     _need(task.get("status") in _OPEN, "only an open Bead can record a delivery")
@@ -331,7 +352,7 @@ def accept_delivery(args: argparse.Namespace) -> dict[str, Any]:
     _need(0 < len(note) <= 240, "enter a review note of 1 to 240 characters")
     delivery = Delivery.from_args(args)
     store = _store(delivery)
-    database, run_bd = project_beads(delivery.root)
+    database, run_bd = project_beads(delivery.database_root)
     binding = delivery.binding(database)
     _need(binding["candidate_sha256"] == args.reviewed_candidate, "the candidate file differs from the reviewed candidate")
     task = delivery.task(run_bd)

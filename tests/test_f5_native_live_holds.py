@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'scripts'), str(ROOT / 'tests')]
 
 from cwo_core import native_live_availability as A  # noqa: E402
+from cwo_core.native_pool import LegacyNativePoolExecutionRetired  # noqa: E402
 from cwo_core import maintenance_native_runtime as M  # noqa: E402
 from cwo_core import maintenance_qualification as Q  # noqa: E402
 from cwo_core.supervision.transport import app_server as T  # noqa: E402
@@ -274,10 +275,33 @@ class F5NativeLiveHoldTests(unittest.TestCase):
         self.assertEqual(server.mock_calls, [])
         with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True), \
              mock.patch.object(C.uuid, 'uuid4', side_effect=FakeLaunchReached) as boundary:
-            for entry in (C.run_pool_canary, C.build_pool_inputs):
-                with self.subTest(entry=entry.__name__), self.assertRaises(FakeLaunchReached):
-                    entry(server, {}, {}, **options)
-            self.assertEqual(boundary.call_count, 2)
+            with self.assertRaises(FakeLaunchReached):
+                C.build_pool_inputs(server, {}, {}, **options)
+            boundary.assert_called_once_with()
+
+    def test_retired_campaign_wrappers_refuse_with_all_holds_patched(self):
+        server = mock.Mock()
+        options = dict(root=Path('/EXAMPLE'), integration=Path('/EXAMPLE'), pool_name='EXAMPLE',
+            worktrees=[], mutable=False, prompts=[], expected_tokens=[], pre_thread_start_check=mock.Mock())
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'EXAMPLE-output.json'
+            args = SimpleNamespace(output=str(output), campaign_nonce="00000000-0000-4000-8000-000000000000")
+            stderr = io.StringIO()
+            with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True), \
+                 mock.patch.object(C, 'build_pool_inputs', side_effect=FakeLaunchReached) as prepare, \
+                 mock.patch.object(C.argparse.ArgumentParser, 'parse_args', return_value=args), \
+                 mock.patch.object(C, 'load_private_json_snapshot', side_effect=FakeLaunchReached) as read, \
+                 mock.patch.object(C, 'acquire_global_campaign_claim', side_effect=FakeLaunchReached) as claim, \
+                 mock.patch.object(C, 'write_private_artifact', side_effect=FakeLaunchReached) as write, \
+                 mock.patch.object(C, 'AppServer', side_effect=FakeLaunchReached) as launch, redirect_stderr(stderr):
+                with self.assertRaisesRegex(LegacyNativePoolExecutionRetired, '^legacy-pool-execution-retired$'):
+                    C.run_pool_canary(server, {}, {}, **options)
+                self.assertEqual(C.main(), 1)
+                self.assertEqual((prepare.call_count, read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0, 0))
+            self.assertEqual(json.loads(stderr.getvalue())['failure_code'], 'legacy-pool-execution-retired')
+            self.assertEqual(server.mock_calls, [])
+            options["pre_thread_start_check"].assert_not_called()
+            self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch(self):
         with tempfile.TemporaryDirectory() as directory:

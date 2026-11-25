@@ -19,6 +19,7 @@ from types import MethodType
 import delegate_internal_work as D
 import registered_n1_factory as R
 import registered_host_root_boundary as boundary
+import registered_worker_login_config as login_config
 import guarded_artifact_target as G
 import offline_artifact_validation as V
 import qualified_workflow_adjudication as Q
@@ -41,6 +42,11 @@ def _need(condition, message):
 
 def _copy(value):
     return json.loads(_encode(value))
+
+
+def delegation_setup_message():
+    command = shlex.join(['python3', str(_SOURCE.with_name('setup_delegation.py'))])
+    return f'Delegation is not set up. Run this command.\n{command}'
 
 
 class EvidenceInputs:
@@ -205,7 +211,7 @@ class ControllerConfiguration:
                  ledger, host, controller_state, publication_state, evidence, worker_login_home=None,
                  standing_delegation=None, standing_directive=None):
         self._standing_delegation = standing_delegation
-        self._standing_directive = _encode(standing_directive)
+        self._standing_directive, self._mission_directive = _encode(standing_directive), _encode(mission_directive)
         if standing_delegation is None:
             _need(type(evidence) is EvidenceInputs and standing_directive is None,
                   'Original source and designated adjudication evidence is required.')
@@ -217,8 +223,11 @@ class ControllerConfiguration:
         self.policy = V.freeze_policy(policy_specification)
         self.receipt, self.route, self.node_id = receipt, _copy(route), node_id
         self.ledger, self.host, self.evidence = ledger, host, evidence
+        self._project = D.project_checkout(host, standing_delegation)
+        self._project_identity = H._identity(self._project)
         self._evidence_control = None if evidence is None else evidence._control
         self._worker_login_home = worker_login_home
+        self._worker_login_error = None
         self.state, self.publication_state = H._path(controller_state), H._path(publication_state)
         self.store, self._guard = state_store, None
         self._check_private_roots()
@@ -233,6 +242,18 @@ class ControllerConfiguration:
         self._bootstrap()
         if standing_delegation is not None:
             self._standing_approval()
+        if worker_login_home is None and self.native_bundle[0]['registered_n1'].get(R.PRODUCTION_LIVE) is True:
+            try:
+                self._worker_login_home = login_config.read_worker_login_home()
+            except login_config.WorkerLoginConfigurationError as exc:
+                self._worker_login_error = str(exc)
+
+    @property
+    def project(self):
+        return self._project
+
+    def _project_roots(self):
+        return (self.project,) if self.project != self.host.target else ()
 
     def _standing_approval(self):
         scope = self._standing_delegation.approval_scope(receipt=self.receipt,
@@ -249,7 +270,7 @@ class ControllerConfiguration:
     def _check_private_roots(self):
         scripts = H.Path(R.__file__).resolve().parent
         boundary.require_private_roots((self.host.target, self.host.state, self.ledger.root,
-            self.store.directory, self.state, self.publication_state),
+            self.store.directory, self.state, self.publication_state, *self._project_roots()),
             visible_paths=(scripts, scripts.parent / 'policy', scripts.parent / 'schemas'))
 
     def _current_check(self):
@@ -276,8 +297,9 @@ class ControllerConfiguration:
     def check_storage(self):
         self._check_private_roots()
         roots = [self.state, self.publication_state, self.host.state, self.host.worker,
-                 self.host.target, self.ledger.root, self.store.directory]
+                 self.host.target, self.ledger.root, self.store.directory, *self._project_roots()]
         R._disjoint(roots)
+        _need(H._identity(self.project) == self._project_identity, 'The original lead project changed identity.')
         for path in (self.state, self.publication_state):
             info = os.lstat(path)
             _need(info.st_uid == os.geteuid() and stat.S_IMODE(info.st_mode) == 0o700,
@@ -610,7 +632,10 @@ class RegisteredN1Workflow:
         delegation = self._current_evidence()
         scope = delegation['approval']['scope']
         return delegation['dispatch'], {'delivery_baseline_sha256': scope['baseline_sha256'],
-                                        'delivery_database_sha256': scope['database_sha256']}
+                                        'delivery_database_sha256': scope['database_sha256'],
+                                        'delivery_checkout': str(self.config.host.worker),
+                                        'delivery_checkout_identity': self.config.initial['worker_identity']['root'],
+                                        'delivery_project': str(self.config.project)}
 
     def _execution_current(self):
         _need(self._adoption is not None and _encode(self._action()) == self._selected_action,
@@ -643,15 +668,17 @@ class RegisteredN1Workflow:
     def _configured_worker_login(self):
         c = self.config
         selection = self._worker_login_home
-        if selection is None and self._standing_delegation is not None:
-            command = shlex.join(['python3', str(_SOURCE.with_name('setup_delegation.py'))])
-            raise ValueError(f'Delegation is not set up. Run this command.\n{command}')
-        _need(selection is not None and selection == c._worker_login_home,
+        _need(selection == c._worker_login_home,
               'Registered production requires its original configured worker login home.')
+        if c._worker_login_error is not None:
+            raise login_config.WorkerLoginConfigurationError(c._worker_login_error)
+        if selection is None:
+            raise ValueError(delegation_setup_message())
         home, state = H._path(selection), H._path(R.qualification.worker_login_state())
         mount = R.qualification.WorkerLoginMount(home, state)
         R._disjoint((home, state, c.state, c.publication_state, c.host.state, c.host.worker,
-                     c.host.target, c.ledger.root, c.store.directory, R.configured_store().state_root))
+                     c.host.target, c.ledger.root, c.store.directory, R.configured_store().state_root,
+                     *c._project_roots()))
         scripts = H.Path(R.__file__).resolve().parent
         boundary.require_private_roots((home, state), visible_paths=(scripts, scripts.parent / 'policy',
                                                                     scripts.parent / 'schemas'))

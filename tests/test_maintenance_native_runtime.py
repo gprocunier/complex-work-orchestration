@@ -840,10 +840,15 @@ class TerminalPoolStateConsumerTests(unittest.TestCase):
         self.path = self.root / "pool-state.json"
 
     def test_closed_state_is_required_and_consumed_by_actual_receipt_validator(self):
-        self.assertIn("accepting-requires-closed-state", module.validate_pool_receipt(self.receipt, contract=self.harness.contract))
+        bindings = {
+            "contract": self.harness.contract,
+            "admission_reservation": self.harness.reservation.receipt,
+            "dispatch_receipt": self.harness.dispatch,
+        }
+        self.assertIn("accepting-requires-closed-state", module.validate_pool_receipt(self.receipt, **bindings))
         state = module.read_pool_terminal_state(self.path, contract=self.harness.contract)
         self.assertEqual(state["status"], "closed")
-        self.assertEqual(module.validate_pool_receipt(self.receipt, contract=self.harness.contract, terminal_state=state), [])
+        self.assertEqual(module.validate_pool_receipt(self.receipt, terminal_state=state, **bindings), [])
 
 
     def test_real_fifo_rejects_before_blocking_and_resource_cleanup(self):
