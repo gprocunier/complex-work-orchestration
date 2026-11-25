@@ -585,7 +585,7 @@
     "tests/test_registered_finite_input.py": "33786717c01a7dcba7b329674e6a94f2759f5f4b9c71a7b108bbaa4bc378d28a",
     "tests/test_registered_finite_tool_calls.py": "b1be18f07cbea2a2034935e09fa8dfc656c422c3d28e3c7d1667db64dd2ee403",
     "tests/test_registered_finite_tool_wiring.py": "36a5ce24e2c8ac0e5e797162aa545aafb5dffbbc3429f6e085eb1097ef559e39",
-    "tests/test_registered_n1_factory.py": "d3060c36fdf2c9f7b8456c0661d6d68d1321146d6173c70d183c1d0fa97b0873",
+    "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
     "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
     "tests/test_registered_n1_workflow.py": "0aea8c1b30c1d0666ff927e7d6d9f7fc8458a440e07d66543aae31b88fd977f3",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
@@ -2460,7 +2460,7 @@
   "registered_current_scope": "Current imports, source bytes/modes and neutral offline compatibility inputs are independently bound. verify_fixture_checkpoint is explicitly fixture-only: archived IDs are non-reverified metadata, historical_artifacts_verified=false and all effect/current/semantic authority is false. verify_checkpoint and the process entry remain strict original Git verification without fixture fallback. Signed qualification permit and provider relay dependencies and their offline witnesses are separately bound current source; fixture mode confers no qualification or live effect authority.",
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
-    "tests/test_registered_n1_factory.py": "d3060c36fdf2c9f7b8456c0661d6d68d1321146d6173c70d183c1d0fa97b0873",
+    "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
     "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
     "tests/test_registered_provider_network.py": "bc3db20096d7d1fde14f25108bd7deb35e4fea6f35301471d395ee69dafe2cba",
     "tests/test_registered_server_requests.py": "67ae9075bcdf60fff0d411a7d09391a1dc7497b9c5e71cbb5d24a60f21738f9d"
