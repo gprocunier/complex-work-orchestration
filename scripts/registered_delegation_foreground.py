@@ -119,7 +119,7 @@ def _prompt(pending, proposal):
     reservation = native['reservation']
     return '\n'.join((
         'Approve this CWO assignment for one registered Codex worker?',
-        f'Project {json.dumps(scope["target"])}',
+        f'Project {json.dumps(scope.get("project", scope["target"]))}',
         f'Bead {json.dumps(scope["bead_id"])}',
         f'Task {json.dumps(node["prompt"])}',
         f'Output path {json.dumps(proposal.output_path)}',

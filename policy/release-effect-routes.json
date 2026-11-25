@@ -218,7 +218,9 @@
 
 "M44":{"conclusion":"Original adopted single-product workflow and its source switch select registered production with a configured file login.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Original host, signers and controller configuration are trusted. Publication needs separate adoption. Raw, pool, campaign and activation holds remain. Offline fixtures grant no production provider or qualification journal credit. Finite workers receive no credentials.","reason":"Check exact signed OpenAI route/model/effort, one worker/session, original evidence and provider-only consent. Require private configured login apart from primary and qualification homes and refuse attachments before claims or intent. Acquire separate durable per-login interlock before mount. Uncertain cleanup retains it. Recheck adoption, durable intent and owned receiver before effects. One checked thread/start and turn/start use signed data and default tier. An omitted explicit production login snapshots the private installation setting after bootstrap. Missing setup prints the setup command. Invalid settings refuse after adoption and before claims.","review_evidence":{"$":7},"source":["vu","ux","uw","uv","p52E","p52F","p52G","vt","us","p55L","p73a","p73b"]},
 
-"MContainedHost":{"conclusion":"Contained qualification requires original signed campaign authority.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent owns approvals and disposable custody. Preview has no authority. Production separate.","reason":"Approval binds campaign/cap 20. Check enrollment/capacity before claims, signed binding before calibration and original approval before starts/effects.","review_evidence":"Enrollment/raw refusals. Review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8","p64R","p66C"]}
+"MContainedHost":{"conclusion":"Contained qualification requires original signed campaign authority.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent owns approvals and disposable custody. Preview has no authority. Production separate.","reason":"Approval binds campaign/cap 20. Check enrollment/capacity before claims, signed binding before calibration and original approval before starts/effects.","review_evidence":"Enrollment/raw refusals. Review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8","p64R","p66C"]},
+
+"MLeadProject":{"conclusion":"The original signed lead project selects the database; the protected native target remains immutable.","evidence_contracts":["B11","N3"],"external_trust_limit":"The protected controller and project database selection are trusted. The fixture simulates database writes beneath the lead project and qualifies no live provider work.","reason":"Explicit standing approval signs the canonical project path and directory identity. Reopen rechecks standing scope and separate target and project roots. The signed registered dispatch binds the project database and checkout for review. Legacy approvals retain the original target fallback.","review_evidence":"Author-controlled fixture mutates project bytes through retry and independent hand close; independent source review pending.","source":["pLeadStanding","pLeadEntry","pLeadWitness"]}
 },
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
@@ -596,7 +598,11 @@
 
 {"$":388},
 
-"tests/test_registered_delegation_preparation.py"
+"tests/test_registered_delegation_preparation.py",
+
+"tests/test_registered_lead_project.py",
+
+"scripts/registered_delegation_entry.py"
 ],
 
 "points":{
@@ -1010,7 +1016,7 @@
 
 "p1bc":[90,"ChatGPTBrowserReviewTests._browser_result",1326,"qQWL63ASUFRZ_6aadcxwOe0VRkZMKUJzKCL9emo_1IU"],
 
-"p1bd":[64,"RegisteredN1Factory._isolated_validation",2589,"lV1uatFeb1_o1Wo2xgdf2i_oPFVR6tVwLOBP_ik74Pg"],
+"p1bd":[64,"RegisteredN1Factory._isolated_validation",2591,"lV1uatFeb1_o1Wo2xgdf2i_oPFVR6tVwLOBP_ik74Pg"],
 
 "p1bf":[51,640,"self._capability()",12,640,30],
 
@@ -1280,7 +1286,7 @@
 
 "p238":[74,3705,{"$":284}],
 
-"p239":[64,"RegisteredN1Factory.run",2647,"IZu2lD7TLSVi0FJqPDheYiAeVlvscicNeqcNEHGBHls"],
+"p239":[64,"RegisteredN1Factory.run",2649,"IZu2lD7TLSVi0FJqPDheYiAeVlvscicNeqcNEHGBHls"],
 
 "p23b":[132,"RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands",592,"KciK5sHaQpwjMVJzvdvG45L4EMa0UO3njoiKhj3_uHU"],
 
@@ -1658,7 +1664,7 @@
 
 "p2ec":[83,"AtomicSpawnTests.library",28,"QoqwHccidbxJa86WQE-egKlXHBRQ-5mmsMh-0zgCM3A"],
 
-"p2ee":[64,2594,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2594,99],
+"p2ee":[64,2596,"lifetime.launch([self.spec['validator'], '-I', '-S', '-c', _VALIDATOR], None)",22,2596,99],
 
 "p2f":[8,1317,"page.evaluate(\"() => \" + _GENERATING_JS)",24,1317,64],
 
@@ -1846,7 +1852,7 @@
 
 "p341":[34,"_run",251,"BDxnzsvYj-lG8Zg3IUq6CjlAbGLXKAoD5J92Imymkq8"],
 
-"p342":[64,"RegisteredN1Factory._effect",2475,"aUKu2mEXEH2NQsTqkU12SXxsHPX-aotDGGDPrRtUpac"],
+"p342":[64,"RegisteredN1Factory._effect",2477,"aUKu2mEXEH2NQsTqkU12SXxsHPX-aotDGGDPrRtUpac"],
 
 "p345":[106,"Issue41DispatchMatrixTests.assert_chrome_actions",454,"3HDP38MIIw8KgWv18eI6uPB2M1UdHQ52JFwBzwlWhvA"],
 
@@ -2032,7 +2038,7 @@
 
 "p3S":[64,"_observe_adapter_failure",109,"hpzfwQ8mBH9zF6YM1qzj5YQqcytJGKVDsfavTIzgXJw"],
 
-"p3T":[64,"RegisteredN1Factory._make_adapter",2452,"wbcNE2IyYkvPWG5C_M1iXnyHYzG9MROVUrZ1aathkLI"],
+"p3T":[64,"RegisteredN1Factory._make_adapter",2454,"wbcNE2IyYkvPWG5C_M1iXnyHYzG9MROVUrZ1aathkLI"],
 
 "p3U":[64,"RegisteredN1Factory.model_task_binding",2228,"rFFaH63QKt-lUJ3zJ_Bi_GpXaMiCzG2k2kVCN53Wir8"],
 
@@ -2088,9 +2094,9 @@
 
 "p3f":[76,1488,{"$":217},8,1492,9],
 
-"p3g":[64,"RegisteredN1Factory.record_dispatch",2262,"8k7FbO7rEM9_mDqTloamBmZEGArZer7UAX77kz3ziWA"],
+"p3g":[64,"RegisteredN1Factory.record_dispatch",2264,"8k7FbO7rEM9_mDqTloamBmZEGArZer7UAX77kz3ziWA"],
 
-"p3h":[64,2271,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding(), **metadata},\n            **dispatch,\n        )",38,2281,9],
+"p3h":[64,2273,"self.host_records.write_dispatch(\n            dispatch_id=self.dispatch_id,\n            dispatch_role='peer-review' if self.review_target is not None else 'executor',\n            provider=self.spec['provider'], model_family=registered.get('model_family'),\n            model_id=self.spec['model'], reasoning_effort=self.spec['effort'], session_id=session_id,\n            request_sha256=hashlib.sha256(self.receipt.request_bytes).hexdigest(),\n            review_target=self.review_target,\n            evaluation_metadata={'peer_review_required': True, 'dispatch_mode': 'registered-native-n1',\n                                 'registered_task': self.model_task_binding(), **metadata},\n            **dispatch,\n        )",38,2283,9],
 
 "p3i":[111,"NativeOutboundScreenTests.test_model_task_drift_and_serialized_binding_never_grant_authority",301,"e_lzs-blPA5sX-cXHerQcqElVq1QqatY6inlvDz7vWQ"],
 
@@ -2166,11 +2172,11 @@
 
 "p52":[50,202,{"$":315}],
 
-"p52E":[65,"RegisteredN1Workflow._production_selected",471,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
+"p52E":[65,"RegisteredN1Workflow._production_selected",481,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
 
 "p52F":[64,"_RegisteredServer._register_production_rpc",1232,"kISxK9pHjckkbv9hrb_tAgnq4iWNRqyXFLdbFqudSys"],
 
-"p52G":[65,"RegisteredN1Workflow._require_production_execution",644,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
+"p52G":[65,"RegisteredN1Workflow._require_production_execution",654,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
 
 "p52a":[153,"WorkflowTests.test_production_requires_current_adoption_and_configured_worker_login",382,"SOKBojMQfm0KVuZZYQrqsR7_nZS9sa5bsY-g1IpLtew"],
 
@@ -2312,9 +2318,9 @@
 
 "p73":[82,"AcceptanceProductFlowTests.provision",127,"H2UuPW3uAly8aG6VzGMSD0nfL4bvp7Q9iFoeMOjg6Rk"],
 
-"p73a":[65,665,"if selection is None:"],
+"p73a":[65,675,"if selection is None:"],
 
-"p73b":[65,663,"if c._worker_login_error is not None:"],
+"p73b":[65,673,"if c._worker_login_error is not None:"],
 
 "p73c":[153,"WorkflowTests.test_malformed_saved_login_refuses_only_after_original_adoption",419,"KV0BITFT8mJf0DMQLWtmVCa1bkEQBZNqyKGZ8giq4EI"],
 
@@ -2494,6 +2500,12 @@
 
 "pL":[62,"RegisteredFiniteInput._record_reply_failure",1608,"joF5BbDUSh8k7yyeqV5GUD1mkQjZzUdHKTUbCVcSqN4"],
 
+"pLeadEntry":[186,"_configuration",190,"TZwIUzTHEY-CHqG54vFpc_pt5FhzE7FK6m-Ak4inZ4Y"],
+
+"pLeadStanding":[178,"StandingDelegation.approval_scope",54,"30aXq3czylfdMUe6ICjZlVUgwckiveHUZYnRaD57kTs"],
+
+"pLeadWitness":[185,"RegisteredLeadProjectTests.test_project_database_changes_do_not_drift_registered_target_or_retry",33,"VEN-CyQcFdT_LUlahTIfNrzf8Lk63OzfG3aerIE-9-U"],
+
 "pLegacyCampaignRefusal":[99,"F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched",282,"nNjX8BopAR_ijxi5hAjXEWtlFLt-w33Vkft8VGEkaqw"],
 
 "pM":[129,"FiniteReplyWireTests.test_sensitive_corpus_replies_refuse_before_any_physical_write",106,"ZnjjUh-KJvD9MviGh2nRV3iWzeOmgrQlF6VtFcHt5k0"],
@@ -2504,7 +2516,7 @@
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
-"pQ":[65,"RegisteredN1Workflow._commit_execution",544,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
+"pQ":[65,"RegisteredN1Workflow._commit_execution",554,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
 
 "pQe1":[160,162,"stage._require_campaign_enrollment",4,162,38],
 
@@ -2522,9 +2534,9 @@
 
 "pQt7":[156,"PoolConfigurationTests.test_raw_writer_cannot_replace_original_retained_authorization",35,"gnRYl3v54rL2P67KbXPME4tn1tMvVMQNgwOqh2CVlno"],
 
-"pR":[65,"RegisteredN1Workflow._prepare_execution",520,"GmUTQnJ18-VWkybtitPYDYjR-OEw09zWxZIGXRm96VI"],
+"pR":[65,"RegisteredN1Workflow._prepare_execution",530,"GmUTQnJ18-VWkybtitPYDYjR-OEw09zWxZIGXRm96VI"],
 
-"pS":[65,"RegisteredN1Workflow._validate_execution",530,"nee2Lg9_3KnYaOLV18mLm61O6tzMpBZYapRh1BdpDn4"],
+"pS":[65,"RegisteredN1Workflow._validate_execution",540,"nee2Lg9_3KnYaOLV18mLm61O6tzMpBZYapRh1BdpDn4"],
 
 "pT":[42,"AppServer._raise_failed_turn_start",2224,"jyvTcLfJWtdc4Pr_WbtEifwaRUEU4VXJU_IAkb1vocc"],
 
@@ -2634,7 +2646,7 @@
 
 "pc9":[130,"ReleaseEffectRoutesTests._git_pair",1421,"nqUbPdd1sJwFcR3w_CJQflGtJHDoliB8lauHREZ_J6U"],
 
-"pca":[65,"RegisteredN1Workflow.run",685,"kVr7-2ikE9k4mwywWSjsVz-SgnM7c9VLpI6bKbM5mrA"],
+"pca":[65,"RegisteredN1Workflow.run",696,"kVr7-2ikE9k4mwywWSjsVz-SgnM7c9VLpI6bKbM5mrA"],
 
 "pcb":[139,"TrustedGitTests.test_only_fixed_trustworthy_paths_are_used",1148,"KUasbycq-u2HYjys762v8BrfPX-pUO0tOIVZE79v3GA"],
 
@@ -2790,7 +2802,7 @@
 
 "q04":[170,181,"_need(dispatch[\"_record_sha256\"] == origin[\"dispatch_record_sha256\"]"],
 
-"q05":[177,"deliver",73,"E3MIZpTJUxpyfOXpAAY1IhpPRJV2N5-JRkKq1p8JQbY"],
+"q05":[177,"deliver",73,"qBlmULkV4hIlxxuCRmMJeX4MDeQzt6_PsJ7sq2ZJ2-k"],
 
 "q06":[177,70,"run_bd(['comment', '--', delivery.bead_id, line])",4,70,53],
 
@@ -2804,19 +2816,19 @@
 
 "q0B":[177,26,"if type(workflow) is not native.RegisteredN1Workflow:"],
 
-"q0D":[178,149,"workflow._sign(action, 'everyday-delegation-current-route', parent)",16,149,83],
+"q0D":[178,178,"workflow._sign(action, 'everyday-delegation-current-route', parent)",16,178,83],
 
-"q0E":[178,144,"_assignment(workflow, task, operation, publication, database)",20,144,81],
+"q0E":[178,173,"_assignment(workflow, task, operation, publication, database)",20,173,81],
 
-"q0F":[178,"_assignment",70,"RTlHI2DdL5JizMGCtyBRkJOIkIZMvMtTMBt6UJATVYY"],
+"q0F":[178,"_assignment",99,"RTlHI2DdL5JizMGCtyBRkJOIkIZMvMtTMBt6UJATVYY"],
 
-"q0G":[178,76,"_need(estimate['write_paths'] == operation['write_paths'] == publication['write_paths']"],
+"q0G":[178,105,"_need(estimate['write_paths'] == operation['write_paths'] == publication['write_paths']"],
 
-"q0I":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",120,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
+"q0I":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",121,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
 
-"q0J":[179,"EverydayDelegationFlowTests.test_installed_lead_selects_the_retained_signed_assignment",231,"KmEZ_LtueRCJ2drO3Lc0Mbzp52mxFikRFeZ4zoFeXFc"],
+"q0J":[179,"EverydayDelegationFlowTests.test_installed_lead_selects_the_retained_signed_assignment",232,"KmEZ_LtueRCJ2drO3Lc0Mbzp52mxFikRFeZ4zoFeXFc"],
 
-"q0K":[180,"EverydayDelegationTests.test_unsafe_login_refuses_before_signing_and_same_workflow_can_retry",219,"x4ghbIRcYYNYWjRvGSmTcvRwPHEYQ7wctBbz7AK-7tU"],
+"q0K":[180,"EverydayDelegationTests.test_unsafe_login_refuses_before_signing_and_same_workflow_can_retry",221,"x4ghbIRcYYNYWjRvGSmTcvRwPHEYQ7wctBbz7AK-7tU"],
 
 "q0L":[181,"DelegatedDeliveryTests.test_acceptance_claim_cannot_switch_to_a_later_delivery",26,"NM1twUO66Wgj0EVr59F8IIubS3KkRU7q6TVaUU1BkYQ"],
 
@@ -2862,21 +2874,21 @@
 
 "ur":[170,350,"reviewer_session()",25,350,43],
 
-"us":[65,679,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
+"us":[65,690,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
 
 "ut":[148,"ManagedLoginNamespaceTests.assert_atomic_refresh_and_runtime_isolation",227,"1V4JIAPaoLLhIH-buh_fAbwUnE3Z9HCYA09DAh85iwk"],
 
 "uu":[153,"WorkflowTests.assert_unstarted",256,"c6Lr1V3xkHMxJ-HAT_ueKkb0X1pTYyhDb2OxFroHS40"],
 
-"uv":[64,2330,"_need(self.production_live and type(server) is _RegisteredServer and self.server is server"],
+"uv":[64,2332,"_need(self.production_live and type(server) is _RegisteredServer and self.server is server"],
 
 "uw":[149,122,"_need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),"],
 
-"ux":[65,641,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
+"ux":[65,651,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
 
 "uz":[8,1037,"page.locator(str(selector)).first.click(timeout=timeout_ms)",20,1037,79],
 
-"v0":[65,692,"R.live_availability.require_n1_live()"],
+"v0":[65,703,"R.live_availability.require_n1_live()"],
 
 "v1":[8,1181,"self._press_until_ready(box, origin, timeout_ms, guard)",15,1181,70],
 
@@ -2908,7 +2920,7 @@
 
 "vG":[8,{"$":202},651,{"$":242}],
 
-"vH":[64,2312,{"$":13}],
+"vH":[64,2314,{"$":13}],
 
 "vI":[52,94,"if path.read_bytes() != expected and not force:"],
 
@@ -2984,7 +2996,7 @@
 
 "vs":[170,226,"run_bd([\"comment\", \"--\", delivery.bead_id, comment])",8,226,60],
 
-"vt":[65,661,"_need(selection == c._worker_login_home,"],
+"vt":[65,671,"_need(selection == c._worker_login_home,"],
 
 "vu":[35,24,"if REGISTERED_N1_LIVE_AVAILABLE is not True:"],
 
@@ -3032,7 +3044,7 @@
 
 "xG":[64,"_Containment._confirm_login_mount",667,"BNDnkhNmB8dgn5r6TWg3AmfNFxhfdguiLjxIOZJJLu0"],
 
-"xH":[64,"RegisteredN1Factory._retire_managed_login",2627,"BSr1Rv-gKTTsbIt2LyEC43c3F_Lr10nP5h21aFX0IcQ"],
+"xH":[64,"RegisteredN1Factory._retire_managed_login",2629,"BSr1Rv-gKTTsbIt2LyEC43c3F_Lr10nP5h21aFX0IcQ"],
 
 "xI":[63,"QualifiedToolEvidence._project",249,"R8FoXs-UmY3cvB_ltC1XtYKrWO_YgrgIN6SwYgeC7lk"],
 
@@ -3044,7 +3056,7 @@
 
 "xM":[146,313,"message, descriptors, flags, _address = socket.recv_fds(control, 1, 1, socket.MSG_CMSG_CLOEXEC)"],
 
-"xN":[64,"RegisteredN1Factory.record_qualification_start",2338,"7-6oJl_rlkQOkQfSrjBL922xWA2hA4MNTp5ktaOUfLs"],
+"xN":[64,"RegisteredN1Factory.record_qualification_start",2340,"7-6oJl_rlkQOkQfSrjBL922xWA2hA4MNTp5ktaOUfLs"],
 
 "xO":[146,"_receive_handoff",312,"vXrhJRSpHqI8AEWglWg16aKC7q2sYtqxBqDpBCbxQU0"],
 
@@ -3246,7 +3258,7 @@
 
 "yz":[80,"Handle",20,"AQPYq9ORiUkSFzpW8ezVe045LJzcQv3pfmkAu0BNjAQ"],
 
-"z0":[64,"RegisteredN1Factory._require_qualification_selection",2317,"Qz5okE9G9JWuMX7YrlQTkQVxdl7FwPbZQGegtKeNZJI"],
+"z0":[64,"RegisteredN1Factory._require_qualification_selection",2319,"Qz5okE9G9JWuMX7YrlQTkQVxdl7FwPbZQGegtKeNZJI"],
 
 "z1":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",141,"eqjCvMW3CCfISe33c0PPQWNj9NI41DSaLJWGVsBwvro"],
 
@@ -3362,7 +3374,7 @@
 
 "zv":[63,"QualifiedToolEvidence._wait_original_call",275,"WamUfl3W5z51Ipe0azl4MPNwf677FbTglClMsnB0ZGQ"],
 
-"zw":[64,"RegisteredN1Factory._selected_access_token",2603,"y-ubfOinocuB-QU8UC4Q4EE7BojqmKlpF2nOpkGV6Co"],
+"zw":[64,"RegisteredN1Factory._selected_access_token",2605,"y-ubfOinocuB-QU8UC4Q4EE7BojqmKlpF2nOpkGV6Co"],
 
 "zx":[127,"FactoryTests.assert_terminal_worker_failure",1829,"osH5ulByQ7HU651Sb7wBNY402iq8B6v1Tq1oNutli60"],
 
@@ -5561,9 +5573,9 @@
 
 [71,2039,18,2039,60,"dynamic","Rl9WAtFVKrEOBeiivDt7rwNfsjO75kPMLcbsqS0arcU",[{"$":9},"XR370"]],
 
-[71,2483,29,2483,68,"dynamic","fhfug4pVqP_zZDhZxqqr-fclFY1wLUlr2DRLJ2-EYGU",[{"$":9},"XR371"]],
+[71,2485,29,2485,68,"dynamic","fhfug4pVqP_zZDhZxqqr-fclFY1wLUlr2DRLJ2-EYGU",[{"$":9},"XR371"]],
 
-[71,2594,22,2594,99,"browser","KoHYQ-S_GWNvLSOJmeTLuFRk4W-tsneY42M9zv9Iijk",[{"$":9},"guard-scope-4a07b575ef79c3"]],
+[71,2596,22,2596,99,"browser","KoHYQ-S_GWNvLSOJmeTLuFRk4W-tsneY42M9zv9Iijk",[{"$":9},"guard-scope-4a07b575ef79c3"]],
 
 [72,38,7,38,42,"dynamic","9pNCcrzlahznzrvkOGqswJp08RQYckGMXwtwEREdcWM",[{"$":9},"XR373"]],
 
@@ -6262,9 +6274,9 @@
 
 {"authority":"An explicit setup flag or the operator's affirmative installed skill prompt.","contract":"I5","effect":"Invoke the selected installed setup command after installation.","effect_points":["p73x"],"entrypoint":"p73y","gate_chains":[],"gates":["p73w"],"id":"I5.2","limits":"A setup failure leaves the installation and displays a retry command. The installer does not adopt a native operation.","ordering":"Return from uninstall before setup. Keep dry runs and declined or noninteractive default installs free of setup calls.","trace_files":[{"$":69},{"$":391}],"witnesses":["w73d","w73e","w73f"]},
 
-{"authority":"Original registered completion bound to candidate, baseline and Beads database.","contract":"B11","effect":"Retain candidate identity and post reference and delivery.","effect_points":["q08","q06","vn","vs"],"entrypoint":"q05","gate_limits":"Review completion, candidate and Beads callback.","gates":["q09","q07","vr"],"id":"B11.2","limits":"Comment failure may leave a reference or receipt. Resume requires original custody and summary.","ordering":"Check native origin and candidate before saving, posting and receipting.","review_gates":["q04","vo","vq"],"trace_files":[{"$":389},"scripts/everyday_delegation_delivery.py",{"$":378},{"$":36},{"$":105}],"witnesses":["w74Flow"]},
+{"authority":"Original registered completion bound to candidate, baseline and Beads database.","contract":"B11","effect":"Retain candidate identity and post reference and delivery.","effect_points":["q08","q06","vn","vs"],"entrypoint":"q05","gate_limits":"Review completion, candidate and Beads callback.","gates":["q09","q07","vr"],"id":"B11.2","limits":"Comment failure may leave a reference or receipt. Resume requires original custody and summary.","manual_decisions":["M02","M04","MLeadProject"],"ordering":"Check native origin and candidate before saving, posting and receipting.","review_gates":["q04","vo","vq"],"trace_files":[{"$":389},"scripts/everyday_delegation_delivery.py",{"$":378},{"$":36},{"$":105},{"$":396},"scripts/registered_delegation_entry.py"],"witnesses":["w74Flow","wLeadProject"]},
 
-{"authority":"Project-bound signed standing approval for one admitted assignment.","contract":"N3","effect":"Sign route authority and launch one registered worker.","effect_points":["q0D","ym"],"entry_aliases":["cwo delegate"],"entrypoint":"q0A","gate_chains":[{"calls":[{"call":"za","direction":"return","target":"zd"}],"effect":"ym","gate":"xU"},{"calls":[{"call":"q0E","direction":"return","target":"q0F"}],"effect":"q0D","gate":"q0G"}],"gate_limits":"Scope and launch checks are structural. Protected controller evidence is contextual.","gates":["q0G","xU"],"id":"N3.17","limits":"Requires retained approval. Resume makes no dispatch or charge. Offline witnesses.","manual_decisions":["M32","M44"],"ordering":"Verify custody, scope, login and admission, then match route and packet before dispatch.","review_gates":["q0B","vu","vt"],"trace_files":["scripts/cwo.py",{"$":389},{"$":396},{"$":36},{"$":10},{"$":270},"scripts/registered_delegation_entry.py"],"witnesses":["w74Shell","w74Route","w74Flow"]}
+{"authority":"Project-bound signed standing approval for one admitted assignment.","contract":"N3","effect":"Sign route authority and launch one registered worker.","effect_points":["q0D","ym"],"entry_aliases":["cwo delegate"],"entrypoint":"q0A","gate_chains":[{"calls":[{"call":"za","direction":"return","target":"zd"}],"effect":"ym","gate":"xU"},{"calls":[{"call":"q0E","direction":"return","target":"q0F"}],"effect":"q0D","gate":"q0G"}],"gate_limits":"Scope and launch checks are structural. Protected controller evidence is contextual.","gates":["q0G","xU"],"id":"N3.17","limits":"Requires retained approval. Resume makes no dispatch or charge. Offline witnesses.","manual_decisions":["M32","M44","MLeadProject"],"ordering":"Verify custody, scope, login and admission, then match route and packet before dispatch.","review_gates":["q0B","vu","vt"],"trace_files":["scripts/cwo.py",{"$":389},{"$":396},{"$":36},{"$":10},{"$":270},"scripts/registered_delegation_entry.py"],"witnesses":["w74Shell","w74Route","w74Flow","wLeadProject"]}
 ],
 
 "schema":"compact-release-routes-v1",
@@ -7240,15 +7252,15 @@
 
 "@176":["KpeyjpT_bCTz9OVyRq4XimnoDXCM0laFmLfc5JVtyqU",420,5514],
 
-"@177":["Jczkh3bxYWPRcxOjD6Uj-fqGNrwg6qf6Gy_dSuoYbFo",420,7504],
+"@177":["l7e_hU5X3jCUnLgAg2Tc5GRhLGuU1OZnPyOS38hRXdA",420,7524],
 
-"@178":["69ChH3xEbhgyKkp5z9shc78Rk92BiWjyfP48iu1qP-E",420,10394],
+"@178":["zGjcfwnBjifAWlZ8yKol1oLy2ALbXqH3LIaVM2rfjQA",420,11846],
 
-"@179":["OPZOlNeI70kRnJUCIz-cD0UvgnDB8Oi4Z5xNEJ_Sw0k",420,19427],
+"@179":["D0xtkgY7SqtWnq3oCM2JOT8nLUYneAOuslAlu6GPvWE",420,19532],
 
 "@18":["eeWhgdqzZxdBINbx0XseT7DQyIMEE_YvaJiCe2PZPCI",420,27248],
 
-"@180":["Y-ImkIEwVwTHXqrElG8IyQ0ewUlsYa3kjC4OHwJ88MM",420,15614],
+"@180":["3D2H8SeWt20e_iXBhxN5yH71LDLdNai5YXnp1MqWxl8",420,15788],
 
 "@181":["RwRAijGB-rDmINM8XV1UOWlkIZu054s5IrKz_KbxQOg",420,4365],
 
@@ -7257,6 +7269,10 @@
 "@183":["snIDQIKPsRrWhpfadGphz_RvixRIBEsvPrTQOsXcpcg",420,18695],
 
 "@184":["JiyLkQkbBaAPx_F5Urg5aGohbbz6E3ZYTu_twgxE3Lg",420,8986],
+
+"@185":["eqDtyBZIB-px7tRa9ln2n_tpTN1X-Tu_0ZVEbQQ-hCc",420,4641],
+
+"@186":["N8pN2tOY6rHAIMhZo2oV3imdfolj4CORU9WlW_7pab0",420,11760],
 
 "@19":["lVXGoZ9EnoiO3zO1gtl0aKqhFcOycVR2gF4Z4ABLFic",420,1174],
 
@@ -7358,9 +7374,9 @@
 
 "@63":["tm10A55j93J78MTbwt0ynQOqShXJVMVUY7-geMJRG-g",420,53007],
 
-"@64":["ycNnGk34F3x5OpX1YKvd1IYMqyB2CtJ8QbOkcN-jOBE",420,139369],
+"@64":["NuTUVbOdmwJibai2ftSES-ZlWnG54cXEpoOCNZLFfvc",420,139494],
 
-"@65":["sxl2yKfVfkMqIUbkCqa5nVUGUQub63c-KiKg0aRsK1w",420,46173],
+"@65":["dTp2zw1H_znusAmnGXs82puZ6zTsSG2Jd6jQ0QXPSv4",420,46676],
 
 "@66":["yydJmz2r25lUIDAVnbkKz-KUmgOVux6iavYDEax4IK8",420,2228],
 
@@ -7768,11 +7784,9 @@
 
 "scripts/record_native_model_capability.py":["zPi7jGxi4MLTshotBUkybSFVU5QUi5jc14XT14xr7yg",420,4186],
 
-"scripts/registered_delegation_approval.py":["8WKNbTnPTD924rvdwD3n_JmAJzo0LIuh6vnu99S8swA",420,12684],
+"scripts/registered_delegation_approval.py":["NQJ7MT7fIx2nVMwQcAyvredv8msMx7ycvfUseadAIEs",420,12943],
 
-"scripts/registered_delegation_entry.py":["Xiyflh0UH-1jgtv_mX7CCRr2uB8wYUijjZvXT6CIeQg",420,11509],
-
-"scripts/registered_delegation_foreground.py":["HadOdUpD3Sa8SXtuP-kKt_2M8PbFbXsjgfcbkw3h_cY",420,11797],
+"scripts/registered_delegation_foreground.py":["paVIw7TYZljYkOXvnuZnJJ_-iFpg6ZDnx0e2sNVGWxo",420,11819],
 
 "scripts/registered_host_root_boundary.py":["YVEJAkpd-rBiWkErHbDfheVtG_bm-K2cfOzcr3RS6DY",420,1303],
 
@@ -7834,7 +7848,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["4qKZ8-Cq9ZoB1cxLrz993YvfUnVKexONNRvTVWO3oME",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Lg7uu1TRC7q91RtsmcDN4PcTjC3ybzR76JRC3rmivBI",420,136048],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -8315,6 +8329,8 @@
 "wK":["parent.sendall.assert_not_called()","p1u",{"$":1},"signals.assert_not_called()",["p1t","p1Z","p1h"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_pid_owner_mismatch_refuses_before_release_or_signal"],
 
 "wL":["self.assertNotIn(observations[0], targets)","p2A",{"$":1},"self.assertIsNone(owner._parent_observation)",["p1y","p1w"],"tests.test_selected_native_containment.PrivatePidReuseOSControlTests.test_parent_death_during_handoff_refuses_without_namespace_signal"],
+
+"wLeadProject":["with chdir(self.project), self.assertRaisesRegex(ValueError, 'original standing approval.*scope'):","pLeadWitness",{"$":12},"self.assertTrue(json.loads(output)['closed'])",[],"tests.test_registered_lead_project.RegisteredLeadProjectTests.test_project_database_changes_do_not_drift_registered_target_or_retry"],
 
 "wLegacyCampaignRetired":["self.assertEqual((prepare.call_count, read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0, 0))","pLegacyCampaignRefusal",{"$":0},"self.assertEqual([adapter.calls.count(\"send_input\") for adapter in adapters.values()], [1, 1])",["pAdmittedPoolSendPositive"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched"],
 

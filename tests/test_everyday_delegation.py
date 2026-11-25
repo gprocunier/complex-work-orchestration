@@ -22,7 +22,7 @@ from cwo_core import candidate_identity, manual_delivery, requirement_baseline
 
 
 class EverydayDelegationFlowTests(unittest.TestCase):
-    def setUp(self):
+    def setUp(self, *, separate_project=False):
         bead_id = native.F.example_route(tiny=True)['parent_id']
         baseline = {'record_type': 'cwo-requirement-baseline', 'version': 1,
                     'bead_id': bead_id, 'baseline_version': 1, 'criteria': [{
@@ -31,7 +31,8 @@ class EverydayDelegationFlowTests(unittest.TestCase):
                         'applicability': 'required', 'evidence_kind': 'artifact'}]}
         self.baseline_digest = requirement_baseline.record_digest(baseline)
         rename = ctypes.CDLL(None, use_errno=True).renameat2
-        self.inputs = native.make_workflow(self, baseline_sha256=self.baseline_digest, from_setup=True)
+        self.inputs = native.make_workflow(self, baseline_sha256=self.baseline_digest, from_setup=True,
+                                           separate_project=separate_project)
         # Keep descriptor-based file publication real under the fake spawn libc.
         ctypes.CDLL.return_value.renameat2 = rename
         self.workflow = self.inputs.workflow

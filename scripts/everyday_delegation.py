@@ -31,7 +31,7 @@ def _delivery_inputs(workflow, baseline, amendments):
             or chain['bead_id'] != workflow.config.route['parent_id']):
         raise ValueError('The Bead and requirement baseline must match the standing delegation.')
     root = workflow.config.host.worker
-    return Namespace(bead=chain['bead_id'], repo=str(root), project=str(workflow.config.host.target),
+    return Namespace(bead=chain['bead_id'], repo=str(root), project=str(workflow.config.project),
                      baseline=baseline_path, amendment=amendment_paths), chain
 
 
@@ -82,7 +82,7 @@ def deliver(workflow, *, baseline: str | Path, amendments: Sequence[str | Path] 
         scope_paths=sorted(entry['path'] for entry in report['artifact']['files']))
     delivery = manual_delivery.Delivery(args.bead, root, chain, candidate, Path(args.project))
     store = host_records.configured_store()
-    store.require_outside_worker_roots((root, workflow.config.host.target))
+    store.require_outside_worker_roots((root, workflow.config.host.target, delivery.database_root))
     database, run_bd = manual_delivery.project_beads(Path(args.project))
     task = _open_task(delivery, run_bd)
     delivery_records.verify_candidate(workflow, delivery, database=database)

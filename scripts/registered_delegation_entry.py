@@ -75,6 +75,7 @@ def _coordinates(path):
 
 def _approval_data(config):
     standing, verifier = config._standing_delegation, config.verifier
+    project = {} if standing.project is None else {'project': standing.project}
     return {'version': _VERSION, 'mission': verifier._mission, 'mission_directive': json.loads(config._mission_directive),
             'actor_id': verifier._actor, 'identity_source': verifier._identity,
             'factory_registry': verifier._factories,
@@ -84,7 +85,7 @@ def _approval_data(config):
             'publication_state': _coordinates(config.publication_state),
             'standing_delegation': {'baseline_sha256': standing.baseline_sha256,
                 'database_sha256': standing.database_sha256, 'capability_evidence': json.loads(standing.capability_bytes),
-                'cache_profile': json.loads(standing.cache_bytes)},
+                'cache_profile': json.loads(standing.cache_bytes), **project},
             'standing_directive': json.loads(config._standing_directive)}
 
 
@@ -128,12 +129,13 @@ def retain_approved_assignment(workflow):
     workflow.verifier._current()
     admission._live(config.receipt, config.ledger)
     scope, _parent = config._standing_approval()
-    project = config.host.target
+    project = config.project
     database, _run_bd = manual_delivery.project_beads(project)
     node = json.loads(config.receipt.selected_node_bytes)
     delegation.original_assignment(workflow, node['prompt'], database)
     name = _name(project, database, scope['bead_id'], node['prompt'], scope['baseline_sha256'])
-    store = _protected_store(project, config.host.worker, config.host.state / 'fake-server' / 'codex-home')
+    store = _protected_store(project, config.host.target, config.host.worker,
+                             config.host.state / 'fake-server' / 'codex-home')
     _write_approval(store, project, database, name, _sealed_approval(config), workflow.verifier._key)
 
 
@@ -188,13 +190,16 @@ def _verify_approval(envelope, key):
 def _configuration(record, project, key):
     native_bundle = record['native_bundle']
     custody = native_bundle[0]['registered_n1']['custody']
-    delegation._need(custody['target'] == str(project), 'Original approval belongs to another project checkout.')
-    _protected_store(project, custody['worker'], Path(custody['state']) / 'fake-server' / 'codex-home')
+    standing = delegation.StandingDelegation(**record['standing_delegation'])
+    target = native.H._path(custody['target'])
+    delegation._need((standing.project or str(target)) == str(project),
+                     'Original approval belongs to another project checkout.')
+    _protected_store(project, target, custody['worker'], Path(custody['state']) / 'fake-server' / 'codex-home')
     mission = record['mission']
     state_store = native.A.MaintenanceStateStore(_original_path(record['authority_state']),
         mission_id=mission['mission_id'], mission_sha256=native.A.mission_sha256(mission))
     receipt = _receipt(record['receipt'])
-    host = native.H.OfflineN1Host(custody['state'], project, custody['worker'])
+    host = native.H.OfflineN1Host(custody['state'], target, custody['worker'])
     return native.ControllerConfiguration(mission=mission, mission_directive=record['mission_directive'],
         verification_key=key, actor_id=record['actor_id'],
         identity_source=record['identity_source'], factory_registry=record['factory_registry'], state_store=state_store,
@@ -203,7 +208,7 @@ def _configuration(record, project, key):
         node_id=receipt.node_id, ledger=admission.ledger_api.InvocationLedger(custody['ledger']), host=host,
         controller_state=_original_path(record['controller_state']),
         publication_state=_original_path(record['publication_state']), evidence=None,
-        standing_delegation=delegation.StandingDelegation(**record['standing_delegation']),
+        standing_delegation=standing,
         standing_directive=record['standing_directive'])
 
 

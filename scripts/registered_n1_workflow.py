@@ -223,6 +223,8 @@ class ControllerConfiguration:
         self.policy = V.freeze_policy(policy_specification)
         self.receipt, self.route, self.node_id = receipt, _copy(route), node_id
         self.ledger, self.host, self.evidence = ledger, host, evidence
+        self._project = D.project_checkout(host, standing_delegation)
+        self._project_identity = H._identity(self._project)
         self._evidence_control = None if evidence is None else evidence._control
         self._worker_login_home = worker_login_home
         self._worker_login_error = None
@@ -246,6 +248,13 @@ class ControllerConfiguration:
             except login_config.WorkerLoginConfigurationError as exc:
                 self._worker_login_error = str(exc)
 
+    @property
+    def project(self):
+        return self._project
+
+    def _project_roots(self):
+        return (self.project,) if self.project != self.host.target else ()
+
     def _standing_approval(self):
         scope = self._standing_delegation.approval_scope(receipt=self.receipt,
             operation=self.native_bundle[1], publication=self.publication_bundle[1])
@@ -261,7 +270,7 @@ class ControllerConfiguration:
     def _check_private_roots(self):
         scripts = H.Path(R.__file__).resolve().parent
         boundary.require_private_roots((self.host.target, self.host.state, self.ledger.root,
-            self.store.directory, self.state, self.publication_state),
+            self.store.directory, self.state, self.publication_state, *self._project_roots()),
             visible_paths=(scripts, scripts.parent / 'policy', scripts.parent / 'schemas'))
 
     def _current_check(self):
@@ -288,8 +297,9 @@ class ControllerConfiguration:
     def check_storage(self):
         self._check_private_roots()
         roots = [self.state, self.publication_state, self.host.state, self.host.worker,
-                 self.host.target, self.ledger.root, self.store.directory]
+                 self.host.target, self.ledger.root, self.store.directory, *self._project_roots()]
         R._disjoint(roots)
+        _need(H._identity(self.project) == self._project_identity, 'The original lead project changed identity.')
         for path in (self.state, self.publication_state):
             info = os.lstat(path)
             _need(info.st_uid == os.geteuid() and stat.S_IMODE(info.st_mode) == 0o700,
@@ -625,7 +635,7 @@ class RegisteredN1Workflow:
                                         'delivery_database_sha256': scope['database_sha256'],
                                         'delivery_checkout': str(self.config.host.worker),
                                         'delivery_checkout_identity': self.config.initial['worker_identity']['root'],
-                                        'delivery_project': str(self.config.host.target)}
+                                        'delivery_project': str(self.config.project)}
 
     def _execution_current(self):
         _need(self._adoption is not None and _encode(self._action()) == self._selected_action,
@@ -667,7 +677,8 @@ class RegisteredN1Workflow:
         home, state = H._path(selection), H._path(R.qualification.worker_login_state())
         mount = R.qualification.WorkerLoginMount(home, state)
         R._disjoint((home, state, c.state, c.publication_state, c.host.state, c.host.worker,
-                     c.host.target, c.ledger.root, c.store.directory, R.configured_store().state_root))
+                     c.host.target, c.ledger.root, c.store.directory, R.configured_store().state_root,
+                     *c._project_roots()))
         scripts = H.Path(R.__file__).resolve().parent
         boundary.require_private_roots((home, state), visible_paths=(scripts, scripts.parent / 'policy',
                                                                     scripts.parent / 'schemas'))

@@ -54,16 +54,18 @@ def _store(verifier):
     return store
 
 
-def _custody(host, ledger, store, controller_state, publication_state):
+def _custody(host, ledger, store, controller_state, publication_state, project):
     roots = workflow.V._host(host)
     workflow._need(type(ledger) is admission.ledger_api.InvocationLedger, 'The original invocation ledger is required.')
     scripts = Path(runtime.__file__).resolve().parent
     private = (host.target, host.state, ledger.root, store.directory, controller_state, publication_state)
+    if project != host.target:
+        private = (*private, project)
     runtime._disjoint((*private, host.worker))
     runtime.require_private_roots(private, visible_paths=(scripts, scripts.parent / 'policy', scripts.parent / 'schemas'))
     states = tuple(tuple(workflow.H._identity(runtime._private(path)))
                    for path in (controller_state, publication_state, store.directory))
-    return roots, states, ledger.root, workflow._encode(host._initial)
+    return roots, states, ledger.root, workflow._encode(host._initial), workflow.H._identity(project)
 
 
 def _registered_profile(receipt, specification, host, ledger):
@@ -123,7 +125,8 @@ class PendingDelegationApproval:
             return self._workflow(store, native, publication, directive)
 
     def _validate_current(self, store, plans):
-        observed = _custody(self._host, self._ledger, store, self._controller_state, self._publication_state)
+        project = workflow.D.project_checkout(self._host, self._standing)
+        observed = _custody(self._host, self._ledger, store, self._controller_state, self._publication_state, project)
         workflow._need(observed == self._roots and not any(self._controller_state.iterdir()),
                        'Original controller custody changed or was already used.')
         admission._live(self._receipt, self._ledger)
@@ -172,7 +175,8 @@ def prepare_assignment(*, verifier, mission_directive, host, ledger, controller_
     workflow._need(all(admission.ledger_api._is_id(identity) for identity in (native_operation_id, publication_operation_id))
                    and native_operation_id != publication_operation_id, 'Two distinct bounded operation identities are required.')
     controller_state, publication_state = map(workflow.H._path, (controller_state, publication_state))
-    roots = _custody(host, ledger, store, controller_state, publication_state)
+    project = workflow.D.project_checkout(host, standing)
+    roots = _custody(host, ledger, store, controller_state, publication_state, project)
     receipt = admission.prepare(route, node_id, now=ledger.current_time(), expires_at=expires_at)
     runtime.admitted._require_primary(receipt)
     specification = _registered_profile(receipt, registered_specification, host, ledger)

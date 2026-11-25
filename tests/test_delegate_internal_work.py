@@ -95,7 +95,7 @@ def _setup_worker_login(test, store, renameat2):
 
 
 def make_workflow(test, *, baseline_sha256=BASELINE, task=TASK, configure_login=True,
-                  capabilities=None, from_setup=False):
+                  capabilities=None, from_setup=False, separate_project=False):
     renameat2 = ctypes.CDLL(None, use_errno=True).renameat2 if from_setup else None
     fixture = F.FactoryTests('runTest')
     fixture.setUp()
@@ -103,6 +103,7 @@ def make_workflow(test, *, baseline_sha256=BASELINE, task=TASK, configure_login=
     with patch.object(F, 'example_route', _route):
         case = fixture.case(production=True, production_model=resolve_model('luna'), production_effort='high',
                             task_prompt=task, no_fake_scheduler=True, archive_schedule='settled')
+    project = fixture.repositories.clone('EXAMPLE-lead') if separate_project else None
     settings = _settings(fixture, case)
     test.enterContext(patch.object(routing, '_now_iso', return_value=NOW))
     if from_setup:
@@ -120,7 +121,8 @@ def make_workflow(test, *, baseline_sha256=BASELINE, task=TASK, configure_login=
         case.scenario.initialize_home = W.R.qualification.LOGIN_MOUNT
     evidence = capability_evidence(operative_models=operative_models()) if capabilities is None else capabilities
     settings['standing_delegation'] = StandingDelegation(baseline_sha256=baseline_sha256, database_sha256=DATABASE,
-        capability_evidence=evidence, cache_profile=cache_profile(total=8_000, stable=0))
+        capability_evidence=evidence, cache_profile=cache_profile(total=8_000, stable=0),
+        project=str(project) if project is not None else None)
     scope = settings['standing_delegation'].approval_scope(receipt=case.receipt,
         operation=settings['native_bundle'][1], publication=settings['publication_bundle'][1])
     settings['standing_directive'] = W.A.sign_controller_directive(verification_key=fixture.authority.key,
