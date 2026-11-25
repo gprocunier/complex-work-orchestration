@@ -54,6 +54,8 @@ class PoolProfileTests(unittest.TestCase):
         # by a useful command on that same connection as the old fixture assumed.
         try:
             self.cohort(size, archive_schedule='settled', shared_source=True)
+            for fixture in self.fixtures[:-1]:
+                fixture.case.settle_reply = True
             failed = self.fixtures[-1]
             foreign = self.fixtures[0].case.scenario.thread_id if size > 1 else 'EXAMPLE-other-thread'
             failed.case.probe_approvals = [{'threadId': foreign}]
@@ -177,6 +179,7 @@ class PoolProfileTests(unittest.TestCase):
                     self.cohort(size, archive_schedule='settled')
                     for fixture in self.fixtures:
                         case = fixture.case
+                        case.settle_reply = True
                         case.probe_approvals = [
                             {'additionalPermissions': {}, 'reason': 'EXAMPLE approved retry'},
                             {'kind': 'writeStdin', 'reason': 'EXAMPLE approved retry'},
