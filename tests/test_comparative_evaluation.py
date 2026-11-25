@@ -35,7 +35,8 @@ from cwo_core.frozen_protocol import (  # noqa: E402
     validate_frozen_protocol_lock,
 )
 
-STUDY = ROOT / "evaluation" / "three-arm"
+STUDY = ROOT / "evaluation" / "history" / "three-arm"
+LEGACY_STUDY = Path("evaluation") / "three-arm"
 WORK_ORDER_ESTIMANDS = (
     "Baseline versus CWO without outside review estimates that package change; full versus "
     "no-outside estimates the extra review package, including added compute. Three arms alone "
@@ -69,8 +70,17 @@ def load_hidden() -> dict:
     return json.loads((STUDY / "hidden" / "checks.json").read_text(encoding="utf-8"))
 
 
-def current_lock() -> dict:
-    return ce.build_frozen_protocol_lock(load_protocol(), {path: file_sha256(ROOT / path) for path in ce.LOCKED_PATHS})
+def current_lock(repo: Path = ROOT) -> dict:
+    study = STUDY if repo == ROOT else repo / LEGACY_STUDY
+    digests = {}
+    for relative in ce.LOCKED_PATHS:
+        path = Path(relative)
+        source = repo / path
+        if path.is_relative_to(LEGACY_STUDY):
+            source = study / path.relative_to(LEGACY_STUDY)
+        digests[relative] = file_sha256(source)
+    protocol = json.loads((study / "protocol.json").read_bytes())
+    return ce.build_frozen_protocol_lock(protocol, digests)
 
 
 def load_runs(lock: str | None = None) -> list:
@@ -89,16 +99,17 @@ def score(protocol: dict, hidden: dict, runs, lock: str | None = None) -> dict:
     )
 
 
-def filled_repository(target: Path) -> Path:
-    """Copy the scoring artifacts into ``target`` with the fixture build freeze filled in; return the study root."""
+def copy_study_repository(target: Path, *, build_freeze: dict | None = None) -> Path:
+    """Copy archived inputs into the original layout that historical locks require."""
 
     for relative in ("prompts/cwo-sol-operator-e.md", "scripts/comparative_evaluation.py"):
         (target / relative).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / relative, target / relative)
     shutil.copytree(ROOT / "scripts" / "cwo_core", target / "scripts" / "cwo_core", ignore=shutil.ignore_patterns("__pycache__"))
-    study = target / "evaluation" / "three-arm"
+    study = target / LEGACY_STUDY
     shutil.copytree(STUDY, study, ignore=shutil.ignore_patterns("__pycache__"))
-    (study / "build-freeze.json").write_text(json.dumps(FIXTURE_BUILD_FREEZE, indent=2) + "\n", encoding="utf-8")
+    if build_freeze is not None:
+        (study / "build-freeze.json").write_text(json.dumps(build_freeze, indent=2) + "\n", encoding="utf-8")
     return study
 
 
@@ -177,7 +188,7 @@ class ProtocolTests(unittest.TestCase):
     def test_recorded_digest_is_the_computed_digest(self) -> None:
         protocol = load_protocol()
         self.assertEqual(protocol["preregistration"]["digest"], ce.preregistration_digest(protocol))
-        code, out, _ = run_cli(["digest"])
+        code, out, _ = run_cli(["--root", str(STUDY), "digest"])
         self.assertEqual((code, out.strip()), (0, protocol["preregistration"]["digest"]))
 
     def test_digest_changes_when_any_frozen_field_changes(self) -> None:
@@ -369,7 +380,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertIsNone(protocol["results"])
         template = json.loads((STUDY / "analysis-template.json").read_text(encoding="utf-8"))
         self.assertEqual(template, ce.blank_results_template(protocol))
-        code, out, _ = run_cli(["template"])
+        code, out, _ = run_cli(["--root", str(STUDY), "template"])
         self.assertEqual((code, json.loads(out)), (0, template))
         for path, value in leaves({"summary": template["summary"], "estimands": template["estimands"]}):
             self.assertIsNone(value, path)
@@ -572,7 +583,11 @@ class RefusalTests(unittest.TestCase):
 
     def test_the_lock_view_revalidates_with_the_frozen_protocol_gate(self) -> None:
         protocol = load_protocol()
-        digests = {path: file_sha256(ROOT / path) for path in ce.LOCKED_PATHS}
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        repo = Path(temp.name) / "repo"
+        study = copy_study_repository(repo)
+        digests = {path: file_sha256(repo / path) for path in ce.LOCKED_PATHS}
         lock = ce.build_frozen_protocol_lock(protocol, digests)
         self.assertEqual(validate_frozen_protocol_lock(lock), [])
         self.assertEqual(lock["run_contract"]["initial_cells"], 81)
@@ -590,11 +605,11 @@ class RefusalTests(unittest.TestCase):
                 "repair_class": None,
             },
         }
-        self.assertEqual(evaluate_frozen_protocol(lock, run_spec, base_dir=ROOT)["decision"], PROTOCOL_READY)
+        self.assertEqual(evaluate_frozen_protocol(lock, run_spec, base_dir=repo)["decision"], PROTOCOL_READY)
         stale = ce.build_frozen_protocol_lock(protocol, {**digests, ce.HIDDEN_CHECKS_PATH: "b" * 64})
         stale_spec = {**run_spec, "lock_sha256": stale["lock_sha256"]}
-        self.assertEqual(evaluate_frozen_protocol(stale, stale_spec, base_dir=ROOT)["decision"], PROTOCOL_BLOCKED)
-        code, out, _ = run_cli(["lock"])
+        self.assertEqual(evaluate_frozen_protocol(stale, stale_spec, base_dir=repo)["decision"], PROTOCOL_BLOCKED)
+        code, out, _ = run_cli(["--root", str(study), "lock"])
         self.assertEqual((code, json.loads(out)), (0, lock))
 
 
@@ -615,7 +630,7 @@ class ScheduleTests(unittest.TestCase):
         self.assertNotEqual([block[0]["task"] for block in blocks[:9]], [task["id"] for task in protocol["tasks"]])
         self.assertEqual(rows, ce.build_schedule(copy.deepcopy(protocol)))
         self.assertEqual(protocol["schedule"]["schedule_sha256"], ce.canonical_sha256(rows))
-        code, out, _ = run_cli(["schedule"])
+        code, out, _ = run_cli(["--root", str(STUDY), "schedule"])
         self.assertEqual((code, json.loads(out)), (0, rows))
 
     def test_a_different_seed_changes_the_order_and_is_refused_until_refrozen(self) -> None:
@@ -802,7 +817,7 @@ class ScoringTests(unittest.TestCase):
 
     def test_cli_scores_the_rehearsal_and_refuses_bad_records(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
-            study = filled_repository(Path(temp) / "repo")
+            study = copy_study_repository(Path(temp) / "repo", build_freeze=FIXTURE_BUILD_FREEZE)
             lock, runs = Path(temp) / "lock.json", Path(temp) / "runs.json"
             code, out, _ = run_cli(["--root", str(study), "lock"])
             self.assertEqual(code, 0)
@@ -824,12 +839,13 @@ class ScoringTests(unittest.TestCase):
 
     def test_cli_scores_nothing_as_evidence_under_the_shipped_build_freeze(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
+            study = copy_study_repository(Path(temp) / "repo")
             lock, runs = Path(temp) / "lock.json", Path(temp) / "runs.json"
-            code, out, _ = run_cli(["lock"])
+            code, out, _ = run_cli(["--root", str(study), "lock"])
             self.assertEqual(code, 0)
             lock.write_text(out)
             runs.write_text(json.dumps(load_runs(json.loads(out)["lock_sha256"])))
-            code, out, _ = run_cli(["score", str(runs), "--lock", str(lock)])
+            code, out, _ = run_cli(["--root", str(study), "score", str(runs), "--lock", str(lock)])
         self.assertEqual(code, 0)
         report = json.loads(out)
         self.assertEqual(report["build_freeze"], {"complete": False, "unbound": ["codex_harness", "observer_harness"]})
@@ -851,7 +867,7 @@ class ScoringTests(unittest.TestCase):
             self.assertFalse(json.loads(out)["valid"])
             code, _, _ = run_cli(["--root", str(root), "validate"])
             self.assertEqual(code, 1)
-        code, out, _ = run_cli(["validate"])
+        code, out, _ = run_cli(["--root", str(STUDY), "validate"])
         self.assertEqual((code, json.loads(out)["valid"]), (0, True))
 
 

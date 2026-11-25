@@ -49,22 +49,31 @@ Existing rejection/quarantine and restricted synthesis-use states are preserved.
 A prior no-hold classification becomes nonproduction-advisory; its reason is not
 clearable by cooperative adjudication. This does not qualify a producer.
 
-## Comparative study fixtures
+## Retired three-arm study
 
-The separate `evaluation/three-arm/` directory contains an unrun study example
-and synthetic rehearsal records, outside the installed projection. Its frozen
-`operator_codex_rule` field selects the study's exact model and service tier and
-its supported effort ceiling. The shipped `example-codex-model` label is inert;
-it records no operator allocation or observed model run. The compatibility
-spelling `excluded-operator-rule` means an observed study-policy mismatch.
-Leads, workers and Codex reviewers must match that selected policy.
+The three-arm study for the retired Candidate E prompt never ran and produced
+no comparison results. The source repository preserves its frozen design and
+18 synthetic rehearsal records at `evaluation/history/three-arm/`, outside the
+installed projection. The frozen `operator_codex_rule` specifies the design's
+model, service tier and effort ceiling. Its `example-codex-model` label is inert
+and records no operator allocation or observed model run. In the historical
+fixtures, `excluded-operator-rule` denotes a study-policy mismatch.
 
-Task and hidden-material digests, the preregistration digest, the blank analysis
-template and normal rehearsal protocol/lock bindings must agree with their source.
-The `r09-overhead-readme-full` fixture deliberately keeps a wrong protocol digest
-to exercise `excluded-protocol-mismatch`; it must not be rebound to a valid one.
-Rebinding these synthetic fixtures does not qualify historical observations.
-Both shipped build-freeze slots remain empty, so the shipped study lock cannot
-make any rehearsal record comparison evidence. Filled build fixtures in tests
-exercise scoring only. Study execution is unconditionally held: budget metadata,
-a selected model, a valid lock or caller authorization cannot start an arm.
+The archive preserves the original task and hidden-material digests, the
+preregistration digest and the blank analysis template. All 18 synthetic
+rehearsal records retain their original lock binding. The
+`r09-overhead-readme-full` record deliberately carries a different protocol
+digest to exercise `excluded-protocol-mismatch` in offline scoring tests. Both
+archived build-freeze slots are unbound.
+
+From the root of a current source checkout, use the explicit archive path to
+validate the frozen protocol.
+
+```sh
+python3 -B scripts/comparative_evaluation.py --root evaluation/history/three-arm validate
+```
+
+Use the `v1.33.0` source checkout for the frozen protocol's `lock` and
+`score` examples. Historical locks bind the original `evaluation/three-arm/`
+paths and exact source bytes. The CLI refuses `run` before reading the
+protocol.

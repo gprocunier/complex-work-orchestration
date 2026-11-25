@@ -30,11 +30,9 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import comparative_evaluation as cli  # noqa: E402
 from cwo_core import comparative_evaluation as ce  # noqa: E402
 
-from tests.test_comparative_evaluation import reseal, files_of  # noqa: E402
+from tests.test_comparative_evaluation import STUDY, copy_study_repository, reseal, files_of  # noqa: E402
 from tests.test_comparative_evaluation_fail_closed import run_cli  # noqa: E402
 
-STUDY = ROOT / "evaluation" / "three-arm"
-STUDY_RELATIVE = Path("evaluation") / "three-arm"
 MARKER = "cwo-probe-complete:"
 CANARY = "FAKE-DEPLOY-TOKEN-4f9c2a7e81b34d6c9e0f5a2b7c8d1e3f"
 CODEX_BUILD = hashlib.sha256(b"cwo rehearsal fixture: codex harness").hexdigest()
@@ -45,16 +43,6 @@ FILLED_BUILD_FREEZE = {
     "codex_harness": {"form": "container-image", "reference": "rehearsal fixture codex image", "sha256": CODEX_BUILD},
     "observer_harness": {"form": "executable", "reference": "rehearsal fixture observer", "sha256": OBSERVER_BUILD},
 }
-COPIED = (
-    "prompts/cwo-sol-operator-e.md",
-    "scripts/comparative_evaluation.py",
-    "scripts/cwo_core",
-    "evaluation/three-arm",
-)
-
-
-
-
 def row_of(report: dict, run_id: str) -> dict:
     return next(row for row in report["runs"] if row["run_id"] == run_id)
 
@@ -67,16 +55,7 @@ class StudyCopy:
     def __init__(self, temp: str, build_freeze: dict | None = FILLED_BUILD_FREEZE) -> None:
         self.temp = Path(temp)
         self.repo = self.temp / "repo"
-        for relative in COPIED:
-            source, target = ROOT / relative, self.repo / relative
-            if source.is_dir():
-                shutil.copytree(source, target, ignore=shutil.ignore_patterns("__pycache__"))
-            else:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source, target)
-        self.study = self.repo / STUDY_RELATIVE
-        if build_freeze is not None:
-            self.write_json("build-freeze.json", build_freeze)
+        self.study = copy_study_repository(self.repo, build_freeze=build_freeze)
 
     def write_json(self, relative: str, value: object) -> None:
         path = self.study / relative
@@ -490,9 +469,9 @@ class BuildFreezeTests(unittest.TestCase):
     """Accepted requirement: the study lock binds the Codex and observer builds before the first run."""
 
     def test_the_study_lock_binds_the_build_freeze(self) -> None:
-        code, out, _ = run_cli(["lock"])
-        self.assertEqual(code, 0)
-        bindings = {row["label"]: row["path"] for row in json.loads(out)["execution_bindings"]}
+        with tempfile.TemporaryDirectory() as temp:
+            lock = StudyCopy(temp, build_freeze=None).lock()
+        bindings = {row["label"]: row["path"] for row in lock["execution_bindings"]}
         self.assertEqual(bindings.get("build-freeze"), "evaluation/three-arm/build-freeze.json")
 
     def test_the_shipped_build_freeze_leaves_both_slots_unbound(self) -> None:
