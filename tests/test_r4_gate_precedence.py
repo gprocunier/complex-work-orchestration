@@ -32,7 +32,7 @@ class R4GatePrecedenceTests(unittest.TestCase):
         self.assertEqual(result.status, "completed")
         workflow.run.assert_called_once_with(controlled_failure=False)
 
-    def test_r4_C18_campaign_claim_hold_precedes_input_reads_and_setup_with_positive_control(self):
+    def test_r4_C18_campaign_claim_refuses_before_input_reads_and_setup(self):
         inputs = mock.Mock()
         path = Path("/EXAMPLE/never-created")
         options = dict(launch_claim_sha256="0" * 64, output=path, authorization_state=path,
@@ -41,16 +41,17 @@ class R4GatePrecedenceTests(unittest.TestCase):
                                create=True, side_effect=FakeReadReached) as read, \
              mock.patch.object(C, "_private_control_directory", side_effect=AssertionError) as directory, \
              mock.patch.object(C, "_open_private_control_lock", side_effect=AssertionError) as lock, \
-             mock.patch.object(C, "_write_exclusive_private_bytes", side_effect=AssertionError) as write:
+             mock.patch.object(C, "write_private_artifact", side_effect=AssertionError) as write:
             with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True,
                                      CAMPAIGN_LIVE_AVAILABLE=False), \
                  self.assertRaisesRegex(A.NativeLiveUnavailable, "native-campaign-live-unavailable"):
                 C.acquire_global_campaign_claim(inputs, **options)
             read.assert_not_called()
             with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True,
-                                     CAMPAIGN_LIVE_AVAILABLE=True), self.assertRaises(FakeReadReached):
+                                     CAMPAIGN_LIVE_AVAILABLE=True), \
+                 self.assertRaisesRegex(C.LegacyNativePoolExecutionRetired, "^legacy-pool-execution-retired$"):
                 C.acquire_global_campaign_claim(inputs, **options)
-            read.assert_called_once_with()
+            read.assert_not_called()
             directory.assert_not_called()
             lock.assert_not_called()
             write.assert_not_called()

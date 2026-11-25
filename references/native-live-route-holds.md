@@ -16,15 +16,14 @@ verified acceptance.
 | Native surface probe and qualification | `N1_LIVE_AVAILABLE` | `capture_tool_request` refuses before capture binding or listener startup; its CLI refuses before catalog/evidence writes. `observe_qualification` verifies the original opaque operation, then refuses before qualification output/intent creation. |
 | Registered pool and retry | `N1_LIVE_AVAILABLE` and `POOL_LIVE_AVAILABLE` | Pool host execute entry and each member, plus approved retry entry and effect. `PoolConfiguration.enabled=True` cannot replace either source decision. |
 | Activation preview | Dedicated `LIVE_ACTIVATION_AVAILABLE` plus N1 for `n1-read-only` and `n1-mutable`; additionally pool for `n2-read-only` | Run entry checks the dedicated hold and N1 before loading inputs; the loaded profile is checked before claims, ledger creation, reservation or launch. Server creation, ledger transport RPC entry points, worker-contract allocation and accepted-child closure recheck the dedicated hold and selected profile. |
-| Campaign | N1, pool and campaign | Main and `run_pool_canary` also refuse as retired before input reads or allocation. Preclaim, global claim acquisition, server construction and `build_pool_inputs` retain the three source checks. |
+| Retired campaign | Campaign, pool and N1, in that order | The CLI, pool canary, pool preparation, preclaim, global claim and server entry points check the three decisions and then refuse as retired. They refuse before input reads, claims, evidence writes or worker allocation. |
 | Admitted v8 multiworker plan | N1 and pool | The loader checks the actual child count before consuming the verified operation or importing its runtime adapter. The concrete installed maintenance runtime supports exactly one worker child and one precommit session; it does not implement a multiworker maintenance cohort. |
 
 The raw transport's N1 decision is a shared prerequisite because its concrete
-constructor launches the real Codex executable. Pool and campaign checks remain
-necessary under a partial future restoration where N1 is available. Standalone
-calibration allocates one thread and requires N1; campaign pool helpers require
-all three decisions. Existing validator-tree, admission, approval, custody,
-configuration and finite resource checks remain additional requirements.
+constructor launches the real Codex executable. Pool and campaign checks still
+apply to adapters configured for the campaign contract. Standalone calibration
+allocates one thread and requires N1. The retired launcher remains a refusal when
+all three decisions allow.
 
 Structural and authority-only pool validation, activation key generation,
 preparation, approval and dry runs remain available. Offline fake-only machinery

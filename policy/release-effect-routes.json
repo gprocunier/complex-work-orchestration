@@ -72,7 +72,7 @@
 
 "N7":{"admission":{"$":2},"authority":"Dedicated LIVE_ACTIVATION_AVAILABLE plus N1, and pool for n2-read-only only; private plan/approval actor/session, control root, exact database/claim ownership. supplied-server does not grant live authority.","effect":"Activation preview live server/thread/turn/accepted Beads close","limits":"Live activation and N1 controls precede reads; n2 profile additionally needs pool after profile load. Supplied server grants no authority. Entry/close controls reach only approval/tasks reads, not completed native work or Beads closure.","manual_decisions":["d","f"],"ordering":"Live activation, N1 and selected n2 pool before actual boundary; entries select their own hold witnesses.","trace_files":[{"$":270},{"$":73}],"witnesses":["bS"]},
 
-"N8":{"admission":{"$":2},"authority":"Campaign helpers retain the campaign, pool and N1 holds and their original bindings. The retired CLI and direct canary refuse before input or allocation.","effect":"Campaign server/pool/late supplied-server turn","effect_points":["vg"],"limits":"Held campaign helpers and default campaign turns retain all three source checks. Explicit noncampaign constructors and calibration retain their own admission. Selected receivers and callbacks remain external trust.","manual_decisions":["d","f","M11"],"ordering":"Three source checks precede the input builder. The matching fake control reaches UUID creation.","selector":"Actual build_pool_inputs campaign_live_route=True selects extra campaign/pool/N1 checks; generic adapter default false differs.","trace_files":[{"$":116}],"witnesses":["wb"]},
+"N8":{"admission":{"$":2},"authority":"Calibration and supplied-server adapter calls retain their own original admissions.","effect":"Single-worker calibration and supplied-server adapter turn","limits":"The selected receiver and callbacks remain external trust. The adapter checks campaign, pool and N1 unless a noncampaign constructor supplies its own admission.","manual_decisions":["d","f","M11"],"ordering":"Admission checks precede allocation or the selected turn as specified by each entry.","selector":"Calibration selects N1 alone. An adapter defaults to the campaign checks and supports explicit noncampaign constructors.","trace_files":[{"$":116}]},
 
 "N9":{"admission":{"$":2},"authority":"Exact captured dynamic catalog and args, current epoch/thread/turn/request/call and original factory, intent, config, capture and command. Signed registered production and qualification bind app-server RPC to the finite host tools and original owned pipe.","effect":"Registered finite tool command/validator owned birth and gate release","gates":["at","mr","bu"],"limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. Signed qualification records observed poll request identity, submitted and delivered lengths and digests and the owned stdin identity. Nonempty input is refused before delivery and empty polls write zero bytes. Registered live tool and validator processes keep their separate no-provider namespaces. Fake RPC evidence leaves live model and provider-native input unmeasured.","manual_decisions":["d","k","h","j","g","n","M36","s","m"],"ordering":"Decision, command intent and live/capture/current checks before child; owned birth retained while gate closed; terminal/late faults abort before gate release. Validator output binding, admitted policy and current registered containment before validator child. Trusted bootstrap setup is not tool-command release; post-setup custody and current factory checks precede the original finite-input final gate. Verified namespace cleanup is attempted independently on monitor failure without accepting unresolved output.","trace_files":[{"$":16},{"$":23},{"$":17},{"$":71},{"$":10},{"$":24},{"$":328},{"$":329},{"$":116}],"witnesses":["av","aw","E"]},
 
@@ -158,7 +158,7 @@
 
 "H":{"conclusion":"The registered reader accepts an optional bounded timestamp on notification envelopes and preserves it as observation metadata. The existing request and response envelopes and source holds remain in force.","evidence_contracts":["N3","N10"],"external_trust_limit":"A timestamp is app-server observation data. Authority, ordering, correlation and deadlines remain bound to the original controller and transport. Offline startup evidence stops before any model turn.","reason":"The exact notification envelope can carry emittedAtMs as a nonnegative signed-64-bit integer. Requests still require their original IDs and envelope. Responses keep their exact result or error form. The controller classifies and retains the original notification frame before handling its method. A remote-control status notification supplies no RPC permission.","review_evidence":{"$":7},"source":["z7","yi","zP"]},
 
-"M11":{"conclusion":"Omitted campaign selector keeps campaign/pool/N1 holds; explicit noncampaign constructors retain their own admission.","evidence_contracts":["N8"],"external_trust_limit":"A supplied server/callback does not grant campaign admission. Original fake-turn rows demonstrate relevant hold; no live campaign or universal generic-adapter campaign denial.","reason":"LiveThreadAdapter defaults campaign_live_route=True and build_pool_inputs explicitly passes True. Entry and post-callout checks protect start_turn. Registered N1, activation preview and maintenance constructors explicitly pass False under their own existing admission guards; offline fixture constructors do so explicitly. The omission negative and open-holds positive exercise an actual fake wire. No general authentication of caller-supplied flags.","review_evidence":{"$":7},"source":["yR","bw","cm","hz"]},
+"M11":{"conclusion":"Omitted campaign selector keeps campaign/pool/N1 holds; explicit noncampaign constructors retain their own admission.","evidence_contracts":["N8"],"external_trust_limit":"A supplied server/callback does not grant campaign admission. Original fake-turn rows demonstrate relevant hold; no live campaign or universal generic-adapter campaign denial.","reason":"LiveThreadAdapter defaults campaign_live_route=True. Entry and post-callout checks protect start_turn. Registered N1, activation preview and maintenance constructors explicitly pass False under their own admission guards. Offline fixture constructors do so explicitly. The omission negative and open-holds positive exercise an actual fake wire. Caller-supplied flags confer no authority.","review_evidence":{"$":7},"source":["bw","cm","bZ","4"]},
 
 "M15":{"conclusion":"Effect labels describe actual socket operations.","evidence_contracts":["H3"],"external_trust_limit":"Correct labels and source-owned wrappers retained. No universal external library safety or DNS deadline promised.","reason":"Pinned HTTPS wraps the socket with the original hostname for TLS. Low-level endpoint helpers independently allow intended resolution and connection under trusted parameters.","review_evidence":{"$":7},"source":["bc"]},
 
@@ -171,6 +171,8 @@
 "M30":{"conclusion":"Finite caller data is read without granting protected host or execution authority.","evidence_contracts":["N5","N6"],"external_trust_limit":"The public file is untrusted data. Only original registered host submission can validate authority; structural validation, source hashes and returned JSON mint no factory/capability. Existing legacy/maintenance adapter trust, one-shot claims and live holds remain distinct and unchanged.","reason":"The actual pool-request branch requires nofollow/nonblock support before open, bounds a regular FD to4096bytes, reads at most4097 and compares retained FD/path marks and original size after read before decoding/object/structural validation and submit. FIFO, replacement, growth, malformed/deep/UTF8 and over-cap documents refuse without submission. Two new getattr candidates read only fixed stat-result fields and an optional close-on-exec OS constant; neither invokes a selected callable.","review_evidence":"Actual bounded ingress before-submit checks and matched nonspending/refusal controls reviewed; no authority inferred.","source":["lc","n4","la","lb"]},
 
 "M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts. A terminal rollout may await original typed item intake until the reply deadline while the wire turn stays open. Production reuses the same finite capture and namespace boundary under its own signed workflow selection.","review_evidence":{"$":7},"source":["yg","xp","zI","x2","xu","zu","zR","xI","zv","zr","xb","zC","zt"]},
+
+"M37":{"conclusion":"The retired launcher, server, pool and claim entries preserve the original availability refusal order and always refuse.","evidence_contracts":["N8"],"external_trust_limit":"The CLI reports a failure on stderr. Direct calls raise. The retired entries grant no execution authority.","reason":"The CLI and wrappers call the same refusal helper. It checks campaign, pool and N1 before the typed retirement exception. The tests patch availability through the final refusal and prove that the original input, claim, write and launch boundaries remain untouched.","review_evidence":{"$":7},"source":["gd","rm","cJ","yR","legacyCampaignCanary","legacyCampaignClaim","legacyCampaignGuard","eT","gW","gz","legacyCampaignRefusal"]},
 
 "MD":{"conclusion":"Use the posted request ID and sender-confirmed model picker label.","evidence_contracts":["HD"],"external_trust_limit":"Sender observation and same-user audit trust. No share or model attestation.","reason":"Inspect cross-function order from screened request to audited private reply and evaluation.","review_evidence":"Screening and intake refusals. One authorized desktop @Chrome round trip passed.","source":["dQ","ve","ke","bT","dH","dI","dR","dD","dA","dV"]},
 
@@ -614,7 +616,9 @@
 
 "tests/test_desktop_browser_review.py",
 
-"tests/browser_provenance_fixture.py"
+"tests/browser_provenance_fixture.py",
+
+"tests/test_r4_gate_precedence.py"
 ],
 
 "points":{
@@ -624,7 +628,7 @@
 
 "2":[59,491,"return state.bridge(args)"],
 
-"4":[74,12739,{"$":43}],
+"4":[74,3264,{"$":43}],
 
 "5":[61,57,"self._launch_registered_transport(home, binding, startup_config)",12,57,76],
 
@@ -832,7 +836,7 @@
 
 "bY":[73,1081,{"$":210}],
 
-"bZ":[74,3735,"if self.campaign_live_route:"],
+"bZ":[74,3263,"if self.campaign_live_route:"],
 
 "bc":[44,"PinnedHTTPSConnection.connect",385,"WxSVE5w-JlAg0DdDzimWQO6oG8OX2H20xNfcLsnJ5Sk"],
 
@@ -858,7 +862,7 @@
 
 "bo":[43,"run_git",435,{"$":213}],
 
-"bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",325,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
+"bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",340,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
 
 "bq":[122,"R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path",24,"r29AX7D4zfBY0RijwzTrLRf7zc8J_Jydc_SETcjV3gs"],
 
@@ -902,7 +906,7 @@
 
 "bv":[37,439,"if pre.get(\"status\") != \"open\" or pre_assignee not in (None, \"\"):"],
 
-"bw":[74,"LiveThreadAdapter.send_input",3636,"Zim8lRQzcZUhQM1czqdswn60NQV-YzVlIK6FaJRDqOM"],
+"bw":[74,"LiveThreadAdapter.send_input",3164,"Zim8lRQzcZUhQM1czqdswn60NQV-YzVlIK6FaJRDqOM"],
 
 "bx":[61,"RegisteredAppServer._launch_registered_transport",116,"22C0p9dhupfAzNFFzrAJ3NK_YXraeDm-QfTRBSFa4e0"],
 
@@ -942,9 +946,7 @@
 
 "cG":[42,979,"self._write_payload(payload, method=method, timeout=1)",12,979,66],
 
-"cI":[74,12741,{"$":13}],
-
-"cJ":[74,"validate_and_acquire_global_campaign_claim",12341,"lR33hoh9OaW8kTnm7va1cjovnyFzKGzxIq120_PVHuU"],
+"cJ":[74,"validate_and_acquire_global_campaign_claim",6996,"d_ahEIC997foEyS0SS0MmWax2sZY9IcaHL9YHsnJkXw"],
 
 "cL":[54,"ExampleInputProcess._exchange",236,"t06C66GiL8LNIqQVSDFTmoLvTAGCq0v8MH7OpBtgvqM"],
 
@@ -961,8 +963,6 @@
 "cS":[94,"ReviewRoundTenTests.test_tracked_file_in_gitignore_with_new_debt_fails",909,"_JNehO4qfyuSYqyLI9-RS301HWFJ28B10OQE04m7wtc"],
 
 "cT":[39,128,"if (registration.pid, registration.session_id, registration.workspace) != (pid, session_id, workspace):"],
-
-"cU":[74,12365,{"$":35}],
 
 "cV":[73,"main",1554,"-k8LGubnCNtPw-ecvagXUFN9pAHvTSGV_MniPBzxu5s"],
 
@@ -992,7 +992,7 @@
 
 "cl":[120,"QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects",393,"pj0rsAAQqmk08hQ2bwdX5Jq2jU0aP65Lsq8pi66vk9U"],
 
-"cm":[74,"LiveThreadAdapter._require_campaign_live_route",3732,"Y9n0ROqGeA5fvKTLXOwbsl3Ui3aODSVdGPXhj-mC180"],
+"cm":[74,"LiveThreadAdapter._require_campaign_live_route",3260,"Y9n0ROqGeA5fvKTLXOwbsl3Ui3aODSVdGPXhj-mC180"],
 
 "cn":[110,"NativeActivationPreviewTests.test_prepare_root_refuses_before_graph_and_private_graph_uses_only_fake_bd",264,"TmM8DDwpDslMRrFQEohpPoWuvTxsCVrD6N_0p5jPixg"],
 
@@ -1027,8 +1027,6 @@
 "d2":[38,1967,"launched = run_pool("],
 
 "d3":[38,"execute_native_pool_transaction",1610,"K5ETCpgB1pGW3MiQK_-kVmBmmteEkNQVo4YhfHw2KBM"],
-
-"d4":[74,7115,{"$":43}],
 
 "d5":[131,"ReleaseFilesystemTests.test_actual_source_snapshot_and_runtime_identities_are_bound",110,"uokk8eUBk0pq-hUSUMkia9VSdFHonvZfozOLMpYr9fg"],
 
@@ -1090,7 +1088,7 @@
 
 "dc":[12,744,"atomic_write_text(manifest_path, json.dumps(payload, indent=2, sort_keys=True) + \"\\n\")"],
 
-"dd":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_zero_launch_and_independent_patched_fake_control",253,"vGB9-bpDWcC2Ues9wILWo_US0Byqdu4tAEL4lFTzgo4"],
+"dd":[99,"F5NativeLiveHoldTests.test_f5_campaign_server_refuses_without_a_launch",253,"AR_oS5gNMAjDzT-KwgcTZH4fGdj6a6JCthpbwv1gVuU"],
 
 "de":[76,1636,"if not closure_pressure[\"allowed\"]:"],
 
@@ -1132,7 +1130,7 @@
 
 "dz":[84,"AuthorizeSolBreakfixTests.test_expiry_cannot_outlive_authorized_bead",103,"MYBnswC-omK0YkpQQyjF8UCypR3wztzAchvTnRi-It0"],
 
-"e":[99,"F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched",282,"nNjX8BopAR_ijxi5hAjXEWtlFLt-w33Vkft8VGEkaqw"],
+"e":[99,"F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched",289,"ImgJmcgipOEerP1uxxaV2PFJ61sytk7jiv5D70RqmTo"],
 
 "e0":[78,"main",218,"Sxn4I7_WY20aMz38av8LJuYzE2vsmNIf8GUmBHLYBaU"],
 
@@ -1160,13 +1158,11 @@
 
 "eE":[43,"trusted_git_completed",555,"rct8y2700SsiMbnuefo2TVA2CkqzAPpkX9zcz3stMrc"],
 
-"eF":[99,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",407,"FY2hKm7uzoaqBAV8xexmDqw9Yry66tVevHTqL2lIBpo"],
+"eF":[99,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",422,"9fef8AtKR6lN7GeQvt7jvJtitozWthzKew0c7zva1uI"],
 
 "eG":[23,74,"if not database_value:"],
 
-"eH":[134,"LiveCanaryMaterializationTests.test_calibration_binds_requested_pool_cap_and_control_turn",3460,"aabO0bQ1TrT8v12oMaq7K9VmxqfiMOD3yWyL_H-ObAw"],
-
-"eI":[74,13365,"capture_input_source_identities(paths)",28,13365,66],
+"eH":[134,"LiveCanaryMaterializationTests.test_calibration_binds_requested_pool_cap_and_control_turn",3443,"aabO0bQ1TrT8v12oMaq7K9VmxqfiMOD3yWyL_H-ObAw"],
 
 "eJ":[2,57,"if not args.dry_run:"],
 
@@ -1182,11 +1178,9 @@
 
 "eS":[87,"BrowserProvenanceTests.setUp",39,"zuYaqjhDz8nTq2lolqmh3SYG0joayhyJl5ATjpiq7oc"],
 
-"eT":[74,13030,{"$":43}],
+"eT":[74,6927,{"$":43}],
 
 "eV":[87,"BrowserProvenanceTests.test_real_preparation_and_persisted_sanitizer_positive",74,"9sPMvHT7yn95MYjBeOHeituB83ewKE0SD7D2mhIQhIQ"],
-
-"eW":[74,7116,{"$":35}],
 
 "eX":[73,718,{"$":58}],
 
@@ -1205,8 +1199,6 @@
 "ee":[52,"main",125,"_kNErKzuU8I35-CTfQ-7NnB1fNvUdmbVq4UKMmiV3iQ"],
 
 "ef":[11,46,"if initial.ruff_version() != RUFF:"],
-
-"eg":[74,12740,{"$":35}],
 
 "ei":[136,"observed_main",54,"mMhcWjRDJyY5GY_4ReKpHawpqf1bXgJYZ6CD38NEOks"],
 
@@ -1306,7 +1298,7 @@
 
 "fX":[59,"production_custody",295,"Oyqmgb7dZuc_7jGiI5HvS242i_Zj6Lw5nfoJpZ5-KOs"],
 
-"fY":[74,5204,{"$":13}],
+"fY":[74,4732,{"$":13}],
 
 "fZ":[30,379,"handle.require_intent()"],
 
@@ -1316,9 +1308,9 @@
 
 "fd":[35,46,"require_n1_live()"],
 
-"ff":[74,"_run_calibration",5079,"vtvLh9ym5SRjkz9gMog8mYRyuseWs7nfi2iZ6LyyNEo"],
+"ff":[74,"_run_calibration",4607,"vtvLh9ym5SRjkz9gMog8mYRyuseWs7nfi2iZ6LyyNEo"],
 
-"fg":[74,3638,{"$":284}],
+"fg":[74,3166,{"$":284}],
 
 "fh":[73,"ActivationLedgerTransport.start_thread",166,"E-htdIqfldc791xVKVx5yVS2BajZ9tSeX4310X6Pq-M"],
 
@@ -1336,11 +1328,9 @@
 
 "fp":[5,"build_brief",116,"gF2phx3RKvi1AIpKvCUXdcFRNKTREveCtduv2KXHSug"],
 
-"fq":[74,12366,{"$":13}],
-
 "fs":[73,697,"if LIVE_ACTIVATION_AVAILABLE is not True:"],
 
-"ft":[74,3706,{"$":284}],
+"ft":[74,3234,{"$":284}],
 
 "fu":[64,"RegisteredN1Factory.run",2674,"IZu2lD7TLSVi0FJqPDheYiAeVlvscicNeqcNEHGBHls"],
 
@@ -1356,13 +1346,11 @@
 
 "g":[183,93,"subprocess.run(command, env=environment, stdin=subprocess.DEVNULL,\n                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False)",17,94,110],
 
-"g0":[134,"FullAutoAuthorizationLauncherTests.test_global_claim_path_forwards_gate_scoped_operator_authorities",15455,"z6lthdMzowK9n39Ix7iGqtHSzHI9K_0ucyU3Rdb3qYU"],
-
 "g2":[26,"execute_checked_command_sequence",238,"d1GCrmJt_pXhRfaxvIpS-IxhWAFJ01GuZoSaTawyihw"],
 
 "g3":[73,1086,"approval = read_private_json("],
 
-"g4":[74,5179,"pre_allocation_check()"],
+"g4":[74,4707,"pre_allocation_check()"],
 
 "g5":[59,"consume",704,"_lQX9uDLABiOow8ZaPUBdDMAQ6T9AU-3WivxYG9HV40"],
 
@@ -1412,7 +1400,7 @@
 
 "gV":[68,314,"R.live_availability.require_pool_live()"],
 
-"gW":[74,13031,{"$":35}],
+"gW":[74,6928,{"$":35}],
 
 "gX":[112,"NativePoolAdmissionTests.test_concurrent_duplicate_consume_has_one_winner",664,"yBRnVNUrBFrD290sbSgGtDmKyTQjaKoWviznotjPy8Q"],
 
@@ -1420,7 +1408,7 @@
 
 "gc":[64,"_CoherentServerRequests",1097,"WHQAqI5qLWkUlS6RhWFnt6_gTxVwDFwr_zUN_V1DKW0"],
 
-"gd":[74,"main",12745,"nXUsaB8mQ0E90ix-EhxkMnsDmai341ahB8cGl86g888"],
+"gd":[74,"main",7020,"YCucD28AE1HLmfAStrAroFSiEOnebZapLXZ64hvdZYE"],
 
 "ge":[108,"RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent",509,"3Rjzq8CLOPcRTQ-cOZ_5vHHWg9MmjHGKD2webEzXUDc"],
 
@@ -1452,15 +1440,13 @@
 
 "gu":[73,175,{"$":58}],
 
-"gv":[74,12742,"return AppServer()"],
-
 "gw":[42,2364,"self._write_payload(payload, method=\"turn/start\", timeout=timeout)",27,2364,93],
 
 "gx":[137,"PrivatePidReuseOSControlTests.test_actual_private_pid_reuse_preserves_the_fresh_lifetime",646,"-goal10mUoDCYddv_SMpfwgeMlmy32FFTCBMKb6xqQE"],
 
-"gy":[74,5096,{"$":13}],
+"gy":[74,4624,{"$":13}],
 
-"gz":[74,13032,{"$":13}],
+"gz":[74,6929,{"$":13}],
 
 "h":[185,"RegisteredLeadProjectTests.test_project_database_changes_do_not_drift_registered_target_or_retry",33,"VEN-CyQcFdT_LUlahTIfNrzf8Lk63OzfG3aerIE-9-U"],
 
@@ -1485,8 +1471,6 @@
 "hD":[104,"InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove",66,"O04f30Ic2uufBe3dAwGrMPrBu8gGaXGWFpAAUkLzAD0"],
 
 "hE":[27,"prepare_capture_binding",541,"YqjXbWZEpiOA62hMgYiW9zcNp-5LfHGGq2ATvXnk0lI"],
-
-"hF":[74,12405,"reservation = acquire_global_campaign_claim("],
 
 "hG":[37,"reserve_pool_cohort",1481,"k8T5nJPNC74Ohs6OT2BpmkTgPhvGgmtHkFUw56wfi5k"],
 
@@ -1540,7 +1524,7 @@
 
 "hl":[41,1533,"_review(directory, json.loads(review_raw), current, digest(raw))",14,1533,78],
 
-"hm":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds",265,"3ZweG8szunEDq73Wjv4vK-c72jU86HiHhhhtkiRdehE"],
+"hm":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds",271,"h-nvdzgp17NzXzHhQIOCUaU17GOZBsPQT3emm2XjfwY"],
 
 "hn":[25,258,"spec = normalize_command_spec(value)"],
 
@@ -1563,8 +1547,6 @@
 "hw":[48,69,"verify_provenance_pin(raw, expected)",8,69,44],
 
 "hy":[60,"RegisteredReviewHost.dispatch",227,"9Stgj7-_X6K43NlX7DSUCTFF2gXb-TC4aYH1UqONv5s"],
-
-"hz":[74,7485,"campaign_live_route=True,"],
 
 "i":[187,195,"discard_unretained(pending)"],
 
@@ -1634,7 +1616,7 @@
 
 "ii":[11,"interpreter",37,"qMGi2RJkmYzrQmZH4qLMwO2oVt6Y1tWJz0cx4OgI24Q"],
 
-"ik":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",306,"unBrQK_u5qxP9XYmXcmIccEH4BNijTBImzuJ0BT1emg"],
+"ik":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",299,"eP-k7Btzsny9pRcdruJK0K2tn5cJ7UeOZXUek_zEUb8"],
 
 "il":[47,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -1652,7 +1634,7 @@
 
 "is":[47,"GuardedArtifactTarget._replace_current",490,"82koxIrF74YVSOw0JtGZtp09l41WU6dVGqtYBzClCvQ"],
 
-"it":[74,3707,"turn, _latency = self.server.start_turn(self.thread_id, message)"],
+"it":[74,3235,"turn, _latency = self.server.start_turn(self.thread_id, message)"],
 
 "iu":[64,674,"os.write(descriptor, b'1')",12,674,38],
 
@@ -1962,6 +1944,16 @@
 
 "le":[11,51,"subprocess.run([*command, *inventory], cwd=root, env=env,\n                            capture_output=True, text=True, check=False)",13,52,72],
 
+"legacyCampaignCanary":[74,"run_pool_canary",6957,"tfrc4DMNT7mClqghXct4-PzXt4ELSuOrWBu6pFJNS-k"],
+
+"legacyCampaignClaim":[74,"acquire_global_campaign_claim",6981,"JaOg7azq9mITtz75iVaFcNnwGmFqGXD91zFRo9fUdsI"],
+
+"legacyCampaignClaimTest":[193,"R4GatePrecedenceTests.test_r4_C18_campaign_claim_refuses_before_input_reads_and_setup",35,"jLEJIHTatZ542X4vF2eV1HV9oFhs5iQmXl8bY0m2Hzg"],
+
+"legacyCampaignGuard":[74,"_refuse_retired_campaign",6926,"y43wurimfMfZ00fuTb3d_zgB4nK0qBmm1j7eUDVPHTU"],
+
+"legacyCampaignRefusal":[74,6930,"raise LegacyNativePoolExecutionRetired()"],
+
 "lf":[16,329,{"$":257},4,329,61],
 
 "lh":[43,388,"subprocess.run([path, \"--version\"], env=_environment(), stdin=subprocess.DEVNULL,\n                                capture_output=True, timeout=max(0.1, min(10.0, timeout)), check=False)",17,389,103],
@@ -1969,8 +1961,6 @@
 "li":[10,143,"ThreadingHTTPServer((\"127.0.0.1\", 0), Handler)",19,143,65],
 
 "lj":[56,46,"ThreadingHTTPServer((\"127.0.0.1\", args.port), partial(PagesHandler, directory=str(DOCS)))",13,46,102],
-
-"lk":[74,12742,"AppServer()",11,12742,22],
 
 "ll":[67,"RegisteredNativePoolHost._save_bound",307,"VFf-BDlPnvWD4yxxf3QjfNAAGr7ocD04WwnJUYbAjc0"],
 
@@ -2486,8 +2476,6 @@
 
 "q0":[43,"WorktreeCapture._run_bound",2610,"pKOcFA8UqqJUISnZCVIBYd8dlgOc0kfLNeyeVhkoTK4"],
 
-"q2":[74,7117,{"$":13}],
-
 "q3":[49,369,"copy_projection \"$INSTALL_STAGE_DIR\" \"$directories\" \"$files\""],
 
 "q4":[44,1697,"if not LOCAL_INVOCATION_AVAILABLE:"],
@@ -2540,7 +2528,7 @@
 
 "qS":[82,"AcceptanceProductFlowTests.test_native_consumer_preserves_the_exact_original_delivery_review_positive",110,"keJXFZDNTvGI-tSAu67dIhswLuCQ7jCp9YZXGj5HxA4"],
 
-"qT":[74,5205,"result, preallocation_latency = server.start_thread(cwd, **start_kwargs)"],
+"qT":[74,4733,"result, preallocation_latency = server.start_thread(cwd, **start_kwargs)"],
 
 "qU":[130,"ReleaseEffectRoutesTests._git_pair",1421,"nqUbPdd1sJwFcR3w_CJQflGtJHDoliB8lauHREZ_J6U"],
 
@@ -2648,8 +2636,6 @@
 
 "rc":[73,1073,{"$":58}],
 
-"rd":[74,12364,{"$":43}],
-
 "re":[37,"consume_pool_admission",1978,"bch8Tk1qzu7ORNP0_wkGu6kCjvqlgpU5M9Zj_KHsrMY"],
 
 "rf":[136,"ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency",320,"WSSL_rBnUi1Xu5Y69zdJb8u_RDTOg6w4VVNvQf_9gs4"],
@@ -2658,13 +2644,13 @@
 
 "rh":[73,719,{"$":210}],
 
-"ri":[134,"LiveCanaryMaterializationTests.test_final_watermark_failure_prevents_calibration_allocation",3434,"txEpRI4PVEvGrIk1wUHpJBye5H_SrsfFmE7uwktmHs8"],
+"ri":[134,"LiveCanaryMaterializationTests.test_final_watermark_failure_prevents_calibration_allocation",3417,"txEpRI4PVEvGrIk1wUHpJBye5H_SrsfFmE7uwktmHs8"],
 
 "rj":[22,267,"os.execve(request['executable'],request['argv'],{})"],
 
 "rk":[29,"HostRecordStore.audit_events",438,"LHuZA-t6GsT4iCk6IneHIrnDZieBK-VIZogOINpoLXA"],
 
-"rm":[74,"_start_campaign_server",12738,"sslKVaBhn0sTa2L9XtFV_JRUmHAkzG2_3YAbHubo8WU"],
+"rm":[74,"_start_campaign_server",7015,"r124E4ATSD5rYFLVkDSoxosq7WwnTnv6MN64lJYInOk"],
 
 "rn":[38,1940,"if final_horizon_errors:"],
 
@@ -2808,8 +2794,6 @@
 
 "vf":[99,"F5NativeLiveHoldTests.test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control",86,"8ge8L46cFReNDcv98YBgIYRUPGBHghaEgm4f9JRW7eo"],
 
-"vg":[74,7366,"result, _latency = server.start_thread(worktree, **start_kwargs)"],
-
 "vh":[59,485,{"$":57}],
 
 "vi":[42,1049,{"$":333}],
@@ -2920,7 +2904,7 @@
 
 "xa":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1996,"PAp0EV984N9v4xN-E2bbDenXuW6cCnySfKkhPc_I3I8"],
 
-"xb":[74,"trusted_tool_evidence_summary",2509,"VtSVW0FU4bsVMm2XRzH9z5wwDiIxe5sd3hdWZSUbawE"],
+"xb":[74,"trusted_tool_evidence_summary",2037,"VtSVW0FU4bsVMm2XRzH9z5wwDiIxe5sd3hdWZSUbawE"],
 
 "xc":[146,"_read_access_token",449,"v8xez3TX8q50H-Q3vXghvB4DVW_uBxJ5fU2A5r7ceio"],
 
@@ -3012,7 +2996,7 @@
 
 "yQ":[61,50,"if type(self) is RegisteredAppServer:"],
 
-"yR":[74,"build_pool_inputs",7089,{"$":170}],
+"yR":[74,"build_pool_inputs",6933,"h-Wk__hsQYMpYevpIT-63ptLFCsEEOiHuY3_2IVb3Vw"],
 
 "yT":[42,2249,"_require_native_rpc(\"turn/start\", self)"],
 
@@ -3641,11 +3625,7 @@
 
 "XR400":[[93,87],2,null],
 
-"XR401":[["_",125,14],2,null],
-
 "XR403":[[6,3],2,null],
-
-"XR404":[[6,3],2,null],
 
 "XR411":[[6,1],2,null],
 
@@ -5223,51 +5203,45 @@
 
 [71,1008,23,1012,9,"dynamic","B4765SyLKExxM3ItdUA_STNHTvNEakCnEpVHTT-TfTA",[{"$":9},"XR381"]],
 
-[72,714,30,714,57,"dynamic","prnKiUwHNekJM1zNC31vdO3F5jFteDJWVFQcqCnqso8",[{"$":9},"XR382"]],
+[72,533,30,533,57,"dynamic","prnKiUwHNekJM1zNC31vdO3F5jFteDJWVFQcqCnqso8",[{"$":9},"XR382"]],
 
-[72,714,60,716,9,"dynamic","s3-jdHsbXCKATrwY1r3o56t8oB-RCDKdC-4w_JSHLQM",[{"$":9},"XR383"]],
+[72,533,60,535,9,"dynamic","s3-jdHsbXCKATrwY1r3o56t8oB-RCDKdC-4w_JSHLQM",[{"$":9},"XR383"]],
 
-[72,1482,13,1482,61,"dynamic","Xn7QdrAxsKVC9SJYyKwDZXHyN_lT957yADBPL_I7P4M",[{"$":9},"XR384"]],
+[72,1010,13,1010,61,"dynamic","Xn7QdrAxsKVC9SJYyKwDZXHyN_lT957yADBPL_I7P4M",[{"$":9},"XR384"]],
 
-[72,2954,27,2954,81,"dynamic","blXLfMgcHuRF0h2Gz5mJKvmD75G97wl-0Yu0stmPwCc",[{"$":9},"XR385"]],
+[72,2482,27,2482,81,"dynamic","blXLfMgcHuRF0h2Gz5mJKvmD75G97wl-0Yu0stmPwCc",[{"$":9},"XR385"]],
 
-[72,2969,23,2969,76,"dynamic","wM7l60D0h_Ab8K4L_AvmL79_6j1jKEmIb5DHFqCCQGY",[{"$":9},"XR386"]],
+[72,2497,23,2497,76,"dynamic","wM7l60D0h_Ab8K4L_AvmL79_6j1jKEmIb5DHFqCCQGY",[{"$":9},"XR386"]],
 
-[72,3055,27,3055,76,"dynamic",{"$":165},[{"$":9},"XR387"]],
+[72,2583,27,2583,76,"dynamic",{"$":165},[{"$":9},"XR387"]],
 
-[72,3203,29,3205,9,"dynamic","G68AY2_rubqUk-8uN4q3LJLl2GaBdldUlbIU3oItbpA",[{"$":9},"XR388"]],
+[72,2731,29,2733,9,"dynamic","G68AY2_rubqUk-8uN4q3LJLl2GaBdldUlbIU3oItbpA",[{"$":9},"XR388"]],
 
-[72,3223,35,3225,17,"dynamic","ZPn1OQsKgAbOiLyiWZlsIRIzjNGk9EMprT1gt9VF1Vw",[{"$":9},"XR389"]],
+[72,2751,35,2753,17,"dynamic","ZPn1OQsKgAbOiLyiWZlsIRIzjNGk9EMprT1gt9VF1Vw",[{"$":9},"XR389"]],
 
-[72,3301,26,3301,78,"dynamic",{"$":153},[{"$":9},"XR390"]],
+[72,2829,26,2829,78,"dynamic",{"$":153},[{"$":9},"XR390"]],
 
-[72,3618,60,3620,21,"dynamic","dNsuhucs7uHeAvWJtlV0397o9LUMH23ZdgHJQYiPvE0",[{"$":9},"XR391"]],
+[72,3146,60,3148,21,"dynamic","dNsuhucs7uHeAvWJtlV0397o9LUMH23ZdgHJQYiPvE0",[{"$":9},"XR391"]],
 
-[72,4301,19,4305,9,"dynamic","ZDVPXYO4m4mtDySlZM6V3Ud8dk2YY_v_hZbJNxicCak",[{"$":9},"XR392"]],
+[72,3829,19,3833,9,"dynamic","ZDVPXYO4m4mtDySlZM6V3Ud8dk2YY_v_hZbJNxicCak",[{"$":9},"XR392"]],
 
-[72,4652,26,4652,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
+[72,4180,26,4180,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
 
-[72,4653,27,4653,74,"dynamic","NNNiwmdaq9MHSIy69kfSofp5jGCKtMxods9F32uNs9M",[{"$":9},"XR394"]],
+[72,4181,27,4181,74,"dynamic","NNNiwmdaq9MHSIy69kfSofp5jGCKtMxods9F32uNs9M",[{"$":9},"XR394"]],
 
-[72,5109,21,5109,68,"dynamic","A-QPTdpbNcoRKoMd4fd4QqWYgUufk4P85vQIh7Tpgh0",[{"$":9},"XR395"]],
+[72,4637,21,4637,68,"dynamic","A-QPTdpbNcoRKoMd4fd4QqWYgUufk4P85vQIh7Tpgh0",[{"$":9},"XR395"]],
 
-[72,5113,23,5113,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
+[72,4641,23,4641,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
 
-[72,5344,11,5344,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
+[72,4872,11,4872,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
 
-[72,6760,34,6764,5,"dynamic","_vsOm9U5QmF2crFVjWI5y-zRI8KU1ud56UHamtGXyC8",[{"$":9},"XR398"]],
+[72,6288,34,6292,5,"dynamic","_vsOm9U5QmF2crFVjWI5y-zRI8KU1ud56UHamtGXyC8",[{"$":9},"XR398"]],
 
-[72,7792,13,7792,55,"dynamic","Ybynqw2sUHocnFN458gQd057Vs7vTqKveSoinfmGNnM",[{"$":9},"XR399"]],
+[72,6587,13,6587,55,"dynamic","Ybynqw2sUHocnFN458gQd057Vs7vTqKveSoinfmGNnM",[{"$":9},"XR399"]],
 
-[72,7825,8,7825,53,"dynamic","Gau4K7gkps26vbMtHH-_YhaRQbP-pQ42x1BZobXeR1U",[{"$":9},"XR400"]],
+[72,6620,8,6620,53,"dynamic","Gau4K7gkps26vbMtHH-_YhaRQbP-pQ42x1BZobXeR1U",[{"$":9},"XR400"]],
 
-[72,8174,14,8174,42,"dynamic",{"$":5},[{"$":9},"XR401"]],
-
-[72,12742,11,12742,22,{"$":3},{"$":226},["route","N8.2","lk"]],
-
-[72,14303,41,14303,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
-
-[72,14317,33,14319,13,"dynamic","a3-mx37U93yt3gv4n9Y8x5IrfHVsSt6sh_8LH9YTEoA",[{"$":9},"XR404"]],
+[72,7338,41,7338,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
 
 [73,271,17,276,9,"process","lAX-zUK4AIVcn4IZaYm5ZV1TlDefknrp6hLUmaf_vGc",["route","X6.4","lQ"]],
 
@@ -5624,17 +5598,17 @@
 
 {"contract":"N7","effect_points":["hZ"],"entrypoint":"ih","gates":["eX","rh"],"id":"N7.5","ordering":"Dedicated/N1, then profile-specific pool before task/Beads reads; positive stops at tasks read, zero close callbacks.","witnesses":["w6"]},
 
-{"contract":"N8","effect":"Campaign CLI entry admission","effect_points":["eI"],"entrypoint":"gd","gates":["eT","gW","gz"],"id":"N8.1","ordering":"Three holds precede the typed retirement refusal, ahead of the retained historical input path.","selector":"CLI refusal covers default and patched-open holds. The historical body remains for source verification.","witnesses":["wc","q"]},
+{"admission":{"$":1},"authority":"The retired entry stays closed under every availability setting.","contract":"N8","earlier_effects":"Argument parsing and clock reads precede the refusal report.","effect":"Retired campaign CLI refusal","effect_points":[],"entrypoint":"gd","gate_limits":"Source review binds the shared refusal helper. The retired entry has no effect to order.","gates":[],"id":"N8.1","limits":"Parses legacy arguments and emits a redacted failure on stderr with exit status 1.","manual_decisions":["d","f","M37"],"ordering":"Input, claim, write and launch remain untouched with closed or patched-open holds.","review_gates":["eT","gW","gz","legacyCampaignRefusal"],"selector":"The installed source command and its legacy arguments.","witnesses":["wc"]},
 
-{"contract":"N8","effect_points":["gv","lk"],"entrypoint":"rm","gates":["4","eg","cI"],"id":"N8.2","ordering":"All three campaign/pool/N1 holds immediately precede selected AppServer construction.","selector":"Direct server entry; no adapter selection is required.","witnesses":["wd"]},
+{"admission":{"$":1},"authority":"The retired entry stays closed under every availability setting.","contract":"N8","earlier_effects":"The ordered availability checks precede the typed retirement error.","effect":"Retired campaign server refusal","effect_points":[],"entrypoint":"rm","gate_limits":"Source review binds the shared refusal helper. The retired entry has no effect to order.","gates":[],"id":"N8.2","limits":"Direct server construction raises the selected hold or typed retirement error.","manual_decisions":["d","f","M37"],"ordering":"The constructor is never invoked, including when all three holds are patched open.","review_gates":["eT","gW","gz","legacyCampaignRefusal"],"selector":"Direct calls to the retired server constructor.","witnesses":["wd"]},
 
-{"contract":"N8","effect":"Campaign preclaim admission and durable reservation callback","effect_points":["hF"],"entrypoint":"cJ","gates":["rd","cU","fq"],"id":"N8.3","ordering":"Three holds before launch/steering validation and durable claim; positive forwards exact scoped authorities to fake reservation, not native execution.","selector":"The preclaim helper retains its own three holds. Its scoped fake reservation returns without a worker launch.","witnesses":["wc"]},
+{"admission":{"$":1},"authority":"The retired entry stays closed under every availability setting.","contract":"N8","earlier_effects":"The ordered availability checks precede the typed retirement error.","effect":"Retired campaign preclaim and claim refusal","effect_points":[],"entrypoint":"cJ","gate_limits":"Source review binds the shared refusal helper. The retired entry has no effect to order.","gates":[],"id":"N8.3","limits":"Direct validation or claim raises the selected hold or typed retirement error.","manual_decisions":["d","f","M37"],"ordering":"Neither wrapper reads input, claims, locks or writes, including with all holds patched open.","review_gates":["eT","gW","gz","legacyCampaignRefusal"],"selector":"Direct calls to either retired claim entry.","witnesses":["q","wc","legacyCampaignClaim"]},
 
 {"authority":"N1 only plus exact capacity/model/tool-surface and pre-allocation callback; no campaign/pool hold borrowed.","contract":"N8","effect":"Single-worker calibration thread/turn with selected server","effect_points":["qT"],"entrypoint":"ff","gate_limits":"The earlier optional pre-allocation callback is conditional; the final unconditional callback and N1 recheck precede the selected thread effect. Callback semantics remain external trust.","gates":["gy","fY"],"id":"N8.4","limits":"Watermark failure: zero thread/turn; matching fake calibration accepted. Earlier read/snapshot/artifact work legitimate. N1-only; supplied programmes trusted; no campaign success.","ordering":"N1 before calibration reads and again before thread; final watermark callback before allocation. Named refusal is watermark veto, not a campaign-hold test.","review_gates":["g4"],"selector":"Single-worker calibration requires N1 only; campaign/pool holds not universal.","witnesses":["wa"]},
 
-{"contract":"N8","entrypoint":"yR","gates":["d4","eW","q2"],"id":"N8.5","limits":"The supplied-server builder retains its source and allocation checks. The adapter separately checks the later turn."},
+{"admission":{"$":1},"authority":"The retired entry stays closed under every availability setting.","contract":"N8","earlier_effects":"The ordered availability checks precede the typed retirement error.","effect":"Retired supplied-server pool refusal","effect_points":[],"entrypoint":"yR","gate_limits":"Source review binds the shared refusal helper. The retired entry has no effect to order.","gates":[],"id":"N8.5","limits":"Direct pool input preparation and canary calls raise the selected hold or typed retirement error.","manual_decisions":["d","f","M37"],"ordering":"Supplying a server never reaches its methods or the pre-thread-start callback.","review_gates":["eT","gW","gz","legacyCampaignRefusal"],"selector":"Direct calls with a supplied server.","witnesses":["wb"]},
 
-{"contract":"N8","effect_points":["it"],"entrypoint":"bw","gate_limits":"Campaign-server admission belongs to a separate constructor. The helper campaign selector is conditional; actual action calls recheck it before the turn, with noncampaign False still an explicit manual selection limit.","gates":["fg","ft"],"id":"N8.7","ordering":"Campaign adapter omission defaults True: three holds before reservation and after callouts before supplied-server turn. Explicit noncampaign False constructors retain their own N1, preview, maintenance or offline admission contract.","review_gates":["4","bZ"],"witnesses":["b4"]},
+{"contract":"N8","effect_points":["it"],"entrypoint":"bw","gate_limits":"The campaign selector is conditional. The adapter checks it at entry and before the turn. Explicit noncampaign selection relies on the caller's own admission contract.","gates":["fg","ft"],"id":"N8.7","ordering":"Campaign adapter omission defaults True: three holds before reservation and after callouts before supplied-server turn. Explicit noncampaign False constructors retain their own N1, preview, maintenance or offline admission contract.","review_gates":["4","bZ"],"witnesses":["b4"]},
 
 {"contract":"N9","effect_points":["A","kD"],"entrypoint":"zI","gate_chains":[{"calls":[{"call":"za","direction":"return","target":"zd"}],"effect":"A","gate":"mr"}],"id":"N9.1","limits":"Exact issued dynamic catalog/args/epoch/request/current factory/intent; single-use decision. Zero command gate byte after terminal, possibly after retained child birth. Existing spawned[0] is app-server, not zero total children. Shell [/usr/bin/sh,-c,spec] and isolated selected validator are admitted opaque programmes; no universal downstream effect safety. Cleanup publication is separately observed: physical completion can precede the original immutable gate acknowledgement. The fixture spends the remainder of its original eight-second completion budget on that aggregate classification; timeout stays unknown with full charge. This inspection grants no command release, acceptance or native qualification. Physical-event, direct-close-event, two-closer-join and failed-result completion fences all share their original remaining eight-second budget and atomic gate-condition classification. Queued archive acknowledgement retains original output rejection/full charge. Only exact pre-bootstrap READY bypasses JSON parsing; late/malformed RPCs still fail, and cleanup preserves the primary plus owned workers. Prequeued-poll fixtures wait for original refusal publication within the shared original5s bound after full-frame consumption; third-poll no-effect/full-charge checks remain. Holding real-write return supplies fixture evidence only. Finite success fixtures join completion only after original poll reservation returns; failed reservation never starts the success join. This is fixture ordering evidence, not historical startup attribution. Signed live-mode selection adds actual registered RPC and owned pipe evidence of submitted and delivered UTF-8 byte counts and digests for finite polls. Nonempty input refuses before delivery, while an empty poll writes zero bytes. The synthetic RPC witness leaves live provider turns unmeasured. Only exact original typed completion and a fully written reply qualify the matching retained rollout text. Terminal settlement is historical and does not permit another effect.","witnesses":["av","aw","bv","bz","wT","cB","cC","E","a","F","A","G","H","u","Z"]},
 
@@ -5995,8 +5969,6 @@
 "169":"55092020f9126d0761a6f12d37e5187701104eb7e344b5e29964d98dca92648b",
 
 "17":"scripts/linux_owned_children.py",
-
-"170":"571d9f931ef88d7ef5c3281b05e3c5a03b46a9194ed5d9c9351bbdb2d5d27d3d",
 
 "172":"63d766ec23e8d07a2324a429859e2837d48f8b08d8d888f9d9051e964913b827",
 
@@ -6618,7 +6590,7 @@
 
 "@133":["9nCuYTs_2VnqfFeSBl9deoT09T5fzbdjIiqw7wMuds8",420,23958],
 
-"@134":["LYtZvE4TCrUfwNPgWgFkagPcdHFRm35NIkjizXaoDRU",420,690148],
+"@134":["RX-vFwwhFjvrNzjToQ2Vx6jj1l1xUjo1FGC7BdNOmDk",420,416318],
 
 "@135":["VX8GZfErsfCu9KnH2UOEljYUCd2WqD6-qJs5-30rKAI",420,35677],
 
@@ -6748,6 +6720,8 @@
 
 "@192":["TeaEjsYlnZHg3YYo5_ThfNjreE3clzgp6VpIsx6fd4c",420,4111],
 
+"@193":["zD2i3WHhkjkSvIogucNAW6GKWfJQyOAmBwdNhRky9F8",420,3161],
+
 "@2":["z0ZY_NRPet_XK8qOWfGspMYVZFa5jwvY0yLF6P7VUHc",420,3165],
 
 "@20":["Xxk49TOGt-yQyKGUaRehpq0XA-5W1Rfzp-exIVetons",493,92],
@@ -6862,7 +6836,7 @@
 
 "@73":["s0Wmf37OqIRvCJ4ONtJfPzirwzLNr4Mlc1bfH9EFCyU",420,56428],
 
-"@74":["nJmgMeXRllG6nIbxsjF4WsV7MX7TWH6L45-9f6gQtPw",420,607683],
+"@74":["JYA9lURlsP1ZjH5WtNHpZzGcM-TfJ8k8ULPiwXNJlFE",420,305854],
 
 "@75":["FZD62tTqBcU4axLx6Pl6wvk1p-8OZY26SE2Nqfn3osk",493,27108],
 
@@ -6908,11 +6882,11 @@
 
 "@98":["qbPY0tljgBYKQbIgz_fR9hhakfS3DXoFnXlzD-9MdRI",420,14498],
 
-"@99":["ZCZ45RbBNoJ5gRatXC6pKIDbMC1B4-oP1lLiwEa3brI",420,31686],
+"@99":["4etYWt4XV3RAdUPVtLPez6HsdNrfLsIsUaZscQ_9Zvw",420,30945],
 
 "policy/model-roles.yaml":["ts5whoPZ82VNn1DRyC7d5Hi_XecHVzBzZqd8knmlRW0",420,726],
 
-"references/claims-register.md":["CdLmUlJ4_fc0RHrIh-D8QWUYiXg5gQuZCv2HGxOzbqw",420,16281],
+"references/claims-register.md":["Di87wteSMDVuu57P1Es7DNEdTW6oXf0qls3FK9B8_Bs",420,16342],
 
 "references/cwo-system-prompt.md":["NaUTR-c8I0JleXR4pZHdEBuAPkuhI9NrDO6qVWw7kr8",420,2833],
 
@@ -7300,7 +7274,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Z_SeJv3dSrXEvCoMbt5E6YDTdRLPE7AVQEe-Z3vifxw",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["qcR7Uu39uPuaf766RH8llrULsvwWZYioUhh4ef_U2Wc",420,135439],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7334,7 +7308,7 @@
 
 "tests/test_validate_repository.py":["hNaVqOftTHeGNCp2Sj9X2e20UDjOhxLl_qXnN5YkZfk",420,38621],
 
-"tests/test_w20_affected_contract_w13.py":["jJbwKDWolkgCZLFcaGr97w-Aid3n42ByZkpiAmRY9dg",420,77051]
+"tests/test_w20_affected_contract_w13.py":["VCBuQpLiCLaE-7l3xBnppYf4TJi4Dbjjb0R6-3lodnU",420,76814]
 },
 
 "witness_columns":[
@@ -7742,6 +7716,8 @@
 
 "l":[{"$":338},"yH",{"$":0},{"$":332},["zc"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production"],
 
+"legacyCampaignClaim":["lock.assert_not_called()","legacyCampaignClaimTest",{"$":1},"self.assertRaisesRegex(C.LegacyNativePoolExecutionRetired, \"^legacy-pool-execution-retired$\")",[],"tests.test_r4_gate_precedence.R4GatePrecedenceTests.test_r4_C18_campaign_claim_refuses_before_input_reads_and_setup"],
+
 "m":["self.assertNotIn(\"qualification-writer-release\", events)","zD",{"$":0},"self.assertEqual(stage.campaign_start_status(ledger)[\"charged\"], prior_starts + 1)",["zq","jq","jp","js"],"tests.test_registered_pool_qualification_calibration_e2e.SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts"],
 
 "n":["with self.assertRaisesRegex(qualification.QualificationError, 'changed'):","yb",{"$":1},"qualification.release_managed_login(second)",[],"tests.test_registered_n1_qualification.CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release"],
@@ -7752,7 +7728,7 @@
 
 "pC":["self.assertTrue(probe.close()['namespace_exited'])","pE",{"$":1},"self.assertIn('poll-ok', probe.poll('')['stdout'])",["pD","pG","pH"],"tests.test_selected_native_containment.OuterBoundaryOSControlTests.test_scheduler_state_change_during_namespace_handle_open_preserves_birth"],
 
-"q":["self.assertEqual((prepare.call_count, read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0, 0))","e",{"$":0},"self.assertEqual([adapter.calls.count(\"send_input\") for adapter in adapters.values()], [1, 1])",["a"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched"],
+"q":["self.assertEqual(inputs.mock_calls, [])","e",{"$":1},"self.assertRaisesRegex(LegacyNativePoolExecutionRetired, '^legacy-pool-execution-retired$')",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched"],
 
 "r":["with self.assertRaisesRegex(runtime.native.OfflineHostError, 'same-handle reaping'):","xy",{"$":0},"self.assertIs(lifetime._terminate_monitor(), complete)",[],"tests.test_registered_provider_network.RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal"],
 
@@ -7840,11 +7816,11 @@
 
 "wa":["self.assertEqual(server.thread_start_count, 0)","ri",{"$":0},"self.assertEqual(receipt[\"validation_outcome\"], \"accepted\")",["eH"],"tests.test_run_native_pool_live_canaries.LiveCanaryMaterializationTests.test_final_watermark_failure_prevents_calibration_allocation"],
 
-"wb":[{"$":139},"hm",{"$":0},"boundary.assert_called_once_with()",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds"],
+"wb":[{"$":139},"hm",{"$":1},"(True, True, True, LegacyNativePoolExecutionRetired, 'legacy-pool-execution-retired'),",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds"],
 
-"wc":["self.assertEqual((read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0))","ik",{"$":0},"self.assertIs(result[4], mock.sentinel.reservation)",["g0"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch"],
+"wc":[{"$":239},"ik",{"$":1},"'failure_evidence_persisted': False,",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch"],
 
-"wd":["self.assertEqual(launch.call_count, 0)","dd",{"$":0},"self.assertEqual(launch.call_count, 1)",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_campaign_zero_launch_and_independent_patched_fake_control"],
+"wd":[{"$":97},"dd",{"$":1},"self.assertRaisesRegex(LegacyNativePoolExecutionRetired, '^legacy-pool-execution-retired$')",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_campaign_server_refuses_without_a_launch"],
 
 "wf":["self.assertEqual(source['files_sha256'], hashlib.sha256(gate.source_io.encoded(source['files'])).hexdigest())","d5",{"$":1},"self.assertTrue(environment['scratch_filesystem'])",[],"tests.test_release_filesystem.ReleaseFilesystemTests.test_actual_source_snapshot_and_runtime_identities_are_bound"],
 

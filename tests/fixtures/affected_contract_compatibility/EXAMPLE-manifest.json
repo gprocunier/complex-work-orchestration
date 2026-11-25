@@ -545,7 +545,7 @@
     "scripts/route_work.py": "7277646d6faef0bc3dcd414a74ac9b732b82b8baf9b4dd4575e8a522112cb4ba",
     "scripts/run_admitted_native_pool_transaction.py": "41a760ee30302f9d67a9a9e86001f2fbf1f64c4d67ad9bd9abf98c1fbae160f5",
     "scripts/run_native_pool_activation_preview.py": "b345a67f7ecea8846f089e0e36d25f3f38abc332cdaf83257356df1fd1050b25",
-    "scripts/run_native_pool_live_canaries.py": "9c99a031e5d19651ba9c86f1b231785ac57b317ed3587e8be39fbd7fa810b4fc",
+    "scripts/run_native_pool_live_canaries.py": "25803d954465b0fd598c7e56b4d1e967319c33e4df27c93c50b3e2c173499451",
     "scripts/scaffold_workgraph.py": "4ba0b18cbed4b4966fcad8bd5afd20ec591b59c4c28bceeba65aa6c843fb1070",
     "scripts/setup_workspace_database.py": "f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd",
     "scripts/validate_run_readiness_plan.py": "4206e5f37d4024a3fc1dfa4066d3ff723f752d39cab87b450ca7f4da4526cb86",
@@ -561,7 +561,7 @@
     "tests/real_beads_fixture.py": "2a511efad89d9ddb9a5c8dfea76e45eb440d9d5c5bf27405e228ca93c3a46275",
     "tests/test_affected_contract_compatibility.py": "428b92616f702ee4c09cf43f3e05d0dab55d502ac464c2a41272497a230a44a5",
     "tests/test_beads_ready_set.py": "f0d40bac7c5596fbef8e9d2739b0823eb3df1abd1b10fe8a5bca183d2983a8cc",
-    "tests/test_codex_tool_surface.py": "162b77a5b7c7885422b5ebeb0e0f0807e22304e2ef6bd5a365c8137e5cd1fb07",
+    "tests/test_codex_tool_surface.py": "5527d43f3b5658669a99ee02e6403b0ed57f1cc6f8491f6a3f373eb5bfd1d9b8",
     "tests/test_invocation_ledger.py": "578badd9e3ec54b6b2faad8c0c94b9f92024c495cf365dada13c00e8bb3a38a4",
     "tests/test_linux_owned_children.py": "95c50998fb7e5cbc961ca6c7bbc53af6b703d5dfc39fff9df9106722db2b9e92",
     "tests/test_local_admission_preparation.py": "e57e952c8e0f908b535e18971f0dbefc7606648f2b87c910bbd47e9290547551",
@@ -572,7 +572,7 @@
     "tests/test_native_pool.py": "c2817206e2867ffa80b7a7dd6f36d9ba0811a3e72507022fdd4be6f0c401cccf",
     "tests/test_native_pool_admission.py": "ff2f3205ad88d81bf9003c8209cb6da2d71b59b0ed77399426159bbeb9226701",
     "tests/test_native_pool_admission_contracts.py": "8ea38b5c763ad46265a73a521e4b2f1284d6dcec970b75b8be4600eaed55d7ad",
-    "tests/test_native_pool_config.py": "0826b0b65b11b93a1f0cc0edda4cd23169b4dde773507fb2e5ebf5a99a954d7f",
+    "tests/test_native_pool_config.py": "fa35d187a0cda970bfe9007a0b6f9e636aa5ee02a5cae5c32ab0cd4d65d70e50",
     "tests/test_native_pool_contracts.py": "3439cbaedbf891e5b1baf903f721d28633bd7ea1c85386becbf7e9c6c8c5ca75",
     "tests/test_native_pool_preflight.py": "9652cc113f052b4a76812400aeb7a19deb478f4711075844313e69ccf5da47c0",
     "tests/test_native_pool_proportionality.py": "e3973deec1e9974bec982704fc84b85a9f6cb2bb342d588fb9cc25af0f0ae2bb",
@@ -599,9 +599,9 @@
     "tests/test_registered_server_requests.py": "c06a550e63d423b15841ef01fb6f7a93e4c4bc30b7e7d1aa8b4891fd1835c024",
     "tests/test_route_feasibility_preparation.py": "45b615f5e7ad013c166846ba499c34c525452011539ed5de4eecbab6c8a5416f",
     "tests/test_run_admitted_native_pool_transaction.py": "f670ae613b3fd959ea7c5792065f5d7a84f4f53e5fcdb763222ab0ef032e76cf",
-    "tests/test_run_native_pool_live_canaries.py": "2d8b59bc4e130ab51fc0d3e05a01646a03dc7471519b7e4d2248e2cd76a80d15",
+    "tests/test_run_native_pool_live_canaries.py": "457faf170c21163beb3738d3a10d95c7a8e3d65d71523a351460bb05d34e9839",
     "tests/test_run_readiness_plan.py": "e6e91c1894e4ce096eba5e5e92501ea05a9f60804c0425552ae4f5a7f9ffb8b7",
-    "tests/test_w20_affected_contract_w13.py": "8c96f02835a896480264b15c686afdef0f8089dde7e36072664a62026458f5d8",
+    "tests/test_w20_affected_contract_w13.py": "54206e4292e208b684fbb977c419e9a587f84c98b80db8e36f447afb79687675",
     "tests/test_workflow_adjudication.py": "d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5",
     "tests/fixtures/affected_contract_compatibility/legacy-transport-before-bounds.txt": "264522cef555c0682227edf927ec1ab57dbee8776d8e360722c3d2e8fd874566",
     "scripts/cwo_core/qualification_target.py": "75f7c8cb444f1d5ac1f6ac415ead7cd9f74064da37e9550a7bd45d4de69ecd55",
@@ -1887,23 +1887,16 @@
       "scripts/codex_tool_surface.py",
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/native_canary_contracts.py",
-      "scripts/cwo_core/native_control.py",
       "scripts/cwo_core/native_live_allocation_ledger.py",
       "scripts/cwo_core/native_live_availability.py",
-      "scripts/cwo_core/native_live_campaign_contracts.py",
       "scripts/cwo_core/native_pool.py",
       "scripts/cwo_core/native_pool_capacity.py",
       "scripts/cwo_core/native_pool_capacity_compat.py",
-      "scripts/cwo_core/native_pool_config.py",
       "scripts/cwo_core/native_pool_contracts.py",
-      "scripts/cwo_core/native_pool_leases.py",
-      "scripts/cwo_core/native_pool_preflight.py",
       "scripts/cwo_core/native_pool_schedulability.py",
       "scripts/cwo_core/native_pool_scheduler.py",
-      "scripts/cwo_core/native_pool_workspace.py",
       "scripts/cwo_core/native_session.py",
       "scripts/cwo_core/native_session_boundary.py",
-      "scripts/cwo_core/native_stop_scope.py",
       "scripts/cwo_core/native_tool_isolation.py",
       "scripts/cwo_core/native_turn_dispatch.py",
       "scripts/cwo_core/native_worker_contracts.py",
@@ -1912,8 +1905,7 @@
       "scripts/cwo_core/supervision/transport/app_server.py",
       "scripts/cwo_core/supervision/transport/errors.py",
       "scripts/cwo_core/supervision/transport/private_io.py",
-      "scripts/cwo_core/workspace.py",
-      "scripts/cwo_core/workspace_capture.py"
+      "scripts/cwo_core/workspace.py"
     ],
     "scripts/scaffold_workgraph.py": [
       "scripts/cwo_core/__init__.py",
@@ -2000,6 +1992,7 @@
     "tests/test_codex_tool_surface.py": [
       "scripts/codex_tool_surface.py",
       "scripts/cwo_core/native_live_availability.py",
+      "scripts/cwo_core/supervision/transport/app_server.py",
       "scripts/run_native_pool_live_canaries.py"
     ],
     "tests/test_invocation_ledger.py": [
@@ -2093,8 +2086,7 @@
       "scripts/cwo_core/native_stop_scope.py",
       "scripts/cwo_core/native_tool_isolation.py",
       "tests/real_beads_fixture.py",
-      "tests/test_native_pool_contracts.py",
-      "tests/test_run_native_pool_live_canaries.py"
+      "tests/test_native_pool_contracts.py"
     ],
     "tests/test_native_pool_contracts.py": [
       "scripts/cwo_core/__init__.py",
@@ -2305,19 +2297,15 @@
     "tests/test_run_native_pool_live_canaries.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/native_activation_preview.py",
-      "scripts/cwo_core/native_canary_contracts.py",
       "scripts/cwo_core/native_live_allocation_ledger.py",
-      "scripts/cwo_core/native_live_campaign_contracts.py",
       "scripts/cwo_core/native_tool_isolation.py",
       "scripts/cwo_core/native_turn_dispatch.py",
       "scripts/cwo_core/native_worker_contracts.py",
       "scripts/cwo_core/supervision/__init__.py",
       "scripts/cwo_core/supervision/transport/__init__.py",
       "scripts/cwo_core/supervision/transport/app_server.py",
-      "scripts/cwo_core/supervision/transport/private_io.py",
       "scripts/cwo_core/workspace_capture.py",
       "tests/real_beads_fixture.py",
-      "tests/test_native_canary_contracts.py",
       "tests/test_native_live_allocation_ledger.py",
       "tests/test_native_pool.py"
     ],
@@ -2524,22 +2512,22 @@
     },
     {
       "kind": "computed import; explicit finite mapping retained",
-      "line": 1212,
+      "line": 1207,
       "path": "tests/test_w20_affected_contract_w13.py"
     },
     {
       "kind": "computed import; explicit finite mapping retained",
-      "line": 801,
+      "line": 789,
       "path": "tests/test_w20_affected_contract_w13.py"
     },
     {
       "kind": "computed import; explicit finite mapping retained",
-      "line": 1214,
+      "line": 1209,
       "path": "tests/test_w20_affected_contract_w13.py"
     },
     {
       "kind": "computed import; explicit finite mapping retained",
-      "line": 807,
+      "line": 795,
       "path": "tests/test_w20_affected_contract_w13.py"
     }
   ]

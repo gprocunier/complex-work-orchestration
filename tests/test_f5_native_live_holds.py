@@ -1,7 +1,7 @@
 """Held native routes: zero live launches and explicit fake positive controls."""
 from __future__ import annotations
 
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
@@ -250,77 +250,92 @@ class F5NativeLiveHoldTests(unittest.TestCase):
                 self.assertIs(V._start_activation_server('n2-read-only'), launch.return_value)
             self.assertEqual(launch.call_count, 3)
 
-    def test_f5_held_campaign_zero_launch_and_independent_patched_fake_control(self):
-        with mock.patch.object(C, 'AppServer', return_value=object()) as launch:
-            for n1, pool, campaign in ((False, True, True), (True, False, True), (True, True, False)):
+    def test_f5_campaign_server_refuses_without_a_launch(self):
+        with mock.patch.object(C, 'AppServer') as launch:
+            for n1, pool, campaign, code in (
+                (False, True, True, 'native-n1-live-unavailable'),
+                (False, False, True, 'native-pool-live-unavailable'),
+                (False, False, False, 'native-campaign-live-unavailable'),
+            ):
                 with self.subTest(n1=n1, pool=pool, campaign=campaign), \
-                     mock.patch.multiple(A, N1_LIVE_AVAILABLE=n1, POOL_LIVE_AVAILABLE=pool, CAMPAIGN_LIVE_AVAILABLE=campaign), \
-                     self.assertRaises(A.NativeLiveUnavailable):
+                     mock.patch.multiple(A, N1_LIVE_AVAILABLE=n1, POOL_LIVE_AVAILABLE=pool,
+                                         CAMPAIGN_LIVE_AVAILABLE=campaign), \
+                     self.assertRaisesRegex(A.NativeLiveUnavailable, '^' + code + '$'):
                     C._start_campaign_server()
-            self.assertEqual(launch.call_count, 0)
-            with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True):
-                self.assertIs(C._start_campaign_server(), launch.return_value)
-            self.assertEqual(launch.call_count, 1)
+            with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True,
+                                     CAMPAIGN_LIVE_AVAILABLE=True), \
+                 self.assertRaisesRegex(LegacyNativePoolExecutionRetired, '^legacy-pool-execution-retired$'):
+                C._start_campaign_server()
+        launch.assert_not_called()
 
     def test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds(self):
         server = mock.Mock()
         options = dict(root=Path('/EXAMPLE'), integration=Path('/EXAMPLE'), pool_name='EXAMPLE',
             worktrees=[], mutable=False, prompts=[], expected_tokens=[], pre_thread_start_check=mock.Mock())
-        for n1, pool, campaign in ((False, True, True), (True, False, True), (True, True, False)):
-            with self.subTest(n1=n1, pool=pool, campaign=campaign), \
-                 mock.patch.multiple(A, N1_LIVE_AVAILABLE=n1, POOL_LIVE_AVAILABLE=pool, CAMPAIGN_LIVE_AVAILABLE=campaign):
+        for n1, pool, campaign, exception, code in (
+            (False, False, False, A.NativeLiveUnavailable, 'native-campaign-live-unavailable'),
+            (False, False, True, A.NativeLiveUnavailable, 'native-pool-live-unavailable'),
+            (False, True, True, A.NativeLiveUnavailable, 'native-n1-live-unavailable'),
+            (True, True, True, LegacyNativePoolExecutionRetired, 'legacy-pool-execution-retired'),
+        ):
+            with mock.patch.multiple(A, N1_LIVE_AVAILABLE=n1, POOL_LIVE_AVAILABLE=pool,
+                                     CAMPAIGN_LIVE_AVAILABLE=campaign):
                 for entry in (C.run_pool_canary, C.build_pool_inputs):
-                    with self.subTest(entry=entry.__name__), self.assertRaises(A.NativeLiveUnavailable):
+                    with self.subTest(entry=entry.__name__, code=code), self.assertRaisesRegex(exception, '^' + code + '$'):
                         entry(server, {}, {}, **options)
         self.assertEqual(server.mock_calls, [])
-        with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True), \
-             mock.patch.object(C.uuid, 'uuid4', side_effect=FakeLaunchReached) as boundary:
-            with self.assertRaises(FakeLaunchReached):
-                C.build_pool_inputs(server, {}, {}, **options)
-            boundary.assert_called_once_with()
+        options["pre_thread_start_check"].assert_not_called()
 
     def test_retired_campaign_wrappers_refuse_with_all_holds_patched(self):
-        server = mock.Mock()
-        options = dict(root=Path('/EXAMPLE'), integration=Path('/EXAMPLE'), pool_name='EXAMPLE',
-            worktrees=[], mutable=False, prompts=[], expected_tokens=[], pre_thread_start_check=mock.Mock())
-        with tempfile.TemporaryDirectory() as directory:
-            output = Path(directory) / 'EXAMPLE-output.json'
-            args = SimpleNamespace(output=str(output), campaign_nonce="00000000-0000-4000-8000-000000000000")
-            stderr = io.StringIO()
-            with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True), \
-                 mock.patch.object(C, 'build_pool_inputs', side_effect=FakeLaunchReached) as prepare, \
-                 mock.patch.object(C.argparse.ArgumentParser, 'parse_args', return_value=args), \
-                 mock.patch.object(C, 'load_private_json_snapshot', side_effect=FakeLaunchReached) as read, \
-                 mock.patch.object(C, 'acquire_global_campaign_claim', side_effect=FakeLaunchReached) as claim, \
-                 mock.patch.object(C, 'write_private_artifact', side_effect=FakeLaunchReached) as write, \
-                 mock.patch.object(C, 'AppServer', side_effect=FakeLaunchReached) as launch, redirect_stderr(stderr):
-                with self.assertRaisesRegex(LegacyNativePoolExecutionRetired, '^legacy-pool-execution-retired$'):
-                    C.run_pool_canary(server, {}, {}, **options)
-                self.assertEqual(C.main(), 1)
-                self.assertEqual((prepare.call_count, read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0, 0))
-            self.assertEqual(json.loads(stderr.getvalue())['failure_code'], 'legacy-pool-execution-retired')
-            self.assertEqual(server.mock_calls, [])
-            options["pre_thread_start_check"].assert_not_called()
-            self.assertEqual(list(Path(directory).iterdir()), [])
+        inputs = mock.Mock()
+        path = Path('/EXAMPLE/never-created')
+        options = dict(output=path, authorization_state=path, steering_registry=path, allocation_ledger=path)
+        with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True):
+            with self.assertRaisesRegex(LegacyNativePoolExecutionRetired, '^legacy-pool-execution-retired$'):
+                C.validate_and_acquire_global_campaign_claim(inputs, campaign_nonce='', authorization_id='',
+                    authorization_sha256='', repo_head='', guarded_primary=path, **options)
+        self.assertEqual(inputs.mock_calls, [])
 
     def test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'EXAMPLE-output.json'
             args = SimpleNamespace(output=str(output))
-            stderr = io.StringIO()
-            with mock.patch.object(C.argparse.ArgumentParser, 'parse_args', return_value=args), \
-                 mock.patch.object(C, 'load_private_json_snapshot', side_effect=AssertionError) as read, \
-                 mock.patch.object(C, 'acquire_global_campaign_claim', side_effect=AssertionError) as claim, \
-                 mock.patch.object(C, 'write_private_artifact', side_effect=AssertionError) as write, \
-                 mock.patch.object(C, 'AppServer', side_effect=AssertionError) as launch, redirect_stderr(stderr):
-                self.assertEqual(C.main(), 1)
-                with self.assertRaises(A.NativeLiveUnavailable):
-                    C.validate_and_acquire_global_campaign_claim(None, campaign_nonce='', authorization_id='',
-                        authorization_sha256='', repo_head='', guarded_primary=output, output=output,
-                        authorization_state=output, steering_registry=output, allocation_ledger=output)
-                self.assertEqual((read.call_count, claim.call_count, write.call_count, launch.call_count), (0, 0, 0, 0))
-            self.assertEqual(json.loads(stderr.getvalue())['failure_code'], 'native-campaign-live-unavailable')
-            self.assertEqual(list(Path(directory).iterdir()), [])
+            for n1, pool, campaign, exception, code in (
+                (False, False, False, A.NativeLiveUnavailable, 'native-campaign-live-unavailable'),
+                (False, False, True, A.NativeLiveUnavailable, 'native-pool-live-unavailable'),
+                (False, True, True, A.NativeLiveUnavailable, 'native-n1-live-unavailable'),
+                (True, True, True, LegacyNativePoolExecutionRetired, 'legacy-pool-execution-retired'),
+            ):
+                stderr = io.StringIO()
+                stdout = io.StringIO()
+                with self.subTest(code=code), \
+                     mock.patch.multiple(A, N1_LIVE_AVAILABLE=n1, POOL_LIVE_AVAILABLE=pool,
+                                         CAMPAIGN_LIVE_AVAILABLE=campaign), \
+                     mock.patch.object(C.argparse.ArgumentParser, 'parse_args', return_value=args), \
+                     mock.patch.object(C, 'load_private_json_snapshot') as read, \
+                     mock.patch.object(C, 'acquire_global_campaign_claim') as claim, \
+                     mock.patch.object(C, 'write_private_artifact') as write, \
+                     mock.patch.object(C, 'AppServer') as launch, \
+                     redirect_stderr(stderr), redirect_stdout(stdout):
+                    self.assertEqual(C.main(), 1)
+                    with self.assertRaisesRegex(exception, '^' + code + '$'):
+                        C.validate_and_acquire_global_campaign_claim(None, campaign_nonce='', authorization_id='',
+                            authorization_sha256='', repo_head='', guarded_primary=output, output=output,
+                            authorization_state=output, steering_registry=output, allocation_ledger=output)
+                    for effect in (read, claim, write, launch):
+                        effect.assert_not_called()
+                report = json.loads(stderr.getvalue())
+                self.assertEqual(report, {
+                    'release_gate_passed': False,
+                    'failure_class': exception.__name__,
+                    'failure_code': code,
+                    'failure_message_sha256': C.sha256_text(code),
+                    'evidence_sha256': report['evidence_sha256'],
+                    'failure_evidence_persisted': False,
+                })
+                self.assertRegex(report['evidence_sha256'], '^[0-9a-f]{64}$')
+                self.assertEqual(stdout.getvalue(), '')
+                self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup(self):
         """Already-created transports still refuse new native work at the wire."""
@@ -407,20 +422,6 @@ class F5NativeLiveHoldTests(unittest.TestCase):
     def test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter(self):
         from tests import test_run_native_pool_live_canaries as fixtures
         fixture = fixtures.LiveThreadBoundaryPhaseTests('runTest')
-        # Observe the selector from actual build_pool_inputs, then exercise that
-        # selected contract on the functioning admitted fake-turn fixture.
-        selected = []
-        original_adapter = fixtures.LIVE.LiveThreadAdapter
-        def capture_adapter(*args, **kwargs):
-            value = original_adapter(*args, **kwargs)
-            selected.append(value.campaign_live_route)
-            return value
-        with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True), \
-             mock.patch.object(fixtures.LIVE, 'LiveThreadAdapter', side_effect=capture_adapter):
-            fixtures.FullAutoAuthorizationLauncherTests(
-                'test_pool_setup_forwards_bound_receipt_without_context_free_validation'
-            ).test_pool_setup_forwards_bound_receipt_without_context_free_validation()
-        self.assertEqual(len(selected), 2)
         # Omission must select the same campaign hold as the explicit pool route.
         with tempfile.TemporaryDirectory() as directory, mock.patch.object(A, 'N1_LIVE_AVAILABLE', True):
             root = Path(directory)
@@ -444,7 +445,7 @@ class F5NativeLiveHoldTests(unittest.TestCase):
                     with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True):
                         adapter = C.LiveThreadAdapter(server, server.thread_response(), prompt='bounded prompt',
                             expected_token='DONE', worktree=root, mutable=False, expected_mutation=None,
-                            record_dir=root, campaign_live_route=selected[0])
+                            record_dir=root, campaign_live_route=True)
                         fixture.controller_bind_and_arm(adapter)
                         original = adapter._require_effective_boundary
                         if stage == 'late':
