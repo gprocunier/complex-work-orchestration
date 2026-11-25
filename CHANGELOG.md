@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Tests
+
+- Wait for the registered reply to settle in the native delivery review acceptance fixture.
+
 ## 1.36.7 - 2026-11-25
 
 - Document controller-signed approvals and controller-prepared inputs for contained pool qualification.

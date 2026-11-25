@@ -109,6 +109,7 @@ class AcceptanceProductFlowTests(unittest.TestCase):
 
     def test_native_consumer_preserves_the_exact_original_delivery_review_positive(self):
         native = self.native_delivery()
+        native.case.settle_reply = True
         result = native.run_native(archive_schedule='settled')
         self.assertTrue(result['execution_complete'])
         self.assertTrue(result['validation_complete'])
