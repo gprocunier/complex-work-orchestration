@@ -4,6 +4,22 @@
 
 - Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Resume interrupted delivery without starting another worker.
 
+### Tests
+
+- Preserve archive failures that occur after the registered exhaustion fixture observes the archive request.
+
+## 1.36.4 - 2026-11-25
+
+- Recognize Codex's final-answer notification when verifying a pool worker's completion marker.
+
+## 1.36.3 - 2026-11-25
+
+- Explain when to use the architect profile or plain Codex, and document the current requirements for delegated work.
+
+### Tests
+
+- Preserve archive worker failures in the registered interrupt fixture when they occur before the archive request.
+
 ## 1.36.2 - 2026-11-24
 
 - Use a direct dedicated-login bind for compatible pool workers to avoid slow overlay teardown while preserving their session archive and login custody.
