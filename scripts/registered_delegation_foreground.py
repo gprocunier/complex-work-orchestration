@@ -183,11 +183,12 @@ def _authorize(source, sink, project, message, elicitation):
         if pending is not None:
             if type(pending) is not approval.PendingDelegationApproval:
                 raise ValueError('The original protected preparation is required.')
-            from registered_delegation_preparation import discard_unretained
             try:
                 _retain(pending, _ask(source, sink, pending, proposal, message['id']))
             finally:
-                discard_unretained(pending)
+                if pending._preparation_root is not None:
+                    from registered_delegation_preparation import discard_unretained
+                    discard_unretained(pending)
         return _text(_RETAINED)
     except (OSError, ValueError, SystemExit) as failure:
         return _text(str(failure), error=True)
