@@ -1240,6 +1240,18 @@ class RegisteredRequestsTests(unittest.TestCase):
             self.assertIsInstance(results[0], BaseException)
             self.assertIn('Scratch candidates must stay outside both repositories', str(results[0]))
 
+    def wait_for_interrupt_reply(self, process):
+        requests = process.case.factory.server.requests
+        key = runtime.protocol._id_key('EXAMPLE-request')
+
+        def settled():
+            with requests.lock:
+                entry = requests.entries.get(key)
+                return requests.server.transport_failure is not None or (
+                    entry is not None and (entry.state, entry.delivery) == ('sent', 'sent'))
+
+        self.assertTrue(until(settled, 8), 'EXAMPLE interrupt cancellation reply did not settle')
+
     def original_driver_interrupt(self, route, *, delayed_archive=False):
         entered, release = threading.Event(), threading.Event()
         original_decision = runtime._RegisteredServer._decision
@@ -1259,8 +1271,12 @@ class RegisteredRequestsTests(unittest.TestCase):
                 records.append({'type': 'response_item', 'payload': {'type': 'function_call',
                     'name': 'EXAMPLE_forbidden_tool', 'call_id': 'EXAMPLE-forbidden-call', 'arguments': '{}'}})
                 scenario.path.write_text(''.join(family.json.dumps(r) + '\n' for r in records))
-            elif method == 'turn/interrupt' and route == 'check':
-                process.case.scenario.append_terminal('turn_aborted')
+            elif method == 'turn/interrupt':
+                # The fake peer publishes terminal evidence after the original
+                # writer settles its cancellation of the pending approval.
+                self.wait_for_interrupt_reply(process)
+                if route == 'check':
+                    process.case.scenario.append_terminal('turn_aborted')
             return value
         archive_type = sys.modules[runtime.RegisteredAdapter.finalize.__module__].StagedThreadArchive
         original_ready = archive_type.completion_ready

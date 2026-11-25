@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Tests
+
+- Wait for the registered cancellation reply to settle before the staged archive fixture publishes terminal evidence.
+
 ## 1.38.0 - 2026-11-25
 
 - Record signed pool qualification budget increases as linked allowances and count starts across them.
