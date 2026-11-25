@@ -91,6 +91,23 @@
     "definition_of_done": {"type": "array", "items": {"$ref": "#/$defs/check"}},
     "evidence_expectations": {"type": "array", "items": {"type": "string"}},
     "resume_commands": {"type": "array", "items": {"type": "string"}},
+    "status_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "outcome", "goal", "completed_and_verified", "what_stands_in_the_way",
+        "next_step", "what_it_enables", "reader_action"
+      ],
+      "properties": {
+        "outcome": {"type": "string", "minLength": 1},
+        "goal": {"type": "string", "minLength": 1},
+        "completed_and_verified": {"type": "string", "minLength": 1},
+        "what_stands_in_the_way": {"type": "string", "minLength": 1},
+        "next_step": {"type": "string", "minLength": 1},
+        "what_it_enables": {"type": "string", "minLength": 1},
+        "reader_action": {"type": "string", "minLength": 1}
+      }
+    },
     "operator_handoff_packet": {
       "type": "object",
       "dependentRequired": {

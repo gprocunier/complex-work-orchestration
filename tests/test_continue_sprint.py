@@ -4,6 +4,7 @@ import json
 import importlib.util
 import io
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -58,6 +59,67 @@ V2_READY_SET_FIELDS = {
 
 
 class ContinueSprintTests(unittest.TestCase):
+    def test_invoice_continuation_explains_status_before_execution_details(self) -> None:
+        graph = ROOT / "tests" / "fixtures" / "invoice-continuation.md"
+        output = subprocess.check_output(
+            [
+                sys.executable, str(ROOT / "scripts" / "cwo.py"), "continue",
+                "--epic", "demo", "--sprint", "s-12", "--markdown-workgraph", str(graph),
+            ],
+            cwd=ROOT,
+            text=True,
+        )
+
+        summary, _, execution = output.partition("### Execution Details")
+        self.assertIn("Goal: Let customers download invoices as CSV", summary)
+        self.assertRegex(summary, r"Completed and verified: .*Build the invoice CSV export \(demo-16\)")
+        self.assertRegex(summary, r"What stands in the way: .*Enable customer invoice downloads \(demo-18\).*"
+                         r"Verify exported totals match the invoice \(demo-17\)")
+        self.assertRegex(summary, r"Next step: .*Verify exported totals match the invoice \(demo-17\)")
+        self.assertRegex(summary, r"What it enables: .*Enable customer invoice downloads \(demo-18\)")
+        self.assertIn("No decision is needed from you right now", summary)
+        self.assertNotIn("downstream item(s)", output)
+        self.assertIn("Sprint: s-12", execution)
+        self.assertIn("Exact command/resume:", execution)
+        self.assertEqual(validate_text(output, require_scoped_continuation=True), [])
+
+    def test_named_unlock_lists_remaining_prerequisites(self) -> None:
+        result = build_continuation_brief(
+            [
+                {"id": "other", "title": "Other project", "type": "epic"},
+                {"id": "demo", "title": "Let customers download invoices as CSV", "type": "epic"},
+                {"id": "check", "title": "Check invoice totals", "priority": 1},
+                {"id": "review", "title": "Review export permission"},
+                {"id": "rollout", "title": "Enable invoice downloads", "dependencies": ["check", "review"]},
+            ],
+            epic_id="demo",
+            sprint_id="s-12",
+        )
+        summary = result["status_summary"]
+        self.assertEqual(summary["goal"], "Let customers download invoices as CSV")
+        self.assertEqual(result["recommended_next_issue"]["id"], "check")
+        self.assertIn("removes a blocker for Enable invoice downloads (rollout)", summary["what_it_enables"])
+        self.assertIn("Other blockers: depends on Review export permission (review)", summary["what_it_enables"])
+        self.assertNotIn("only recorded blocker", summary["what_it_enables"])
+
+    def test_fallback_heading_and_quoted_resume_without_explicit_epic(self) -> None:
+        graph = ROOT / "tests" / "fixtures" / "invoice-continuation.md"
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "invoice workgraph.md"
+            path.write_text(graph.read_text(encoding="utf-8").replace(
+                "### demo: Let customers download invoices as CSV", "### other: An unrelated epic",
+            ), encoding="utf-8")
+            result = build_continuation_brief(
+                load_markdown_items(path, "requested epic"), epic_id="requested epic", sprint_id="Sprint 12",
+                source="markdown-workgraph", markdown_workgraph_path=str(path),
+            )
+
+        self.assertEqual(result["sprint_goal"], "Let customers download invoices as CSV")
+        self.assertEqual(shlex.split(result["operator_handoff_packet"]["exact_command_resume"]), [
+            "python3", "scripts/cwo.py", "continue", "--epic", "requested epic", "--sprint", "Sprint 12",
+            "--markdown-workgraph", str(path),
+        ])
+
     def test_real_beads_cli_budget_counts_original_graph_queries(self) -> None:
         # Match the actual traversal, including empty list queries for leaves
         # and a second exact-show batch when the fixture grows beyond 50 issues.
@@ -149,18 +211,18 @@ class ContinueSprintTests(unittest.TestCase):
 
         self.assertEqual(result["recommended_next_issue"]["id"], "engine")
         self.assertIn("priority 1", result["why_next"])
-        self.assertIn("unblocks 1 downstream", result["why_next"])
+        self.assertIn("removes a blocker for Validate (validate)", result["why_next"])
         self.assertEqual([item["id"] for item in result["ready_issues"]], ["engine", "docs"])
 
         packet = result["operator_handoff_packet"]
-        self.assertEqual(packet["next_action"], "Continue engine Engine")
-        self.assertEqual(packet["waiting_on"], "validate: depends on engine (open)")
+        self.assertEqual(packet["next_action"], "Continue Engine (engine)")
+        self.assertEqual(packet["waiting_on"], "Validate (validate): depends on Engine (engine) (open)")
         rendered = io.StringIO()
         with redirect_stdout(rendered):
             print_text(result)
         handoff = rendered.getvalue().split("## Operator Handoff Packet\n", 1)[1]
-        self.assertIn("- Next action: Continue engine Engine", handoff)
-        self.assertIn("- Waiting on: validate: depends on engine (open)", handoff)
+        self.assertIn("- Next action: Continue Engine (engine)", handoff)
+        self.assertIn("- Waiting on: Validate (validate): depends on Engine (engine) (open)", handoff)
         self.assertEqual(validate_text(handoff, require_scoped_continuation=True), [])
 
     def test_beads_dependency_objects_ignore_parent_child_and_extract_blockers(self) -> None:
@@ -195,7 +257,7 @@ class ContinueSprintTests(unittest.TestCase):
         blockers = {item["id"]: item["blockers"] for item in result["blocked_issues"]}
 
         self.assertEqual(result["recommended_next_issue"]["id"], "architect")
-        self.assertEqual(blockers["implementation"], ["depends on architect (open)"])
+        self.assertEqual(blockers["implementation"], ["depends on Frame (architect) (open)"])
 
     def test_nonblocking_relationship_types_do_not_suppress_ready_work(self) -> None:
         items = [
@@ -248,7 +310,7 @@ class ContinueSprintTests(unittest.TestCase):
         result = build_continuation_brief(items, epic_id="epic")
         blockers = {item["id"]: item["blockers"] for item in result["blocked_issues"]}
 
-        self.assertEqual(blockers["implementation"], ["depends on design-open (open)"])
+        self.assertEqual(blockers["implementation"], ["depends on Open Design (design-open) (open)"])
 
     def test_markdown_fallback_is_reduced_durability_and_preserves_modeling_note(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -296,7 +358,7 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertEqual(result["blocked_issues"][0]["id"], "implementation")
         self.assertEqual(
             result["operator_handoff_packet"]["next_executable_bead"],
-            "architect Architect Frame",
+            "Architect Frame (architect)",
         )
         self.assertEqual(
             result["operator_handoff_packet"]["exact_command_resume"],
@@ -353,6 +415,11 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertIsNone(packet["next_action"])
         self.assertIsNone(packet["waiting_on"])
         self.assertTrue(packet["execution_prompt"].startswith("STOP:"))
+        summary = result["status_summary"]
+        self.assertIn("Finished Work (done)", summary["completed_and_verified"])
+        self.assertIn("Verification was not checked", summary["completed_and_verified"])
+        self.assertEqual(summary["next_step"], "No next step is needed.")
+        self.assertEqual(summary["reader_action"], "No decision is needed from you right now.")
         self.assertNotIn(
             "Use $complex-work-orchestration to continue",
             packet["execution_prompt"],
@@ -368,7 +435,7 @@ class ContinueSprintTests(unittest.TestCase):
             result["warnings"],
         )
 
-    def test_blocked_markdown_status_requests_decision_without_execution(self) -> None:
+    def test_blocked_markdown_reports_unknown_owner_without_requesting_a_decision(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "workgraph.md"
             path.write_text(
@@ -411,8 +478,12 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertEqual([item["id"] for item in result["blocked_issues"]], ["guarded"])
         self.assertEqual(packet["next_executable_bead"], "none - blocked")
         self.assertIsNone(packet["next_action"])
-        self.assertEqual(packet["waiting_on"], "guarded: status is blocked")
-        self.assertTrue(packet["execution_prompt"].startswith("DECIDE:"))
+        self.assertEqual(packet["waiting_on"], "Guarded Work (guarded): status is blocked")
+        self.assertTrue(packet["execution_prompt"].startswith("BLOCKED:"))
+        summary = result["status_summary"]
+        self.assertIn("No owner is recorded", summary["next_step"])
+        self.assertIn("Guarded Work (guarded)", summary["what_it_enables"])
+        self.assertEqual(summary["reader_action"], "No decision is recorded for you.")
         self.assertNotIn(
             "Use $complex-work-orchestration to continue",
             packet["execution_prompt"],
@@ -517,7 +588,7 @@ class ContinueSprintTests(unittest.TestCase):
             )
 
         self.assertIn("Sprint Continuation Brief", output)
-        self.assertIn("validation Validate Example", output)
+        self.assertIn("Validate Example (validation)", output)
         self.assertIn("Operator Handoff Packet", output)
         self.assertIn(f"Exact command/resume: python3 scripts/cwo.py continue --epic epic --markdown-workgraph {path}", output)
         self.assertIn(MODELING_NOTE, output)
@@ -635,7 +706,7 @@ class ContinueSprintTests(unittest.TestCase):
         self.assertEqual(result["durability"], "durable")
         self.assertEqual(result["version"], 2)
         self.assertEqual(result["recommended_next_issue"]["id"], architect)
-        self.assertEqual(blockers[implementation], [f"depends on {architect} (open)"])
+        self.assertEqual(blockers[implementation], [f"depends on Architect frame ({architect}) (open)"])
         self.assertIn(package, blockers)
         self.assertIn("grouping container", " ".join(blockers[package]))
         self.assertEqual(
@@ -1168,7 +1239,7 @@ class ContinueSprintTests(unittest.TestCase):
         result = build_continuation_brief(items, epic_id="epic")
         blockers = {item["id"]: item["blockers"] for item in result["blocked_issues"]}
 
-        self.assertIn("depends on architect (open)", blockers["implementation"])
+        self.assertIn("depends on Frame (architect) (open)", blockers["implementation"])
         self.assertIn("guard label contractor-only prevents normal Codex pickup", blockers["contract"])
         self.assertIn("guard label no-codex-exec prevents normal Codex pickup", blockers["contract"])
 
