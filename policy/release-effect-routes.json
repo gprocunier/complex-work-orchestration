@@ -946,7 +946,7 @@
 
 "by":[34,"_bd",307,"KFETYMWutiy7oKdtIJlQ737RvnwT7ECcasLo1V831NY"],
 
-"bz":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",679,"RdM82WY4Rym3TDm4i0KVKoNz_2KZCdABI3lijGyPrD8"],
+"bz":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",680,"RdM82WY4Rym3TDm4i0KVKoNz_2KZCdABI3lijGyPrD8"],
 
 "c":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",316,"KG9Yb7CbGY8uV21XBUbFAdKc3aPeTLwhGJ33Wp-1c_g"],
 
@@ -1622,7 +1622,7 @@
 
 "hK":[43,"WorktreeCapture._git",1544,"lXu6_ArjpCYeUEmR_L2Xs7reKAgMAGXD542i66JeQZw"],
 
-"hL":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",3210,"ZZK0uOnxs_z_JO2qFZxRgR62Wc8XknE5EBPxX639f3M"],
+"hL":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",3215,"ZZK0uOnxs_z_JO2qFZxRgR62Wc8XknE5EBPxX639f3M"],
 
 "hM":[31,"MaintenanceAuthorityVerifier.__init__",344,"A4AtBZDbV9LB9FegVqelbuig4P_OIL5eSrutluzi6zQ"],
 
@@ -1706,11 +1706,11 @@
 
 "i":[187,195,"discard_unretained(pending)"],
 
-"i0":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2658,"kO5sOghQkPkS1thh5uz9BYs-eYNZT0LtvGM6j7kazJk"],
+"i0":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_pending_writer_reports_unresolved_then_drains",2663,"kO5sOghQkPkS1thh5uz9BYs-eYNZT0LtvGM6j7kazJk"],
 
-"i1":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",2511,"alm_tr9suSd4_Tvt0dzAWVapxuNHGP2MFCUdAGGDN-8"],
+"i1":[126,"RegisteredFiniteToolWiringTests._poll_wait_schedule",2516,"alm_tr9suSd4_Tvt0dzAWVapxuNHGP2MFCUdAGGDN-8"],
 
-"i2":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2623,"E9bV-3vxokMafiB227zCncDfBlAwRR6APXFZni6msKM"],
+"i2":[126,"RegisteredFiniteToolWiringTests.install_poll_record_hook",2628,"E9bV-3vxokMafiB227zCncDfBlAwRR6APXFZni6msKM"],
 
 "i3":[42,624,{"$":333},16,624,49],
 
@@ -1770,13 +1770,13 @@
 
 "iV":[88,"ShareConsentTests",140,"hWsLoXKAoy94rzemw37fsw5CsZ8vVH8MWBfo8XbicAY"],
 
-"iW":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2784,"kkhhm5E-QkrhwZbUIUiy86YzmLyv_--pCE0GJ46-1Dc"],
+"iW":[126,"RegisteredFiniteToolWiringTests.test_worker_shutdown_preserves_original_cleanup_failure_and_metadata",2789,"kkhhm5E-QkrhwZbUIUiy86YzmLyv_--pCE0GJ46-1Dc"],
 
-"iX":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2720,"5UrL8pT7G9vtSP6JkLlHMdSb-i6uN6QUHsgoFveLWq4"],
+"iX":[126,"RegisteredFiniteToolWiringTests.test_shutdown_rechecks_cleanup_registered_after_the_final_snapshot",2725,"5UrL8pT7G9vtSP6JkLlHMdSb-i6uN6QUHsgoFveLWq4"],
 
-"iY":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2695,"5g_k-hOfKKiD-m-bGzJAz-01oSQr_mOUvtc762b03Qw"],
+"iY":[126,"RegisteredFiniteToolWiringTests.test_shutdown_drains_cleanup_registered_by_a_joined_worker",2700,"5g_k-hOfKKiD-m-bGzJAz-01oSQr_mOUvtc762b03Qw"],
 
-"iZ":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2632,"cuGDYtgTI02tIT-ZPZfxBTrfWnz5I0zpZIdb8VALUGg"],
+"iZ":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2637,"cuGDYtgTI02tIT-ZPZfxBTrfWnz5I0zpZIdb8VALUGg"],
 
 "ia":[43,"WorktreeCapture._dirs",1550,"RyInlKdBKwbYhDsTBCa-7-OCgTXi5_PVtGLlXm54Cs0"],
 
@@ -2300,9 +2300,9 @@
 
 "mi":[77,517,{"$":360},17,517,58],
 
-"mj":[126,"RegisteredFiniteToolWiringTests._positive_finite_completion",466,"rgUCHbPXLG6dXWkpHlRotghPs2YCM4QZJkDB-VLcqdI"],
+"mj":[126,"RegisteredFiniteToolWiringTests._positive_finite_completion",467,"rgUCHbPXLG6dXWkpHlRotghPs2YCM4QZJkDB-VLcqdI"],
 
-"mk":[126,"RegisteredFiniteToolWiringTests._exit_between_command_read_and_reply",644,"rYUpEVzP5suXtWk7LX6Y-Y6TYa-ttjDlmTeDf8ULSTQ"],
+"mk":[126,"RegisteredFiniteToolWiringTests._exit_between_command_read_and_reply",645,"rYUpEVzP5suXtWk7LX6Y-Y6TYa-ttjDlmTeDf8ULSTQ"],
 
 "ml":[77,"SelectedNativeProbe._send",622,"0nTCH4Q06BiiHtSGxYCdKpHeo4sRfEDgHYaDo4ocRXc"],
 
@@ -2368,9 +2368,9 @@
 
 "nF":[137,"PrivatePidReuseContractTests.test_unverified_handoff_cannot_signal_an_unrelated_owned_sentinel",230,"X4i0_5teaIJBHRC_GV0AEfAntPRWgmlem5hRWFeDPJo"],
 
-"nG":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4837,"pNOfuNhX3cPvKFosnq5AvjjHCSwsg2TcdSqVJaO3_qA"],
+"nG":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4842,"pNOfuNhX3cPvKFosnq5AvjjHCSwsg2TcdSqVJaO3_qA"],
 
-"nH":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",5000,"RT_laVUqRXyolUYIargaAmVK7jbM1r3ZQbEieAoFGyA"],
+"nH":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",5005,"RT_laVUqRXyolUYIargaAmVK7jbM1r3ZQbEieAoFGyA"],
 
 "nI":[64,1615,"self.lifetime.launch(command, self.factory.home)",18,1615,66],
 
@@ -2802,13 +2802,13 @@
 
 "qh":[77,"SelectedNativeProbe._validate_request",607,"vKWOwyYMBa2WdfxUSavw_m4XhRb8yvAtXoE-6ChpXL4"],
 
-"qi":[126,"RegisteredFiniteToolWiringTests.test_exit_between_initial_read_and_reply_drains_tail_atomically",757,"6JAktIWydyOdVB7VGrTJbudrg9JKkuSwcBJHc0UITms"],
+"qi":[126,"RegisteredFiniteToolWiringTests.test_exit_between_initial_read_and_reply_drains_tail_atomically",758,"6JAktIWydyOdVB7VGrTJbudrg9JKkuSwcBJHc0UITms"],
 
 "qj":[140,"FiniteFixtureProgressTests.success_consumers",159,"ZRJQWYmzYDoH1NdmWJt0Of5aI5axui_GnG_bsURQK8k"],
 
 "qk":[140,"FiniteFixtureProgressTests.test_completion_join_waits_for_original_poll_intent",142,"76bg0fzSneuXfjEIz2zBzY26po-sTXreDydkPS8S0V0"],
 
-"ql":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",833,"QW7IhyKId1VpQRXElivAO11TiYcNTbUdt0kMEpIyAf8"],
+"ql":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",834,"QW7IhyKId1VpQRXElivAO11TiYcNTbUdt0kMEpIyAf8"],
 
 "qm":[155,404,"production_live = False",4,404,27],
 
@@ -3182,7 +3182,7 @@
 
 "xZ":[149,"ManagedLoginMount.prepare",184,"xBjS_yw1BFc3tzxG2gBH1dDkp1jnS17lndTbgzqgf4Y"],
 
-"xa":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1995,"PAp0EV984N9v4xN-E2bbDenXuW6cCnySfKkhPc_I3I8"],
+"xa":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1996,"PAp0EV984N9v4xN-E2bbDenXuW6cCnySfKkhPc_I3I8"],
 
 "xb":[74,"trusted_tool_evidence_summary",2509,"VtSVW0FU4bsVMm2XRzH9z5wwDiIxe5sd3hdWZSUbawE"],
 
@@ -3192,9 +3192,9 @@
 
 "xe":[146,443,"listener.listen(_MAX_CONNECTIONS)"],
 
-"xf":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1733,"rHqGz26DcuRCPhaZBmXn3PQLEhzldx_5HiG5QRJ8LGI"],
+"xf":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1734,"rHqGz26DcuRCPhaZBmXn3PQLEhzldx_5HiG5QRJ8LGI"],
 
-"xg":[126,"RegisteredFiniteToolWiringTests._run_live_capture_with_fake_rpc",1673,"kOW6K78Uvp2UK5lQrSWTk1tEjtnaeyoZN2oS0SxKO0Q"],
+"xg":[126,"RegisteredFiniteToolWiringTests._run_live_capture_with_fake_rpc",1674,"kOW6K78Uvp2UK5lQrSWTk1tEjtnaeyoZN2oS0SxKO0Q"],
 
 "xh":[146,"_bootstrap",456,"v1F_jC1bVB-U2Iyd5d8UaNmkJ0V4I-AYQYOpSLHu5O8"],
 
@@ -3206,9 +3206,9 @@
 
 "xl":[155,"PoolWorkerContainment.run_writer",593,"bbM0jbEJavxix4HVcqWyQFBfjM4KP0OvHkmF2RbRcOc"],
 
-"xn":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1846,"fohJgDaTU4AKlFvtzZUQJmX2UA8v9X3D3gaFzriU-Dc"],
+"xn":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1847,"fohJgDaTU4AKlFvtzZUQJmX2UA8v9X3D3gaFzriU-Dc"],
 
-"xo":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1843,"tAQNjlEXGx03Sp4m6No9wdtngq2zlpn9T-bndWyG5F8"],
+"xo":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1844,"tAQNjlEXGx03Sp4m6No9wdtngq2zlpn9T-bndWyG5F8"],
 
 "xp":[63,"_tool_specs",76,"LGozXb1Juzm8kqHJ0m60XstQARtlISkbTl977zag18A"],
 
@@ -3272,7 +3272,7 @@
 
 "yI":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",100,"TKDM2EN_5McvMjnNuLeDhdM1TUyN9uxjnhOWJCsKBWM"],
 
-"yJ":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1729,"tsH4Z3gZ9Ra2STShuInXDTY8l2DpDEKO8dP7Ez0_wgc"],
+"yJ":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1730,"tsH4Z3gZ9Ra2STShuInXDTY8l2DpDEKO8dP7Ez0_wgc"],
 
 "yK":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",574,"2XqBeAPDT_YaZTNhI5Y7an2_oAV7Fs6Jk_yGDVjTDvo"],
 
@@ -3382,7 +3382,7 @@
 
 "zG":[151,"ServerRequestPreparationTests.test_timestamped_notification_preserves_the_actual_frame",344,"AtzQIfiZYU8q4Z74MNPUybtWaQHjkUg_nYzOPejpD-c"],
 
-"zH":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",2001,"-XAUo1lxI_8f_4U93Q607tIeRZkZWPEp8ryuhTOSiWU"],
+"zH":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",2002,"-XAUo1lxI_8f_4U93Q607tIeRZkZWPEp8ryuhTOSiWU"],
 
 "zI":[63,"RegisteredFiniteToolCalls.receive",824,"S8NrUJjPTRy_QJr62rBPRZbUU4kGrV_x17eowfPfOrs"],
 
@@ -3400,7 +3400,7 @@
 
 "zP":[64,"_RegisteredServer._protocol_lines",1315,"z1hk6WGOxftuTiQ-DlkF-OccHfhikz0NbdD0DYmDfdU"],
 
-"zQ":[126,"RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item",785,"vsSd0qAIgEgLfcpHfylBrFqaN1Nn62Ad_EN3tvOBwXE"],
+"zQ":[126,"RegisteredFiniteToolWiringTests.test_qualification_terminal_rollout_waits_for_enqueued_poll_item",786,"vsSd0qAIgEgLfcpHfylBrFqaN1Nn62Ad_EN3tvOBwXE"],
 
 "zR":[62,"_FiniteLifecycle.authority_terminal_reply_sent",207,"GdCok_ORaIrkGqU-vduErNZklaIButod30Rx-ywsT6o"],
 
@@ -3422,7 +3422,7 @@
 
 "za":[64,748,"self._require_launch_command(command)"],
 
-"zb":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1939,"AALX7IPvFjXdUWuu0Tw2ewCkOi1m1sHQlMsmoxmw9WE"],
+"zb":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1940,"AALX7IPvFjXdUWuu0Tw2ewCkOi1m1sHQlMsmoxmw9WE"],
 
 "zc":[148,{"$":330},650,{"$":343}],
 
@@ -3454,7 +3454,7 @@
 
 "zq":[159,"SignedCalibrationPipeTests._run_calibration",265,"XxEketqySof3vD5zir__iIs7RUIHy3e-lIzXRmC_W-g"],
 
-"zr":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",2060,"4dDPt7_b5XjCafgK9ETW7SrPGwg82j4dpkhIjr49emA"],
+"zr":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",2061,"4dDPt7_b5XjCafgK9ETW7SrPGwg82j4dpkhIjr49emA"],
 
 "zs":[149,"_campaign_start",551,"v9jnkwPl2nmVU-RlaBUF2dfM3afmeoJzRJjSpsk4Brc"],
 
@@ -7256,7 +7256,7 @@
 
 "@125":["M3hnF8AafcunsylnTmqU8nWfX0uccaexCLuqS8N40oo",420,132735],
 
-"@126":["rpyay_XGHlUZ_g7JtJ3b7Q8fyQnYL-Uml_s5cZDfjYQ",420,291601],
+"@126":["Z4hQzldcfy8atQbgXHokWgegtVjEdbGMcDKe48r8fJ0",420,291893],
 
 "@127":["wKRaJ5rLsDiuJJMo333Xdr6XkTx0AFFIA14gYJUUCrI",420,140099],
 
@@ -7972,7 +7972,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["uuKjrdY9DRWxuykmhsoSW7_95l7RR8EPwdhYBvhpa7g",420,136082],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["ngXU8NqU2OQiY0dTcpyC8HJqoJoLCxs53EzRH4glKwM",420,136082],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
