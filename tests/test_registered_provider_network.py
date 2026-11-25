@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+from time import monotonic
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -157,6 +158,39 @@ class ProviderNetworkTests(unittest.TestCase):
             self.assertEqual(client.recv(1024), b'')
         with self.assertRaisesRegex(network.ProviderNetworkError, 'record'):
             self.broker.close()
+
+
+class ProviderBrokerCloseTests(unittest.TestCase):
+    def test_idle_receive_wakes_on_close(self):
+        receive = network._receive_handoff
+        wait = network.selectors.DefaultSelector.select
+        idle = threading.Event()
+
+        def observe_receive(control):
+            # Keep the old receive blocked long enough to separate wakeup from scheduling delay.
+            control.settimeout(1.5)
+            idle.set()
+            return receive(control)
+
+        def observe_wait(selector, timeout=None):
+            idle.set()
+            return wait(selector, timeout)
+
+        for action in ('revoke', 'close'):
+            with (self.subTest(action=action), patch.object(network, '_receive_handoff', observe_receive),
+                  patch.object(network.selectors.DefaultSelector, 'select', observe_wait)):
+                idle.clear()
+                broker = network.ProviderBroker(queue.Queue().put)
+                self.addCleanup(broker.close)
+                self.assertTrue(idle.wait(2))
+                broker.child_socket.close()  # The controller has already handed off the child endpoint.
+                start = monotonic()
+                getattr(broker, action)()
+                broker._owner.join(0.75)
+                self.assertFalse(broker._owner.is_alive())
+                self.assertLess(monotonic() - start, 0.75)
+                broker.close()
+                self.assertEqual((broker._control.fileno(), broker.child_socket.fileno()), (-1, -1))
 
 
 _APP_SERVER = '''#!/usr/bin/python3 -I
