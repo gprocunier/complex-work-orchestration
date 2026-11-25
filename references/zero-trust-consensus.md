@@ -48,23 +48,35 @@ implementation, architecture, review, contractor, or synthesis work.
 
 ## Invocation boundary
 
-Save each critic's original return and its audited evaluation JSON or host
-evaluation record digest. For a manual contractor packet, [record the return before evaluation](external-contracting.md#dispatch-flow)
+Save each critic's original return. For a manual contractor packet,
+[record the return before evaluation](external-contracting.md#dispatch-flow)
 and use `evaluate_return.py --contractor-packet PACKET --file RETURN --peer-review-required --json`.
 
-Create an input list with the exact `return` file for each lane. Supply exactly
-one evaluation source per entry. Use `evaluation` for the full evaluation JSON
-file, or use `evaluation_record_sha256` for the digest of an evaluation record
-in the configured host store. When an evaluator reports only a summary and
-`evaluation_record_sha256`, use that digest. File paths are relative to the list
-or absolute. Add explicit claims to the entry for the return that made them.
+Create an input list with the exact `return` file for each lane. For a
+host-recorded lane, supply either `evaluation` for the full evaluation JSON file
+or `evaluation_record_sha256` for the digest of an evaluation record in the
+configured host store. When an evaluator reports a summary with
+`evaluation_record_sha256`, use that digest. File paths are relative to the
+list or absolute. Add explicit claims to the entry for the return that made them.
 Use the claim fields described under [Claim Shape](#claim-shape).
+
+For a saved Codex main-thread architecture critique, use an `operator_codex`
+entry. Give it a `capture_id` unique among the input lanes, use the command's
+candidate and scope, and insert the SHA-256 digest from
+`sha256sum codex-review.md`. A capture ID uses 1 to 128 ASCII letters, digits,
+dots, underscores or hyphens and starts with a letter or digit. The example
+pairs that capture with a host-recorded outside critique.
 
 ```json
 [
   {
     "return": "codex-review.md",
-    "evaluation": "codex-evaluation.json",
+    "operator_codex": {
+      "capture_id": "operator-codex-review-3",
+      "return_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "candidate": "retry-plan-revision-3",
+      "scope": "retry-plan-design"
+    },
     "zero_trust_claims": [
       {
         "claim_id": "concurrency:retry-budget",
@@ -103,10 +115,19 @@ python3 scripts/evaluate_synthesis.py --inputs critic-inputs.json \
 consensus requirement and provider-conflict flags into the report. To require
 claim comparison directly, pass `--zero-trust-required`. The optional
 adjudications file contains existing [adjudication records](#adjudication),
-which still govern recommended primary use. The report checks each evaluation
-against the current policy and its recorded dispatch and exact received bytes.
-Where the dispatch records the candidate and scope, that binding must match.
-For older dispatches the report identifies candidate and scope as operator-selected.
+which still govern recommended primary use. For a host-recorded lane, the
+report checks the evaluation against the current policy, recorded dispatch and
+exact received bytes. Where the dispatch records the candidate and scope, that
+binding must match. For older dispatches the report identifies candidate and
+scope as operator-selected.
+
+The evaluator checks the Codex digest against the original UTF-8 bytes and
+scores the return under the registered Codex critic policy. The report carries
+the advisory hold and identifies the capture and digest under
+`input_provenance` with source `operator-supplied-codex`. The capture has an
+absent dispatch binding. Primary inputs alone count toward consensus.
+Peer-review verification, implementation and closure require their own
+recorded evidence.
 
 The command reads local evidence and prints a JSON report for the architect.
 Prepared manual-review dispatches still need observed peer-review evidence

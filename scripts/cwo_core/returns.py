@@ -435,6 +435,26 @@ def normalize_contractor_return(
     return bundle
 
 
+def mark_advisory_return(result: dict[str, Any]) -> None:
+    """Keep the evaluator's diagnostics and hold unqualified return evidence."""
+    result["result_class"] = "advisory-nonproduction"
+    result["implementation_blocked"] = True
+    result["accepted_for_use"] = False
+    result["evidence_use_hold"] = True
+    result["adjudication_required"] = True
+    result["human_adjudication_required"] = True
+    result["execution_permitted"] = False
+    if result.get("verdict") in {"accept", "partial-accept", "clarify"}:
+        result["verdict"] = "escalate"
+    if result.get("recommended_disposition") in {
+            "accept-findings", "accept-bounded-findings", "request-clarification"}:
+        result["recommended_disposition"] = "architect-adjudication"
+    result["hold_reasons"] = list(result.get("hold_reasons") or []) + ["nonproduction-advisory: unqualified source"]
+    if result.get("hold_classification") in {None, "", "none"}:
+        result["hold_classification"] = "nonproduction-advisory"
+    if result.get("recommended_synthesis_use") not in {"reject", "quarantine", "partial-only", "open-risk"}:
+        result["recommended_synthesis_use"] = "open-risk"
+
 
 def make_acceptance_decision(
     text: str,

@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Combine already evaluated critic returns for architect review."""
+"""Combine recorded critic evaluations and operator Codex evidence for architect review."""
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 from pathlib import Path
+import re
 
 from cwo_core.adjudication_binding import _evaluation_disposition
 from cwo_core.errors import CWOPolicyError
@@ -13,10 +14,12 @@ from cwo_core.host_acceptance import _policy_sha256, _source_context, _verify_re
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import MAX_RETURN_BYTES
 from cwo_core.peer_review import pending_evaluation_sha256, validate_peer_review_request
+from cwo_core.policy import executor_config
 from cwo_core.policy_schema import strict_json_loads
 from cwo_core.return_risk import procedural_hold_metadata
+from cwo_core.returns import make_acceptance_decision, mark_advisory_return
 from cwo_core.synthesis import evaluate_synthesis_inputs
-from cwo_core.synthesis_inputs import text
+from cwo_core.synthesis_inputs import digest, text
 
 
 def _read_bytes(path):
@@ -115,21 +118,19 @@ def _preserve_peer_requirement(store, dispatch, evaluation, return_sha256):
                 recommended_synthesis_use="open-risk" if recommendation == "primary" else recommendation)
 
 
-def _lane_input(item, evaluation, return_sha256):
+def _lane_input(item, evaluation, lane):
     # Carry the evaluator's holds and provider metadata through to the existing
     # synthesis policy. Only the local claims are supplied by the operator.
     disposition = _evaluation_disposition(evaluation)
     if evaluation["verdict"] == "partial-accept" and not evaluation["evidence_use_hold"]:
         disposition = "salvage-only"
-    entry = dict(evaluation, lane=evaluation["dispatch_id"], disposition=disposition,
-                 return_sha256=return_sha256, external=evaluation.get("provider_external"))
+    entry = dict(evaluation, lane=lane, disposition=disposition, external=evaluation.get("provider_external"))
     if "zero_trust_claims" in item:
         entry["zero_trust_claims"] = item["zero_trust_claims"]
     return entry
 
 
 def _recorded_lane(store, item, directory, candidate, scope, policy_sha256):
-    item = _object(item, "synthesis input")
     evaluation, selected_record = _evaluation_input(store, item, directory)
     raw = _read_bytes(_input_file(item, "return", directory))
     return_sha256 = hashlib.sha256(raw).hexdigest()
@@ -150,7 +151,54 @@ def _recorded_lane(store, item, directory, candidate, scope, policy_sha256):
         dispatch_record_sha256=dispatch["_record_sha256"], return_record_sha256=receipt["_record_sha256"],
         evaluation_sha256=evaluation_digest, candidate_scope_basis="recorded" if context else "operator-selected")
     projected = _preserve_peer_requirement(store, dispatch, evaluation, return_sha256)
-    return _lane_input(item, projected, return_sha256), binding, provenance
+    entry = _lane_input(item, projected, dispatch["dispatch_id"])
+    entry["return_sha256"] = return_sha256
+    return entry, binding, provenance
+
+
+def _operator_capture(item, candidate, scope):
+    if set(item) - {"operator_codex", "return", "zero_trust_claims"}:
+        raise ValueError("operator_codex input accepts only operator_codex, return and zero_trust_claims")
+    origin = _object(item["operator_codex"], "operator_codex")
+    if set(origin) != {"capture_id", "return_sha256", "candidate", "scope"}:
+        raise ValueError("operator_codex requires capture_id, return_sha256, candidate and scope")
+    capture_id = origin["capture_id"]
+    if not isinstance(capture_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", capture_id):
+        raise ValueError("operator_codex capture_id must be a bounded portable identifier")
+    return_sha256 = digest(origin["return_sha256"])
+    if return_sha256 is None:
+        raise ValueError("operator_codex requires a lowercase SHA-256 return digest")
+    if (origin["candidate"], origin["scope"]) != (candidate, scope):
+        raise ValueError("operator_codex candidate or scope differs from the synthesis selection")
+    return capture_id, return_sha256
+
+
+def _operator_codex_lane(item, directory, candidate, scope):
+    capture_id, return_sha256 = _operator_capture(item, candidate, scope)
+    raw = _read_bytes(_input_file(item, "return", directory))
+    if hashlib.sha256(raw).hexdigest() != return_sha256:
+        raise ValueError("operator_codex return does not match its exact SHA-256 digest")
+    executor = executor_config("codex_architecture_critic")
+    if executor["dispatch_mode"] != "main_thread_review" or executor["external"]:
+        raise ValueError("operator_codex requires the configured internal main-thread Codex critic")
+    evaluation = make_acceptance_decision(raw.decode("utf-8"),
+        executor=executor["key"], provider_key=executor["provider_key"], dispatch_mode=executor["dispatch_mode"],
+        share_boundary="no-outside-sharing",
+        job_description_label="contract-jd-architecture-reasoning")
+    mark_advisory_return(evaluation)
+    provenance = dict(source="operator-supplied-codex", candidate_scope_basis="operator-selected",
+        capture_id=capture_id, executor=evaluation["executor"], provider_key=evaluation["provider_key"],
+        return_sha256=return_sha256, evaluation_sha256=pending_evaluation_sha256(evaluation))
+    entry = _lane_input(item, evaluation, capture_id)
+    del entry["dispatch_id"]
+    return entry, None, provenance
+
+
+def _input_lane(store, item, directory, candidate, scope, policy_sha256):
+    item = _object(item, "synthesis input")
+    if "operator_codex" in item:
+        return _operator_codex_lane(item, directory, candidate, scope)
+    return _recorded_lane(store, item, directory, candidate, scope, policy_sha256)
 
 
 def _route_signals(path):
@@ -174,9 +222,14 @@ def _synthesize(args):
     required, flags = _route_signals(args.route)
     store = configured_store()
     policy_sha256 = _policy_sha256()
-    lanes = [_recorded_lane(store, item, args.inputs.parent, candidate, scope, policy_sha256) for item in items]
+    lanes = [_input_lane(store, item, args.inputs.parent, candidate, scope, policy_sha256) for item in items]
+    bindings = [binding for _, binding, _ in lanes if binding is not None]
+    capture_ids = [origin["capture_id"] for _, binding, origin in lanes if binding is None]
+    capture_names = set(capture_ids)
+    if len(capture_names) != len(capture_ids) or capture_names.intersection(binding["dispatch_id"] for binding in bindings):
+        raise ValueError("operator_codex capture_id must be unique in the input list")
     result = evaluate_synthesis_inputs([entry for entry, _, _ in lanes],
-        dispatch_records=[binding for _, binding, _ in lanes], adjudications=adjudications,
+        dispatch_records=bindings, adjudications=adjudications,
         candidate=candidate, scope=scope, zero_trust_required=required or args.zero_trust_required)
     return dict(result, input_provenance=[provenance for _, _, provenance in lanes],
                 provider_conflict_flags=flags, execution_permitted=False)
@@ -185,7 +238,7 @@ def _synthesize(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inputs", required=True, type=Path,
-                        help="JSON list of return files paired with evaluation files or host evaluation record digests.")
+                        help="JSON list of return files with recorded evaluations or explicit operator_codex evidence.")
     parser.add_argument("--candidate", required=True, help="Candidate or plan revision under review.")
     parser.add_argument("--scope", required=True, help="Adjudication scope for the selected candidate.")
     parser.add_argument("--adjudications", type=Path, help="JSON list of bound return adjudication records.")
