@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Resume interrupted delivery without starting another worker.
+
 ## 1.36.5 - 2026-11-25
 
 ### Tests

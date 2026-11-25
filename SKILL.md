@@ -97,7 +97,7 @@ python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
 
 ## Proportional Fast Path
 
-Use `scripts/evaluate_proportional_execution.py --brief <path>` only for one ignored, ephemeral, or non-publishable artifact under 500 lines, 12 calls, and 600 seconds when identity, model, tool scope, deterministic checks, false mutation/access flags, and closed architecture/security/policy decisions are explicit. Otherwise use standard native supervision.
+Use `scripts/evaluate_proportional_execution.py --brief <path>` only for one ignored, ephemeral, or non-publishable artifact under 500 lines, 12 calls, and 600 seconds when identity, model, tool scope, deterministic checks, false mutation/access flags, and closed architecture/security/policy decisions are explicit. For delegated native execution, use the registered route through an authorized embedding host when configured.
 
 `operative-readiness:v2` bounds hashed context units and mutation evidence:
 three units or six reads warn; four or eleven require replanning.
@@ -126,8 +126,8 @@ three units or six reads warn; four or eleven require replanning.
   to waive a gate. Disclose genuine access/outage/security boundaries plainly.
 - No stopped worker resumes. Use fresh identities after terminal failure;
   realignment remains nonaccepted. Containment precedes owned-state restoration.
-- Use the [registered single-worker production requirements](references/native-live-route-holds.md#registered-single-worker-production)
-  for provider-connected native work. Other native routes require their own source decisions.
+- For one known text output, use `cwo-delegation` in local `cwo-codex` to get the operator's standing approval, then run `cwo delegate` with the same task and baseline.
+  Lead-run supervision checks are advisory. [Production requirements](references/native-live-route-holds.md#standing-approved-delegation).
 - Native pool work additionally needs trusted-controller factory authority (not shipped), so
   the version-2 launcher refuses ordinary plans, even `--validate-only`. Cohorts
   stay N=1..3; concurrency needs actual compatible capability evidence.
@@ -200,7 +200,8 @@ python3 scripts/render_run_projection.py <plan.json> --projection run-sheet
 python3 scripts/render_execution_status_report.py <inputs>
 ```
 
-Before closing meaningful Beads, add a compact closure-memory comment. The narrative CLI below refuses all success dispositions, even with verified acceptance; record delivered work as `pending-acceptance`, leaving the Bead open for the operator. Verified completion uses the enabled embedding-host `qualified_closure.py` library consumer ([run readiness](references/run-readiness.md)), requiring single-use host acceptance bound to the original dispatch, exact requirement baseline and candidate, exact original observations seen by the accepted final review, current policy and setup database identity, an adjudicator distinct from the executor, every required clearance and no open blockers or children. It records consumption intent in the host audit before the first Beads write; failure or reopening never permits reuse. Caller JSON or narrative summaries grant no acceptance. The shipped review-host producer and activation remain separately held.
+Before closing meaningful Beads, add a compact closure-memory comment. Record delivered work as `pending-acceptance`. A configured registered host posts the exact delivery and leaves the Bead open for a separate reviewer. [Independent hand acceptance](references/run-readiness.md#accepting-a-delivery-by-hand).
+Verified completion through `qualified_closure.py` requires single-use host acceptance bound to the original dispatch, exact requirement baseline and candidate, exact original observations seen by the accepted final review, current policy and setup database identity, an adjudicator distinct from the executor, every required clearance and no open blockers or children. It records consumption intent in the host audit before the first Beads write. Failure or reopening never permits reuse. The narrative command below records a summary. [Closure requirements](references/run-readiness.md#verified-closure-library).
 
 ```bash
 python3 scripts/close_bead_with_summary.py --bead <id> --disposition pending-acceptance --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful

@@ -13,8 +13,9 @@ destination and verify the replacement.
 
 The [installer](../docs/install.html#install) can set up and check the dedicated
 worker login. Actual delegation uses the protected, signed single-worker
-workflow. End-to-end dispatch from an ordinary architect session awaits the
-protected standing-approval entry.
+workflow. For an eligible assignment with one known text output, the local
+architect session can ask for standing approval. `cwo delegate` uses the
+retained approval to dispatch the worker.
 
 Set the architect launcher's model, reasoning effort and service tier under the
 Sol role (`sol`) in [`policy/model-roles.yaml`](../policy/model-roles.yaml). Use the
