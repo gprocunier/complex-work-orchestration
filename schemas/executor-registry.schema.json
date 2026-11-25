@@ -125,6 +125,7 @@
               "default_command": {"type": "string"},
               "alternate_command": {"type": "string"},
               "model": {"type": "string"},
+              "effort": {"type": "string", "enum": ["low", "medium", "high", "xhigh", "max"]},
               "minimum_effort": {"type": "string"},
               "effort_policy": {
                 "type": "object",

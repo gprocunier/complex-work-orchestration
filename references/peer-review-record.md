@@ -47,9 +47,10 @@ alias, its provider is also checked against the executor/provider registries.
 
 The reviewer declaration must match every recorded identity component. Use the
 exact observed ID for the configured model. `policy/model-roles.yaml` defines
-the OpenAI reviewer roles. The `review_models` table in
-`policy/provider-registry.yaml` supplies identities for other providers and
-retains historical records.
+the OpenAI reviewer roles. The Claude architecture critic uses the model
+configured for `claude_architecture_critic` in `policy/executor-registry.yaml`.
+The `review_models` table in `policy/provider-registry.yaml` supplies other
+provider identities and retains historical identities.
 `provider` names the underlying vendor/family, rather than an access-channel key:
 `internal_codex` and `openai_manual` both resolve to `openai`. A caller-written
 dispatch sidecar or a declaration in the peer-review JSON establishes no authority.
@@ -126,8 +127,8 @@ No review grants execution, activation, installation or closure.
 
 Version 1 reviews and free-text reviewer identities remain historical artifacts.
 They cannot clear current holds: reevaluate pending and obtain a version 2 review
-using recorded dispatches. Old provider registries may omit `review_models` and
-continue to support non-review operations; passed review then refuses closed.
+using recorded dispatches. Old provider registries may omit `review_models`.
+An exact identity that depends on that table needs its entry to pass review.
 The optional table is a closed-shape extension in both provider schema versions.
 
 The host store prevents a sandboxed worker from writing its own provenance; the

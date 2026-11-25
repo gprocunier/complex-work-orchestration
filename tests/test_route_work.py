@@ -279,7 +279,7 @@ class RouteWorkTests(unittest.TestCase):
                         RouteCheck(lambda result: result['requested_architecture_critic_executors'], ['claude_architecture_critic', 'gemini_architecture_critic']),
                         RouteCheck(lambda result: [contract['executor'] for contract in result['architecture_critic_contracts']], ['claude_architecture_critic', 'gemini_architecture_critic']),
                         RouteCheck(lambda result: result['architecture_review_complexity'], 'high'),
-                        RouteCheck(lambda result: result['claude_architecture_effort'], 'xhigh'),
+                        RouteCheck(lambda result: result['claude_architecture_effort'], 'high'),
                     )),
                 ),
             ),
@@ -719,7 +719,7 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(allowed["recommended_executor"], "claude_architecture_critic")
         self.assertEqual(allowed["requested_architecture_critic_executors"], ["claude_architecture_critic"])
         self.assertEqual(len(allowed["architecture_critic_contracts"]), 1)
-        self.assertEqual(allowed["architecture_critic_contracts"][0]["manual_command"], "claude --model claude-opus-4-6 --effort high -p")
+        self.assertEqual(allowed["architecture_critic_contracts"][0]["manual_command"], "claude --model claude-opus-5-5 --effort high -p")
         self.assertEqual(allowed["architecture_critic_contracts"][0]["claude_effort"], "high")
         self.assertEqual(allowed["guard_labels"], [
             "contractor-only",

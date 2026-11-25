@@ -8,7 +8,7 @@ from typing import Any
 from .adjudication import dispatch_provenance
 from .errors import CWOPolicyError
 from .model_identities import is_hidden_codex_model, reviewer_rank, role_for_model
-from .policy import load_policy
+from .policy import configured_claude_critic, load_policy
 from .host_records import configured_store
 
 IDENTITY_FIELDS = frozenset({"provider", "model_family", "model_id", "reasoning_effort", "dispatch_id"})
@@ -38,6 +38,8 @@ def registered_review_model(provider: str, model_id: str, *, historical: bool = 
         return None
     models = load_policy("provider-registry").get("review_models", {})
     recorded = models.get(provider, {}).get(model_id)
+    if provider == "anthropic" and model_id == configured_claude_critic()["model"]:
+        return {"model_family": "claude", "stronger_than": []}
     if provider != "openai":
         return recorded
     try:

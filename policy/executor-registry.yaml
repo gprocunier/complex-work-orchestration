@@ -670,7 +670,7 @@
       "codex_pickup": "forbidden"
     },
     "claude_architecture_critic": {
-      "display_name": "Claude Opus 4.6 architecture critic via Claude CLI",
+      "display_name": "Claude architecture critic via Claude CLI",
       "role": "outside-contractor",
       "provider_key": "anthropic_manual",
       "venue": "claude-code-cli",
@@ -696,14 +696,8 @@
       "critique_mode": "architect-design-second-opinion",
       "transport": {
         "kind": "manual-cli",
-        "default_command": "claude --model claude-opus-4-6 --effort high -p",
-        "model": "claude-opus-4-6",
-        "minimum_effort": "high",
-        "effort_policy": {
-          "default": "high",
-          "high_complexity": "xhigh",
-          "critical_complexity": "max"
-        }
+        "model": "claude-opus-5-5",
+        "effort": "high"
       }
     },
     "gemini_manual_reviewer": {

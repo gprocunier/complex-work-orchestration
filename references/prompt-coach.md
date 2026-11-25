@@ -388,7 +388,7 @@ or `--model-synthesis` conflicts with a prohibition, routing fails closed with a
 `conflicting model synthesis intent` hard stop.
 
 The v1 implementation is CWO-native. It does not call OpenRouter Fusion
-directly. External panel members such as Claude Opus or Gemini
+directly. External panel members such as the Claude or Gemini architecture critic
 still require explicit outside-sharing opt-in and a selected share boundary;
 the default boundary is `redacted-packet`. The synthesis artifact is evidence
 for architect adjudication, not authority to bypass evaluator, peer-review, or

@@ -169,7 +169,7 @@ Architect design second opinion:
 
 ```text
 /plan Use $complex-work-orchestration prompt coach:
-Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion
+Use the Claude and Gemini architecture critics as independent second opinion
 critics of the Codex architect design. Share redacted packets only. Treat both
 returns as evidence and require return evaluation plus architect adjudication
 before implementation.
@@ -236,9 +236,10 @@ python3 scripts/route_work.py \
 ```
 
 For architect-design second-opinion lanes, route and packet with the dedicated
-critic executors. Claude Opus 4.6 uses the Claude CLI with `--effort high` as
-the floor; raise it to `xhigh` or `max` only when the architecture is broad,
-cross-cutting, persistent-state, public-contract, or otherwise high complexity.
+critic executors. The Claude architecture critic uses the model and effort
+configured for `claude_architecture_critic` in
+`policy/executor-registry.yaml`. Use the `Manual dispatch command` shown in
+the rendered prompt and give the Claude CLI that prompt as input.
 Gemini 3.1 Pro Preview uses the Antigravity command surface. If both are
 requested, create one contractor-only Bead per critic and dispatch them from
 the same initial Codex architect proposal:
@@ -248,7 +249,7 @@ python3 scripts/route_work.py \
   --external-ok \
   --share-boundary redacted-packet \
   --requested-role architecture \
-  "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics of the Codex architect design."
+  "Use the Claude and Gemini architecture critics as independent second opinions on the Codex architect design."
 
 python3 scripts/build_contractor_packet.py \
   --bead <claude-critic-bead> \
@@ -264,10 +265,6 @@ python3 scripts/dispatch_work.py \
   --packet claude-architect-critique-packet.json \
   --mode manual \
   > claude-architect-critique-dispatch-prompt.md
-
-claude --model claude-opus-4-6 --effort high \
-  -p "Read claude-architect-critique-dispatch-prompt.md and output only the contractor return template." \
-  > claude-architect-critique-return.md
 
 python3 scripts/build_contractor_packet.py \
   --bead <gemini-critic-bead> \

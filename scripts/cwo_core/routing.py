@@ -18,6 +18,7 @@ from .operative_routing import NONOPERATIVE_ROLE, nonoperative_model_refusal, re
 from .risk_features import (RiskAssessment, assess_risk_features, refuse_risk_narrowing,
     registered_assessment, finish_registered_assessment)
 from .policy import (
+    CLAUDE_CRITIC_EXECUTOR,
     UnknownExecutorError,
     EDITOR_GATE_EXPERT,
     EXTERNAL_GUARD_LABELS,
@@ -29,6 +30,7 @@ from .policy import (
     RISK_ORDER,
     SENSITIVITY_ORDER,
     boundary_config,
+    configured_claude_critic,
     detect_provider_conflicts,
     executor_config,
     load_policy,
@@ -42,8 +44,6 @@ from .policy import (
 from .routing_signals import (
     architecture_critic_intent_conflicts,
     architecture_review_complexity,
-    claude_architecture_effort,
-    command_with_claude_effort,
     explicit_chatgpt_master_plan_review_requested,
     explicit_claude_architect_critique_requested,
     explicit_gemini_architect_critique_requested,
@@ -826,6 +826,9 @@ def _scoring_executors() -> dict[str, dict[str, Any]]:
     registry.pop("internal_worker_sol", None)
     routing = load_policy("native-worker-execution")["task_selected_routing"]
     if routing["status"] != "active":
+        registry[CLAUDE_CRITIC_EXECUTOR] = project_executor_model(
+            CLAUDE_CRITIC_EXECUTOR, registry[CLAUDE_CRITIC_EXECUTOR]
+        )
         return registry
     # The generic planning key retains its acceptance semantics. Role projection
     # supplies current metadata here while the operative selector binds its own executor.
@@ -1219,7 +1222,7 @@ def classify_work(
     selected = route_primary.get("selected_executor") or ranked_executors[0]
     recommended_executor = route_primary.get("recommended_executor", selected["key"])
     architecture_complexity = architecture_review_complexity(text, risk)
-    claude_effort = claude_architecture_effort(architecture_complexity)
+    claude_effort = configured_claude_critic()["effort"]
     requested_critic_keys = requested_architecture_critic_executor_keys(text)
     critic_intent_conflicts = architecture_critic_intent_conflicts(text)
     ranked_by_key = {str(item.get("key")): item for item in ranked_executors}
@@ -1287,12 +1290,10 @@ def classify_work(
         }
         transport = candidate.get("transport") if isinstance(candidate.get("transport"), dict) else {}
         default_command = str(transport.get("default_command", ""))
-        if key == "claude_architecture_critic":
+        if key == CLAUDE_CRITIC_EXECUTOR:
             contract["architecture_complexity"] = architecture_complexity
             contract["claude_effort"] = claude_effort
-            if default_command:
-                contract["manual_command"] = command_with_claude_effort(default_command, claude_effort)
-        elif key == GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR:
+        if key == GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR:
             contract["local_profile"] = candidate.get("local_profile")
             contract["model_profile"] = candidate.get("model_profile")
         elif default_command:

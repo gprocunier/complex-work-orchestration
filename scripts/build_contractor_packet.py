@@ -23,6 +23,7 @@ from cwo_core.policy import (
     boundary_config,
     executor_config,
     load_policy,
+    project_executor_model,
     provider_metadata_for_executor,
     share_boundary_disclosure_stage,
     share_boundary_requires_escalation,
@@ -221,7 +222,8 @@ def build_packet(
     candidate_root: Path | None = None,
 ) -> dict[str, Any]:
     boundary = boundary_config(share_boundary)
-    executor_info = load_policy("executor-registry").get("executors", {}).get(executor, {})
+    registered_executor = load_policy("executor-registry").get("executors", {}).get(executor, {})
+    executor_info = project_executor_model(executor, registered_executor)
     provider_metadata = provider_metadata_for_executor(executor_info)
     transport = executor_info.get("transport") if isinstance(executor_info.get("transport"), dict) else {}
     manual_command = str(transport.get("default_command", "")).strip()

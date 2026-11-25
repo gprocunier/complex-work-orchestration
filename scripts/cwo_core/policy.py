@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import re
+import shlex
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,7 @@ from .util import rank_allows, rank_max, term_hits
 RISK_ORDER = ["low", "medium", "high", "critical"]
 
 
+CLAUDE_CRITIC_EXECUTOR = "claude_architecture_critic"
 GLM_COMPACT_CRITIC_EXECUTOR = "rhoai_glm_compact_architecture_critic"
 GLM_CRITIC_V1_CONTRACT = "cwo-glm-critic-v1"
 GLM_CRITIC_V2_CONTRACT = "cwo-glm-critic-v2"
@@ -191,13 +193,21 @@ _EXECUTOR_CODEX_MODELS = {
 }
 
 
+def configured_claude_critic() -> dict[str, Any]:
+    return load_policy("executor-registry")["executors"][CLAUDE_CRITIC_EXECUTOR]["transport"]
+
+
 def project_executor_model(executor_key: str, executor: dict[str, Any]) -> dict[str, Any]:
-    """Project current Codex metadata without replacing the recorded registry snapshot."""
+    """Project configured model metadata for current executor consumers."""
     value = dict(executor)
     binding = _EXECUTOR_CODEX_MODELS.get(executor_key)
     if binding is not None and value.get("provider_key") == "internal_codex":
         role, display_name = binding
         value.update(model_label=resolve_model(role), display_name=display_name)
+    if executor_key == CLAUDE_CRITIC_EXECUTOR:
+        transport = value["transport"]
+        command = shlex.join(["claude", "--model", transport["model"], "--effort", transport["effort"], "-p"])
+        value["transport"] = {**transport, "default_command": command}
     return value
 
 

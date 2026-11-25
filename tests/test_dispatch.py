@@ -16,6 +16,8 @@ from cwo_core.packets import (  # noqa: E402
     require_valid_contractor_packet,
     validate_contractor_packet,
 )
+from cwo_core.peer_review_identity import registered_review_model  # noqa: E402
+from test_policy_schema import malformed_policy  # noqa: E402
 
 
 class DispatchTests(unittest.TestCase):
@@ -205,15 +207,31 @@ class DispatchTests(unittest.TestCase):
         self.assertIn("Output only the contractor return", prompt)
 
     def test_claude_opus_architecture_critic_prompt_and_packet_include_model_and_effort(self) -> None:
+        self._assert_claude_critic_command("claude-opus-5-5", "high")
+
+    def test_claude_architecture_critic_reads_model_and_effort_from_policy(self) -> None:
+        def set_critic_transport(policy):
+            transport = policy["executors"]["claude_architecture_critic"]["transport"]
+            transport.update(model="claude-opus-9-9", effort="medium")
+
+        with malformed_policy("executor-registry", set_critic_transport):
+            self._assert_claude_critic_command("claude-opus-9-9", "medium")
+
+    def _assert_claude_critic_command(self, model: str, effort: str) -> None:
+        command = f"claude --model {model} --effort {effort} -p"
         route = classify_work(
-            "Use Claude Opus 4.6 as a second opinion critique of the Codex architect design.",
+            "Use Claude as a second opinion on the cross-cutting Codex architect design.",
             external_ok=True,
             share_boundary="redacted-packet",
             requested_roles=["architecture"],
         )
         prompt = render_prompt("Architecture critique", route)
-        self.assertIn("Manual dispatch command: claude --model claude-opus-4-6 --effort high -p", prompt)
+        self.assertIn(f"Manual dispatch command: {command}", prompt)
         self.assertIn("Architecture critic contracts:", prompt)
+        self.assertEqual(route["architecture_review_complexity"], "high")
+        self.assertEqual(route["claude_architecture_effort"], effort)
+        self.assertEqual(route["architecture_critic_contracts"][0]["manual_command"], command)
+        self.assertEqual(registered_review_model("anthropic", model)["model_family"], "claude")
 
         packet = build_packet(
             bead_id="cwo-arch-2",
@@ -233,10 +251,10 @@ class DispatchTests(unittest.TestCase):
         )
         require_valid_contractor_packet(packet)
         self.assertEqual(packet["provider_key"], "anthropic_manual")
-        self.assertEqual(packet["manual_command"], "claude --model claude-opus-4-6 --effort high -p")
+        self.assertEqual(packet["manual_command"], command)
         packet_prompt = render_packet_prompt(packet)
         self.assertIn("claude_architecture_critic", packet_prompt)
-        self.assertIn("Manual dispatch command: claude --model claude-opus-4-6 --effort high -p", packet_prompt)
+        self.assertIn(f"Manual dispatch command: {command}", packet_prompt)
         self.assertIn("contract-jd-architecture-reasoning", packet_prompt)
 
     def test_chatgpt_pro_browser_reviewer_packet_is_provider_bound(self) -> None:

@@ -228,18 +228,6 @@ def architecture_review_complexity(text: str, risk: str) -> str:
     return "medium"
 
 
-def claude_architecture_effort(complexity: str) -> str:
-    if complexity == "critical":
-        return "max"
-    if complexity == "high":
-        return "xhigh"
-    return "high"
-
-
-def command_with_claude_effort(command: str, effort: str) -> str:
-    return re.sub(r"--effort\s+\S+", f"--effort {effort}", command)
-
-
 def explicit_chatgpt_master_plan_review_requested(text: str) -> bool:
     """Return true for the ChatGPT Pro Extended Reasoning plan-review lane."""
     return bool(

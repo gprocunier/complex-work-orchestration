@@ -61,11 +61,7 @@ def manual_command_for_route(route: dict[str, object]) -> str:
     transport = selected.get("transport", {})
     if not isinstance(transport, dict):
         return ""
-    command = str(transport.get("default_command", "")).strip()
-    if selected.get("key") == "claude_architecture_critic":
-        effort = str(route.get("claude_architecture_effort") or transport.get("minimum_effort") or "high")
-        command = command.replace("--effort high", f"--effort {effort}")
-    return command
+    return str(transport.get("default_command", "")).strip()
 
 
 def architecture_critic_contract_lines(route: dict[str, object]) -> str:
