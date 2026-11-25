@@ -4,6 +4,14 @@
 
 - Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
 
+### Tests
+
+- Preserve archive failures that occur after the registered exhaustion fixture observes the archive request.
+
+## 1.36.4 - 2026-11-25
+
+- Recognize Codex's final-answer notification when verifying a pool worker's completion marker.
+
 ## 1.36.3 - 2026-11-25
 
 - Explain when to use the architect profile or plain Codex, and document the current requirements for delegated work.

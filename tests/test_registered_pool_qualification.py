@@ -132,7 +132,9 @@ for line in sys.stdin:
             append([event('task_complete', last_agent_message=None, error=error)])
             notify('turn/completed', {'threadId': thread, 'turn': {'id': turn, 'status': 'failed', 'items': [], 'error': error}})
             continue
-        final = {'id': answer, 'type': 'agentMessage', 'phase': 'finalAnswer', 'text': ''}
+        final = {'id': answer, 'type': 'agentMessage', 'text': ''}
+        if behavior != 'missing-marker-phase':
+            final['phase'] = 'finalAnswer' if behavior == 'wrong-marker-phase' else 'final_answer'
         notify('item/started', dict(thread_scope, item=final))
         append([event('task_complete', last_agent_message=marker, error=None)])
         notify('item/completed', dict(thread_scope, item=dict(final, text=marker)))
@@ -373,6 +375,7 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         for worker in (first, second):
             self.assertEqual((worker.worktree / worker.task["write_path"]).read_text(), worker.task["expected_utf8"])
             self.assertEqual(worker._result["tools"]["unexpected"], ("apply_patch",))
+            self.assertEqual(adapter._WorkerControl(worker, {}).check(), {"decision": "complete"})
             worker.archive()
             self.assertIsNotNone(worker._archived)
         self.assertTrue(parent.cleanup(monotonic() + 2))
@@ -480,6 +483,17 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "calibration-cannot-bind-productive-launch"):
             parent.bind_admitted_launch(parent.plan, allocations, {})
         return controls
+
+    def test_final_phase_is_required(self):
+        parent = self._prepare_workers(2, ("missing-marker-phase", "wrong-marker-phase"))
+        for worker in parent.workers.values():
+            worker.start_turn()
+        self._wait(lambda: all(worker.wire.terminal == "completed" for worker in parent.workers.values()))
+        for worker in parent.workers.values():
+            self.assertIsNone(worker.wire.transport_failure)
+            self.assertIsNone(worker.wire.marker)
+            with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "completion-marker-drift"):
+                adapter._WorkerControl(worker, {}).check()
 
     def test_factory_refuses_unprotected_admission_and_has_no_hook_parameters(self):
         with _pool_test_directory() as scratch:
