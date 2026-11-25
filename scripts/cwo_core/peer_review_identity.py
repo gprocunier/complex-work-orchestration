@@ -8,7 +8,7 @@ from typing import Any
 from .adjudication import dispatch_provenance
 from .errors import CWOPolicyError
 from .model_identities import is_hidden_codex_model, reviewer_rank, role_for_model
-from .policy import configured_claude_critic, load_policy
+from .policy import configured_claude_critic, configured_gemini_critic, load_policy
 from .host_records import configured_store
 
 IDENTITY_FIELDS = frozenset({"provider", "model_family", "model_id", "reasoning_effort", "dispatch_id"})
@@ -32,14 +32,26 @@ def review_identity(value: object) -> dict[str, str]:
     return identity
 
 
+def _configured_external_review_model(provider: str, model_id: str, historical: bool) -> dict[str, Any] | None:
+    critics = {"anthropic": (configured_claude_critic, "claude"), "google": (configured_gemini_critic, "gemini")}
+    critic = critics.get(provider)
+    if critic is None:
+        return None
+    config, family = critic
+    transport = config()
+    if model_id == transport["model"] or (historical and model_id == transport.get("previous")):
+        return {"model_family": family, "stronger_than": []}
+    return None
+
+
 def registered_review_model(provider: str, model_id: str, *, historical: bool = False) -> dict[str, Any] | None:
     """Resolve family and ordering metadata for a recorded exact model."""
     if is_hidden_codex_model(model_id):
         return None
     models = load_policy("provider-registry").get("review_models", {})
     recorded = models.get(provider, {}).get(model_id)
-    if provider == "anthropic" and model_id == configured_claude_critic()["model"]:
-        return {"model_family": "claude", "stronger_than": []}
+    if configured := _configured_external_review_model(provider, model_id, historical):
+        return configured
     if provider != "openai":
         return recorded
     try:

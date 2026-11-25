@@ -19,6 +19,7 @@ from .risk_features import (RiskAssessment, assess_risk_features, refuse_risk_na
     registered_assessment, finish_registered_assessment)
 from .policy import (
     CLAUDE_CRITIC_EXECUTOR,
+    GEMINI_CRITIC_EXECUTOR,
     UnknownExecutorError,
     EDITOR_GATE_EXPERT,
     EXTERNAL_GUARD_LABELS,
@@ -34,6 +35,7 @@ from .policy import (
     detect_provider_conflicts,
     executor_config,
     load_policy,
+    manual_dispatch_command,
     peer_review_policy,
     project_executor_model,
     provider_metadata_for_executor,
@@ -826,9 +828,8 @@ def _scoring_executors() -> dict[str, dict[str, Any]]:
     registry.pop("internal_worker_sol", None)
     routing = load_policy("native-worker-execution")["task_selected_routing"]
     if routing["status"] != "active":
-        registry[CLAUDE_CRITIC_EXECUTOR] = project_executor_model(
-            CLAUDE_CRITIC_EXECUTOR, registry[CLAUDE_CRITIC_EXECUTOR]
-        )
+        for key in (CLAUDE_CRITIC_EXECUTOR, GEMINI_CRITIC_EXECUTOR):
+            registry[key] = project_executor_model(key, registry[key])
         return registry
     # The generic planning key retains its acceptance semantics. Role projection
     # supplies current metadata here while the operative selector binds its own executor.
@@ -1289,7 +1290,7 @@ def classify_work(
             "selected_executor": candidate,
         }
         transport = candidate.get("transport") if isinstance(candidate.get("transport"), dict) else {}
-        default_command = str(transport.get("default_command", ""))
+        default_command = manual_dispatch_command(transport)
         if key == CLAUDE_CRITIC_EXECUTOR:
             contract["architecture_complexity"] = architecture_complexity
             contract["claude_effort"] = claude_effort

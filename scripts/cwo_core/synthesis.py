@@ -15,7 +15,7 @@ from .adjudication import (
     resolve_adjudication,
 )
 from .model_identities import resolve_model
-from .policy import load_policy
+from .policy import GEMINI_CRITIC_EXECUTOR, configured_gemini_critic, load_policy
 from .synthesis_inputs import (
     UNRESOLVED,
     Claim,
@@ -217,8 +217,11 @@ def _contract_panel_entry(
 
 def _panel_entry(item: dict[str, Any]) -> dict[str, Any]:
     entry = dict(item)
-    if entry.get("executor") == "frontier_architect" and entry.get("effort") == "configured":
-        entry["effort"] = resolve_model("sol")
+    if entry.get("effort") == "configured":
+        if entry.get("executor") == "frontier_architect":
+            entry["effort"] = resolve_model("sol")
+        elif entry.get("executor") == GEMINI_CRITIC_EXECUTOR:
+            entry["effort"] = configured_gemini_critic()["effort"]
     return entry
 
 

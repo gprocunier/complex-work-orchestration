@@ -48,6 +48,11 @@ For the Claude architecture critic, use the `Manual dispatch command` in the
 rendered prompt. Its model and effort come from `claude_architecture_critic`
 in `policy/executor-registry.yaml`.
 
+For the Gemini architecture critic, use the Antigravity `Manual dispatch
+command` in the rendered prompt. Its model, effort and trusted working
+directory come from `gemini_architecture_critic` in the same registry. The
+command selects plan mode.
+
 ## Operating Model
 
 - Architect: owns architecture, final integration, acceptance, release

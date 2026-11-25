@@ -136,6 +136,8 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertTrue(executor["supports_repo_read"])
         self.assertFalse(executor["supports_repo_write"])
         self.assertIn("architecture-review", executor["allowed_task_classes"])
+        self.assertEqual(executor["transport"]["previous"], "gemini-3.1-pro-preview")
+        self.assertNotIn("default_command", executor["transport"])
         self.assertIn("gemini_architecture_critic", controls["allowed_external_executors"])
 
     def test_claude_opus_architecture_critic_is_registered_as_external_contractor(self) -> None:
@@ -160,8 +162,8 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertNotIn("default_command", executors["claude_architecture_critic"]["transport"])
         self.assertIn("claude_architecture_critic", controls["allowed_external_executors"])
 
-    def test_scripts_contain_no_claude_model_literals(self) -> None:
-        model_id = re.compile(r"\bclaude-(?:[0-9]|(?:opus|sonnet|haiku)-[0-9])", re.IGNORECASE)
+    def test_scripts_contain_no_claude_or_gemini_model_literals(self) -> None:
+        model_id = re.compile(r"\b(?:claude-(?:[0-9]|(?:opus|sonnet|haiku)-[0-9])|gemini-[0-9])", re.IGNORECASE)
         matches = [
             str(path.relative_to(ROOT))
             for path in (ROOT / "scripts").rglob("*")

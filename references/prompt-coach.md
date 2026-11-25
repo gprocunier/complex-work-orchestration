@@ -405,8 +405,9 @@ accepted primary lanes need structured `zero_trust_claims`, excluded lanes stay
 visible, and unresolved divergence blocks implementation conversion until the
 architect adjudicates it.
 
-Gemini/Agy architecture critique is salvage-only by default. It can contribute
-ideas, missing-case prompts, and risk notes, but it does not count toward
+The Gemini architecture critic's command uses the configured model, plan mode
+and trusted working directory. Gemini/Agy critique is salvage-only by default.
+It can contribute ideas, missing-case prompts, and risk notes, but it does not count toward
 `minimum_usable_inputs` for synthesis readiness. A Gemini/Agy return needs
 concrete evidence, evaluator acceptance, and an explicit architect upgrade
 before a specific finding is treated as primary synthesis evidence. The return

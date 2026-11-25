@@ -240,9 +240,13 @@ critic executors. The Claude architecture critic uses the model and effort
 configured for `claude_architecture_critic` in
 `policy/executor-registry.yaml`. Use the `Manual dispatch command` shown in
 the rendered prompt and give the Claude CLI that prompt as input.
-Gemini 3.1 Pro Preview uses the Antigravity command surface. If both are
-requested, create one contractor-only Bead per critic and dispatch them from
-the same initial Codex architect proposal:
+The Gemini architecture critic uses Antigravity in plan mode from the trusted
+`working_directory` configured with its `model` and `effort` under
+`gemini_architecture_critic` in the same registry. The Antigravity model ID
+includes the effort. Use a trusted directory without checkout contents for a
+redacted packet. If both critics
+are requested, create one contractor-only Bead per critic and dispatch them
+from the same initial Codex architect proposal:
 
 ```bash
 python3 scripts/route_work.py \
@@ -281,12 +285,16 @@ python3 scripts/dispatch_work.py \
   --mode manual \
   > gemini-architect-critique-dispatch-prompt.md
 
-WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
+WORK_PACKET_DIR="${WORK_PACKET_DIR:-$PWD/work-packets}"
 mkdir -p "$WORK_PACKET_DIR"
 cp gemini-architect-critique-dispatch-prompt.md "$WORK_PACKET_DIR/gemini-architect-critique-dispatch-prompt.md"
-agy --add-dir "$WORK_PACKET_DIR" --print "Read gemini-architect-critique-dispatch-prompt.md and output only the contractor return template." \
-  > gemini-architect-critique-return.md
 ```
+
+To send the Gemini assignment, use its `Manual dispatch command`. Add
+`--add-dir` with the absolute path to the approved packet directory before
+`-p`. Pass `Read gemini-architect-critique-dispatch-prompt.md and output only the contractor return template.`
+as the inline argument to `-p` and save the reply as
+`gemini-architect-critique-return.md` in the private run directory.
 
 The returned critique is evidence for the architect. Accepted concerns become
 new Beads only after evaluation, required peer review, and architect

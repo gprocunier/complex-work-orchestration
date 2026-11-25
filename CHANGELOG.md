@@ -6,6 +6,7 @@
 - Use `@Chrome` in the ChatGPT desktop app for ChatGPT Pro reviews. The architect thread sends the screened request with the operator present, reads the completed reply from the page, and saves it and the evaluation in the private run directory. CWO links the request, reply, sender-confirmed model picker label and evaluation in the host audit.
 - Let more projects fit within the existing registered delegation request limit by using a verified reference to the full checkout snapshot.
 - Configure the Claude architecture critic for Opus 5.5 at high effort. Routing, the prompt coach, and contractor packets use the same settings.
+- Configure the Gemini architecture critic for Gemini 4 Hydrogen at high effort. Its manual command runs Antigravity in plan mode from the configured trusted folder.
 
 ## 1.36.8 - 2026-11-25
 

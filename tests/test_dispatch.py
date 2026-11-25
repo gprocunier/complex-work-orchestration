@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-import sys
+import os
 import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -11,6 +13,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt  # noqa: E402
 from dispatch_work import local_executor_fallback  # noqa: E402
 from build_contractor_packet import build_packet  # noqa: E402
+from cwo_core.policy import executor_config  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.packets import (  # noqa: E402
     require_valid_contractor_packet,
@@ -179,6 +182,67 @@ class DispatchTests(unittest.TestCase):
         self.assertIn("Review surface", packet["required_return_sections"])
 
     def test_gemini_agy_architecture_critic_packet_is_provider_bound(self) -> None:
+        self._assert_gemini_critic_command("gemini-4-hydrogen-high", "high", "antigravity")
+        self.assertEqual(
+            registered_review_model("google", "gemini-3.1-pro-preview", historical=True),
+            {"model_family": "gemini", "stronger_than": []},
+        )
+
+    def test_gemini_architecture_critic_reads_model_effort_and_working_directory_from_policy(self) -> None:
+        def set_critic_transport(policy):
+            transport = policy["executors"]["gemini_architecture_critic"]["transport"]
+            transport.update(
+                model="gemini-test-medium", effort="medium", working_directory="~/trusted review",
+                previous="gemini-test-previous",
+            )
+
+        with malformed_policy("executor-registry", set_critic_transport):
+            command = self._assert_gemini_critic_command("gemini-test-medium", "medium", "trusted review")
+            self.assertIsNone(registered_review_model("google", "gemini-test-previous"))
+            self.assertEqual(
+                registered_review_model("google", "gemini-test-previous", historical=True),
+                {"model_family": "gemini", "stronger_than": []},
+            )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            folder = home / "trusted review"
+            folder.mkdir()
+            stub = home / "agy"
+            stub.write_text('#!/bin/sh\nprintf "%s\\n" "$PWD" "$@"\n', encoding="utf-8")
+            stub.chmod(0o700)
+            result = subprocess.run(
+                ["/bin/sh", "-c", command], cwd=ROOT,
+                env={**os.environ, "HOME": str(home), "PATH": str(home)},
+                capture_output=True, text=True, check=True,
+            )
+            self.assertEqual(result.stdout.splitlines(), [
+                str(folder), "--model", "gemini-test-medium", "--mode", "plan", "-p",
+            ])
+
+    def _assert_gemini_critic_command(self, model: str, effort: str, folder: str) -> str:
+        command = f"agy --model {model} --mode plan -p"
+        transport = executor_config("gemini_architecture_critic")["transport"]
+        self.assertEqual(transport["default_command"], command)
+        self.assertEqual(transport["effort"], effort)
+        self.assertEqual(transport["working_directory"], f"~/{folder}")
+        self.assertEqual(registered_review_model("google", model), {"model_family": "gemini", "stronger_than": []})
+        route = classify_work(
+            "Use Gemini via agy for a second opinion critique of the Codex architect design.",
+            external_ok=True,
+            share_boundary="redacted-packet",
+            requested_roles=["architecture"],
+            model_synthesis=True,
+        )
+        contract, = route["architecture_critic_contracts"]
+        manual_command = contract["manual_command"]
+        self.assertIn(command, manual_command)
+        self.assertIn(f"Manual dispatch command: {manual_command}", render_prompt("Architecture critique", route))
+        panel_entry = next(entry for entry in route["model_synthesis"]["recommended_panel"]
+                           if entry["executor"] == "gemini_architecture_critic")
+        self.assertEqual(panel_entry["effort"], effort)
+        self.assertEqual(panel_entry["synthesis_use"], "salvage-only")
+
         packet = build_packet(
             bead_id="cwo-arch-1",
             bead_json={
@@ -198,13 +262,17 @@ class DispatchTests(unittest.TestCase):
         require_valid_contractor_packet(packet)
         self.assertEqual(packet["provider_key"], "google_gemini_manual")
         self.assertEqual(packet["provider_trust_tier"], "external-frontier")
+        self.assertEqual(packet["executor_transport"], transport)
+        self.assertEqual(packet["manual_command"], manual_command)
         self.assertTrue(packet["expert_profile_included"])
         self.assertEqual(packet["expert_profile"]["path"], "experts/architecture.md")
         prompt = render_packet_prompt(packet)
         self.assertIn("gemini_architecture_critic", prompt)
+        self.assertIn(f"Manual dispatch command: {manual_command}", prompt)
         self.assertIn("contract-jd-architecture-reasoning", prompt)
         self.assertIn("Do not mutate the active checkout", prompt)
         self.assertIn("Output only the contractor return", prompt)
+        return manual_command
 
     def test_claude_opus_architecture_critic_prompt_and_packet_include_model_and_effort(self) -> None:
         self._assert_claude_critic_command("claude-opus-5-5", "high")

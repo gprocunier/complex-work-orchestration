@@ -20,6 +20,7 @@ RISK_ORDER = ["low", "medium", "high", "critical"]
 
 
 CLAUDE_CRITIC_EXECUTOR = "claude_architecture_critic"
+GEMINI_CRITIC_EXECUTOR = "gemini_architecture_critic"
 GLM_COMPACT_CRITIC_EXECUTOR = "rhoai_glm_compact_architecture_critic"
 GLM_CRITIC_V1_CONTRACT = "cwo-glm-critic-v1"
 GLM_CRITIC_V2_CONTRACT = "cwo-glm-critic-v2"
@@ -197,6 +198,10 @@ def configured_claude_critic() -> dict[str, Any]:
     return load_policy("executor-registry")["executors"][CLAUDE_CRITIC_EXECUTOR]["transport"]
 
 
+def configured_gemini_critic() -> dict[str, Any]:
+    return load_policy("executor-registry")["executors"][GEMINI_CRITIC_EXECUTOR]["transport"]
+
+
 def project_executor_model(executor_key: str, executor: dict[str, Any]) -> dict[str, Any]:
     """Project configured model metadata for current executor consumers."""
     value = dict(executor)
@@ -208,7 +213,21 @@ def project_executor_model(executor_key: str, executor: dict[str, Any]) -> dict[
         transport = value["transport"]
         command = shlex.join(["claude", "--model", transport["model"], "--effort", transport["effort"], "-p"])
         value["transport"] = {**transport, "default_command": command}
+    elif executor_key == GEMINI_CRITIC_EXECUTOR:
+        transport = value["transport"]
+        command = shlex.join(["agy", "--model", transport["model"], "--mode", "plan", "-p"])
+        value.update(model_label=transport["model"], transport={**transport, "default_command": command})
     return value
+
+
+def manual_dispatch_command(transport: dict[str, Any]) -> str:
+    """Render the operator command without exposing a resolved home path."""
+    command = str(transport.get("default_command", "")).strip()
+    directory = transport.get("working_directory")
+    if not command or not directory:
+        return command
+    folder = "~/" + shlex.quote(directory[2:]) if directory.startswith("~/") else shlex.quote(directory)
+    return f"cd -- {folder} && {command}"
 
 
 def _canonical_executor_or_self(executor_key: str, registry: dict[str, Any]) -> str:

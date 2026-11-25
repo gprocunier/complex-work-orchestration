@@ -1648,7 +1648,7 @@
 
 "hX":[8,490,"self._share_method(\"create\")(expectation, timeout_seconds=timeout_seconds,\n                                            max_output_bytes=max_output_bytes)",15,491,78],
 
-"hY":[6,"main",473,"5fbQ8I4dJCGqRH3RPggJrAzwWZBVy6aVKGHY5tKL1NM"],
+"hY":[6,"main",474,"5fbQ8I4dJCGqRH3RPggJrAzwWZBVy6aVKGHY5tKL1NM"],
 
 "hZ":[73,818,"transition = adapter.close_owned("],
 
@@ -5415,7 +5415,7 @@
 
 [96,70,4,70,53,"beads","tL-5k4gLzdn43GnJyjbm47nstYqCfzOB5L9s-GCvqN0",["route","B11.2","mz"]],
 
-[48,299,13,299,48,"dynamic","BuoasWQgomyybRk1afw6yeHP5JOrzf4v737SZJwqgv8",[{"$":9},"dT"]],
+[48,300,13,300,48,"dynamic","BuoasWQgomyybRk1afw6yeHP5JOrzf4v737SZJwqgv8",[{"$":9},"dT"]],
 
 [49,50,11,50,38,"dynamic",{"$":51},[{"$":9},"dU"]],
 
@@ -7486,7 +7486,7 @@
 
 "@59":["Cnj6xCGu_pJDgrivycxrwSzTdKxjciPuD-2UKoOIJCc",420,37740],
 
-"@6":["e-DMEEm-oNix4dk8hqrve90Ox9TJYle_MUJ549MfBKQ",493,28403],
+"@6":["W8C2BNYyRVILDGhfp6U1LGXOUyOpLJ01FQ-Y40BBgrs",493,28417],
 
 "@60":["g_r5qaLFNDh_SFh0aLIlDT-NaQ4eP1Aq4Ppg7Jv3BLE",420,23594],
 
@@ -7576,7 +7576,7 @@
 
 "policy/model-roles.yaml":["ts5whoPZ82VNn1DRyC7d5Hi_XecHVzBzZqd8knmlRW0",420,726],
 
-"references/claims-register.md":["B79qRi6SwfQwvHlcbWlka5mzhalduJDg18vsImbYUj8",420,11790],
+"references/claims-register.md":["xnvQEhjUc8vetcSXXlzk-6bY3Xs2VuKyNlglvcRh_Sc",420,12377],
 
 "references/cwo-system-prompt.md":["NaUTR-c8I0JleXR4pZHdEBuAPkuhI9NrDO6qVWw7kr8",420,2833],
 
@@ -7754,9 +7754,9 @@
 
 "scripts/cwo_core/peer_review.py":["T33hYGh9Hzi4TNmWI1Mv0wdLeLRvT-TsTm0IfY5FUsA",420,4435],
 
-"scripts/cwo_core/peer_review_identity.py":["Bi394xm2F5wD6mP2p-5-0VNOt8ujkoK2TK_tykSb5mk",420,8705],
+"scripts/cwo_core/peer_review_identity.py":["4wS2fC4Yboj4zUq1qCHO1EpL_V_Fj61ctGn0Z3H4j84",420,9231],
 
-"scripts/cwo_core/policy.py":["g4zZCvFRUCggO7rucVg_AHZVZEFVip38d-go1zbklNs",420,15544],
+"scripts/cwo_core/policy.py":["nP4pBir2VXMvKllnvLO4opcj0rpv9voWOGnhCgFNlWA",420,16495],
 
 "scripts/cwo_core/policy_schema.py":["ScOBA-pQoJPhb--cCj1v7tOm33dA9A_1oTtmnKcNtYE",420,26198],
 
@@ -7792,7 +7792,7 @@
 
 "scripts/cwo_core/risk_features.py":["iUradZuNAARDtpOgrTgkAf4vZKUZaWqgOaIAcEQ88nU",420,11188],
 
-"scripts/cwo_core/routing.py":["jKrK8JfRBMszhK_PMIAxhdUrgDNb4VouPzvkr-jN0Lo",420,71929],
+"scripts/cwo_core/routing.py":["FUD85uhZbvB6oyc9n2f8f_Ap0qhWNNIqQSoR3wM7XoE",420,71973],
 
 "scripts/cwo_core/routing_signals.py":["pg0L30xjTVl7M12YRYogFHC_Rfu2xYe44qHs4OdJULw",420,8265],
 
@@ -7808,7 +7808,7 @@
 
 "scripts/cwo_core/supervision/transport/private_io.py":["2G0HGYuQVXFS-xnU7IJqULOMSZ_4wv3_3ZTEInkXE18",420,7884],
 
-"scripts/cwo_core/synthesis.py":["7len2wBfW6tXLRRebjJuSGfAYB6RiMlvsFIwdgH2ZZE",420,51957],
+"scripts/cwo_core/synthesis.py":["McJNMGuA5X2OJ4BPbS2MS7Ts5ZO2u4tJ-SvasIND5_I",420,52148],
 
 "scripts/cwo_core/synthesis_inputs.py":["GrXGx1VAwNAi3zFRdQ1_rYtNUj0PqMoXdvH1h2eeuus",420,57469],
 
@@ -7844,7 +7844,7 @@
 
 "scripts/generate_diagram_themes.py":["2wixK0IwQ5FCM1qlClOiGs8NoxSNqWXYEcnhkVwTS8g",420,2070],
 
-"scripts/generate_manual_dispatch_prompt.py":["lJWi5GnctRaF1p_xD2Pprgw1dDdwajM5gyrlkGxAdAY",493,20538],
+"scripts/generate_manual_dispatch_prompt.py":["l0YatzcNkRoLiSNRHWOP60brXusZ50Yyd_vQWkZTLFI",493,20575],
 
 "scripts/guide_diagrams.py":["1fEkD30zR7nIFDeHgALfEM1oAVaaLMhSpPJnvDYa8ho",420,18037],
 
@@ -7968,7 +7968,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["hrpIUufs19V9XRztLB1VGaxEIWEz0BGs2izHHe0EZ30",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["oUFy4d-ZVityKFsDfILsXJm81D-XdjDOM1xtj-dLxN8",420,136048],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 

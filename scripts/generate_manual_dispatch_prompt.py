@@ -17,6 +17,7 @@ from cwo_core.outbound_screen import (
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.packets import fenced_block, redact_text
+from cwo_core.policy import manual_dispatch_command
 from cwo_core.routing import classify_work, experts_with_required
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
@@ -61,7 +62,7 @@ def manual_command_for_route(route: dict[str, object]) -> str:
     transport = selected.get("transport", {})
     if not isinstance(transport, dict):
         return ""
-    return str(transport.get("default_command", "")).strip()
+    return manual_dispatch_command(transport)
 
 
 def architecture_critic_contract_lines(route: dict[str, object]) -> str:

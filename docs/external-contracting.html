@@ -121,9 +121,9 @@
             </p>
             <p>For an outside assignment, complete the packet-building and dispatch steps below before handing a prompt to a CLI. Use the <a href="./workflows.html#optional-lanes">specialist guide</a> if you have not yet chosen between native, internal and outside review.</p>
             <p>
-              <code>agy -p</code> is the local CLI surface for the
-              <code>gemini_architecture_critic</code> executor key. For a
-              redacted-packet review, run CLIs from a neutral directory unless
+              The <code>gemini_architecture_critic</code> executor uses
+              Antigravity in plan mode from its configured trusted working
+              directory. For a redacted-packet review, run CLIs from a neutral directory unless
               the tool is proven unable to inspect the current repository. If a
               return uses unapproved repo context, treat that evidence as
               invalid until the architect adjudicates it.
@@ -172,8 +172,10 @@
                 critic executors. The Claude architecture critic uses the model
                 and effort configured in <code>policy/executor-registry.yaml</code>.
                 Use the <code>Manual dispatch command</code> in the rendered prompt
-                and give the Claude CLI that prompt as input. Gemini 3.1 Pro Preview
-                uses Antigravity. When both are requested, create one
+                and give the Claude CLI that prompt as input. The Gemini
+                architecture critic's manual command uses its configured
+                model and trusted working directory. When both are requested,
+                create one
                 contractor-only Bead per critic from the same Codex architect
                 proposal. Treat returns as critique evidence for Codex
                 architect adjudication.
@@ -343,7 +345,7 @@
               Claude Code GitHub Pages work, then treated both returns as
               evidence for Codex review rather than direct authority.
             </p>
-            <p>Preparing a packet did not call a model: <code>dispatch_work.py</code> rendered a prompt for a separate operator-run CLI call. The demo also showed why returned work needs editing and validation before publication. Keep packet and return artifacts private by default; check public files for local paths, broken links, incorrect attribution and claims of tests that did not run.</p>
+            <p>Preparing the packet with <code>dispatch_work.py</code> rendered a prompt for a separate operator-run CLI call. The demo used <code>agy -p</code> for the Antigravity assignment and showed why returned work needs editing and validation before publication. Keep packet and return artifacts private by default; check public files for local paths, broken links, incorrect attribution and claims of tests that did not run.</p>
           </section>
         </article></div></div>
     </main>

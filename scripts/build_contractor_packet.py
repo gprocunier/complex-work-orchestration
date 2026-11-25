@@ -23,6 +23,7 @@ from cwo_core.policy import (
     boundary_config,
     executor_config,
     load_policy,
+    manual_dispatch_command,
     project_executor_model,
     provider_metadata_for_executor,
     share_boundary_disclosure_stage,
@@ -226,7 +227,7 @@ def build_packet(
     executor_info = project_executor_model(executor, registered_executor)
     provider_metadata = provider_metadata_for_executor(executor_info)
     transport = executor_info.get("transport") if isinstance(executor_info.get("transport"), dict) else {}
-    manual_command = str(transport.get("default_command", "")).strip()
+    manual_command = manual_dispatch_command(transport)
     now = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     dispatch_id = dispatch_id or make_dispatch_id(bead_id, now.replace("-", "").replace(":", ""))
     try:
