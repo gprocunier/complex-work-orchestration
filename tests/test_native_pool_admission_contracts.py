@@ -29,7 +29,7 @@ from cwo_core.native_pool_admission import (  # noqa: E402
     reserve_pool_cohort,
 )
 from cwo_core.native_pool_admitted import run_admitted_native_pool  # noqa: E402
-from cwo_core.native_pool import NativePoolCoordinator, NativePoolError  # noqa: E402
+from cwo_core.native_pool import NativePoolCoordinator, NativePoolError, run_native_pool  # noqa: E402
 from cwo_core.native_pool_config import (  # noqa: E402
     ADMITTED_RENDER_REQUEST_SCHEMA,
     RENDER_REQUEST_SCHEMA,
@@ -49,6 +49,7 @@ from cwo_core.native_pool_contracts import (  # noqa: E402
     zero_usage,
 )
 from cwo_core.native_pool_leases import (  # noqa: E402
+    PoolLeaseError,
     PoolLeaseRegistry,
     capture_owner_identity,
 )
@@ -671,6 +672,7 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
             )
             dispatch = launched["dispatch_receipt"]
             receipt = launched["pool_receipt"]
+            self.assertEqual([adapter.calls.count("send_input") for adapter in adapters.values()], [1, 1])
             self.assertEqual(receipt["version"], 2)
             self.assertEqual(receipt["schema"], ADMITTED_POOL_RECEIPT_SCHEMA)
             if HAS_JSONSCHEMA:
@@ -932,7 +934,12 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
             self.assertEqual(fixture.admission_capability.state, "retired")
             self.assertTrue(all(not adapter.calls for adapter in adapters.values()))
 
-    def test_later_child_lease_collision_has_zero_callbacks_and_no_partial_set(self) -> None:
+    def test_admitted_lease_acquisition_failures_have_zero_callbacks_and_no_partial_set(self) -> None:
+        for failure in ("first-child-collision", "later-child-collision", "registry-write-failed"):
+            with self.subTest(failure=failure):
+                self._check_lease_acquisition_failure(failure)
+
+    def _check_lease_acquisition_failure(self, failure: str) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fixture, reservation, contract, request = _admitted_artifacts(root)
@@ -942,7 +949,16 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
                 owner_alive=lambda _owner: True,
                 now=FakeClock.now_utc,
             )
-            existing = registry.acquire(contract, contract["children"][1]["child_id"])
+            if failure == "registry-write-failed":
+                existing = []
+                reason = "lease-registry-write-failed"
+                acquisition_error = PoolLeaseError(reason)
+            else:
+                index = 0 if failure == "first-child-collision" else 1
+                existing = [registry.acquire(contract, contract["children"][index]["child_id"])]
+                reason = "lease-id-already-active"
+                acquisition_error = None
+            state_file = root / "pool-state.json"
             (
                 child_contracts,
                 tasks,
@@ -951,7 +967,12 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
                 pool_callbacks,
                 _clock,
             ) = _execution_inputs(fixture, contract)
-            with self.assertRaises(Exception):
+            with (
+                mock.patch.object(
+                    registry, "acquire_many", wraps=registry.acquire_many, side_effect=acquisition_error
+                ) as acquire,
+                self.assertRaisesRegex(PoolLeaseError, reason),
+            ):
                 run_admitted_native_pool(
                     reservation,
                     fixture.admission_capability,
@@ -966,9 +987,14 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
                     pool_callbacks=pool_callbacks,
                     lease_registry=registry,
                     capability_receipt=fixture.pool_capability_receipt,
+                    state_file=state_file,
                 )
+            acquire.assert_called_once()
+            self.assertEqual(acquire.call_args.args, (contract, [child["child_id"] for child in contract["children"]]))
             self.assertTrue(all(not adapter.calls for adapter in adapters.values()))
-            self.assertEqual(registry.snapshot(), [existing])
+            self.assertEqual(registry.snapshot(), existing)
+            self.assertFalse(state_file.exists())
+            self.assertEqual(fixture.admission_capability.state, "available")
 
     def test_v2_direct_coordinator_path_is_not_productive_authority(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -987,18 +1013,19 @@ class NativePoolAdmissionContractTests(unittest.TestCase):
                 owner_alive=lambda _owner: True,
                 now=FakeClock.now_utc,
             )
-            with self.assertRaisesRegex(
-                NativePoolError, "admitted-pool-launcher-required"
-            ):
-                NativePoolCoordinator(
-                    contract,
-                    child_contracts,
-                    tasks,
-                    child_callbacks,
-                    pool_callbacks=pool_callbacks,
-                    lease_registry=registry,
-                    capability_receipt=fixture.pool_capability_receipt,
-                )
+            for entry in (NativePoolCoordinator, run_native_pool):
+                with self.subTest(entry=entry.__name__), self.assertRaisesRegex(
+                    NativePoolError, "admitted-pool-launcher-required"
+                ):
+                    entry(
+                        contract,
+                        child_contracts,
+                        tasks,
+                        child_callbacks,
+                        pool_callbacks=pool_callbacks,
+                        lease_registry=registry,
+                        capability_receipt=fixture.pool_capability_receipt,
+                    )
             self.assertTrue(all(not adapter.calls for adapter in adapters.values()))
             self.assertEqual(registry.snapshot(), [])
 

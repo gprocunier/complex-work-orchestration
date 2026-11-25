@@ -58,8 +58,8 @@ def _utc_now() -> str:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Manage strict native supervision pool artifacts. Connected native callbacks "
-            "remain in the host process through cwo_core.native_pool.NativePoolCoordinator."
+            "Manage native supervision pool artifacts. Worker dispatch requires the "
+            "admitted v2 host launcher."
         )
     )
     commands = parser.add_subparsers(dest="command", required=True)
