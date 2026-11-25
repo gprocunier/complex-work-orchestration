@@ -7,6 +7,7 @@
 ### Tests
 
 - Preserve archive failures that occur after the registered exhaustion fixture observes the archive request.
+- Preserve staged archive EOF evidence across registered transport fault ordering.
 
 ## 1.36.4 - 2026-11-25
 
