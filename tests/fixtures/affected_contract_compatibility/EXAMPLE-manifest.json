@@ -595,7 +595,7 @@
     "tests/test_registered_native_pool_host.py": "b360554f45dd46116799fe7d0c31665a4b89531f610e589cd6b2c68fe941cf10",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
     "tests/test_registered_provider_network.py": "dcad39f3aa3e9c8aeccc6ab5f800ff2cc322baa8b8cc9dc4e388d7c965fc9c78",
-    "tests/test_registered_server_requests.py": "67ae9075bcdf60fff0d411a7d09391a1dc7497b9c5e71cbb5d24a60f21738f9d",
+    "tests/test_registered_server_requests.py": "963b52240fb4e98055ebb9cfcb7c0936c5bf812ed15cbfc9790ca78ea536476d",
     "tests/test_route_feasibility_preparation.py": "45b615f5e7ad013c166846ba499c34c525452011539ed5de4eecbab6c8a5416f",
     "tests/test_run_admitted_native_pool_transaction.py": "f670ae613b3fd959ea7c5792065f5d7a84f4f53e5fcdb763222ab0ef032e76cf",
     "tests/test_run_native_pool_live_canaries.py": "2d8b59bc4e130ab51fc0d3e05a01646a03dc7471519b7e4d2248e2cd76a80d15",
@@ -2492,7 +2492,7 @@
     "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
     "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
     "tests/test_registered_provider_network.py": "dcad39f3aa3e9c8aeccc6ab5f800ff2cc322baa8b8cc9dc4e388d7c965fc9c78",
-    "tests/test_registered_server_requests.py": "67ae9075bcdf60fff0d411a7d09391a1dc7497b9c5e71cbb5d24a60f21738f9d"
+    "tests/test_registered_server_requests.py": "963b52240fb4e98055ebb9cfcb7c0936c5bf812ed15cbfc9790ca78ea536476d"
   },
   "roots": [
     "scripts/check_codex_worker_surface.py",
