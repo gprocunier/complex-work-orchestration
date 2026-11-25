@@ -30,9 +30,17 @@ import comparative_evaluation as cli  # noqa: E402
 from cwo_core import comparative_evaluation as ce  # noqa: E402
 from cwo_core.frozen_protocol import file_sha256  # noqa: E402
 
-from tests.test_comparative_evaluation import load_protocol, load_hidden, reseal, arm, files_of  # noqa: E402
+from tests.test_comparative_evaluation import (  # noqa: E402
+    STUDY,
+    arm,
+    copy_study_repository,
+    current_lock,
+    files_of,
+    load_hidden,
+    load_protocol,
+    reseal,
+)
 
-STUDY = ROOT / "evaluation" / "three-arm"
 MARKER = "cwo-probe-complete:"
 SCORER = "scripts/cwo_core/comparative_evaluation.py"
 LOCK_PATHS = {
@@ -66,13 +74,8 @@ FIXTURE_BUILD_FREEZE = {
 
 
 
-def live_digests(root: Path = ROOT) -> dict[str, str]:
+def live_digests(root: Path) -> dict[str, str]:
     return {path: file_sha256(root / path) for path in LOCK_PATHS.values()}
-
-
-def current_lock(root: Path = ROOT) -> dict:
-    protocol = json.loads((root / LOCK_PATHS["manifest"]).read_text(encoding="utf-8"))
-    return ce.build_frozen_protocol_lock(protocol, live_digests(root))
 
 
 def stamped_runs(lock: dict | None = None) -> list:
@@ -175,6 +178,13 @@ def reference(task_id: str) -> dict[str, str]:
 class StudyLockTests(unittest.TestCase):
     """Scoring verifies the original study lock and refuses on any scoring-artifact drift."""
 
+    def setUp(self) -> None:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.temp = Path(temp.name)
+        self.repo = self.temp / "repo"
+        self.study = copy_study_repository(self.repo)
+
     def test_scoring_without_a_study_lock_is_refused(self) -> None:
         code, out, _ = run_cli(["score", str(STUDY / "rehearsal" / "runs.json")])
         self.assertNotEqual(code, 0)
@@ -182,57 +192,53 @@ class StudyLockTests(unittest.TestCase):
 
     def test_a_lock_whose_scoring_artifacts_differ_from_the_live_files_is_refused(self) -> None:
         protocol = load_protocol()
-        self.assertEqual(ce.study_lock_errors(current_lock(), ROOT), [])
+        self.assertEqual(ce.study_lock_errors(current_lock(), self.repo), [])
         for label, path in LOCK_PATHS.items():
             with self.subTest(label=label):
-                lock = ce.build_frozen_protocol_lock(protocol, {**live_digests(), path: "0" * 64})
-                errors = ce.study_lock_errors(lock, ROOT)
+                lock = ce.build_frozen_protocol_lock(protocol, {**live_digests(self.repo), path: "0" * 64})
+                errors = ce.study_lock_errors(lock, self.repo)
                 self.assertTrue(any(f"study lock binding {label} " in error for error in errors), errors)
 
     def test_a_lock_with_a_broken_seal_or_for_another_protocol_is_refused(self) -> None:
         protocol = load_protocol()
         broken = {**current_lock(), "lock_sha256": "1" * 64}
-        self.assertTrue(any("lock_sha256" in e for e in ce.study_lock_errors(broken, ROOT)))
+        self.assertTrue(any("lock_sha256" in e for e in ce.study_lock_errors(broken, self.repo)))
         other = copy.deepcopy(protocol)
         other["analysis"]["limits"].append("a limit added after the lock")
-        lock = ce.build_frozen_protocol_lock(reseal(other), live_digests())
-        errors = ce.study_lock_errors(lock, ROOT)
+        lock = ce.build_frozen_protocol_lock(reseal(other), live_digests(self.repo))
+        errors = ce.study_lock_errors(lock, self.repo)
         self.assertTrue(any("run contract" in error for error in errors), errors)
-        self.assertNotEqual(ce.study_lock_errors({"schema_version": "x"}, ROOT), [])
+        self.assertNotEqual(ce.study_lock_errors({"schema_version": "x"}, self.repo), [])
 
     def test_the_cli_refuses_to_score_once_the_scorer_changes_after_the_lock(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp) / "repo"
-            for relative in ("scripts/comparative_evaluation.py", "prompts/cwo-sol-operator-e.md"):
-                (repo / relative).parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(ROOT / relative, repo / relative)
-            shutil.copytree(ROOT / "scripts" / "cwo_core", repo / "scripts" / "cwo_core", ignore=shutil.ignore_patterns("__pycache__"))
-            shutil.copytree(STUDY, repo / "evaluation" / "three-arm", ignore=shutil.ignore_patterns("__pycache__"))
-            lock = current_lock(repo)
-            lock_path, runs_path = Path(temp) / "lock.json", Path(temp) / "runs.json"
-            lock_path.write_text(json.dumps(lock), encoding="utf-8")
-            runs_path.write_text(json.dumps(stamped_runs(lock)), encoding="utf-8")
-            argv = ["--root", str(repo / "evaluation" / "three-arm"), "score", str(runs_path), "--lock", str(lock_path)]
-            code, out, _ = run_cli(argv)
-            self.assertEqual(code, 0, out)
-            self.assertEqual(json.loads(out)["study_lock_sha256"], lock["lock_sha256"])
-            with (repo / SCORER).open("a", encoding="utf-8") as handle:
-                handle.write("\n# a scoring change made after outcomes were seen\n")
-            code, out, _ = run_cli(argv)
-            self.assertEqual(code, 1)
-            report = json.loads(out)
-            self.assertNotIn("runs", report)
-            self.assertTrue(any("study lock binding scorer " in error for error in report["errors"]), report)
+        lock = current_lock(self.repo)
+        lock_path, runs_path = self.temp / "lock.json", self.temp / "runs.json"
+        lock_path.write_text(json.dumps(lock), encoding="utf-8")
+        runs_path.write_text(json.dumps(stamped_runs(lock)), encoding="utf-8")
+        argv = ["--root", str(self.study), "score", str(runs_path), "--lock", str(lock_path)]
+        code, out, _ = run_cli(argv)
+        self.assertEqual(code, 0, out)
+        self.assertEqual(json.loads(out)["study_lock_sha256"], lock["lock_sha256"])
+        with (self.repo / SCORER).open("a", encoding="utf-8") as handle:
+            handle.write("\n# a scoring change made after outcomes were seen\n")
+        code, out, _ = run_cli(argv)
+        self.assertEqual(code, 1)
+        report = json.loads(out)
+        self.assertNotIn("runs", report)
+        self.assertTrue(any("study lock binding scorer " in error for error in report["errors"]), report)
 
     def test_the_scoring_entry_point_scores_nothing_under_a_stale_lock(self) -> None:
         protocol = load_protocol()
-        stale = ce.build_frozen_protocol_lock(protocol, {**live_digests(), SCORER: "0" * 64})
-        result = ce.score_under_study_lock(stamped_runs(stale), stale, ROOT)
+        stale = ce.build_frozen_protocol_lock(protocol, {**live_digests(self.repo), SCORER: "0" * 64})
+        result = ce.score_under_study_lock(stamped_runs(stale), stale, self.repo)
         self.assertEqual(set(result), {"valid", "errors"})
         self.assertTrue(any("study lock binding scorer " in error for error in result["errors"]), result)
         lock = current_lock()
         shipped = json.loads((STUDY / "build-freeze.json").read_text(encoding="utf-8"))
-        self.assertEqual(ce.score_under_study_lock(stamped_runs(lock), lock, ROOT), score(stamped_runs(lock), build_freeze=shipped))
+        self.assertEqual(
+            ce.score_under_study_lock(stamped_runs(lock), lock, self.repo),
+            score(stamped_runs(lock), build_freeze=shipped),
+        )
 
     def test_records_bound_to_another_lock_are_not_included(self) -> None:
         run = record("r17-overhead-slugify-baseline")
@@ -594,11 +600,12 @@ class MalformedRecordTests(unittest.TestCase):
         text = json.dumps([run]).replace('"wall_seconds": 300', '"wall_seconds": NaN')
         self.assertIn("NaN", text)
         with tempfile.TemporaryDirectory() as temp:
+            study = copy_study_repository(Path(temp) / "repo")
             path = Path(temp) / "runs.json"
             path.write_text(text, encoding="utf-8")
             lock = Path(temp) / "lock.json"
             lock.write_text(json.dumps(current_lock()), encoding="utf-8")
-            code, out, err = run_cli(["score", str(path), "--lock", str(lock)])
+            code, out, err = run_cli(["--root", str(study), "score", str(path), "--lock", str(lock)])
         self.assertEqual((code, out), (2, ""))
         self.assertIn("unreadable", err)
 
