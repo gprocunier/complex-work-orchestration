@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.38.0 - 2026-11-25
+
 - Record signed pool qualification budget increases as linked allowances and count starts across them.
 
 ## 1.37.0 - 2026-11-25
