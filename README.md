@@ -26,11 +26,11 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   normalizes and evaluates what comes back. Send the exported request within
   the approved sharing boundary and bring back the reply. See the
   [desktop workflow for ChatGPT Pro](references/chatgpt-pro-browser.md).
-- **Defines supervision for delegated native work.** Live native launchers are
-  held in this release. In the supervision contract, the lead
-  checks the worker's recorded activity while it runs, and completion alone is
-  not acceptance. These checks are cooperative: the lead runs them, and nothing
-  stops a lead that skips one.
+- **Defines supervision for delegated native work.** The registered single-worker
+  route is available to an original signed workflow. In the supervision contract,
+  the lead checks the worker's recorded activity while it runs, and completion
+  alone is not acceptance. These checks are cooperative: the lead runs them, and
+  nothing stops a lead that skips one.
 - **Keeps delivered work open until it is accepted.** The lead records a
   `pending-acceptance` delivery. A reviewer working by hand can accept and close
   it in one command using the exact candidate digest they reviewed. Closure
@@ -40,6 +40,23 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   for embedding hosts.
 
 The [Limits](#limits) section lists what CWO does not do.
+
+## Which way to work
+
+| Mode | When to use it |
+| --- | --- |
+| **Architect profile (`cwo-codex`)** | Coordinate delegated work across sessions. Workers make the code edits through CWO's tools, and a separate reviewer accepts the delivery. |
+| **Plain Codex with the CWO skill** | Make a quick, hands-on repair in one sitting. The [practice walkthrough](#example-one-project-across-two-fresh-sessions) uses plain sessions for in-thread edits. |
+
+The [installer](docs/install.html#install) can set up and check the dedicated
+worker login. Actual delegation uses the protected, signed single-worker
+workflow. End-to-end dispatch from an ordinary architect session awaits the
+protected standing-approval entry.
+
+Set the architect launcher's model, reasoning effort and service tier under the
+Sol role (`sol`) in [`policy/model-roles.yaml`](policy/model-roles.yaml). Use the
+same settings in plain Codex for a like-for-like comparison. Cyber fallback is opt-in.
+Candidate E is retired.
 
 ## Setup
 
@@ -71,12 +88,10 @@ cwo-codex -C "$PWD"
 ```
 
 The profile replaces Codex's base instructions for that session. Its only setting
-is `model_instructions_file`. The launcher passes the model, reasoning effort
-and service tier from the Sol role in CWO's routing configuration. To select the
-same prompt using your Codex settings, run `codex --profile cwo-architect -C "$PWD"`.
-Verify the active settings in the new session. The CWO skill remains available in
-ordinary sessions until disabled or removed. The practice walkthrough uses
-ordinary sessions for in-thread edits. See the [architect prompt reference](references/cwo-system-prompt.md).
+is `model_instructions_file`. To select the same prompt using your Codex settings,
+run `codex --profile cwo-architect -C "$PWD"`. Verify the active settings in the
+new session. The CWO skill remains available in ordinary sessions until
+disabled or removed. See the [architect prompt reference](references/cwo-system-prompt.md).
 
 CWO does not include model access; your account supplies it and its quota. Local
 task records do not mean prompts stay offline. Your configured model provider
@@ -135,12 +150,12 @@ approved, qualified environment.
 
 [Read the delegation guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html).
 The registered single-worker route is available to an original signed workflow
-with explicit provider disclosure consent and a dedicated worker login selected
-in the installed controller configuration. Its app server has provider-only
-network access. Use observed
+with explicit provider disclosure consent and a dedicated worker login.
+Its app server has provider-only network access. Use observed
 capability evidence for the executable, configuration and enforced tool profile.
-The worker's actual model must match the selected assignment. Concurrent pools,
-campaigns and new worker-surface qualification remain held. See the
+The worker's actual model must match the selected assignment. Concurrent v2 pools
+and new worker-surface qualification remain held. Direct v1 pool dispatch and the
+legacy campaign launcher are retired. See the
 [registered single-worker requirements](references/native-live-route-holds.md#registered-single-worker-production).
 The pool contract bounds groups to three and additionally requires a trusted
 controller, which is not shipped.
