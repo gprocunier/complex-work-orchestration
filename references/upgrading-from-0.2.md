@@ -4,6 +4,26 @@ Keep the old checkout and saved work packets while you set up the current skill.
 The [installation guide](../docs/install.html#install) shows how to preview the
 destination and verify the replacement.
 
+## Which way to work
+
+| Mode | When to use it |
+| --- | --- |
+| **Architect profile (`cwo-codex`)** | Coordinate delegated work across sessions. Workers make the code edits through CWO's tools, and a separate reviewer accepts the delivery. |
+| **Plain Codex with the CWO skill** | Make a quick, hands-on repair in one sitting. The [practice walkthrough](../README.md#example-one-project-across-two-fresh-sessions) uses plain sessions for in-thread edits. |
+
+The [installer](../docs/install.html#install) can set up and check the dedicated
+worker login. Actual delegation uses the protected, signed single-worker
+workflow. End-to-end dispatch from an ordinary architect session awaits the
+protected standing-approval entry.
+
+Set the architect launcher's model, reasoning effort and service tier under the
+Sol role (`sol`) in [`policy/model-roles.yaml`](../policy/model-roles.yaml). Use the
+same settings in plain Codex for a like-for-like comparison. Cyber fallback is opt-in.
+Candidate E is retired.
+
+Install the optional [architect profile](cwo-system-prompt.md) to use CWO's
+replacement base instructions. Start a fresh session with `cwo-codex -C "$PWD"`.
+
 ## Dispatch and closure
 
 | Review or work route | What is available now |
@@ -11,7 +31,7 @@ destination and verify the replacement.
 | Outside reviewers | With explicit opt-in, build and validate a contractor packet, export its manual prompt, then submit it yourself within the approved sharing boundary. Bring the return back for evaluation and adjudication. See [outside review](external-contracting.md). |
 | Local vLLM reviewers | Prepare a local dispatch envelope or export a prompt. Live HTTP submission with `--execute-local` is held. See [local model preparation](local-inference.md#dispatch). |
 | ChatGPT in Chrome | Live browser submission and model confirmation are held. You can [verify saved private return artifacts](private-browser-artifacts.md). The [old browser instructions](chatgpt-pro-browser.md) have been withdrawn. |
-| Codex work | Work in the lead session or use the [registered single-worker route](native-live-route-holds.md#registered-single-worker-production) with its original signed workflow, consent for the exact provider disclosure and a dedicated worker login. Raw native launch, concurrent pools and campaigns remain held. |
+| Codex work | Work in the lead session or use the [registered single-worker route](native-live-route-holds.md#registered-single-worker-production) with its original signed workflow, consent for the exact provider disclosure and a dedicated worker login. Raw native launch and concurrent v2 pools remain held. Direct v1 pool dispatch and the legacy campaign launcher are retired. |
 
 Direct local model dispatch and a ChatGPT Chrome plugin workflow are planned
 for future 1.x releases.
@@ -24,11 +44,6 @@ closed blockers and children, then records acceptance and confirmed closure
 in the host audit. The verified closure library serves embedding hosts with
 original observations and single-use host acceptance from a separated
 adjudicator. See [closing Beads](run-readiness.md#closing-beads).
-
-The skill works in an ordinary Codex session. To use CWO's replacement base
-instructions, install the optional `architect` profile separately and start a
-fresh session with `cwo-codex -C "$PWD"`. The launcher selects the Sol role's
-model, reasoning effort and service tier. See [the architect profile](cwo-system-prompt.md).
 
 ## Re-create a custom reviewer profile
 

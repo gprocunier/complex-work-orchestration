@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Explain when to use the architect profile or plain Codex, and document the current requirements for delegated work.
+
 ### Tests
 
 - Preserve archive worker failures in the registered interrupt fixture when they occur before the archive request.
