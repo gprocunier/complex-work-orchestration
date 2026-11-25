@@ -2,10 +2,13 @@
 
 ## Unreleased
 
+## 1.39.0 - 2026-11-25
+
 - Delegate from ordinary checkouts with up to 64 MiB of captured worktree data and a 16 MiB limit per file.
 - Reduce duplicate checkout evidence in registered delivery recovery records.
 - Give registered commands a 30-second request window for checkout rechecks and execution.
 - Lead fixed pool qualification tasks with the registered writer call and explain that the worker checkout is read-only.
+- Include saved Codex architecture critiques alongside recorded critic returns in synthesis reports. The Codex lane retains its advisory hold, exact return digest, candidate, and scope.
 
 ### Tests
 
@@ -24,7 +27,6 @@
 - Let more projects fit within the existing registered delegation request limit by using a verified reference to the full checkout snapshot.
 - Configure the Claude architecture critic for Opus 5.5 at high effort. Routing, the prompt coach, and contractor packets use the same settings.
 - Configure the Gemini architecture critic for Gemini 4 Hydrogen at high effort. Its manual command runs Antigravity in plan mode from the configured trusted folder.
-- Include saved Codex architecture critiques alongside recorded critic returns in synthesis reports. The Codex lane retains its advisory hold, exact return digest, candidate, and scope.
 
 ## 1.36.8 - 2026-11-25
 
