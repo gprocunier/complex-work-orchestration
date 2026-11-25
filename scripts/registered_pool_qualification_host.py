@@ -1,6 +1,7 @@
 """Protected embedding entry for the contained pool qualification campaign."""
 
 from collections.abc import Callable, Mapping
+from contextlib import contextmanager
 from copy import deepcopy
 from dataclasses import dataclass, replace
 import json
@@ -12,6 +13,7 @@ from cwo_core.native_authority import canonical_authority_sha256, canonical_json
 from cwo_core.native_pool_admission import (
     AdmissionCandidate, BeadsClaimAdapter, PoolAdmissionReservation, reserve_pool_cohort,
 )
+from cwo_core.native_pool_qualification_budget import valid_start_limit
 from cwo_core.native_pool_qualification_fixtures import POOL_QUALIFICATION_COHORT_SIZES
 from cwo_core.native_pool_qualification_stage import CAMPAIGN_BUDGET_ID, CAMPAIGN_START_CAP
 from cwo_core import native_pool_qualification_stage as stage
@@ -75,7 +77,8 @@ def _admission_binding(cohort):
             })}
 
 
-def _validate_roster(admissions, calibrations):
+def _validate_roster(admissions, calibrations, campaign_start_limit):
+    _require(valid_start_limit(campaign_start_limit), "approved-campaign-start-limit-invalid")
     _require(type(admissions) is tuple and type(calibrations) is tuple
              and 0 < len(admissions) + len(calibrations) <= CAMPAIGN_START_CAP,
              "disposable-admission-roster-required")
@@ -90,12 +93,12 @@ def _validate_roster(admissions, calibrations):
              "disposable-calibration-cohorts-required")
 
 
-def _admission_action(request, admissions, calibrations, expiry):
+def _admission_action(request, admissions, calibrations, expiry, campaign_start_limit):
     targets = [(row["target"]["database"], issue) for row in (*admissions, *calibrations)
                for issue in row["candidate"]["child_bindings"]]
     _require(len(set(targets)) == len(targets), "disposable-admission-cohort-reused")
     return canonical_authority_sha256({"scope": ADMISSION_SCOPE, "request": request,
-                                       "campaign": CAMPAIGN_BUDGET_ID, "start_limit": CAMPAIGN_START_CAP,
+                                       "campaign": CAMPAIGN_BUDGET_ID, "start_limit": campaign_start_limit,
                                        "expires_at": expiry, "admissions": list(admissions),
                                        "calibrations": list(calibrations)})
 
@@ -107,13 +110,15 @@ def _request_binding(request_path, directory):
     return {"path": str(request_path), "identity": _identity(directory)}
 
 
-def admission_action_sha256(request_path, admissions, calibration_admissions, *, expires_at):
+def admission_action_sha256(request_path, admissions, calibration_admissions, *, expires_at,
+                            campaign_start_limit=CAMPAIGN_START_CAP):
     """Bind enrolled claim inputs before the protected controller can write Beads."""
-    _validate_roster(admissions, calibration_admissions)
+    _validate_roster(admissions, calibration_admissions, campaign_start_limit)
     with PrivateDirectory.open(request_path.parent) as directory:
         return _admission_action(_request_binding(request_path, directory),
                                  tuple(map(_admission_binding, admissions)),
-                                 tuple(map(_admission_binding, calibration_admissions)), expires_at)
+                                 tuple(map(_admission_binding, calibration_admissions)), expires_at,
+                                 campaign_start_limit)
 
 
 def _json_bytes(document):
@@ -146,11 +151,12 @@ def _reserve(directory, prefix, cohort, binding, guard):
     return reservation
 
 
+@contextmanager
 def _reserve_selected(directory, parent, admissions, calibrations, directive, expires_at):
     selected = tuple(map(_admission_binding, admissions))
     measured = tuple(map(_admission_binding, calibrations))
     request = _request_binding(parent.request_path, directory)
-    action = _admission_action(request, selected, measured, expires_at)
+    action = _admission_action(request, selected, measured, expires_at, parent.campaign_start_limit)
 
     def guard():
         _require_source()
@@ -159,15 +165,20 @@ def _reserve_selected(directory, parent, admissions, calibrations, directive, ex
             _require(_request_binding(parent.request_path, current) == request, "protected-request-custody-changed")
 
     guard()
-    stage._require_campaign_enrollment(expires_at=expires_at, run_count=len(selected) + len(measured))
-    reserved = tuple(_reserve(directory, f"{parent.request_path.name}.{index}", cohort, binding, guard)
-                     for index, (cohort, binding) in enumerate(zip(admissions + calibrations, selected + measured), 1))
-    return replace(parent, admissions=reserved[:len(admissions)], calibration_admissions=reserved[len(admissions):])
+    with stage._campaign_custody(stage.contained_campaign_ledger_root(), new_owner=True):
+        name = parent.request_path.name
+        _require(directory.contains(name) is False, "qualification-request-already-staged")
+        _require(directory.contains(f"{name}.1.claim-1.json") is False, "qualification-claim-custody-already-present")
+        stage._require_campaign_enrollment(expires_at=expires_at, run_count=len(selected) + len(measured),
+                                           campaign_start_limit=parent.campaign_start_limit)
+        reserved = tuple(_reserve(directory, f"{name}.{index}", cohort, binding, guard)
+                         for index, (cohort, binding) in enumerate(zip(admissions + calibrations, selected + measured), 1))
+        yield replace(parent, admissions=reserved[:len(admissions)], calibration_admissions=reserved[len(admissions):])
 
 
 def run_registered_pool_qualification(request_path, *, verification_key, actor_id, identity_source, admissions,
                                       calibration_admissions, admission_directive, admission_expires_at,
-                                      stage_approved_request):
+                                      stage_approved_request, campaign_start_limit=CAMPAIGN_START_CAP):
     """Run one protected, signed campaign request through the registered factory.
 
     The enrolled host supplies the original admission inputs, a signed directive
@@ -179,21 +190,19 @@ def run_registered_pool_qualification(request_path, *, verification_key, actor_i
     the request, including when a later step refuses.
     """
     _require_source()
-    _validate_roster(admissions, calibration_admissions)
+    _validate_roster(admissions, calibration_admissions, campaign_start_limit)
     _require(callable(stage_approved_request), "protected-request-staging-required")
     parent = ProtectedPoolQualificationParent(request_path, verification_key, actor_id, identity_source, (),
-                                              build_pool_qualification_runtime)
+                                              build_pool_qualification_runtime,
+                                              campaign_start_limit=campaign_start_limit)
     with PrivateDirectory.open(request_path.parent) as directory:
-        _require(directory.contains(request_path.name) is False, "qualification-request-already-staged")
-        _require(directory.contains(f"{request_path.name}.1.claim-1.json") is False,
-                 "qualification-claim-custody-already-present")
         try:
-            parent = _reserve_selected(directory, parent, admissions, calibration_admissions,
-                                       deepcopy(admission_directive), admission_expires_at)
-            request = stage_approved_request(_receipt_projections(parent.admissions),
-                                             _receipt_projections(parent.calibration_admissions))
-            directory.write(request_path.name, _json_bytes(request))
-            return run_protected_pool_qualification(parent, include_pass_record=True)
+            with _reserve_selected(directory, parent, admissions, calibration_admissions,
+                                   deepcopy(admission_directive), admission_expires_at) as admitted:
+                request = stage_approved_request(_receipt_projections(admitted.admissions),
+                                                 _receipt_projections(admitted.calibration_admissions))
+                directory.write(request_path.name, _json_bytes(request))
+                return run_protected_pool_qualification(admitted, include_pass_record=True)
         except BaseException as failure:
             for path in directory.published_paths:
                 failure.add_note(f"Original qualification custody retained at {path}.")

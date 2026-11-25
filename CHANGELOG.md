@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Record signed pool qualification budget increases as linked allowances and count starts across them.
+
 ## 1.37.0 - 2026-11-25
 
 - Lead project status and handoffs with the outcome, project goal, completed work, named dependencies, and any decision the reader needs to make. Validate this summary in current handoff packets.

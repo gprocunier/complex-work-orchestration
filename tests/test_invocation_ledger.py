@@ -1058,6 +1058,7 @@ class SchemaAndContainmentTests(unittest.TestCase):
             # The optional parent fallback records a same-budget child attempt.
             "scripts/cwo_core/cyber_fallback.py",
             "scripts/cwo_core/local_invocation.py",
+            "scripts/cwo_core/native_pool_qualification_budget.py",
             "scripts/cwo_core/native_pool_qualification_stage.py",
             # Experimental fake host reads persisted admission; production stays disabled.
             "scripts/offline_admitted_n1.py",

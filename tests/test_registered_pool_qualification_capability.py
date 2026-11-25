@@ -12,6 +12,7 @@ from types import ModuleType, SimpleNamespace
 import unittest
 from unittest import mock
 
+from cwo_core import native_pool_qualification_stage as stage
 from cwo_core.invocation_ledger import InvocationLedger, request_sha256
 from cwo_core.native_authority import AuthorityProvenanceError
 from cwo_core.native_pool_contracts import validate_capability_receipt
@@ -147,10 +148,7 @@ class _ProtectedParent:
 
 
 def _fixture(size, root, stack):
-    stage = ModuleType("cwo_core.native_pool_qualification_stage")
-    stage.CAMPAIGN_BUDGET_ID = _CAMPAIGN
-    stage.CAMPAIGN_START_CAP = 20
-    stage.contained_campaign_ledger_root = lambda: root
+    stack.enter_context(mock.patch.object(stage, "contained_campaign_ledger_root", return_value=root))
     context = ModuleType("cwo_core.native_pool_deferred_context")
     context.QUALIFICATION_ADAPTER_VERSION = "pool-contained-v1"
     context.QUALIFICATION_SURFACE = "connected-codex"
@@ -166,7 +164,7 @@ def _fixture(size, root, stack):
     stack.enter_context(mock.patch.object(capability, "_source_digest", return_value=_digest("installed-sources")))
     stack.enter_context(mock.patch.object(capability, "_CLAIMS", set()))
     ledger = InvocationLedger(root)
-    ledger.open_budget(_CAMPAIGN, {"starts": 20}, scope_sha256=_digest("campaign"))
+    ledger.open_budget(_CAMPAIGN, {"starts": 20}, scope_sha256=stage.CAMPAIGN_SCOPE_SHA256)
     payload = b"original calibration start"
     expiry = int((datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp())
     reserved = ledger.reserve(budget_id=_CAMPAIGN, request_id="measured-cohort", request_sha256=request_sha256(payload),

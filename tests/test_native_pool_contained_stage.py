@@ -29,15 +29,17 @@ from tests import test_native_pool_admission_contracts as admitted_fixtures
 from tests.test_native_pool_qualification_stage import (
     _active_fixture, _preparation_and_runs, _qualification_effect_events, _run_attempt,
 )
+from tests.test_native_pool_qualification_budget import record_fixture_starts
 
 
 def _digest(text):
     return sha256(text.encode()).hexdigest()
 
 
-def _approve_accounting(accounting, binding, *, calibrations=()):
+def _approve_accounting(accounting, binding, *, calibrations=(), campaign_start_limit=20):
     approval = stage._CampaignApproval(binding, _digest("inert signed campaign action"), accounting.expires_at,
-                                       calibrations, os.getpid(), None, stage._CAMPAIGN_APPROVAL_TOKEN)
+                                       calibrations, os.getpid(), None, stage._CAMPAIGN_APPROVAL_TOKEN,
+                                       campaign_start_limit=campaign_start_limit)
     return replace(accounting, _approval=approval)
 
 
@@ -304,12 +306,7 @@ class ContainedPoolStageTests(unittest.TestCase):
         with TemporaryDirectory() as temporary, ExitStack() as stack:
             preparation, runs, accounting = _registered_fixture(Path(temporary), stack)
             ledger = accounting.ledger
-            payload = b"fixture control representing earlier charged starts"
-            earlier = ledger.reserve(budget_id=stage.CAMPAIGN_BUDGET_ID, request_id="prior-campaign-starts",
-                                     request_sha256=sha256(payload).hexdigest(), admission_sha256="a" * 64,
-                                     amount={"starts": 19}, expires_at=accounting.expires_at)
-            with ledger.invocation(earlier["reservation_id"], payload):
-                pass
+            record_fixture_starts(ledger, 19)
             binding = stage.pool_qualification_binding(preparation, runs, accounting=accounting)
             with self.assertRaisesRegex(NativePoolTransactionError, "campaign-start-cap-exhausted"):
                 stage.run_contained_pool_qualification_stage(preparation, runs, approved_binding=binding,

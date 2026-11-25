@@ -23,6 +23,7 @@ import registered_pool_qualification_capability as capability
 import run_native_pool_qualification as controller
 
 from tests.test_native_pool_qualification_stage import _qualification_effect_events, _run_attempt
+from tests.test_native_pool_qualification_budget import record_fixture_starts
 from tests.test_registered_pool_qualification import _InertContainment, _pool_test_directory
 from tests.test_registered_pool_qualification_capability import _KEY, _digest, _signed
 from tests.test_registered_pool_qualification_e2e import _FixtureBeads, _seal_run
@@ -209,6 +210,10 @@ class SignedCalibrationPipeTests(unittest.TestCase):
     def test_malformed_refusal_completion_still_fails_after_local_interrupt(self):
         self._run_with_delayed_completion(malformed=True)
 
+    def test_calibration_accepts_a_start_charged_to_the_linked_allowance(self):
+        with _pool_test_directory() as temporary, ExitStack() as stack:
+            self._run_calibration(Path(temporary), stack, fixed_pool_qualification_cohorts()[0], linked_allowance=True)
+
     def _run_with_delayed_completion(self, *, malformed):
         waiting = Event()
         revoked = Event()
@@ -257,7 +262,8 @@ class SignedCalibrationPipeTests(unittest.TestCase):
                                   expect_wire_failure=malformed)
         self.assertEqual(refusals, ["pool-qualification-adapter-revoked-calibration-completion-drift"] if malformed else [])
 
-    def _run_calibration(self, root, stack, cohort, *, expect_wire_failure=False, peer_behavior="calibration"):
+    def _run_calibration(self, root, stack, cohort, *, expect_wire_failure=False, peer_behavior="calibration",
+                         linked_allowance=False):
         peers = []
 
         class Peer(_CalibrationPeer):
@@ -289,24 +295,31 @@ class SignedCalibrationPipeTests(unittest.TestCase):
         ledger = InvocationLedger(ledger_root)
         ledger.open_budget(stage.CAMPAIGN_BUDGET_ID, {"starts": 20}, scope_sha256=stage.CAMPAIGN_SCOPE_SHA256)
         expires = int(time()) + 300
+        start_limit = 30 if linked_allowance else 20
+        prior_starts = 20 if linked_allowance else 0
+        record_fixture_starts(ledger, prior_starts)
+        if linked_allowance:
+            stage._require_campaign_enrollment(expires_at=expires, run_count=1, campaign_start_limit=start_limit)
         original_parent = run.runtime.start_worker_session.__self__
         manifest = {"scope": "contained-pool-callback-calibration-v1", "calibration_plan_sha256": run.plan["plan_sha256"],
                     "adapter_scope_sha256": capability.callback_adapter_scope_sha256(original_parent),
                     "expires_at": expires, "runtime_seconds": 60}
         protected = controller.ProtectedPoolQualificationParent(request_path=authority_path, verification_key=_KEY,
             actor_id="test-operator", identity_source="fixture", admissions=(admission,),
-            factory=driver.build_pool_qualification_runtime)
+            factory=driver.build_pool_qualification_runtime, campaign_start_limit=start_limit)
         request = {"plan": run.plan, "authority_path": authority_path, "admission": admission,
                    "manifest": manifest, "directive": _signed(manifest)}
         self.assertEqual(driver.verify_protected_callback_calibration_request(protected, **request),
                          capability.calibration_action_sha256(manifest))
         self.assertFalse(peers)
-        self.assertEqual(ledger.summary(stage.CAMPAIGN_BUDGET_ID)["charged"], {"starts": 0})
+        self.assertEqual(stage.campaign_start_status(ledger)["charged"], prior_starts)
 
         signed_stage = {"schema": controller.APPROVAL_SCOPE, "preparation": prep, "runs": [],
                         "stage_binding_sha256": _digest("inert stage binding"), "expires_at": expires,
                         "calibrations": [{**request, "admission": None, "authority_path": str(authority_path),
                                           "journal_path": str(run.journal_path), "fixture_root": str(run.fixture_root)}]}
+        if linked_allowance:
+            signed_stage["campaign_start_limit"] = start_limit
         directive = sign_controller_directive(verification_key=_KEY, actor_id="test-operator", identity_source="fixture",
             action_sha256=controller.qualification_action_sha256(signed_stage), directive_id="inert containing campaign")
         _, approval = controller._approved_campaign({"manifest": signed_stage, "directive": directive}, protected)
@@ -319,13 +332,14 @@ class SignedCalibrationPipeTests(unittest.TestCase):
         else:
             handle = driver.run_protected_callback_calibration(protected, **request)
             self.assertIs(type(handle), capability.ConnectedPoolCallbackCapability)
-            _, _, receipt = capability._ISSUED[handle]
+            _, (_, reservation), receipt = capability._ISSUED[handle]
             self.assertEqual(validate_capability_receipt(receipt), [])
             self.assertEqual(receipt["sample_count"], size)
+            self.assertEqual(ledger.attempt(reservation)["budget_id"], stage.campaign_start_status(ledger)["budget_ids"][-1])
         self.assertTrue(all(peer.closed and peer.process.poll() == 0 for peer in peers))
         self.assertEqual(len(peers), size)
         self.assertFalse(tuple(fixture.glob("*/result-*.txt")))
-        self.assertEqual(ledger.summary(stage.CAMPAIGN_BUDGET_ID)["charged"], {"starts": 1})
+        self.assertEqual(stage.campaign_start_status(ledger)["charged"], prior_starts + 1)
         accounting = stage.PoolQualificationAccounting(ledger, expires)
         self.assertEqual(_run_attempt(run, accounting)["outcome"], "unknown" if expect_wire_failure else "completed")
         events = [row["event_type"] for row in _qualification_effect_events(run, accounting)]

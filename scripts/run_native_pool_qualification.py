@@ -34,6 +34,7 @@ from cwo_core.native_pool_admission import (
 )
 from cwo_core.native_pool_contracts import canonical_sha256
 from cwo_core.native_pool_deferred_context import QUALIFICATION_PROFILE
+from cwo_core.native_pool_qualification_budget import campaign_start_snapshot, valid_start_limit
 from cwo_core.native_pool_qualification_fixtures import POOL_QUALIFICATION_COHORT_SIZES, fixed_pool_qualification_cohorts
 from cwo_core.native_pool_qualification_stage import (
     CAMPAIGN_BUDGET_ID, CAMPAIGN_START_CAP, _CAMPAIGN_APPROVAL_TOKEN, _CampaignApproval,
@@ -71,6 +72,7 @@ class ProtectedPoolQualificationParent:
     factory: Callable[..., tuple] = field(repr=False)
     capabilities: tuple[ConnectedPoolCallbackCapability, ...] = field(default=(), repr=False)
     calibration_admissions: tuple[PoolAdmissionReservation, ...] = field(default=(), repr=False)
+    campaign_start_limit: int = CAMPAIGN_START_CAP
 
 
 def _require(condition, reason):
@@ -142,10 +144,14 @@ def _require_current_input(path, ancestry, observed):
         os.close(descriptor)
 
 
+def _manifest_start_limit(manifest):
+    return manifest.get("campaign_start_limit", CAMPAIGN_START_CAP)
+
+
 def qualification_action_sha256(manifest):
     """Bind the complete fixed stage request in the existing operator directive."""
     return canonical_authority_sha256({"scope": APPROVAL_SCOPE, "manifest": manifest,
-                                       "campaign": CAMPAIGN_BUDGET_ID, "start_limit": CAMPAIGN_START_CAP})
+                                       "campaign": CAMPAIGN_BUDGET_ID, "start_limit": _manifest_start_limit(manifest)})
 
 
 def _approved_campaign(request, parent):
@@ -153,6 +159,7 @@ def _approved_campaign(request, parent):
 
     _require(type(parent) is ProtectedPoolQualificationParent, "protected-parent-attachment-required")
     manifest = _verify_approval(request, parent)
+    start_limit = _manifest_start_limit(manifest)
     calibrations = manifest.get("calibrations", [])
     _require(type(calibrations) is list and len(calibrations) <= CAMPAIGN_START_CAP,
              "approved-calibration-start-cap-invalid")
@@ -163,18 +170,27 @@ def _approved_campaign(request, parent):
     except (KeyError, TypeError) as exc:
         raise QualificationControllerError("approved-calibration-fields-invalid") from exc
     approval = _CampaignApproval(manifest["stage_binding_sha256"], qualification_action_sha256(manifest),
-                                manifest["expires_at"], bindings, os.getpid(), parent, _CAMPAIGN_APPROVAL_TOKEN)
+                                manifest["expires_at"], bindings, os.getpid(), parent, _CAMPAIGN_APPROVAL_TOKEN,
+                                campaign_start_limit=start_limit)
     return manifest, approval
 
 
 def _verify_approval(request, parent):
     _require(set(request) == {"manifest", "directive"}, "protected-request-fields-invalid")
     manifest, directive = request["manifest"], request["directive"]
-    _require(type(manifest) is dict and _MANIFEST_FIELDS <= manifest.keys() <= _MANIFEST_FIELDS | {"calibrations"}
+    _require(type(manifest) is dict and _MANIFEST_FIELDS <= manifest.keys()
+             <= _MANIFEST_FIELDS | {"calibrations", "campaign_start_limit"}
              and manifest["schema"] == APPROVAL_SCOPE and type(directive) is dict, "protected-request-schema-invalid")
-    _verify_directive(parent, directive, qualification_action_sha256(manifest), manifest["expires_at"])
+    _verify_campaign_directive(parent, directive, manifest)
     _require(_digest(manifest["stage_binding_sha256"]), "approved-stage-binding-required")
     return manifest
+
+
+def _verify_campaign_directive(parent, directive, manifest):
+    _verify_directive(parent, directive, qualification_action_sha256(manifest), manifest["expires_at"])
+    start_limit = _manifest_start_limit(manifest)
+    _require(valid_start_limit(start_limit)
+             and start_limit == parent.campaign_start_limit, "approved-campaign-start-limit-invalid")
 
 
 def _digest(value):
@@ -351,7 +367,7 @@ def _run_approved_stage(manifest, parent, *, approval, include_pass_record):
 
     rows = _validate_roster(manifest, parent.admissions, stage)
     preparation = manifest["preparation"]
-    report_inputs = _report_inputs(preparation, stage.CAMPAIGN_START_CAP) if include_pass_record else None
+    report_inputs = _report_inputs(preparation, approval.campaign_start_limit) if include_pass_record else None
     _require(all(not parent.request_path.is_relative_to(_path(row["fixture_root"])) for row in rows),
              "protected-request-overlaps-fixture")
     calibrations = _select_calibrations(manifest, parent, rows, stage)
@@ -363,19 +379,20 @@ def _run_approved_stage(manifest, parent, *, approval, include_pass_record):
     planned = tuple((row["plan"], _path(row["journal_path"]), _path(row["fixture_root"])) for row in rows)
     _require(stage.contained_pool_qualification_binding(preparation, planned, accounting=accounting) == binding,
              "approved-stage-binding-mismatch")
-    capabilities = (_execute_calibrations(stage, parent, calibrations, accounting, rows)
-                    if calibrations else parent.capabilities)
-    _require(time() < manifest["expires_at"], "qualification-directive-expired-or-future")
-    runs = tuple(_select_run(stage, row, path, admission, capability, parent.factory)
-                 for row, path, admission, capability in zip(rows, authority_paths, parent.admissions, capabilities))
-    _require(stage.pool_qualification_binding(preparation, runs, accounting=accounting) == binding,
-             "approved-stage-binding-mismatch")
-    _require_source()
-    result = stage.run_contained_pool_qualification_stage(preparation, runs, approved_binding=binding,
-                                                          accounting=accounting)
-    if report_inputs is not None:
-        result = {**result, "pass_record": _pass_record(stage, result, rows, accounting, report_inputs)}
-    return result
+    with stage._campaign_custody(accounting.ledger.root):
+        capabilities = (_execute_calibrations(stage, parent, calibrations, accounting, rows)
+                        if calibrations else parent.capabilities)
+        _require(time() < manifest["expires_at"], "qualification-directive-expired-or-future")
+        runs = tuple(_select_run(stage, row, path, admission, capability, parent.factory)
+                     for row, path, admission, capability in zip(rows, authority_paths, parent.admissions, capabilities))
+        _require(stage.pool_qualification_binding(preparation, runs, accounting=accounting) == binding,
+                 "approved-stage-binding-mismatch")
+        _require_source()
+        result = stage.run_contained_pool_qualification_stage(preparation, runs, approved_binding=binding,
+                                                              accounting=accounting)
+        if report_inputs is not None:
+            result = {**result, "pass_record": _pass_record(stage, result, rows, accounting, report_inputs)}
+        return result
 
 
 def _select_run(stage, row, authority_path, admission, capability, builder):
@@ -411,13 +428,13 @@ def _report_inputs(preparation, cap):
     return inputs
 
 
-def _started_campaign_runs(stage, ledger):
-    """Use the original campaign history. A pre-intent reservation is no start."""
+def _started_campaign_runs(stage, ledger, approved_cap):
+    """Order every campaign intent by its durable sequence across allowances."""
     with stage._campaign_custody(ledger.root), ledger._locked() as (_root, document):
-        budget = document["budgets"][stage.CAMPAIGN_BUDGET_ID]
-        _require(budget["limits"] == {"starts": stage.CAMPAIGN_START_CAP}, "qualification-record-budget-drift")
+        status = campaign_start_snapshot(document)
+        _require(status["cap"] == approved_cap, "qualification-record-budget-drift")
         attempts = {row["reservation_id"]: row for row in document["attempts"].values()}
-        started = sorted((row for row in attempts.values() if row["budget_id"] == stage.CAMPAIGN_BUDGET_ID
+        started = sorted((row for row in attempts.values() if row["budget_id"] in status["budget_ids"]
                           and any(entry["state"] == "invocation-intent" for entry in row["history"])),
                          key=lambda row: row["sequence"])
         _require(all(row["charge"] == {"starts": 1} for row in started), "qualification-record-start-charge-drift")
@@ -427,7 +444,7 @@ def _started_campaign_runs(stage, ledger):
 def _pass_record(stage, result, rows, accounting, inputs):
     from cwo_core.native_pool_qualification_evidence import OutcomeObservation, build_pass_record
 
-    started, attempts = _started_campaign_runs(stage, accounting.ledger)
+    started, attempts = _started_campaign_runs(stage, accounting.ledger, inputs["run_cap"])
     plans = {row["plan"]["transaction_id"]: row["plan"] for row in rows}
     observations, worker_tools, catalog_modes = {}, {}, {}
     for transaction in result["transactions"]:

@@ -1,5 +1,6 @@
 """Protected qualification host replay with inert Beads and zero model starts."""
 
+from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 from datetime import datetime, timezone
 import json
@@ -14,6 +15,7 @@ from cwo_core.invocation_ledger import InvocationLedger
 from cwo_core.maintenance_authority import sign_controller_directive
 from cwo_core.native_pool_admission import FixedCohortAdmissionCapability
 from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts
+from cwo_core.native_pool_transaction import NativePoolTransactionError
 from cwo_core.native_pool_transaction import seal_transaction_plan
 from prepare_native_pool_qualification import _materialize_fixtures, _prepare
 import registered_pool_qualification as adapter
@@ -22,6 +24,7 @@ import registered_pool_qualification_host as host
 import run_native_pool_qualification as controller
 
 from tests.test_native_pool_admission import _candidate_from, _live
+from tests.test_native_pool_qualification_budget import record_fixture_starts
 from tests.test_native_pool_transaction import bead, transaction_plan
 from tests.test_registered_pool_qualification_e2e import _FixtureBeads, _admission_inputs, _seal_run
 
@@ -64,12 +67,13 @@ class RegisteredPoolQualificationHostTests(unittest.TestCase):
         claim, _memory = self.beads.register(root, items)
         return host.PoolQualificationAdmission(candidate, claim, root.name, _live)
 
-    def _launch(self, *, directive=None, stage_request=None):
+    def _launch(self, *, directive=None, stage_request=None, campaign_start_limit=20):
         return host.run_registered_pool_qualification(
             self.request_path, verification_key=_KEY, actor_id=_ACTOR, identity_source=_SOURCE,
             admissions=self.admissions, calibration_admissions=self.calibrations,
             admission_directive=self.directive if directive is None else directive, admission_expires_at=_EXPIRY,
             stage_approved_request=self._stage_request if stage_request is None else stage_request,
+            campaign_start_limit=campaign_start_limit,
         )
 
     def _stage_request(self, productive, calibrations):
@@ -134,6 +138,63 @@ class RegisteredPoolQualificationHostTests(unittest.TestCase):
         stage_request.assert_not_called()
         self.assertTrue(all(not row.calls for row in self.beads.databases.values()))
         self.assertFalse(tuple(self.root.glob("qualification.json*")))
+
+    def test_signed_increment_enrolls_before_claims_and_binds_the_final_stage(self):
+        self.enterContext(patch.object(availability, "require_pool_qualification"))
+        ledger = InvocationLedger(self.ledger_root)
+        record_fixture_starts(ledger, 17, failed_index=3)
+        unstaged = Mock()
+        with self.assertRaisesRegex(ValueError, "campaign-start-cap-exhausted"):
+            self._launch(stage_request=unstaged)
+        with self.assertRaisesRegex(controller.QualificationControllerError, "original-operator-directive-required"):
+            self._launch(stage_request=unstaged, campaign_start_limit=30)
+        unstaged.assert_not_called()
+        self.assertTrue(all(not row.calls for row in self.beads.databases.values()))
+        self.assertEqual(stage.campaign_start_status(ledger)["cap"], 20)
+
+        directive = _sign(host.admission_action_sha256(self.request_path, self.admissions, self.calibrations,
+                                                     expires_at=_EXPIRY, campaign_start_limit=30))
+
+        def staged(productive, calibrations):
+            self.assertEqual(stage.campaign_start_status(ledger)["cap"], 30)
+            manifest = self._stage_request(productive, calibrations)["manifest"]
+            manifest["campaign_start_limit"] = 30
+            return {"manifest": manifest, "directive": _sign(controller.qualification_action_sha256(manifest))}
+
+        def checkpoint_with_competing_enrollment(*args, **kwargs):
+            with ThreadPoolExecutor(max_workers=1) as workers:
+                competing = workers.submit(stage._require_campaign_enrollment, expires_at=_EXPIRY, run_count=4,
+                                           campaign_start_limit=40)
+                with self.assertRaisesRegex(NativePoolTransactionError, "pool-qualification-campaign-already-running"):
+                    competing.result(timeout=5)
+            with self.assertRaisesRegex(NativePoolTransactionError, "pool-qualification-campaign-already-running"):
+                with stage._campaign_custody(self.ledger_root, new_owner=True):
+                    self.fail("another host obtained the current owner's custody")
+            return self._check_original_parent(*args, **kwargs)
+
+        checkpoint = self.enterContext(patch.object(controller, "_run_approved_stage",
+                                                   side_effect=checkpoint_with_competing_enrollment))
+        self.assertEqual(self._launch(stage_request=staged, directive=directive, campaign_start_limit=30),
+                         {"outcome": "inert-boundary"})
+        self.assertEqual(checkpoint.call_args.kwargs["approval"].campaign_start_limit, 30)
+        self.assertEqual([len(runner.claim_order) for runner in self.beads.databases.values()], [2, 3, 2, 3])
+        self.assertEqual(stage.campaign_start_status(ledger)["charged"], 17)
+        next_directive = _sign(host.admission_action_sha256(self.request_path, self.admissions, self.calibrations,
+                                                          expires_at=_EXPIRY, campaign_start_limit=40))
+        with self.assertRaisesRegex(controller.QualificationControllerError, "qualification-request-already-staged"):
+            self._launch(stage_request=unstaged, directive=next_directive, campaign_start_limit=40)
+        self.assertEqual(stage.campaign_start_status(ledger)["cap"], 30)
+        stage._require_campaign_enrollment(expires_at=_EXPIRY, run_count=4, campaign_start_limit=40)
+        self.assertEqual(stage.campaign_start_status(ledger)["cap"], 40)
+
+    def test_original_cap_signature_cannot_authorize_the_incremented_final_stage(self):
+        self.enterContext(patch.object(availability, "require_pool_qualification"))
+        directive = _sign(host.admission_action_sha256(self.request_path, self.admissions, self.calibrations,
+                                                     expires_at=_EXPIRY, campaign_start_limit=30))
+        checkpoint = self.enterContext(patch.object(controller, "_run_approved_stage"))
+        with self.assertRaisesRegex(controller.QualificationControllerError, "approved-campaign-start-limit-invalid"):
+            self._launch(directive=directive, campaign_start_limit=30)
+        checkpoint.assert_not_called()
 
     def test_expiry_at_original_pre_show_refuses_before_beads_write(self):
         self.enterContext(patch.object(availability, "require_pool_qualification"))

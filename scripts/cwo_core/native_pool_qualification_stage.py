@@ -15,7 +15,7 @@ from pathlib import Path
 from pwd import getpwuid
 import stat
 import sys
-from threading import Condition, get_ident
+from threading import Condition, get_ident, local
 from time import monotonic
 from types import FunctionType
 from typing import Any
@@ -44,6 +44,15 @@ from .native_pool_deferred_context import (
     _RUNTIME_TOKEN,
     contained_plan_binding,
     contained_selection_binding,
+)
+from .native_pool_qualification_budget import (
+    CAMPAIGN_BUDGET_ID as CAMPAIGN_BUDGET_ID,
+    CAMPAIGN_MAX_START_INCREMENT,
+    CAMPAIGN_SCOPE_SHA256 as CAMPAIGN_SCOPE_SHA256,
+    CAMPAIGN_START_CAP as CAMPAIGN_START_CAP,
+    campaign_start_snapshot,
+    next_allowance,
+    valid_start_limit,
 )
 from .native_pool_qualification_fixtures import (
     POOL_QUALIFICATION_COHORT_SIZES,
@@ -75,11 +84,9 @@ _FACTORY_ENTRY = "build_pool_qualification_runtime"
 _FACTORY_BYTES = 256_000
 _CALIBRATION_MODULE = "registered_pool_qualification_calibration"
 _CALIBRATION_ENTRY = "bind_protected_callback_calibration"
-CAMPAIGN_START_CAP = 20
-CAMPAIGN_BUDGET_ID = "native-pool-contained-qualification"
-CAMPAIGN_SCOPE_SHA256 = canonical_sha256({"campaign": CAMPAIGN_BUDGET_ID, "start_cap": CAMPAIGN_START_CAP})
 _CAMPAIGN_APPROVAL_TOKEN = object()
 _ISSUED_CAMPAIGN_APPROVALS = WeakSet()
+_CAMPAIGN_CUSTODY = local()
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +111,7 @@ class _CampaignApproval:
     controller_pid: int
     parent: object = field(repr=False)
     issuer: InitVar[object]
+    campaign_start_limit: int = CAMPAIGN_START_CAP
 
     def __post_init__(self, issuer):
         _require(issuer is _CAMPAIGN_APPROVAL_TOKEN, "signed-campaign-approval-required")
@@ -1209,43 +1217,87 @@ def contained_campaign_ledger_root() -> Path:
 
 
 @contextmanager
-def _campaign_custody(root: Path):
+def _campaign_ledger_directory(root: Path):
     _require(root == contained_campaign_ledger_root(), "campaign-ledger-required")
     path = root / LEDGER_FILE
     directory, _ = _custody(path, "campaign-ledger-custody-refused")
     try:
         _require(os.fstat(directory).st_mode & 0o077 == 0, "campaign-ledger-custody-refused")
         _require(_private_settlement_file(path.lstat()), "campaign-ledger-enrollment-required")
-        try:
-            fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as failure:
-            raise NativePoolTransactionError("pool-qualification-campaign-already-running") from failure
-        yield
+        yield directory
     finally:
         os.close(directory)
 
 
-def _require_campaign_budget(accounting: PoolQualificationAccounting, run_count: int) -> None:
-    _require(run_count <= CAMPAIGN_START_CAP, "campaign-start-cap-exceeded")
-    ledger = accounting.ledger
-    summary = ledger.summary(CAMPAIGN_BUDGET_ID)
-    ledger.open_budget(CAMPAIGN_BUDGET_ID, {"starts": CAMPAIGN_START_CAP}, scope_sha256=CAMPAIGN_SCOPE_SHA256)
-    _require(summary["remaining"]["starts"] >= run_count, "campaign-start-cap-exhausted")
+@contextmanager
+def _campaign_custody(root: Path, *, new_owner=False):
+    with _campaign_ledger_directory(root) as directory:
+        info = os.fstat(directory)
+        owner = os.getpid(), info.st_dev, info.st_ino
+        retained = getattr(_CAMPAIGN_CUSTODY, "owner", None)
+        if retained is None:
+            with _take_campaign_custody(directory, owner):
+                yield
+        else:
+            _require(retained == owner and not new_owner, "pool-qualification-campaign-already-running")
+            yield
+
+
+@contextmanager
+def _take_campaign_custody(directory, owner):
+    try:
+        fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as failure:
+        raise NativePoolTransactionError("pool-qualification-campaign-already-running") from failure
+    _CAMPAIGN_CUSTODY.owner = owner
+    try:
+        yield
+    finally:
+        del _CAMPAIGN_CUSTODY.owner
+
+
+def campaign_start_status(ledger: InvocationLedger) -> dict[str, Any]:
+    """Read the original and linked allowances from the fixed campaign ledger."""
+    with _campaign_ledger_directory(ledger.root), ledger._locked() as (_root, document):
+        return campaign_start_snapshot(document)
+
+
+def _require_campaign_room(summary, run_count, cap):
+    _require(run_count <= cap, "campaign-start-cap-exceeded")
+    _require(summary["remaining"] + cap - summary["cap"] >= run_count, "campaign-start-cap-exhausted")
     _require(not any(summary["attempts_by_state"][state] for state in
                      ("reserved", "invocation-intent", "reconciliation-required")), "campaign-start-unresolved")
 
 
-def _require_campaign_enrollment(*, expires_at: int, run_count: int) -> None:
-    """Check the enrolled campaign's remaining capacity before disposable claims."""
-    root = contained_campaign_ledger_root()
-    with _campaign_custody(root):
-        _require_campaign_budget(PoolQualificationAccounting(InvocationLedger(root), expires_at), run_count)
+def _require_campaign_budget(accounting: PoolQualificationAccounting, run_count: int) -> dict[str, Any]:
+    approval = _require_campaign_approval(accounting)
+    summary = campaign_start_status(accounting.ledger)
+    _require(summary["cap"] == approval.campaign_start_limit, "campaign-start-limit-not-enrolled")
+    _require_campaign_room(summary, run_count, approval.campaign_start_limit)
+    return summary
+
+
+def _require_campaign_enrollment(*, expires_at: int, run_count: int,
+                                 campaign_start_limit: int = CAMPAIGN_START_CAP) -> None:
+    """Apply a verified claim directive's allowance and capacity before any claim."""
+    ledger = InvocationLedger(contained_campaign_ledger_root())
+    with _campaign_custody(ledger.root), ledger._locked() as (root, document):
+        status = campaign_start_snapshot(document)
+        _require(valid_start_limit(campaign_start_limit), "campaign-start-cap-exceeded")
+        _require(0 <= campaign_start_limit - status["cap"] <= CAMPAIGN_MAX_START_INCREMENT,
+                 "campaign-start-increment-invalid")
+        _require_campaign_room(status, run_count, campaign_start_limit)
+        if campaign_start_limit > status["cap"]:
+            budget_id, limits, scope = next_allowance(document, status, campaign_start_limit)
+            ledger._open_budget_locked(root, document, budget_id, limits, scope, create_before=expires_at)
 
 
 def _reserve_campaign_start(run: PoolQualificationRun, allowance: _StageAllowance) -> tuple[str, bytes]:
     _require_contained_availability()
     allowance.check_custody()
     approval = _require_campaign_approval(allowance.accounting)
+    summary = _require_campaign_budget(allowance.accounting, 1)
+    budget_id = next(key for key, remaining in summary["remaining_by_budget"].items() if remaining > 0)
     plan = run.plan
     request = {"stage_sha256": allowance.stage_sha256, "transaction_id": plan["transaction_id"],
                "plan_sha256": plan["plan_sha256"], "scope_sha256": CAMPAIGN_SCOPE_SHA256,
@@ -1253,7 +1305,7 @@ def _reserve_campaign_start(run: PoolQualificationRun, allowance: _StageAllowanc
     payload = json.dumps(request, sort_keys=True, separators=(",", ":")).encode("utf-8")
     digest = request_sha256(payload)
     reservation = allowance.accounting.ledger.reserve(
-        budget_id=CAMPAIGN_BUDGET_ID,
+        budget_id=budget_id,
         request_id="contained-cohort:" + canonical_sha256({"transaction_id": plan["transaction_id"]}),
         request_sha256=digest, admission_sha256=canonical_sha256({"campaign_start_sha256": digest}),
         amount={"starts": 1}, expires_at=allowance.accounting.expires_at, refuse_while_unresolved=True)
@@ -1279,9 +1331,10 @@ def _accounted_contained_run(run: PoolQualificationRun, runtime: TransactionRunt
                                 failure_reason="contained run requires reconciliation"
                                 if accounted["state"] == "reconciliation-required" else None)
     _require(settled["charge"] == {"starts": 1}, "campaign-start-settlement-mismatch")
+    summary = campaign_start_status(ledger)
     result["qualification_campaign"] = {
-        "reservation_id": reservation_id, "state": settled["state"], "cap": CAMPAIGN_START_CAP,
-        "runs_consumed": ledger.summary(CAMPAIGN_BUDGET_ID)["charged"]["starts"],
+        "reservation_id": reservation_id, "state": settled["state"], "cap": summary["cap"],
+        "runs_consumed": summary["charged"], "remaining": summary["remaining"],
     }
     return result
 
