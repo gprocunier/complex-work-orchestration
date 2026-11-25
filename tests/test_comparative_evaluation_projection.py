@@ -16,10 +16,13 @@ class StudyProjectionTests(unittest.TestCase):
         manifest = fixture.checker.build_manifest(install.target)
         self.assertFalse((install.target / 'evaluation').exists())
         self.assertFalse(any(item['path'].startswith('evaluation/') for item in manifest['files']))
-        # All75 frozen study paths, including protocol/hidden/probe/rehearsal/lock,
-        # are excluded by the exact shared source/installed projection.
-        study_files = [p.relative_to(fixture.ROOT) for p in (fixture.ROOT / 'evaluation').rglob('*') if p.is_file()]
-        self.assertGreaterEqual(len(study_files), 75)
+        archive = fixture.ROOT / 'evaluation' / 'history' / 'three-arm'
+        study_files = [
+            path.relative_to(fixture.ROOT)
+            for path in archive.rglob('*')
+            if path.is_file() and '__pycache__' not in path.relative_to(archive).parts
+        ]
+        self.assertEqual(len(study_files), 75)
         for path in study_files:
             self.assertFalse((install.target / path).exists(), str(path))
         own = install.run_checker('--source-dir', str(install.target), '--installed-dir', str(install.target), '--check', source=install.target)

@@ -54,9 +54,9 @@ worker login. Actual delegation uses the protected, signed single-worker
 workflow. End-to-end dispatch from an ordinary architect session awaits the
 protected standing-approval entry.
 
-For a like-for-like comparison, set the architect launcher's model, reasoning
-effort and service tier in the `sol` role in [`policy/model-roles.yaml`](policy/model-roles.yaml)
-and use the same settings in plain Codex. Cyber fallback is opt-in.
+Set the architect launcher's model, reasoning effort and service tier under the
+Sol role (`sol`) in [`policy/model-roles.yaml`](policy/model-roles.yaml). Use the
+same settings in plain Codex for a like-for-like comparison. Cyber fallback is opt-in.
 Candidate E is retired.
 
 ## Setup

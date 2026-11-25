@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Explain when to use the architect profile or plain Codex, and document the current requirements for delegated work.
+- Archive the retired three-arm prompt study and its frozen design. No study arm ever ran.
 
 ## 1.36.0 - 2026-11-24
 
