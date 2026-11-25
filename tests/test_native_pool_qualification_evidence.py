@@ -222,7 +222,7 @@ class QualificationPassRecordTests(unittest.TestCase):
             {"worker_tools": {3: {1: WorkerToolObservation()}}},
             {"worker_tools": {1: {4: WorkerToolObservation()}}},
             {"catalog_modes": {1: "custom"}}, {"catalog_modes": {3: "trimmed"}},
-            {"run_cap": 21}, {"runs_consumed": 21}, {"runs_consumed": True},
+            {"run_cap": 61}, {"runs_consumed": 21}, {"runs_consumed": True},
             {"date": datetime(2026, 11, 24)}, {"cwo_version": "1.26.0\nprivate"},
         )
         for overrides in cases:

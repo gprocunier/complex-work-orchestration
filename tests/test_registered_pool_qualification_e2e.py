@@ -22,6 +22,7 @@ import registered_pool_qualification as adapter  # noqa: E402
 import registered_pool_qualification_capability as capabilities  # noqa: E402
 import run_native_pool_qualification as controller  # noqa: E402
 from tests.test_native_pool_contained_stage import _approve_accounting
+from tests.test_native_pool_qualification_budget import record_fixture_starts
 from cwo_core import beads, native_live_availability as availability  # noqa: E402
 from cwo_core import native_pool_qualification_stage as stage  # noqa: E402
 from cwo_core import native_pool_transaction as transaction  # noqa: E402
@@ -315,6 +316,26 @@ class AdmittedRegisteredPoolTests(unittest.TestCase):
             for size, run, result in zip((2, 3), runs, observed["transactions"], strict=True):
                 self._assert_settled_run(size, run, result, accounting)
             self.assertTrue(all(worker.process.poll() == 0 for worker in contained))
+
+    def test_inert_stage_finishes_original_allowance_and_reports_linked_start(self):
+        with _pool_test_directory() as scratch, ExitStack() as stack:
+            preparation, runs, accounting, _ = self._approved_cohorts(Path(scratch), stack)
+            ledger = accounting.ledger
+            record_fixture_starts(ledger, 19)
+            stage._require_campaign_enrollment(expires_at=accounting.expires_at, run_count=2, campaign_start_limit=30)
+            binding = stage.pool_qualification_binding(preparation, runs, accounting=accounting)
+            accounting = _approve_accounting(accounting, binding, campaign_start_limit=30)
+            observed = self._execute(preparation, runs, accounting)
+            self.assertEqual(observed["outcome"], "completed", observed)
+            starts = [row["qualification_campaign"] for row in observed["transactions"]]
+            self.assertEqual([(row["runs_consumed"], row["cap"], row["remaining"]) for row in starts],
+                             [(20, 30, 10), (21, 30, 9)])
+            self.assertEqual(tuple(ledger.attempt(row["reservation_id"])["budget_id"] for row in starts),
+                             stage.campaign_start_status(ledger)["budget_ids"])
+            inputs = controller._report_inputs(preparation, 30)
+            report = controller._pass_record(stage, observed, [{"plan": run.plan} for run in runs], accounting, inputs)
+            self.assertEqual((report["runs_consumed"], report["run_cap"]), (21, 30))
+            self.assertEqual(report["behaviors"]["n3_concurrency"]["runs"], [21])
 
     def _assert_settled_run(self, size, run, result, accounting):
         self.assertEqual(result["state"], "ACCEPTED", result)

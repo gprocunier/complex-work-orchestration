@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Record signed pool qualification budget increases as linked allowances and count starts across them.
+
 ## 1.37.0 - 2026-11-25
 
 - Document what the supervisor host enforces for registered workers, what the lead must honor, and where pool qualification and critic review stand.

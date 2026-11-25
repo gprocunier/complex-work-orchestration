@@ -23,6 +23,7 @@ from cwo_core.maintenance_authority import sign_controller_directive
 from cwo_core.native_pool_admission import reserve_pool_cohort
 from cwo_core.native_pool_contracts import canonical_sha256
 from cwo_core.native_pool_deferred_context import QUALIFICATION_PROFILE
+from cwo_core.native_pool_qualification_budget import CAMPAIGN_SCOPE_SHA256, campaign_start_snapshot
 from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts
 from cwo_core.native_pool_qualification_stage import _signed_failure_isolation
 from cwo_core.native_pool_transaction import seal_transaction_plan
@@ -93,6 +94,7 @@ class ProtectedPoolControllerTests(unittest.TestCase):
         stage.PoolQualificationAccounting = Mock(side_effect=lambda ledger, expires, approval: SimpleNamespace(
             ledger=ledger, expires_at=expires, _approval=approval))
         stage._campaign_custody = Mock(side_effect=lambda _: nullcontext())
+        stage.campaign_start_status = self._fixture_campaign_status
         stage._require_campaign_budget = Mock()
         stage.contained_campaign_ledger_root = Mock(return_value=self.root / "fixed-stage-ledger")
         stage.select_contained_pool_runtime = Mock(side_effect=self._select_runtime)
@@ -104,6 +106,11 @@ class ProtectedPoolControllerTests(unittest.TestCase):
         self.enterContext(patch.dict(sys.modules, {stage.__name__: stage}))
         self.enterContext(patch.object(cwo_core, "native_pool_qualification_stage", stage, create=True))
         return stage
+
+    @staticmethod
+    def _fixture_campaign_status(ledger):
+        with ledger._locked() as (_root, document):
+            return campaign_start_snapshot(document)
 
     def _capability_boundary(self):
         fixture = calibration_tests
@@ -388,7 +395,7 @@ class ProtectedPoolControllerTests(unittest.TestCase):
         ledger = accounting.ledger
         self.assertEqual(ledger.current_time(), _TIME)
         budget = self.stage.CAMPAIGN_BUDGET_ID
-        ledger.open_budget(budget, {"starts": 20}, scope_sha256="1" * 64)
+        ledger.open_budget(budget, {"starts": 20}, scope_sha256=CAMPAIGN_SCOPE_SHA256)
         calibrations = [self._ledger_attempt(ledger, budget, name, outcome=outcome, amount={"starts": 1})
                         for name, outcome in (("calibration-earlier", "failed"), ("calibration-current", "completed"))]
         self.calibration_start = calibrations[1]["reservation_id"]

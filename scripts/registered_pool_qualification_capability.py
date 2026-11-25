@@ -47,6 +47,7 @@ _SOURCE_PATHS = (
     "registered_server_requests.py",
     "cwo_core/native_pool.py",
     "cwo_core/native_pool_scheduler.py",
+    "cwo_core/native_pool_qualification_budget.py",
     "cwo_core/native_pool_qualification_stage.py",
     "cwo_core/supervision/transport/app_server.py",
     "run_native_pool_live_canaries.py",
@@ -196,24 +197,23 @@ def verify_connected_callback_calibration_opportunity(parent: object, protected_
 
 def _charged_start(parent: object, opportunity: _CalibrationOpportunity) -> tuple[InvocationLedger, str]:
     custody = _active_campaign_start(parent)
-    _require_campaign_cap(custody[0])
     _require_calibration_scope(parent, opportunity)
     _require(parent.limits._intent["amount"]["runtime_seconds"] == opportunity.runtime_seconds,
              "calibration-opportunity-runtime-mismatch")
     return custody
 
 
-def _require_campaign_cap(ledger: InvocationLedger) -> None:
-    from cwo_core.native_pool_qualification_stage import CAMPAIGN_BUDGET_ID, CAMPAIGN_START_CAP
+def _require_campaign_cap(ledger: InvocationLedger, budget_id: str) -> None:
+    from cwo_core.native_pool_qualification_stage import campaign_start_status
 
-    summary = ledger.summary(CAMPAIGN_BUDGET_ID)
-    _require(summary["limits"] == {"starts": CAMPAIGN_START_CAP}
-             and 1 <= summary["charged"]["starts"] <= CAMPAIGN_START_CAP, "calibration-campaign-cap-unverified")
+    summary = campaign_start_status(ledger)
+    _require(budget_id in summary["budget_ids"] and 1 <= summary["charged"] <= summary["cap"],
+             "calibration-campaign-cap-unverified")
 
 
 def _active_campaign_start(parent: object) -> tuple[InvocationLedger, str]:
     from cwo_core.native_pool_deferred_context import _ContainedPoolAdmission
-    from cwo_core.native_pool_qualification_stage import CAMPAIGN_BUDGET_ID, contained_campaign_ledger_root
+    from cwo_core.native_pool_qualification_stage import contained_campaign_ledger_root
 
     parent_type, _, _, limits_type, _ = _protected_types()
     _require(type(parent) is parent_type and type(parent.limits) is limits_type, "original-calibration-stage-required")
@@ -225,9 +225,9 @@ def _active_campaign_start(parent: object) -> tuple[InvocationLedger, str]:
     allowance = limits._allowance
     ledger, intent = allowance.accounting.ledger, allowance.campaign_intent
     _require(type(ledger) is InvocationLedger and ledger.root == contained_campaign_ledger_root()
-             and type(intent) is dict and intent["budget_id"] == CAMPAIGN_BUDGET_ID
-             and intent["state"] == "invocation-intent" and intent["amount"] == {"starts": 1}
+             and type(intent) is dict and intent["state"] == "invocation-intent" and intent["amount"] == {"starts": 1}
              and ledger.attempt(intent["reservation_id"]) == intent, "calibration-campaign-start-not-charged")
+    _require_campaign_cap(ledger, intent["budget_id"])
     return ledger, intent["reservation_id"]
 
 
@@ -490,8 +490,6 @@ def require_connected_callback_capability(value: object, parent: object, opportu
     with _ISSUED_LOCK:
         issued = _ISSUED.get(value)
     _require(issued is not None, "original-connected-capability-required")
-    from cwo_core.native_pool_qualification_stage import CAMPAIGN_BUDGET_ID
-
     opportunity, (ledger, reservation), receipt = issued
     _require(opportunity.operation_sha256 == opportunity_sha256 and callback_adapter_scope_sha256(parent) == opportunity.scope_sha256
              and parent.authority.get("capability_opportunity_sha256") == opportunity_sha256
@@ -499,10 +497,9 @@ def require_connected_callback_capability(value: object, parent: object, opportu
              "connected-capability-scope-or-owner-drift")
     parent._verify_artifacts()
     charged = ledger.attempt(reservation)
-    _require(charged["budget_id"] == CAMPAIGN_BUDGET_ID and charged["state"] == "terminal"
-             and charged["outcome"] == "completed" and charged["charge"] == {"starts": 1},
+    _require(charged["state"] == "terminal" and charged["outcome"] == "completed" and charged["charge"] == {"starts": 1},
              "calibration-campaign-start-unsettled")
-    _require_campaign_cap(ledger)
+    _require_campaign_cap(ledger, charged["budget_id"])
     _require(not validate_capability_receipt(receipt, now=_now())
              and receipt["certification"]["adapter_implementation_sha256"] == _source_digest(),
              "connected-capability-receipt-stale-or-changed")

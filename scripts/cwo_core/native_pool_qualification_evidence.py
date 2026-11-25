@@ -8,6 +8,7 @@ import re
 from typing import Any, Literal, Mapping, Sequence
 
 from .native_pool_deferred_context import QUALIFICATION_EFFORT, QUALIFICATION_MODEL, QUALIFICATION_TIER, QUALIFICATION_TOOL
+from .native_pool_qualification_budget import CAMPAIGN_MAX_START_CAP
 from .native_session_boundary import (
     NativeSessionBoundaryError,
     record_indices,
@@ -37,7 +38,6 @@ _DIGEST = re.compile(r"(?:[0-9a-f]{40}|[0-9a-f]{64})")
 _CODE_MODE_HEADING = re.compile(r"^### `([^`\r\n]+)`[ \t]*$", re.MULTILINE)
 _VERSION = re.compile(r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-(?:alpha|beta|rc)\.[0-9]+)?", re.ASCII)
 _MAX_NAMES = 256
-_MAX_RUNS = 20
 _TOOL_LIMITATIONS = {
     "registration-unavailable": "The rollout has no singular readable dynamic registration list.",
     "turn-unbound": "The rollout has no unambiguous boundary for this turn's catalog declarations.",
@@ -351,7 +351,7 @@ def build_pass_record(*, cwo_version: str, minimum_codex_version: str, date: Dat
         raise ValueError("qualification record requires CWO and minimum Codex versions")
     if type(date) is not Date:
         raise ValueError("qualification record requires an exact qualification date")
-    if not _safe_run(run_cap, _MAX_RUNS) or type(runs_consumed) is not int or not 0 <= runs_consumed <= run_cap:
+    if not _safe_run(run_cap, CAMPAIGN_MAX_START_CAP) or type(runs_consumed) is not int or not 0 <= runs_consumed <= run_cap:
         raise ValueError("qualification record has an invalid run count or cap")
     behaviors = _behavior_records(outcomes, runs_consumed)
     return {

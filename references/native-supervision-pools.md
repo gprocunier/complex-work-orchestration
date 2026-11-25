@@ -264,10 +264,13 @@ model catalog.
 
 Keep one private controller-enrolled campaign ledger across runs and repairs.
 Each cohort consumes a durable start before runtime preparation, including a
-failed start. The campaign limit is 20 starts. Per-run session, tool and
-runtime limits apply in addition to the campaign limit. Reconcile ambiguous
-starts in the original ledger before continuing. The signed expiry bounds new
-effects. Cleanup and settlement preserve their original custody after the cutoff.
+failed start. The private ledger starts with a 20-start allowance. The
+controller records signed increases as linked allowances, preserving earlier
+charges and using the oldest available allowance first. Each increase adds
+at most 10 starts, with a total limit of 60. Per-run session, tool and runtime
+limits still apply. Reconcile ambiguous starts in the campaign ledger before
+continuing. The signed expiry bounds new effects. Cleanup and settlement
+preserve their original custody after the cutoff.
 
 An enrolled host calls `run_registered_pool_qualification` from
 `scripts/registered_pool_qualification_host.py` once with the original

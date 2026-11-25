@@ -76,6 +76,7 @@ __all__ = [
     "native_pool_schedulability",
     "native_pool_deferred_attestation",
     "native_pool_deferred_context",
+    "native_pool_qualification_budget",
     "native_pool_qualification_evidence",
     "native_pool_qualification_stage",
     "native_pool_transaction",

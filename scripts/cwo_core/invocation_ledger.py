@@ -888,18 +888,24 @@ class InvocationLedger:
         if errors:
             raise InvocationLedgerError("; ".join(errors))
         with self._locked() as (root, document):
-            existing = document["budgets"].get(budget_id)
-            if existing is not None:
-                if existing["limits"] != limits or existing["scope_sha256"] != scope_sha256:
-                    raise InvocationLedgerError(
-                        f"budget {budget_id} is already open with different limits or scope; limits never change "
-                        "or reset, and a larger allowance needs new authority"
-                    )
-                return copy.deepcopy(existing)
-            budget = {"budget_id": budget_id, "scope_sha256": scope_sha256, "limits": limits, "created_at": self._now()}
-            document["budgets"][budget_id] = budget
-            self._save(root, document)
-            return copy.deepcopy(budget)
+            return self._open_budget_locked(root, document, budget_id, limits, scope_sha256)
+
+    def _open_budget_locked(self, root, document, budget_id, limits, scope_sha256, *, create_before=None):
+        existing = document["budgets"].get(budget_id)
+        if existing is not None:
+            if existing["limits"] != limits or existing["scope_sha256"] != scope_sha256:
+                raise InvocationLedgerError(
+                    f"budget {budget_id} is already open with different limits or scope; limits never change "
+                    "or reset, and a larger allowance needs new authority"
+                )
+            return copy.deepcopy(existing)
+        now = self._now()
+        if create_before is not None and (not _is_time(create_before) or now >= create_before):
+            raise InvocationLedgerError("budget opening authority has expired")
+        budget = {"budget_id": budget_id, "scope_sha256": scope_sha256, "limits": limits, "created_at": now}
+        document["budgets"][budget_id] = budget
+        self._save(root, document)
+        return copy.deepcopy(budget)
 
     def reserve(
         self,
