@@ -670,7 +670,7 @@
       "codex_pickup": "forbidden"
     },
     "claude_architecture_critic": {
-      "display_name": "Claude Opus 4.6 architecture critic via Claude CLI",
+      "display_name": "Claude architecture critic via Claude CLI",
       "role": "outside-contractor",
       "provider_key": "anthropic_manual",
       "venue": "claude-code-cli",
@@ -696,14 +696,9 @@
       "critique_mode": "architect-design-second-opinion",
       "transport": {
         "kind": "manual-cli",
-        "default_command": "claude --model claude-opus-4-6 --effort high -p",
-        "model": "claude-opus-4-6",
-        "minimum_effort": "high",
-        "effort_policy": {
-          "default": "high",
-          "high_complexity": "xhigh",
-          "critical_complexity": "max"
-        }
+        "model": "claude-opus-5-5",
+        "effort": "high",
+        "previous": "claude-opus-4-6"
       }
     },
     "gemini_manual_reviewer": {
@@ -739,7 +734,7 @@
       }
     },
     "gemini_architecture_critic": {
-      "display_name": "Gemini 3.1 Pro Preview architecture critic via Agy",
+      "display_name": "Gemini architecture critic via Antigravity",
       "role": "outside-contractor",
       "provider_key": "google_gemini_manual",
       "venue": "google-antigravity",
@@ -767,7 +762,10 @@
       "synthesis_use_rationale": "Gemini/Agy reviews are useful as a second-opinion idea source, but are treated as salvage-only unless the architect explicitly upgrades a specific evaluated finding.",
       "transport": {
         "kind": "manual-cli",
-        "default_command": "agy --model gemini-3.1-pro-preview -p"
+        "model": "gemini-4-hydrogen-high",
+        "effort": "high",
+        "working_directory": "~/antigravity",
+        "previous": "gemini-3.1-pro-preview"
       }
     },
     "human_specialist_contractor": {

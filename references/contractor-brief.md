@@ -44,10 +44,14 @@ Known non-goals:
 Residual risks already identified:
 ```
 
-When the selected executor is Claude Opus 4.6, use `--effort high` as the
-floor. Use `--effort xhigh` or `--effort max` only when the Codex architect or
-route metadata marks the architecture as broad, cross-cutting, persistent-state,
-public-contract, or otherwise high complexity.
+For the Claude architecture critic, use the `Manual dispatch command` in the
+rendered prompt. Its model and effort come from `claude_architecture_critic`
+in `policy/executor-registry.yaml`.
+
+For the Gemini architecture critic, use the Antigravity `Manual dispatch
+command` in the rendered prompt. Its model, effort and trusted working
+directory come from `gemini_architecture_critic` in the same registry. The
+command selects plan mode.
 
 ## Operating Model
 

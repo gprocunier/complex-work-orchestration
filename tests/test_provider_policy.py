@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -135,6 +136,8 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertTrue(executor["supports_repo_read"])
         self.assertFalse(executor["supports_repo_write"])
         self.assertIn("architecture-review", executor["allowed_task_classes"])
+        self.assertEqual(executor["transport"]["previous"], "gemini-3.1-pro-preview")
+        self.assertNotIn("default_command", executor["transport"])
         self.assertIn("gemini_architecture_critic", controls["allowed_external_executors"])
 
     def test_claude_opus_architecture_critic_is_registered_as_external_contractor(self) -> None:
@@ -143,7 +146,7 @@ class ProviderPolicyTests(unittest.TestCase):
         controls = load_policy("contracting-controls")
 
         provider = providers["anthropic_manual"]
-        executor = executors["claude_architecture_critic"]
+        executor = executor_config("claude_architecture_critic")
         self.assertTrue(provider["external"])
         self.assertEqual(provider["family"], "anthropic")
         self.assertEqual(executor["provider_key"], "anthropic_manual")
@@ -153,10 +156,20 @@ class ProviderPolicyTests(unittest.TestCase):
         self.assertTrue(executor["supports_repo_read"])
         self.assertFalse(executor["supports_repo_write"])
         self.assertIn("architecture-review", executor["allowed_task_classes"])
-        self.assertEqual(executor["transport"]["model"], "claude-opus-4-6")
-        self.assertEqual(executor["transport"]["minimum_effort"], "high")
-        self.assertIn("--effort high", executor["transport"]["default_command"])
+        self.assertEqual(executor["transport"]["model"], "claude-opus-5-5")
+        self.assertEqual(executor["transport"]["effort"], "high")
+        self.assertEqual(executor["transport"]["default_command"], "claude --model claude-opus-5-5 --effort high -p")
+        self.assertNotIn("default_command", executors["claude_architecture_critic"]["transport"])
         self.assertIn("claude_architecture_critic", controls["allowed_external_executors"])
+
+    def test_scripts_contain_no_claude_or_gemini_model_literals(self) -> None:
+        model_id = re.compile(r"\b(?:claude-(?:[0-9]|(?:opus|sonnet|haiku)-[0-9])|gemini-[0-9])", re.IGNORECASE)
+        matches = [
+            str(path.relative_to(ROOT))
+            for path in (ROOT / "scripts").rglob("*")
+            if path.suffix in {".py", ".sh", ".bash"} and model_id.search(path.read_text(encoding="utf-8"))
+        ]
+        self.assertEqual(matches, [])
 
     def test_chatgpt_pro_browser_reviewer_is_registered_as_external_contractor(self) -> None:
         providers = load_policy("provider-registry")["providers"]

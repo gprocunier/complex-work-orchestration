@@ -169,7 +169,7 @@ Architect design second opinion:
 
 ```text
 /plan Use $complex-work-orchestration prompt coach:
-Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion
+Use the Claude and Gemini architecture critics as independent second opinion
 critics of the Codex architect design. Share redacted packets only. Treat both
 returns as evidence and require return evaluation plus architect adjudication
 before implementation.
@@ -236,19 +236,24 @@ python3 scripts/route_work.py \
 ```
 
 For architect-design second-opinion lanes, route and packet with the dedicated
-critic executors. Claude Opus 4.6 uses the Claude CLI with `--effort high` as
-the floor; raise it to `xhigh` or `max` only when the architecture is broad,
-cross-cutting, persistent-state, public-contract, or otherwise high complexity.
-Gemini 3.1 Pro Preview uses the Antigravity command surface. If both are
-requested, create one contractor-only Bead per critic and dispatch them from
-the same initial Codex architect proposal:
+critic executors. The Claude architecture critic uses the model and effort
+configured for `claude_architecture_critic` in
+`policy/executor-registry.yaml`. Use the `Manual dispatch command` shown in
+the rendered prompt and give the Claude CLI that prompt as input.
+The Gemini architecture critic uses Antigravity in plan mode from the trusted
+`working_directory` configured with its `model` and `effort` under
+`gemini_architecture_critic` in the same registry. The Antigravity model ID
+includes the effort. Use a trusted directory without checkout contents for a
+redacted packet. If both critics
+are requested, create one contractor-only Bead per critic and dispatch them
+from the same initial Codex architect proposal:
 
 ```bash
 python3 scripts/route_work.py \
   --external-ok \
   --share-boundary redacted-packet \
   --requested-role architecture \
-  "Use Claude Opus 4.6 and Gemini 3.1 Pro Preview as independent second opinion critics of the Codex architect design."
+  "Use the Claude and Gemini architecture critics as independent second opinions on the Codex architect design."
 
 python3 scripts/build_contractor_packet.py \
   --bead <claude-critic-bead> \
@@ -265,10 +270,6 @@ python3 scripts/dispatch_work.py \
   --mode manual \
   > claude-architect-critique-dispatch-prompt.md
 
-claude --model claude-opus-4-6 --effort high \
-  -p "Read claude-architect-critique-dispatch-prompt.md and output only the contractor return template." \
-  > claude-architect-critique-return.md
-
 python3 scripts/build_contractor_packet.py \
   --bead <gemini-critic-bead> \
   --executor gemini_architecture_critic \
@@ -284,12 +285,16 @@ python3 scripts/dispatch_work.py \
   --mode manual \
   > gemini-architect-critique-dispatch-prompt.md
 
-WORK_PACKET_DIR="${WORK_PACKET_DIR:-work-packets}"
+WORK_PACKET_DIR="${WORK_PACKET_DIR:-$PWD/work-packets}"
 mkdir -p "$WORK_PACKET_DIR"
 cp gemini-architect-critique-dispatch-prompt.md "$WORK_PACKET_DIR/gemini-architect-critique-dispatch-prompt.md"
-agy --add-dir "$WORK_PACKET_DIR" --print "Read gemini-architect-critique-dispatch-prompt.md and output only the contractor return template." \
-  > gemini-architect-critique-return.md
 ```
+
+To send the Gemini assignment, use its `Manual dispatch command`. Add
+`--add-dir` with the absolute path to the approved packet directory before
+`-p`. Pass `Read gemini-architect-critique-dispatch-prompt.md and output only the contractor return template.`
+as the inline argument to `-p` and save the reply as
+`gemini-architect-critique-return.md` in the private run directory.
 
 The returned critique is evidence for the architect. Accepted concerns become
 new Beads only after evaluation, required peer review, and architect

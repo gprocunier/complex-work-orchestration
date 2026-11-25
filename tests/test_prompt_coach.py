@@ -325,10 +325,10 @@ def _prompt_coach_rows() -> Iterator[PromptCoachCase]:
         Check(lambda result: result['enabled_levers'], 'parallel-architecture-critic-contracts', 'contains'),
         Check(lambda result: result['enabled_levers'], 'architecture-critic=claude_architecture_critic', 'contains'),
         Check(lambda result: result['enabled_levers'], 'architecture-critic=gemini_architecture_critic', 'contains'),
-        Check(lambda result: result['enabled_levers'], 'claude-effort=xhigh', 'contains'),
+        Check(lambda result: result['enabled_levers'], 'claude-effort=high', 'contains'),
         Check(lambda result: result['paste_ready_prompt'], 'one contractor-only/no-codex-exec Bead per selected architecture critic', 'contains'),
-        Check(lambda result: result['paste_ready_prompt'], 'claude --model claude-opus-4-6 --effort xhigh -p', 'contains'),
-        Check(lambda result: result['paste_ready_prompt'], 'agy --model gemini-3.1-pro-preview -p', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'claude --model claude-opus-5-5 --effort high -p', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'cd -- ~/antigravity && agy --model gemini-4-hydrogen-high --mode plan -p', 'contains'),
         Check(lambda result: result['paste_ready_prompt'], 'Add ChatGPT Pro master review only after explicit opt-in', 'contains'),
     ))
 

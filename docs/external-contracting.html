@@ -121,9 +121,9 @@
             </p>
             <p>For an outside assignment, complete the packet-building and dispatch steps below before handing a prompt to a CLI. Use the <a href="./workflows.html#optional-lanes">specialist guide</a> if you have not yet chosen between native, internal and outside review.</p>
             <p>
-              <code>agy -p</code> is the local CLI surface for the
-              <code>gemini_architecture_critic</code> executor key. For a
-              redacted-packet review, run CLIs from a neutral directory unless
+              The <code>gemini_architecture_critic</code> executor uses
+              Antigravity in plan mode from its configured trusted working
+              directory. For a redacted-packet review, run CLIs from a neutral directory unless
               the tool is proven unable to inspect the current repository. If a
               return uses unapproved repo context, treat that evidence as
               invalid until the architect adjudicates it.
@@ -169,9 +169,13 @@
               <p>
                 <strong>Architect-design critique packets:</strong> Second
                 opinions use the architecture reasoning label and dedicated
-                critic executors. Claude Opus 4.6 uses the Claude CLI with
-                <code>--effort high</code> as the floor, while Gemini 3.1 Pro
-                Preview uses Antigravity. When both are requested, create one
+                critic executors. The Claude architecture critic uses the model
+                and effort configured in <code>policy/executor-registry.yaml</code>.
+                Use the <code>Manual dispatch command</code> in the rendered prompt
+                and give the Claude CLI that prompt as input. The Gemini
+                architecture critic's manual command uses its configured
+                model and trusted working directory. When both are requested,
+                create one
                 contractor-only Bead per critic from the same Codex architect
                 proposal. Treat returns as critique evidence for Codex
                 architect adjudication.
@@ -189,11 +193,7 @@
 <span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/dispatch_work.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --packet</span><span class="shiki-style-fccf53bf0d08ec6a"> claude-architect-critique-packet.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --mode</span><span class="shiki-style-fccf53bf0d08ec6a"> manual</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-a694eb0da6a49aaf">  ></span><span class="shiki-style-fccf53bf0d08ec6a"> claude-architect-critique-dispatch-prompt.md</span></span>
-<span class="line"></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">claude</span><span class="shiki-style-ab138001542cb31f"> --model</span><span class="shiki-style-fccf53bf0d08ec6a"> claude-opus-4-6</span><span class="shiki-style-ab138001542cb31f"> --effort</span><span class="shiki-style-fccf53bf0d08ec6a"> high</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  -p</span><span class="shiki-style-fccf53bf0d08ec6a"> "Read claude-architect-critique-dispatch-prompt.md and output only the contractor return template."</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-a694eb0da6a49aaf">  ></span><span class="shiki-style-fccf53bf0d08ec6a"> claude-architect-critique-return.md</span></span></code></pre>
+<span class="line"><span class="shiki-style-a694eb0da6a49aaf">  ></span><span class="shiki-style-fccf53bf0d08ec6a"> claude-architect-critique-dispatch-prompt.md</span></span></code></pre>
               <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/build_contractor_packet.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-a694eb0da6a49aaf"> &lt;</span><span class="shiki-style-fccf53bf0d08ec6a">gemini-critic-bea</span><span class="shiki-style-d6f50f15d04b4a1d">d</span><span class="shiki-style-a694eb0da6a49aaf">></span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> gemini_architecture_critic</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
@@ -345,7 +345,7 @@
               Claude Code GitHub Pages work, then treated both returns as
               evidence for Codex review rather than direct authority.
             </p>
-            <p>Preparing a packet did not call a model: <code>dispatch_work.py</code> rendered a prompt for a separate operator-run CLI call. The demo also showed why returned work needs editing and validation before publication. Keep packet and return artifacts private by default; check public files for local paths, broken links, incorrect attribution and claims of tests that did not run.</p>
+            <p>Preparing the packet with <code>dispatch_work.py</code> rendered a prompt for a separate operator-run CLI call. The demo used <code>agy -p</code> for the Antigravity assignment and showed why returned work needs editing and validation before publication. Keep packet and return artifacts private by default; check public files for local paths, broken links, incorrect attribution and claims of tests that did not run.</p>
           </section>
         </article></div></div>
     </main>
