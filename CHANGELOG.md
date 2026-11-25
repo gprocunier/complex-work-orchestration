@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.40.0 - 2026-11-25
+
 - Retire the archived study CLI's `digest`, `schedule`, `lock`, `score` and `template` commands. Use `v1.33.0` for those offline commands. The current CLI validates the frozen archive and continues to refuse `run`.
 - Request primary synthesis use for an accepted salvage-only critic return through a matching architect adjudication. The request requires the exact host-recorded return and a cleared evaluation.
 - Rename the contained pool qualification tool from `cwo_finite.finite_command` to `cwo_finite.write_selected_fixture`. It takes no arguments.
@@ -9,6 +11,7 @@
 ### Tests
 
 - Give the typed request-ID fixture its own checkout capture scratch directory.
+- Verify historical campaign witnesses from pinned Git sources while testing current refusal behavior separately.
 
 ## 1.39.0 - 2026-11-25
 
@@ -21,7 +24,6 @@
 ### Tests
 
 - Wait for the registered cancellation reply to settle before the staged archive fixture publishes terminal evidence.
-- Verify historical campaign witnesses from pinned Git sources while testing current refusal behavior separately.
 
 ## 1.38.0 - 2026-11-25
 
