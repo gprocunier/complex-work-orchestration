@@ -26,11 +26,12 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   normalizes and evaluates what comes back. Send the exported request within
   the approved sharing boundary and bring back the reply. See the
   [desktop workflow for ChatGPT Pro](references/chatgpt-pro-browser.md).
-- **Defines supervision for delegated native work.** The registered single-worker
-  route is available to an original signed workflow. In the supervision contract,
-  the lead checks the worker's recorded activity while it runs, and completion
-  alone is not acceptance. These checks are cooperative: the lead runs them, and
-  nothing stops a lead that skips one.
+- **Connects registered single-worker dispatch to hand review.** The installed
+  launcher uses Codex's foreground approval for an exact registered assignment.
+  The controller retains that approval so `cwo delegate` can deliver the
+  validated result and leave it open for an independent reviewer.
+  In the advisory supervision path, the lead checks the worker's recorded
+  activity while it runs.
 - **Keeps delivered work open until it is accepted.** The lead records a
   `pending-acceptance` delivery. A reviewer working by hand can accept and close
   it in one command using the exact candidate digest they reviewed. Closure
@@ -50,8 +51,9 @@ The [Limits](#limits) section lists what CWO does not do.
 
 The [installer](docs/install.html#install) can set up and check the dedicated
 worker login. Actual delegation uses the protected, signed single-worker
-workflow. End-to-end dispatch from an ordinary architect session awaits the
-protected standing-approval entry.
+workflow. For an eligible assignment with one known text output, the local
+architect session can ask for standing approval. `cwo delegate` uses the
+retained approval to dispatch the worker.
 
 Set the architect launcher's model, reasoning effort and service tier under the
 Sol role (`sol`) in [`policy/model-roles.yaml`](policy/model-roles.yaml). Use the
@@ -149,14 +151,16 @@ approved, qualified environment.
 [![CWO delegation, fanout, live supervision and acceptance flow](docs/illustrations/supervised-delegation.svg)](https://gprocunier.github.io/complex-work-orchestration/#supervised-execution)
 
 [Read the delegation guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html).
-The registered single-worker route is available to an original signed workflow
-with explicit provider disclosure consent and a dedicated worker login.
-Its app server has provider-only network access. Use observed
-capability evidence for the executable, configuration and enforced tool profile.
-The worker's actual model must match the selected assignment. Concurrent v2 pools
-and new worker-surface qualification remain held. Direct v1 pool dispatch and the
-legacy campaign launcher are retired. See the
-[registered single-worker requirements](references/native-live-route-holds.md#registered-single-worker-production).
+The registered single-worker route uses an original signed workflow with
+explicit OpenAI disclosure consent and a dedicated worker login. The host
+checks the selected model, software, workspace and tool profile. Its app
+server has provider-only network access. After the protected controller retains
+the approval, run `cwo delegate` from the project checkout to send the exact
+eligible assignment and post a bound delivery for hand acceptance. See the
+[configured host and single-worker requirements](references/native-live-route-holds.md#standing-approved-delegation).
+
+Concurrent v2 pools and new worker-surface qualification remain held. Direct v1
+pool dispatch and the legacy campaign launcher are retired.
 The pool contract bounds groups to three and additionally requires a trusted
 controller, which is not shipped.
 
@@ -237,9 +241,9 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
 
 ## Limits
 
-- **Checks are cooperative.** Helper gates refuse when they are invoked and
-  their inputs fail; supervision checks classify a worker's recorded activity
-  when the lead runs them. Neither stops a lead that skips them.
+- **Older supervision checks are advisory.** The lead invokes them to classify
+  the worker's recorded activity. Helper gates refuse when they are invoked and
+  their inputs fail.
 - **Boundaries depend on the entry point.** The lead uses its host sandbox
   and approval policy. Codex `--yolo` disables those checks for the lead.
   Registered single-worker execution uses the verified provider-only app-server
