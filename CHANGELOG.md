@@ -4,6 +4,8 @@
 
 - Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Renew an expired approval before dispatch or resume interrupted delivery without starting another worker.
 
+## 1.36.8 - 2026-11-25
+
 ### Tests
 
 - Wait for the registered reply to settle in the native delivery review acceptance fixture.
