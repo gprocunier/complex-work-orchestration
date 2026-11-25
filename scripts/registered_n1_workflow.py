@@ -223,14 +223,17 @@ class ControllerConfiguration:
         self.policy = V.freeze_policy(policy_specification)
         self.receipt, self.route, self.node_id = receipt, _copy(route), node_id
         self.ledger, self.host, self.evidence = ledger, host, evidence
-        self._project = D.project_checkout(host, standing_delegation)
-        self._project_identity = H._identity(self._project)
+        project = None if standing_delegation is None else standing_delegation.project
+        self._project = host.target if project is None else H.Path(project)
         self._evidence_control = None if evidence is None else evidence._control
         self._worker_login_home = worker_login_home
         self._worker_login_error = None
         self.state, self.publication_state = H._path(controller_state), H._path(publication_state)
         self.store, self._guard = state_store, None
         self._check_private_roots()
+        _need(D.project_checkout(host, standing_delegation) == self.project,
+              'The original lead project changed during initialization.')
+        self._project_identity = H._identity(self.project)
         self.verifier = A.MaintenanceAuthorityVerifier(mission=mission, operator_directive=mission_directive,
             verification_key=verification_key, expected_actor_id=actor_id, expected_identity_source=identity_source,
             factory_registry=factory_registry, state_reader=state_store.read_state,
