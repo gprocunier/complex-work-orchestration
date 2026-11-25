@@ -215,8 +215,7 @@ def _specification(host, ledger, command, policy, policy_sha256):
             'pre_effect': {'profile': _PROFILE, 'policy_id': policy_sha256, 'rules': [], 'hooks': [],
                            'grants': [], 'network': False, 'input_capability': 'finite'},
             'configuration_files': _configuration(host.worker, model, effort),
-            'custody': {'state': str(host.state), 'worker': str(host.worker), 'target': str(host.target),
-                        'ledger': str(ledger.root), 'initial': host._initial, 'state_identity': host._state_identity},
+            'custody': runtime.custody_binding(host, ledger, compact=True),
             'max_steps': 64, 'purpose': 'local-engineering', 'implementation_sha256': runtime.implementation_sha256()}
     for name, path in (('executable', codex), ('launcher', '/usr/bin/bwrap'), ('validator', sys.executable)):
         spec[name], spec[name + '_sha256'], _ = runtime._file(Path(path).resolve(strict=True))

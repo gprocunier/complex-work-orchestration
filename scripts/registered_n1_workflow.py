@@ -337,6 +337,11 @@ class RegisteredN1Workflow:
         self._publication_ready = False
         if (configuration.state / 'intent.json').exists():
             self._restore_initial()
+        self._require_compact_custody()
+
+    def _require_compact_custody(self, *, reobserve=False):
+        c = self.config
+        R.require_compact_custody(c.native_bundle[0]['registered_n1'], c.host, c.ledger, reobserve=reobserve)
 
     def _restore_initial(self):
         intent = self._load('intent.json')
@@ -709,9 +714,10 @@ class RegisteredN1Workflow:
         with self._locked():
             if production:
                 self._require_production_adoption()
-            self._require_execution()
             _need(not self._started and not list(self.config.state.iterdir()),
                   'Existing or unknown controller intent requires replay-only recovery, never redispatch.')
+            self._require_compact_custody(reobserve=True)
+            self._require_execution()
             c = self.config
             if production:
                 self._prepare_production(controlled_failure, provider_access_token)
@@ -796,6 +802,8 @@ class RegisteredN1Workflow:
     def recover(self):
         """Fresh bootstrap and objects; only authenticated known custody may replay."""
         with self._locked():
+            # Execution validation may open the ledger for an expired approval.
+            self._require_compact_custody()
             self._require_execution()
             self._publication_ready = False
             self._publication = None
