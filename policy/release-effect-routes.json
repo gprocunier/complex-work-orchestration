@@ -208,7 +208,7 @@
 
 "M34":{"conclusion":"The registered qualification route is a separate bounded selection for disposable workers. Ordinary N1, pool and campaign gates and shipped role defaults remain in force.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Trusted original signer, registry, factory, campaign custody and journal implementation remain prerequisites. An issued permit alone does not authorize alternate clients, host intake, publication or promotion. Synthetic starts and wire responses supply offline evidence only.","reason":"A version 2 HMAC qualification permit binds the exact claimed operation digest, expiry, optional repair digest and fixed 20-start campaign limit. The claimed operation binds the signed model plan. Current permit, source, intent and campaign accounting precede launch. The locked private version 1 journal preserves prior rows and checks expiry, operation replay and the single total limit. Fsync precedes the app-server gate. Initial and recheck counts report repair provenance for audit. The registered wire lookup binds the original receiver and restricts it to exact one-use thread/start and turn/start payloads. The signed selection uses OpenAI gpt-6.2-sol, xhigh and default tier.","review_evidence":{"$":7},"source":["q1m","q0H","q2U","q0z","q20","q1n","q2Y","p25WireTurn","p25RpcGate","q2P","q28","q2c"]},
 
-"M35":{"conclusion":"App-server HTTPS443 allows chatgpt.com and api.openai.com plus auth.openai.com with credentials. Production uses configured file login. Pool uses managed login. Single-worker qualification can attach a token or use managed login. Workspace is read-only. Tools and validators lack login and broker.","evidence_contracts":["N3","N9"],"external_trust_limit":"Controller supplies qualification attachments. Codex reads and refreshes logins. Tunnel sees names/port only. Namespace enforces broker use. Managed mounts require Linux/Bubblewrap writable overlays. Local TLS uses a public fixture key and self-signed certificate. Fake TLS and refresh give no live provider, token or model evidence.","reason":"Only app-server bootstrap inherits the optional anonymous qualification pipe. Parent closes its copy after spawn. N3.7 to N3.11 bind network and descriptor checks. Refuse encrypted ClientHello before DNS. Scrub denials and revoke on record failure. Approved login home supplies the app-server-only writable layer, separate from signed config and one rollout/archive spool. Check mount before release or charge. Durable exclusive lease precedes mount and survives uncertain cleanup.","review_evidence":{"$":7},"source":["q2T","q2D","q2E","q1S","p25Egress","p25Names","p25Resolve","p25Dial","q0K","q0b","q0a","q2J","q1o","q1E","q1I","q2M","q25","p42Mounts","q26","q2N","q2G","p42Archive","pV9"]},
+"M35":{"conclusion":"App-server HTTPS443 permits chatgpt.com/api.openai.com plus auth.openai.com with credentials. Configured production login and managed pool login. Single-worker qualification allows managed login or attachment. Read-only workspace. Tools/validators lack login and broker.","evidence_contracts":["N3","N9"],"external_trust_limit":"Controller supplies qualification attachments. Codex owns login I/O. Tunnel sees names/port. Namespace enforces broker. Managed mounts need Linux/Bubblewrap writable overlays. Local TLS uses self-signed cert/public test key. Fake TLS/refresh give no live provider, token or model evidence.","reason":"Bootstrap alone inherits anonymous qualification pipe. Parent closes copy after spawn. Reject encrypted ClientHello before DNS. Scrub denials and revoke on record failure. App-server-only writable login layer, separate signed config and one rollout/archive spool. Verify mounts before release/charge. Exclusive durable lease precedes mount and survives uncertain cleanup.","review_evidence":{"$":7},"source":["q2T","q2D","q2E","q1S","p25Egress","p25Names","p25Resolve","p25Dial","q0K","q0b","q0a","q2J","q1o","q1E","q1I","q2M","q25","p42Mounts","q26","q2N","q2G","p42Archive","pV9"]},
 
 "M36":{"conclusion":"Signed qualification binds its two direct finite tools to original app-server requests and the owned pipe. Archived success requires the same original typed completion and full reply.","evidence_contracts":["N9"],"external_trust_limit":"Scope is the fixed namespace and signed operation. Synthetic RPC and retained rollout fixtures join original pipe writes without live provider runs. Generic Code Mode wrappers, projection-only completions and unbound records supply no qualified success.","reason":"The signed configuration keeps cwo_finite direct and the two callbacks match their original thread, turn, call and arguments. Poll input records submitted and delivered byte counts and digests. Nonempty input is refused before delivery and empty polls deliver zero bytes. The boundary pairs the retained call and text output with the original fully written reply and typed completion. A nonterminal call can wait to its existing deadline for original admission without receiving any activity marker. A prior exact typed completion may settle after a turn terminal only for the original full write. A nonempty poll refusal keeps its zero-byte record with no completed contribution. Terminal authority stays revoked. Archive rereads use the same retained facts. A terminal rollout may await original typed item intake until the reply deadline while the wire turn stays open. Production reuses the same finite capture and namespace boundary under its own signed workflow selection.","review_evidence":{"$":7},"source":["q2V","q1V","q0i","q2K","q1p","q0M","q0n","q24","q0L","q0I","q1F","q0Q","q0N"]},
 
@@ -1470,7 +1470,7 @@
 
 "p25Dial":[146,"_dial_provider",188,"Uv5qDs5AWqinnUS_4zr47vMekvqg_JFaZaoof9eApwo"],
 
-"p25Egress":[146,"ProviderBroker._handle",342,"Vdyj5_tDCtlAzGZDDZREI1ZviIKwXy_vo_bSQ-UVj-c"],
+"p25Egress":[146,"ProviderBroker._handle",352,"Vdyj5_tDCtlAzGZDDZREI1ZviIKwXy_vo_bSQ-UVj-c"],
 
 "p25Expiry":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",574,"2XqBeAPDT_YaZTNhI5Y7an2_oAV7Fs6Jk_yGDVjTDvo"],
 
@@ -1482,7 +1482,7 @@
 
 "p25Permit":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",284,"zOmgD3bejrv-7BwMNuwrOGXyV-vmy9AYd6M7f-nwbPg"],
 
-"p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",377,"ilwDp9vyCoCUzOpXg4sfjQI9aIhdONh3MItPYOObGdU"],
+"p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",411,"ilwDp9vyCoCUzOpXg4sfjQI9aIhdONh3MItPYOObGdU"],
 
 "p25Resolve":[146,"_resolved_provider",176,"LKtZcl3HI21FUc6QACRLrzb4V-03wuDPprcylRTFGuw"],
 
@@ -2090,7 +2090,7 @@
 
 "p359":[51,"_LinuxEngine._capability",658,"sT7nuF1AHheWVOlYHmiZD6h3lK9MOITRCyw0jRmYRGY"],
 
-"p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",235,"nUnL_3zvXnjC8y5M49UPLSSD3GNoJ8Qu2zMiFbxXUlQ"],
+"p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",269,"nUnL_3zvXnjC8y5M49UPLSSD3GNoJ8Qu2zMiFbxXUlQ"],
 
 "p35a":[112,"NativePoolAdmissionTests.test_close_owned_reconciles_exact_success_timeout_and_error",793,"ECXXl7slTUmpKREbYP-eZjhOO-MFzuZ3ErEohwphE4k"],
 
@@ -2378,7 +2378,7 @@
 
 "p42Mounts":[64,"_Containment._appserver_mounts",531,"8mUM_A8QGWPM_ehlgncoHuxscpKRUXDKtf_MAVHOXyM"],
 
-"p42Provider":[147,"ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist",110,"y8_I-ZiERsBCrFxT5YaRZ4bs1nLYPp6lQLnorH6HNtI"],
+"p42Provider":[147,"ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist",111,"y8_I-ZiERsBCrFxT5YaRZ4bs1nLYPp6lQLnorH6HNtI"],
 
 "p43":[23,187,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,195,9],
 
@@ -2515,6 +2515,10 @@
 "p66t":[159,"SignedCalibrationPipeTests.test_waits_for_durable_context",68,"Cc1ZjRcQjnWYr15_Qd4l03yI6ROrBCssq0FJ8agXiC0"],
 
 "p67":[3,"RegisteredBrowserParent.create_share",386,"Mteu2NUvsKvZNqgbhtVz8EdvTdZRDeozAx1YKMe-0sg"],
+
+"p67W":[146,322,{"$":366},42,322,61],
+
+"p67t":[147,"ProviderBrokerCloseTests.test_idle_receive_wakes_on_close",164,"9iErhsoem8RV9Cu6Zsa5Mlj6ruW1QSvb19XpR-EsZoI"],
 
 "p68":[118,"ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes",397,"yBu8ZcC7rNlo4CYJGDdA8dtJF6bsEgV9mzvzd8xcPfQ"],
 
@@ -3066,15 +3070,15 @@
 
 "pz":[77,"_reuse_exec_context",975,"HEaH0hXbj1yAFb06T4LdiTIM5Mdv7x6yZJc-psFEPy8"],
 
-"q00":[147,{"$":334},47,{"$":335}],
+"q00":[147,{"$":334},48,{"$":335}],
 
-"q01":[147,"ProviderNamespaceTests._synthetic_endpoint",306,"38QTXTdLT8n-5hpaQrerPQOcqqrfJxA57nGD-_fm-KY"],
+"q01":[147,"ProviderNamespaceTests._synthetic_endpoint",340,"38QTXTdLT8n-5hpaQrerPQOcqqrfJxA57nGD-_fm-KY"],
 
 "q02":[155,129,{"$":148}],
 
 "q04":[64,"_Containment._terminate_monitor",923,"85M8iTXLQ0LzzwgXRg39TTSH-wbNwExhpocBVSHykaU"],
 
-"q05":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",354,"Cay30SPJmnKAChtR0NRIfv2Szpqjqe3rZMak5LZ5ftA"],
+"q05":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",388,"Cay30SPJmnKAChtR0NRIfv2Szpqjqe3rZMak5LZ5ftA"],
 
 "q06":[155,162,{"$":148}],
 
@@ -3082,7 +3086,7 @@
 
 "q0B":[141,466,"subprocess.run(command, cwd=root, env=env, check=True, timeout=_SCHEMA_SECONDS,\n                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,\n                       umask=0o077)",8,468,35],
 
-"q0C":[146,417,"socket.socket()",54,417,69],
+"q0C":[146,428,"socket.socket()",54,428,69],
 
 "q0D":[146,193,{"$":360},19,193,60],
 
@@ -3104,9 +3108,9 @@
 
 "q0N":[63,"QualifiedToolEvidence.complete",223,"LW5l5VbuOexspkThoZJ6ZXdH4ZiyyCWYthge9INCkW0"],
 
-"q0O":[146,417,"socket.socket(fileno=descriptor)",9,417,41],
+"q0O":[146,428,"socket.socket(fileno=descriptor)",9,428,41],
 
-"q0P":[146,445,"os.execv(command[0], command)",4,445,33],
+"q0P":[146,456,"os.execv(command[0], command)",4,456,33],
 
 "q0Q":[63,"QualifiedToolEvidence._wait_terminal_reply",291,"lzxZGOEYrAlsvQAqlphfcRF8rnCO-4ULGfaulpWueo4"],
 
@@ -3130,7 +3134,7 @@
 
 "q0g":[159,"SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts",63,"-Gdh3c6bBg_EStYzz_KHLrNqBTAdJzKgShhdjmm6_7E"],
 
-"q0h":[146,301,"socket.socket(fileno=descriptors[0])",15,301,51],
+"q0h":[146,304,"socket.socket(fileno=descriptors[0])",15,304,51],
 
 "q0i":[63,"RegisteredFiniteToolCalls.receive",814,{"$":346}],
 
@@ -3154,15 +3158,15 @@
 
 "q0s":[145,"InstallScriptTests.test_install_offers_only_architect_and_launches_with_installed_role_policy",130,"RVohodyga-plkSNI3Y3zdW-owi3ahw_j9offygVxV_Q"],
 
-"q0w":[146,315,"socket.socketpair(type=socket.SOCK_DGRAM)",43,315,84],
+"q0w":[146,319,"socket.socketpair(type=socket.SOCK_DGRAM)",47,319,88],
 
 "q0x":[64,"_Containment._reaped_monitor_without_exe",937,"8WMys8ehp3MXJ5wkHcguU7tObA-2ti9lq9B02g7ozgY"],
 
-"q0y":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",139,"eqjCvMW3CCfISe33c0PPQWNj9NI41DSaLJWGVsBwvro"],
+"q0y":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",140,"eqjCvMW3CCfISe33c0PPQWNj9NI41DSaLJWGVsBwvro"],
 
 "q0z":[64,"RegisteredN1Factory._require_qualification_selection",2315,"Qz5okE9G9JWuMX7YrlQTkQVxdl7FwPbZQGegtKeNZJI"],
 
-"q10":[146,287,{"$":366},21,287,40],
+"q10":[146,290,{"$":366},21,290,40],
 
 "q11":[64,"_Containment._preflight_qualification_schema",701,"pY2U5GO4Y72yPXGvIMATp5FYUzS-JeIcyyIvoT2h26w"],
 
@@ -3176,13 +3180,13 @@
 
 "q1A":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1733,"rHqGz26DcuRCPhaZBmXn3PQLEhzldx_5HiG5QRJ8LGI"],
 
-"q1B":[146,421,"listener.listen(_MAX_CONNECTIONS)"],
+"q1B":[146,432,"listener.listen(_MAX_CONNECTIONS)"],
 
 "q1C":[148,{"$":330},650,{"$":343}],
 
 "q1D":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",635,"C7QM2DeNJ3lAkQK5CiSYGFKAm9c21surO1IIwruZeJI"],
 
-"q1E":[146,"_read_access_token",427,"v8xez3TX8q50H-Q3vXghvB4DVW_uBxJ5fU2A5r7ceio"],
+"q1E":[146,"_read_access_token",438,"v8xez3TX8q50H-Q3vXghvB4DVW_uBxJ5fU2A5r7ceio"],
 
 "q1F":[74,"trusted_tool_evidence_summary",2509,"VtSVW0FU4bsVMm2XRzH9z5wwDiIxe5sd3hdWZSUbawE"],
 
@@ -3200,7 +3204,7 @@
 
 "q1M":[77,"SelectedNativeProbe.__init__",244,"2F1Z6iUNCEF4gtmffQBOeA6h5KC1RmRW6J56HHmYojw"],
 
-"q1S":[146,"_bootstrap",434,"v1F_jC1bVB-U2Iyd5d8UaNmkJ0V4I-AYQYOpSLHu5O8"],
+"q1S":[146,"_bootstrap",445,"v1F_jC1bVB-U2Iyd5d8UaNmkJ0V4I-AYQYOpSLHu5O8"],
 
 "q1T":[141,"check_codex_capabilities",495,"jFkGaIFgIoadDXfMGbfODpAL456LiNe7LUUp_GN4-Vo"],
 
@@ -3224,15 +3228,15 @@
 
 "q1j":[149,445,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
 
-"q1k":[146,420,"listener.bind(('127.0.0.1', PROXY_PORT))"],
+"q1k":[146,431,"listener.bind(('127.0.0.1', PROXY_PORT))"],
 
-"q1l":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",421,"fykJRXURGFNZjg4R7oUVP2lc_5ai6i0vjA0CEr-14Zw"],
+"q1l":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",455,"fykJRXURGFNZjg4R7oUVP2lc_5ai6i0vjA0CEr-14Zw"],
 
 "q1m":[149,"verify_qualification_permit",406,"ambRElxX6xxNdeIhI3AVt8FST7X77XpWbsDNKxrYhQI"],
 
 "q1n":[64,"_RegisteredServer._register_qualification_rpc",1222,"uBLRaet5Pwvp1SR7HB0ceL1TNZHvnI8xDAQLBurimnE"],
 
-"q1o":[146,"_fork_relay",404,"Ff-BZQJrJkd6jumVue2QNPEMe5Qvbgqo0yzWLLsFhvI"],
+"q1o":[146,"_fork_relay",415,"Ff-BZQJrJkd6jumVue2QNPEMe5Qvbgqo0yzWLLsFhvI"],
 
 "q1p":[62,"RegisteredFiniteInput._finish_reply_publication",1580,"En1qbNis3xhip8NUQLpYFUEyS85mpN6HnzaAZHBtNkE"],
 
@@ -3248,13 +3252,13 @@
 
 "q1y":[64,926,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
 
-"q1z":[147,"ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect",129,"EGSob4OxAS5eiFrkQHWXImUiU4gIeN4N1wVLqjpzPvg"],
+"q1z":[147,"ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect",130,"EGSob4OxAS5eiFrkQHWXImUiU4gIeN4N1wVLqjpzPvg"],
 
 "q20":[64,"RegisteredN1Factory.record_qualification_start",2336,"7-6oJl_rlkQOkQfSrjBL922xWA2hA4MNTp5ktaOUfLs"],
 
-"q21":[146,299,"message, descriptors, flags, _address = socket.recv_fds(control, 1, 1, socket.MSG_CMSG_CLOEXEC)"],
+"q21":[146,302,"message, descriptors, flags, _address = socket.recv_fds(control, 1, 1, socket.MSG_CMSG_CLOEXEC)"],
 
-"q22":[146,290,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
+"q22":[146,293,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
 
 "q23":[149,560,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
 
@@ -3270,17 +3274,17 @@
 
 "q29":[142,"CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability",116,"zomVcuY4PGuSaFC7EzJ0lxOGhZt806c04LzhtYuEQ_Y"],
 
-"q2D":[146,"_handoff",285,"I2ouohuU6UsnLsZy2gM0JAFnzj90s-MY-xIKB5bC3qM"],
+"q2D":[146,"_handoff",288,"I2ouohuU6UsnLsZy2gM0JAFnzj90s-MY-xIKB5bC3qM"],
 
-"q2E":[146,"_receive_handoff",298,"vXrhJRSpHqI8AEWglWg16aKC7q2sYtqxBqDpBCbxQU0"],
+"q2E":[146,"_receive_handoff",301,"vXrhJRSpHqI8AEWglWg16aKC7q2sYtqxBqDpBCbxQU0"],
 
-"q2F":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",401,"cDmZcPXamrdQWVguZOksJvbYb8i-RFcsZVUiP0f9Njc"],
+"q2F":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",435,"cDmZcPXamrdQWVguZOksJvbYb8i-RFcsZVUiP0f9Njc"],
 
 "q2G":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",436,"YcE84J0upisnMb8WT6palpk5FGrPq1sbOl3d0tmqCG0"],
 
-"q2I":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",85,"KGRAydbhRXrGt08lhihJzS0poZ0JNpL8IvvnYVPQAaA"],
+"q2I":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",86,"KGRAydbhRXrGt08lhihJzS0poZ0JNpL8IvvnYVPQAaA"],
 
-"q2J":[146,"_start_relay",416,"e-a3Ldrss6FKF1bvcnZh0i_1ZlrmCkeUz1G7dagB8O4"],
+"q2J":[146,"_start_relay",427,"e-a3Ldrss6FKF1bvcnZh0i_1ZlrmCkeUz1G7dagB8O4"],
 
 "q2K":[64,"_RegisteredServer._observe_qualified_tool_item",1323,"5uJd7CynBr4HXyVHbcs8FDxRiP1nMMwQuYOaGK_p0RQ"],
 
@@ -3298,13 +3302,13 @@
 
 "q2R":[143,"provider_policy_blocker",24,"RgL8fz6sMapKK6muDpQ309ZJxLXIi3-S5VroYuBhQQ8"],
 
-"q2T":[146,"ProviderBroker.__init__",310,"4xZR9zm6cSomGlVacIoA5lwbaxkT72aH6wgpgp6-IWM"],
+"q2T":[146,"ProviderBroker.__init__",313,"T47gO3pCnoUoDgQc-d4kYqtkJFOcCeVpxdb26XamgSg"],
 
 "q2U":[149,"initialize_campaign",434,"XiPNcCbIXtlN19kuLBMSIFIis4MG9PwTE08ncbRPb9Y"],
 
 "q2V":[62,"RegisteredFiniteInput.capture_poll_input",870,"dB0O5toH4yL8eC5n_OG1lK9czD_WSOYDogsdkDg1TWc"],
 
-"q2W":[146,405,"if os.fork() != 0:"],
+"q2W":[146,416,"if os.fork() != 0:"],
 
 "q2X":[149,561,"os.fsync(descriptor)"],
 
@@ -5543,17 +5547,19 @@
 
 [90,196,12,196,37,"browser","3957bd1da596651000599d34e4261d0723d73a25d13e60c8020136c80d368d74",["route","N3.7","q0A"]],
 
-[90,287,21,287,40,"network",{"$":349},["route","N3.9","q10"]],
+[90,290,21,290,40,"network",{"$":349},["route","N3.9","q10"]],
 
-[90,301,15,301,51,"network","1517417878c7639c66e291bf0671cdff0e1f7f2434388562b2580cd142583bcb",["route","N3.10","q0h"]],
+[90,304,15,304,51,"network","1517417878c7639c66e291bf0671cdff0e1f7f2434388562b2580cd142583bcb",["route","N3.10","q0h"]],
 
-[90,315,43,315,84,"network","355e91c70c9dfc2a98ab94029dd3305583791262806de9f1a9cf0eebaf4623e7",["route","N3.8","q0w"]],
+[90,319,47,319,88,"network","355e91c70c9dfc2a98ab94029dd3305583791262806de9f1a9cf0eebaf4623e7",["route","N3.8","q0w"]],
 
-[90,417,9,417,41,"network","a239c3e04154b0cd90f0307e20f274cde0677d2e6ce9659e60daa0c88b599ee4",["route","N3.11","q0O"]],
+[90,322,42,322,61,"network",{"$":349},["route","N3.8","p67W"]],
 
-[90,417,54,417,69,"network",{"$":350},["route","N3.11","q0C"]],
+[90,428,9,428,41,"network","a239c3e04154b0cd90f0307e20f274cde0677d2e6ce9659e60daa0c88b599ee4",["route","N3.11","q0O"]],
 
-[90,445,4,445,33,"process","bab1b779be05bd3bf09d1e3ce67d83ca0a862755c22d04a01ccb240b2557c9a6",["route","N3.11","q0P"]],
+[90,428,54,428,69,"network",{"$":350},["route","N3.11","q0C"]],
+
+[90,456,4,456,33,"process","bab1b779be05bd3bf09d1e3ce67d83ca0a862755c22d04a01ccb240b2557c9a6",["route","N3.11","q0P"]],
 
 [75,27,17,27,37,"dynamic","141361aefa2aa9f893afe69f541e620592710701316b4bd612c896639018171c",[{"$":9},"XR426b"]],
 
@@ -6172,15 +6178,15 @@
 
 {"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["p7a","p70q"],"entrypoint":"p7b","id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":[{"$":70},{"$":21},{"$":377}],"witnesses":["w2a"]},
 
-{"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["q1x","q0D","q0A"],"entrypoint":"p25Dial","gate_chains":[],"gate_limits":{"$":327},"id":"N3.7","limits":"Dial follows exact allowed CONNECT and initial TLS SNI. Trusted resolver selects fixed names at port 443 and rejects private/non-global results. Eight candidates at most share one deadline and honor revocation. The scanner labels TCP socket.connect as browser. Local TLS is the control. Auth host requires signed app-server file login or qualification attachment.","review_gates":["p222"],"witnesses":[{"$":340},"q2A","q16","q2H","q2S","q1u"]},
+{"contract":"N3","effect":"Parent provider DNS and outbound TCP connection","effect_points":["q1x","q0D","q0A"],"entrypoint":"p25Dial","gate_chains":[],"gate_limits":{"$":327},"id":"N3.7","limits":"Dial after exact CONNECT and initial TLS SNI. Trusted resolver selects fixed public names at port443 and rejects private/non-global results. Up to eight addresses share one deadline and honor revocation. Scanner labels TCP connect as browser. Local TLS control. Auth host requires signed app-server file login or qualification attachment.","review_gates":["p222"],"witnesses":[{"$":340},"q2A","q16","q2H","q2S","q1u"]},
 
-{"contract":"N3","effect":"Parent registered live relay control socketpair","effect_points":["q0w"],"entrypoint":"q2T","gate_chains":[],"gate_limits":{"$":327},"id":"N3.8","limits":"Original host and gated relay share one anonymous Unix datagram pair. Only child end reaches trusted app-server bootstrap. No file or host listener is exposed.","review_gates":["p222"],"witnesses":[{"$":340},"q1u"]},
+{"contract":"N3","effect":"Parent relay control and host-only wake socketpairs","effect_points":["q0w","p67W"],"entrypoint":"q2T","gate_chains":[],"gate_limits":{"$":327},"id":"N3.8","limits":"Host and relay share one anonymous Unix datagram pair. Only child end reaches bootstrap. Separate host-only stream pair wakes receive on revocation. No file or host listener.","review_gates":["p222"],"witnesses":[{"$":340},"q1u"]},
 
-{"contract":"N3","effect":"Relay connection-local stream handoff","effect_points":["q10","q22"],"entrypoint":"q2D","gate_chains":[],"gate_limits":{"$":327},"id":"N3.9","limits":"Per admitted local connection, relay makes one anonymous Unix stream pair. Bounded relay keeps one end and passes one to original parent via SCM_RIGHTS. This step cannot dial beyond the namespace.","review_gates":["p222"],"witnesses":[{"$":340}]},
+{"contract":"N3","effect":"Relay connection-local stream handoff","effect_points":["q10","q22"],"entrypoint":"q2D","gate_chains":[],"gate_limits":{"$":327},"id":"N3.9","limits":"Bounded relay makes one Unix stream pair per admitted local connection. It keeps one end and passes the other via SCM_RIGHTS to original parent. No external dial.","review_gates":["p222"],"witnesses":[{"$":340}]},
 
-{"contract":"N3","effect":"Parent adoption of one relay stream descriptor","effect_points":["q21","q0h"],"entrypoint":"q2E","gate_chains":[],"gate_limits":{"$":327},"id":"N3.10","limits":"Receive one untruncated stream over original control with close-on-exec. Close invalid handoff descriptors. Retained stream reaches only the bounded broker handler.","review_gates":["p222"],"witnesses":[{"$":340}]},
+{"contract":"N3","effect":"Parent adoption of one relay stream descriptor","effect_points":["q21","q0h"],"entrypoint":"q2E","gate_chains":[],"gate_limits":{"$":327},"id":"N3.10","limits":"Accept one untruncated CLOEXEC stream on original control. Close invalid descriptors. Bounded handler owns stream. Revoke wakes receive and shuts streams. Close joins and reports failure.","review_gates":["p222"],"witnesses":[{"$":340}]},
 
-{"contract":"N3","effect":"Private app-server loopback listener, relay fork and gated execution","effect_points":["q0O","q0C","q1k","q1B","q2W","q0P"],"entrypoint":"q1S","gate_chains":[],"gate_limits":{"$":327},"id":"N3.11","limits":"Trusted bootstrap binds private loopback and closes socket copies before app-server exec. Relay closes optional qualification token pipe before serving. Bootstrap reads and closes its end after the final gate byte and exports the token only to app-server. Relay shares its PID namespace through natural exit. Parent owns app-server source, mounts and callback.","review_gates":["p222"],"witnesses":[{"$":340},"q2H","w35AuthGate"]},
+{"contract":"N3","effect":"Private app-server loopback listener, relay fork and gated execution","effect_points":["q0O","q0C","q1k","q1B","q2W","q0P"],"entrypoint":"q1S","gate_chains":[],"gate_limits":{"$":327},"id":"N3.11","limits":"Trusted bootstrap binds private loopback and closes sockets before exec. Relay closes qualification token pipe before service. Bootstrap reads/closes after final gate byte, exports only to app-server. Relay shares PID namespace through natural exit. Parent owns source, mounts and callback.","review_gates":["p222"],"witnesses":[{"$":340},"q2H","w35AuthGate"]},
 
 {"contract":"N3","effect":"Durable qualification start accounting before the app-server byte gate","effect_points":["q23","q2X"],"entrypoint":"q0H","gate_chains":[],"id":"N3.12","limits":"The original registered factory is the qualification caller of this trusted accounting helper. The private locked version 1 journal retains exact canonical history. The original signed version 2 permit binds the fixed 20-start cap. The operation expiry, replay and one shared total limit govern append. Optional repair provenance is recorded on the same terms. Fsync precedes release. An ambiguous or failed started run remains charged.","manual_decisions":["M34"],"trace_files":[{"$":328},{"$":10}],"witnesses":["q0W","q07","q0U",{"$":362},{"$":364}]},
 
@@ -6714,7 +6720,7 @@
 
 "326":"scripts/cwo_core/prepared_outbound.py",
 
-"327":"Checked containment launch selects the helper. Review original receivers, descriptors and cross-process callbacks.",
+"327":"Checked containment selects helper. Review original receiver, descriptors and cross-process callbacks.",
 
 "328":"scripts/registered_n1_qualification.py",
 
@@ -7102,9 +7108,9 @@
 
 "@145":["N2XzdWb9Kl-4SLoM-cGPjnjNzy9SQW-340KZDfU4IT4",420,11195],
 
-"@146":["C3fpFPwd9SjPlTkpSLr7Q9OyoVgt-znwKuwMWrnoLRg",420,15180],
+"@146":["V_FXYd5NGQhlC8TMcPhk5ZX4Okx7SbnabDs4HJnRx3M",420,15976],
 
-"@147":["PZAm67qCAFtqxIgebt8ZjS_4S0SSzR92dWcVDkzJNrQ",420,22181],
+"@147":["vD2yAJbX0f3hTyUQi9fes15P6m81MBRx05Xuadr-LLo",420,23694],
 
 "@148":["sTykj15MQFCUoiMVYLm2VeDJ_ecXRBHEC3ToPJi3u9g",420,40680],
 
@@ -7742,7 +7748,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["cOsE-OuJlz79sOeUQfSSbc_0AtR3DtUEkmkwLw6QuXE",420,134123],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["fr7z6P-MffSej7SfKxvdDpey84q_5K_MyZv55zsu8qk",420,134123],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -7908,7 +7914,7 @@
 
 "w25":["self.assertEqual(guard.call_count, entries[0])","p16d",{"$":0},{"$":145},[],"tests.test_f1_production_closure_guards.F1ProductionClosureGuardTests.test_adapter_rechecks_flag_during_consumption_before_downstream_guard_with_positive_control"],
 
-"w25Provider":["self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))","p25Provider",{"$":0},"self.assertEqual(self.provider_request.get(timeout=3), b'EXAMPLE provider request')",["q05","q01"],"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot"],
+"w25Provider":["self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))","p25Provider",{"$":0},"self.assertEqual(self.provider_request.get(timeout=3), b'EXAMPLE provider request')",["q05","q01","p67t"],"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot"],
 
 "w26":["self.assertEqual(len(consumed), 1)","p6f",{"$":1},{"$":145},["p75"],"tests.test_production_closure.ProductionClosureTests.test_consumption_intent_precedes_writes_and_survives_close_failures"],
 

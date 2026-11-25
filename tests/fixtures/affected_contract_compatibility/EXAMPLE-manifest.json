@@ -535,7 +535,7 @@
     "scripts/registered_native_pool_client.py": "cb27499b3dabdb99542030159db90acfe2949a0395bb1ea26af60311ac7820af",
     "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
     "scripts/registered_native_pool_retry.py": "261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",
-    "scripts/registered_provider_network.py": "0b77e914fc1df528cf95392948bafb43d3b2a1582dfb39f02aec0c5ab9e82d18",
+    "scripts/registered_provider_network.py": "57f15761de4d1908650bc4cc70f864e595f83a4c7b49b9da6c3b381c99d1c773",
     "scripts/registered_server_requests.py": "2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd",
     "scripts/render_execution_status_report.py": "e46dbf44101e51a17d127eebaeddbe7e3c6f3b7290e09e8aac899975d16cd615",
     "scripts/route_work.py": "df875375e2611c71775dbca6ab20fab7daece7ddb9f8f74cfdf45a705ec73b66",
@@ -590,7 +590,7 @@
     "tests/test_registered_n1_workflow.py": "0aea8c1b30c1d0666ff927e7d6d9f7fc8458a440e07d66543aae31b88fd977f3",
     "tests/test_registered_native_pool_host.py": "25817abfcbf06969c2b4ae9706ddb9e5af8ea052334582b1a7dee8ecd37f5077",
     "tests/test_registered_native_pool_profiles.py": "8a809b644d8b4abc5f600101f9dd7975d894bd574beac027556e37a40b5a99a8",
-    "tests/test_registered_provider_network.py": "3d9026ebba82005b6ac4881e6edf198d2ff84b4492cd1f767567150e4cc936b4",
+    "tests/test_registered_provider_network.py": "bc3db20096d7d1fde14f25108bd7deb35e4fea6f35301471d395ee69dafe2cba",
     "tests/test_registered_server_requests.py": "67ae9075bcdf60fff0d411a7d09391a1dc7497b9c5e71cbb5d24a60f21738f9d",
     "tests/test_route_feasibility_preparation.py": "45b615f5e7ad013c166846ba499c34c525452011539ed5de4eecbab6c8a5416f",
     "tests/test_run_admitted_native_pool_transaction.py": "531a7ebd4d5ed5623dbcb711d468889b934736398f48cae00ee1567398c4818a",
@@ -2462,7 +2462,7 @@
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
     "tests/test_registered_n1_factory.py": "d3060c36fdf2c9f7b8456c0661d6d68d1321146d6173c70d183c1d0fa97b0873",
     "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
-    "tests/test_registered_provider_network.py": "3d9026ebba82005b6ac4881e6edf198d2ff84b4492cd1f767567150e4cc936b4",
+    "tests/test_registered_provider_network.py": "bc3db20096d7d1fde14f25108bd7deb35e4fea6f35301471d395ee69dafe2cba",
     "tests/test_registered_server_requests.py": "67ae9075bcdf60fff0d411a7d09391a1dc7497b9c5e71cbb5d24a60f21738f9d"
   },
   "roots": [
