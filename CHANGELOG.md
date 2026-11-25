@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.35.0 - 2026-11-24
+
 - Require v2 admission for native pool dispatch. Direct execution of v1 pools and the legacy campaign launcher now refuse before worker or state effects. Existing v1 pool artifacts remain valid for inspection.
 
 ### Tests
