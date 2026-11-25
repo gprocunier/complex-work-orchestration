@@ -194,9 +194,10 @@ def _registered_packet(workflow, node, routing, scope, operation, amounts):
           and selected['provider_key'] == 'internal_codex',
           'The internal route differs from the original registered delegation packet selection.')
     task = registered._model_task(config.receipt, spec, config.policy.report)
+    project = {'project': scope['project']} if 'project' in scope else {}
     return {'packet_type': 'cwo-registered-delegation-packet', 'version': 1,
             'scope': {'bead_id': scope['bead_id'], 'workspace': scope['workspace'], 'target': scope['target'],
-                      'allowed_paths': operation['write_paths']},
+                      'allowed_paths': operation['write_paths'], **project},
             'standing_scope_sha256': digest(scope), 'admission_sha256': scope['admission_sha256'],
             'request_sha256': scope['request_sha256'], 'model_task_sha256': sha256(task).hexdigest(),
             'budget': amounts, 'execution': {'executor': execution['executor'], 'provider_key': selected['provider_key'],

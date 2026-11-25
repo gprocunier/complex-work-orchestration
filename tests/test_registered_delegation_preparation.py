@@ -40,7 +40,7 @@ class DelegationPreparationTests(unittest.TestCase):
         self.chain = requirement_baseline.resolve_chain(baseline)
         reference = requirement_baseline.reference_line(self.chain['bead_id'], 1, self.chain['digest'])
         self.bead = bead(self.chain['bead_id'], reference)
-        self.enterContext(patch.object(manual_delivery, 'project_beads', return_value=(self.database, self.read_bead)))
+        self.enterContext(patch.object(manual_delivery, 'project_beads', side_effect=self.read_project_db))
         self.home = self.root / 'EXAMPLE-worker-login'
         self.home.mkdir(mode=0o700)
         (self.home / 'auth.json').write_text('EXAMPLE authentication fixture', encoding='utf-8')
@@ -54,6 +54,14 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertEqual(arguments[0], 'show')
         return json.dumps([self.bead])
 
+    def read_project_db(self, root):
+        self.assertEqual(root, self.project)
+        return self.database, self.read_bead
+
+    def writable_project_db(self, root):
+        self.assertEqual(root, self.project)
+        return self.database, self.deliver_bead
+
     def deliver_bead(self, arguments):
         command = arguments[0]
         if command == 'show':
@@ -62,6 +70,7 @@ class DelegationPreparationTests(unittest.TestCase):
             return '[]'
         if command == 'comment':
             self.bead['comments'].append({'text': arguments[-1]})
+            (self.project / 'EXAMPLE-project-beads.json').write_text(json.dumps(self.bead), encoding='utf-8')
             return ''
         self.assertEqual(command, 'close')
         self.bead.update(status='closed', close_reason=arguments[arguments.index('--reason') + 1])
@@ -85,7 +94,10 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertEqual(shlex.split(spec['command']),
                          ['/usr/bin/printf', '%s', "Literal 'text' $(ignored)\n", '>', 'result.txt'])
         self.assertEqual(operation['write_paths'], ['result.txt'])
-        self.assertEqual(pending.approval_scope['target'], str(self.project))
+        self.assertEqual(pending.approval_scope['project'], str(self.project))
+        self.assertEqual(pending.approval_scope['target'], str(pending._host.target))
+        self.assertNotEqual(pending._host.target, self.project)
+        self.assertNotEqual(pending._host.target, pending._host.worker)
         self.assertEqual(pending.approval_scope['baseline_sha256'], self.chain['digest'])
         self.assertEqual(pending.approval_scope['database_sha256'], self.database)
         self.assertEqual(pending.approval_scope['disclosure'], 'provider-only')
@@ -147,6 +159,7 @@ class DelegationPreparationTests(unittest.TestCase):
                                                                     database=self.database)
         self.assertEqual(delegation['dispatch']['executor'], 'internal_worker_luna')
         self.assertEqual(packet['scope']['allowed_paths'], ['result.txt'])
+        self.assertEqual(packet['scope']['project'], str(self.project))
         self.assertEqual(packet['packet_type'], 'cwo-registered-delegation-packet')
         self.assertEqual(packet['request_sha256'], pending.approval_scope['request_sha256'])
         self.assertEqual(packet['model_task_sha256'], sha256(preparation.runtime._model_task(
@@ -223,21 +236,25 @@ class DelegationPreparationTests(unittest.TestCase):
             return original(process, method, params)
 
         with (patch.object(effects.tools.NamespacedFiniteRpcProcess, 'result', record_before_turn),
-              patch.object(manual_delivery, 'project_beads', return_value=(self.database, self.deliver_bead)),
+              patch.object(manual_delivery, 'project_beads', side_effect=self.writable_project_db),
               patch.object(manual_delivery, 'delivery_session', return_value='EXAMPLE-delivery')):
             result = effects.run_fixture(self, inputs, call=lambda: everyday_delegation.delegate(
                 workflow, task, baseline=baseline, summary='Exact prepared candidate ready for hand review.'))
         self.assertEqual(len(observed), 1)
         self.assertEqual(fixture.attempt(case)['outcome'], 'completed')
         self.assertEqual(self.bead['status'], 'in_progress')
+        self.assertEqual(result['project'], str(self.project))
+        self.assertNotEqual(case.host.target, self.project)
+        self.assertTrue((self.project / 'EXAMPLE-project-beads.json').exists())
+        self.assertEqual(case.host._observe()['target'], case.host._initial['target'])
         self.assertEqual((case.host.worker / 'result.txt').read_bytes(), offline.OUTPUT)
         self.assertFalse((case.host.target / 'result.txt').exists())
         args = Namespace(**result, reviewed_candidate=result['candidate_sha256'], note='Verified the exact candidate.')
-        with (patch.object(manual_delivery, 'project_beads', return_value=(self.database, self.deliver_bead)),
+        with (patch.object(manual_delivery, 'project_beads', side_effect=self.writable_project_db),
               patch.object(manual_delivery, 'reviewer_session', return_value=('uid:1000', ('EXAMPLE-delivery',))),
               self.assertRaisesRegex(ValueError, 'delivering session')):
             manual_delivery.accept_delivery(args)
-        with (patch.object(manual_delivery, 'project_beads', return_value=(self.database, self.deliver_bead)),
+        with (patch.object(manual_delivery, 'project_beads', side_effect=self.writable_project_db),
               patch.object(manual_delivery, 'reviewer_session', return_value=('uid:1000', ('EXAMPLE-reviewer',)))):
             closed = manual_delivery.accept_delivery(args)
         self.assertEqual(closed['dispatch_id'], observed[0]['dispatch_id'])

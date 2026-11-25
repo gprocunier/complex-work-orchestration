@@ -121,13 +121,14 @@ def _custody(store, protected_login, project, stack):
     runtime_root = sibling / f'offer-{ticket}'
     runtime_root.mkdir(mode=0o700)
     stack.callback(shutil.rmtree, runtime_root, ignore_errors=True)
-    worker = runtime_root / 'worker'
-    _clone(project, worker)
+    target, worker = runtime_root / 'target', runtime_root / 'worker'
+    _clone(project, target)
+    _clone(target, worker)
     host, control = runtime_root / 'host', runtime_root / 'control'
     for path in (host, host / 'records', host / 'fake-server', host / 'fake-server' / 'codex-home', control,
                  control / 'controller', control / 'publication', control / 'authority'):
         path.mkdir(mode=0o700)
-    return runtime.native.OfflineN1Host(host, project, worker), control
+    return runtime.native.OfflineN1Host(host, target, worker), control
 
 
 def _offer_parent(store):
@@ -277,7 +278,7 @@ def _route(task, bead, path, identity, spec, policy, diff_lines):
     return route
 
 
-def _standing(route, chain, database, now):
+def _standing(route, chain, database, now, project):
     unit = route['nodes'][0]['unit_estimate']
     cache = {'source': 'deterministic-context-plan', 'observed_at': datetime.fromtimestamp(now, timezone.utc).isoformat(),
              'total_context_tokens_p90': unit['estimates']['context_tokens_p90'], 'stable_context_tokens_p90': 0,
@@ -286,7 +287,7 @@ def _standing(route, chain, database, now):
              'context_plan_sha256': workflow.digest(unit['context_manifest']), 'telemetry_lineage_id': None}
     cache['evidence_sha256'] = workflow.digest(cache)
     return workflow.D.StandingDelegation(baseline_sha256=chain['digest'], database_sha256=database,
-                                        capability_evidence={}, cache_profile=cache)
+                                        capability_evidence={}, cache_profile=cache, project=str(project))
 
 
 def _mission(host, directory, identity, route, chain, model, key):
@@ -338,7 +339,7 @@ def prepare(*, project, database, task, chain, output_path, output_text) -> appr
         now = ledger.current_time()
         pending = approval.prepare_assignment(verifier=verifier, mission_directive=mission, host=host, ledger=ledger,
             controller_state=control / 'controller', publication_state=control / 'publication', registered_specification=spec,
-            standing=_standing(route, chain, database, now), route=route, node_id=_NODE, native_operation_id=identity + '-native',
+            standing=_standing(route, chain, database, now, project), route=route, node_id=_NODE, native_operation_id=identity + '-native',
             publication_operation_id=identity + '-publication', cleanup_seconds=15, expires_at=now + _DURATION_SECONDS)
         root = host.state.parent
         pending = replace(pending, _preparation_root=(root, tuple(runtime.native._identity(root)), project))
