@@ -1104,7 +1104,7 @@
 
 "dD":[189,117,"with PrivateDirectory.open(store.state_root / \"browser-returns\", create=True) as directory:"],
 
-"dE":[190,759,"if args.audit:"],
+"dE":[190,738,"if args.audit:"],
 
 "dF":[12,868,"if args.write_manifest and target_dir.exists():"],
 
@@ -1138,7 +1138,7 @@
 
 "dU":[191,"DesktopBrowserReviewTests.test_unmatched_request_and_audit_override_create_no_receipt",98,"L8HRcxATvuBjdGpjq2Fq38NNzsrwx0y1u4zLgyponPQ"],
 
-"dV":[190,760,"record = _record_host_evaluation(return_text, result)"],
+"dV":[190,739,"record = _record_host_evaluation(return_text, result)"],
 
 "dW":[189,119,"directory.write(name, raw)"],
 
@@ -2036,7 +2036,7 @@
 
 "kc":[59,715,{"$":57}],
 
-"kd":[190,"main",510,"HfDStNx0PsOZXXzGnHL4d-GO_KeSt28-bpjteBn5DlQ"],
+"kd":[190,"main",489,"HfDStNx0PsOZXXzGnHL4d-GO_KeSt28-bpjteBn5DlQ"],
 
 "ke":[188,106,"submitted = self.require_unchanged().decode(\"utf-8\")"],
 
@@ -2236,13 +2236,13 @@
 
 "mC":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",121,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
 
-"mD":[190,468,"record_received_return(configured_store(), dispatch_id, browser_return)"],
+"mD":[190,447,"record_received_return(configured_store(), dispatch_id, browser_return)"],
 
-"mE":[190,463,"if browser_return is not None:"],
+"mE":[190,442,"if browser_return is not None:"],
 
-"mF":[190,216,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
+"mF":[190,217,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
 
-"mG":[190,206,"if ("],
+"mG":[190,207,"if ("],
 
 "mH":[87,"BrowserProvenanceTests.test_private_evaluation_round_trip",230,"73TLhyK2oznyGNFH5Akdm5-hU09P36HDrsOdDcolh-U"],
 
@@ -5413,7 +5413,7 @@
 
 [46,2257,63,2257,100,"dynamic","ypKY73eMENYLhVb5Co2lv5r86zD3cAb2ti7ZYE29l0w",[{"$":9},"dR"]],
 
-[47,627,19,627,44,"dynamic",{"$":192},[{"$":9},"dS"]],
+[47,606,19,606,44,"dynamic",{"$":192},[{"$":9},"dS"]],
 
 [96,70,4,70,53,"beads","tL-5k4gLzdn43GnJyjbm47nstYqCfzOB5L9s-GCvqN0",["route","B11.2","mz"]],
 
@@ -7398,7 +7398,7 @@
 
 "@19":["lVXGoZ9EnoiO3zO1gtl0aKqhFcOycVR2gF4Z4ABLFic",420,1174],
 
-"@190":["PcSHwuSAfstmBGLePjLOYYbze4np3oUK-jETWT1Y05M",493,43846],
+"@190":["kz4rT0vN2gTO2pLo45gS07N8Y5yVB4V1wer_skduOo4",493,42675],
 
 "@191":["SXu6Yj22_Ug5o_QrdX8p8qA_vos4YYSJ8eVwvYtRZ6k",420,9375],
 
@@ -7580,7 +7580,7 @@
 
 "policy/model-roles.yaml":["ts5whoPZ82VNn1DRyC7d5Hi_XecHVzBzZqd8knmlRW0",420,726],
 
-"references/claims-register.md":["ELYPGs3iXeatDz1Js0p9_M1BiQmFwc5D-h_I3WIbGRo",420,15766],
+"references/claims-register.md":["dvyZKPvVDp71022sVdqb-o5WbNuECTDx9FSjVoBrAy4",420,15860],
 
 "references/cwo-system-prompt.md":["NaUTR-c8I0JleXR4pZHdEBuAPkuhI9NrDO6qVWw7kr8",420,2833],
 
@@ -7794,7 +7794,7 @@
 
 "scripts/cwo_core/return_tripwires.py":["LtRpIcPO1SoAeD5Byj6RiirSir_--bu7-yeWDnt4-Lc",420,18128],
 
-"scripts/cwo_core/returns.py":["H7SJN20nRmCMfzLFm3C5MNZp-oq4zJ2L1lrbJRrrEUs",420,40657],
+"scripts/cwo_core/returns.py":["usDS5rDqoGrYjgxEwrlNm1cvFai5T11sAr0Wq7UUJrk",420,41835],
 
 "scripts/cwo_core/risk_features.py":["iUradZuNAARDtpOgrTgkAf4vZKUZaWqgOaIAcEQ88nU",420,11188],
 
@@ -7840,7 +7840,7 @@
 
 "scripts/evaluate_proportional_execution.py":["5MTmn-RkqlATAoenwraW_GL9iosewg1BwLeq3YiX8wk",420,1824],
 
-"scripts/evaluate_synthesis.py":["tSQ3kKLzkM_A7tL7cYj4kmIdl_3BVXJVALeOEMNDqZQ",493,10718],
+"scripts/evaluate_synthesis.py":["tOkMFigTpN1Uo0Hp9qE7hoPBcu14a2SSSp6X7G0TSxg",493,13930],
 
 "scripts/everyday_delegation_delivery.py":["LuLHo3j3CYlKaM9oxbQdlEpXIIG8LXsMaibYt4zi0NQ",420,3657],
 
@@ -7974,7 +7974,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["8EcyZUuGIfvy6IUaAJbbiB2ObeuI5DtGzQQQQtidAvA",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["XTBKySFdu5ba_QEHiCqOrVgZ_xf214IvxMdy8EXopkY",420,136048],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 

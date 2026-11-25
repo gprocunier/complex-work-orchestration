@@ -16,7 +16,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.host_acceptance import record_received_evaluation
 from cwo_core.host_records import HostRecordStore, using_test_store
-from cwo_core.host_return_intake import record_manual_return, record_received_return
+from cwo_core.host_return_intake import MAX_RETURN_BYTES, record_manual_return, record_received_return
 from cwo_core.model_identities import resolve_model
 from cwo_core.peer_review import pending_evaluation_sha256
 from cwo_core.returns import make_acceptance_decision
@@ -249,8 +249,7 @@ class SynthesisWorkflowTests(unittest.TestCase):
         self.assertEqual(result["primary_input_count"], 1)
         self.assertIn("peer-review-pending", result["held_inputs"][0]["hold_reasons"])
 
-    def test_manual_packet_entry_points_ingest_and_preserve_the_original_hold(self):
-        inputs, decisions = self._panel()
+    def _manual_packet_input(self, report_path, *, peer_required=False):
         bead = self._json_file("manual-task.json", {
             "id": "manual-critic", "title": "Review the retry plan", "description": "Review the public plan.",
             "labels": ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"],
@@ -263,19 +262,129 @@ class SynthesisWorkflowTests(unittest.TestCase):
         artifact = self._run_json("dispatch_work.py", dispatch_main, "--packet", packet_path, "--json")
         self.assertEqual(artifact["dispatch_mode"], "manual_ui")
         self.assertIn("Review the retry plan", artifact["manual_prompt"])
-        report_path = inputs[1]["return"]
         normalized = self._run_json("normalize_contractor_return.py", normalize_main,
             "--contractor-packet", packet_path, "--file", report_path)
         self.assertEqual(normalized["dispatch_id"], packet["dispatch_id"])
+        peer_args = ["--peer-review-required", "--peer-review-status", "pending"] if peer_required else []
         evaluation = self._run_json("evaluate_return.py", evaluate_main,
-            "--contractor-packet", packet_path, "--file", report_path, "--json")
-        self.assertTrue(evaluation["accepted_for_use"])
-        inputs = (inputs[0], dict(inputs[1], evaluation=self._json_file("manual-evaluation.json", evaluation)))
-        result = self._synthesize(inputs, [decisions[0]])
+            "--contractor-packet", packet_path, "--file", report_path, "--json", *peer_args)
+        self.assertEqual(evaluation["accepted_for_use"], not peer_required)
+        return {"return": report_path, "evaluation": self._json_file("manual-evaluation.json", evaluation)}
+
+    def test_manual_packet_entry_points_ingest_and_preserve_the_original_hold(self):
+        inputs, decisions = self._panel()
+        packet_input = self._manual_packet_input(inputs[1]["return"])
+        result = self._synthesize([inputs[0], packet_input], [decisions[0]])
         self.assertEqual(result["status"], "blocked")
         self.assertEqual(result["primary_input_count"], 1)
-        self.assertEqual(result["held_inputs"][0]["lane"], packet["dispatch_id"])
+        self.assertEqual(result["held_inputs"][0]["lane"], "built-manual-critic")
         self.assertIn("peer-review-pending", result["held_inputs"][0]["hold_reasons"])
+
+    def _operator_codex_input(self, report_path):
+        captured = self.root / "operator-codex-return.md"
+        captured.write_bytes(Path(report_path).read_bytes().replace(b"\n", b"\r\n"))
+        origin = dict(capture_id="operator-codex", candidate=CANDIDATE, scope=SCOPE,
+                      return_sha256=sha256(captured.read_bytes()).hexdigest())
+        return {"return": str(captured), "operator_codex": origin,
+                "zero_trust_claims": [claim("crypto", "key_rotation_days", "3")]}
+
+    def test_operator_codex_input_appears_with_the_recorded_packet_and_keeps_both_holds(self):
+        inputs, _ = self._panel()
+        codex = self._operator_codex_input(inputs[0]["return"])
+        packet = self._manual_packet_input(inputs[1]["return"], peer_required=True)
+        packet["zero_trust_claims"] = inputs[1]["zero_trust_claims"]
+        before = self.store.audit_events()
+        result = self._synthesize([codex, packet], [])
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["primary_input_count"], 0)
+        self.assertFalse(result["execution_permitted"])
+        self.assertFalse(result["trusted_host_authority"])
+        self.assertEqual(result["zero_trust_consensus"]["comparable_claim_count"], 0)
+        advisory, peer_pending = result["held_inputs"]
+        self.assertEqual(advisory["synthesis_use"], "open-risk")
+        self.assertIn("nonproduction-advisory: unqualified source", advisory["hold_reasons"])
+        self.assertEqual(advisory["dispatch_binding"]["state"], "absent")
+        self.assertFalse(advisory["dispatch_binding"]["attempted"])
+        self.assertFalse(advisory["dispatch_binding"]["provenance_known"])
+        self.assertEqual(peer_pending["dispatch_binding"]["state"], "bound")
+        self.assertIn("peer-review-pending", peer_pending["hold_reasons"])
+        origin, host = result["input_provenance"]
+        self.assertEqual(origin["source"], "operator-supplied-codex")
+        self.assertEqual(origin["candidate_scope_basis"], "operator-selected")
+        self.assertEqual(origin["capture_id"], advisory["lane"])
+        self.assertEqual(origin["executor"], "codex_architecture_critic")
+        self.assertEqual(origin["return_sha256"], codex["operator_codex"]["return_sha256"])
+        self.assertNotIn("dispatch_id", origin)
+        self.assertNotIn("dispatch_record_sha256", origin)
+        self.assertNotIn("return_record_sha256", origin)
+        self.assertIn("return_record_sha256", host)
+        self.assertEqual(host["return_sha256"], sha256(Path(packet["return"]).read_bytes()).hexdigest())
+        self.assertEqual(self.store.audit_events(), before)
+
+    def test_operator_codex_capture_id_cannot_target_adjudication(self):
+        inputs, decisions = self._panel()
+        codex = self._operator_codex_input(inputs[0]["return"])
+        origin = codex["operator_codex"]
+        hold = "nonproduction-advisory: unqualified source"
+        decision = dict(decisions[0], dispatch_id=origin["capture_id"], return_sha256=origin["return_sha256"],
+            finding_ids=[hold], supporting_evidence=[dict(decisions[0]["supporting_evidence"][0], finding_ids=[hold])])
+        result = self._synthesize([codex, inputs[1]], [decision, decisions[1]])
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["primary_input_count"], 1)
+        advisory = result["held_inputs"][0]
+        self.assertEqual(advisory["synthesis_use"], "open-risk")
+        self.assertEqual(advisory["adjudication"]["state"], "none")
+        self.assertIn(hold, advisory["hold_reasons"])
+        self.assertIn("does not name the dispatch_id of any input", result["adjudication_errors"][0])
+        self.assertEqual(self.store.find("dispatch", dispatch_id=origin["capture_id"]), [])
+        self.assertEqual(self.store.find("evaluation", dispatch_id=origin["capture_id"]), [])
+
+    def test_operator_codex_requires_exact_input_bytes_and_context(self):
+        inputs, _ = self._panel()
+        codex = self._operator_codex_input(inputs[0]["return"])
+        for options in ({"candidate": "another-candidate"}, {"scope": "another-scope"}):
+            with self.subTest(options=options), self.assertRaisesRegex(SystemExit, "candidate or scope differs"):
+                self._synthesize([codex], [], **options)
+        capture = Path(codex["return"])
+        capture.write_bytes(capture.read_bytes().replace(b"\r\n", b"\n"))
+        with self.assertRaisesRegex(SystemExit, "exact SHA-256 digest"):
+            self._synthesize([codex], [])
+
+    def test_operator_codex_refuses_invalid_and_oversized_return_files(self):
+        inputs, _ = self._panel()
+        codex = self._operator_codex_input(inputs[0]["return"])
+        for raw, reason in ((b"\xff", "utf-8"), (b"x" * (MAX_RETURN_BYTES + 1), "input size limit")):
+            with self.subTest(reason=reason), self.assertRaisesRegex(SystemExit, reason):
+                Path(codex["return"]).write_bytes(raw)
+                entry = dict(codex, operator_codex=dict(codex["operator_codex"], return_sha256=sha256(raw).hexdigest()))
+                self._synthesize([entry], [])
+
+    def test_operator_codex_refuses_alternate_metadata_sources(self):
+        inputs, _ = self._panel()
+        codex = self._operator_codex_input(inputs[0]["return"])
+        origin = codex["operator_codex"]
+        for entry, reason in (
+            (dict(codex, evaluation=inputs[0]["evaluation"]), "accepts only"),
+            (dict(codex, evaluation_record_sha256="f" * 64), "accepts only"),
+            (dict(codex, synthesis_use="primary"), "accepts only"),
+            (dict(codex, operator_codex=dict(origin, peer_review_status="passed")), "requires capture_id"),
+            (dict(codex, operator_codex=dict(origin, provider_key="anthropic_manual")), "requires capture_id"),
+            (dict(codex, operator_codex=dict(origin, dispatch_id="borrowed")), "requires capture_id"),
+            (dict(codex, operator_codex=dict(origin, capture_id="other/path")), "bounded portable identifier"),
+            (dict(codex, operator_codex=dict(origin, capture_id=" operator-codex ")), "bounded portable identifier"),
+            (dict(codex, operator_codex=dict(origin, capture_id=23)), "bounded portable identifier"),
+            (dict(codex, operator_codex=dict(origin, return_sha256="bad")), "lowercase SHA-256"),
+        ):
+            with self.subTest(entry=entry), self.assertRaisesRegex(SystemExit, reason):
+                self._synthesize([entry], [])
+
+    def test_operator_codex_capture_id_is_unique_in_panel(self):
+        inputs, decisions = self._panel()
+        codex = self._operator_codex_input(inputs[0]["return"])
+        collision = dict(codex, operator_codex=dict(codex["operator_codex"], capture_id=decisions[0]["dispatch_id"]))
+        for panel in ([collision, inputs[0]], [codex, codex]):
+            with self.assertRaisesRegex(SystemExit, "capture_id must be unique"):
+                self._synthesize(panel, [])
 
     def test_recorded_provider_conflicts_still_require_independent_review(self):
         inputs, decisions = self._panel()

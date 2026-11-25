@@ -24,6 +24,7 @@
 - Let more projects fit within the existing registered delegation request limit by using a verified reference to the full checkout snapshot.
 - Configure the Claude architecture critic for Opus 5.5 at high effort. Routing, the prompt coach, and contractor packets use the same settings.
 - Configure the Gemini architecture critic for Gemini 4 Hydrogen at high effort. Its manual command runs Antigravity in plan mode from the configured trusted folder.
+- Include saved Codex architecture critiques alongside recorded critic returns in synthesis reports. The Codex lane retains its advisory hold, exact return digest, candidate, and scope.
 
 ## 1.36.8 - 2026-11-25
 
