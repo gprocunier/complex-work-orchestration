@@ -27,8 +27,11 @@ MAX_ARTIFACT_BYTES = 4 * 1024 * 1024
 MAX_RECORD_BYTES = 4 * 1024 * 1024
 MAX_OUTPUTS = 16
 MAX_STEPS = 256
+# Bound the whole worktree independently from any single file read into memory.
+MAX_CAPTURE_FILE_BYTES = 16 * 1024 * 1024
+MAX_COMMIT_VERIFICATION_BYTES = 16 * 1024 * 1024
 CAPTURE_LIMITS = {
-    "max_files": 4096, "max_bytes": 16 * 1024 * 1024,
+    "max_files": 4096, "max_bytes": 64 * 1024 * 1024,
     "max_seconds": 10.0, "max_entries": 20_000,
 }
 # Only fixed workspace_capture failure kinds may leave the capture boundary.
@@ -249,8 +252,8 @@ def _capture_failure_category(value):
 
 def _capture(root, repositories):
     _validate_scratch(repositories)
-    budget = workspace_capture.Budget.start(**CAPTURE_LIMITS)
-    value = _freeze(workspace_capture.capture(root, **CAPTURE_LIMITS))
+    budget = workspace_capture.Budget.start(**{**CAPTURE_LIMITS, "max_bytes": MAX_COMMIT_VERIFICATION_BYTES})
+    value = _freeze(workspace_capture.capture(root, **CAPTURE_LIMITS, max_file_bytes=MAX_CAPTURE_FILE_BYTES))
     if value.get("complete") is not True or value.get("error") or not value.get("head_commit"):
         failure = OfflineHostError("A complete repository capture with an actual commit is required.")
         failure.add_note(f"Repository capture failure category: {_capture_failure_category(value)}")

@@ -34,8 +34,9 @@ has no effect on the file, and is opened for reading only after its type and
 inode are confirmed.
 
 All phases share one budget of hashed files, walked entries, bytes read and a
-deadline; Git metadata has its own byte and entry budget under the same
-deadline. That metadata byte budget is also charged for every path built from
+deadline. A caller may impose a smaller limit on each worktree file. Git
+metadata has its own byte and entry budget under the same deadline. That
+metadata byte budget is also charged for every path built from
 untrusted names (worktree paths and directory prefixes, HEAD's tree paths,
 metadata keys, excluded and mirrored directories, untracked status lines),
 at its stored size and before it is built. Any failure, exhausted budget,
@@ -1513,9 +1514,10 @@ def _conversion_attributes(text: str, check_time: Any = None) -> list[str]:
 
 
 class WorktreeCapture:
-    def __init__(self, root: Path | str, *, budget: Budget, scope: CaptureScope) -> None:
+    def __init__(self, root: Path | str, *, budget: Budget, scope: CaptureScope, max_file_bytes: int | None = None) -> None:
         self.root = Path(root)
         self.budget = budget
+        self.max_file_bytes = budget.max_bytes if max_file_bytes is None else max(0, int(max_file_bytes))
         # Git metadata has its own fixed byte and entry budget, so a small
         # content budget is not spent on sample hooks; the deadline is shared.
         self.meta_budget = Budget(max_files=0, max_bytes=METADATA_BYTES, max_entries=METADATA_ENTRIES, deadline=budget.deadline)
@@ -2051,7 +2053,8 @@ class WorktreeCapture:
                 self.blobs[path] = ("symlink", self.raw_blobs[path])
         elif kind == "file":
             self.budget.take_file()
-            data = _read_pinned(dir_fd, name, info, self.budget.remaining_bytes(), deadline=self.budget.deadline)
+            cap = min(self.max_file_bytes, self.budget.remaining_bytes())
+            data = _read_pinned(dir_fd, name, info, cap, deadline=self.budget.deadline)
             self.budget.take_bytes(len(data))
             self.inventory[path] = f"file:{mode:o}:{len(data)}:{hashlib.sha256(data).hexdigest()}"
             self.raw_blobs[path] = _blob_id(self.object_format, data)
@@ -2157,7 +2160,8 @@ class WorktreeCapture:
             if parts is None or not self._excluded(parts[:-1]) or path in self.inventory:
                 continue
             self.budget.take_entry()
-            kind, data, info = read_beneath(self.root_fd, path, self.budget.remaining_bytes(), deadline=self.budget.deadline)
+            cap = min(self.max_file_bytes, self.budget.remaining_bytes())
+            kind, data, info = read_beneath(self.root_fd, path, cap, deadline=self.budget.deadline)
             if data is not None:
                 self.budget.take_bytes(len(data))
             if kind == "file":
@@ -2778,12 +2782,14 @@ def capture(
     max_bytes: int,
     max_seconds: float,
     max_entries: int,
+    max_file_bytes: int | None = None,
     allowed_paths: tuple[str, ...] = (),
     excluded_parts: frozenset[str] = frozenset(),
 ) -> dict[str, Any]:
     """Capture ``root`` under one shared budget. See the module docstring."""
     budget = Budget.start(max_files=max_files, max_bytes=max_bytes, max_seconds=max_seconds, max_entries=max_entries)
-    return WorktreeCapture(root, budget=budget, scope=CaptureScope(tuple(allowed_paths), frozenset(excluded_parts))).run()
+    scope = CaptureScope(tuple(allowed_paths), frozenset(excluded_parts))
+    return WorktreeCapture(root, budget=budget, scope=scope, max_file_bytes=max_file_bytes).run()
 
 
 __all__ = [

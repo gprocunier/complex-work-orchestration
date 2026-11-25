@@ -666,9 +666,9 @@
 
 "K":[175,"DelegationSetupTests.test_fake_device_login_checks_startup_then_saves_only_worker_path",89,"tqsTKKHIxjXE0KgJpcOLffekpY3eXrH59LJDLw1wK5M"],
 
-"L":[65,681,"if c._worker_login_error is not None:"],
+"L":[65,700,"if c._worker_login_error is not None:"],
 
-"M":[65,683,"if selection is None:"],
+"M":[65,702,"if selection is None:"],
 
 "N":[146,333,{"$":366},42,333,61],
 
@@ -694,7 +694,7 @@
 
 "Y":[48,70,"if not pins:"],
 
-"Z":[43,2621,"if not same_dirs:"],
+"Z":[43,2625,"if not same_dirs:"],
 
 "a":[182,"NativePoolAdmissionContractTests.test_admitted_n2_consumes_once_and_emits_exact_v2_terminal_evidence",665,"fDdpNc3NfuossQ9WvK9qRkvlA0jn2lMMnAPendurE3Y"],
 
@@ -808,7 +808,7 @@
 
 "as":[76,1716,"try_dep(blocked, blocker, dependency_type)",16,1716,58],
 
-"at":[63,943,{"$":148}],
+"at":[63,953,{"$":148}],
 
 "au":[19,17,{"$":313}],
 
@@ -834,7 +834,7 @@
 
 "b4":[116,"OwnershipProducerTests.test_cleanup_same_tick_replacement_before_first_signal_is_spared",389,"umul49I9qJH408fQPPvTvMTRUm8brMG5zPazWa2mF3o"],
 
-"b5":[43,"WorktreeCapture._index",1553,"c1tKZtLWzMmdvKuXUhQookkm3LMy0YqiKkWUygncvGE"],
+"b5":[43,"WorktreeCapture._index",1555,"c1tKZtLWzMmdvKuXUhQookkm3LMy0YqiKkWUygncvGE"],
 
 "b6":[30,335,"response = opener.open(frozen, timeout=timeout)"],
 
@@ -902,7 +902,7 @@
 
 "bc":[44,"PinnedHTTPSConnection.connect",385,"WxSVE5w-JlAg0DdDzimWQO6oG8OX2H20xNfcLsnJ5Sk"],
 
-"bd":[53,"OfflineN1Host.run_registered",598,"S7yT5VAHfRV0VrO1U-4jOrIUv8Oqg3j2VoWjS84db2w"],
+"bd":[53,"OfflineN1Host.run_registered",601,"S7yT5VAHfRV0VrO1U-4jOrIUv8Oqg3j2VoWjS84db2w"],
 
 "be":[133,"LauncherAuthorityTests.test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split",232,"tMbftq6oj2VfoQb_9dtSC6-P_SLNKobtRjIR3m5Zr5k"],
 
@@ -924,7 +924,7 @@
 
 "bn":[34,308,"_run(\n        [\"bd\", *args],\n        cwd=directory,\n        env=_bd_environment(directory),\n        label=\"activation-beads\",\n    )",11,313,5],
 
-"bo":[43,"run_git",434,{"$":213}],
+"bo":[43,"run_git",435,{"$":213}],
 
 "bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",325,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
 
@@ -948,11 +948,11 @@
 
 "bz":[126,"RegisteredFiniteToolWiringTests.test_naturally_completed_tool_with_output_replies_and_polls_empty",679,"RdM82WY4Rym3TDm4i0KVKoNz_2KZCdABI3lijGyPrD8"],
 
-"c":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",304,"jxyxUwC272tRWlg5LSye-TQbVsBm6RXtRb8Q3PAYqJs"],
+"c":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",316,"KG9Yb7CbGY8uV21XBUbFAdKc3aPeTLwhGJ33Wp-1c_g"],
 
 "c0":[48,"main",353,"JxllWLGW9t3Jd4KCCumWY0F18Ef_7_BEwsFRVawXgQI"],
 
-"c1":[43,412,"if not _trustworthy(real):"],
+"c1":[43,413,"if not _trustworthy(real):"],
 
 "c2":[42,363,"self.process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,"],
 
@@ -980,7 +980,7 @@
 
 "cE":[130,"ReleaseEffectRoutesTests.test_annotation_version_refuses_before_subprocess_with_positive",1152,"HZdlKGF-6HS9lMjLrq7EUQZ3sx2DNlpGigVOi9pkgYo"],
 
-"cF":[43,"trusted_git_private",581,"BudjkN9N8hzq3deTDxxyxM1gPa4i_0KbvqBwDxWcf4M"],
+"cF":[43,"trusted_git_private",582,"BudjkN9N8hzq3deTDxxyxM1gPa4i_0KbvqBwDxWcf4M"],
 
 "cG":[42,979,"self._write_payload(payload, method=method, timeout=1)",12,979,66],
 
@@ -1068,11 +1068,11 @@
 
 "cw":[67,354,{"$":13}],
 
-"cx":[43,2679,"if self._dirs() != self.dirs or self._bound_identity() != identity or _identity(git.path) != git.identity:"],
+"cx":[43,2683,"if self._dirs() != self.dirs or self._bound_identity() != identity or _identity(git.path) != git.identity:"],
 
 "cy":[136,"ScaffoldDependencyValidationTests.assert_main_rejected",339,"7Drfc7ZT0-zZQIdSUN-4EkERjJcsFOwb6OUNWkzKgL0"],
 
-"cz":[43,"WorktreeCapture.run",2559,"47UBzNt637IUtvxWCpJR7so77qZ0gacMK2dlQQGNpuk"],
+"cz":[43,"WorktreeCapture.run",2563,"47UBzNt637IUtvxWCpJR7so77qZ0gacMK2dlQQGNpuk"],
 
 "d":[183,"discard_unretained",152,"yDt5r_eaFJ_-uCwv5NFm8Se2wCv7KITdXOJz_XxMzto"],
 
@@ -1164,7 +1164,7 @@
 
 "dh":[48,"load_private_response",199,"sw0hoAVZ-oY4RUjTRsjlmBAcTxsCrxaaBcZCdZH0NNI"],
 
-"di":[43,"trusted_git_succeeds",536,"5cZKMH3EPavtAWI0KfuAduRPt45Ze22-C0T3UGnE0Jo"],
+"di":[43,"trusted_git_succeeds",537,"5cZKMH3EPavtAWI0KfuAduRPt45Ze22-C0T3UGnE0Jo"],
 
 "dj":[112,"NativePoolAdmissionTests.test_productive_n3_succeeds_and_forged_n4_rejects_before_claim",364,"KntFtmskeIF1SwS92B-saJPXOtXyrcCnGF9PJsyHfYw"],
 
@@ -1230,7 +1230,7 @@
 
 "eD":[99,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",196,"nLB-9jq7QWyk-CDvJcoVcGW8QLERi2n1tlolTfekaVk"],
 
-"eE":[43,"trusted_git_completed",554,"rct8y2700SsiMbnuefo2TVA2CkqzAPpkX9zcz3stMrc"],
+"eE":[43,"trusted_git_completed",555,"rct8y2700SsiMbnuefo2TVA2CkqzAPpkX9zcz3stMrc"],
 
 "eF":[99,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",407,"FY2hKm7uzoaqBAV8xexmDqw9Yry66tVevHTqL2lIBpo"],
 
@@ -1326,11 +1326,11 @@
 
 "ez":[50,298,"quote_cmd \"${cmd[@]}\""],
 
-"f":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",577,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
+"f":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",602,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
 
 "f0":[99,"F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write",131,"yKwa8PLCMe6n7YGjgoVtCPfdC9PTa573eaPkGx8CTek"],
 
-"f1":[43,"WorktreeCapture._resolve_dirs",1934,"dZQH4PuBIaB09y0Jingn5BDs2emfwevCel8prUvPWws"],
+"f1":[43,"WorktreeCapture._resolve_dirs",1936,"dZQH4PuBIaB09y0Jingn5BDs2emfwevCel8prUvPWws"],
 
 "f2":[64,"_RegisteredServer.__init__",1220,"G1Mz5E4_1OBWs2WTk9hFz82xmxFhmQsS_RSURzloZDg"],
 
@@ -1358,7 +1358,7 @@
 
 "fE":[83,"AtomicSpawnTests.test_native_errno_is_used_and_all_initialized_resources_are_destroyed",50,"rxv4nz4Ck9ZX29ZmgfJSOtfXGWr4sb3Sfq5XJOniv68"],
 
-"fF":[43,"WorktreeCapture._run",1529,"LB6BpFWvTUh_6Ruvmd_je3SF9FrXgN3ocNaEuIgkirk"],
+"fF":[43,"WorktreeCapture._run",1531,"LB6BpFWvTUh_6Ruvmd_je3SF9FrXgN3ocNaEuIgkirk"],
 
 "fG":[59,"_ProductionBeadsBridge.__call__",133,"w2nQftmziTMiYUS_Anhjw-l0lWevljkWGubs1E7ditI"],
 
@@ -1376,9 +1376,9 @@
 
 "fN":[135,"ParallelUnittestTests.test_cli_runs_isolated_shards_and_aggregates_success",310,"0UMrHqa6c3oy-NrnhGoAnXIJy0Ij4G1GWPJk0F_Bd9E"],
 
-"fO":[43,1550,"git_dir, common_dir = self._resolve_dirs()"],
+"fO":[43,1552,"git_dir, common_dir = self._resolve_dirs()"],
 
-"fP":[43,2655,"self._index()",22,2655,35],
+"fP":[43,2659,"self._index()",22,2659,35],
 
 "fQ":[16,"execute_qualified_completed",58,"xncVnpiBF0bOHmpl8ycvk5jaZwU-ICYkli-sWmC_NZA"],
 
@@ -1538,7 +1538,7 @@
 
 "gf":[76,"main",1520,"aDU8ILLCZ1AdPh-8ph-70IrwsAzGmaIi_thMk9iESZA"],
 
-"gg":[43,1543,"self._run(args, work_tree=work_tree)",17,1543,53],
+"gg":[43,1545,"self._run(args, work_tree=work_tree)",17,1545,53],
 
 "gh":[27,566,"\"codex_version\": _codex_version(binary, codex_home=home), \"codex_home\": str(home),"],
 
@@ -1620,7 +1620,7 @@
 
 "hJ":[8,714,"self._message_snapshot(page)",34,714,62],
 
-"hK":[43,"WorktreeCapture._git",1542,"lXu6_ArjpCYeUEmR_L2Xs7reKAgMAGXD542i66JeQZw"],
+"hK":[43,"WorktreeCapture._git",1544,"lXu6_ArjpCYeUEmR_L2Xs7reKAgMAGXD542i66JeQZw"],
 
 "hL":[126,"RegisteredFiniteToolWiringTests.test_terminal_before_tool_gate_release_contains_unrun_child",3210,"ZZK0uOnxs_z_JO2qFZxRgR62Wc8XknE5EBPxX639f3M"],
 
@@ -1662,11 +1662,11 @@
 
 "he":[44,804,"_resolve_local_endpoint_addresses(parsed.hostname, port)",16,804,72],
 
-"hf":[43,1538,"run_git(self.git, tree, args, budget=self.git_budget, git_dir=self.snapshot.git_dir, work_tree=tree)",17,1538,117],
+"hf":[43,1540,"run_git(self.git, tree, args, budget=self.git_budget, git_dir=self.snapshot.git_dir, work_tree=tree)",17,1540,117],
 
 "hg":[121,"R1ActivationPreviewHoldTests.test_minor2_thread_rechecks_each_hold_before_intent_rpc_or_binding",103,"sNPlr2jGqDrEm3zNWojkwyVOd2DCmM1pTnA1nEd1cW8"],
 
-"hh":[43,1563,"self._git([\"ls-files\", \"--stage\", \"-v\", \"--sparse\", \"--full-name\", \"-z\"])",17,1563,90],
+"hh":[43,1565,"self._git([\"ls-files\", \"--stage\", \"-v\", \"--sparse\", \"--full-name\", \"-z\"])",17,1565,90],
 
 "hi":[70,87,"require_v8_live_routes(plan)"],
 
@@ -1682,7 +1682,7 @@
 
 "ho":[49,423,{"$":94}],
 
-"hp":[43,"trusted_git_output",516,"CUouc3t5O1FHYJsnfRoPzWeSSdTPED_7kHR2eJ_BpzI"],
+"hp":[43,"trusted_git_output",517,"CUouc3t5O1FHYJsnfRoPzWeSSdTPED_7kHR2eJ_BpzI"],
 
 "hq":[69,"RegisteredServerRequests._write",383,"FwSoST3nJBiIVZMl97m1pu9gwjFWZDhkntjhQ59oLxs"],
 
@@ -1778,7 +1778,7 @@
 
 "iZ":[126,"RegisteredFiniteToolWiringTests.test_exceptional_poll_shutdown_joins_the_original_record_writer",2632,"cuGDYtgTI02tIT-ZPZfxBTrfWnz5I0zpZIdb8VALUGg"],
 
-"ia":[43,"WorktreeCapture._dirs",1548,"RyInlKdBKwbYhDsTBCa-7-OCgTXi5_PVtGLlXm54Cs0"],
+"ia":[43,"WorktreeCapture._dirs",1550,"RyInlKdBKwbYhDsTBCa-7-OCgTXi5_PVtGLlXm54Cs0"],
 
 "ib":[87,"BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal",354,"GBCZC7XLKsWdI3VdJOUgU1lNxI3ibjQhbOSqJ4uhO0Y"],
 
@@ -1904,11 +1904,11 @@
 
 "jZ":[155,"PoolWorkerContainment._release_login",645,"vPgg9fqYjgFq9jQnXBlWpk4XCqCrHcECiBe3A7byAEk"],
 
-"ja":[65,"RegisteredN1Workflow._production_selected",489,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
+"ja":[65,"RegisteredN1Workflow._production_selected",508,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
 
 "jb":[64,"_RegisteredServer._register_production_rpc",1260,"kISxK9pHjckkbv9hrb_tAgnq4iWNRqyXFLdbFqudSys"],
 
-"jc":[65,"RegisteredN1Workflow._require_production_execution",662,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
+"jc":[65,"RegisteredN1Workflow._require_production_execution",681,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
 
 "jd":[153,"WorkflowTests.test_production_requires_current_adoption_and_configured_worker_login",382,"SOKBojMQfm0KVuZZYQrqsR7_nZS9sa5bsY-g1IpLtew"],
 
@@ -1984,7 +1984,7 @@
 
 "kC":[8,686,"manager.start()",21,686,36],
 
-"kD":[63,971,"lifetime.launch(['/usr/bin/sh', '-c', self.factory.spec['command']],\n                                      self.factory.home, tool_call=params, deadline=deadline,\n                                      tool_decision=decision)",22,973,61],
+"kD":[63,981,"lifetime.launch(['/usr/bin/sh', '-c', self.factory.spec['command']],\n                                      self.factory.home, tool_call=params, deadline=deadline,\n                                      tool_decision=decision)",22,983,61],
 
 "kE":[77,992,"controller.spawn_owned('fixed-pid-reuse-child',\n            [executable, '-I', '-S', '-c', _PID_REUSE_CHILD], str(root))",17,993,72],
 
@@ -2104,7 +2104,7 @@
 
 "l9":[18,208,"bd_json([\"show\", \"--json\", \"--\", *chunk])",40,208,81],
 
-"lA":[43,462,"subprocess.Popen(\n        [git.path, \"-C\", str(root), *INERT_GIT_CONFIG, *args],\n        env=environment,\n        stdin=subprocess.DEVNULL,\n        stdout=subprocess.PIPE,\n        stderr=subprocess.PIPE,\n    )",14,468,5],
+"lA":[43,463,"subprocess.Popen(\n        [git.path, \"-C\", str(root), *INERT_GIT_CONFIG, *args],\n        env=environment,\n        stdin=subprocess.DEVNULL,\n        stdout=subprocess.PIPE,\n        stderr=subprocess.PIPE,\n    )",14,469,5],
 
 "lB":[8,1338,"candidate.click(timeout=timeout_ms)",16,1338,51],
 
@@ -2170,7 +2170,7 @@
 
 "lg":[8,1342,"candidate.click(timeout=timeout_ms, force=True)",20,1342,67],
 
-"lh":[43,387,"subprocess.run([path, \"--version\"], env=_environment(), stdin=subprocess.DEVNULL,\n                                capture_output=True, timeout=max(0.1, min(10.0, timeout)), check=False)",17,388,103],
+"lh":[43,388,"subprocess.run([path, \"--version\"], env=_environment(), stdin=subprocess.DEVNULL,\n                                capture_output=True, timeout=max(0.1, min(10.0, timeout)), check=False)",17,389,103],
 
 "li":[10,143,"ThreadingHTTPServer((\"127.0.0.1\", 0), Handler)",19,143,65],
 
@@ -2310,7 +2310,7 @@
 
 "mn":[77,506,"socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)",15,506,64],
 
-"mo":[53,"OfflineN1Host._save",563,"bnIW4oJlACPUu0tPexaUiCnuonxO_vAdTnpPyRVOa4g"],
+"mo":[53,"OfflineN1Host._save",566,"bnIW4oJlACPUu0tPexaUiCnuonxO_vAdTnpPyRVOa4g"],
 
 "mp":[37,513,"if (\n            pre_hash != expected_pre_show_sha256\n            or pre.get(\"status\") != \"in_progress\"\n            or pre.get(\"assignee\") != self.actor\n        ):"],
 
@@ -2334,7 +2334,7 @@
 
 "mz":[177,70,"run_bd(['comment', '--', delivery.bead_id, line])",4,70,53],
 
-"n":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",120,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
+"n":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",131,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
 
 "n0":[133,"LauncherAuthorityTests.test_pool_request_missing_protection_refuses_before_open",105,"K-Q_pkk-bX_GAzMTxxzACVb8qTeAfkKtwGRsKEmc8Fo"],
 
@@ -2368,9 +2368,9 @@
 
 "nF":[137,"PrivatePidReuseContractTests.test_unverified_handoff_cannot_signal_an_unrelated_owned_sentinel",230,"X4i0_5teaIJBHRC_GV0AEfAntPRWgmlem5hRWFeDPJo"],
 
-"nG":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4810,"pNOfuNhX3cPvKFosnq5AvjjHCSwsg2TcdSqVJaO3_qA"],
+"nG":[126,"RegisteredFiniteToolWiringTests.test_two_prequeued_polls_and_later_poll_have_no_postrefusal_effect",4837,"pNOfuNhX3cPvKFosnq5AvjjHCSwsg2TcdSqVJaO3_qA"],
 
-"nH":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",4973,"RT_laVUqRXyolUYIargaAmVK7jbM1r3ZQbEieAoFGyA"],
+"nH":[126,"RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication",5000,"RT_laVUqRXyolUYIargaAmVK7jbM1r3ZQbEieAoFGyA"],
 
 "nI":[64,1615,"self.lifetime.launch(command, self.factory.home)",18,1615,66],
 
@@ -2640,11 +2640,11 @@
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
-"pQ":[65,"RegisteredN1Workflow._commit_execution",562,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
+"pQ":[65,"RegisteredN1Workflow._commit_execution",581,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
 
-"pR":[65,"RegisteredN1Workflow._prepare_execution",538,"GmUTQnJ18-VWkybtitPYDYjR-OEw09zWxZIGXRm96VI"],
+"pR":[65,"RegisteredN1Workflow._prepare_execution",557,"GmUTQnJ18-VWkybtitPYDYjR-OEw09zWxZIGXRm96VI"],
 
-"pS":[65,"RegisteredN1Workflow._validate_execution",548,"nee2Lg9_3KnYaOLV18mLm61O6tzMpBZYapRh1BdpDn4"],
+"pS":[65,"RegisteredN1Workflow._validate_execution",567,"nee2Lg9_3KnYaOLV18mLm61O6tzMpBZYapRh1BdpDn4"],
 
 "pT":[42,"AppServer._raise_failed_turn_start",2224,"jyvTcLfJWtdc4Pr_WbtEifwaRUEU4VXJU_IAkb1vocc"],
 
@@ -2714,7 +2714,7 @@
 
 "q":[130,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1519,"aZVhyWCiGJmBzdY6I96KPM_3D_LQsfmSN9ZaTPYN-gQ"],
 
-"q0":[43,"WorktreeCapture._run_bound",2606,"pKOcFA8UqqJUISnZCVIBYd8dlgOc0kfLNeyeVhkoTK4"],
+"q0":[43,"WorktreeCapture._run_bound",2610,"pKOcFA8UqqJUISnZCVIBYd8dlgOc0kfLNeyeVhkoTK4"],
 
 "q1":[8,1245,"self._response_in_progress(page)",30,1245,62],
 
@@ -2750,13 +2750,13 @@
 
 "qH":[125,"FiniteInputTests.test_two_finite_tool_closers_observe_one_inflight_owner",1315,"aRrIVaBcM1QkVVRSTP_16TSB0x3UaYuoo14evccFyxY"],
 
-"qI":[53,574,"os.replace(self.state / \"operation.next\", self.state / \"operation.json\")",8,574,80],
+"qI":[53,577,"os.replace(self.state / \"operation.next\", self.state / \"operation.json\")",8,577,80],
 
-"qJ":[53,"OfflineN1Host._require_lock",542,"d7Zdkb_GstqR3GcJwm61rDDWEpzpzq_0qS9mZxxdsO4"],
+"qJ":[53,"OfflineN1Host._require_lock",545,"d7Zdkb_GstqR3GcJwm61rDDWEpzpzq_0qS9mZxxdsO4"],
 
-"qK":[53,547,"_identity(self.state) != self._state_identity\n                or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1\n                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)",12,549,81],
+"qK":[53,550,"_identity(self.state) != self._state_identity\n                or not stat.S_ISREG(current.st_mode) or current.st_nlink != 1\n                or (held.st_dev, held.st_ino) != (current.st_dev, current.st_ino)",12,552,81],
 
-"qL":[53,543,"self._lock_descriptor is None",11,543,40],
+"qL":[53,546,"self._lock_descriptor is None",11,546,40],
 
 "qM":[114,"OfflineN1HostTests.test_replaced_claim_lock_cannot_capture_or_overwrite_retained_intent",470,"yF0n3FcnJip8CVEmnrFs1oL_0Du8sxpqrMl488I4ve4"],
 
@@ -2776,7 +2776,7 @@
 
 "qU":[130,"ReleaseEffectRoutesTests._git_pair",1421,"nqUbPdd1sJwFcR3w_CJQflGtJHDoliB8lauHREZ_J6U"],
 
-"qV":[65,"RegisteredN1Workflow.run",704,"keCPTrMJdrX_-8weI0C8TPIZf15rFwA1YaWDRovuhcM"],
+"qV":[65,"RegisteredN1Workflow.run",723,"keCPTrMJdrX_-8weI0C8TPIZf15rFwA1YaWDRovuhcM"],
 
 "qW":[139,"TrustedGitTests.test_only_fixed_trustworthy_paths_are_used",1148,"KUasbycq-u2HYjys762v8BrfPX-pUO0tOIVZE79v3GA"],
 
@@ -2860,9 +2860,9 @@
 
 "rJ":[77,"SelectedNativeProbe._spawn",481,"FezZG1Z_3AFLNXbL9ba9AredNWVHMMyCr-yVpSwMa4M"],
 
-"rK":[53,573,"self._require_lock()",8,573,28],
+"rK":[53,576,"self._require_lock()",8,576,28],
 
-"rL":[53,564,"self._require_lock()",8,564,28],
+"rL":[53,567,"self._require_lock()",8,567,28],
 
 "rM":[42,2557,"self.request(\n            \"thread/delete\",\n            {\"threadId\": thread_id},\n            timeout=15,\n        )",26,2561,9],
 
@@ -2972,7 +2972,7 @@
 
 "ur":[170,350,"reviewer_session()",25,350,43],
 
-"us":[65,698,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
+"us":[65,717,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
 
 "ut":[148,"ManagedLoginNamespaceTests.assert_atomic_refresh_and_runtime_isolation",227,"1V4JIAPaoLLhIH-buh_fAbwUnE3Z9HCYA09DAh85iwk"],
 
@@ -2982,13 +2982,13 @@
 
 "uw":[149,122,"_need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),"],
 
-"ux":[65,659,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
+"ux":[65,678,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
 
 "uz":[8,995,"page.locator(str(selector)).first.click(timeout=timeout_ms)",20,995,79],
 
 "v":[34,1310,"if root == source or root.is_relative_to(source):"],
 
-"v0":[65,711,"R.live_availability.require_n1_live()"],
+"v0":[65,730,"R.live_availability.require_n1_live()"],
 
 "v1":[8,1139,"self._press_until_ready(box, origin, timeout_ms, guard)",15,1139,70],
 
@@ -3036,7 +3036,7 @@
 
 "vO":[76,1660,{"$":95}],
 
-"vP":[43,462,{"$":256}],
+"vP":[43,463,{"$":256}],
 
 "vQ":[130,"ReleaseEffectRoutesTests._dns_pair",1469,"mGCmGmwaUSFToZXzdwDpC6KLMBvih05KEc6mZQYqKEk"],
 
@@ -3096,7 +3096,7 @@
 
 "vs":[170,226,"run_bd([\"comment\", \"--\", delivery.bead_id, comment])",8,226,60],
 
-"vt":[65,679,"_need(selection == c._worker_login_home,"],
+"vt":[65,698,"_need(selection == c._worker_login_home,"],
 
 "vu":[35,24,"if REGISTERED_N1_LIVE_AVAILABLE is not True:"],
 
@@ -3148,7 +3148,7 @@
 
 "xH":[64,"RegisteredN1Factory._retire_managed_login",2654,"BSr1Rv-gKTTsbIt2LyEC43c3F_Lr10nP5h21aFX0IcQ"],
 
-"xI":[63,"QualifiedToolEvidence._project",249,"R8FoXs-UmY3cvB_ltC1XtYKrWO_YgrgIN6SwYgeC7lk"],
+"xI":[63,"QualifiedToolEvidence._project",259,"R8FoXs-UmY3cvB_ltC1XtYKrWO_YgrgIN6SwYgeC7lk"],
 
 "xJ":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",502,"cDmZcPXamrdQWVguZOksJvbYb8i-RFcsZVUiP0f9Njc"],
 
@@ -3210,7 +3210,7 @@
 
 "xo":[126,"RegisteredFiniteToolWiringTests.test_qualification_poll_completion_stays_pending_during_actual_write_reconciliation",1843,"tAQNjlEXGx03Sp4m6No9wdtngq2zlpn9T-bndWyG5F8"],
 
-"xp":[63,"_tool_specs",66,"LGozXb1Juzm8kqHJ0m60XstQARtlISkbTl977zag18A"],
+"xp":[63,"_tool_specs",76,"LGozXb1Juzm8kqHJ0m60XstQARtlISkbTl977zag18A"],
 
 "xq":[64,975,"return report.get('reason') == str(missing)"],
 
@@ -3282,7 +3282,7 @@
 
 "yN":[8,"PlaywrightChatGPTRunner._submit_and_capture",788,"GxV5opSwrU2yFIAakbjz2lJ0mW7gCP45Qr89S5F-i1c"],
 
-"yO":[53,"_drive",358,"cHHa_ILz8iRj0Hdmoa-jhlKLDN_aZ-TZLQAOXpDUcyQ"],
+"yO":[53,"_drive",361,"cHHa_ILz8iRj0Hdmoa-jhlKLDN_aZ-TZLQAOXpDUcyQ"],
 
 "yP":[34,788,{"$":209},4,796,5],
 
@@ -3330,7 +3330,7 @@
 
 "yr":[170,325,"_append(store, state, lock, event_type=ACCEPTED, **source,\n                           manual_reviewer=reviewer, manual_review_session=ancestry[0], manual_review_note=note)",19,326,112],
 
-"ys":[53,"_advance",347,"Vhlxs4eEXH2tXwSnbmlQT8ZvU4Vr2wjaX_f-Q8xnP5Q"],
+"ys":[53,"_advance",350,"Vhlxs4eEXH2tXwSnbmlQT8ZvU4Vr2wjaX_f-Q8xnP5Q"],
 
 "yt":[149,"ManagedLoginMount.confirm_archived",244,"tS6O4v3tlzQ3mR-9fOT0ekD8tp7WK9ny93RwwaPuozg"],
 
@@ -3372,7 +3372,7 @@
 
 "zB":[146,439,"socket.socket(fileno=descriptor)",9,439,41],
 
-"zC":[63,"QualifiedToolEvidence._wait_terminal_reply",291,"lzxZGOEYrAlsvQAqlphfcRF8rnCO-4ULGfaulpWueo4"],
+"zC":[63,"QualifiedToolEvidence._wait_terminal_reply",301,"lzxZGOEYrAlsvQAqlphfcRF8rnCO-4ULGfaulpWueo4"],
 
 "zD":[159,"SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts",64,"-Gdh3c6bBg_EStYzz_KHLrNqBTAdJzKgShhdjmm6_7E"],
 
@@ -3384,7 +3384,7 @@
 
 "zH":[126,"RegisteredFiniteToolWiringTests._refuse_qualification_poll_completed_after_terminal",2001,"-XAUo1lxI_8f_4U93Q607tIeRZkZWPEp8ryuhTOSiWU"],
 
-"zI":[63,"RegisteredFiniteToolCalls.receive",814,{"$":346}],
+"zI":[63,"RegisteredFiniteToolCalls.receive",824,"S8NrUJjPTRy_QJr62rBPRZbUU4kGrV_x17eowfPfOrs"],
 
 "zJ":[64,"_Containment._stage_access_token",648,"rDaCofmDIb2SFdjONqE1Y400wLDYIAJq55BLQ5Y6UHI"],
 
@@ -3458,11 +3458,11 @@
 
 "zs":[149,"_campaign_start",551,"v9jnkwPl2nmVU-RlaBUF2dfM3afmeoJzRJjSpsk4Brc"],
 
-"zt":[63,"QualifiedToolEvidence.complete",223,"LW5l5VbuOexspkThoZJ6ZXdH4ZiyyCWYthge9INCkW0"],
+"zt":[63,"QualifiedToolEvidence.complete",233,"LW5l5VbuOexspkThoZJ6ZXdH4ZiyyCWYthge9INCkW0"],
 
 "zu":[62,"RegisteredFiniteInput._dispatch_tool_reply",1569,"s0n2fDuNXQllDpytoucVrQxuy3Aaay6-6qdaZEOXvEo"],
 
-"zv":[63,"QualifiedToolEvidence._wait_original_call",275,"WamUfl3W5z51Ipe0azl4MPNwf677FbTglClMsnB0ZGQ"],
+"zv":[63,"QualifiedToolEvidence._wait_original_call",285,"WamUfl3W5z51Ipe0azl4MPNwf677FbTglClMsnB0ZGQ"],
 
 "zw":[64,"RegisteredN1Factory._selected_access_token",2630,"y-ubfOinocuB-QU8UC4Q4EE7BojqmKlpF2nOpkGV6Co"],
 
@@ -5363,13 +5363,13 @@
 
 [44,45,29,45,63,"dynamic",{"$":238},[{"$":9},"dv"]],
 
-[45,387,17,388,103,"process","5lSmJiLDKWVy5xZ3OzPkPz_eeFl6gGgKk-t1GJ_rebQ",["route","X4.6","lh"]],
+[45,388,17,389,103,"process","5lSmJiLDKWVy5xZ3OzPkPz_eeFl6gGgKk-t1GJ_rebQ",["route","X4.6","lh"]],
 
-[45,462,14,468,5,"process","7cZgAVxjjWHVeRGZAPQ-Wc2S_xIJ4PMuNsZygDztMj8",["route","X4.6","lA"]],
+[45,463,14,469,5,"process","7cZgAVxjjWHVeRGZAPQ-Wc2S_xIJ4PMuNsZygDztMj8",["route","X4.6","lA"]],
 
-[45,1365,25,1365,49,"dynamic","yN1dJP90nxwp5B5lDKB-vogF8zmxULxwEwUYDl7wcZY",[{"$":9},"dw"]],
+[45,1366,25,1366,49,"dynamic","yN1dJP90nxwp5B5lDKB-vogF8zmxULxwEwUYDl7wcZY",[{"$":9},"dw"]],
 
-[45,2728,16,2728,47,"dynamic","ikUO3PVCbArmPMfnpbcL17sQUwIVxQHxAgqixCBREII",[{"$":9},"dx"]],
+[45,2732,16,2732,47,"dynamic","ikUO3PVCbArmPMfnpbcL17sQUwIVxQHxAgqixCBREII",[{"$":9},"dx"]],
 
 [46,832,16,832,54,"dynamic","lxuFsD_MgiUQt55tUvoXSGCzNP0i3nci0V2pJwPY60k",[{"$":9},"dy"]],
 
@@ -5513,25 +5513,25 @@
 
 [57,64,11,64,42,"dynamic","fFoT_np-y_afQsegnvASJ8AcC9fnHWrYAGjd5zVf1JI",[{"$":9},"em"]],
 
-[58,43,11,43,43,"dynamic",{"$":220},[{"$":9},"en"]],
+[58,46,11,46,43,"dynamic",{"$":220},[{"$":9},"en"]],
 
-[58,45,16,45,48,"dynamic",{"$":220},[{"$":9},"eo"]],
+[58,48,16,48,48,"dynamic",{"$":220},[{"$":9},"eo"]],
 
-[58,274,21,274,69,"dynamic",{"$":54},[{"$":9},"XR436"]],
+[58,277,21,277,69,"dynamic",{"$":54},[{"$":9},"XR436"]],
 
-[58,278,18,278,66,"dynamic","1MPUw3PvmwIKkiLLenP6lBMlKtcX_MNjIdUXFtblwHk",[{"$":9},"XR437"]],
+[58,281,18,281,66,"dynamic","1MPUw3PvmwIKkiLLenP6lBMlKtcX_MNjIdUXFtblwHk",[{"$":9},"XR437"]],
 
-[58,285,16,285,38,"dynamic",{"$":52},[{"$":9},"ep"]],
+[58,288,16,288,38,"dynamic",{"$":52},[{"$":9},"ep"]],
 
-[58,286,40,286,72,"dynamic",{"$":88},[{"$":9},"eq"]],
+[58,289,40,289,72,"dynamic",{"$":88},[{"$":9},"eq"]],
 
-[58,287,55,287,87,"dynamic",{"$":83},[{"$":9},"er"]],
+[58,290,55,290,87,"dynamic",{"$":83},[{"$":9},"er"]],
 
-[58,293,17,293,65,"dynamic",{"$":54},[{"$":9},"XR438"]],
+[58,296,17,296,65,"dynamic",{"$":54},[{"$":9},"XR438"]],
 
-[58,600,21,600,69,"dynamic",{"$":54},[{"$":9},"XR439"]],
+[58,603,21,603,69,"dynamic",{"$":54},[{"$":9},"XR439"]],
 
-[58,667,12,667,60,"dynamic",{"$":54},[{"$":9},"XR440"]],
+[58,670,12,670,60,"dynamic",{"$":54},[{"$":9},"XR440"]],
 
 [59,36,32,36,53,"dynamic","6E-K2Ua2NMEerr4BB96gG0mrZ8sVxcc3EEVDBtv8YLQ",[{"$":9},"es"]],
 
@@ -5629,7 +5629,7 @@
 
 [69,1784,23,1784,75,"dynamic","L54MLy5xKdWODUBafewJUmPCFK7p08DqPcyjOBSqok8",[{"$":9},"XR355"]],
 
-[70,971,22,973,61,"browser","05yiNWvXwO4L_yP-Joj7WAI1RcgkLgyaPseRVmrT9bc",["route","N9.1","kD"]],
+[70,981,22,983,61,"browser","05yiNWvXwO4L_yP-Joj7WAI1RcgkLgyaPseRVmrT9bc",["route","N9.1","kD"]],
 
 [71,138,14,138,61,"dynamic",{"$":241},[{"$":9},"as"]],
 
@@ -6928,8 +6928,6 @@
 
 "345":"self.assertEqual(result.stdout.splitlines()[:2], [\"--profile\", \"cwo-architect\"])",
 
-"346":"f7c0b4583389966b8e6a2e43177366f7f8ceec215880865ffe6ddebd737b6d36",
-
 "347":"scripts/cwo_core/server_request_preparation.py",
 
 "348":"e8dc6795e279df7340b3d9dac05d0df36945902b0a5f4621e2d04cbc1d253321",
@@ -7232,7 +7230,7 @@
 
 "@113":["kAqWs0cnp66r_o_bsgPYrsMT_p0IECAIwhyh9GVLrII",420,89715],
 
-"@114":["F0olale86p7SJF3mk68x8RhHs6Npn2jx8iu4Iae8PqQ",420,36087],
+"@114":["PKVDHdGyDM7rbtilAU35CYIETUWmGV3Wp3WpYTqoyvI",420,37064],
 
 "@115":["yHy0t60OBLBUdjblDoDkgsy-t4fiO6xZe5tUErpZaO0",420,34065],
 
@@ -7258,7 +7256,7 @@
 
 "@125":["M3hnF8AafcunsylnTmqU8nWfX0uccaexCLuqS8N40oo",420,132735],
 
-"@126":["NqXOJOLIrA5eeXFiqlRar7Xf-7w0KfbghesQl-9Vnjk",420,289560],
+"@126":["rpyay_XGHlUZ_g7JtJ3b7Q8fyQnYL-Uml_s5cZDfjYQ",420,291601],
 
 "@127":["wKRaJ5rLsDiuJJMo333Xdr6XkTx0AFFIA14gYJUUCrI",420,140099],
 
@@ -7318,7 +7316,7 @@
 
 "@152":["wGpVDmPUI7FYQe8B-296k-TEvDC359Gqi0iR_Rg1wCQ",420,91592],
 
-"@153":["vEl_9pFsc-8-Wfz6CCHQUEZTkBC45jIp0FgOX2XgFgY",420,61371],
+"@153":["9Z9x0ElXX3yjZsc2p3aQHUILQ0HUCQgjpH3eWEniKyM",420,61741],
 
 "@154":["qOB6Jw37i3eJ7nJOEXOKJ1y8LKAd2uaJuywl3j_VmK8",420,60663],
 
@@ -7386,7 +7384,7 @@
 
 "@183":["Q0GxkL7PgKlyxlC3JBvhQYY0vTK2yHDQr9-Jw_LHkg4",420,20710],
 
-"@184":["t6mvz5w6g01A4vAAUkXqXTqpnf8Y4IBTGUURn_DZmnE",420,35730],
+"@184":["GksQVzSfAsE9navjbiwYJhlJOK_XNl2ZeJTX6DeU58U",420,37412],
 
 "@185":["eqDtyBZIB-px7tRa9ln2n_tpTN1X-Tu_0ZVEbQQ-hCc",420,4641],
 
@@ -7456,7 +7454,7 @@
 
 "@42":["oHdQU3MbVngaXeZnxqVVi7s5J50XBfW-zXhlZU6BQ00",420,139242],
 
-"@43":["gCc_ilNgJJkM8HFZsYQ3URVmvAHxyQ3dFx-n003YdjI",420,136987],
+"@43":["9w8bQOlNREtec7b59oXyZm9Bzz5F7O2JgRcx3rdLfA0",420,137371],
 
 "@44":["SECjMXu1hd0sLvfC4MBQU765MD5jIf1BIxWru2-nIFk",493,124281],
 
@@ -7478,7 +7476,7 @@
 
 "@52":["1uh0-l6PLDHaXd57Eh7czCO47uN7msvwp5Pad9S53w0",420,5927],
 
-"@53":["ui4Kt5y4bzzO3pOBmcrbkG84gbvdKdXah80fMsuej2o",420,35593],
+"@53":["P0KVVYiGf8hibQeCkTRppZqLP0og7JuIREu22pHK0Cw",420,35851],
 
 "@54":["s2z5hJAfglFcyaX6UPIh5FPq3x7om0ODi2vbxucYcuQ",420,25405],
 
@@ -7500,11 +7498,11 @@
 
 "@62":["_JHK1EzmC1Yzo5num2EGiWkBVKFbpBzApalboOlduc0",420,91134],
 
-"@63":["tm10A55j93J78MTbwt0ynQOqShXJVMVUY7-geMJRG-g",420,53007],
+"@63":["IomGd7EUPCzVMXq91eO9UMEN8-evny7j2vpHxLO7WUE",420,53569],
 
-"@64":["rRqeMPMPn--NtM4zMU12PKyKHeY9fRp6vEzoUkNJLls",420,140662],
+"@64":["h8EiVbpKZrwdQqS22VkXg_38L4B-tdpI7JRxhk9Ltn8",420,140712],
 
-"@65":["hKiGaocBj0TVJiyD-uRdLBw2BqxG8J4arVzhB8OmHIQ",420,47336],
+"@65":["aEU51xWQg06iFdgG-i1EKXlWmQlZ7qu1eGfyK6bW0Wg",420,48536],
 
 "@66":["yydJmz2r25lUIDAVnbkKz-KUmgOVux6iavYDEax4IK8",420,2228],
 
@@ -7976,7 +7974,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["iH9oDB149hdVgOGK6tgHWu7-3ynn6m8idOuk-wLgFXI",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["8EcyZUuGIfvy6IUaAJbbiB2ObeuI5DtGzQQQQtidAvA",420,136048],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 

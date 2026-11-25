@@ -1637,9 +1637,9 @@ class _RegisteredServer(RegisteredAppServer):
         self._request_ids.add(key)
         if self.finite_tools is not None and message.get('method') == 'item/tool/call':
             try:
-                deadline = time.monotonic() + 15
-                tool = message.get('params', {}).get('tool')
                 params = message.get('params', {})
+                tool = params.get('tool')
+                deadline = time.monotonic() + finite_calls.request_window_seconds(self.factory.production_live, tool)
                 with self.finite_input.lifecycle.condition:
                     self._tool_queue.put_nowait((copy.deepcopy(message), deadline))
                     self.finite_input.lifecycle.queue(

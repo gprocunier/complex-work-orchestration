@@ -626,6 +626,22 @@ class OfflineN1HostTests(unittest.TestCase):
                                  [f"Repository capture failure category: {category}"])
                 verify_head.assert_not_called()
 
+    def test_excess_capture_size_refuses_before_claim_and_send(self):
+        case = self.case()
+        host, adapter, server, _control = case
+        cases = ((1, HOST.MAX_CAPTURE_FILE_BYTES + 1), (5, HOST.MAX_CAPTURE_FILE_BYTES))
+        for file_count, size in cases:
+            with self.subTest(file_count=file_count), tempfile.TemporaryDirectory(dir=self.worker) as payloads:
+                for index in range(file_count):
+                    with (Path(payloads) / f'payload-{index}').open('wb') as stream:
+                        stream.truncate(size)
+                with self.assertRaises(HOST.OfflineHostError) as caught:
+                    self.run_case(case)
+                self.assertEqual(caught.exception.__notes__, ["Repository capture failure category: budget"])
+                self.assertFalse((host.state / "operation.json").exists())
+                self.assertEqual(adapter.callback_latencies, {})
+                self.assertEqual(server.sends, 0)
+
     def test_detached_commit_heads_allow_real_fake_completion(self):
         commit = self.git(self.source, "rev-parse", "HEAD").stdout.decode("ascii").strip()
         for root in (self.target, self.worker):
