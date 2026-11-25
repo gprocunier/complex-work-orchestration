@@ -3,6 +3,7 @@ from argparse import Namespace
 from contextlib import chdir
 import ctypes
 from hashlib import sha256
+from io import StringIO
 import json
 from pathlib import Path
 import shlex
@@ -16,6 +17,7 @@ from tests.test_candidate_identity import bead
 from tests import test_offline_n1_host as offline
 
 import everyday_delegation
+import registered_delegation_foreground as foreground
 import registered_delegation_preparation as preparation
 from cwo_core import host_records, manual_delivery, requirement_baseline
 
@@ -292,3 +294,43 @@ class DelegationPreparationTests(unittest.TestCase):
             action_sha256=preparation.workflow.digest(pending.approval_scope), directive_id='EXAMPLE-human-fixture',
             parent_receipt_sha256=verifier._directive_hash)
         return pending.create_workflow(directive)
+
+    def foreground_offer(self, output, *, accept=True):
+        task = 'Update the project documentation for the scoped result file.'
+        baseline = self.project / 'EXAMPLE-baseline.json'
+        baseline.write_text(json.dumps(self.chain['baseline']), encoding='utf-8')
+        decision = {'action': 'accept', 'content': {'approve': True}} if accept else {'action': 'decline'}
+        request_id = 'cwo-standing-EXAMPLE'
+        frames = [
+            {'id': 1, 'method': 'initialize', 'params': {'capabilities': {'elicitation': {'form': {}}}}},
+            {'method': 'notifications/initialized'},
+            {'id': 2, 'method': 'tools/call', 'params': {'name': 'authorize_assignment', 'arguments': {
+                'task': task, 'baseline': baseline.name, 'output_path': 'result.txt', 'output_text': output}}},
+            {'id': request_id, 'result': decision},
+        ]
+        source = StringIO(''.join(json.dumps({'jsonrpc': '2.0', **frame}) + '\n' for frame in frames))
+        sink = StringIO()
+        with patch.object(foreground, 'uuid4', return_value=SimpleNamespace(hex='EXAMPLE')):
+            foreground.serve(source, sink, self.project)
+        _initialized, question, answer = map(json.loads, sink.getvalue().splitlines())
+        self.assertEqual(question['id'], request_id)
+        self.assertEqual(question['method'], 'elicitation/create')
+        self.assertEqual(answer['id'], 2)
+        return task, baseline, answer['result']
+
+    def test_foreground_discards_refused_offer_and_preserves_retained_offer(self):
+        output = offline.OUTPUT.decode()
+        _task, _baseline, refused = self.foreground_offer(output, accept=False)
+        self.assertTrue(refused['isError'])
+        self.assertIn('did not approve', refused['content'][0]['text'])
+        custody = preparation._offer_parent(self.store)
+        self.assertEqual(list(custody.iterdir()), [])
+        self.assertEqual(list(self.store.state_root.glob('standing-delegation-*.json')), [])
+
+        task, _baseline, accepted = self.foreground_offer(output)
+        self.assertFalse(accepted['isError'], accepted)
+        with chdir(self.project):
+            original = preparation.entry.open_assignment(task, self.chain)
+        self.assertEqual(list(custody.iterdir()), [original.config.host.state.parent])
+        self.assertFalse(original.verifier._current()['operations'])
+        self.assertFalse(original.config.ledger.root.exists())
