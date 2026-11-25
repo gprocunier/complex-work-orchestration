@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Explain when to use the architect profile or plain Codex, and document the current requirements for delegated work.
+
+## 1.36.2 - 2026-11-24
+
 - Use a direct dedicated-login bind for compatible pool workers to avoid slow overlay teardown while preserving their session archive and login custody.
 
 ## 1.36.1 - 2026-11-24
