@@ -176,11 +176,11 @@ python3 scripts/normalize_contractor_return.py --bead <id> --dispatch-id <id> --
 python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
 ```
 
-Required plan reviews remain blocking until the named model and effort, approved
-route, return evidence, evaluation and adjudication are established or the operator
-explicitly changes that requirement. Browser-plugin documentation is deferred;
-legacy browser configuration is not current setup guidance. Local inference requires `--local-ok`;
-use `--prefer-local` only for an intended low-risk local review lane.
+Required plan reviews remain blocking until the approved route, model and any
+required settings, return evidence, evaluation and adjudication are established
+or the operator explicitly changes that requirement. For ChatGPT Pro, follow the
+[ChatGPT desktop app workflow](references/chatgpt-pro-browser.md). Local inference
+requires `--local-ok`. Use `--prefer-local` only for an intended low-risk local review lane.
 
 Current native workers use the exact configured model selected for the assignment.
 The attested actual model must exactly match that immutable request;

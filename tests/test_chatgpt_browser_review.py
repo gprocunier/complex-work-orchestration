@@ -40,6 +40,7 @@ from chatgpt_browser_review import (  # noqa: E402
 from tests.browser_connected_fixture import admitted_runner  # noqa: E402
 from build_contractor_packet import build_packet  # noqa: E402
 import cwo_core.audit as audit_lib  # noqa: E402
+from cwo_core import browser_capture  # noqa: E402
 
 
 from chatgpt_browser_review import CONVERSATION_ID_RE  # noqa: E402
@@ -1411,7 +1412,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         events: list[dict] = []
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
             with patch.object(PrivateDirectory, "write", side_effect=PrivateArtifactError("disk full")), patch.object(
-                chatgpt_browser_review, "record_audit_event", side_effect=lambda event, **_: events.append(event)
+                browser_capture, "record_audit_event", side_effect=lambda event, **_: events.append(event)
             ):
                 result, _, raised = self._run_live_cli(self._browser_result(), Path(cfgdir), Path(promptdir), audit=True)
         self.assertIsNotNone(raised)
@@ -1722,6 +1723,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         return result
 
     def test_valid_packet_final_send_screen_refuses_encoded_context(self) -> None:
+        import browser_request
         from cwo_core.outbound_screen import screen_outbound
         from tests.test_outbound_screen import packet_with, with_provenance
 
@@ -1741,7 +1743,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     prompt, _ = chatgpt_browser_review.load_prompt_from_args(Namespace(
                         packet=str(path), prompt_file=None, allow_degraded_packet=False, allow_unlinked_packet=False))
                 scans = []
-                real_screen = chatgpt_browser_review.require_clean
+                real_screen = browser_request.require_clean
 
                 def record_screen(text, **kwargs):
                     if kwargs.get("surface") == "ChatGPT browser Send":
@@ -1749,7 +1751,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     return real_screen(text, **kwargs)
 
                 with patch.object(chatgpt_browser_review.secrets, "token_hex", return_value="0123456789abcdef0123456789abcdef"), \
-                        patch.object(chatgpt_browser_review, "require_clean", side_effect=record_screen):
+                        patch.object(browser_request, "require_clean", side_effect=record_screen):
                     outcome, mocks = self._drive_fake_browser(config, prompt=prompt)
                 final = bound_request(prompt, "0123456789abcdef0123456789abcdef")
                 screened = screen_outbound(final, surface="ChatGPT browser Send")
@@ -2016,7 +2018,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             repo = base / "repo"
             repo.mkdir()
             (repo / "alias").symlink_to(base / "outside" / "nested")
-            with patch.object(chatgpt_browser_review, "REPO_ROOT", repo):
+            with patch.object(browser_capture, "REPO_ROOT", repo):
                 # Resolving gives <outside>/returns; collapsing gives <repo>/returns.
                 with self.assertRaises(SystemExit) as raised:
                     resolve_response_dir(str(repo / "alias" / ".." / "returns"))
@@ -2128,7 +2130,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
                     tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
                 patches = []
                 if stage == "audit":
-                    patches.append(patch.object(chatgpt_browser_review, "record_audit_event", side_effect=OSError(28, "No space left on device")))
+                    patches.append(patch.object(browser_capture, "record_audit_event", side_effect=OSError(28, "No space left on device")))
                 else:
                     patches.append(patch.object(chatgpt_browser_review, "atomic_write_text", side_effect=OSError(28, "No space left on device")))
                 with contextlib.ExitStack() as stack:
@@ -2167,7 +2169,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
             with patch.object(module.PrivateDirectory, "open", side_effect=open_directory), \
                     patch.object(module.os, "fsync", side_effect=fsync), \
-                    patch.object(chatgpt_browser_review, "record_audit_event", side_effect=OSError(28, "No space left on device")):
+                    patch.object(browser_capture, "record_audit_event", side_effect=OSError(28, "No space left on device")):
                 with self.assertRaises(OSError) as raised:
                     self._run_live_cli(self._browser_result(), Path(cfgdir), Path(promptdir), audit=True)
             names = sorted(path.name for path in (Path(cfgdir) / "returns").iterdir())
@@ -2336,7 +2338,7 @@ class ChatGPTBrowserReviewTests(unittest.TestCase):
             raise OSError("audit log unavailable")
 
         with tempfile.TemporaryDirectory() as cfgdir, tempfile.TemporaryDirectory(dir=ROOT) as promptdir:
-            with patch.object(chatgpt_browser_review, "record_audit_event", side_effect=move_then_fail), \
+            with patch.object(browser_capture, "record_audit_event", side_effect=move_then_fail), \
                     self.assertRaises(OSError) as raised:
                 self._run_live_cli(self._browser_result(), Path(cfgdir), Path(promptdir), audit=True, run=submitted)
             moved = sorted(path.name for path in (Path(cfgdir) / "returns-moved").iterdir())

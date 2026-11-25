@@ -259,14 +259,24 @@ class ManualExportTests(unittest.TestCase):
         from cwo_core.packets import validate_contractor_packet
         from cwo_core.util import packet_payload_hash
 
-        # This real build time makes the packet digest contain the short fake
-        # PIN. The original oracle then mistakes that extra occurrence for an
-        # uncovered payload in both output modes, although the literal is caught.
-        with packet_build_time(dt.datetime(2026, 11, 15, 12, 5, 35, tzinfo=dt.timezone.utc)):
-            packet = packet_with("pin=4831")
-            self.assertEqual(packet["packet_sha256"], packet_payload_hash(packet))
-            self.assertEqual(validate_contractor_packet(packet), [])
-            self.assertIn("4831", packet["packet_sha256"])
+        # Hold the whole packet stable so changes to registry metadata cannot
+        # change whether the fake PIN also appears in the digest.
+        ambient = dt.datetime(2026, 11, 15, 12, 5, 35, tzinfo=dt.timezone.utc)
+        packet = json.loads(_corpus_text("EXAMPLE-pin-packet.json"))
+        packet["generated_at"] = ambient.strftime("%Y-%m-%dT%H:%M:%SZ")
+        packet["packet_sha256"] = packet_payload_hash(packet)
+        self.assertEqual(validate_contractor_packet(packet), [])
+        self.assertIn("4831", packet["packet_sha256"])
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "packet.json"
+            path.write_text(json.dumps(packet), encoding="utf-8")
+            with with_provenance(packet):
+                for extra in ([], ["--json"]):
+                    with self.subTest(json=bool(extra)):
+                        printed, raised = self.run_export(["--packet", str(path), *extra])
+                        self.assertIsInstance(raised, OutboundRefused)
+                        self.assertEqual(printed, "")
+        with packet_build_time(ambient):
             self.test_corpus_material_never_leaves_through_manual_export()
 
     def test_corpus_material_never_leaves_through_manual_export(self) -> None:
@@ -279,9 +289,10 @@ class ManualExportTests(unittest.TestCase):
         for case in cases("seed-corpus.json"):
             if not case["sensitive"]:
                 continue
-            # Keep metadata deterministic: the all-occurrences oracle must not
-            # randomly find a short corpus value inside a time-dependent digest.
-            with packet_build_time(dt.datetime(2026, 1, 1, tzinfo=dt.timezone.utc)):
+            if case["id"] == "seed-a/pin":
+                packet = json.loads(_corpus_text("EXAMPLE-pin-packet.json"))
+                self.assertEqual(packet["selected_snippets"][0]["content"], case["text"])
+            else:
                 packet = packet_with(case["text"])
             snippet = packet["selected_snippets"][0]["content"]
             for extra in ([], ["--json"]):

@@ -2,19 +2,22 @@
 from __future__ import annotations
 
 import copy
+import contextlib
 from dataclasses import replace
+import io
 import json
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import build_contractor_packet  # noqa: E402
-from cwo_core import audit, host_records  # noqa: E402
-from cwo_core.outbound_screen import require_clean  # noqa: E402
+from cwo_core import audit, browser_capture, host_records  # noqa: E402
+from cwo_core.outbound_screen import OutboundRefused, require_clean  # noqa: E402
 from cwo_core.prepared_outbound import PreparedSource  # noqa: E402
 from cwo_core.private_artifact import sha256_bytes  # noqa: E402
 from cwo_core.util import artifact_hash, packet_payload_hash  # noqa: E402
@@ -26,7 +29,7 @@ def production_packet() -> dict:
     return build_contractor_packet.build_packet(
         bead_id="cwo-1", bead_json=bead, executor="chatgpt_pro_browser_master_reviewer",
         share_boundary="redacted-packet", job_description_label="contract-jd-master-plan-review",
-        allowed_files=[], inline_snippets=["Review the retry design."], external_opt_in=True,
+        allowed_files=[], inline_snippets=["Review the retry design.\r\nCheck its recovery path."], external_opt_in=True,
         opt_in_basis="cli-flag", quota_info={"quota_checked": True, "quota_remaining": 4},
         dispatch_id="dispatch-1",
     )
@@ -99,6 +102,240 @@ class BrowserProvenanceTests(unittest.TestCase):
             self.assertEqual(persisted[key], value, key)
         self.assertFalse(self.text in self.store.audit_file.read_text(), "response body entered audit")
         self.assertIn("same-user", self.expected().access_limit)
+
+    def test_trusted_host_publishes_exact_response_for_independent_intake(self):
+        from ingest_chatgpt_share_return import load_private_response
+
+        metadata = {**self.packet, "packet_source_sha256": self.packet_source}
+        directory = browser_capture.resolve_response_dir(str(self.base / "returns"))
+        artifact = browser_capture.write_private_response(
+            directory, metadata=metadata, prompt=self.prompt, browser_result=self.browser,
+        )
+        provenance_path = Path(artifact["provenance_path"])
+        with self.assertRaisesRegex(SystemExit, "independently selected"):
+            load_private_response(provenance_path)
+        with self.assertRaisesRegex(SystemExit, "independent audit provenance digest"):
+            load_private_response(provenance_path, expected=self.expected())
+
+        result = {**metadata, "epic_id": metadata.get("epic_id"), "prompt_sha256": artifact_hash(self.prompt),
+                  "status": "completed", "response_artifact": artifact,
+                  "response_text": self.text, "conversation_url": self.browser["conversation_url"]}
+        event = browser_capture.record_browser_dispatch(result, quota_info={})
+        self.assertEqual(event["event_type"], "chatgpt_browser_dispatch")
+        self.assertEqual(artifact["capture_event_hash"], event["event_hash"])
+        expected = self.expected(capture_event_hash=event["event_hash"])
+        text, provenance, digest = load_private_response(provenance_path, expected=expected)
+        self.assertEqual(text.encode("utf-8"), self.text.encode("utf-8"))
+        self.assertTrue(provenance["capture_complete"])
+        self.assertEqual(digest, event["private_provenance_sha256"])
+        self.assertEqual(event["response_sha256"], sha256_bytes(self.text.encode("utf-8")))
+        self.assertIsNone(provenance["model_attestation"])
+        self.assertFalse(provenance["share"]["created"])
+        persisted = self.store.audit_events()[-1]
+        self.assertEqual(persisted, event)
+        self.assertNotIn("response_text", persisted)
+        self.assertNotIn("conversation_url", persisted)
+        audit_text = json.dumps(persisted, ensure_ascii=False)
+        self.assertNotIn(self.text.strip(), audit_text)
+        self.assertNotIn(self.browser["conversation_url"], audit_text)
+
+    def private_evaluation_args(self, *, observed=True, observation=None, explicit_pins=True, **capture):
+        from browser_request import prepare_browser_packet_request
+
+        packet_path = self.base / "packet.json"
+        packet_path.write_text(json.dumps(self.packet), encoding="utf-8")
+        request = prepare_browser_packet_request(packet_path)
+        submitted = request.require_unchanged()
+        dispatch_id = self.packet["dispatch_id"]
+        prepared = request.record_dispatch()
+        dispatch = self.store.require_dispatch(dispatch_id)
+        self.assertEqual(dispatch["_record_sha256"], prepared)
+        self.assertEqual(dispatch["request_sha256"], sha256_bytes(submitted))
+        self.assertEqual(dispatch["evaluation_metadata"]["packet_source_sha256"], request.packet_source.sha256)
+        self.assertEqual(dispatch["evaluation_metadata"]["request_id"], request.request_id)
+        self.assertEqual(dispatch["evaluation_metadata"]["outbound_prepared_sha256"], request.outbound.sha256)
+        for field in ("model_family", "model_id", "reasoning_effort", "session_id"):
+            self.assertIsNone(dispatch[field])
+        user_sha256 = artifact_hash(submitted.decode("utf-8").replace("\r\n", "\n").strip())
+        self.assertNotEqual(sha256_bytes(submitted), user_sha256)
+        self.assertEqual(dispatch["evaluation_metadata"]["submitted_user_sha256"], user_sha256)
+        attestation = {"required": True, "status": "confirmed"}
+        browser = {
+            **self.browser, **request.outbound.metadata(), "model_attestation": attestation,
+            "request_id": request.request_id, "observed_document_request_id": request.request_id,
+            "submitted_sha256": sha256_bytes(submitted), "observed_user_sha256": user_sha256,
+            "submitted_user_sha256": user_sha256, **capture,
+        }
+        artifact = browser_capture.write_private_response(
+            self.base / "returns", metadata=request.metadata, prompt=request.prompt, browser_result=browser,
+        )
+        event = browser_capture.record_browser_dispatch(
+            {**request.metadata, "prompt_sha256": artifact_hash(request.prompt), "status": "completed",
+             "response_artifact": artifact, "model_attestation": browser["model_attestation"],
+             "share_url": browser.get("share_url")}, quota_info={},
+        )
+        if observed:
+            self.store.write_observed_dispatch(
+                dispatch_id, prepared_record_sha256=prepared, observation_sha256=observation or event["event_hash"],
+                provider=self.packet["provider_family"], model_family="fixture-family", model_id="fixture-model",
+                reasoning_effort="fixture-effort", session_id="fixture-session",
+            )
+        argv = ["evaluate_return.py", "--private-artifact", artifact["provenance_path"],
+                "--contractor-packet", str(packet_path), "--json"]
+        if explicit_pins:
+            argv.extend(["--packet-source-sha256", request.packet_source.sha256,
+                         "--capture-event", event["event_hash"]])
+        return argv
+
+    def test_prepared_dispatch_refuses_a_changed_packet_before_recording(self):
+        from browser_request import prepare_browser_packet_request
+
+        packet_path = self.base / "packet.json"
+        original = json.dumps(self.packet).encode("utf-8")
+        packet_path.write_bytes(original)
+        request = prepare_browser_packet_request(packet_path)
+        packet_path.write_bytes(original + b"\n")
+        with self.assertRaisesRegex(OutboundRefused, "input file changed after capture"):
+            request.record_dispatch()
+        self.assertFalse(self.store.find("dispatch"))
+
+    def test_prepared_dispatch_requires_the_configured_host_packet_audit(self):
+        from browser_request import prepare_browser_packet_request
+
+        packet_path = self.base / "packet.json"
+        packet_path.write_text(json.dumps(self.packet), encoding="utf-8")
+        request = prepare_browser_packet_request(packet_path)
+        unrelated_store = host_records.HostRecordStore.for_tests(self.base / "unrelated-host")
+        with host_records.using_test_store(unrelated_store):
+            with self.assertRaisesRegex(SystemExit, "contractor packet has no production provenance"):
+                request.record_dispatch()
+            self.assertFalse(unrelated_store.find("dispatch"))
+
+    def test_host_scoring_preserves_browser_trace_in_its_dispatch(self):
+        from cwo_core.host_acceptance import _evaluate, _host_inputs
+
+        self.private_evaluation_args()
+        dispatch_id = self.packet["dispatch_id"]
+        dispatch = self.store.require_dispatch(dispatch_id)
+        inputs = _host_inputs(dispatch, self.packet["bead_id"], dispatch_id)
+        pending, _ = _evaluate(self.text, inputs, None)
+        self.assertTrue(pending["peer_review_required"])
+        self.assertTrue(pending["architect_review_required"])
+        self.assertFalse(pending["execution_permitted"])
+        trace = self.store.require_dispatch(dispatch_id)["evaluation_metadata"]
+        for field in ("packet_source_sha256", "request_id", "outbound_prepared_sha256", "submitted_user_sha256"):
+            self.assertTrue(trace[field])
+            self.assertNotIn(field, inputs)
+
+    def test_private_evaluation_round_trip(self):
+        import evaluate_return
+
+        self.text = (" \r\nStatus: completed\r\nSummary: PRIVATE_CAPTURE_SENTINEL Résumé 雪\r\n"
+                     "Sources inspected: PRIVATE_CAPTURE_SENTINEL\r\n  ")
+        self.browser["response_text"] = self.text
+        explicit_argv = self.private_evaluation_args()
+        argv = explicit_argv.copy()
+        for flag in ("--packet-source-sha256", "--capture-event"):
+            index = explicit_argv.index(flag)
+            wrong_pin = explicit_argv.copy()
+            wrong_pin[index + 1] = "0" * 64
+            with self.subTest(flag=flag), patch.object(sys, "argv", wrong_pin), self.assertRaisesRegex(
+                SystemExit, flag + " does not match the observed browser dispatch",
+            ):
+                evaluate_return.main()
+            index = argv.index(flag)
+            del argv[index:index + 2]
+        self.assertFalse(self.store.find("return-received"))
+        self.assertFalse(self.store.find("evaluation"))
+
+        stdout = io.StringIO()
+        with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
+            evaluate_return.main()
+        dispatch_id = self.packet["dispatch_id"]
+        digest = sha256_bytes(self.text.encode("utf-8"))
+        receipt = self.store.require_return(dispatch_id, digest)
+        evaluation, = self.store.find("evaluation", dispatch_id=dispatch_id)
+        self.assertEqual(evaluation["return_record_sha256"], receipt["_record_sha256"])
+        self.assertEqual(evaluation["return_sha256"], digest)
+        self.assertTrue(evaluation["evaluation"]["peer_review_required"])
+        self.assertTrue(evaluation["evaluation"]["architect_review_required"])
+        self.assertFalse(evaluation["evaluation"]["execution_permitted"])
+        self.assertNotIn("PRIVATE_CAPTURE_SENTINEL", stdout.getvalue())
+        self.assertNotIn("PRIVATE_CAPTURE_SENTINEL", self.store.audit_file.read_text())
+        self.assertEqual(json.loads(stdout.getvalue())["verdict"], evaluation["evaluation"]["verdict"])
+
+        with patch.object(sys, "argv", explicit_argv), contextlib.redirect_stdout(io.StringIO()):
+            evaluate_return.main()
+        self.assertEqual(self.store.find("return-received", dispatch_id=dispatch_id), [receipt])
+
+    def test_private_evaluation_requires_observed_dispatch_before_receipting(self):
+        import evaluate_return
+
+        argv = self.private_evaluation_args(observed=False, explicit_pins=False)
+        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "observed browser dispatch"):
+            evaluate_return.main()
+        self.assertFalse(self.store.find("return-received"))
+        self.assertFalse(self.store.find("evaluation"))
+
+    def test_private_evaluation_requires_observed_dispatch_to_pin_capture(self):
+        import evaluate_return
+
+        argv = self.private_evaluation_args(observation="0" * 64, explicit_pins=False)
+        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "independent audit store"):
+            evaluate_return.main()
+        self.assertFalse(self.store.find("return-received"))
+        self.assertFalse(self.store.find("evaluation"))
+
+    def test_private_evaluation_checks_capture_request_id_against_preparation(self):
+        import evaluate_return
+
+        other_request_id = "0" * 32
+        argv = self.private_evaluation_args(
+            request_id=other_request_id, observed_document_request_id=other_request_id,
+        )
+        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "recorded browser preparation"):
+            evaluate_return.main()
+        self.assertFalse(self.store.find("return-received"))
+        self.assertFalse(self.store.find("evaluation"))
+
+    def test_private_evaluation_checks_normalized_user_turn_against_preparation(self):
+        import evaluate_return
+
+        unrelated_user_sha256 = sha256_bytes(b"An unrelated user turn.")
+        argv = self.private_evaluation_args(observed_user_sha256=unrelated_user_sha256,
+                                            submitted_user_sha256=unrelated_user_sha256)
+        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "recorded browser preparation"):
+            evaluate_return.main()
+        self.assertFalse(self.store.find("return-received"))
+        self.assertFalse(self.store.find("evaluation"))
+
+    def test_private_evaluation_refuses_unconfirmed_model(self):
+        import evaluate_return
+
+        argv = self.private_evaluation_args(model_attestation={"required": False, "status": "skipped"})
+        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "confirmed model attestation"):
+            evaluate_return.main()
+        self.assertFalse(self.store.find("return-received"))
+
+    def test_private_evaluation_refuses_public_capture(self):
+        import evaluate_return
+
+        argv = self.private_evaluation_args(share_url="https://chatgpt.com/share/fixture")
+        with patch.object(sys, "argv", argv), self.assertRaisesRegex(SystemExit, "without a public share"):
+            evaluate_return.main()
+        self.assertFalse(self.store.find("return-received"))
+
+    def test_private_evaluation_cannot_use_a_caller_audit_file(self):
+        import evaluate_return
+
+        argv = self.private_evaluation_args()
+        for override in (["--audit-file", str(self.base / "alternative.jsonl")],
+                         ["--no-audit", "--waiver-reason", "offline check"]):
+            with self.subTest(override=override), patch.object(sys, "argv", [*argv, *override]), (
+                self.assertRaisesRegex(SystemExit, "configured host audit store")
+            ):
+                evaluate_return.main()
+        self.assertFalse(self.store.find("return-received"))
 
     def test_missing_expectations_and_missing_independent_pins_refuse(self):
         with self.assertRaises(SystemExit):

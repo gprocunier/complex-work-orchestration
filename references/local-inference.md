@@ -38,7 +38,7 @@ The maintained offline witnesses cover these distinct boundaries:
 | Offline admission | Immutable original route, exact request/options/allowance, current policy, expiry, replay, races and declared dependency outcomes: [local admission](../tests/test_local_admission_preparation.py). Its supplied fake effect provides no production authority. |
 | Finite advisory HTTP composition | The original HTTP consumer receives the admitted prompt, wrappers, source and attachment text, model, effort, options and output limit. Its effective timeout cannot exceed remaining runtime or admission lifetime; a final configuration-check delay cannot send an expired request: [registered review consumer](../tests/test_qualified_review_dispatch.py). Tests replace DNS and HTTP effects. |
 | Durable invocation accounting | Intent and observer registration precede synchronous callbacks and effects. One-use claims, aggregate exhaustion, crashes, unknown usage and cancellation preserve conservative charges: [ledger](../tests/test_invocation_ledger.py), [HTTP reservation](../tests/test_local_invocation_reservation.py). |
-| Browser Send and sharing | Exact prepared source/payload, model/options, bounded probes, output/runtime, expiry, one-use dispatch and shared accounting: [browser action consumer](../tests/test_browser_action_dispatch.py). Sharing additionally requires the original parent's complete conversation consent. These local byte/time/action bounds do not establish whole-route model feasibility or actual provider billing; [live browser refusal](../tests/test_invocation_containment.py) remains in force. |
+| Legacy CDP Send and sharing | Exact prepared source/payload, model/options, bounded probes, output/runtime, expiry, one-use dispatch and shared accounting ([browser action consumer](../tests/test_browser_action_dispatch.py)). Sharing additionally requires the original parent's complete conversation consent. [The legacy live route remains held](../tests/test_invocation_containment.py). |
 | Native/process launch | The registered single-worker route requires exact signed workflow and disclosure adoption, production authentication and provider-only egress. Raw native, pool, campaign, new surface qualification and activation retain source holds. A precommit packet receipt supplies no launch authority or aggregate accounting. [Native route requirements](native-live-route-holds.md) |
 | Manual preparation/export | [Outbound screening](../tests/test_outbound_screen.py) checks the exact emitted text. Export proves preparation/disclosure only; a packet or preparation receipt grants no remote invocation, billing or cancellation allowance. |
 
@@ -136,10 +136,9 @@ vLLM. The important distinction is:
 The access registry does not rename current operator env vars. It records names
 such as `CWO_OPENSHIFT_AI_VLLM_BASE_URL`,
 `CWO_OPENSHIFT_AI_VLLM_API_KEY`,
-`CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL`,
-`CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL`, and
-`CWO_CHATGPT_BROWSER_CONFIG` so packets and status reports can show the access
-path without printing values.
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL` and
+`CWO_OPENSHIFT_AI_GLM_5_2_BF16_256K_BASE_URL` so packets and status reports can
+show the access path without printing values.
 
 ## Endpoint Configuration
 
