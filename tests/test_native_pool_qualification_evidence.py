@@ -24,7 +24,7 @@ from cwo_core.native_session_boundary import capture_unique_boundary  # noqa: E4
 
 TURN = "current-turn"
 SESSION = "01a20784-b263-7bf1-ae6e-000000000000"
-WRITER = "cwo_finite.finite_command"
+WRITER = "cwo_finite.write_selected_fixture"
 DIGEST = "4" * 40
 
 
@@ -54,7 +54,7 @@ def _turn(*observations, turn=TURN):
 
 
 def _session(*rows):
-    namespace = _spec("cwo_finite", "namespace", tools=[_spec("finite_command")])
+    namespace = _spec("cwo_finite", "namespace", tools=[_spec("write_selected_fixture")])
     return [_row("session_meta", id=SESSION, dynamic_tools=[namespace]), *rows]
 
 
@@ -79,7 +79,7 @@ class WorkerToolObservationTests(unittest.TestCase):
             _spec("exec", "custom", description=f"{secret}\n### `apply_patch`\n### `clock__curr_time`"),
             _spec("wait", parameters={"default": secret}),
         ])
-        finite = _spec("cwo_finite", "namespace", tools=[_spec("finite_command", description=secret)])
+        finite = _spec("cwo_finite", "namespace", tools=[_spec("write_selected_fixture", description=secret)])
         rows = _session(*_turn(
             _declared(functions, finite),
             _row("response_item", type="message", content=secret),
@@ -147,13 +147,13 @@ class WorkerToolObservationTests(unittest.TestCase):
     def test_partial_turn_and_invalid_names_preserve_useful_observations(self):
         fake_token = "sk-proj-test-credential"
         wrapper = _spec("functions", "namespace", tools=[
-            _spec("exec", "custom", description=f"### `{fake_token}`\n### `cwo_finite__finite_command`"),
+            _spec("exec", "custom", description=f"### `{fake_token}`\n### `cwo_finite__write_selected_fixture`"),
         ])
         rows = _turn(_declared(wrapper, _spec("not/a/tool"), {"type": "web_search"}),
                      _world("functions.exec", fake_token, "z" * 97))[:-1]
         observation = observe_worker_tools(rows, turn_id=TURN)
         self.assertEqual(observation.additional_tools, ("functions.exec", "web_search"))
-        self.assertEqual(observation.code_mode_tools, ("cwo_finite__finite_command",))
+        self.assertEqual(observation.code_mode_tools, ("cwo_finite__write_selected_fixture",))
         self.assertEqual(observation.unexpected, ("functions.exec", "web_search"))
         self.assertIn("terminal-unavailable", observation.limitations)
         self.assertIn("registration-unavailable", observation.limitations)

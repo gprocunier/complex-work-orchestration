@@ -55,8 +55,11 @@ call, answer = [inputs['worker'] + '-' + suffix for suffix in ('call', 'answer')
 active = home / 'sessions' / ('rollout-' + thread + '.jsonl')
 archived = home / 'archived_sessions' / active.name
 thread_scope = {'threadId': thread, 'turnId': turn}
-tool = {'id': call, 'type': 'dynamicToolCall', 'namespace': inputs['namespace'], 'tool': inputs['tool'],
-        'arguments': {'command': inputs['command']}, 'status': 'inProgress', 'contentItems': None, 'success': None}
+tool_name = 'finite_command' if behavior == 'legacy-command' else inputs['tool']
+arguments = {'command': 'write the selected qualification fixture file'} if behavior in (
+    'legacy-command', 'wrong-command') else {}
+tool = {'id': call, 'type': 'dynamicToolCall', 'namespace': inputs['namespace'], 'tool': tool_name,
+        'arguments': arguments, 'status': 'inProgress', 'contentItems': None, 'success': None}
 meta = {'type': 'session_meta', 'payload': {'id': thread, 'cwd': inputs['worktree'], 'history_mode': 'legacy'}}
 
 def emit(value):
@@ -95,6 +98,7 @@ for line in sys.stdin:
     elif method == 'initialized':
         continue
     elif method == 'thread/start':
+        meta['payload']['dynamic_tools'] = params['dynamicTools']
         if inputs['existing']:
             append([meta])
         path = login / 'sessions' / active.name
@@ -123,9 +127,8 @@ for line in sys.stdin:
             finish_answer(marker)
             continue
         notify('item/started', dict(thread_scope, item=tool))
-        command = 'unapproved' if behavior == 'wrong-command' else inputs['command']
         emit({'id': 71, 'method': 'item/tool/call', 'params': dict(thread_scope, callId=call,
-              namespace=inputs['namespace'], tool=inputs['tool'], arguments={'command': command})})
+              namespace=tool['namespace'], tool=tool_name, arguments=arguments)})
     elif method is None and req == 71:
         result = frame['result']
         if behavior == 'calibration':
@@ -228,7 +231,7 @@ class _InertContainment:
         self.require_effect()
         inputs = {"home": str(self.home), "login": str(config.LOGIN_MOUNT), "worktree": str(self.worktree),
                   "worker": self.worker_id, "marker": self.marker, "existing": self.existing, "behavior": self.behavior,
-                  "namespace": config.FINITE_TOOL_NAMESPACE, "tool": config.WRITER_TOOL, "command": config.WRITER_COMMAND,
+                  "namespace": config.FINITE_TOOL_NAMESPACE, "tool": config.WRITER_TOOL,
                   "effort": config.EFFORT}
         self.process = subprocess.Popen([self.spec["executable"], "-I", "-S", "-u", "-c", _PEER, json.dumps(inputs)],
                                         cwd=self.home, env={}, umask=0o077, text=True, encoding="utf-8",
@@ -381,6 +384,9 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         for worker in (first, second):
             self.assertEqual((worker.worktree / worker.task["write_path"]).read_text(), worker.task["expected_utf8"])
             self.assertEqual(worker._result["tools"]["unexpected"], ("apply_patch",))
+            self.assertEqual(worker._result["tools"]["registered_tools"], ("cwo_finite.write_selected_fixture",))
+            call, = worker.wire.qualified_tool_evidence.calls.values()
+            self.assertEqual((call.tool, call.arguments), ("write_selected_fixture", b"{}"))
             self.assertEqual(adapter._WorkerControl(worker, {}).check(), {"decision": "complete"})
             worker.archive()
             self.assertIsNotNone(worker._archived)
@@ -389,7 +395,21 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         self.assertLess(max(index for index, kind in enumerate(status) if kind == "tool-debit"), status.index("writer-gate"))
 
     def test_bad_callback_never_reaches_the_barrier_or_writer(self):
-        parent = self._prepare_workers(2, ("wrong-command",))
+        parent, worker = self._refused_writer("wrong-command")
+        self.assertIn("writer-policy", str(worker.wire.transport_failure))
+        self.assertEqual(parent.limits.debits, set())
+        self.assertFalse((worker.worktree / worker.task["write_path"]).exists())
+
+    def test_legacy_command_refuses_before_pending_or_debit(self):
+        parent, worker = self._refused_writer("legacy-command")
+        self.assertIn("Dynamic tool identity or fields differ", str(worker.wire.transport_failure))
+        self.assertIsNone(worker.wire._pending)
+        self.assertFalse(worker.wire.qualified_tool_evidence.calls)
+        self.assertFalse(parent.limits.debits)
+        self.assertFalse((worker.worktree / worker.task["write_path"]).exists())
+
+    def _refused_writer(self, behavior):
+        parent = self._prepare_workers(2, (behavior,))
         worker = next(iter(parent.workers.values()))
         try:
             worker.start_turn()
@@ -397,9 +417,7 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
             # An original callback refusal can race the waiting start caller.
             self.assertIsNotNone(worker.wire.transport_failure)
         self._wait(lambda: worker.wire.transport_failure is not None)
-        self.assertIn("writer-policy", str(worker.wire.transport_failure))
-        self.assertEqual(parent.limits.debits, set())
-        self.assertFalse((worker.worktree / worker.task["write_path"]).exists())
+        return parent, worker
 
     def test_three_workers_park_original_callbacks_before_any_writes(self):
         parent = self._prepare_workers(3)

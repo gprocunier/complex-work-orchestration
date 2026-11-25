@@ -89,7 +89,8 @@ DEFAULT_FORBIDDEN_TOOLS = (
 UNPROVEN_PERMITTED_TOOLS = frozenset(
     {"apply_patch", "exec_command", "write_stdin"}
 )
-CONTAINED_POOL_WRITER = "cwo_finite.finite_command"
+CONTAINED_POOL_WRITER_NAME = "write_selected_fixture"
+CONTAINED_POOL_WRITER = "cwo_finite." + CONTAINED_POOL_WRITER_NAME
 CONTAINED_POOL_SURFACE_SOURCE = "contained-pool-registered-parent"
 _CONTAINED_POOL_TOKEN = object()
 KNOWN_TOOL_NAMES = frozenset(

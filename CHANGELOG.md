@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Retire the archived study CLI's `digest`, `schedule`, `lock`, `score` and `template` commands. Use `v1.33.0` for those offline commands. The current CLI validates the frozen archive and continues to refuse `run`.
+- Rename the contained pool qualification tool from `cwo_finite.finite_command` to `cwo_finite.write_selected_fixture`. It takes no arguments.
 
 ## 1.39.0 - 2026-11-25
 

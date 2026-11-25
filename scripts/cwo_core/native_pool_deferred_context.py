@@ -23,7 +23,6 @@ QUALIFICATION_MODEL = "gpt-6.2-sol"
 QUALIFICATION_EFFORT = "xhigh"
 QUALIFICATION_TIER = "default"
 QUALIFICATION_TOOL = CONTAINED_POOL_WRITER
-QUALIFICATION_WRITE_COMMAND = "write the selected qualification fixture file"
 QUALIFICATION_PROFILE = "cwo-pool-contained"
 QUALIFICATION_SURFACE = "connected-codex"
 QUALIFICATION_ADAPTER_VERSION = "pool-contained-v1"

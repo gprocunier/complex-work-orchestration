@@ -3,6 +3,8 @@
 from types import MappingProxyType
 from typing import Any
 
+from .native_tool_isolation import CONTAINED_POOL_WRITER
+
 
 POOL_QUALIFICATION_COHORT_SIZES = (2, 3)
 POOL_QUALIFICATION_SEED = MappingProxyType({"README.txt": "Synthetic CWO pool qualification fixture.\n"})
@@ -18,8 +20,7 @@ def _worker_task(size: int, slot: int) -> dict[str, str]:
         "expected_utf8": contents,
         "completion_marker": marker,
         "prompt": (
-            "Call only `cwo_finite.finite_command`, exactly once, with "
-            '`{"command": "write the selected qualification fixture file"}`. '
+            f"Call only `{CONTAINED_POOL_WRITER}`, exactly once, with `{{}}`. "
             "Your worker shell and checkout are read-only. "
             f"The registered controller writer creates only {path} in your assigned disposable clone. "
             f"It writes this single UTF-8 line, including its final newline.\n{contents}"

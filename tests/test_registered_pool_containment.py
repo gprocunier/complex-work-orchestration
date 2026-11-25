@@ -71,8 +71,10 @@ class PoolConfigurationTests(unittest.TestCase):
         registered, = config.thread_start_selectors(worker)['dynamicTools']
         self.assertEqual(registered['name'], 'cwo_finite')
         tool, = registered['tools']
-        self.assertEqual(tool['name'], 'finite_command')
-        self.assertEqual(tool['inputSchema']['properties']['command']['enum'], [config.WRITER_COMMAND])
+        self.assertEqual(tool['name'], 'write_selected_fixture')
+        self.assertEqual(tool['inputSchema'], {'type': 'object', 'properties': {}, 'additionalProperties': False})
+        self.assertIn('The controller writes the signed fixture already selected for this worker.', tool['description'])
+        self.assertIn('The worker shell and checkout stay read-only.', tool['description'])
 
     def test_default_tier_contract(self):
         worker, spool = Path('/fixture/worker'), Path('/fixture/private-spool')
