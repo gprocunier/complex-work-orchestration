@@ -19,6 +19,7 @@ from cwo_core.host_records import HostRecordStore, using_test_store
 from cwo_core.host_return_intake import MAX_RETURN_BYTES, record_manual_return, record_received_return
 from cwo_core.model_identities import resolve_model
 from cwo_core.peer_review import pending_evaluation_sha256
+from cwo_core.policy import configured_gemini_critic
 from cwo_core.returns import make_acceptance_decision
 from build_contractor_packet import main as build_packet_main
 from dispatch_work import main as dispatch_main
@@ -63,20 +64,23 @@ class SynthesisWorkflowTests(unittest.TestCase):
         return dict(peer_review_record=review, peer_review_status="passed", peer_review_reviewer=reviewer)
 
     def _critic(self, executor, provider_key, identity, value, *, dispatch_id=None,
-                manual=False, omit_peer_review=False, provider_conflicts=None, canonical_alias=False):
+                manual=False, omit_peer_review=False, provider_conflicts=None, canonical_alias=False, partial=False):
         dispatch_id = dispatch_id or executor
         provider, family, model = identity
         report = (ROOT / "examples/sample-contractor-return.md").read_text(encoding="utf-8")
         report = report.replace("contract-jd-security-reasoning", "contract-jd-architecture-reasoning")
         report = report.replace("not required for this sample return", "independent review when required")
         report = report.replace("Risks or gaps:", f"Validation finding: Rotate the retry-log encryption key every {value} days.\nRisks or gaps:")
-        mode = "manual_ui" if provider == "anthropic" else "native"
+        if partial:
+            report = report.replace("Validation result:", "Validation notes:")
+        peer_required = provider != "openai"
+        mode = "manual_ui" if peer_required else "native"
         context = dict(task="critic-task", scope=SCOPE, candidate=CANDIDATE, dispatch_id=dispatch_id,
                        packet_sha256=None, executor=executor)
         prepared = self.store.write_dispatch(dispatch_id=dispatch_id, dispatch_role="executor",
             provider=provider, model_family=None, model_id=None, reasoning_effort=None, session_id=None,
             request_sha256="b" * 64, bead_id="critic-task", executor=executor, provider_key=provider_key,
-            evaluation_metadata=dict(dispatch_mode=mode, peer_review_required=provider == "anthropic",
+            evaluation_metadata=dict(dispatch_mode=mode, peer_review_required=peer_required,
                                      provider_conflict_domains=provider_conflicts or []))
         if manual:
             record_manual_return(self.store, dispatch_id, report.encode())
@@ -94,10 +98,11 @@ class SynthesisWorkflowTests(unittest.TestCase):
         evaluator_args = dict(bead_id="critic-task", dispatch_id=dispatch_id, executor=executor,
             provider_key=provider_key, dispatch_mode=mode, share_boundary="redacted-packet",
             job_description_label="contract-jd-architecture-reasoning",
-            peer_review_required=provider == "anthropic" and not omit_peer_review)
-        review = self._review(dispatch_id, report, evaluator_args) if provider == "anthropic" and not manual else {}
+            peer_review_required=peer_required and not omit_peer_review)
+        review = self._review(dispatch_id, report, evaluator_args) if peer_required and not manual else {}
         result = make_acceptance_decision(report, **evaluator_args, **review)
-        self.assertEqual(result["accepted_for_use"], not manual or omit_peer_review, result["penalty_reasons"])
+        self.assertEqual(result["accepted_for_use"], not partial and (not manual or omit_peer_review),
+                         result["penalty_reasons"])
         record_received_evaluation(report, result)
         report_path = self.root / f"{dispatch_id}.md"
         report_path.write_text(report, encoding="utf-8")
@@ -111,19 +116,23 @@ class SynthesisWorkflowTests(unittest.TestCase):
             authority={"rule": "synthesis-input-adjudication"}, adjudicator="lead")
         return inputs, record
 
-    def _panel(self, other_value="3", *, manual=False, omit_peer_review=False):
+    def _panel(self, other_value="3", *, manual=False, omit_peer_review=False, gemini=False, partial=False):
+        camp, executor, key, identity = (
+            ("Gemini", "gemini_architecture_critic", "google_gemini_manual",
+             ("google", "gemini", configured_gemini_critic()["model"])) if gemini else
+            ("Claude", "claude_architecture_critic", "anthropic_manual",
+             ("anthropic", "claude", "claude-opus-4-6"))
+        )
         route = self._run_json("route_work.py", route_main, "--json", "--external-ok", "--share-boundary",
             "redacted-packet", "--requested-role", "architecture",
-            "Use Claude Opus 4.6 and Codex as architecture critics. Use model synthesis and zero-trust consensus.")
+            f"Use {camp} and Codex as architecture critics. Use model synthesis and zero-trust consensus.")
         self.assertTrue(route["model_synthesis"]["active"])
-        self.assertIn("claude_architecture_critic",
-                      {entry["executor"] for entry in route["architecture_critic_contracts"]})
+        self.assertIn(executor, {entry["executor"] for entry in route["architecture_critic_contracts"]})
         self.route_path = self._json_file("route.json", route)
         return zip(
             self._critic("codex_architecture_critic", "internal_codex", ("openai", "gpt", resolve_model("sol")), "3"),
-            self._critic("claude_architecture_critic", "anthropic_manual",
-                         ("anthropic", "claude", "claude-opus-4-6"), other_value, manual=manual,
-                         omit_peer_review=omit_peer_review),
+            self._critic(executor, key, identity, other_value, manual=manual,
+                         omit_peer_review=omit_peer_review, partial=partial),
         )
 
     def _synthesize(self, inputs, decisions, *, candidate=CANDIDATE, scope=SCOPE):
@@ -212,6 +221,8 @@ class SynthesisWorkflowTests(unittest.TestCase):
         self.assertEqual(legacy["input_provenance"][0]["return_sha256"], sha256(alias).hexdigest())
         with self.assertRaisesRegex(SystemExit, "exact host return receipt"):
             self._synthesize([referenced, inputs[1]], decisions)
+        with self.assertRaisesRegex(SystemExit, "exact host return receipt"):
+            self._synthesize([dict(critic, synthesis_use="primary"), inputs[1]], decisions)
 
     def test_two_evaluated_critics_agree(self):
         inputs, decisions = self._panel()
@@ -224,6 +235,57 @@ class SynthesisWorkflowTests(unittest.TestCase):
         self.assertTrue(result["zero_trust_consensus"]["agreement_is_not_validation"])
         self.assertFalse(result["trusted_host_authority"])
         self.assertEqual(self.store.audit_events(), before)
+
+    def test_recorded_salvage_input_can_request_primary_use_after_peer_review(self):
+        (codex, gemini), (codex_decision, gemini_decision) = self._panel(gemini=True)
+        before = self.store.audit_events()
+        baseline = self._synthesize([codex, gemini], [codex_decision, gemini_decision])
+        self.assertEqual(baseline["salvage_input_count"], 1)
+        self.assertEqual(baseline["zero_trust_consensus"]["comparable_claim_count"], 0)
+
+        requested = dict(gemini, synthesis_use="primary")
+        for reason, decisions in (
+            ("missing", [codex_decision]),
+            ("stale", [codex_decision, dict(gemini_decision, return_sha256="f" * 64)]),
+            ("wrong authority", [codex_decision, dict(gemini_decision, authority={"rule": "other"})]),
+        ):
+            with self.subTest(reason=reason):
+                blocked = self._synthesize([codex, requested], decisions)
+                self.assertEqual(blocked["status"], "blocked")
+                self.assertEqual(blocked["salvage_inputs"][0]["requested_synthesis_use"], "primary")
+                self.assertEqual(blocked["zero_trust_consensus"]["comparable_claim_count"], 0)
+
+        result = self._synthesize([codex, requested], [codex_decision, gemini_decision])
+        self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["primary_inputs"][1]["recommended_synthesis_use"], "salvage-only")
+        self.assertEqual(result["zero_trust_consensus"]["independent_trust_domains"], ["google", "openai"])
+        self.assertEqual(result["zero_trust_consensus"]["comparable_claim_count"], 1)
+        self.assertFalse(result["execution_permitted"])
+        self.assertFalse(result["trusted_host_authority"])
+        self.assertEqual(self.store.audit_events(), before)
+
+    def test_recorded_primary_request_refuses_invalid_option(self):
+        (codex, gemini), decisions = self._panel(gemini=True)
+        for selection in (None, True, "salvage-only", "PRIMARY"):
+            with self.subTest(selection=selection), self.assertRaisesRegex(SystemExit, "synthesis_use.*primary"):
+                self._synthesize([codex, dict(gemini, synthesis_use=selection)], decisions)
+
+    def test_recorded_primary_request_refuses_partial_accept_after_peer_review(self):
+        (codex, gemini), decisions = self._panel(gemini=True, partial=True)
+        evaluation = json.loads(Path(gemini["evaluation"]).read_text(encoding="utf-8"))
+        self.assertEqual(evaluation["verdict"], "partial-accept")
+        self.assertFalse(evaluation["evidence_use_hold"])
+        self.assertEqual(evaluation["peer_review_status"], "passed")
+        with self.assertRaisesRegex(SystemExit, "requires an accepted salvage-only evaluation"):
+            self._synthesize([codex, dict(gemini, synthesis_use="primary")], decisions)
+
+    def test_recorded_primary_request_refuses_unreviewed_dispatch_even_if_evaluation_omits_hold(self):
+        (codex, gemini), decisions = self._panel(gemini=True, manual=True, omit_peer_review=True)
+        result = self._synthesize([codex, gemini], decisions)
+        self.assertIn("peer-review-pending", result["held_inputs"][0]["hold_reasons"])
+        self.assertEqual(result["zero_trust_consensus"]["comparable_claim_count"], 0)
+        with self.assertRaisesRegex(SystemExit, "requires an accepted salvage-only evaluation"):
+            self._synthesize([codex, dict(gemini, synthesis_use="primary")], decisions)
 
     def test_material_disagreement_requires_architect_resolution(self):
         inputs, decisions = self._panel("4")
