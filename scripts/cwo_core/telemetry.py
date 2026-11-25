@@ -285,6 +285,8 @@ AUDIT_STRING_FIELDS = {
     "adjudication_record_sha256",
     "host_control_id",
     "return_sha256",
+    "dispatch_record_sha256",
+    "return_record_sha256",
     "evaluation_sha256",
     "audit_lock_mode",
     "bead_id",

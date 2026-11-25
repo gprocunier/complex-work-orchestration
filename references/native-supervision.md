@@ -2,9 +2,12 @@
 
 The registered single-worker route requires the original signed workflow,
 explicit provider disclosure consent and separately supplied production
-authentication. Concurrent pools, live campaigns, activation preview and
+authentication. A trusted embedding host can send an eligible assignment on
+this route and post its exact candidate for separate hand acceptance. The
+lead-run supervision checks in this reference are advisory. Concurrent pools,
+live campaigns, activation preview and
 new worker-surface qualification remain held. See the
-[registered production requirements](native-live-route-holds.md#registered-single-worker-production).
+[registered production requirements](native-live-route-holds.md#standing-approved-delegation).
 
 Running multiple supervised native workers concurrently is experimental and disabled by default.
 The concurrent routes retain default-off source decisions and require a trusted
@@ -137,6 +140,9 @@ writes or network effects are prevented; retain the actual enforced sandbox.
 Precommit/qualification turns remain no-tools regardless of operative profile.
 
 ## Historical supervision reference
+
+The Spark recipes below describe the older path. Its lead-run supervision
+checks are advisory.
 
 # Native Worker Supervision
 
