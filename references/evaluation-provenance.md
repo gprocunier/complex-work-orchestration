@@ -66,14 +66,14 @@ rehearsal records retain their original lock binding. The
 digest to exercise `excluded-protocol-mismatch` in offline scoring tests. Both
 archived build-freeze slots are unbound.
 
-From the root of a current source checkout, use the explicit archive path to
-validate the frozen protocol.
+From a current source checkout, verify the frozen file roster, file digests
+and both unbound build slots.
 
 ```sh
 python3 -B scripts/comparative_evaluation.py --root evaluation/history/three-arm validate
 ```
 
-Use the `v1.33.0` source checkout for the frozen protocol's `lock` and
-`score` examples. Historical locks bind the original `evaluation/three-arm/`
-paths and exact source bytes. The CLI refuses `run` before reading the
-protocol.
+The CLI refuses `run` before reading the archive. See the [study archive](../evaluation/history/README.md)
+for the full offline verifier and tests at the pinned `v1.33.0` release.
+Historical locks bind the original `evaluation/three-arm/` paths and exact
+source bytes.

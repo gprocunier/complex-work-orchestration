@@ -553,6 +553,15 @@ class InstallerProjectionTests(unittest.TestCase):
             if stat.S_ISREG(mode) and path != ".cwo-install-manifest.json"
         }
         self.assertEqual(installed, {item["path"] for item in expected["files"]})
+        self.assertFalse((self.target / "evaluation").exists())
+        self.assertNotIn("scripts/cwo_core/comparative_evaluation.py", installed)
+        self.assertIn("scripts/cwo_core/frozen_protocol.py", installed)
+        study = subprocess.run(
+            [sys.executable, "-B", str(self.target / "scripts/comparative_evaluation.py"), "run"],
+            capture_output=True, text=True, check=False, timeout=30,
+        )
+        self.assertEqual(study.returncode, 3, study.stdout + study.stderr)
+        self.assertIn("running a study arm is a held external effect", study.stderr)
         self.assertEqual(record["version"], 2)
         self.assertEqual(record["status"], "current")
         self.assertEqual(record["installed_content_sha256"], expected["content_sha256"])

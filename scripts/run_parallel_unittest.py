@@ -67,7 +67,6 @@ MEASURED_TEST_SECONDS = {
     'test_code_health.py': 29.378,
     'test_codex_protocol_fact_metadata.py': 50.976,
     'test_combined_review_binding_preparation.py': 80.039,
-    'test_comparative_evaluation.py': 10.354,
     'test_continue_sprint.py': 51.682,
     'test_executor_registry_schema.py': 10.096,
     'test_expert_registry_schema.py': 41.133,
