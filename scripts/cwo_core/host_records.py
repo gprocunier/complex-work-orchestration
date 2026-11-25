@@ -153,11 +153,17 @@ def _select_dispatch(records: list[dict[str, Any]]) -> dict[str, Any]:
     return prepared[0]
 
 
+def _observed_manual_dispatch(dispatch: dict[str, Any]) -> bool:
+    return (dispatch.get('stage') == 'observed'
+            and dispatch.get('evaluation_metadata', {}).get('dispatch_mode') == 'manual_ui')
+
+
 def _return_capture_provenance(dispatch: dict[str, Any]) -> str | None:
     metadata = dispatch.get('evaluation_metadata', {})
     if metadata.get('browser_handoff') == DESKTOP_BROWSER_HANDOFF:
         return DESKTOP_BROWSER_CAPTURE
-    if dispatch['dispatch_role'] == 'peer-review' or metadata.get('dispatch_mode') not in (None, 'manual_ui'):
+    if (dispatch['dispatch_role'] == 'peer-review' or metadata.get('dispatch_mode') not in (None, 'manual_ui')
+            or _observed_manual_dispatch(dispatch)):
         return 'host-capture-v1'
     return None
 
@@ -618,6 +624,8 @@ class HostRecordStore:
         dispatch = _select_dispatch([record for record in matching if record['record_type'] == 'dispatch'])
         _need(value['dispatch_record_sha256'] == dispatch['_record_sha256'],
               'host return receipt does not bind the selected dispatch')
+        _need(not _observed_manual_dispatch(dispatch) or value.get('capture_provenance') == _return_capture_provenance(dispatch),
+              'observed manual return receipt requires original capture provenance')
         if (dispatch['dispatch_role'] == 'peer-review'
                 or dispatch.get('evaluation_metadata', {}).get('dispatch_mode') not in (None, 'manual_ui')
                 or value.get('capture_provenance') == 'host-capture-v1'
