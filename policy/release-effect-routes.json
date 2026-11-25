@@ -2842,13 +2842,13 @@
 
 "q74DiscardFinally":[187,191,"discard_unretained(pending)"],
 
-"q74DiscardTest":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",357,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
+"q74DiscardTest":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",361,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
 
 "q74PrepClone":[183,93,"subprocess.run(command, env=environment, stdin=subprocess.DEVNULL,\n                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False)",17,94,110],
 
-"q74PrepTest":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",85,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
+"q74PrepTest":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",89,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
 
-"q74PreparedDeliveryTest":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",218,"5me4iS_8jVKbwZt15cpdaxlzbeH4oHobe_dOw4F8e5k"],
+"q74PreparedDeliveryTest":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",222,"5me4iS_8jVKbwZt15cpdaxlzbeH4oHobe_dOw4F8e5k"],
 
 "uA":[8,1045,"page.get_by_text(str(label), exact=False).first.click(timeout=timeout_ms)",20,1045,93],
 
@@ -7294,7 +7294,7 @@
 
 "@183":["hZ9OCAcxT2lYutk26xHPAORgTC-Z91RYq-RxqVoPlcI",420,20859],
 
-"@184":["XVRKesmeIlcfOK_jMALU4HvHup-_MkNDieIw7lFL9eg",420,22305],
+"@184":["bE032POZ8dxO88YG2O-rzELMwpGWHBMEK7wDh8R-IP8",420,22506],
 
 "@185":["eqDtyBZIB-px7tRa9ln2n_tpTN1X-Tu_0ZVEbQQ-hCc",420,4641],
 
