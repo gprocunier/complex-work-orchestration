@@ -2628,7 +2628,7 @@
 
 "p64R":[173,147,"'serviceTier': TIER}",70,147,90],
 
-"p64t":[156,"PoolConfigurationTests.test_default_tier_contract",76,"S0cNBp6hxSLxGrVfuL5Pn9Hav81X-zFjDOpNuv4DFdg"],
+"p64t":[156,"PoolConfigurationTests.test_default_tier_contract",77,"S0cNBp6hxSLxGrVfuL5Pn9Hav81X-zFjDOpNuv4DFdg"],
 
 "p65":[8,"BrowserRunnerAdapter.send",497,"ZH4IHj7vOlpY_oN3BmvAnGZNbHEJTvDv2F73Fb52BYQ"],
 
@@ -2830,6 +2830,16 @@
 
 "p76":[118,"ProductionClosureTests.test_open_blocker_or_child_refuses_before_writes_then_same_bead_closes",297,"qUwDhD2qXHRNf4U0QlJ54VravUU7CS0bjLgDaagIl8Q"],
 
+"p76H":[156,"PoolWorkerContainmentTests.test_login_projection_failure",349,"L4K9jrGATGNNhlh2fb2ONJmiWWmIiy7ARlr-bRyp3-Q"],
+
+"p76L":[155,216,"os.symlink(target, name, dir_fd=self._directory_fd)",12,216,63],
+
+"p76P":[156,"PoolWorkerContainmentTests.test_pool_login_round_trip",272,"OC-c7ed2ir-pJJsAIOO9mGw-8rd0hl4Vc8vfuTtOC9s"],
+
+"p76R":[155,"PoolWorkerContainment._release_login",645,"vPgg9fqYjgFq9jQnXBlWpk4XCqCrHcECiBe3A7byAEk"],
+
+"p76U":[155,289,"os.unlink(name, dir_fd=self._directory_fd)",16,289,58],
+
 "p77":[82,"AcceptanceProductFlowTests.test_completed_adjudication_persists_once_then_real_closure_requires_every_phase",225,"O8x13KymCbeptetTTM7kdUX46koAPPhFYNpbsCPImqs"],
 
 "p78":[118,"ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write",367,"ui1lI5Hgg5ermXA74gDsM__AbJ7Zxa_BV5CHuv3tQmQ"],
@@ -2982,19 +2992,19 @@
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
-"pPoolAppLaunch":[155,383,"self._appserver.launch(command, self.home)",23,383,65],
+"pPoolAppLaunch":[155,542,"self._appserver.launch(command, self.home)",23,542,65],
 
 "pPoolCalibrationSupport":[159,"SignedCalibrationPipeTests._run_calibration",260,"zOmkXWdr-C6D1sJ8du4Yg-bGAGNafrrzh-deGu0yusw"],
 
 "pPoolCalibrationTest":[159,"SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts",63,"-Gdh3c6bBg_EStYzz_KHLrNqBTAdJzKgShhdjmm6_7E"],
 
-"pPoolFixedWriter":[155,"PoolWorkerContainment.run_writer",434,"bbM0jbEJavxix4HVcqWyQFBfjM4KP0OvHkmF2RbRcOc"],
+"pPoolFixedWriter":[155,"PoolWorkerContainment.run_writer",593,"bbM0jbEJavxix4HVcqWyQFBfjM4KP0OvHkmF2RbRcOc"],
 
-"pPoolHostCommandCheck":[155,163,{"$":148}],
+"pPoolHostCommandCheck":[155,321,{"$":148}],
 
-"pPoolHostMountCheck":[155,196,{"$":148}],
+"pPoolHostMountCheck":[155,354,{"$":148}],
 
-"pPoolPhysicalProof":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",268,"JxqY3KRsPFpDptFhspTub3G_vLf6GgRg1pwaOVkitHk"],
+"pPoolPhysicalProof":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",378,"JxqY3KRsPFpDptFhspTub3G_vLf6GgRg1pwaOVkitHk"],
 
 "pPoolWireFactory":[157,"build_pool_qualification_runtime",1373,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
 
@@ -3010,11 +3020,11 @@
 
 "pPoolWireTurn":[157,640,"self.wire.request(\"turn/start\", self.turn_parameters())",20,640,75],
 
-"pPoolWorkerStart":[155,"PoolWorkerContainment.launch_appserver",374,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
+"pPoolWorkerStart":[155,"PoolWorkerContainment.launch_appserver",533,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
 
-"pPoolWriterLaunch":[155,454,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,454,98],
+"pPoolWriterLaunch":[155,613,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,613,98],
 
-"pPoolWriterRefusal":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",298,"lzFDdzNrTvpz66VacjEohnYvV5DqdDp-b0ibJdzoQyk"],
+"pPoolWriterRefusal":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",408,"lzFDdzNrTvpz66VacjEohnYvV5DqdDp-b0ibJdzoQyk"],
 
 "pQ":[65,"RegisteredN1Workflow._commit_execution",498,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
 
@@ -3030,9 +3040,9 @@
 
 "pQt1":[161,"RegisteredPoolQualificationHostTests.test_unenrolled_campaign_refuses_before_disposable_claims",156,"ZjjsnZH7RGDPFWb2ZyWVjC-sDy7I1qFpX3kkF2ok8Ew"],
 
-"pQt6":[156,"PoolConfigurationTests.test_open_source_still_refuses_a_raw_worker_before_private_paths",24,"1CbnGG6Mq00eEpq42mlvg-1Zr9DDUF2xCbBHUzMJ3p8"],
+"pQt6":[156,"PoolConfigurationTests.test_open_source_still_refuses_a_raw_worker_before_private_paths",25,"1CbnGG6Mq00eEpq42mlvg-1Zr9DDUF2xCbBHUzMJ3p8"],
 
-"pQt7":[156,"PoolConfigurationTests.test_raw_writer_cannot_replace_original_retained_authorization",35,"gnRYl3v54rL2P67KbXPME4tn1tMvVMQNgwOqh2CVlno"],
+"pQt7":[156,"PoolConfigurationTests.test_raw_writer_cannot_replace_original_retained_authorization",36,"gnRYl3v54rL2P67KbXPME4tn1tMvVMQNgwOqh2CVlno"],
 
 "pR":[65,"RegisteredN1Workflow._prepare_execution",474,"GmUTQnJ18-VWkybtitPYDYjR-OEw09zWxZIGXRm96VI"],
 
@@ -3060,9 +3070,9 @@
 
 "pV":[111,"NativeOutboundScreenTests.test_screening_consumes_original_total_writer_deadline",155,"GceXt0vqaHAxLRjRwjfZUW4XgeUaO-fdfr0YX2fHxpQ"],
 
-"pV9":[155,246,"production_live = False",4,246,27],
+"pV9":[155,404,"production_live = False",4,404,27],
 
-"pVa":[156,"PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn",249,"1biCCmpFFglbVdZwIzdKS0Xx9YP10piczub1M_-vuR4"],
+"pVa":[156,"PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn",250,"k1yuF6z47wrNKiFqOLdZMUfZ9ON_0gFq09Dby9_4UeM"],
 
 "pW":[42,123,"if frame != original:"],
 
@@ -5497,9 +5507,9 @@
 
 [74,442,18,442,58,"dynamic","H_DRsSJrx-53P89JnftCvC2GWe_RS4cdmBAz22awweM",[{"$":9},"XR376"]],
 
-[92,383,23,383,65,"browser","nEhNbuH-IlrkTRYfsQkZIFHIFQe3lQ_IEOWI5zgkzE0",["route","N3.15","pPoolAppLaunch"]],
+[92,542,23,542,65,"browser","nEhNbuH-IlrkTRYfsQkZIFHIFQe3lQ_IEOWI5zgkzE0",["route","N3.15","pPoolAppLaunch"]],
 
-[92,454,18,454,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","pPoolWriterLaunch"]],
+[92,613,18,613,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","pPoolWriterLaunch"]],
 
 [93,220,15,220,94,{"$":3},"k9v9TIBzAvfsm4g-p0xcA49hWoxqg8jO4SXZwJ4H1SU",["route","N4.3","pPoolWireRequest"]],
 
@@ -6178,9 +6188,11 @@
 
 {"admission":{"$":4},"contract":"N3","effect":"Registered original monitor termination and exact natural-exit handling","effect_points":["p25MonitorCall"],"entrypoint":"p25MonitorTerminate","gate_chains":[],"gates":[],"id":"N3.14","limits":"The trusted registered launcher invokes only the original controller and receipt. Completing the exceptional ENOENT outcome requires exact original PID/receipt, zero signals, original positive exit and reap, and receipt retirement. The raw report stays intact. Refused observations follow existing cleanup handling. The independent namespace remains separately verified.","manual_decisions":["M10","M26","M37"],"trace_files":[{"$":10},{"$":17},{"$":329}],"witnesses":[{"$":340},"w25MonitorProof","w25OriginalWatchdog"]},
 
-{"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Start one contained qualification app server","effect_points":["pPoolAppLaunch"],"entrypoint":"pPoolWorkerStart","gate_chains":[],"gate_limits":"Original worker identity and verified namespace precede the app-server gate. Physical fixtures substitute the identity check.","gates":[],"id":"N3.15","limits":"Both switches, current approval and exact worker precede private paths. Check read-only mount and managed login before release. Broker takes no attachment. Inert witness verifies pre-spawn cleanup.","manual_decisions":["M26","MContainedHost","M35"],"review_gates":["pPoolHostCommandCheck","pPoolHostMountCheck"],"trace_files":[{"$":373},{"$":10},{"$":328},{"$":270}],"witnesses":["wPoolPhysical","wQe5","wV9"]},
+{"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Start one contained qualification app server","effect_points":["pPoolAppLaunch","p76L"],"entrypoint":"pPoolWorkerStart","gate_chains":[],"gate_limits":"Original worker identity and verified namespace precede the app-server gate. Physical fixtures substitute the identity check.","gates":[],"id":"N3.15","limits":"Both switches, approval and exact worker precede paths. Lease precedes direct links. Verify read-only mounts and managed login before release. Broker takes no attachment. Inert witness checks pre-spawn cleanup.","manual_decisions":["M26","MContainedHost","M35"],"review_gates":["pPoolHostCommandCheck","pPoolHostMountCheck"],"trace_files":[{"$":373},{"$":10},{"$":328},{"$":270}],"witnesses":["wPoolPhysical","wQe5","wV9","w76P"]},
 
 {"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Open the isolated fixed qualification writer gate","effect_points":["pPoolWriterLaunch"],"entrypoint":"pPoolFixedWriter","gate_chains":[],"gate_limits":"The retained original callback owns the one-shot writer gate. Physical fixtures substitute the identity check.","gates":[],"id":"N3.16","limits":"Retained callback and exact call/deadline authorize the sole writer gate. Mount and path checks precede release; refusals retain cleanup.","manual_decisions":["M26","MContainedHost"],"review_gates":["pPoolHostCommandCheck","pPoolHostMountCheck"],"trace_files":[{"$":373},{"$":10},{"$":328},{"$":270}],"witnesses":["wPoolPhysical","wPoolNoWrite","wQe5"]},
+
+{"admission":{"$":4},"authority":{"$":368},"contract":"N3","effect":"Retire owned pool login links","effect_points":["p76U"],"entrypoint":"p76R","gate_chains":[],"gates":[],"id":"N3.17","limits":"Original namespace settlement required if mounted.","manual_decisions":["MContainedHost","M35"],"ordering":"Check pins. Unlink, sync and record before lease release.","review_gates":[],"trace_files":[{"$":373}],"witnesses":["w76P","w76H"]},
 
 {"authority":"The selected project and its default or explicit Beads directory.","contract":"B10","effect":"Read the database selection, exact Bead with comments, and typed prerequisites.","effect_points":["p70V","p70H","p70q"],"entrypoint":"p70y","id":"B10.7","limits":"The selected bd program can perform migration or connection effects.","manual_decisions":["M02"],"ordering":"Check explicit -C and --db against the resolved selection before reads.","trace_files":[{"$":378},{"$":377},{"$":21}],"witnesses":["w70i"]},
 
@@ -7100,9 +7112,9 @@
 
 "@154":["qOB6Jw37i3eJ7nJOEXOKJ1y8LKAd2uaJuywl3j_VmK8",420,60663],
 
-"@155":["GRgqBpZi7L0wYk_8j3JR6zB6JcdBVFM8EJCj6boYSUU",420,24729],
+"@155":["BdiZ8u5cKK9RKZegIiI3n6AXfB2UqCPv2Uk5WBuySEE",420,32349],
 
-"@156":["OxNMA9rd2imvJ77krw2sA6CliBqJNAQUOYqkvDwOBIY",420,18897],
+"@156":["lUKAM3m5qafIgc0UTG-KcZVfsUkTCKhCvzd-RQbz5CQ",420,24655],
 
 "@157":["tHWGkbqQabd3RcboDX_Rd2K18Y_kMx4AfeA_Y1pmYcU",420,72625],
 
@@ -8099,6 +8111,10 @@
 "w75":["self.assertEqual(self.fake_process_count(process), 0)","p11b",{"$":0},{"$":138},["p12b"],"tests.test_offline_profile_input.ProfileInputTests.test_finite_nonempty_refuses_before_process_and_empty_poll_uses_same_selection"],
 
 "w76":[{"$":293},"p2d8",{"$":0},{"$":293},["p345"],"tests.test_issue41_dispatch_matrix.Issue41DispatchMatrixTests.test_chrome_launcher_dry_run_and_operator_actions_use_only_expected_effects"],
+
+"w76H":["self.assertFalse(second.receipt()['cleanup_confirmed'])","p76H",{"$":1},"qualification.claim_managed_login(2)",[],"tests.test_registered_pool_containment.PoolWorkerContainmentTests.test_login_projection_failure"],
+
+"w76P":["assert os.statvfs(home / 'config.toml').f_flag & os.ST_RDONLY","p76P",{"$":1},"on_disk, receipt['observations']",[],"tests.test_registered_pool_containment.PoolWorkerContainmentTests.test_pool_login_round_trip"],
 
 "w77":["self.assertEqual((binary.call_count, launch.call_count), (0, 0))","p31d",{"$":0},{"$":130},["p2e4"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_r5_f5_held_n1_raw_library_zero_launch_and_patched_fake_launch"],
 

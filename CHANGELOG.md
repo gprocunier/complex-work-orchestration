@@ -2,11 +2,17 @@
 
 ## Unreleased
 
-- Archive the retired three-arm prompt study and its frozen design. No study arm ever ran.
-
 ### Tests
 
 - Preserve archive worker failures in the registered interrupt fixture when they occur before the archive request.
+
+## 1.36.2 - 2026-11-24
+
+- Use a direct dedicated-login bind for compatible pool workers to avoid slow overlay teardown while preserving their session archive and login custody.
+
+## 1.36.1 - 2026-11-24
+
+- Archive the retired three-arm prompt study and its frozen design. No study arm ever ran.
 
 ## 1.36.0 - 2026-11-24
 
