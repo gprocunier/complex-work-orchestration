@@ -254,6 +254,14 @@ runtime. The signed stage binding covers the fixed tasks, sealed run plans
 and original accounting custody before calibration starts. The stage pins
 `gpt-6.2-sol` at `xhigh` on the default tier for each run.
 
+The qualification controller signs the directives for disposable Beads claims,
+worker releases, callback calibrations and the final qualification stage under
+the operator's standing approval of the campaign budget. The controller keeps
+its signing material outside the worker environments. As part of campaign
+preparation, the controller opens the private campaign ledger, creates the
+disposable Beads datasets, pins the Codex executable and exports its bundled
+model catalog.
+
 Keep one private controller-enrolled campaign ledger across runs and repairs.
 Each cohort consumes a durable start before runtime preparation, including a
 failed start. The campaign limit is 20 starts. Per-run session, tool and
@@ -267,9 +275,9 @@ disposable Beads inputs and a directive over `admission_action_sha256`. The
 host checks the source decisions and the signed claim scope before each claim.
 It keeps the original reservations and gives the host's request staging callback
 copies of the receipts. The callback seals the plans and authority files and
-obtains the separate signed calibration and stage directives. The planned binds
-are available before worker startup from `calibration_adapter_scope_sha256`
-and `contained_pool_qualification_binding`. Keep the owner-private request,
+stages the signed calibration and stage directives. The planned bindings are
+available before worker startup from `calibration_adapter_scope_sha256` and
+`contained_pool_qualification_binding`. Keep the owner-private request,
 claim intents and reservation receipts together. If approval is refused after
 claims, reconcile their exact attempt identities from these records before a
 new admission.
@@ -278,8 +286,7 @@ The registered host uses the enrolled campaign ledger and the original installed
 factory. Calibration charges the shared allowance, measures the current
 controller's original callbacks, keeps the writer gate closed and settles
 owned workers. Productive runs consume the measured capability from the same
-protected host. Install and enroll this host, its independent approval context,
-and the dedicated logins separately. The standalone command remains held.
+protected host. The standalone command remains held.
 
 The stock app server uses a read-only worktree, a dedicated worker login and
 provider-only connectivity. Its named read-only tool profile denies network
