@@ -4,6 +4,10 @@
 
 - Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
 
+### Tests
+
+- Wait for approval reply publication in the registered request fixture.
+
 ## 1.34.1 - 2026-11-24
 
 - Wake the provider broker promptly when a contained worker shuts down.
