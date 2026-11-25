@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Resume interrupted delivery without starting another worker.
+
+## 1.36.1 - 2026-11-24
+
 - Archive the retired three-arm prompt study and its frozen design. No study arm ever ran.
 
 ## 1.36.0 - 2026-11-24
