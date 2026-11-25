@@ -31,8 +31,8 @@ def _delivery_inputs(workflow, baseline, amendments):
             or chain['bead_id'] != workflow.config.route['parent_id']):
         raise ValueError('The Bead and requirement baseline must match the standing delegation.')
     root = workflow.config.host.worker
-    return Namespace(bead=chain['bead_id'], repo=str(root), baseline=baseline_path,
-                     amendment=amendment_paths), chain
+    return Namespace(bead=chain['bead_id'], repo=str(root), project=str(workflow.config.host.target),
+                     baseline=baseline_path, amendment=amendment_paths), chain
 
 
 def _open_task(delivery, run_bd):
@@ -80,10 +80,10 @@ def deliver(workflow, *, baseline: str | Path, amendments: Sequence[str | Path] 
     candidate = candidate_identity.capture_candidate(root, chain=chain,
         base_commit=report['binding']['worker_identity']['head_commit'],
         scope_paths=sorted(entry['path'] for entry in report['artifact']['files']))
-    delivery = manual_delivery.Delivery(args.bead, root, chain, candidate)
+    delivery = manual_delivery.Delivery(args.bead, root, chain, candidate, Path(args.project))
     store = host_records.configured_store()
     store.require_outside_worker_roots((root, workflow.config.host.target))
-    database, run_bd = manual_delivery.project_beads(root)
+    database, run_bd = manual_delivery.project_beads(Path(args.project))
     task = _open_task(delivery, run_bd)
     delivery_records.verify_candidate(workflow, delivery, database=database)
     digest = candidate_identity.candidate_digest(candidate)
@@ -97,9 +97,9 @@ def delegate(workflow, task, *, baseline: str | Path,
              amendments: Sequence[str | Path] = (), summary: str, resume: bool = False) -> dict:
     """Deliver a standing-approved assignment or resume delivery from completed custody."""
     args, chain = _delivery_inputs(workflow, baseline, amendments)
-    root = workflow.config.host.worker
-    database, run_bd = manual_delivery.project_beads(root)
-    _open_task(manual_delivery.Delivery(args.bead, root, chain, {}), run_bd)
+    root, project = Path(args.repo), Path(args.project)
+    database, run_bd = manual_delivery.project_beads(project)
+    _open_task(manual_delivery.Delivery(args.bead, root, chain, {}, project), run_bd)
     if resume:
         workflow.resume_delegation(task, database=database)
     else:

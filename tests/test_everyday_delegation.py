@@ -38,8 +38,8 @@ class EverydayDelegationFlowTests(unittest.TestCase):
         self.effects = []
         self.lose_delivery_reply = True
         self.fail_before_delivery = False
-        self.enterContext(patch.object(manual_delivery, 'project_beads',
-                                       return_value=(native.DATABASE, self.bd)))
+        self.project_beads = self.enterContext(patch.object(manual_delivery, 'project_beads',
+                                                            return_value=(native.DATABASE, self.bd)))
         self.enterContext(patch.object(manual_delivery, 'delivery_session', return_value='EXAMPLE-lead'))
 
     def bd(self, argv):
@@ -67,6 +67,8 @@ class EverydayDelegationFlowTests(unittest.TestCase):
                      '--baseline', result['baseline'], '--candidate', result['candidate'],
                      '--reviewed-candidate', result['candidate_sha256'],
                      '--note', 'Checked the result file.', '--json']
+        if 'project' in result:
+            arguments.extend(['--project', result['project']])
         stdout, stderr = StringIO(), StringIO()
         with (patch.object(manual_delivery, 'reviewer_session', return_value=('uid:1000', (process,))),
               patch.object(sys, 'argv', sys.argv[:]), redirect_stdout(stdout), redirect_stderr(stderr),
@@ -142,6 +144,11 @@ class EverydayDelegationFlowTests(unittest.TestCase):
         self.assertEqual(self.task['status'], 'closed')
         self.assertEqual([call[0] for call in self.effects], ['comment', 'comment', 'close'])
         self.assertFalse((self.workflow.config.host.target / 'result.txt').exists())
+        host = self.workflow.config.host
+        self.assertEqual(result['repo'], str(host.worker))
+        self.assertEqual(result['project'], str(host.target))
+        self.assertTrue(self.project_beads.call_args_list)
+        self.assertEqual({call.args[0] for call in self.project_beads.call_args_list}, {host.target})
 
     def test_resume_after_failed_post_preserves_independence_of_both_sessions(self):
         self.fail_before_delivery = True

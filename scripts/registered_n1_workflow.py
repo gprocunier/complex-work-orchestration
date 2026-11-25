@@ -622,7 +622,10 @@ class RegisteredN1Workflow:
         delegation = self._current_evidence()
         scope = delegation['approval']['scope']
         return delegation['dispatch'], {'delivery_baseline_sha256': scope['baseline_sha256'],
-                                        'delivery_database_sha256': scope['database_sha256']}
+                                        'delivery_database_sha256': scope['database_sha256'],
+                                        'delivery_checkout': str(self.config.host.worker),
+                                        'delivery_checkout_identity': self.config.initial['worker_identity']['root'],
+                                        'delivery_project': str(self.config.host.target)}
 
     def _execution_current(self):
         _need(self._adoption is not None and _encode(self._action()) == self._selected_action,

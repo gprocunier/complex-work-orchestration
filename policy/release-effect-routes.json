@@ -2164,7 +2164,7 @@
 
 "p52F":[64,"_RegisteredServer._register_production_rpc",1232,"kISxK9pHjckkbv9hrb_tAgnq4iWNRqyXFLdbFqudSys"],
 
-"p52G":[65,"RegisteredN1Workflow._require_production_execution",641,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
+"p52G":[65,"RegisteredN1Workflow._require_production_execution",644,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
 
 "p52a":[153,"WorkflowTests.test_production_requires_current_adoption_and_configured_worker_login",382,"SOKBojMQfm0KVuZZYQrqsR7_nZS9sa5bsY-g1IpLtew"],
 
@@ -2290,15 +2290,15 @@
 
 "p70c":[171,"main",12,"oXW-LF9WYqLSxt_7Q6gvLiTn8kLNVwQVEUCjycE-TGQ"],
 
-"p70d":[170,303,"_need(task.get(\"status\") in _OPEN, \"only an open delivered Bead can be accepted\")",8,303,89],
+"p70d":[170,324,"_need(task.get(\"status\") in _OPEN, \"only an open delivered Bead can be accepted\")",8,324,89],
 
-"p70m":[170,"_confirm_close",309,"RzpjcPV9ojV-XD2tbgCjp38x1WSprfO8X2FrnmWtfOI"],
+"p70m":[170,"_confirm_close",330,"RzpjcPV9ojV-XD2tbgCjp38x1WSprfO8X2FrnmWtfOI"],
 
-"p70n":[170,360,"_confirm_close(store, accepted, binding)",14,360,54],
+"p70n":[170,381,"_confirm_close(store, accepted, binding)",14,381,54],
 
 "p70x":[16,326,"if disposition != \"pending-acceptance\":"],
 
-"p70y":[170,"project_beads",137,"zByoyGtISUDdhBz4F5jqRLnwlpxLjMG_uHCaUdAAx6I"],
+"p70y":[170,"project_beads",145,"zByoyGtISUDdhBz4F5jqRLnwlpxLjMG_uHCaUdAAx6I"],
 
 "p71":[118,"ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete",165,"pIJPrM3B4ReOtRLkxjA43xM48SdT-D75F3y_PmYyAU4"],
 
@@ -2306,9 +2306,9 @@
 
 "p73":[82,"AcceptanceProductFlowTests.provision",127,"H2UuPW3uAly8aG6VzGMSD0nfL4bvp7Q9iFoeMOjg6Rk"],
 
-"p73a":[65,662,"if selection is None:"],
+"p73a":[65,665,"if selection is None:"],
 
-"p73b":[65,660,"if c._worker_login_error is not None:"],
+"p73b":[65,663,"if c._worker_login_error is not None:"],
 
 "p73c":[153,"WorkflowTests.test_malformed_saved_login_refuses_only_after_original_adoption",419,"KV0BITFT8mJf0DMQLWtmVCa1bkEQBZNqyKGZ8giq4EI"],
 
@@ -2628,7 +2628,7 @@
 
 "pc9":[130,"ReleaseEffectRoutesTests._git_pair",1421,"nqUbPdd1sJwFcR3w_CJQflGtJHDoliB8lauHREZ_J6U"],
 
-"pca":[65,"RegisteredN1Workflow.run",682,"kVr7-2ikE9k4mwywWSjsVz-SgnM7c9VLpI6bKbM5mrA"],
+"pca":[65,"RegisteredN1Workflow.run",685,"kVr7-2ikE9k4mwywWSjsVz-SgnM7c9VLpI6bKbM5mrA"],
 
 "pcb":[139,"TrustedGitTests.test_only_fixed_trustworthy_paths_are_used",1148,"KUasbycq-u2HYjys762v8BrfPX-pUO0tOIVZE79v3GA"],
 
@@ -2776,15 +2776,15 @@
 
 "pz":[77,"_reuse_exec_context",975,"HEaH0hXbj1yAFb06T4LdiTIM5Mdv7x6yZJc-psFEPy8"],
 
-"q01":[170,"_delivery_receipt",249,"vyf-HzYBe9jSqxUbB7p8CaMelzITGF3TnvMMDqPz_hc"],
+"q01":[170,"_delivery_receipt",270,"vyf-HzYBe9jSqxUbB7p8CaMelzITGF3TnvMMDqPz_hc"],
 
-"q02":[170,202,"_delivery_receipt(store, task, binding, origin, session, artifact_hash(summary))",22,202,102],
+"q02":[170,223,"_delivery_receipt(store, task, binding, origin, session, artifact_hash(summary))",22,223,102],
 
-"q03":[170,298,"_need(event[\"event_hash\"] == pending_hash, \"the delivery changed before acceptance was recorded\")"],
+"q03":[170,319,"_need(event[\"event_hash\"] == pending_hash, \"the delivery changed before acceptance was recorded\")"],
 
-"q04":[170,172,"_need(dispatch[\"_record_sha256\"] == origin[\"dispatch_record_sha256\"]"],
+"q04":[170,181,"_need(dispatch[\"_record_sha256\"] == origin[\"dispatch_record_sha256\"]"],
 
-"q05":[177,"deliver",73,"1uYEnFQ2qOIsLPtNu86_GPZgyDWe7P7mEqV-EQqiihY"],
+"q05":[177,"deliver",73,"E3MIZpTJUxpyfOXpAAY1IhpPRJV2N5-JRkKq1p8JQbY"],
 
 "q06":[177,70,"run_bd(['comment', '--', delivery.bead_id, line])",4,70,53],
 
@@ -2806,9 +2806,9 @@
 
 "q0G":[178,76,"_need(estimate['write_paths'] == operation['write_paths'] == publication['write_paths']"],
 
-"q0I":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",96,"Ci-42mtYh5MUO02LQIKpm1-uV2n2nI6eGzDIpVau6Ls"],
+"q0I":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",98,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
 
-"q0J":[179,"EverydayDelegationFlowTests.test_installed_lead_selects_the_retained_signed_assignment",202,"nKJbM0TIbY9p0Q-rUBtM0l0gZAkW6BMfHU2v1ErpQ8U"],
+"q0J":[179,"EverydayDelegationFlowTests.test_installed_lead_selects_the_retained_signed_assignment",209,"nKJbM0TIbY9p0Q-rUBtM0l0gZAkW6BMfHU2v1ErpQ8U"],
 
 "q0K":[180,"EverydayDelegationTests.test_unsafe_login_refuses_before_signing_and_same_workflow_can_retry",219,"x4ghbIRcYYNYWjRvGSmTcvRwPHEYQ7wctBbz7AK-7tU"],
 
@@ -2816,43 +2816,43 @@
 
 "uA":[8,1045,"page.get_by_text(str(label), exact=False).first.click(timeout=timeout_ms)",20,1045,93],
 
-"ua":[170,331,"_need(0 < len(note) <= 240, \"enter a review note of 1 to 240 characters\")",4,331,77],
+"ua":[170,352,"_need(0 < len(note) <= 240, \"enter a review note of 1 to 240 characters\")",4,352,77],
 
 "ub":[170,73,"_need(not any(agent for _, agent in chain), \"an agent session cannot accept a delivery by hand\")",4,73,100],
 
-"uc":[170,276,"_need(_matches(event, **binding), \"the reviewed candidate and baseline must match the latest delivery\")",4,276,107],
+"uc":[170,297,"_need(_matches(event, **binding), \"the reviewed candidate and baseline must match the latest delivery\")",4,297,107],
 
 "ud":[170,71,"_need(foreground, \"manual acceptance requires a foreground terminal\")",4,71,73],
 
-"ue":[170,336,"_need(binding[\"candidate_sha256\"] == args.reviewed_candidate, \"the candidate file differs from the reviewed candidate\")",4,336,123],
+"ue":[170,357,"_need(binding[\"candidate_sha256\"] == args.reviewed_candidate, \"the candidate file differs from the reviewed candidate\")",4,357,123],
 
-"uf":[170,297,"_current_delivery(events, task, binding, ancestry)",16,297,66],
+"uf":[170,318,"_current_delivery(events, task, binding, ancestry)",16,318,66],
 
-"ug":[170,"_current_delivery",271,"rpAsSHItk4uGqsEJeuyLfrdMW4A0sy38Z_x-_6gRbMc"],
+"ug":[170,"_current_delivery",292,"rpAsSHItk4uGqsEJeuyLfrdMW4A0sy38Z_x-_6gRbMc"],
 
-"uh":[170,358,"_need(current.get(\"status\") == \"closed\" and current.get(\"close_reason\") == reason,\n          \"acceptance was recorded, but closure is unconfirmed. A retry only checks for the original close\")",4,359,108],
+"uh":[170,379,"_need(current.get(\"status\") == \"closed\" and current.get(\"close_reason\") == reason,\n          \"acceptance was recorded, but closure is unconfirmed. A retry only checks for the original close\")",4,380,108],
 
-"ui":[170,356,"_close(run_bd, delivery.bead_id, reason)",8,356,48],
+"ui":[170,377,"_close(run_bd, delivery.bead_id, reason)",8,377,48],
 
-"uj":[170,317,"_append(store, state, lock, event_type=CLOSED, **source)",15,317,71],
+"uj":[170,338,"_append(store, state, lock, event_type=CLOSED, **source)",15,338,71],
 
-"uk":[170,"_close",320,"xkKKnthTCvDHWP_78JkICiRAfEmwnUjBoPUTRJhYzZE"],
+"uk":[170,"_close",341,"xkKKnthTCvDHWP_78JkICiRAfEmwnUjBoPUTRJhYzZE"],
 
-"ul":[170,348,"if claimed:"],
+"ul":[170,369,"if claimed:"],
 
-"um":[170,131,"beads.run_bd([*arguments, \"where\", \"--json\"])",26,131,71],
+"um":[170,139,"beads.run_bd([*arguments, \"where\", \"--json\"])",26,139,71],
 
-"un":[170,112,"run_bd(beads.show_bead_args(self.bead_id, include_comments=True))",14,112,79],
+"un":[170,120,"run_bd(beads.show_bead_args(self.bead_id, include_comments=True))",14,120,79],
 
-"uo":[170,278,"_need(not any(_matches(item, **binding) and item.get(\"manual_delivery_session\") in ancestry\n                  for item in sessions), \"the delivering session cannot accept its own delivery\")",4,279,97],
+"uo":[170,299,"_need(not any(_matches(item, **binding) and item.get(\"manual_delivery_session\") in ancestry\n                  for item in sessions), \"the delivering session cannot accept its own delivery\")",4,300,97],
 
-"up":[170,351,"_need(latest[\"event_hash\"] == accepted[\"manual_delivery_event\"] and task.get(\"status\") in _OPEN,\n              \"the delivery changed after acceptance was recorded\")",8,352,67],
+"up":[170,372,"_need(latest[\"event_hash\"] == accepted[\"manual_delivery_event\"] and task.get(\"status\") in _OPEN,\n              \"the delivery changed after acceptance was recorded\")",8,373,67],
 
 "uq":[170,"reviewer_session",66,"GeTEFi7TArJYqOAiWF-f1i-QsulUaNPgs7SYnxjWTbc"],
 
-"ur":[170,329,"reviewer_session()",25,329,43],
+"ur":[170,350,"reviewer_session()",25,350,43],
 
-"us":[65,676,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
+"us":[65,679,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
 
 "ut":[148,"ManagedLoginNamespaceTests.assert_atomic_refresh_and_runtime_isolation",227,"1V4JIAPaoLLhIH-buh_fAbwUnE3Z9HCYA09DAh85iwk"],
 
@@ -2862,11 +2862,11 @@
 
 "uw":[149,122,"_need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),"],
 
-"ux":[65,638,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
+"ux":[65,641,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
 
 "uz":[8,1037,"page.locator(str(selector)).first.click(timeout=timeout_ms)",20,1037,79],
 
-"v0":[65,689,"R.live_availability.require_n1_live()"],
+"v0":[65,692,"R.live_availability.require_n1_live()"],
 
 "v1":[8,1181,"self._press_until_ready(box, origin, timeout_ms, guard)",15,1181,70],
 
@@ -2962,19 +2962,19 @@
 
 "vm":[81,"provision_acceptance",11,"kf4P4KVeBVIhlQAjMxOIurZnbUWMDibjkNIAUdjFUbk"],
 
-"vn":[170,258,"_append(store, state, lock, event_type=RECORDED, **binding, **origin,\n                       manual_delivery_session=session, manual_summary_sha256=summary_digest)",15,259,93],
+"vn":[170,279,"_append(store, state, lock, event_type=RECORDED, **binding, **origin,\n                       manual_delivery_session=session, manual_summary_sha256=summary_digest)",15,280,93],
 
-"vo":[170,122,"_need(checked[\"valid\"], \"candidate or baseline refused: \" + \"; \".join(checked[\"errors\"]))",8,122,97],
+"vo":[170,130,"_need(checked[\"valid\"], \"candidate or baseline refused: \" + \"; \".join(checked[\"errors\"]))",8,130,97],
 
 "vp":[169,28,"run_bd([\"dep\", \"list\", \"--json\", \"--type\", kind,\n                              \"--direction\", direction, \"--\", bead_id])",22,29,71],
 
-"vq":[170,148,"_need(_database_identity(storage) == database, \"the project Beads database changed\")",8,148,92],
+"vq":[170,156,"_need(_database_identity(storage) == database, \"the project Beads database changed\")",8,156,92],
 
-"vr":[170,196,"_need(task.get(\"status\") in _OPEN, \"only an open Bead can record a delivery\")",4,196,81],
+"vr":[170,217,"_need(task.get(\"status\") in _OPEN, \"only an open Bead can record a delivery\")",4,217,81],
 
-"vs":[170,205,"run_bd([\"comment\", \"--\", delivery.bead_id, comment])",8,205,60],
+"vs":[170,226,"run_bd([\"comment\", \"--\", delivery.bead_id, comment])",8,226,60],
 
-"vt":[65,658,"_need(selection == c._worker_login_home,"],
+"vt":[65,661,"_need(selection == c._worker_login_home,"],
 
 "vu":[35,24,"if REGISTERED_N1_LIVE_AVAILABLE is not True:"],
 
@@ -3116,11 +3116,11 @@
 
 "y1":[8,"PlaywrightChatGPTRunner._submit_guarded",1179,"_eZtSYuMRBxgnh5EfcdyXyiqbrEsGdLldZnVyEHZL_k"],
 
-"y2":[170,346,"_claim(store, task, binding, reviewer, ancestry, note, pending_hash=pending[\"event_hash\"])",28,346,118],
+"y2":[170,367,"_claim(store, task, binding, reviewer, ancestry, note, pending_hash=pending[\"event_hash\"])",28,367,118],
 
-"y3":[170,"_claim",293,"ZSxwP8j9iqi3MnmnV0fMBCawBs7_N9Le3_aNEPmIYqM"],
+"y3":[170,"_claim",314,"ZSxwP8j9iqi3MnmnV0fMBCawBs7_N9Le3_aNEPmIYqM"],
 
-"y4":[170,322,"run_bd([\"close\", \"--reason\", reason, \"--\", bead_id])",8,322,60],
+"y4":[170,343,"run_bd([\"close\", \"--reason\", reason, \"--\", bead_id])",8,343,60],
 
 "y5":[16,389,"write_summary(args, disposition, summary)",24,389,65],
 
@@ -3218,7 +3218,7 @@
 
 "yq":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",478,"ilwDp9vyCoCUzOpXg4sfjQI9aIhdONh3MItPYOObGdU"],
 
-"yr":[170,304,"_append(store, state, lock, event_type=ACCEPTED, **source,\n                           manual_reviewer=reviewer, manual_review_session=ancestry[0], manual_review_note=note)",19,305,112],
+"yr":[170,325,"_append(store, state, lock, event_type=ACCEPTED, **source,\n                           manual_reviewer=reviewer, manual_review_session=ancestry[0], manual_review_note=note)",19,326,112],
 
 "ys":[53,"_advance",347,"Vhlxs4eEXH2tXwSnbmlQT8ZvU4Vr2wjaX_f-Q8xnP5Q"],
 
@@ -4911,15 +4911,15 @@
 
 [24,644,51,644,91,"dynamic",{"$":39},[{"$":9},"XR119"]],
 
-[94,112,14,112,79,"beads","2OBxTe8L3BXE9ddGMvpYxZ2vHepuWd2JMVvaxCgjlnc",["route","B10.7","un"]],
+[94,120,14,120,79,"beads","2OBxTe8L3BXE9ddGMvpYxZ2vHepuWd2JMVvaxCgjlnc",["route","B10.7","un"]],
 
-[94,131,26,131,71,"beads","RfhWl_FjTpPNSlpT9JYuwNAYK6CcZAApUgVeqDxVRIo",["route","B10.7","um"]],
+[94,139,26,139,71,"beads","RfhWl_FjTpPNSlpT9JYuwNAYK6CcZAApUgVeqDxVRIo",["route","B10.7","um"]],
 
-[94,149,15,149,48,"beads","qyQFzflNAohelc3JsJakdyX_gHrTEZcUDiFysmL8TUA",[{"$":9},"XR70adapter"]],
+[94,157,15,157,48,"beads","qyQFzflNAohelc3JsJakdyX_gHrTEZcUDiFysmL8TUA",[{"$":9},"XR70adapter"]],
 
-[94,205,8,205,60,"beads","Eb-Z9URdnSojmjLoPFOyrEEd8YH8JSwmJETdWy7jAsA",["route","B11.1","vs"]],
+[94,226,8,226,60,"beads","Eb-Z9URdnSojmjLoPFOyrEEd8YH8JSwmJETdWy7jAsA",["route","B11.1","vs"]],
 
-[94,322,8,322,60,"beads","j28taxQfpxIbHKU3eKiT1fWRfFhkfGNIfpLoxH0JwLQ",["route","B12.1","y4"]],
+[94,343,8,343,60,"beads","j28taxQfpxIbHKU3eKiT1fWRfFhkfGNIfpLoxH0JwLQ",["route","B12.1","y4"]],
 
 [86,43,25,43,54,{"$":3},"fQvySbHpikXPijGUlV9zZV4u-U3hiJBeMIPywFQa0RE",[{"$":9},"public-model-list-catalog-read"]],
 
@@ -7184,7 +7184,7 @@
 
 "@17":["ARu5xi70szNYoQbP68bDHBDe4ChByszxGU8enrcoDw8",493,17894],
 
-"@170":["WLYz3eovefutHG5xfxHwQuDKwctYQPXQg4Jr5Fei3UY",420,17697],
+"@170":["dMTjAfKoy4tLVQ1--I5NhLTsTU9xAGo0shpZjRDLJO8",420,18860],
 
 "@171":["tJDM-ehRkFCAgy3lOBiYrd5teSBPF9mVzGXoeZqRdUQ",420,1360],
 
@@ -7198,11 +7198,11 @@
 
 "@176":["KpeyjpT_bCTz9OVyRq4XimnoDXCM0laFmLfc5JVtyqU",420,5514],
 
-"@177":["fkqZ0_dUp68LIjm1M4oOcAHO94QF9iSr_7hNOcDzWCk",420,7181],
+"@177":["xhupFB8C69E_NBkrKWe8QJkOhdlKOdWMsWH5KEn8AW8",420,7286],
 
 "@178":["69ChH3xEbhgyKkp5z9shc78Rk92BiWjyfP48iu1qP-E",420,10394],
 
-"@179":["dKdlhbuIBQWmF8bQel-66qtz-v04nvctugizNzucRLY",420,16936],
+"@179":["GC3BcoKEq6KIduJDK8wtXmqgGWj-n3mzl29pWHutGHs",420,17396],
 
 "@18":["eeWhgdqzZxdBINbx0XseT7DQyIMEE_YvaJiCe2PZPCI",420,27248],
 
@@ -7314,7 +7314,7 @@
 
 "@64":["ycNnGk34F3x5OpX1YKvd1IYMqyB2CtJ8QbOkcN-jOBE",420,139369],
 
-"@65":["za2OXbWXhthpjVauHUvz85w9r24Okpbp4EerkeRY168",420,45874],
+"@65":["sxl2yKfVfkMqIUbkCqa5nVUGUQub63c-KiKg0aRsK1w",420,46173],
 
 "@66":["yydJmz2r25lUIDAVnbkKz-KUmgOVux6iavYDEax4IK8",420,2228],
 
@@ -7786,7 +7786,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Ef8EuO5D21rfsBR9q0MDUbQVQ9Egqccyg_-mHhekuGE",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["4qKZ8-Cq9ZoB1cxLrz993YvfUnVKexONNRvTVWO3oME",420,136048],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
