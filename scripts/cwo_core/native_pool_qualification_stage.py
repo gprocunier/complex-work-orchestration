@@ -1120,7 +1120,13 @@ class _ActiveRun:
             validation["qualification_cleanup_error"] = type(failure).__name__
 
     def validate(self, validate, launched, context):
-        self.limits.remaining()
+        # A refused pool can close its unused writer gate before validation.
+        if (self.limits._closed and self.limits._refusal is None
+                and launched.get("pool_receipt", {}).get("accepting") is False):
+            _require(not self.limits._record_failed, "active-effect-journal-refused")
+            self.limits._time_left()
+        else:
+            self.limits.remaining()
         validation = validate(launched, context, before_artifact_checks=self._close_for_validation)
         self.leases_confirmed = validation.get("qualification_settlement", {}).get("outcome") == "verified"
         checks = {"effects_complete": self.limits._complete(), "cleanup_confirmed": self.cleanup_confirmed,

@@ -20,6 +20,7 @@ sys.path.insert(0, str(SCRIPTS))
 import registered_pool_containment as host  # noqa: E402
 import registered_pool_qualification as adapter  # noqa: E402
 import registered_pool_qualification_capability as capabilities  # noqa: E402
+import run_native_pool_qualification as controller  # noqa: E402
 from tests.test_native_pool_contained_stage import _approve_accounting
 from cwo_core import beads, native_live_availability as availability  # noqa: E402
 from cwo_core import native_pool_qualification_stage as stage  # noqa: E402
@@ -36,7 +37,6 @@ from cwo_core.native_pool_deferred_context import (  # noqa: E402
 from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts  # noqa: E402
 from cwo_core.native_session_boundary import NativeSessionBoundaryError  # noqa: E402
 from cwo_core.native_pool_transaction import (  # noqa: E402
-    NativePoolTransactionError,
     TransactionJournal,
     execution_authoritative_bead_sha256,
     seal_transaction_plan,
@@ -335,10 +335,44 @@ class AdmittedRegisteredPoolTests(unittest.TestCase):
                          ("terminal", "completed", attempt["amount"]))
 
     def test_wrong_original_turn_context_refuses_before_debit_and_stops_cohort(self):
+        _, events, worker = self._assert_pre_writer_refusal("wrong-context")
+        self.assertEqual(events.count("qualification-provisional-turn-proof"), 1)
+        self.assertIsInstance(worker.wire.transport_failure, NativeSessionBoundaryError)
+
+    def test_completed_turn_without_writer_preserves_refusal(self):
+        receipt, _, worker = self._assert_pre_writer_refusal("no-writer")
+        control, = (row["control_receipt"] for row in receipt["child_terminal_receipts"]
+                    if row["child_id"] == worker.child_id)
+        self.assertEqual(control["terminal_state"], "control-failed")
+        self.assertEqual(control["errors"], [
+            "callback-failed:PoolQualificationAdapterError:"
+            "pool-qualification-adapter-successful-terminal-requires-original-writer",
+        ])
+        self.assertEqual(worker.wire.terminal, "completed")
+        self.assertEqual(worker.wire.marker, worker.task["completion_marker"])
+        self.assertIsNone(worker.wire._pending)
+
+    def _assert_pre_writer_refusal(self, behavior):
         with _pool_test_directory() as scratch, ExitStack() as stack:
-            preparation, (n2, n3), accounting, contained = self._approved_cohorts(Path(scratch), stack, behavior="wrong-context")
-            with self.assertRaisesRegex(NativePoolTransactionError, "run-effects-closed"):
-                self._execute(preparation, (n2, n3), accounting)
+            preparation, (n2, n3), accounting, contained = self._approved_cohorts(Path(scratch), stack, behavior=behavior)
+            observed = self._execute(preparation, (n2, n3), accounting)
+            self.assertEqual(observed["outcome"], "stopped")
+            result, = observed["transactions"]
+            self.assertEqual((result["state"], result["accepted"]), ("CONTAINED", False))
+            receipt = result["launch_result"]["pool_receipt"]
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(receipt["first_protected_fault"]["code"], "child-check-failed")
+            self.assertEqual([lease["lifecycle_state"] for lease in receipt["lease_evidence"]],
+                             ["release-pending", "release-pending"])
+            validation = result["validation"]
+            self.assertFalse(validation["atomic_promotion_authorized"])
+            self.assertEqual(validation["qualification_active_limits"], {
+                "effects_complete": False, "cleanup_confirmed": True,
+                "leases_confirmed": False, "deadline_satisfied": True,
+            })
+            settlement = validation["qualification_settlement"]
+            self.assertEqual(settlement["outcome"], "refused")
+            self.assertTrue(settlement["reason"].startswith("pool-qualification-settlement-state-invalid:"))
             self.assertEqual(len(contained), 2)
             self.assertTrue(all(worker.process.poll() == 0 for worker in contained))
             self.assertFalse(tuple(n2.fixture_root.glob("*/result-*.txt")))
@@ -346,18 +380,29 @@ class AdmittedRegisteredPoolTests(unittest.TestCase):
             self.assertEqual(TransactionJournal(n2.journal_path, n2.plan["transaction_id"]).current_state, "CONTAINED")
             effects = _qualification_effect_events(n2, accounting)
             events = [row["event_type"] for row in effects]
-            self.assertEqual(events.count("qualification-provisional-turn-proof"), 1)
             self.assertNotIn("qualification-tool-debit", events)
             self.assertNotIn("qualification-writer-release", events)
             self.assertEqual(effects[-1]["event_type"], "qualification-effects-settled")
             self.assertTrue(effects[-1]["details"]["cleanup_confirmed"])
-            self.assertEqual(effects[-1]["details"]["pending"]["tools"], [])
+            self.assertFalse(effects[-1]["details"]["leases_confirmed"])
+            self.assertIsNone(effects[-1]["details"]["refusal"])
+            self.assertEqual(effects[-1]["details"]["pending"], {"sessions": [], "turns": [], "tools": []})
             attempt = _run_attempt(n2, accounting)
-            self.assertEqual((attempt["state"], attempt["charge"]), ("reconciliation-required", attempt["amount"]))
+            self.assertEqual((attempt["state"], attempt["outcome"], attempt["charge"]),
+                             ("reconciliation-required", None, attempt["amount"]))
+            campaign = result["qualification_campaign"]
+            settled = accounting.ledger.attempt(campaign["reservation_id"])
+            self.assertEqual((campaign["state"], settled["outcome"], settled["charge"]),
+                             ("reconciliation-required", None, {"starts": 1}))
             self.assertEqual(accounting.ledger.summary(stage.CAMPAIGN_BUDGET_ID)["charged"], {"starts": 1})
+            inputs = controller._report_inputs(preparation, stage.CAMPAIGN_START_CAP)
+            report = controller._pass_record(stage, observed, [{"plan": n2.plan}], accounting, inputs)
+            self.assertEqual((report["outcome"], report["runs_consumed"]), ("incomplete", 1))
+            for behavior in ("n2_concurrency", "n3_concurrency", "shared_budget", "registered_writer", "cleanup"):
+                self.assertEqual(report["behaviors"][behavior], {"outcome": "not-run", "runs": []})
             parent = n2.runtime.start_worker_session.__self__
-            wrong = next(worker for worker in parent.workers.values() if worker.task["worker_slot"] == "worker-2")
-            self.assertIsInstance(wrong.wire.transport_failure, NativeSessionBoundaryError)
+            target = next(worker for worker in parent.workers.values() if worker.task["worker_slot"] == "worker-2")
+            return receipt, events, target
 
     def test_durable_child_failure_after_writer_release_preserves_the_healthy_peer(self):
         with _pool_test_directory() as scratch, ExitStack() as stack:

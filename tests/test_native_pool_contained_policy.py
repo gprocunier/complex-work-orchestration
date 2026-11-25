@@ -1,5 +1,6 @@
 from contextlib import ExitStack
 from copy import deepcopy
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -15,11 +16,26 @@ from cwo_core.native_pool_qualification_fixtures import (
     contained_pool_qualification_prompt_preflight,
     fixed_pool_qualification_cohorts,
 )
+from registered_pool_configuration import thread_start_selectors
 
 from tests.test_native_pool_contained_stage import _registered_fixture
 
 
 class ContainedPoolPolicyTests(unittest.TestCase):
+    def test_fixed_prompt_names_the_registered_writer_and_requires_success(self):
+        namespace, = thread_start_selectors(Path("/EXAMPLE-worktree"))["dynamicTools"]
+        writer, = namespace["tools"]
+        command, = writer["inputSchema"]["properties"]["command"]["enum"]
+        tool = f"{namespace['name']}.{writer['name']}"
+        arguments = json.dumps({"command": command})
+        for cohort in fixed_pool_qualification_cohorts():
+            for task in cohort["tasks"]:
+                expected = (
+                    f"Call only `{tool}` with `{arguments}`. "
+                    f"Return this exact marker only after the tool reply confirms success.\n{task['completion_marker']}"
+                )
+                self.assertTrue(task["prompt"].endswith(expected))
+
     def test_fixed_prompt_preparation_keeps_original_expansion_held(self):
         policy = tools.contained_pool_tool_policy()
         for cohort in fixed_pool_qualification_cohorts():

@@ -20,8 +20,10 @@ def _worker_task(size: int, slot: int) -> dict[str, str]:
         "prompt": (
             f"In your assigned disposable clone, create only {path}. "
             f"Write this single UTF-8 line, including its final newline.\n{contents}"
-            "Leave the seed file and Git state untouched. Use only the registered local "
-            f"write operation. After the write, return this exact marker.\n{marker}"
+            "Leave the seed file and Git state untouched. "
+            "Call only `cwo_finite.finite_command` with "
+            '`{"command": "write the selected qualification fixture file"}`. '
+            f"Return this exact marker only after the tool reply confirms success.\n{marker}"
         ),
     }
 
