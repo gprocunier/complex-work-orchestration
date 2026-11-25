@@ -1,154 +1,163 @@
 # CWO security threat model
 
-This document is the security claim boundary for the repository. It describes
-the helper-managed workflow and does not certify operators, hosts, providers,
-or manually bypassed workflows.
+CWO's supervisor host controls what a registered worker receives, which effects
+it can request, and what evidence reaches the lead. The model assumes that a
+worker's prompts and output may be hostile. It covers the managed routes
+described here and assumes the operator, lead, controller, host OS and selected
+executables are trusted. The [claims register](claims-register.md) links each
+claim to its implementation and evidence.
 
-## Assets
+## Trust on the supervisor host
 
-Assets include repository source and policy, Beads task and acceptance data,
-worker packets and returns, model and provider metadata, credentials and secrets
-that must not enter packets or logs, worktree contents, audit journals, hashes,
-and the integrity of validation and adjudication evidence.
+| Boundary | What is trusted and what can cross it |
+| --- | --- |
+| Operator, lead and controller | The operator authorizes the task, budget and disclosure. The lead acts within the trust granted to its host session and invokes CWO's helpers. The controller holds approval keys, current authorization and replay state, worker login custody, dispatch and acceptance evidence, and the link to the selected Beads database. |
+| Registered worker | The host treats model responses and tool requests as untrusted. The worker sees the mounted checkout and task data for its assignment. The host keeps signing keys, controller state and acceptance records outside worker-visible roots and validates returned artifacts before use. |
+| Provider or external reviewer | Approved data crosses the boundary to the selected service or reviewer. Returned material is evidence. Provider identity, reply digests and review scores describe provenance and evaluation within the workflow. The service's data handling and the truth of its claims remain separate questions. |
 
-## Actors and trust boundaries
+Controller-signed approvals use a keyed HMAC over the exact approved action.
+The verifier checks the action and its parent authorization. Route-specific
+checks enforce current scope, expiry and use state before effects. The bindings
+cover the relevant task, workspace, provider, budget and operations. This
+protects against a sandboxed worker forging an approval, changing its scope
+or replaying an already-used authorization. The controller keeps its key and
+use state outside the worker's mounts. The lead and other unrestricted
+processes running under the controller's Unix account are trusted. They can
+access same-account state or bypass the helpers. These signatures establish
+authorization under the controller key. Independent proof of who approved the
+action would require a separate trust root.
+[Signed route contracts](native-live-route-holds.md).
 
-Actors are the operator, the trusted control plane, native or local workers,
-external providers, repository maintainers and reviewers, and an attacker.
-The control plane boundary separates packet construction, validation, dispatch,
-evaluation, audit, and architect adjudication from worker output. The worker
-boundary contains model-generated input and output. The provider boundary is a
-separate trust domain: provider metadata and routing are recorded, but provider
-responses remain evidence rather than authority.
+Packet self-hashes and record digests identify exact bytes. The configured host
+audit verifies retained events and links against a private head checkpoint and
+ordered segment seals. It refuses a changed retained record, broken chain or
+missing history inconsistent with that evidence. Legacy diagnostic logs only
+check the retained chain and provide no host authority. A same-account writer
+can replace and rehash the entire local history and checkpoint. The host audit
+has no external anchor and says nothing about unrecorded actions.
+[Host audit history](host-audit-history.md).
 
-The baseline assumes a same-process attacker may influence worker prompts,
-outputs, and untrusted input, but does not control the trusted control-plane
-verifier or its replay state. It assumes a filesystem attacker may read or
-alter files the operating-system account can access, including local audit
-evidence. When the audit hash chain is checked, it detects a retained event
-that was altered and a broken link between retained events. The configured host chain keeps a private head checkpoint and ordered segment
-seals, so missing/truncated retained history also refuses. Custom legacy diagnostic
-logs have no equivalent checkpoint and cannot provide host authority. A writer who can rewrite the file can also recompute every
-hash, and there is no external anchor, so the chain does not detect deliberate
-rewriting by the same account. A compromised host, operating-system account,
-credentials, or trust root is outside this model and needs an external trust
-anchor.
+## Registered worker routes
 
-## Threats, mechanisms, and residual risk
+| Route | Shipped status and evidence | Scope |
+| --- | --- | --- |
+| Registered single-worker execution | The live qualification completed on 2026-11-24 after using 15 of 20 allowed starts. Every required behavior had a passing witness. The recorded Codex CLI was 0.171.0. Live witnesses through CWO v1.24.0 covered useful output and validation, progress from empty polling without stdin delivery, nonempty input refusal, outside-workspace refusal before spawn, signed exhaustion and charging, archive and cleanup. Production execution has its own enabled source decision, exact OpenAI disclosure and separately provisioned worker authentication. | The pass applies to the recorded finite profile and setup. Generic native launch, unrestricted worker tools and other hosts or configurations need their own evidence. [Production enablement](https://github.com/gprocunier/complex-work-orchestration/pull/149) · [Production requirements](native-live-route-holds.md#registered-single-worker-production) |
+| Standing-approved delegation | The local `cwo-codex` foreground approval server retains an eligible assignment when the operator accepts the exact action. The installed `cwo delegate` selects it by project, Beads database, task and baseline, verifies the original admission and budget, and runs one registered worker. The signed custody can reference the full initial checkout snapshot by digest. The controller checks the protected reference and observes the current checkout again before dispatch. | The route writes one preapproved project-relative text output. It binds the exact candidate to the baseline and delivers it for independent hand acceptance. Installation alone supplies neither an approval nor evidence that a fresh host is qualified. [Delegation](https://github.com/gprocunier/complex-work-orchestration/pull/181) · [Checkout custody](https://github.com/gprocunier/complex-work-orchestration/pull/219) · [Hand acceptance](run-readiness.md#accepting-a-delivery-by-hand) |
+| Contained pool qualification | The protected qualification path has shipped for disposable two- and three-worker runs. A trusted controller signs the fixed plans and budget, admits the cohort, and verifies the original writer, accounting and cleanup evidence. The full live qualification remains incomplete. | This is a qualification route. The ordinary concurrent pool remains unqualified and disabled, and the production pool and legacy campaign holds remain in place. [Protected qualification](https://github.com/gprocunier/complex-work-orchestration/pull/156) · [Contained pool contract](native-supervision-pools.md#contained-qualification-on-stock-codex) · [Live route holds](native-live-route-holds.md) |
 
-| Threat or claim | Mechanism and evidence | Residual risk |
-|---|---|---|
-| Scope or disclosure escape | Allowlisted paths, packet redaction, an outbound screen of the exact exported or sent bytes, explicit opt-in and disclosure boundaries, packet validation, and audit records | An operator can copy data or bypass helpers; redaction and screening are pattern checks, not access control, and miss secrets with no recognizable shape |
-| Forged or replayed activation | Trusted verifier, exact capability binding, expiry, replay state, and preflight checks | Trust-root or host compromise is not covered |
-| Worker output treated as authority | Evaluator scoring, sabotage/quarantine checks, autonomous architect adjudication, verified host acceptance and required hold records | Correlated model mistakes remain possible |
-| Audit evidence altered locally | Host chain, private current-head checkpoint and ordered segment seals detect changed events, links and incomplete retained history | Custom legacy logs do not provide host authority; a same-account writer can rewrite and rehash the chain and checkpoint; local evidence is not immutable and cannot prove an unrecorded action did not occur |
-| Worker or caller self-clears acceptance holds | Configured host records outside every sandbox-writable root, content digests, bounded segmented audit-chain verification, original host-only peer capture, manual executor-only CLI intake, exact return/evaluation/adjudication and hold evidence | Host records are integrity-only; unrestricted same-user history rewriting is not prevented |
-| Closure selects another database | Setup-time random database identity plus physical binding, verified host record and repeated checks before Beads calls; identity in acceptance and closure audit | A compromised host can bypass helpers; database custody remains cooperative among host editors |
-| Privileged or unsafe execution | Bounded dispatch, server-side tool enforcement, fixed scopes, and fail-closed checks | Exact guarantees depend on the trusted host and configured enforcement path |
+The registered single-worker and contained pool qualification app servers run
+with read-only checkout mounts. The single-worker route exposes the approved
+finite command and empty polls. In the pool, the original isolated writer may
+change only its assigned file. Codex's read-only tool profile adds another layer
+in the pool: stock tool names can still appear in the reported catalog. The
+catalog records what was declared. The containment claim rests on the host
+mounts, network isolation, checked profile and authorized writer effects.
+Confidential native workloads remain unsupported.
+[Registered route](native-live-route-holds.md#registered-single-worker-production) ·
+[Contained pool tools](native-supervision-pools.md#contained-qualification-on-stock-codex).
 
-## Out of scope
+**Provider-only network.** The registered app server uses a host relay for HTTPS
+to the allowlisted OpenAI service and authentication destinations. The relay
+checks the destination and TLS server name. The finite command, pool writer and
+validator run in separate network namespaces without that relay. The encrypted
+payload is opaque to the relay. Admission and packet screening govern which
+data is approved for disclosure. This network boundary applies to these
+registered processes. Desktop, external CLI and ordinary lead traffic use
+their own environment's network access.
+[Registered provider relay](../scripts/registered_provider_network.py).
 
-This model does not cover a compromised host or provider, malicious repository
-maintainers, stolen credentials, denial of service or availability, model
-misuse outside CWO, vulnerabilities in the operating system or dependencies,
-or confidentiality after an authorized operator deliberately shares data.
+**Dedicated worker logins.** The worker sign-in uses a separate owner-private
+Codex home under the controller's Unix account. Production, interactive Codex
+and qualification use separate login homes. Concurrent qualification workers
+each need their own. Only the isolated app server receives the projected login.
+Its tool profile denies access to that projection, and command and validator
+processes run without it. The controller checks custody and holds an exclusive
+lease while an app server uses the login. Uncertain cleanup keeps the lease
+held for reconciliation. The app server can refresh the credential, and an
+unrestricted process under the controller account can access the login home.
+[Worker login requirements](native-live-route-holds.md#registered-single-worker-production) ·
+[Pool login custody](native-supervision-pools.md#contained-qualification-on-stock-codex).
 
-Optional external anchors such as signed releases, independent attestations,
-or a provider's security documentation may strengthen assurance, but none is
-claimed as present by this document.
+## Review and synthesis routes
 
-## Peer-review independence and recorded model identity
+| Route | Available path | Trust limit |
+| --- | --- | --- |
+| Codex | The policy assigns the architect ownership of synthesis and lists an internal Codex review worker. A live worker still needs the admission and authority of its actual route. | The architect and reviewer roles are instructions. Codex and ChatGPT Pro share the OpenAI provider family. |
+| Claude | CWO can export a screened architecture critic packet for separate use with the Claude CLI. | An approved packet, working CLI and authorized login are prerequisites. [External critics](external-contracting.md#dispatch-flow) · [Executor registry](../policy/executor-registry.yaml) |
+| Gemini | CWO can export a screened critic packet for Gemini through Antigravity's `agy` CLI. The shipped synthesis policy treats Gemini as salvage-only by default. | An approved packet, working CLI and authorized login are prerequisites. A specific evaluated finding can count as primary only with the architect's recorded approval under synthesis policy. [Executor registry](../policy/executor-registry.yaml) · [Synthesis rules](zero-trust-consensus.md) |
+| ChatGPT Pro | The shipped integration prepares the screened request for a Codex architect thread in the ChatGPT desktop app. With the operator present, the thread uses the paired `@Chrome` profile to send the request and capture the reply. The operator reported a successful desktop round trip with matching reply and evaluator digests. | CWO binds the prepared request ID, private reply bytes, sender-confirmed model picker label and evaluation. The sender supplies the browser and model observations. Legacy CDP dispatch and share-link intake remain held. [Desktop integration](https://github.com/gprocunier/complex-work-orchestration/pull/163) · [Desktop workflow](chatgpt-pro-browser.md) |
 
-An executor can write a version 1 review string, compute the current return and
-pending-evaluation digests, or name a stronger model without invoking it. Current
-passed reviews therefore require a structured version 2 identity and two separate
-recorded dispatches. The executor identity comes from its own return-bound
-dispatch; reviewer provider, family, model and effort must match a recorded
-`peer-review` dispatch that records this exact dispatch/return/evaluation as its
-`review_target`. An unrelated recorded review cannot be recycled. Missing/ambiguous provenance, same dispatch/session, and
-same model at any effort refuse. Identity components and session labels are
-bounded before persisted audit. Access-channel aliases for the same provider do
-not establish cross-provider separation.
+Packet helpers enforce external opt-in, the approved disclosure boundary and
+exact exported-byte screening when invoked. Redaction and screening check for
+known patterns. They can miss sensitive information and depend on the operator
+to inspect what will be shared. The operator or lead runs external CLI calls
+under that environment's controls. An exported prompt records preparation.
+Observed peer-review evidence is still required when policy calls for it.
+A required review stays open until the original evidence is available.
+[Contractor dispatch](external-contracting.md#dispatch-flow) ·
+[Peer review source contract](peer-review-record.md).
 
-Cross-family separation is preferred. Same-provider model escalation uses only
-`provider-registry.yaml`'s `review_models` table and is weaker separation: shared
-provider and training lineage can preserve correlated mistakes or intervention.
-Both levels are accepted procedural review evidence and are visible in the
-hold-clearance metadata, audit and CLI report. Neither clears quarantine,
-tripwires or unrelated holds, nor grants execution or trusted-host authority.
+The shipped offline synthesis helper reads exact received returns and current
+evaluations. It checks recorded dispatch and candidate bindings, preserves
+peer-review holds, and compares explicit claims by provider family when policy
+requires it. Older dispatches can leave candidate and scope as operator-selected.
+Same-family channels count as one domain. Cross-provider agreement can still
+reflect shared errors. The installed helper makes no model requests, and an
+end-to-end live critic panel has no passing record. A ready offline report is
+evidence for the architect's adjudication and gives no authority to implement
+or close. [Offline synthesis](zero-trust-consensus.md#invocation-boundary).
 
-Dispatch provenance comes only from the configured host record store, outside
-every N1 and pool sandbox-writable root. Caller-selected dispatch directories
-and caller-written dispatch files are refused. Each record is checked against
-its content digest and matching event on the existing hash chain. The qualified
-broker rechecks verified records on reevaluation. File hashes establish
-integrity, not cryptographic authentication; an unrestricted same-user process
-can replace the whole history. A caller-written review record is never used as
-dispatch proof.
-See [the exact record and source contract](peer-review-record.md).
+## Delivery and acceptance
 
-## Autonomous production closure
+Worker and reviewer output goes through evaluation, checks for harmful changes
+and quarantine conditions, any required peer review, and architect adjudication.
+A passed structured peer review requires separate recorded dispatches. The
+review dispatch must target the original dispatch, exact return and evaluation.
+Same dispatch, session or model refuse. Same-provider escalation is accepted
+only for a registered stronger model and offers weaker separation. Missing or
+ambiguous host provenance refuses. Review leaves quarantine, tripwires and
+unrelated holds in place.
+[Peer review source contract](peer-review-record.md).
 
-The host acceptance pipeline records evaluation, adjudication and the evidence
-that clears every required hold, including independently dispatched peer review
-where policy requires it. The original submitted source context binds its task,
-requirement-baseline digest and delivered-candidate digest. The original host
-dispatch retains this context; acceptance snapshots it in its evaluation,
-adjudication, clearance and decision records. Closure independently compares
-the custody contract to that accepted origin, then rechecks the origin, return,
-evaluation, every clearance and setup-time database identity before each Beads
-call. An otherwise valid acceptance for the same task cannot authorize another
-baseline or candidate. Legacy acceptances without that source context cannot
-authorize production completion. Caller-written production
-approval files are retired. Human confirmation and signing are not part of the
-pipeline. The production source gate ships true following the operator decision
-of 2026-11-15; setting it false refuses before validation, I/O or effect.
-The host-selected adjudicator's provider, family, model, dispatch and session
-must satisfy the existing peer-review separation rules against the executor.
-Same model at another effort, same session and same dispatch refuse; same-family
-escalation requires a registered stronger model. Policy-required peer review is
-still required independently. An arbitrary control ID is not identity.
+Everyday delegation delivers the exact candidate for hand acceptance from a
+separate foreground session. The hand acceptance helper checks the live
+candidate, baseline, blockers and children and records the reviewer session and
+decision before close. These checks rely on the verified host and protect the
+helper-managed path. Unrestricted processes can still edit the audit or operate
+directly on Beads. [Hand acceptance](run-readiness.md#accepting-a-delivery-by-hand).
 
-The supported library sequence is `qualified_closure.production_custody` →
-`qualified_closure.observe` → `qualified_closure.bind` →
-`close_bead_with_summary.execute_qualified_completed`; its
-[contract and availability](run-readiness.md#verified-closure-library) are
-documented separately from narrative dispositions. Original issued observations
-must cover every required criterion. A serialized success field grants nothing.
-The source kill switch refuses before setup or inspection reads; other refusals may
-need read-only custody, candidate, policy and host-record inspection. No comment,
-close or acceptance write is made by those closure refusals. After a comment has
-persisted, a later refusal retains a sticky partial-persistence report and never
-automatically retries.
-The captured original Beads adapter queries authoritative blockers and children
-in the setup-selected database before writes and again before close; any
-nonclosed blocker or child refuses. Consumption intent is atomically reserved
-in the existing host audit before the first Beads write. The acceptance cannot
-be reused after a reopen or partial failure.
+The verified production closure library is enabled. It consumes one original
+host acceptance bound to the exact task, requirement baseline, candidate,
+dispatch, return, current policy, required clearances and setup-selected Beads
+database. A host-selected adjudicator must satisfy the peer-review separation
+rules against the executor. Policy-required peer review remains a separate
+gate. The original adapter checks blockers and children before writing and
+checks again before close. The audit reserves acceptance before the first write.
+It records partial persistence and avoids automatic retry after a later
+refusal. The embedding host selects the adjudication callable and records its
+identity. The record depends on that host's integrity. The shipped original
+review-host producer remains held. The narrative CLI records
+`pending-acceptance`. Verified production success requires the library. The
+independently held activation preview uses a different pool receipt mechanism
+with no verified production closure authority.
+[Verified closure library](run-readiness.md#verified-closure-library) ·
+[Activation hold](native-live-route-holds.md).
 
-The activation preview has a separate accepted-child close route based on pool
-receipts. It is held independently by `LIVE_ACTIVATION_AVAILABLE` and its selected
-N1/pool holds, not constrained by production verified acceptance today. Those
-receipts supply no closure-eligible host acceptance or independent custody
-contract. Enabling the verified library does not enable activation; a future
-activation restoration must resolve that separate closure contract.
+## Instruction-only controls and remaining trust
 
-Sandboxed workers cannot write the configured store; a separate test exercises
-that boundary through the offline N1 host. A same-user process can alter records
-but a changed retained record digest or broken chain is detected and refused.
-This is tamper-evident, not tamper-proof: no immutable or external trust anchor
-prevents an unrestricted same-user process from replacing and rehashing the
-complete history. Missing records or chain events refuse rather than authorize.
-An embedding host selects the adjudication callable and records its identity.
-The boundary does not authenticate that callable or the truth of its metadata
-against a same-user writer who can mint coherent records. The shipped original
-review-host producer remains held by `LOCAL_INVOCATION_AVAILABLE`; the narrative
-CLI continues to record `pending-acceptance` and refuses success dispositions.
+The architect profile and role prompts ask the lead to delegate where appropriate,
+keep within scope, review evidence and honor holds. Host sandbox and approval
+settings govern the lead's Codex session. Launching with Codex `--yolo` disables
+Codex sandbox and approval checks for the lead. Any separate OS or container
+restrictions still apply. CWO's registered worker controls apply on that route.
+A lead with direct filesystem or Beads access can bypass a cooperative helper. Advisory
+Beads hooks and native supervision reports supply context and observations.
+They have no independent enforcement, and hook-based enforcement remains
+unsupported. [Architect profile](cwo-system-prompt.md) ·
+[Hook enforcement disposition](codex-hook-enforcement-disposition.md) ·
+[Native supervision](native-supervision.md).
 
-Default audit history lives beside the package under
-`../.cwo-host-state/<package-name>/`. [Segment seals and automatic recovery](host-audit-history.md)
-preserve one bounded chain, old record anchors and quota history. A pending or
-uncertain rotation fails closed without allowing a legacy-log fallback. The
-existing completed-adjudication observation persists eligible autonomous
-acceptance for the uniquely initialized workspace database. Database setup has a
-product entry point and changes no Beads logical state; it never grants closure.
+The model assumes an uncompromised host, account, credentials, software and
+trust root. Provider compromise or retention, malicious maintainers, OS and
+dependency vulnerabilities, availability and deliberate operator disclosure are
+outside its scope.
