@@ -120,7 +120,7 @@ def _preserve_peer_requirement(store, dispatch, evaluation, return_sha256):
 
 def _lane_input(item, evaluation, lane):
     # Carry the evaluator's holds and provider metadata through to the existing
-    # synthesis policy. Only the local claims are supplied by the operator.
+    # synthesis policy alongside the operator's local claims.
     disposition = _evaluation_disposition(evaluation)
     if evaluation["verdict"] == "partial-accept" and not evaluation["evidence_use_hold"]:
         disposition = "salvage-only"
@@ -128,6 +128,21 @@ def _lane_input(item, evaluation, lane):
     if "zero_trust_claims" in item:
         entry["zero_trust_claims"] = item["zero_trust_claims"]
     return entry
+
+
+def _primary_use_request(item, evaluation, exact_return):
+    if "synthesis_use" not in item:
+        return {}
+    if item["synthesis_use"] != "primary":
+        raise ValueError('recorded synthesis_use must be "primary" when supplied')
+    if not exact_return:
+        raise ValueError("a primary use request must match the exact host return receipt")
+    if (evaluation["verdict"] != "accept" or evaluation["accepted_for_use"] is not True
+            or evaluation["screening_eligible"] is not True or evaluation["evidence_use_hold"] is not False
+            or evaluation["implementation_blocked"] is not False
+            or evaluation["recommended_synthesis_use"] != "salvage-only"):
+        raise ValueError("a primary use request requires an accepted salvage-only evaluation without a use hold")
+    return {"synthesis_use": "primary"}
 
 
 def _recorded_lane(store, item, directory, candidate, scope, policy_sha256):
@@ -152,6 +167,7 @@ def _recorded_lane(store, item, directory, candidate, scope, policy_sha256):
         evaluation_sha256=evaluation_digest, candidate_scope_basis="recorded" if context else "operator-selected")
     projected = _preserve_peer_requirement(store, dispatch, evaluation, return_sha256)
     entry = _lane_input(item, projected, dispatch["dispatch_id"])
+    entry.update(_primary_use_request(item, projected, receipt["return_sha256"] == return_sha256))
     entry["return_sha256"] = return_sha256
     return entry, binding, provenance
 
@@ -238,7 +254,8 @@ def _synthesize(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inputs", required=True, type=Path,
-                        help="JSON list of return files with recorded evaluations or explicit operator_codex evidence.")
+                        help="JSON list of return files with recorded evaluations or explicit operator_codex evidence. "
+                        'An accepted salvage-only evaluation may request synthesis_use "primary" for adjudication.')
     parser.add_argument("--candidate", required=True, help="Candidate or plan revision under review.")
     parser.add_argument("--scope", required=True, help="Adjudication scope for the selected candidate.")
     parser.add_argument("--adjudications", type=Path, help="JSON list of bound return adjudication records.")
