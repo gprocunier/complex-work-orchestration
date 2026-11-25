@@ -2176,11 +2176,11 @@
 
 "p52":[50,202,{"$":315}],
 
-"p52E":[65,"RegisteredN1Workflow._production_selected",481,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
+"p52E":[65,"RegisteredN1Workflow._production_selected",484,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
 
 "p52F":[64,"_RegisteredServer._register_production_rpc",1232,"kISxK9pHjckkbv9hrb_tAgnq4iWNRqyXFLdbFqudSys"],
 
-"p52G":[65,"RegisteredN1Workflow._require_production_execution",654,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
+"p52G":[65,"RegisteredN1Workflow._require_production_execution",657,"m-RBwCXKshlBgzkicoDtEJGCI7_Bnr067V8BgdugJFM"],
 
 "p52a":[153,"WorkflowTests.test_production_requires_current_adoption_and_configured_worker_login",382,"SOKBojMQfm0KVuZZYQrqsR7_nZS9sa5bsY-g1IpLtew"],
 
@@ -2322,9 +2322,9 @@
 
 "p73":[82,"AcceptanceProductFlowTests.provision",127,"H2UuPW3uAly8aG6VzGMSD0nfL4bvp7Q9iFoeMOjg6Rk"],
 
-"p73a":[65,675,"if selection is None:"],
+"p73a":[65,678,"if selection is None:"],
 
-"p73b":[65,673,"if c._worker_login_error is not None:"],
+"p73b":[65,676,"if c._worker_login_error is not None:"],
 
 "p73c":[153,"WorkflowTests.test_malformed_saved_login_refuses_only_after_original_adoption",419,"KV0BITFT8mJf0DMQLWtmVCa1bkEQBZNqyKGZ8giq4EI"],
 
@@ -2520,7 +2520,7 @@
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
-"pQ":[65,"RegisteredN1Workflow._commit_execution",554,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
+"pQ":[65,"RegisteredN1Workflow._commit_execution",557,"PCE4ixqpcIYN13Fzs28nvwPDrROud898fU-v6KHvAfg"],
 
 "pQe1":[160,162,"stage._require_campaign_enrollment",4,162,38],
 
@@ -2538,9 +2538,9 @@
 
 "pQt7":[156,"PoolConfigurationTests.test_raw_writer_cannot_replace_original_retained_authorization",35,"gnRYl3v54rL2P67KbXPME4tn1tMvVMQNgwOqh2CVlno"],
 
-"pR":[65,"RegisteredN1Workflow._prepare_execution",530,"GmUTQnJ18-VWkybtitPYDYjR-OEw09zWxZIGXRm96VI"],
+"pR":[65,"RegisteredN1Workflow._prepare_execution",533,"GmUTQnJ18-VWkybtitPYDYjR-OEw09zWxZIGXRm96VI"],
 
-"pS":[65,"RegisteredN1Workflow._validate_execution",540,"nee2Lg9_3KnYaOLV18mLm61O6tzMpBZYapRh1BdpDn4"],
+"pS":[65,"RegisteredN1Workflow._validate_execution",543,"nee2Lg9_3KnYaOLV18mLm61O6tzMpBZYapRh1BdpDn4"],
 
 "pT":[42,"AppServer._raise_failed_turn_start",2224,"jyvTcLfJWtdc4Pr_WbtEifwaRUEU4VXJU_IAkb1vocc"],
 
@@ -2650,7 +2650,7 @@
 
 "pc9":[130,"ReleaseEffectRoutesTests._git_pair",1421,"nqUbPdd1sJwFcR3w_CJQflGtJHDoliB8lauHREZ_J6U"],
 
-"pca":[65,"RegisteredN1Workflow.run",696,"kVr7-2ikE9k4mwywWSjsVz-SgnM7c9VLpI6bKbM5mrA"],
+"pca":[65,"RegisteredN1Workflow.run",699,"kVr7-2ikE9k4mwywWSjsVz-SgnM7c9VLpI6bKbM5mrA"],
 
 "pcb":[139,"TrustedGitTests.test_only_fixed_trustworthy_paths_are_used",1148,"KUasbycq-u2HYjys762v8BrfPX-pUO0tOIVZE79v3GA"],
 
@@ -2888,7 +2888,7 @@
 
 "ur":[170,350,"reviewer_session()",25,350,43],
 
-"us":[65,690,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
+"us":[65,693,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
 
 "ut":[148,"ManagedLoginNamespaceTests.assert_atomic_refresh_and_runtime_isolation",227,"1V4JIAPaoLLhIH-buh_fAbwUnE3Z9HCYA09DAh85iwk"],
 
@@ -2898,11 +2898,11 @@
 
 "uw":[149,122,"_need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),"],
 
-"ux":[65,651,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
+"ux":[65,654,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
 
 "uz":[8,1037,"page.locator(str(selector)).first.click(timeout=timeout_ms)",20,1037,79],
 
-"v0":[65,703,"R.live_availability.require_n1_live()"],
+"v0":[65,706,"R.live_availability.require_n1_live()"],
 
 "v1":[8,1181,"self._press_until_ready(box, origin, timeout_ms, guard)",15,1181,70],
 
@@ -3010,7 +3010,7 @@
 
 "vs":[170,226,"run_bd([\"comment\", \"--\", delivery.bead_id, comment])",8,226,60],
 
-"vt":[65,671,"_need(selection == c._worker_login_home,"],
+"vt":[65,674,"_need(selection == c._worker_login_home,"],
 
 "vu":[35,24,"if REGISTERED_N1_LIVE_AVAILABLE is not True:"],
 
@@ -7404,7 +7404,7 @@
 
 "@64":["NuTUVbOdmwJibai2ftSES-ZlWnG54cXEpoOCNZLFfvc",420,139494],
 
-"@65":["dTp2zw1H_znusAmnGXs82puZ6zTsSG2Jd6jQ0QXPSv4",420,46676],
+"@65":["w0yedCczKmWhG6zjZbYPXawSyQ1VX2vuj2b0vXqOqQQ",420,46919],
 
 "@66":["yydJmz2r25lUIDAVnbkKz-KUmgOVux6iavYDEax4IK8",420,2228],
 
@@ -7874,7 +7874,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["UkuKVxorw0wlSMUFW_is_YacWFi-DL4lo0n9su6kNco",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["o9Gdi3if0Luo6jWpRf4jbG8dEbFKOkFVzQ2EyiCMbNE",420,136048],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
