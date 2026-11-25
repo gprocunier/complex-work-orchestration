@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-- Require v2 admission for native pool dispatch. Direct execution of v1 pools and the legacy campaign launcher now refuse before worker or state effects. Existing v1 pool artifacts remain valid for inspection.
 - Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
+
+## 1.35.0 - 2026-11-24
+
+- Require v2 admission for native pool dispatch. Direct execution of v1 pools and the legacy campaign launcher now refuse before worker or state effects. Existing v1 pool artifacts remain valid for inspection.
 
 ### Tests
 
