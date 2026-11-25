@@ -1316,7 +1316,7 @@ class RegisteredRequestsTests(unittest.TestCase):
         self.original_driver_interrupt('exhaustion')
 
     @contextmanager
-    def hold_archive_response(self, *, release_after, post_request_eof=False):
+    def hold_archive_response(self, *, release_after, post_request_eof=None):
         progress, worker_entered = threading.Event(), threading.Event()
         held, archives, waits = [], [], []
         original_receive = family.RpcProcess.receive
@@ -1354,9 +1354,10 @@ class RegisteredRequestsTests(unittest.TestCase):
             if not held:
                 return  # The next close callback can record the worker's failure.
             if not waits:
-                if post_request_eof:
+                if post_request_eof is not None:
                     process, _ = held[0]
                     process.stdout.put('')
+                    post_request_eof.set()
                     self.assertTrue(archive._done.wait(3), 'EXAMPLE archive worker did not settle after EOF')
                 settled = archive.completion_ready()
                 if settled:
@@ -1440,14 +1441,21 @@ class RegisteredRequestsTests(unittest.TestCase):
 
     def test_original_exhaustion_drain_retains_archive_failure_after_rpc(self):
         archive_module = sys.modules[runtime.RegisteredAdapter.finalize.__module__]
-        with self.assertRaisesRegex(archive_module.AppServerError, '^app-server-output-closed$'):
-            with self.hold_archive_response(release_after=0.25, post_request_eof=True):
+        eof_issued = threading.Event()
+        with self.assertRaises(archive_module.AppServerError) as observed:
+            with self.hold_archive_response(release_after=0.25, post_request_eof=eof_issued):
                 factory, case = self.original_driver_interrupt('exhaustion')
 
+        self.assertTrue(eof_issued.is_set())
+        original_fault = factory.server.transport_failure
+        self.assertIsInstance(original_fault, runtime.native.OfflineHostError)
+        self.assertEqual(str(original_fault), 'The registered protocol ended before controlled termination.')
+        # The archive waiter can wake before the reader replaces the registered fault label.
+        self.assertIn(str(observed.exception), ('app-server-output-closed', 'registered-transport-fault'))
         report = factory.execution
         receipt = report['receipt']
         self.assertEqual(receipt['terminal_state'], 'control-failed')
-        self.assertEqual(receipt['errors'], ['callback-failed:AppServerError:app-server-output-closed'])
+        self.assertEqual(receipt['errors'], [f'callback-failed:AppServerError:{observed.exception}'])
         self.assertFalse(factory.adapter.archived)
         self.assertIsNone(factory.server.archive_acceptance_proof(factory.adapter.thread_id))
         self.assertIsNone(report['artifact'])

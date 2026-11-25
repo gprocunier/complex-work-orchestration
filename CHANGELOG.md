@@ -5,9 +5,12 @@
 - Preserve refused pool qualification results with their cleanup, lease, and accounting evidence.
 - Name the registered writer and require its successful reply in the fixed pool qualification task.
 
+## 1.36.5 - 2026-11-25
+
 ### Tests
 
 - Preserve archive failures that occur after the registered exhaustion fixture observes the archive request.
+- Preserve staged archive EOF evidence across registered transport fault ordering.
 
 ## 1.36.4 - 2026-11-25
 
