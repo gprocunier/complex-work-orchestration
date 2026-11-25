@@ -3360,7 +3360,7 @@
 
 "z5":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",367,"4GVHXyDF_Imqus5v8zQZAq4DCSsxUuReA5EFuGkcR6A"],
 
-"z6":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1387,"oJI0tM2ygXBHCkoYrxkZkaIG-rTlLffdcjcf44IEDVk"],
+"z6":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1403,"oJI0tM2ygXBHCkoYrxkZkaIG-rTlLffdcjcf44IEDVk"],
 
 "z7":[150,"_check_method_envelope",199,"hu6yJz90FBnQf8ynDVYTZoKrixNvW355dFVb14Gn6aw"],
 
@@ -7316,7 +7316,7 @@
 
 "@151":["wiORGQLdKDfRj5VzoSnBhwaTRaWlq-IvPMJuJCBecMc",420,31557],
 
-"@152":["SmDQ7-MiRSlzJcWQgpRP97WRN9BoZtEBnU6_EUU7VKs",420,90827],
+"@152":["wGpVDmPUI7FYQe8B-296k-TEvDC359Gqi0iR_Rg1wCQ",420,91592],
 
 "@153":["vEl_9pFsc-8-Wfz6CCHQUEZTkBC45jIp0FgOX2XgFgY",420,61371],
 
@@ -7976,7 +7976,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["ClkLf6afwSn8yluEOtZ90NimlxknAXT5n1X_ltdOK6c",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["iH9oDB149hdVgOGK6tgHWu7-3ynn6m8idOuk-wLgFXI",420,136048],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
