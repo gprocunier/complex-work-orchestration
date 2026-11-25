@@ -1,5 +1,6 @@
 """Offline witnesses for the registered N1 provider network boundary."""
 import errno
+from contextlib import ExitStack
 from pathlib import Path
 import os
 import queue
@@ -158,6 +159,72 @@ class ProviderNetworkTests(unittest.TestCase):
             self.assertEqual(client.recv(1024), b'')
         with self.assertRaisesRegex(network.ProviderNetworkError, 'record'):
             self.broker.close()
+
+    def test_upstream_revoked(self):
+        started = threading.Event()
+        transfer = network._transfer
+
+        with ExitStack() as stack:
+            service, peer = socket.socketpair()
+            stack.enter_context(service)
+            stack.enter_context(peer)
+            service.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)
+            peer.settimeout(2)
+
+            def observe_transfer(selector, peers, stream):
+                if peers[stream] is service:
+                    started.set()
+                return transfer(selector, peers, stream)
+
+            stack.enter_context(patch.object(network, '_dial_provider', return_value=service))
+            stack.enter_context(patch.object(network, '_transfer', observe_transfer))
+            stack.enter_context(patch.object(network, '_TIMEOUT', 1.5))
+            client = self.client()
+            client.sendall(b'CONNECT chatgpt.com:443 HTTP/1.1\r\n\r\n')
+            self.assertIn(b'200', client.recv(1024))
+            hello = _hello('chatgpt.com')
+            client.sendall(hello)
+            with peer.makefile('rb') as received:
+                self.assertEqual(received.read(len(hello)), hello)
+            client.sendall(b'EXAMPLE offline stream ' * 800)
+            self.assertTrue(started.wait(2))
+            deadline = monotonic() + 2
+            while select.select([], [service], [], .01)[1]:
+                self.assertLess(monotonic(), deadline, 'upstream send buffer did not fill')
+            start = monotonic()
+            self.broker.close()
+            self.assertLess(monotonic() - start, .75)
+            self.assertEqual(client.recv(1024), b'')
+            self.assertEqual(service.fileno(), -1)
+            self.assertFalse(self.broker._connections.active)
+            self.assertTrue(self.denials.empty())
+
+    def test_late_upstream_is_closed(self):
+        dialing, release = threading.Event(), threading.Event()
+        service, peer = socket.socketpair()
+        with service, peer:
+            peer.settimeout(2)
+
+            def dial(*_args):
+                dialing.set()
+                self.assertTrue(release.wait(2))
+                return service
+
+            with patch.object(network, '_dial_provider', side_effect=dial):
+                client = self.client()
+                client.sendall(b'CONNECT chatgpt.com:443 HTTP/1.1\r\n\r\n')
+                self.assertIn(b'200', client.recv(1024))
+                client.sendall(_hello('chatgpt.com'))
+                try:
+                    self.assertTrue(dialing.wait(2))
+                    self.broker.revoke()
+                finally:
+                    release.set()
+                self.broker.close()
+                self.assertEqual(peer.recv(1024), b'')
+                self.assertEqual(client.recv(1024), b'')
+                self.assertEqual(service.fileno(), -1)
+                self.assertTrue(self.denials.empty())
 
 
 class ProviderBrokerCloseTests(unittest.TestCase):
