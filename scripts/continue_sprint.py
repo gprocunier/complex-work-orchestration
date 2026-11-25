@@ -235,13 +235,21 @@ def load_markdown_items(path: Path, epic_id: str) -> list[dict[str, Any]]:
             0,
             {
                 "id": epic_id,
-                "title": epic_id,
+                "title": markdown_project_title(path),
                 "type": "epic",
                 "status": "markdown-fallback",
                 "labels": ["orchestration"],
             },
         )
     return items
+
+
+def markdown_project_title(path: Path) -> str:
+    try:
+        with path.open(encoding="utf-8") as workgraph:
+            return next((line[2:].strip() for line in workgraph if line.startswith(("# ", "#\t"))), "")
+    except OSError as exc:
+        raise SystemExit(f"could not read Markdown workgraph {path}: {exc}") from exc
 
 
 def dependency_lookup(items: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
@@ -268,21 +276,21 @@ def blocker_reasons(item: dict[str, Any], lookup: dict[str, list[dict[str, Any]]
         open_blockers = [blocker for blocker in blockers if blocker["id"] != item["id"] and not is_closed(blocker)]
         if open_blockers:
             for blocker in open_blockers:
-                reasons.append(f"depends on {blocker['id']} ({blocker['status']})")
+                reasons.append(dependency_blocker(blocker))
         elif not blockers:
             reasons.append(f"depends on unknown work item {dependency}")
     return reasons
 
 
-def unblocks_count(item: dict[str, Any], items: list[dict[str, Any]]) -> int:
+def affected_issues(item: dict[str, Any], items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     item_keys = {item["id"], str(field(item["raw"], "lane") or "")}
-    return sum(
-        1
+    return [
+        candidate
         for candidate in items
         if candidate["id"] != item["id"]
         and not is_closed(candidate)
         and item_keys.intersection(candidate["dependencies"])
-    )
+    ]
 
 
 def label_rank(labels: list[str]) -> int:
@@ -299,7 +307,7 @@ def rank_ready_issues(ready: list[dict[str, Any]], items: list[dict[str, Any]]) 
         ready,
         key=lambda item: (
             item["priority"],
-            -unblocks_count(item, items),
+            -len(affected_issues(item, items)),
             label_rank(item["labels"]),
             item["id"],
         ),
@@ -321,13 +329,23 @@ def issue_summary(item: dict[str, Any], *, reasons: list[str] | None = None) -> 
     return result
 
 
-def infer_sprint_goal(epic: dict[str, Any] | None, sprint_id: str | None) -> str:
-    if sprint_id:
-        return f"Continue sprint {sprint_id}"
-    if epic:
-        title = epic.get("title") or epic.get("id")
-        return f"Continue {title}"
-    return "Continue the current CWO sprint"
+def issue_reference(item: dict[str, Any]) -> str:
+    title = " ".join(issue_title(item).split())
+    return f"{title or 'Untitled work item'} ({item['id']})"
+
+
+def dependency_blocker(item: dict[str, Any]) -> str:
+    return f"depends on {issue_reference(item)} ({item['status']})"
+
+
+def infer_project_goal(items: list[dict[str, Any]], epic_id: str) -> str:
+    epic = next((item for item in items if issue_id(item) == epic_id), {})
+    title = issue_title(epic)
+    return " ".join(title.split()) if title != issue_id(epic) else ""
+
+
+def sprint_work_items(items: list[dict[str, Any]], epic_id: str) -> list[dict[str, Any]]:
+    return [item for item in items if item["id"] != epic_id and item["type"].lower() != "epic"]
 
 
 def definition_checks(
@@ -384,6 +402,22 @@ def definition_checks(
     return ready, done
 
 
+def continuation_commands(epic_id: str, sprint_id: str | None, source: str, path: str | None) -> list[str]:
+    import shlex
+
+    epic = shlex.quote(epic_id)
+    command = f"python3 scripts/cwo.py continue --epic {epic}"
+    if sprint_id:
+        command += f" --sprint {shlex.quote(sprint_id)}"
+    if source == "markdown-workgraph":
+        workgraph = shlex.quote(path) if path else "<path>"
+        return [
+            f"{command} --markdown-workgraph {workgraph}",
+            "move this reduced-durability workgraph into Beads before shared handoff",
+        ]
+    return [command, f"bd ready --json --parent {epic} --unassigned --limit 0"]
+
+
 def build_continuation_brief(
     raw_items: list[dict[str, Any]],
     *,
@@ -396,12 +430,8 @@ def build_continuation_brief(
 ) -> dict[str, Any]:
     items = [normalize_item(item) for item in raw_items if issue_id(item)]
     lookup = dependency_lookup(items)
-    epic = next((item for item in items if item["id"] == epic_id or item["type"] == "epic"), None)
-    open_items = [
-        item
-        for item in items
-        if not is_closed(item) and item["id"] != epic_id and item["type"].strip().lower() != "epic"
-    ]
+    work_items = sprint_work_items(items, epic_id)
+    open_items = [item for item in work_items if not is_closed(item)]
     canonical_ready_mode = any(
         "_cwo_canonical_ready" in item["raw"] for item in items
     )
@@ -442,7 +472,7 @@ def build_continuation_brief(
         items,
     )
     recommended = ranked_ready[0] if ranked_ready else None
-    sprint_goal = infer_sprint_goal(epic, sprint_id)
+    sprint_goal = infer_project_goal(items, epic_id)
     dor, dod = definition_checks(epic_id=epic_id, sprint_goal=sprint_goal, items=items, blocked=[item for item, _ in blocked])
     blocked_summaries = [issue_summary(item, reasons=reasons) for item, reasons in blocked]
     ready_summaries = [issue_summary(item) for item in ranked_ready]
@@ -452,16 +482,7 @@ def build_continuation_brief(
         if set(item["labels"]) & FOLLOWUP_LABELS and not is_closed(item)
     ]
     durability = "reduced" if source == "markdown-workgraph" else "durable"
-    resume_commands = [
-        f"bd ready --json --parent {epic_id} --unassigned --limit 0",
-        f"python3 scripts/cwo.py continue --epic {epic_id}",
-    ]
-    if source == "markdown-workgraph":
-        workgraph_path = markdown_workgraph_path or "<path>"
-        resume_commands = [
-            f"python3 scripts/cwo.py continue --epic {epic_id} --markdown-workgraph {workgraph_path}",
-            "move this reduced-durability workgraph into Beads before shared handoff",
-        ]
+    resume_commands = continuation_commands(epic_id, sprint_id, source, markdown_workgraph_path)
     warnings = [MODELING_NOTE]
     if source == "markdown-workgraph":
         warnings.append("Markdown fallback has no durable ready filtering, comments, or shared Beads handoff.")
@@ -511,32 +532,32 @@ def build_continuation_brief(
     ]
     result.update(ready_set)
     result["operator_handoff_packet"] = operator_handoff_packet(result)
+    result["status_summary"] = readable_status(result, work_items)
     return result
 
 
 def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str | None]:
     recommended = result.get("recommended_next_issue")
-    blocked = result.get("blocked_issues") or []
+    blocked = handoff_blockers(result["blocked_issues"])
     resume_commands = result.get("resume_commands") or []
     resume = resume_commands[0] if resume_commands else "bd ready --json"
     next_action = None
     waiting_on = None
     if blocked:
-        first_blocked = blocked[0]
-        waiting_on = f"{first_blocked['id']}: {', '.join(first_blocked['blockers'])}"
+        waiting_on = blocked_description(blocked[0])
     if recommended:
-        next_bead = f"{recommended['id']} {recommended['title']}".strip()
+        next_bead = issue_reference(recommended)
         next_action = f"Continue {next_bead}"
         execution_prompt = (
             "Use $complex-work-orchestration to continue "
-            f"{recommended['id']} under epic {result['epic_id']}; start with "
+            f"{next_bead} under epic {result['epic_id']}; start with "
             f"`{resume}` and execute only that bounded lane."
         )
     elif blocked:
         next_bead = "none - blocked"
         execution_prompt = (
-            f"DECIDE: epic {result['epic_id']} has no ready issue; resolve the "
-            "first recorded blocker before implementation."
+            f"BLOCKED: epic {result['epic_id']} has no ready issue. Review the "
+            "recorded blocker before starting implementation."
         )
     else:
         next_bead = "none - stop condition met"
@@ -547,7 +568,7 @@ def operator_handoff_packet(result: dict[str, Any]) -> dict[str, str | None]:
     if result.get("fanout_decision") == "pool":
         execution_prompt += (
             " A bounded pool candidate is available as evidence only; do not "
-            "dispatch it until P1-13B completes Beads claims, full drift and "
+            "dispatch it until the dispatch checks complete Beads claims, full drift and "
             "capability revalidation, proportionality, operative lease acquisition, "
             "and native-pool preflight."
         )
@@ -573,9 +594,9 @@ def why_next(item: dict[str, Any] | None, items: list[dict[str, Any]]) -> str:
     if item is None:
         return "No ready work item is available."
     reasons = [f"priority {item['priority']}"]
-    count = unblocks_count(item, items)
-    if count:
-        reasons.append(f"unblocks {count} downstream item(s)")
+    affected = affected_issues(item, items)
+    if affected:
+        reasons.append("removes a blocker for " + ", ".join(map(issue_reference, affected)))
     label_set = set(item["labels"])
     if label_set & VALIDATION_LABELS:
         reasons.append("closes validation evidence")
@@ -586,28 +607,138 @@ def why_next(item: dict[str, Any] | None, items: list[dict[str, Any]]) -> str:
     return "; ".join(reasons)
 
 
+def handoff_blockers(blocked: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    actionable = [
+        item for item in blocked
+        if any(not reason.startswith("grouping container") for reason in item["blockers"])
+    ]
+    return actionable or blocked
+
+
+def blocked_description(item: dict[str, Any]) -> str:
+    return f"{issue_reference(item)}: {', '.join(item['blockers'])}"
+
+
+def readable_status(result: dict[str, Any], work_items: list[dict[str, Any]]) -> dict[str, str]:
+    goal = result["sprint_goal"] or "Project goal is missing from the work graph."
+    completed = [f"{issue_reference(item)} [{item['status']}]" for item in work_items if is_closed(item)]
+    completed_text = (
+        f"The work graph lists these closed tasks: {', '.join(completed)}. Verification was not checked."
+        if completed else "No work is recorded as closed. Verification was not checked."
+    )
+    blocked = result["blocked_issues"]
+    recommended = result["recommended_next_issue"]
+    obstacles = [blocked_description(item) + "." for item in handoff_blockers(blocked)]
+    return {
+        **readable_next_step(recommended, blocked, work_items, bool(completed), goal),
+        "goal": goal,
+        "completed_and_verified": completed_text,
+        "what_stands_in_the_way": " ".join(obstacles) if obstacles else "No blockers are recorded.",
+    }
+
+
+def readable_next_step(
+    recommended: dict[str, Any] | None,
+    blocked: list[dict[str, Any]],
+    work_items: list[dict[str, Any]],
+    has_closed_work: bool,
+    goal: str,
+) -> dict[str, str]:
+    reader_action = "No decision is needed from you right now."
+    if recommended:
+        work_item = next(item for item in work_items if item["id"] == recommended["id"])
+        task = issue_reference(recommended)
+        return {
+            "outcome": "The project has open work and a task is ready.",
+            "next_step": f"The project team can continue {task}.",
+            "what_it_enables": what_next_enables(work_item, work_items, blocked, goal),
+            "reader_action": reader_action,
+        }
+    if blocked:
+        item = handoff_blockers(blocked)[0]
+        task = issue_reference(item)
+        raw = next(work_item["raw"] for work_item in work_items if work_item["id"] == item["id"])
+        assignee = field(raw, "assignee", "owner")
+        prefix = f"{assignee} can" if assignee else "No owner is recorded. The next step is to"
+        return {
+            "outcome": "Work is blocked and no tasks are ready.",
+            "next_step": f"{prefix} check what must change before {task} can proceed.",
+            "what_it_enables": f"Resolving the recorded blocker lets the team reassess {task} for readiness.",
+            "reader_action": "No decision is recorded for you.",
+        }
+    return {
+        "outcome": "All tracked tasks have a closed status." if has_closed_work else "The work graph has no tasks to report.",
+        "next_step": "No next step is needed.",
+        "what_it_enables": "No further work depends on a next step in this scope.",
+        "reader_action": reader_action,
+    }
+
+
+def what_next_enables(
+    selected: dict[str, Any],
+    work_items: list[dict[str, Any]],
+    blocked: list[dict[str, Any]],
+    goal: str,
+) -> str:
+    affected = affected_issues(selected, work_items)
+    if not affected:
+        return f"Finishing this step advances the project goal: {goal}"
+    blockers_by_id = {item["id"]: item["blockers"] for item in blocked}
+    removed = dependency_blocker(selected)
+    effects = []
+    for item in affected:
+        reference = issue_reference(item)
+        remaining = [reason for reason in blockers_by_id[item["id"]] if reason != removed]
+        if remaining:
+            effects.append(f"Finishing this step removes a blocker for {reference}. Other blockers: {', '.join(remaining)}.")
+        else:
+            effects.append(f"Finishing this step clears the only recorded blocker for {reference}.")
+    return " ".join(effects)
+
+
+def print_status_summary(summary: dict[str, str]) -> None:
+    print("### Status Summary\n")
+    for field in (
+        "outcome", "goal", "completed_and_verified", "what_stands_in_the_way",
+        "next_step", "what_it_enables", "reader_action",
+    ):
+        print(f"- {field.replace('_', ' ').capitalize()}: {summary[field]}")
+
+
+def print_handoff_details(packet: dict[str, Any]) -> None:
+    for field in (
+        "Next action", "Waiting on", "Next executable Bead", "Why it is next", "Exact command/resume",
+        "Execution prompt", "What must NOT run yet", "Commit/push status", "Validation status", "Escalation rule",
+    ):
+        key = field.lower().replace("/", " ").replace(" ", "_")
+        print(f"- {field}: {packet[key]}")
+
+
 def print_text(result: dict[str, Any], *, include_blocked: bool = False) -> None:
     print("# Sprint Continuation Brief\n")
+    print("## Operator Handoff Packet\n")
+    print_status_summary(result["status_summary"])
+    print("\n### Execution Details\n")
     print(f"Epic: {result['epic_id']}")
     if result.get("sprint_id"):
         print(f"Sprint: {result['sprint_id']}")
-    print(f"Goal: {result['sprint_goal']}")
     print(f"Durability: {result['durability']} ({result['source']})")
     print(f"Modeling note: {result['modeling_note']}\n")
+    print_handoff_details(result["operator_handoff_packet"])
     recommended = result.get("recommended_next_issue")
-    print("## Recommended Next Issue")
+    print("\n### Recommended Next Issue")
     if recommended:
-        print(f"- {recommended['id']} {recommended['title']}")
+        print(f"- {issue_reference(recommended)}")
         print(f"  Why: {result['why_next']}")
     else:
         print("- none")
         print(f"  Why: {result['why_next']}")
-    print("\n## Ready Issues")
+    print("\n### Ready Issues")
     for item in result.get("ready_issues", [])[:10]:
-        print(f"- {item['id']} {item['title']} [{','.join(item['labels'])}]")
+        print(f"- {issue_reference(item)} [{','.join(item['labels'])}]")
     if not result.get("ready_issues"):
         print("- none")
-    print("\n## Bounded Ready-Set Candidate")
+    print("\n### Bounded Ready-Set Candidate")
     print(f"- Decision: {result.get('fanout_decision', 'blocked')}")
     print(f"- Authority: {result.get('ready_set_authority', 'candidate-evidence-only')}")
     print(f"- Dispatch authorized: {str(bool(result.get('dispatch_authorized'))).lower()}")
@@ -615,45 +746,34 @@ def print_text(result: dict[str, Any], *, include_blocked: bool = False) -> None
     print(f"- Beads readiness snapshot: {snapshot_sha256 or 'unavailable'}")
     selected = result.get("recommended_ready_set") or []
     if selected:
-        print("- Selected candidate IDs: " + ", ".join(item["id"] for item in selected))
+        ready_by_id = {item["id"]: item for item in result["ranked_ready_issues"]}
+        print("- Selected candidates: " + ", ".join(issue_reference(ready_by_id[item["id"]]) for item in selected))
     else:
-        print("- Selected candidate IDs: none")
+        print("- Selected candidates: none")
     print(
         "- Compatible safe cohorts: "
         + str(len(result.get("compatible_ready_sets") or []))
     )
     blocked = result.get("blocked_issues", [])
-    print("\n## Blocked Issues")
+    print("\n### Blocked Issues")
     display_blocked = blocked if include_blocked else blocked[:5]
     for item in display_blocked:
-        print(f"- {item['id']} {item['title']}")
+        print(f"- {issue_reference(item)}")
         for reason in item.get("blockers", []):
             print(f"  - {reason}")
     if not blocked:
         print("- none")
     elif not include_blocked and len(blocked) > len(display_blocked):
         print(f"- {len(blocked) - len(display_blocked)} more blocked issue(s); pass --include-blocked to show all.")
-    print("\n## Evidence Expectations")
+    print("\n### Evidence Expectations")
     for item in result.get("evidence_expectations", []):
         print(f"- {item}")
-    print("\n## Resume Commands")
+    print("\n### Resume Commands")
     for item in result.get("resume_commands", []):
         print(f"- `{item}`")
-    packet = result.get("operator_handoff_packet") or {}
-    print("\n## Operator Handoff Packet")
-    print(f"- Next action: {packet.get('next_action')}")
-    print(f"- Waiting on: {packet.get('waiting_on')}")
-    print(f"- Next executable Bead: {packet.get('next_executable_bead', '')}")
-    print(f"- Why it is next: {packet.get('why_it_is_next', '')}")
-    print(f"- Exact command/resume: {packet.get('exact_command_resume', '')}")
-    print(f"- Execution prompt: {packet.get('execution_prompt', '')}")
-    print(f"- What must NOT run yet: {packet.get('what_must_not_run_yet', '')}")
-    print(f"- Commit/push status: {packet.get('commit_push_status', '')}")
-    print(f"- Validation status: {packet.get('validation_status', '')}")
-    print(f"- Escalation rule: {packet.get('escalation_rule', '')}")
     warnings = result.get("warnings") or []
     if warnings:
-        print("\n## Warnings")
+        print("\n### Warnings")
         for item in warnings:
             print(f"- {item}")
 

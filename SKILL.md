@@ -191,8 +191,13 @@ Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a ch
 
 ## Run Readiness And Closeout
 
-Every closeout or handoff response must include an operator continuation packet; artifacts
-and Beads comments do not replace it. Use `templates/operator-handoff-packet.md` and validate file drafts:
+Lead status updates and closeouts with the outcome, project goal in words, changes,
+checks and blockers. Use task titles with IDs. Name who acts next and what
+that enables. State any gaps in ownership or verification. Say whether the
+reader needs to decide and what their decision unlocks.
+
+Use `templates/operator-handoff-packet.md` for the operator continuation packet in every closeout or handoff.
+Put `Next executable Bead`, `Commit/push status`, and `Execution prompt` below the summary.
 
 ```bash
 python3 scripts/validate_run_readiness_plan.py <plan.json>
@@ -207,14 +212,5 @@ Verified completion through `qualified_closure.py` requires single-use host acce
 python3 scripts/close_bead_with_summary.py --bead <id> --disposition pending-acceptance --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful
 ```
 
-Before the final user-visible response for any CWO closeout, pushed commit, parked sprint,
-blocked sprint, or carry-forward handoff, produce an operator continuation packet. Artifacts
-and Beads comments do not satisfy this by themselves; the final TUI response must include
-the packet. Use `templates/operator-handoff-packet.md` and, when drafting to a file, validate it:
-
-```bash
-python3 scripts/validate_operator_handoff.py <handoff.md>
-```
-
-Keep `Next executable Bead`, `Commit/push status`, and `Execution prompt`.
-For scoped continuation, record `Next action` and `Waiting on` as described in `references/run-readiness.md`.
+Validate drafts with `python3 scripts/validate_operator_handoff.py --require-scoped-continuation <handoff.md>`.
+Supply matching state when both scoped fields are `None`. [Scoped continuation](references/run-readiness.md#human-template).
