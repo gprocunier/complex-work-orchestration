@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 import shlex
 import sys
+import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -25,7 +26,10 @@ from cwo_core import host_records, manual_delivery, requirement_baseline
 class DelegationPreparationTests(unittest.TestCase):
     def setUp(self):
         repositories = offline.OfflineN1HostTests('runTest')
-        repositories.setUp()
+        # Thread-start sends the worker path. Use the registered factory
+        # fixture's short private temporary parent.
+        with patch.object(tempfile, 'tempdir', '/tmp'):
+            repositories.setUp()
         self.addCleanup(repositories.doCleanups)
         self.root, self.project = repositories.root, repositories.target
         self.store = host_records.HostRecordStore.for_tests(self.root / 'EXAMPLE-host-records')
