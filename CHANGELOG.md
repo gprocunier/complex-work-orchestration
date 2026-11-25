@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.36.7 - 2026-11-25
+
 - Document controller-signed approvals and controller-prepared inputs for contained pool qualification.
 
 ## 1.36.6 - 2026-11-25
