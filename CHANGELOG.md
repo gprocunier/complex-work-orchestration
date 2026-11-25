@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- Let a configured registered single-worker controller route a standing-approved assignment through its original admission and dedicated login, then post the exact validated candidate for independent hand acceptance.
+- Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Resume interrupted delivery without starting another worker.
+
+## 1.36.0 - 2026-11-24
+
 - Add guided setup for the separate Codex worker sign-in, with an isolated startup check and a standalone command for existing installs.
 
 ## 1.35.2 - 2026-11-24
