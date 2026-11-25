@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.34.1 - 2026-11-24
+
 - Wake the provider broker promptly when a contained worker shuts down.
 
 ## 1.34.0 - 2026-11-24
