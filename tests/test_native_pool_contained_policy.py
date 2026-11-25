@@ -30,11 +30,16 @@ class ContainedPoolPolicyTests(unittest.TestCase):
         arguments = json.dumps({"command": command})
         for cohort in fixed_pool_qualification_cohorts():
             for task in cohort["tasks"]:
-                expected = (
-                    f"Call only `{tool}` with `{arguments}`. "
+                prompt = task["prompt"]
+                opening = f"Call only `{tool}`, exactly once, with `{arguments}`. "
+                self.assertTrue(prompt.startswith(opening), prompt)
+                self.assertEqual(prompt.count(arguments), 1)
+                self.assertIn("Your worker shell and checkout are read-only.", prompt)
+                self.assertIn(f"The registered controller writer creates only {task['write_path']}", prompt)
+                self.assertIn(task["expected_utf8"], prompt)
+                self.assertTrue(prompt.endswith(
                     f"Return this exact marker only after the tool reply confirms success.\n{task['completion_marker']}"
-                )
-                self.assertTrue(task["prompt"].endswith(expected))
+                ))
 
     def test_fixed_prompt_preparation_keeps_original_expansion_held(self):
         policy = tools.contained_pool_tool_policy()

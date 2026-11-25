@@ -18,11 +18,12 @@ def _worker_task(size: int, slot: int) -> dict[str, str]:
         "expected_utf8": contents,
         "completion_marker": marker,
         "prompt": (
-            f"In your assigned disposable clone, create only {path}. "
-            f"Write this single UTF-8 line, including its final newline.\n{contents}"
-            "Leave the seed file and Git state untouched. "
-            "Call only `cwo_finite.finite_command` with "
+            "Call only `cwo_finite.finite_command`, exactly once, with "
             '`{"command": "write the selected qualification fixture file"}`. '
+            "Your worker shell and checkout are read-only. "
+            f"The registered controller writer creates only {path} in your assigned disposable clone. "
+            f"It writes this single UTF-8 line, including its final newline.\n{contents}"
+            "Leave the seed file and Git state untouched. "
             f"Return this exact marker only after the tool reply confirms success.\n{marker}"
         ),
     }
