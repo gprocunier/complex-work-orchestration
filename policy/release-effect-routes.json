@@ -7478,7 +7478,7 @@
 
 "scripts/cwo_core/chatgpt_urls.py":["mfKKV99_u7hDQr5z0qwZsfEOfiKqmjLGDD1TjQ-j7MI",420,1126],
 
-"scripts/cwo_core/coach.py":["5bfdF9UnPQp7SIO5AaZzswU1v_yHEV-4RxoBFwDghtw",420,116726],
+"scripts/cwo_core/coach.py":["5JuBR-S3D6oN7zB638k_o-tcFCOUJbWCrhQIqZNyDJY",420,117157],
 
 "scripts/cwo_core/codex_hook_enforcement.py":["uYjwBis1TPGT7DUoRiFoy4KPJyHSnQRlc8ePae4WhaA",420,8633],
 
@@ -7652,7 +7652,7 @@
 
 "scripts/cwo_core/risk_features.py":["iUradZuNAARDtpOgrTgkAf4vZKUZaWqgOaIAcEQ88nU",420,11188],
 
-"scripts/cwo_core/routing.py":["9GbAJO9WsZfU3yJBCgfC0VgZjTuNzxEvoqlUw-jHums",420,71851],
+"scripts/cwo_core/routing.py":["ayjbA4PknEVgCKHuGGqnpNypVvpPj9PoguimhIL9nsQ",420,71920],
 
 "scripts/cwo_core/routing_signals.py":["bDIDQDOuSctFo49jMVgl1kivU6xFRVsu5IJJk41EYkY",420,8583],
 
@@ -7824,7 +7824,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["bNTLHttUHq9VAbLEMOr2qHRDEa0n38jNBWt1n4UhQyA",420,135560],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["cEPIbH5zMzsZgDYGIY61Bqh7VXh9KBJKbzr6AtZlhRw",420,135560],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
