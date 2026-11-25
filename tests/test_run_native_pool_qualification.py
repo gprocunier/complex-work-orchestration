@@ -125,7 +125,7 @@ class ProtectedPoolControllerTests(unittest.TestCase):
         context.QUALIFICATION_EFFORT = "xhigh"
         context.QUALIFICATION_TIER = "default"
         context.QUALIFICATION_PROFILE = "cwo-pool-contained"
-        context.QUALIFICATION_TOOL = "cwo_finite.finite_command"
+        context.QUALIFICATION_TOOL = "cwo_finite.write_selected_fixture"
         self.enterContext(patch.dict(sys.modules, {context.__name__: context}))
 
     def _measure_capability(self, size, plan):

@@ -4,6 +4,7 @@
 
 - Retire the archived study CLI's `digest`, `schedule`, `lock`, `score` and `template` commands. Use `v1.33.0` for those offline commands. The current CLI validates the frozen archive and continues to refuse `run`.
 - Request primary synthesis use for an accepted salvage-only critic return through a matching architect adjudication. The request requires the exact host-recorded return and a cleared evaluation.
+- Rename the contained pool qualification tool from `cwo_finite.finite_command` to `cwo_finite.write_selected_fixture`. It takes no arguments.
 
 ### Tests
 

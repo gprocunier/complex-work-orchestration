@@ -25,9 +25,8 @@ class ContainedPoolPolicyTests(unittest.TestCase):
     def test_fixed_prompt_names_the_registered_writer_and_requires_success(self):
         namespace, = thread_start_selectors(Path("/EXAMPLE-worktree"))["dynamicTools"]
         writer, = namespace["tools"]
-        command, = writer["inputSchema"]["properties"]["command"]["enum"]
         tool = f"{namespace['name']}.{writer['name']}"
-        arguments = json.dumps({"command": command})
+        arguments = json.dumps({})
         for cohort in fixed_pool_qualification_cohorts():
             for task in cohort["tasks"]:
                 prompt = task["prompt"]
@@ -60,7 +59,7 @@ class ContainedPoolPolicyTests(unittest.TestCase):
     def test_rendered_contained_policy_grants_no_ordinary_validation_authority(self):
         policy = tools.contained_pool_tool_policy()
         surface = tools.contained_pool_tool_surface()
-        self.assertEqual(policy["permitted_tools"], ["cwo_finite.finite_command"])
+        self.assertEqual(policy["permitted_tools"], ["cwo_finite.write_selected_fixture"])
         self.assertFalse(surface["server_allowlist_supported"])
         self.assertIsNone(surface["effective_allowlist"])
         self.assertIsNone(surface["allowlist_parameter"])

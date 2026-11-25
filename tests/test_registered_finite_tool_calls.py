@@ -62,7 +62,7 @@ class RegisteredFiniteToolWireTests(unittest.TestCase):
         request, params = tools.RegisteredFiniteToolCalls._params(base)
         self.assertEqual(request.method, 'item/tool/call')
         self.assertEqual(params['callId'], 'EXAMPLE-call')
-        for change in ({'tool': 'write_stdin'}, {'namespace': 'functions'},
+        for change in ({'tool': 'write_stdin'}, {'tool': 'write_selected_fixture'}, {'namespace': 'functions'},
                        {'callId': ''}, {'extra': True}):
             message = copy.deepcopy(base)
             message['params'].update(change)

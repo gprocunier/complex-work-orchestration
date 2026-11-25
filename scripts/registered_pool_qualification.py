@@ -68,7 +68,7 @@ from registered_finite_tool_calls import QualifiedToolEvidence, RegisteredFinite
 from registered_n1_factory import _DeadlineInput
 from registered_n1_qualification import EFFORT, FINITE_TOOL_NAMESPACE, LOGIN_MOUNT, MODEL, TIER
 from registered_host_root_boundary import require_private_roots
-from registered_pool_configuration import PoolContainmentError
+from registered_pool_configuration import PoolContainmentError, WRITER_TOOL
 from registered_pool_containment import _calibration_close_phase
 from registered_server_requests import RegisteredServerRequests
 
@@ -321,11 +321,9 @@ class _WorkerWire(RegisteredAppServer):
         self._callback_thread = thread
 
     def _take_writer(self, message):
-        from registered_pool_configuration import WRITER_COMMAND, WRITER_TOOL
-
-        request, params = RegisteredFiniteToolCalls._params(message, namespace=FINITE_TOOL_NAMESPACE)
-        _require(params["tool"] == WRITER_TOOL and params["arguments"] == {"command": WRITER_COMMAND},
-                 "writer-policy")
+        request, params = RegisteredFiniteToolCalls._params(
+            message, namespace=FINITE_TOOL_NAMESPACE, permitted_tools=(WRITER_TOOL,))
+        _require(params["arguments"] == {}, "writer-policy")
         classified, digest = self._ingress
         _require(request == classified, "callback-without-original-frame")
         identity = self._identity(params)
@@ -688,7 +686,6 @@ class _PoolWorker:
 
     def _attest_turn(self, pending):
         from cwo_core.native_pool_deferred_attestation import attest_deferred_turn
-        from cwo_core.native_pool_deferred_context import QUALIFICATION_TOOL
 
         boundary, records = self._capture_active_rollout(baseline=self._startup_prefix)
         self._verify_session_meta(records)
@@ -709,7 +706,8 @@ class _PoolWorker:
                     "startup_to_turn": provenance, "terminal_boundary": boundary}
         callback = {"request_id": pending.request_id, "request_sha256": pending.request_sha256,
                     "thread_id": pending.params["threadId"], "turn_id": pending.params["turnId"], "epoch": epoch,
-                    "owner_identity_sha256": owner, "tool": QUALIFICATION_TOOL, "arguments": pending.params["arguments"]}
+                    "owner_identity_sha256": owner, "tool": f"{pending.params['namespace']}.{pending.params['tool']}",
+                    "arguments": pending.params["arguments"]}
         acknowledgement = {"child_id": self.child_id, "thread_id": self.thread_id, "turn_id": self.turn_id}
         self._writer_prefix = boundary
         return attest_deferred_turn(self._startup, turn_ack=acknowledgement, evidence=evidence, pending_callback=callback)
@@ -814,7 +812,7 @@ class _PoolWorker:
         _require(terminal is not None and terminal["status"] == status, "durable-terminal-missing")
         task_completed = (status == "completed" and not self.parent.calibration_only and not self.isolation_target
                           and self._verify_marker(rows[terminal["record_index"]]["payload"]))
-        tools = observe_worker_tools(rows, turn_id=self.turn_id, expected_tools=("cwo_finite.finite_command",))
+        tools = observe_worker_tools(rows, turn_id=self.turn_id)
         return {"terminal": terminal, "boundary": boundary, "tools": asdict(tools), "task_completed": task_completed}
 
     def _verify_marker(self, terminal_payload):
@@ -843,7 +841,7 @@ class _PoolWorker:
                      "retained-tool-rollout-source-drift")
             self._verify_session_meta(rows)
             trusted_turn_context(rows, turn_id=self.turn_id, model=MODEL, effort=EFFORT)
-            return asdict(observe_worker_tools(rows, turn_id=self.turn_id, expected_tools=("cwo_finite.finite_command",)))
+            return asdict(observe_worker_tools(rows, turn_id=self.turn_id))
         except (OSError, ValueError):
             return asdict(WorkerToolObservation())
 

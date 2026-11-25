@@ -22,7 +22,6 @@ from .native_pool_deferred_context import (
     QUALIFICATION_PROFILE,
     QUALIFICATION_TIER,
     QUALIFICATION_TOOL,
-    QUALIFICATION_WRITE_COMMAND,
     _EVIDENCE_TOKEN,
     _require,
     _require_deadline,
@@ -167,6 +166,6 @@ def _pending_callback(value: Mapping[str, Any], startup: ProvisionalWorkerStartu
     _require(type(request_id) in (int, str) and request_id != "", "pending-callback-id-invalid")
     expected = {"thread_id": startup.session_id, "turn_id": turn_id, "epoch": startup.connection_epoch_sha256,
                 "owner_identity_sha256": startup.owner_identity_sha256, "tool": QUALIFICATION_TOOL,
-                "arguments": {"command": QUALIFICATION_WRITE_COMMAND}}
+                "arguments": {}}
     _require(all(value.get(field) == selected for field, selected in expected.items()), "pending-callback-binding-mismatch")
     return request_id, _digest(value.get("request_sha256"), "pending-callback-digest-invalid")

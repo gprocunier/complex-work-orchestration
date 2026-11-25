@@ -21,7 +21,6 @@ from cwo_core.native_pool_deferred_context import (
     QUALIFICATION_SURFACE,
     QUALIFICATION_TIER,
     QUALIFICATION_TOOL,
-    QUALIFICATION_WRITE_COMMAND,
 )
 from cwo_core.native_pool_transaction import NativePoolInfrastructureError, NativePoolTransactionError, TransactionJournal
 
@@ -88,7 +87,7 @@ class _FixtureObservations:
         observation = {"thread_id": thread_id, "turn_id": turn_id, "epoch": startup.connection_epoch_sha256,
                        "owner_identity_sha256": startup.owner_identity_sha256}
         pending = {**observation, "request_id": 1, "request_sha256": _digest(f"pending-{turn_id}"),
-                   "tool": QUALIFICATION_TOOL, "arguments": {"command": QUALIFICATION_WRITE_COMMAND}}
+                   "tool": QUALIFICATION_TOOL, "arguments": {}}
         evidence = {
             **observation, "session_path": startup.session_path,
             "startup_to_turn": {

@@ -808,7 +808,7 @@ class RegisteredFiniteToolCalls:
             raise FiniteToolError(f'Captured {surface} changed after registration.')
 
     @staticmethod
-    def _params(message, *, namespace=None):
+    def _params(message, *, namespace=None, permitted_tools=(_COMMAND, _POLL)):
         request = protocol.classify_message(message)
         if type(request) is not protocol.ServerRequest or request.method != 'item/tool/call':
             raise FiniteToolError('Only the pinned dynamic tool request is supported.')
@@ -816,7 +816,7 @@ class RegisteredFiniteToolCalls:
         if (set(params) not in ({'arguments', 'callId', 'threadId', 'tool', 'turnId'},
                                 {'arguments', 'callId', 'namespace', 'threadId', 'tool', 'turnId'})
                 or any(not _text(params.get(key)) for key in ('callId', 'threadId', 'turnId'))
-                or params.get('namespace') != namespace or params['tool'] not in {_COMMAND, _POLL}
+                or params.get('namespace') != namespace or params['tool'] not in permitted_tools
                 or type(params['arguments']) is not dict):
             raise FiniteToolError('Dynamic tool identity or fields differ.')
         return request, params

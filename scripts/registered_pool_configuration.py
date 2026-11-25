@@ -7,14 +7,13 @@ import json
 from pathlib import Path
 import tomllib
 
+from cwo_core.native_tool_isolation import CONTAINED_POOL_WRITER_NAME as WRITER_TOOL
 from cwo_core.policy_schema import strict_json_loads
 from registered_n1_qualification import (
     APPROVAL_POLICY, EFFORT, FINITE_TOOL_NAMESPACE, HISTORY_MODE, LOGIN_MOUNT, MODEL, PROVIDER, TIER,
 )
 
 PROFILE = 'cwo-pool-contained'
-WRITER_TOOL = 'finite_command'
-WRITER_COMMAND = 'write the selected qualification fixture file'
 CATALOG_NAME = 'model-catalog.json'
 MAX_CATALOG_BYTES = 2_000_000
 # Codex uses fast_mode to expose the default tier too. The config and RPC selectors pin the tier.
@@ -124,10 +123,10 @@ def require_named_deny_policy(worktree: Path, content: bytes):
 
 
 def _writer_registration():
-    tool = {'type': 'function', 'name': WRITER_TOOL, 'description': WRITER_COMMAND,
-            'inputSchema': {'type': 'object',
-                            'properties': {'command': {'type': 'string', 'enum': [WRITER_COMMAND]}},
-                            'required': ['command'], 'additionalProperties': False}}
+    tool = {'type': 'function', 'name': WRITER_TOOL,
+            'description': 'The controller writes the signed fixture already selected for this worker. '
+                           'The worker shell and checkout stay read-only.',
+            'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}}
     return [{'type': 'namespace', 'name': FINITE_TOOL_NAMESPACE,
              'description': 'Registered qualification writer.', 'tools': [tool]}]
 
