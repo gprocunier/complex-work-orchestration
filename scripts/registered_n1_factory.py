@@ -88,6 +88,34 @@ def _snapshot(value):
     return admitted.reconciliation._snapshot(value)[1]
 
 
+def custody_binding(host, ledger, *, compact):
+    """Bind the existing host observation without duplicating it in a new request."""
+    coordinates = {'state': str(host.state), 'worker': str(host.worker), 'target': str(host.target),
+                   'ledger': str(ledger.root), 'state_identity': host._state_identity}
+    if compact:
+        # The ledger itself is created on first use. Its protected parent already exists.
+        return {**coordinates, 'version': 2, 'initial_sha256': native._digest(host._initial),
+                'ledger_parent_identity': native._identity(ledger.root.parent)}
+    return {**coordinates, 'initial': host._initial}
+
+
+def matches_custody(binding, host, ledger):
+    if type(binding) is not dict:
+        return False
+    if 'version' not in binding:
+        return binding == custody_binding(host, ledger, compact=False)
+    return _snapshot(binding) == _snapshot(custody_binding(host, ledger, compact=True))
+
+
+def require_compact_custody(specification, host, ledger, *, reobserve=False):
+    binding = specification['custody']
+    if type(binding) is dict and 'version' not in binding:
+        return
+    _need(matches_custody(binding, host, ledger), 'Original compact registered custody differs.')
+    if reobserve:
+        _need(host._observe() == host._initial, 'Current repository state differs from original compact custody.')
+
+
 def _model_task(receipt, spec, policy):
     selected = json.loads(receipt.selected_node_bytes)
     admission.planner._input_measurements(selected)
@@ -2164,7 +2192,8 @@ class RegisteredN1Factory:
                            'admission_sha256', 'validation_policy', 'max_steps', 'purpose', 'implementation_sha256',
                            'configuration_files', 'executable_sha256', 'launcher_sha256', 'validator_sha256', 'custody'}
         self._validate_spec_fields(spec, fields)
-        _need(spec['custody'] == self._custody(), "Registered custody store, workspace or target binding differs.")
+        _need(matches_custody(spec['custody'], self.host, self.ledger),
+              "Registered custody store, workspace or target binding differs.")
         _configuration(spec, self.host.worker)
         _need(spec['purpose'] == 'local-engineering', "External execution-purpose disclosure/adjudication is not wired.")
         _need(0 < len(self.receipt.request_bytes) <= native.MAX_TASK_BYTES, "The original task byte bound is required before startup.")
@@ -2208,7 +2237,7 @@ class RegisteredN1Factory:
         _need(tuple(_file(self.spec[key]) for key in ('launcher', 'executable', 'validator')) == self._executables,
               "Registered executable drift.")
         _need(admission._receipt_sha256(self.receipt) == self.spec['admission_sha256'], "Registered admission changed.")
-        _need(self.spec['custody'] == self._custody() and self.node_id == self.receipt.node_id
+        _need(matches_custody(self.spec['custody'], self.host, self.ledger) and self.node_id == self.receipt.node_id
               and _snapshot(self.route) == self.receipt.route_input_bytes, "Registered custody or route replay differs.")
         self._require_model_task()
         if self._configured:
@@ -2229,10 +2258,6 @@ class RegisteredN1Factory:
         return {'projection_version': 1,
                 'original_request_sha256': hashlib.sha256(self.receipt.request_bytes).hexdigest(),
                 'model_task_sha256': hashlib.sha256(self.model_task_bytes()).hexdigest()}
-
-    def _custody(self):
-        return {'state': str(self.host.state), 'worker': str(self.host.worker), 'target': str(self.host.target),
-                'ledger': str(self.ledger.root), 'initial': self.host._initial, 'state_identity': self.host._state_identity}
 
     def _protected_roots(self):
         roots = (self.host.target, self.host.state, self.ledger.root, self._store.directory,

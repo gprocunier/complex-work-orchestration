@@ -75,9 +75,8 @@ def _registered_profile(receipt, specification, host, ledger):
                    and 'admission_sha256' not in specification
                    and all(execution.get(field) == specification.get(field) for field in ('model', 'effort', 'provider')),
                    'The admitted route must use the independently registered specification.')
-    custody = {'state': str(host.state), 'worker': str(host.worker), 'target': str(host.target),
-               'ledger': str(ledger.root), 'initial': host._initial, 'state_identity': host._state_identity}
-    workflow._need(specification['custody'] == custody and specification['implementation_sha256'] == runtime.implementation_sha256(),
+    workflow._need(runtime.matches_custody(specification['custody'], host, ledger)
+                   and specification['implementation_sha256'] == runtime.implementation_sha256(),
                    'The independently registered specification does not match original custody or source.')
     workflow._need(runtime.qualification.MODEL_SELECTION not in specification
                    and runtime.qualification.AUTHENTICATION not in specification
@@ -134,6 +133,7 @@ class PendingDelegationApproval:
         admission._live(self._receipt, self._ledger)
         state = self._verifier._current()
         specification = plans[0][0]['registered_n1']
+        runtime.require_compact_custody(specification, self._host, self._ledger, reobserve=True)
         workflow._need(specification['implementation_sha256'] == runtime.implementation_sha256(),
                        'The independently registered source changed since preparation.')
         for plan, operation in plans:
