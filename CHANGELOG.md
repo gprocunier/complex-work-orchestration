@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.34.2 - 2026-11-24
+
 ### Tests
 
 - Wait for approval reply publication in the registered request fixture.
