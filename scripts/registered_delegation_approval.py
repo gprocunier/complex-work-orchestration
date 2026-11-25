@@ -6,7 +6,7 @@ entry, identity enrollment, credential input or worker-launch effect.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import json
 from pathlib import Path
 from types import MethodType
@@ -103,6 +103,7 @@ class PendingDelegationApproval:
     _receipt: admission.PreparedAdmission
     _standing: workflow.D.StandingDelegation
     _plans: bytes
+    _preparation_root: tuple[Path, tuple, Path] | None = field(default=None, repr=False, compare=False)
 
     @property
     def approval_scope(self):

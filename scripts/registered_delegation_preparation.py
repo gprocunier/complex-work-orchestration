@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import ExitStack
+from dataclasses import replace
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
@@ -13,7 +14,6 @@ import shutil
 import stat
 import subprocess
 import sys
-from tempfile import mkdtemp
 
 import registered_delegation_approval as approval
 import registered_delegation_entry as entry
@@ -25,7 +25,7 @@ workflow, runtime, authority = approval.workflow, approval.runtime, approval.aut
 admission = approval.admission
 planner = admission.planner
 _need = workflow._need
-_PROFILE = 'cwo_standing_delegation'
+_PROFILE = workflow.D.REGISTERED_PERMISSION_PROFILE
 _PROFILE_SECTION = f'permissions.{_PROFILE}'
 _NODE = 'implementation'
 MAX_TEXT_BYTES = 2048
@@ -112,12 +112,14 @@ def _existing_output(worker, path):
 
 
 def _custody(store, protected_login, project, stack):
-    sibling = store.state_root.with_name(store.state_root.name + '-delegation')
+    sibling = _offer_parent(store)
     runtime._disjoint((store.state_root, sibling, project, *protected_login))
     scripts = Path(runtime.__file__).resolve().parent
     runtime.require_private_roots((sibling, *protected_login), visible_paths=(scripts, scripts.parent / 'policy', scripts.parent / 'schemas'))
     os.close(host_records._directory(sibling, create=True, private=True))
-    runtime_root = Path(mkdtemp(prefix='offer-', dir=sibling))
+    ticket = '-'.join(f'{secrets.randbelow(10**12):012d}' for _ in range(2))
+    runtime_root = sibling / f'offer-{ticket}'
+    runtime_root.mkdir(mode=0o700)
     stack.callback(shutil.rmtree, runtime_root, ignore_errors=True)
     worker = runtime_root / 'worker'
     _clone(project, worker)
@@ -126,6 +128,45 @@ def _custody(store, protected_login, project, stack):
                  control / 'controller', control / 'publication', control / 'authority'):
         path.mkdir(mode=0o700)
     return runtime.native.OfflineN1Host(host, project, worker), control
+
+
+def _offer_parent(store):
+    return store.state_root.with_name(store.state_root.name + '.delegation')
+
+
+def _retained_offer(store, pending, project):
+    scope = pending.approval_scope
+    node = json.loads(pending._receipt.selected_node_bytes)
+    name = entry._name(project, scope['database_sha256'], scope['bead_id'], node['prompt'], scope['baseline_sha256'])
+    with store._state() as directory:
+        try:
+            raw = host_records._read_at(directory, name, admission.reconciliation.MAX_BYTES)
+        except FileNotFoundError:
+            return False
+    record = entry._verify_approval(admission.reconciliation._decode(raw), pending._verifier._key)
+    custody = record['native_bundle'][0]['registered_n1']['custody']
+    return custody['state'] == str(pending._host.state) and custody['state_identity'] == pending._host._state_identity
+
+
+def discard_unretained(pending):
+    """Discard only the original new offer after the foreground handler settles."""
+    if type(pending) is not approval.PendingDelegationApproval or pending._preparation_root is None:
+        return
+    root, original, project = pending._preparation_root
+    store = entry._protected_store(project)
+    _need(root.parent == _offer_parent(store) and root.name.startswith('offer-')
+          and pending._host.state == root / 'host', 'Refusing disposal outside original delegation custody.')
+    with runtime.native._directory(root.parent) as parent:
+        try:
+            observed = runtime.native._identity(root)
+        except FileNotFoundError:
+            return
+        _need(tuple(observed) == original, 'Original delegation custody changed before disposal.')
+        if not _retained_offer(store, pending, project):
+            _need(not pending._ledger.root.exists() and not any(pending._controller_state.iterdir()),
+                  'Unretained delegation custody already started and requires reconciliation.')
+            shutil.rmtree(root.name, dir_fd=parent)
+            os.fsync(parent)
 
 
 def _project_key(store, project, database):
@@ -236,11 +277,6 @@ def _route(task, bead, path, identity, spec, policy, diff_lines):
     return route
 
 
-def _capability_evidence():
-    """No current trusted quota or capacity observation is supplied by guided login."""
-    return {}
-
-
 def _standing(route, chain, database, now):
     unit = route['nodes'][0]['unit_estimate']
     cache = {'source': 'deterministic-context-plan', 'observed_at': datetime.fromtimestamp(now, timezone.utc).isoformat(),
@@ -250,7 +286,7 @@ def _standing(route, chain, database, now):
              'context_plan_sha256': workflow.digest(unit['context_manifest']), 'telemetry_lineage_id': None}
     cache['evidence_sha256'] = workflow.digest(cache)
     return workflow.D.StandingDelegation(baseline_sha256=chain['digest'], database_sha256=database,
-                                        capability_evidence=_capability_evidence(), cache_profile=cache)
+                                        capability_evidence={}, cache_profile=cache)
 
 
 def _mission(host, directory, identity, route, chain, model, key):
@@ -266,7 +302,7 @@ def _mission(host, directory, identity, route, chain, model, key):
                          'models': [model], 'roles': ['product'], 'factory_ids': list(registry)},
                'budget': {'mode': 'unbounded'}, 'lifetime': {'mode': 'until-revoked'}}
     mission_hash = authority.mission_sha256(mission)
-    actor, source = f'uid:{os.getuid()}', 'cwo-protected-project-controller'
+    actor, source = f'uid:{os.getuid()}', workflow.D.PROJECT_CONTROLLER_IDENTITY
     directive = authority.sign_controller_directive(verification_key=key, actor_id=actor, identity_source=source,
                                                     action_sha256=mission_hash, directive_id=identity)
     store = authority.MaintenanceStateStore(directory, mission_id=identity, mission_sha256=mission_hash)
@@ -304,5 +340,7 @@ def prepare(*, project, database, task, chain, output_path, output_text) -> appr
             controller_state=control / 'controller', publication_state=control / 'publication', registered_specification=spec,
             standing=_standing(route, chain, database, now), route=route, node_id=_NODE, native_operation_id=identity + '-native',
             publication_operation_id=identity + '-publication', cleanup_seconds=15, expires_at=now + _DURATION_SECONDS)
+        root = host.state.parent
+        pending = replace(pending, _preparation_root=(root, tuple(runtime.native._identity(root)), project))
         stack.pop_all()
     return pending

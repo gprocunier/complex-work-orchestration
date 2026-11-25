@@ -1,18 +1,21 @@
 """Prepare a known output through the ordinary protected controller."""
+from argparse import Namespace
+from contextlib import chdir
+import ctypes
 from hashlib import sha256
 import json
 from pathlib import Path
 import shlex
 import sys
+from types import SimpleNamespace
 import unittest
-from contextlib import chdir
 from unittest.mock import patch
 
-from tests import test_delegate_internal_work as examples
+from tests import test_delegate_internal_work as effects
 from tests.test_candidate_identity import bead
 from tests import test_offline_n1_host as offline
-from tests import test_operative_routing as routing_fixture
 
+import everyday_delegation
 import registered_delegation_preparation as preparation
 from cwo_core import host_records, manual_delivery, requirement_baseline
 
@@ -48,6 +51,19 @@ class DelegationPreparationTests(unittest.TestCase):
     def read_bead(self, arguments):
         self.assertEqual(arguments[0], 'show')
         return json.dumps([self.bead])
+
+    def deliver_bead(self, arguments):
+        command = arguments[0]
+        if command == 'show':
+            return self.read_bead(arguments)
+        if command == 'dep':
+            return '[]'
+        if command == 'comment':
+            self.bead['comments'].append({'text': arguments[-1]})
+            return ''
+        self.assertEqual(command, 'close')
+        self.bead.update(status='closed', close_reason=arguments[arguments.index('--reason') + 1])
+        return ''
 
     def prepare(self, **changes):
         request = {'project': self.project, 'database': self.database,
@@ -100,7 +116,7 @@ class DelegationPreparationTests(unittest.TestCase):
             with self.subTest(proposal=proposal), self.assertRaisesRegex(ValueError, 'proposed'):
                 self.prepare(**proposal)
         self.assertFalse(self.store.state_root.exists())
-        custody = self.store.state_root.with_name(self.store.state_root.name + '-delegation')
+        custody = preparation._offer_parent(self.store)
         self.assertEqual(list(custody.iterdir()), [])
 
     def test_prepared_assignment_reopens_with_same_project_key_and_original_scope(self):
@@ -116,24 +132,157 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertEqual(reopened.config._standing_approval()[0], pending.approval_scope)
         self.assertFalse(reopened.verifier._current()['operations'])
         self.assertIsNone(reopened.factory)
-        with self.assertRaisesRegex(ValueError, 'Current delegation route refused'):
-            reopened.delegate(task, database=self.database)
         self.assertFalse(reopened.verifier._current()['operations'])
         self.assertFalse(reopened.config.ledger.root.exists())
 
-    def test_trusted_fixture_observation_passes_unchanged_operative_route_gate(self):
-        known = routing_fixture.capability_evidence(operative_models=examples.operative_models())
-        with (patch.object(preparation, '_capability_evidence', return_value=known),
-              patch.object(examples.routing, '_now_iso', return_value=routing_fixture.NOW)):
-            pending = self.prepare()
-            workflow = self.fixture_redeem(pending)
-            task = json.loads(pending._receipt.selected_node_bytes)['prompt']
-            native, publication = [bundle[1] for bundle in json.loads(pending._plans)]
+    def test_registered_packet_binds_exact_request_and_model_projection_without_capability_assertions(self):
+        pending = self.prepare()
+        workflow = self.fixture_redeem(pending)
+        task = json.loads(pending._receipt.selected_node_bytes)['prompt']
+        native, publication = [bundle[1] for bundle in json.loads(pending._plans)]
+        with patch.object(preparation.workflow.D, 'build_native_worker_packet', side_effect=AssertionError('unexpected generic packet')):
             delegation, packet = preparation.workflow.D.authorize(workflow, task, native, publication,
                                                                     database=self.database)
         self.assertEqual(delegation['dispatch']['executor'], 'internal_worker_luna')
         self.assertEqual(packet['scope']['allowed_paths'], ['result.txt'])
+        self.assertEqual(packet['packet_type'], 'cwo-registered-delegation-packet')
+        self.assertEqual(packet['request_sha256'], pending.approval_scope['request_sha256'])
+        self.assertEqual(packet['model_task_sha256'], sha256(preparation.runtime._model_task(
+            pending._receipt, workflow.config.native_bundle[0]['registered_n1'], workflow.config.policy.report)).hexdigest())
         self.assertFalse(workflow.verifier._current()['operations'])
+
+    def test_registered_packet_refuses_changed_request_scope_and_packet_hash(self):
+        pending = self.prepare()
+        workflow = self.fixture_redeem(pending)
+        task = json.loads(pending._receipt.selected_node_bytes)['prompt']
+        native, publication = [bundle[1] for bundle in json.loads(pending._plans)]
+        authorize = preparation.workflow.D.authorize
+        with self.assertRaisesRegex(ValueError, 'original admitted task'):
+            authorize(workflow, task + ' extra', native, publication, database=self.database)
+        with self.assertRaisesRegex(ValueError, 'write scope'):
+            authorize(workflow, task, dict(native, write_paths=['other.txt']), publication, database=self.database)
+        delegation, _packet = authorize(workflow, task, native, publication, database=self.database)
+        delegation['dispatch']['packet_sha256'] = '0' * 64
+        with self.assertRaisesRegex(ValueError, 'registered delegation packet'):
+            preparation.workflow.D.current(workflow, delegation)
+        self.assertFalse(workflow.verifier._current()['operations'])
+        self.assertFalse(workflow.config.ledger.root.exists())
+
+    def test_generic_packet_refuses_missing_current_provider_evidence(self):
+        original = effects.make_workflow(self, capabilities={})
+        workflow = original.workflow
+        with self.assertRaisesRegex(ValueError, 'Current delegation route refused'):
+            workflow.delegate(original.task, database=effects.DATABASE)
+        self.assertFalse(workflow.verifier._current()['operations'])
+        self.assertFalse(workflow.config.ledger.root.exists())
+        self.assertFalse(original.fixture.spawned)
+
+    def test_declined_and_failed_retention_custody_cleans_without_removing_retained_offer(self):
+        declined = self.prepare()
+        preparation.discard_unretained(declined)
+        self.assertFalse(declined._host.state.parent.exists())
+        retained = self.prepare()
+        original_write = preparation.entry._write_approval
+
+        def lose_reply(*args):
+            original_write(*args)
+            raise OSError('EXAMPLE lost retention reply')
+
+        with (patch.object(preparation.entry, '_write_approval', side_effect=lose_reply),
+              self.assertRaisesRegex(OSError, 'lost retention reply')):
+            preparation.entry.retain_approved_assignment(self.fixture_redeem(retained))
+        preparation.discard_unretained(retained)
+        self.assertTrue(retained._host.state.parent.exists())
+        competing = self.prepare()
+        with self.assertRaisesRegex(ValueError, 'Another original approval'):
+            preparation.entry.retain_approved_assignment(self.fixture_redeem(competing))
+        preparation.discard_unretained(competing)
+        self.assertFalse(competing._host.state.parent.exists())
+        self.assertTrue(retained._host.state.parent.exists())
+
+    def test_prepared_registered_packet_dispatches_and_closes_after_independent_review(self):
+        fixture, inputs, task = self.fake_execution()
+        workflow, case = inputs.workflow, inputs.case
+        baseline = self.root / 'EXAMPLE-baseline.json'
+        baseline.write_text(json.dumps(self.chain['baseline']), encoding='utf-8')
+        observed = []
+        original = effects.tools.NamespacedFiniteRpcProcess.result
+
+        def record_before_turn(process, method, params):
+            if method == 'turn/start':
+                factory = workflow.factory
+                dispatch = self.store.require_dispatch(factory.dispatch_id)
+                self.assertEqual(dispatch['session_id'], case.scenario.thread_id)
+                self.assertEqual(dispatch['provider'], 'openai')
+                self.assertEqual(dispatch['model_id'], case.spec['model'])
+                self.assertEqual(dispatch['evaluation_metadata']['registered_task']['model_task_sha256'],
+                                 sha256(params['input'][0]['text'].encode()).hexdigest())
+                observed.append(dispatch)
+            return original(process, method, params)
+
+        with (patch.object(effects.tools.NamespacedFiniteRpcProcess, 'result', record_before_turn),
+              patch.object(manual_delivery, 'project_beads', return_value=(self.database, self.deliver_bead)),
+              patch.object(manual_delivery, 'delivery_session', return_value='EXAMPLE-delivery')):
+            result = effects.run_fixture(self, inputs, call=lambda: everyday_delegation.delegate(
+                workflow, task, baseline=baseline, summary='Exact prepared candidate ready for hand review.'))
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(fixture.attempt(case)['outcome'], 'completed')
+        self.assertEqual(self.bead['status'], 'in_progress')
+        self.assertEqual((case.host.worker / 'result.txt').read_bytes(), offline.OUTPUT)
+        self.assertFalse((case.host.target / 'result.txt').exists())
+        args = Namespace(**result, reviewed_candidate=result['candidate_sha256'], note='Verified the exact candidate.')
+        with (patch.object(manual_delivery, 'project_beads', return_value=(self.database, self.deliver_bead)),
+              patch.object(manual_delivery, 'reviewer_session', return_value=('uid:1000', ('EXAMPLE-delivery',))),
+              self.assertRaisesRegex(ValueError, 'delivering session')):
+            manual_delivery.accept_delivery(args)
+        with (patch.object(manual_delivery, 'project_beads', return_value=(self.database, self.deliver_bead)),
+              patch.object(manual_delivery, 'reviewer_session', return_value=('uid:1000', ('EXAMPLE-reviewer',)))):
+            closed = manual_delivery.accept_delivery(args)
+        self.assertEqual(closed['dispatch_id'], observed[0]['dispatch_id'])
+        self.assertTrue(closed['closed'])
+
+    def test_drifted_actual_thread_refuses_before_task_turn_or_output(self):
+        fixture, inputs, task = self.fake_execution()
+        inputs.case.drift = True
+        with self.assertRaisesRegex(ValueError, 'profile readback'):
+            effects.run_fixture(self, inputs, call=lambda: inputs.workflow.delegate(task, database=self.database))
+        self.assertEqual(len(fixture.spawned), 1)
+        self.assertIn('thread/start', fixture.spawned[0].methods)
+        self.assertNotIn('turn/start', fixture.spawned[0].methods)
+        self.assertIsNone(inputs.workflow.factory.dispatch_record_sha256)
+        self.assertFalse((inputs.case.host.worker / 'result.txt').exists())
+
+    def fake_execution(self):
+        pending = self.prepare(output_text=offline.OUTPUT.decode())
+        signed = self.fixture_redeem(pending)
+        task = json.loads(pending._receipt.selected_node_bytes)['prompt']
+        preparation.entry.retain_approved_assignment(signed)
+        rename = ctypes.CDLL(None, use_errno=True).renameat2
+        fixture = effects.F.FactoryTests('runTest')
+        fixture.setUp()
+        self.addCleanup(effects.F.cleanup_helper, self, fixture)
+        case = fixture.case(production=True, no_fake_scheduler=True, archive_schedule='settled')
+        ctypes.CDLL.return_value.renameat2 = rename
+        ledger_init = type(case.ledger).__init__
+        defaults = dict(ledger_init.__kwdefaults__, owner_probe=case.ledger.owner_probe)
+        with chdir(self.project), patch.object(ledger_init, '__kwdefaults__', defaults):
+            workflow = preparation.entry.open_assignment(task, self.chain)
+        config = workflow.config
+        case.host, case.ledger, case.receipt = config.host, config.ledger, config.receipt
+        case.spec = config.native_bundle[0]['registered_n1']
+        case.scenario = effects.F.fixtures.AdmittedFakeServer(case.host.state / 'fake-server', case.host.worker, '')
+        case.home = case.scenario.codex_home
+        case.scenario.ledger, case.scenario.admission = case.ledger, case.receipt
+        case.scenario.expected_observers = ['RegisteredN1Factory._observer']
+        case.scenario.initialize_home = preparation.runtime.qualification.LOGIN_MOUNT
+
+        class FactoryReference:
+            @property
+            def server(self):
+                return workflow.factory.server
+
+        case.factory = FactoryReference()
+        return fixture, SimpleNamespace(workflow=workflow, case=case), task
 
     @staticmethod
     def fixture_redeem(pending):
