@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Preserve refused pool qualification results with their cleanup, lease, and accounting evidence.
+- Name the registered writer and require its successful reply in the fixed pool qualification task.
+
 ### Tests
 
 - Preserve archive failures that occur after the registered exhaustion fixture observes the archive request.

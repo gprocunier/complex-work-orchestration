@@ -77,6 +77,15 @@ def response(req, result):
 def event(kind, **extra):
     return {'type': 'event_msg', 'payload': {**extra, 'type': kind, 'turn_id': turn}}
 
+def finish_answer(marker):
+    final = {'id': answer, 'type': 'agentMessage', 'text': ''}
+    if behavior != 'missing-marker-phase':
+        final['phase'] = 'finalAnswer' if behavior == 'wrong-marker-phase' else 'final_answer'
+    notify('item/started', dict(thread_scope, item=final))
+    append([event('task_complete', last_agent_message=marker, error=None)])
+    notify('item/completed', dict(thread_scope, item=dict(final, text=marker)))
+    notify('turn/completed', {'threadId': thread, 'turn': {'id': turn, 'status': 'completed', 'items': []}})
+
 for line in sys.stdin:
     frame = json.loads(line)
     req, method = frame.get('id'), frame.get('method')
@@ -110,6 +119,9 @@ for line in sys.stdin:
             {'type': 'world_state', 'payload': {'full': True, 'state': {'top_level_tools': {'apply_patch': 'f' * 40}}}},
             {'type': 'turn_context', 'payload': {'turn_id': turn, 'model': params['model'], 'effort': effort}}])
         response(req, {'turn': {'id': turn, 'items': [], 'status': 'inProgress'}})
+        if behavior == 'no-writer':
+            finish_answer(marker)
+            continue
         notify('item/started', dict(thread_scope, item=tool))
         command = 'unapproved' if behavior == 'wrong-command' else inputs['command']
         emit({'id': 71, 'method': 'item/tool/call', 'params': dict(thread_scope, callId=call,
@@ -132,13 +144,7 @@ for line in sys.stdin:
             append([event('task_complete', last_agent_message=None, error=error)])
             notify('turn/completed', {'threadId': thread, 'turn': {'id': turn, 'status': 'failed', 'items': [], 'error': error}})
             continue
-        final = {'id': answer, 'type': 'agentMessage', 'text': ''}
-        if behavior != 'missing-marker-phase':
-            final['phase'] = 'finalAnswer' if behavior == 'wrong-marker-phase' else 'final_answer'
-        notify('item/started', dict(thread_scope, item=final))
-        append([event('task_complete', last_agent_message=marker, error=None)])
-        notify('item/completed', dict(thread_scope, item=dict(final, text=marker)))
-        notify('turn/completed', {'threadId': thread, 'turn': {'id': turn, 'status': 'completed', 'items': []}})
+        finish_answer(marker)
     elif method == 'thread/archive':
         if behavior != 'no-archive-move':
             archived.parent.mkdir(exist_ok=True)
