@@ -1742,7 +1742,7 @@
 
 "p2b5":[91,"ChatGPTShareIngestTests.test_unpinned_reader_never_runs",444,"l4_qxFrWmsOFnPc3aDIE9TQnt5VgKLQQcO5GsQ8Nfz0"],
 
-"p2b6":[133,"LauncherAuthorityTests.test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split",232,"rgg5B4eT5UgsKRoL0NeyJDwGRuLK94nLBxDnsSZX6Yk"],
+"p2b6":[133,"LauncherAuthorityTests.test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split",232,"tMbftq6oj2VfoQb_9dtSC6-P_SLNKobtRjIR3m5Zr5k"],
 
 "p2b7":[2,65,"subprocess.run("],
 
@@ -6974,7 +6974,7 @@
 
 "@127":["wKRaJ5rLsDiuJJMo333Xdr6XkTx0AFFIA14gYJUUCrI",420,140099],
 
-"@128":["JYF6v8vwaWnCtK6XBt255a-OoFIzRYKxp97o7NN_UHc",420,39405],
+"@128":["s2BVT0XdRhFnmf59DDFmWkuJUx9hDlic1rLGj-lBzxA",420,39621],
 
 "@129":["3p9_mwcTZa_vkjaiD77vMh1Vy9-UGkw2c2RmEqe1lJw",420,10270],
 
@@ -6986,7 +6986,7 @@
 
 "@132":["AGQe5J00NcJHgxeMA7SWwjJQJPF-bxxTYwtRaYen1Ug",420,50200],
 
-"@133":["Uxp-vU1e1WI9vLcR1GiIm5NHNjmPSMrgDuFWc5jEgYo",420,23842],
+"@133":["9nCuYTs_2VnqfFeSBl9deoT09T5fzbdjIiqw7wMuds8",420,23958],
 
 "@134":["LYtZvE4TCrUfwNPgWgFkagPcdHFRm35NIkjizXaoDRU",420,690148],
 
@@ -7648,7 +7648,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["DXjXQwmf8tHb6jnY24TcoNWehC78pe_kPnfzACVnn0k",420,134636],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["woDue30H6QsicKqPNYHDaj30FNqobr0MHwrbySgBn6M",420,134636],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
