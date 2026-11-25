@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Retire the archived study CLI's `digest`, `schedule`, `lock`, `score` and `template` commands. Use `v1.33.0` for those offline commands. The current CLI validates the frozen archive and continues to refuse `run`.
+- Request primary synthesis use for an accepted salvage-only critic return through a matching architect adjudication. The request requires the exact host-recorded return and a cleared evaluation.
 
 ## 1.39.0 - 2026-11-25
 

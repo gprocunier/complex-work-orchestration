@@ -121,6 +121,14 @@ exact received bytes. Where the dispatch records the candidate and scope, that
 binding must match. For older dispatches the report identifies candidate and
 scope as operator-selected.
 
+For an accepted, unheld return that the evaluator recommends for salvage only,
+request primary use by adding `"synthesis_use": "primary"` to its host-recorded
+entry. Use the exact bytes in the host receipt. Supply an accepting
+adjudication for that dispatch, return digest, candidate and scope, supported by
+evidence for the findings being accepted. Without a matching adjudication the
+request cannot make the return primary. Finish any required peer review before
+requesting primary use.
+
 The evaluator checks the Codex digest against the original UTF-8 bytes and
 scores the return under the registered Codex critic policy. The report carries
 the advisory hold and identifies the capture and digest under
