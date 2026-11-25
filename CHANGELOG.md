@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.36.1 - 2026-11-24
+
 - Archive the retired three-arm prompt study and its frozen design. No study arm ever ran.
 
 ## 1.36.0 - 2026-11-24
