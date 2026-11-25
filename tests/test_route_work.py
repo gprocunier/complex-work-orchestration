@@ -784,7 +784,7 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(allowed["blocking_review_job_description_label"], "contract-jd-master-plan-review")
         evidence = " ".join(allowed["blocking_review_required_evidence"])
         self.assertIn("sender-confirmed Pro model picker label", evidence)
-        self.assertIn("private copied reply linked to the posted request ID and original packet", evidence)
+        self.assertIn("private reply text from the completed assistant message linked to the posted request ID and original packet", evidence)
         self.assertNotIn("share-link", evidence)
         self.assertNotIn("model_attestation", evidence)
         self.assertEqual(allowed["guard_labels"], [

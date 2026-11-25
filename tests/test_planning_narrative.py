@@ -144,17 +144,17 @@ class PlanningNarrativeTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertEqual(retired_browser_guidance_errors(text, source_name='fixture'), [])
 
-    def test_desktop_browser_workflow_preserves_required_review_and_hold(self):
+    def test_desktop_browser_workflow_preserves_required_review(self):
         page = MainText(source('external-contracting.html')).text
         for phrase in ('Required reviewer gate', 'remains blocking',
                        'the operator changes it', 'model picker label confirmed by the sender',
-                       'off by default pending an authorized live round trip'):
+                       'ChatGPT desktop app', '@Chrome'):
             self.assertIn(phrase, page)
         self.assertIn('id="master-review"', source('external-contracting.html'))
         workflow = (ROOT / 'references/chatgpt-pro-browser.md').read_text()
         for phrase in ('@Chrome', 'prepare-browser', '--browser-reply',
                        '--request-id', '--model-label', "operator's decision",
-                       'off by default pending an authorized live round trip'):
+                       'visible message text', 'private run directory', 'Share-link ingestion remains held'):
             self.assertIn(phrase, workflow)
 
 

@@ -130,7 +130,8 @@ These renderers do not upload attachments. Packet or local-envelope declarations
 named `attachments`, `files` or `uploads` refuse, including empty declarations;
 structured file/image message content is unsupported. Included-artifact paths
 and digests, selected text snippets and expert-profile text are disclosed text,
-and pass through the same scans. Browser and local HTTP live routes remain held.
+and pass through the same scans. Legacy CDP dispatch, browser share-link
+ingestion and local HTTP live dispatch remain held.
 
 Generated contractor packets include the matched Distinguished Engineer profile
 by default. That profile is part of the contract artifact and gives the outside
@@ -711,10 +712,10 @@ python3 scripts/build_contractor_packet.py \
    `result_class: nonproduction-rehearsal` inside its hash and is refused by
    every production consumer, with or without its audit link.
 
-   The [desktop Chrome workflow](chatgpt-pro-browser.md) exports a screened
-   request, records the sender-confirmed model picker label and brings the
-   private reply back for evaluation. The route is off by default pending an
-   authorized live round trip.
+   In the [desktop Chrome workflow](chatgpt-pro-browser.md), the architect
+   thread in the ChatGPT desktop app sends the screened request through
+   `@Chrome` with the operator present. It records the sender-confirmed model
+   picker label and reads the completed reply from the page for evaluation.
 
    When the chosen CLI supports a prompt-file or stdin-safe mode, prefer that
    over putting large prompts in process arguments. If the CLI only accepts

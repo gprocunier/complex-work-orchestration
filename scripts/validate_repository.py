@@ -1743,7 +1743,7 @@ def validate_repository() -> list[str]:
             'the operator changes it',
             'model confirmation',
             'model picker label confirmed by the sender',
-            'off by default pending an authorized live round trip',
+            'ChatGPT desktop app',
             './model-synthesis.html#planning-example',
         ],
     )
@@ -2073,8 +2073,8 @@ def validate_repository() -> list[str]:
         errors,
         "references/chatgpt-pro-browser.md",
         [
-            'off by default pending an authorized live round trip',
-            'ChatGPT desktop session',
+            'visible message text',
+            'ChatGPT desktop app',
             '@Chrome',
             'prepare-browser',
             '--browser-reply',

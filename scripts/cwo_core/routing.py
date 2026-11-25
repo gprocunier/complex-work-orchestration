@@ -154,8 +154,8 @@ CHATGPT_MASTER_REVIEW_EXECUTOR = "chatgpt_pro_browser_master_reviewer"
 CHATGPT_MASTER_REVIEW_JOB = "contract-jd-master-plan-review"
 CHATGPT_MASTER_REVIEW_FAILURE_BEHAVIOR = "stop-before-implementation-unless-explicit-operator-waiver"
 CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
-    "screened request sent via desktop @Chrome with the operator present and the sender-confirmed Pro model picker label recorded",
-    "private copied reply linked to the posted request ID and original packet",
+    "screened request sent via @Chrome in the ChatGPT desktop app with the operator present and the sender-confirmed Pro model picker label recorded",
+    "private reply text from the completed assistant message linked to the posted request ID and original packet",
     "contractor return evaluated before use",
     "Codex architect adjudication recorded before implementation",
 ]
@@ -946,13 +946,13 @@ def score_executors(
             reasons.append("explicit GLM-5.2 BF16 architect critique request")
         if key == "chatgpt_pro_browser_master_reviewer" and explicit_chatgpt_master_plan_review_requested(text):
             score += 36
-            reasons.append("explicit ChatGPT Pro Extended Reasoning master plan review request")
+            reasons.append("explicit ChatGPT Pro master plan review request")
         if key == "openai_deep_research_manual" and explicit_openai_deep_research_requested(text):
             score += 30
             reasons.append("explicit Deep Research request")
         if key == "openai_deep_research_manual" and explicit_chatgpt_master_plan_review_requested(text):
             score -= 12
-            reasons.append("Extended Reasoning master review is distinct from Deep Research")
+            reasons.append("ChatGPT Pro master review is distinct from Deep Research")
         if (
             explicit_chatgpt_master_plan_review_requested(text)
             and key != "chatgpt_pro_browser_master_reviewer"

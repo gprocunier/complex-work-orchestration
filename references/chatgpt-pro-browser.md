@@ -1,36 +1,38 @@
 # ChatGPT Pro review in desktop Chrome
 
-The desktop route is off by default pending an authorized live round trip that
-brings a Pro reply back into CWO's evaluator. The workflow requires the operator
-present in a ChatGPT desktop session paired with the target Chrome profile
-through the [ChatGPT extension](https://chromewebstore.google.com/detail/chatgpt/hehggadaopoacecdllhhajmbjkdcmajg).
-Use that desktop session for browser submission and capture. CWO's request
-preparation and reply evaluation run locally.
+Run the architect's Codex thread in the ChatGPT desktop app. The thread uses
+`@Chrome` in the Chrome profile paired through the
+[ChatGPT extension](https://chromewebstore.google.com/detail/chatgpt/hehggadaopoacecdllhhajmbjkdcmajg).
+With the operator present and the review authorized, the thread prepares the
+request, drives the browser and evaluates the reply without a manual transfer.
+Browser access belongs to the desktop app session. Keep its private browser
+connection inside the app.
 
 1. [Build an approved browser reviewer packet](external-contracting.md#dispatch-flow)
    within the assignment's sharing boundary. From the CWO directory, use the
    same host audit store to prepare and inspect the screened request. Set
-   `packet` to the original packet path and `request` to a new file in a
-   private working directory.
+   `packet` to the original packet path. Create a private run directory that
+   the desktop thread can write to and keep that review's files there.
 
    ```bash
    umask 077
-   python3 scripts/cwo.py prepare-browser --packet "$packet" > "$request"
+   run_dir=$(mktemp -d)
+   python3 scripts/cwo.py prepare-browser --packet "$packet" > "$run_dir/request.txt"
    ```
 
-2. From a ChatGPT desktop thread, use `@Chrome` to open a fresh ChatGPT chat in
-   the paired Chrome profile. Select Pro and confirm the label shown in the
-   model picker. With the operator present, send the prepared text intact,
-   including its CWO request ID line.
-3. Read the request ID from the posted message and copy the reply from the
-   same chat into a private text file. Evaluate it with the original packet,
-   the observed request ID and the label the sender confirmed in the model
-   picker. Set `reply`, `request_id` and `model_label` to those values.
+2. Use `@Chrome` to open a fresh ChatGPT chat in the paired Chrome profile.
+   Select Pro and record the exact label shown in the model picker. With the
+   operator present, send the screened request once, including its CWO request
+   ID line. Read `request_id` from the posted user message.
+3. Wait for the assistant to finish. Use `@Chrome` to read the visible message text
+   of the completed reply and save the text as UTF-8 in `$run_dir/reply.txt`.
+   Evaluate the file with the original packet, the posted `request_id` and
+   the confirmed `model_label`. Save the evaluation in the same run directory.
 
    ```bash
    python3 scripts/cwo.py evaluate --contractor-packet "$packet" \
-     --browser-reply "$reply" --request-id "$request_id" \
-     --model-label "$model_label" --json
+     --browser-reply "$run_dir/reply.txt" --request-id "$request_id" \
+     --model-label "$model_label" --json > "$run_dir/evaluation.json"
    ```
 
 CWO links the dispatch, private return and evaluator record in the host audit.

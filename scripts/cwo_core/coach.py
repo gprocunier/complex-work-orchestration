@@ -2262,13 +2262,13 @@ def blocking_review_prompt_line(route: dict[str, Any]) -> str:
     job = route.get("blocking_review_job_description_label") or "contract-jd-master-plan-review"
     return (
         "Treat the explicit ChatGPT Pro master review as a blocking gate before implementation. "
-        f"Use {executor} with {job}. The desktop route is off by default. "
-        "When authorized, use CWO's prepare-browser to export the screened request from the approved packet. "
-        "With the operator present, confirm Pro in the model picker and send the request verbatim through desktop @Chrome. "
-        "Keep the copied reply private. Use CWO's evaluate --browser-reply with the original packet, the posted request ID, "
-        "and the sender-confirmed picker label. Record Codex architect adjudication before implementation. "
-        "If the route is unavailable or any step fails, stop and ask the operator to resolve the issue "
-        "or explicitly waive or downgrade the review in Beads.\n"
+        f"Use {executor} with {job} from the architect thread in the ChatGPT desktop app. "
+        "Once authorized, use CWO's prepare-browser to export the screened request into a private run directory. "
+        "With the operator present, use @Chrome to open a fresh chat, confirm Pro in the picker and send the prepared request verbatim once. "
+        "Read the completed reply's visible message text through @Chrome. Save the reply and evaluation in the run directory. "
+        "Run CWO's evaluate --browser-reply with the original packet, the posted request ID and the sender-confirmed picker label. "
+        "Record Codex architect adjudication before implementation. If the route is unavailable or any step fails, stop and ask "
+        "the operator to resolve the issue or explicitly waive or downgrade the review in Beads.\n"
     )
 
 

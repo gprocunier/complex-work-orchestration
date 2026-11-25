@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import redirect_stdout
+from copy import deepcopy
 import hashlib
 import io
 import json
@@ -14,6 +15,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import cwo
 from cwo_core import host_records
+from cwo_core.policy import load_policy
 from generate_manual_dispatch_prompt import render_packet_prompt
 from tests.test_browser_provenance import production_packet
 from tests.test_outbound_screen import packet_with
@@ -137,3 +139,36 @@ class DesktopBrowserReviewTests(unittest.TestCase):
         artifact.write_bytes(b"Changed retained bytes.")
         with self.assertRaisesRegex(SystemExit, "already has a different private reply"):
             self.evaluate(request_id)
+
+    def test_new_packet_identifies_desktop_chrome_and_uses_picker_at_dispatch(self):
+        self.assertEqual(self.packet["executor_transport"], {
+            "kind": "chatgpt-desktop-chrome", "default_model_label": "Pro",
+        })
+        self.assertIsNone(self.packet["manual_command"])
+        _, request_id = self.prepare()
+        self.evaluate(request_id, model="Latest > 6 Pro")
+        receipt = self.store.require_return(self.packet["dispatch_id"], hashlib.sha256(self.reply).hexdigest())
+        self.assertEqual(receipt["desktop_browser"]["model_label"], "Latest > 6 Pro")
+
+    def test_packet_from_legacy_registry_resumes_and_evaluates(self):
+        registry = deepcopy(load_policy("executor-registry"))
+        registry["executors"][self.packet["executor"]]["transport"] = {
+            "kind": "chatgpt-browser",
+            "config_env": "CWO_CHATGPT_BROWSER_CONFIG",
+            "default_config": "~/.config/cwo/chatgpt-browser.json",
+            "default_model_label": "ChatGPT Pro 5.5",
+            "default_reasoning_label": "Extended Reasoning",
+            "share_link_required": True,
+            "response_timeout_seconds": 1800,
+        }
+        with patch("build_contractor_packet.load_policy", side_effect=lambda name: (
+            registry if name == "executor-registry" else load_policy(name)
+        )):
+            self.packet = production_packet()
+            self.link_packet(self.packet)
+            request, request_id = self.prepare()
+        saved = self.packet_path.read_bytes()
+        self.assertEqual(self.invoke("prepare-browser", "--packet", str(self.packet_path)), request)
+        evaluation = json.loads(self.evaluate(request_id))
+        self.assertEqual(evaluation["return_sha256"], hashlib.sha256(self.reply).hexdigest())
+        self.assertEqual(self.packet_path.read_bytes(), saved)

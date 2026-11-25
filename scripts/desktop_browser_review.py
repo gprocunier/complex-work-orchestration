@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare a screened request and receive the reply copied from desktop Chrome."""
+"""Prepare a screened request and receive visible reply text from desktop Chrome."""
 from __future__ import annotations
 
 import argparse

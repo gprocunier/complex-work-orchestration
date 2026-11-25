@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
+- Use `@Chrome` in the ChatGPT desktop app for ChatGPT Pro reviews. The architect thread sends the screened request with the operator present, reads the completed reply from the page, and saves it and the evaluation in the private run directory. CWO links the request, reply, sender-confirmed model picker label and evaluation in the host audit.
 
 ## 1.36.8 - 2026-11-25
 

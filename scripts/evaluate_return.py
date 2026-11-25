@@ -512,7 +512,7 @@ def main() -> None:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--file", help="Contractor return text file.")
     source.add_argument("--private-artifact", help="Provenance JSON of a private browser response to verify and evaluate.")
-    source.add_argument("--browser-reply", help="UTF-8 file containing the reply copied from desktop Chrome.")
+    source.add_argument("--browser-reply", help="UTF-8 file containing the visible text of the completed reply in desktop Chrome.")
     parser.add_argument("--request-id", help="CWO request ID observed in the posted browser user message.")
     parser.add_argument("--model-label", help="Model picker label confirmed by the person who sent the request.")
     add_private_capture_arguments(parser)

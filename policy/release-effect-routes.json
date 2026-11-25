@@ -40,7 +40,7 @@
 
 "H7":{"admission":{"$":2},"authority":"Operator chooses exact Chrome executable/profile/URL/unit/port/config, PATH selected systemctl/systemd-run/ss; no claim to pin arbitrary executable code.","effect":"Operator Chrome systemd launcher/config/profile effects","effect_points":["p52","p154","p53","p2d0","p20e"],"gates":["p316","p1a2","p2a7","p195","p151"],"limits":"24 rows, exact fake effect order/config bytes+mode/profile. STOP then STATUS precedence; dry status permits read probes. Five dry predicates protect stop/config/replace/mkdir/launch. Non-dry config+print intentionally writes; explicit stop intentionally stops. PATH/env/Chrome operator selected, no intrinsic shell deadline.","manual_decisions":["M13","M17"],"ordering":"Actual five dry predicates independently precede config write, stop/replace, profile mkdir and systemd-run; status/read checks remain permitted. Printed command is a delayed operator-consumed edge, not executed here.","trace_files":[{"$":111}],"witnesses":["w76"]},
 
-"HD":{"authority":"Approved linked production packet and configured host audit.","gates":[],"manual_decisions":["MD"]},
+"HD":{"authority":"Approved linked production packet, configured host audit and operator-present desktop @Chrome.","gates":[],"manual_decisions":["MD"]},
 
 "I1":{"admission":{"$":2},"authority":"Explicit install action and selected destination plus source projection/checker. confirm is optional interactive confirmation, not an unconditional --yes requirement.","effect":"Installer projection/stage/backup/activation","effect_points":["pd7","p245"],"gates":["p355","p199","pd3"],"limits":"Projection before writes; dry returns before stage/validator. Stage verified before backup/activation. Signal positive proves previous install restored on TERM after backup; SIGKILL not rollback. Interactive confirm is conditional, not mandatory --yes. Prior staged writes allowed before tampered-stage refusal.","manual_decisions":["M13","M19"],"ordering":"Projection validation before writes; DRY_RUN before stage; cp projection then checker; backup then activation; failed activation restore; trap cleanup limited selected stage. Postactivation selected validator is I2 external contract.","trace_files":[{"$":69}],"witnesses":["w4d","w8d"]},
 
@@ -222,7 +222,7 @@
 
 "MContainedHost":{"conclusion":"Contained qualification requires original signed campaign authority.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent owns approvals and disposable custody. Preview has no authority. Production separate.","reason":"Approval binds campaign/cap 20. Check enrollment/capacity before claims, signed binding before calibration and original approval before starts/effects.","review_evidence":"Enrollment/raw refusals. Review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8","p64R","p66C"]},
 
-"MD":{"conclusion":"Use the posted request ID and sender-confirmed model picker label.","evidence_contracts":["HD"],"external_trust_limit":"Sender report and same-user audit trust. No live browser, share or model evidence.","reason":"Inspect cross-function order from screened request to audited private reply and evaluation.","review_evidence":"Screening and intake refusals, matched round trip.","source":["dQ","p278","bPc","bPw","dH","dI","dR","dD","dA","dV"]}
+"MD":{"conclusion":"Use the posted request ID and sender-confirmed model picker label.","evidence_contracts":["HD"],"external_trust_limit":"Sender observation and same-user audit trust. No share or model attestation.","reason":"Inspect cross-function order from screened request to audited private reply and evaluation.","review_evidence":"Screening and intake refusals. One authorized desktop @Chrome round trip passed.","source":["dQ","p278","bPc","bPw","dH","dI","dR","dD","dA","dV"]}
 },
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
@@ -602,7 +602,7 @@
 
 "bEg":[176,463,"if browser_return is not None:"],
 
-"bEm":[176,"main",510,"hQB4MJivCkDFvEz1s1Yh9Bb32bFA670zUT8urOe-aHs"],
+"bEm":[176,"main",510,"HfDStNx0PsOZXXzGnHL4d-GO_KeSt28-bpjteBn5DlQ"],
 
 "bEp":[176,216,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
 
@@ -636,15 +636,15 @@
 
 "dO":[177,149,"sys.stdout.write(prepare_desktop_request(args.packet).decode(\"utf-8\"))"],
 
-"dP":[178,"DesktopBrowserReviewTests.test_screening_stops_preparation_before_output_or_dispatch",121,"fgOF068zVCN02Ees5uggSOmUFd_49TJiEgSr_RG5EtQ"],
+"dP":[178,"DesktopBrowserReviewTests.test_screening_stops_preparation_before_output_or_dispatch",123,"fgOF068zVCN02Ees5uggSOmUFd_49TJiEgSr_RG5EtQ"],
 
 "dQ":[177,64,"enforce_contracting_quota(metadata[\"epic_id\"], EXECUTOR_KEY, \"external-contract\","],
 
 "dR":[177,109,"if (len(receipts) != 1 or receipts[0].get(\"return_sha256\") != digest"],
 
-"dT":[178,"DesktopBrowserReviewTests.test_desktop_round_trip_records_private_reply_and_sender_label",65,"7P8badJZzeuzBoZ9u6ArsSqhawV_vtSQ9ZqYxXkW4l4"],
+"dT":[178,"DesktopBrowserReviewTests.test_desktop_round_trip_records_private_reply_and_sender_label",67,"7P8badJZzeuzBoZ9u6ArsSqhawV_vtSQ9ZqYxXkW4l4"],
 
-"dU":[178,"DesktopBrowserReviewTests.test_unmatched_request_and_audit_override_create_no_receipt",96,"L8HRcxATvuBjdGpjq2Fq38NNzsrwx0y1u4zLgyponPQ"],
+"dU":[178,"DesktopBrowserReviewTests.test_unmatched_request_and_audit_override_create_no_receipt",98,"L8HRcxATvuBjdGpjq2Fq38NNzsrwx0y1u4zLgyponPQ"],
 
 "dV":[176,760,"record = _record_host_evaluation(return_text, result)"],
 
@@ -6268,9 +6268,9 @@
 
 {"contract":"B12","entry_aliases":["cwo accept-delivery"],"entrypoint":"p70c","id":"B12.1"},
 
-{"authority":"Original host observation.","contract":"H5","effect":"Private browser receipt","effect_points":["bEe"],"entry_aliases":["cwo evaluate"],"entrypoint":"bEm","gate_chains":[],"gate_limits":"Manual cross-function order.","gates":["bEg"],"id":"H5.8","limits":"Local receipt. Chrome dispatch held.","manual_decisions":["M24"],"ordering":"Check exact capture and preparation first.","review_gates":["bEv","bEp"],"trace_files":[{"$":388},{"$":30},{"$":26},"scripts/cwo_core/host_return_intake.py",{"$":105}],"witnesses":["wBE"]},
+{"authority":"Original host observation.","contract":"H5","effect":"Private browser receipt","effect_points":["bEe"],"entry_aliases":["cwo evaluate"],"entrypoint":"bEm","gate_chains":[],"gate_limits":"Manual cross-function order.","gates":["bEg"],"id":"H5.8","limits":"Historical CDP receipt. Legacy Send held.","manual_decisions":["M24"],"ordering":"Check exact capture and preparation first.","review_gates":["bEv","bEp"],"trace_files":[{"$":388},{"$":30},{"$":26},"scripts/cwo_core/host_return_intake.py",{"$":105}],"witnesses":["wBE"]},
 
-{"admission":{"$":4},"contract":"HD","effect":"Prepared host dispatch and screened stdout","effect_points":["bPw","dO"],"entry_aliases":["cwo prepare-browser"],"entrypoint":"dM","gate_limits":"Manual order across dispatch and nested export.","id":"H4.7","limits":"Screen refusal: zero dispatch/stdout. Resume preserves bytes/ID. Dispatch can persist on stdout failure.","ordering":"Production packet, exact screen, quota, current-byte check, host dispatch, stdout. Resume verifies original preparation.","review_gates":["p278","dH"],"trace_files":[{"$":389},{"$":387},{"$":390},{"$":105}],"witnesses":["wDP","wDO"]},
+{"admission":{"$":4},"contract":"HD","effect":"Prepared host dispatch and screened stdout","effect_points":["bPw","dO"],"entry_aliases":["cwo prepare-browser"],"entrypoint":"dM","gate_limits":"Manual order across dispatch and nested export.","id":"H4.7","limits":"Screen refusal: zero dispatch/stdout. Resume preserves bytes/ID. Dispatch can persist on stdout failure. Desktop @Chrome sends separately.","ordering":"Production packet, exact screen, quota, current-byte check, host dispatch, stdout. Resume verifies original preparation.","review_gates":["p278","dH"],"trace_files":[{"$":389},{"$":387},{"$":390},{"$":105}],"witnesses":["wDP","wDO"]},
 
 {"contract":"HD","effect":"Owner-only reply, host receipt and evaluation","effect_points":["dW","dA","dV"],"entry_aliases":["cwo evaluate"],"entrypoint":"bEm","gate_limits":"Local guards cover writes. Request and prior receipt checks require cross-function review.","gates":["dG","dN","dE"],"id":"H5.9","limits":"Wrong ID/audit override/malformed reply: zero receipt/evaluation. Private storage can precede receipt failure. One receipt on replay; changed reply or label refuses. Stdout/audit omit body.","ordering":"Check packet, posted ID, label, reply and prior receipt; retain/recheck private bytes before receipt and evaluation.","review_gates":["dI","dR"],"trace_files":[{"$":389},{"$":387},{"$":388},{"$":105},{"$":271},{"$":268}],"witnesses":["wDR","wDO"]},
 
@@ -7242,11 +7242,11 @@
 
 "@175":["_erCbCx5_5ca8oPuESeXYMpI9HQv8JbPLvxsxNJ9maI",420,12940],
 
-"@176":["21zHnAcsqPElsMFwhEAVWV_kzFm52xSXC32hGq0Gtpw",493,43825],
+"@176":["PcSHwuSAfstmBGLePjLOYYbze4np3oUK-jETWT1Y05M",493,43846],
 
-"@177":["4_09Yi8owkQNCdC8aF2xkEZLH_MZI4dLDzwOvV6_xAs",420,7458],
+"@177":["zDmMozd6E-te8S2o64E_AWX1UcDS0Z38h4dcCGzlHDs",420,7460],
 
-"@178":["K1HzBBdFYIYUyFmEL7PqhArEyS1_N5P516pjyzAcMj4",420,7470],
+"@178":["SXu6Yj22_Ug5o_QrdX8p8qA_vos4YYSJ8eVwvYtRZ6k",420,9375],
 
 "@179":["qBuFjmJ4J-pRWXryHjO8RcrYazA2ukmqrtz5qo-Jyaw",420,8550],
 
@@ -7438,7 +7438,7 @@
 
 "policy/model-roles.yaml":["ts5whoPZ82VNn1DRyC7d5Hi_XecHVzBzZqd8knmlRW0",420,726],
 
-"references/claims-register.md":["W-NsYm13vZmyT68UZJBhO-gXK-MfqBKHGKoRbsnRkLE",420,10057],
+"references/claims-register.md":["oMZTyjMyJDwlfVKgtRQbVuwyIY7S0MD5y-__o-499Ws",420,10609],
 
 "references/cwo-system-prompt.md":["NaUTR-c8I0JleXR4pZHdEBuAPkuhI9NrDO6qVWw7kr8",420,2833],
 
@@ -7478,7 +7478,7 @@
 
 "scripts/cwo_core/chatgpt_urls.py":["mfKKV99_u7hDQr5z0qwZsfEOfiKqmjLGDD1TjQ-j7MI",420,1126],
 
-"scripts/cwo_core/coach.py":["5JuBR-S3D6oN7zB638k_o-tcFCOUJbWCrhQIqZNyDJY",420,117157],
+"scripts/cwo_core/coach.py":["xoq1ZLHfFJll3MDD2-JIzFsdnVslrtCT_rq402ILwPk",420,117280],
 
 "scripts/cwo_core/codex_hook_enforcement.py":["uYjwBis1TPGT7DUoRiFoy4KPJyHSnQRlc8ePae4WhaA",420,8633],
 
@@ -7652,7 +7652,7 @@
 
 "scripts/cwo_core/risk_features.py":["iUradZuNAARDtpOgrTgkAf4vZKUZaWqgOaIAcEQ88nU",420,11188],
 
-"scripts/cwo_core/routing.py":["ayjbA4PknEVgCKHuGGqnpNypVvpPj9PoguimhIL9nsQ",420,71920],
+"scripts/cwo_core/routing.py":["1Sw4roKMPqjzSv40cTMhVPJ_2bF_tlZrJkQIWGyaVkk",420,71948],
 
 "scripts/cwo_core/routing_signals.py":["bDIDQDOuSctFo49jMVgl1kivU6xFRVsu5IJJk41EYkY",420,8583],
 
@@ -7808,7 +7808,7 @@
 
 "scripts/validate_public_copy.py":["5jvp0QaFAcImQCY6cXJcXSdDZ5rGGQgzSguKe3H8t8o",420,63926],
 
-"scripts/validate_repository.py":["l3qIfz5EW53SQLiZtRI60zlq3iS2-hoKnBzXcWewZ-g",420,116241],
+"scripts/validate_repository.py":["RNHJW8gmLeGmu0IAZ1P1afwqKAWYOxyzDgwjqJP8LsQ",420,116172],
 
 "scripts/validate_run_readiness_plan.py":["Qgbl831AJKP8HfpAZtP_cj91LTnKuHtFDKf02kUmy4Y",493,21103],
 
@@ -7824,7 +7824,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["9nlK6qyrg6V2F6uaEOs4tsDE0uk0tEhpcrUDqKm-eho",420,135560],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["TNNG8_lQFSmt1hMJxPmirGHDERvSUGK1UAiN56QamqA",420,135560],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 

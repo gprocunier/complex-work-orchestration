@@ -30,7 +30,7 @@ replacement base instructions. Start a fresh session with `cwo-codex -C "$PWD"`.
 | --- | --- |
 | Outside reviewers | With explicit opt-in, build and validate a contractor packet, export its manual prompt, then submit it yourself within the approved sharing boundary. Bring the return back for evaluation and adjudication. See [outside review](external-contracting.md). |
 | Local vLLM reviewers | Prepare a local dispatch envelope or export a prompt. Live HTTP submission with `--execute-local` is held. See [local model preparation](local-inference.md#dispatch). |
-| ChatGPT in Chrome | The [desktop Chrome workflow](chatgpt-pro-browser.md) is off by default pending an authorized live round trip. You can [verify saved CDP return artifacts](private-browser-artifacts.md). |
+| ChatGPT in Chrome | Use `@Chrome` from a Codex thread in the ChatGPT desktop app for [ChatGPT Pro reviews](chatgpt-pro-browser.md). You can [verify saved CDP return artifacts](private-browser-artifacts.md). |
 | Codex work | Work in the lead session or use the [registered single-worker route](native-live-route-holds.md#registered-single-worker-production) with its original signed workflow, consent for the exact provider disclosure and a dedicated worker login. Raw native launch and concurrent v2 pools remain held. Direct v1 pool dispatch and the legacy campaign launcher are retired. |
 
 Direct local model dispatch is planned for a future 1.x release.

@@ -244,9 +244,9 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   and approval policy. Codex `--yolo` disables those checks for the lead.
   Registered single-worker execution uses the verified provider-only app-server
   namespace and separate networkless command and validator namespaces.
-- **Desktop Chrome review is off by default** pending an authorized live round
-  trip through the ChatGPT desktop app. It requires a paired Chrome profile and
-  the operator present to send.
+- **ChatGPT Pro browser review runs from the ChatGPT desktop app.** The
+  architect thread uses `@Chrome` in the paired profile with the operator
+  present. [Desktop Chrome workflow](references/chatgpt-pro-browser.md)
 - **Disabled in this version:** local HTTP dispatch
   (`dispatch_work.py --execute-local`), raw native launch, concurrent pools and
   live campaigns; new worker-surface qualification; live native activation
