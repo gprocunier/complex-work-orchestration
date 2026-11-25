@@ -3010,9 +3010,9 @@
 
 "pPoolWireNotify":[157,228,"super().notify(method, params)",15,228,45],
 
-"pPoolWirePositive":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",359,"fo08RmEmN8y7UomgQr-JGUkpBBRWwePP-xy6obruLrI"],
+"pPoolWirePositive":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",361,"4GVHXyDF_Imqus5v8zQZAq4DCSsxUuReA5EFuGkcR6A"],
 
-"pPoolWireRefusal":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",382,"RCb6vrsu1R2qcT7c1F6xR-S-PA86n7WQ_OiYlQEDtDY"],
+"pPoolWireRefusal":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",385,"RCb6vrsu1R2qcT7c1F6xR-S-PA86n7WQ_OiYlQEDtDY"],
 
 "pPoolWireRequest":[157,220,"super().request(method, params, timeout=min(timeout, self.factory.remaining()))",15,220,94],
 
@@ -7116,9 +7116,9 @@
 
 "@156":["lUKAM3m5qafIgc0UTG-KcZVfsUkTCKhCvzd-RQbz5CQ",420,24655],
 
-"@157":["tHWGkbqQabd3RcboDX_Rd2K18Y_kMx4AfeA_Y1pmYcU",420,72625],
+"@157":["heAp2UPTBgYwfflNe1VkjAACuCKKrmTKePdMNnUGFws",420,72626],
 
-"@158":["AUhJd5guxVQQXqs2DjNFTmrPKSh32Bpno4xvXcXE5kY",420,29514],
+"@158":["nYIEDpeH9_KZRv9oU96_Kj1Exrh0LhEMGS-6aR_i5Is",420,30380],
 
 "@159":["y9lH1uaOU1J5R2z_Y0_gzsSICR5Q9cvYLjYYoIaZSi4",420,19207],
 

@@ -380,7 +380,7 @@ class _WorkerWire(RegisteredAppServer):
                     self.qualified_tool_evidence.complete(params, item)
             if self.factory.isolation_target:
                 self.factory.acknowledge_isolation_refusal()
-        elif item.get("type") == "agentMessage" and item.get("phase") == "finalAnswer":
+        elif item.get("type") == "agentMessage" and item.get("phase") == "final_answer":
             turn = params.get("threadId"), params.get("turnId")
             with self.requests.lock:
                 _require(self._turn_is_open(turn) and self.marker is None and type(item.get("text")) is str,

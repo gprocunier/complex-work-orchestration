@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Recognize Codex's final-answer notification when verifying a pool worker's completion marker.
+
 ## 1.36.3 - 2026-11-25
 
 - Explain when to use the architect profile or plain Codex, and document the current requirements for delegated work.
