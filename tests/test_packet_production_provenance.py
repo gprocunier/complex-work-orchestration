@@ -14,12 +14,12 @@ Every production packet consumer now requires it:
 Each refusal asserts the exit, empty stdout, an unchanged audit file and zero calls on the
 effect spies. The positive controls (a production packet) reach stdout of every consumer,
 ``write_export`` in dispatch_work and the manual prompt, ``record_audit_event`` in dispatch_work,
-evaluate_return and chatgpt_browser_review, the audit file and the acceptance verdict. The other
+evaluate_return and cwo_core.browser_capture, the audit file and the acceptance verdict. The other
 spies are guards that no positive control reaches, so their zero counts show nothing by
 themselves: network (``socket.create_connection``, ``urllib.request.urlopen``,
 ``dispatch_work.execute_local_envelope``), Beads (``cwo_core.beads.run_bd`` and
 ``run_bd_structured``), the browser runner, the release spies and ``cwo_core.audit.record_audit_event``
-(CLIs import it by name).
+(the effect callers import it by name).
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ import evaluate_return  # noqa: E402
 import generate_manual_dispatch_prompt  # noqa: E402
 import normalize_contractor_return  # noqa: E402
 import record_audit_event  # noqa: E402
-from cwo_core import beads, policy  # noqa: E402
+from cwo_core import beads, browser_capture, policy  # noqa: E402
 from cwo_core.util import packet_payload_hash  # noqa: E402
 
 from tests.test_policy_current_effects import RETURN_TEXT, EffectSpies, current_policy  # noqa: E402
@@ -62,7 +62,7 @@ class ConsumerSpies(EffectSpies):
         **EffectSpies.BOUNDARIES,
         "export: dispatch_work.write_export": (dispatch_work, "write_export"),
         "export: generate_manual_dispatch_prompt.write_export": (generate_manual_dispatch_prompt, "write_export"),
-        "persistence: chatgpt_browser_review.record_audit_event": (chatgpt_browser_review, "record_audit_event"),
+        "persistence: cwo_core.browser_capture.record_audit_event": (browser_capture, "record_audit_event"),
         "persistence: normalize_contractor_return.atomic_write_text": (normalize_contractor_return, "atomic_write_text"),
         "dispatch: chatgpt_browser_review.PlaywrightChatGPTRunner": (chatgpt_browser_review, "PlaywrightChatGPTRunner"),
         "network: socket.create_connection": (socket, "create_connection"),
@@ -166,7 +166,7 @@ class ProductionPacketControlTests(ProvenanceCase):
         reached = {
             "dispatch_work --packet": ("export: dispatch_work.write_export", "persistence: dispatch_work.record_audit_event"),
             "generate_manual_dispatch_prompt --packet": ("export: generate_manual_dispatch_prompt.write_export",),
-            "chatgpt_browser_review --packet --dry-run": ("persistence: chatgpt_browser_review.record_audit_event",),
+            "chatgpt_browser_review --packet --dry-run": ("persistence: cwo_core.browser_capture.record_audit_event",),
             "normalize_contractor_return --contractor-packet": (),
             "evaluate_return --contractor-packet": ("persistence: evaluate_return.record_audit_event",),
         }

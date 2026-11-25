@@ -782,7 +782,11 @@ class RouteWorkTests(unittest.TestCase):
         self.assertTrue(allowed["blocking_review_waiver_required"])
         self.assertEqual(allowed["blocking_review_executor"], "chatgpt_pro_browser_master_reviewer")
         self.assertEqual(allowed["blocking_review_job_description_label"], "contract-jd-master-plan-review")
-        self.assertIn("share-link return ingested", " ".join(allowed["blocking_review_required_evidence"]))
+        evidence = " ".join(allowed["blocking_review_required_evidence"])
+        self.assertIn("sender-confirmed Pro model picker label", evidence)
+        self.assertIn("private copied reply linked to the posted request ID and original packet", evidence)
+        self.assertNotIn("share-link", evidence)
+        self.assertNotIn("model_attestation", evidence)
         self.assertEqual(allowed["guard_labels"], [
             "contractor-only",
             "no-codex-exec",

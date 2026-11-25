@@ -154,8 +154,8 @@ CHATGPT_MASTER_REVIEW_EXECUTOR = "chatgpt_pro_browser_master_reviewer"
 CHATGPT_MASTER_REVIEW_JOB = "contract-jd-master-plan-review"
 CHATGPT_MASTER_REVIEW_FAILURE_BEHAVIOR = "stop-before-implementation-unless-explicit-operator-waiver"
 CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE = [
-    "confirmed model_attestation for ChatGPT Pro 5.5 Extended Reasoning",
-    "share-link return ingested with dispatch_id and packet_sha256",
+    "screened request sent via desktop @Chrome with the operator present and the sender-confirmed Pro model picker label recorded",
+    "private copied reply linked to the posted request ID and original packet",
     "contractor return evaluated before use",
     "Codex architect adjudication recorded before implementation",
 ]

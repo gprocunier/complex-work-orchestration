@@ -315,21 +315,18 @@ and inspect the packet before sending it; these file checks do not replace the
 operator's review of the approved material.
 
 A **required reviewer gate** remains blocking when the user made that review a
-prerequisite for implementation. Confirm the named model and effort, approved
-route and required return evidence. If those cannot be established, record the
-failed prerequisite and stop dependent implementation. Only an explicit operator
-decision may change the requirement; do not silently substitute another model,
-skip evaluation or treat an incomplete return as acceptance.
+prerequisite for implementation. Confirm the approved route, model selection,
+any review settings the user required and the required return evidence. If
+those cannot be established, record the failed prerequisite and stop dependent
+implementation. An explicit operator decision is required to change the review.
 
 Capture conclusions, evidence, rejected alternatives, risks and recommended
 edits—not hidden reasoning. Evaluate the return, perform required peer review,
 and record the lead's decision before creating implementation work. A review
 does not authorize release, deployment, wider disclosure or extra paid calls.
 
-Browser-plugin instructions are deferred. The previous browser-automation setup
-is not current guidance; this document provides no replacement browser procedure.
-Legacy runtime identifiers and enforcement remain compatibility records, not a
-claim that a present browser route is available or qualified.
+For a ChatGPT Pro review through a paired Chrome profile, see the
+[desktop workflow and availability](chatgpt-pro-browser.md).
 
 Use these adjudication dispositions for contractor critique findings:
 
@@ -714,11 +711,10 @@ python3 scripts/build_contractor_packet.py \
    `result_class: nonproduction-rehearsal` inside its hash and is refused by
    every production consumer, with or without its audit link.
 
-   Browser-plugin instructions are deferred; see the
-   [withdrawn browser-review reference](chatgpt-pro-browser.md). There is no
-   replacement browser setup, upload or submission procedure here. Legacy runtime
-   identifiers and enforcement remain compatibility records, not proof that a
-   present browser route is available or qualified.
+   The [desktop Chrome workflow](chatgpt-pro-browser.md) exports a screened
+   request, records the sender-confirmed model picker label and brings the
+   private reply back for evaluation. The route is off by default pending an
+   authorized live round trip.
 
    When the chosen CLI supports a prompt-file or stdin-safe mode, prefer that
    over putting large prompts in process arguments. If the CLI only accepts

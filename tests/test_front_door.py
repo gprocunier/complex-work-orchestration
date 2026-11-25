@@ -183,14 +183,14 @@ class FrontDoorTests(unittest.TestCase):
     def test_disabled_routes_are_described_as_disabled(self) -> None:
         limits = section("Limits")
         self.assertIn("Disabled in this version:", limits)
-        for route in ("local HTTP dispatch", "live browser dispatch", "browser model confirmation",
+        for route in ("local HTTP dispatch", "`dispatch_work.py --execute-local`",
                       "live native activation", "successful closure", "risk narrowing",
                       "ordinary productive pool plans"):
             with self.subTest(route=route):
                 self.assertIn(route, limits)
+        self.assertIn("**Desktop Chrome review is off by default**", limits)
         value = section("What CWO does today")
-        self.assertIn("`dispatch_work.py --execute-local`", value)
-        self.assertIn("are disabled", value)
+        self.assertIn("references/chatgpt-pro-browser.md", value)
         self.assertIn("`pending-acceptance`", value)
         self.assertNotRegex(README, r"(?i)send a focused question to an approved")
 

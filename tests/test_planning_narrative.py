@@ -135,27 +135,27 @@ class PlanningNarrativeTests(unittest.TestCase):
             with self.subTest(text=text):
                 self.assertTrue(retired_browser_guidance_errors(text, source_name='fixture'))
 
-    def test_withdrawn_copy_detector_allows_deferred_plugin_and_generic_review_rules(self):
-        for text in ['ChatGPT Pro web through the browser plugin is deferred.',
-                     'Confirm the named model and effort before review.',
+    def test_withdrawn_copy_detector_allows_desktop_workflow_and_generic_review_rules(self):
+        for text in ['Use @Chrome from a paired ChatGPT desktop thread.',
+                     'Confirm the model and any required settings before review.',
                      'Registry names CWO_CHATGPT_BROWSER_CONFIG without printing values.',
                      'Use a configured local vLLM reviewer and compare evidence.',
                      '<p>Review the revised plan.</p>']:
             with self.subTest(text=text):
                 self.assertEqual(retired_browser_guidance_errors(text, source_name='fixture'), [])
 
-    def test_browser_retirement_keeps_mandatory_review_and_no_substitution(self):
+    def test_desktop_browser_workflow_preserves_required_review_and_hold(self):
         page = MainText(source('external-contracting.html')).text
         for phrase in ('Required reviewer gate', 'remains blocking',
-                       'Only an explicit operator decision', 'do not silently substitute',
-                       'Browser-plugin instructions are deferred'):
+                       'the operator changes it', 'model picker label confirmed by the sender',
+                       'off by default pending an authorized live round trip'):
             self.assertIn(phrase, page)
         self.assertIn('id="master-review"', source('external-contracting.html'))
-        retired = (ROOT / 'references/chatgpt-pro-browser.md').read_text()
-        self.assertIn('documentation withdrawn', retired)
-        self.assertIn('deferred', retired)
-        self.assertIn('Do not skip a', retired)
-        self.assertNotIn('```', retired)
+        workflow = (ROOT / 'references/chatgpt-pro-browser.md').read_text()
+        for phrase in ('@Chrome', 'prepare-browser', '--browser-reply',
+                       '--request-id', '--model-label', "operator's decision",
+                       'off by default pending an authorized live round trip'):
+            self.assertIn(phrase, workflow)
 
 
 if __name__ == '__main__':
