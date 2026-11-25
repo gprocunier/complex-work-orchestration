@@ -7,6 +7,7 @@
 ### Tests
 
 - Wait for the registered reply to settle in the native delivery review acceptance fixture.
+- Wait for successful registered replies to settle in the native pool profile fixture.
 
 ## 1.36.7 - 2026-11-25
 
