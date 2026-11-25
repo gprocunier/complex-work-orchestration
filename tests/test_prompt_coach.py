@@ -352,7 +352,7 @@ def _prompt_coach_rows() -> Iterator[PromptCoachCase]:
         Check(lambda result: any(('direct architect adjudication' in item for item in result['rationale'])), None, 'true'),
     ))
 
-    yield PromptCoachCase('test_chatgpt_pro_master_plan_opt_in_recommends_external_contract', "Use ChatGPT Pro 5.5 Extended Reasoning as a master plan reviewer for the final execution plan and total work packet.", {'external_ok': True, 'share_boundary': "redacted-packet"}, (
+    yield PromptCoachCase('test_chatgpt_pro_master_plan_opt_in_recommends_external_contract', "Use ChatGPT Pro as a master plan reviewer for the final execution plan and total work packet.", {'external_ok': True, 'share_boundary': "redacted-packet"}, (
         Check(lambda result: result['recommended_orchestration_level'], 'external-contract'),
         Check(lambda result: result['route']['recommended_executor'], 'chatgpt_pro_browser_master_reviewer'),
         Check(lambda result: result['enabled_levers'], 'contractor-only-bead', 'contains'),
@@ -361,8 +361,24 @@ def _prompt_coach_rows() -> Iterator[PromptCoachCase]:
         Check(lambda result: result['route']['blocking_review_active'], None, 'true'),
         Check(lambda result: result['paste_ready_prompt'], 'contract-jd-master-plan-review', 'contains'),
         Check(lambda result: result['paste_ready_prompt'], 'blocking gate before implementation', 'contains'),
-        Check(lambda result: result['paste_ready_prompt'], 'explicitly waive/downgrade it in Beads', 'contains'),
-        Check(lambda result: any(('ChatGPT Pro 5.5 master review is blocking' in item for item in result['warnings'])), None, 'true'),
+        Check(lambda result: result['paste_ready_prompt'], 'off by default', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'prepare-browser', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'screened request', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'With the operator present', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'desktop @Chrome', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'sender-confirmed picker label', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'Keep the copied reply private', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'evaluate --browser-reply', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'Codex architect adjudication', 'contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'explicitly waive or downgrade the review in Beads', 'contains'),
+        Check(
+            lambda result: '\n'.join([result['paste_ready_prompt'], *result['warnings'], *result['rationale']]),
+            'ChatGPT Pro 5.5',
+            'not-contains',
+        ),
+        Check(lambda result: result['paste_ready_prompt'], 'share-link ingest', 'not-contains'),
+        Check(lambda result: result['paste_ready_prompt'], 'model/effort attestation', 'not-contains'),
+        Check(lambda result: any(('ChatGPT Pro master review is blocking' in item for item in result['warnings'])), None, 'true'),
     ))
 
     yield PromptCoachCase('test_chatgpt_pro_weigh_in_master_review_wording_is_coached', "Tap in ChatGPT Pro 5.5 to weigh in as a master review of the final architect plan.", {'external_ok': True, 'share_boundary': "redacted-packet"}, (

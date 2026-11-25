@@ -79,20 +79,24 @@ class CentralModelIdentityTests(unittest.TestCase):
 class CentralPacketProvenanceTests(unittest.TestCase):
     """The production-packet rule is stated once and every consumer goes through it."""
 
-    CONSUMERS = (
-        "dispatch_work", "generate_manual_dispatch_prompt", "chatgpt_browser_review",
-        "normalize_contractor_return", "evaluate_return",
-    )
+    CONSUMER_CALLS = {
+        "dispatch_work": "require_production_contractor_packet",
+        "generate_manual_dispatch_prompt": "require_production_contractor_packet",
+        "chatgpt_browser_review": "load_browser_packet_prompt",
+        "browser_request": "require_production_contractor_packet",
+        "normalize_contractor_return": "require_production_contractor_packet",
+        "evaluate_return": "require_production_contractor_packet",
+    }
 
     def test_every_packet_consumer_uses_the_central_rule(self) -> None:
-        for name in self.CONSUMERS:
+        for name, expected_call in self.CONSUMER_CALLS.items():
             with self.subTest(consumer=name):
                 tree = ast.parse((ROOT / "scripts" / f"{name}.py").read_text(encoding="utf-8"))
                 called = {
                     node.func.id for node in ast.walk(tree)
                     if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                 }
-                self.assertIn("require_production_contractor_packet", called)
+                self.assertIn(expected_call, called)
                 self.assertNotIn("require_valid_contractor_packet", called)
 
 

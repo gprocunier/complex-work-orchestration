@@ -13,7 +13,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import chatgpt_browser_review as browser
 from tests.browser_connected_fixture import Page, REPLY, admitted_runner, packet_input, runtime_modules
-from cwo_core import audit
+from cwo_core import audit, browser_capture
 
 
 class ConnectedShareBoundary:
@@ -83,7 +83,7 @@ class ConnectedBrowserTests(unittest.TestCase):
         from cwo_core.browser_provenance import select_private_capture
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            with patch.object(browser, "record_audit_event", side_effect=OSError("offline audit unavailable")), \
+            with patch.object(browser_capture, "record_audit_event", side_effect=OSError("offline audit unavailable")), \
                     self.assertRaises(OSError) as caught:
                 connected_capture(root)
             self.assertNotIn(REPLY, str(caught.exception))

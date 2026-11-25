@@ -49,6 +49,8 @@ _TYPES = frozenset({'dispatch', 'return-received', 'acceptance-decision',
                     'workspace-database-identity', 'evaluation', 'adjudication', 'hold-clearance'})
 _DIGEST = re.compile(r'[0-9a-f]{64}')
 _OVERRIDE: ContextVar[HostRecordStore | None] = ContextVar('host_record_test_store', default=None)
+DESKTOP_BROWSER_HANDOFF = 'desktop_chrome'
+DESKTOP_BROWSER_CAPTURE = 'desktop-browser-v1'
 
 
 def _need(condition: bool, reason: str) -> None:
@@ -149,6 +151,30 @@ def _select_dispatch(records: list[dict[str, Any]]) -> dict[str, Any]:
         _verify_observed_dispatch(prepared[0], observed[0])
         return observed[0]
     return prepared[0]
+
+
+def _return_capture_provenance(dispatch: dict[str, Any]) -> str | None:
+    metadata = dispatch.get('evaluation_metadata', {})
+    if metadata.get('browser_handoff') == DESKTOP_BROWSER_HANDOFF:
+        return DESKTOP_BROWSER_CAPTURE
+    if dispatch['dispatch_role'] == 'peer-review' or metadata.get('dispatch_mode') not in (None, 'manual_ui'):
+        return 'host-capture-v1'
+    return None
+
+
+def _desktop_receipt_fields(dispatch, provenance, browser):
+    if _return_capture_provenance(dispatch) != DESKTOP_BROWSER_CAPTURE:
+        _need(browser is None and provenance != DESKTOP_BROWSER_CAPTURE,
+              'desktop browser receipt requires a recorded desktop preparation')
+        return {}
+    _need(provenance == DESKTOP_BROWSER_CAPTURE and type(browser) is dict
+          and set(browser) == {'request_id', 'model_label', 'response_file'},
+          'desktop browser receipt requires a copied reply and sender-confirmed model label')
+    request_id = dispatch['evaluation_metadata']['request_id']
+    _need(browser['request_id'] == request_id and browser['response_file'] == f'{request_id}.response.txt',
+          'desktop browser receipt does not match the recorded browser preparation')
+    _token(browser['model_label'])
+    return {'desktop_browser': dict(browser)}
 
 
 def _now() -> str:
@@ -504,9 +530,9 @@ class HostRecordStore:
         records = [record for record in self.find('return-received', dispatch_id=dispatch_id,
                    dispatch_record_sha256=dispatch['_record_sha256'])
                    if digest in (record.get('return_sha256'), record.get('canonical_return_sha256'))]
-        if (dispatch['dispatch_role'] == 'peer-review'
-                or dispatch.get('evaluation_metadata', {}).get('dispatch_mode') not in (None, 'manual_ui')):
-            _need(all(record.get('capture_provenance') == 'host-capture-v1' for record in records),
+        provenance = _return_capture_provenance(dispatch)
+        if provenance is not None:
+            _need(all(record.get('capture_provenance') == provenance for record in records),
                   'host return receipt has no verifiable capture provenance')
         _need(len(records) == 1, 'host return receipt is missing or ambiguous')
         return records[0]
@@ -692,15 +718,17 @@ class HostRecordStore:
 
     def write_return_received(self, dispatch_id: str, return_sha256: str, received_time: str | None = None,
                               *, capture_provenance: str | None = None,
-                              canonical_return_sha256: str | None = None) -> str:
+                              canonical_return_sha256: str | None = None,
+                              desktop_browser: dict[str, str] | None = None) -> str:
         dispatch = self.require_dispatch(dispatch_id)
         _sha(return_sha256)
         if canonical_return_sha256 is not None:
             _sha(canonical_return_sha256)
+        browser_fields = _desktop_receipt_fields(dispatch, capture_provenance, desktop_browser)
         return self._write('return-received', dict(capture_provenance=capture_provenance,
             canonical_return_sha256=canonical_return_sha256, dispatch_id=dispatch_id,
             dispatch_record_sha256=dispatch['_record_sha256'], return_sha256=return_sha256,
-            received_time=_token(received_time) if received_time is not None else _now()))
+            received_time=_token(received_time) if received_time is not None else _now(), **browser_fields))
 
     def write_acceptance(self, *, bead_id: str, dispatch_id: str, return_sha256: str,
                          evaluation_sha256: str, database_identity: dict[str, Any],

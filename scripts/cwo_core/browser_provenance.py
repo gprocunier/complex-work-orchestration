@@ -26,6 +26,9 @@ PRIVATE_RESPONSE_ARTIFACT_TYPE = "chatgpt-browser-private-response"
 PRIVATE_RESPONSE_VERSION = 5
 CAPTURE_CHECKS = ("request_turn", "response_turn", "completion_confirmed", "content_stable",
                   "conversation_stable", "assistant_extraction")
+BROWSER_PREPARATION_TRACE_FIELDS = ("packet_source_sha256", "request_id", "outbound_prepared_sha256",
+                                    "submitted_user_sha256")
+USER_TEXT_NORMALIZATION = "crlf-strip-v1"
 ACCESS_LIMIT = "Private files and audit bindings do not authenticate against same-user access to both stores."
 _HEX = re.compile(r"^[0-9a-f]{64}$")
 _REQUEST = re.compile(r"^[0-9a-f]{32}$")
@@ -56,6 +59,11 @@ def _json_digest(value: Any) -> str:
 
 def _projection(value: dict[str, Any], fields: tuple[str, ...]) -> dict[str, Any]:
     return {key: value.get(key) for key in fields}
+
+
+def normalize_browser_request(value: str) -> str:
+    """Compare requests ignoring only CRLF line endings and surrounding whitespace."""
+    return value.replace("\r\n", "\n").strip()
 
 
 def add_candidate_arguments(parser) -> None:
@@ -135,7 +143,7 @@ def _observation_errors(record: dict[str, Any]) -> list[str]:
         errors.append("observed conversation does not match the pinned conversation")
     if record.get("observed_document_request_id") != record.get("request_id"):
         errors.append("observed document does not match the submitted request")
-    if (record.get("user_text_normalization") != "crlf-strip-v1"
+    if (record.get("user_text_normalization") != USER_TEXT_NORMALIZATION
             or record.get("observed_user_sha256") != record.get("submitted_user_sha256")):
         errors.append("observed user turn does not match the normalized submitted text")
     return errors
