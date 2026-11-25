@@ -239,6 +239,8 @@ class LauncherAuthorityTests(unittest.TestCase):
                     fixture._outcome = self._outcome
                     try:
                         host = fixture.cohort(size, archive_schedule='settled', shared_source=True, source_evidence=source())
+                        for member in fixture.fixtures:
+                            member.case.settle_reply = True
                         before = [f.settings['state_store'].read_state() for f in fixture.fixtures]
                         request = host.config.request('execute')
                         path = host.config.state.parent / 'EXAMPLE-request.json'

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Tests
+
+- Settle accepting replies in the registered pool launcher and validation fixtures.
+
 ## 1.35.1 - 2026-11-24
 
 - Close active provider streams promptly when a contained worker shuts down and retain phase timings for slow calibration closes.
