@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Close active provider streams promptly when a contained worker shuts down and retain phase timings for slow calibration closes.
 - Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
 
 ## 1.35.0 - 2026-11-24

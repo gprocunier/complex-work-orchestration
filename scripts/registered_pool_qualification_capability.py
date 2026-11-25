@@ -6,6 +6,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from math import ceil
 import os
 from pathlib import Path
 import re
@@ -293,11 +294,36 @@ def _terminal_evidence(control: object) -> None:
              and terminated[0].get("child_reaped") is True, "original-appserver-exit-unconfirmed")
 
 
-def _observed_ms(action, ceiling_ms: float):
+def _observed_ms(action, ceiling_ms: float, *, on_overrun=None):
     # The legacy collector accepts an optional artificial guard. The contained path never uses it.
     result, elapsed = _measure_action_ms(action)
-    _require(0 <= elapsed <= ceiling_ms, "observed-callback-exceeds-certification")
+    if not 0 <= elapsed <= ceiling_ms:
+        failure = CallbackCalibrationError("observed-callback-exceeds-certification")
+        if on_overrun is not None:
+            try:
+                on_overrun(elapsed)
+            except BaseException:
+                failure.add_note("calibration-slow-close-record-failed")
+        raise failure
     return result, elapsed
+
+
+def _observe_close(control, action, ceiling_ms):
+    from registered_pool_containment import (
+        _CALIBRATION_CLOSE_MAX_US, _CALIBRATION_CLOSE_PHASES, _CALIBRATION_CLOSE_TIMES,
+    )
+
+    timings = dict.fromkeys(_CALIBRATION_CLOSE_PHASES)
+    token = _CALIBRATION_CLOSE_TIMES.set(timings)
+
+    def record_overrun(elapsed_ms):
+        total_us = min(_CALIBRATION_CLOSE_MAX_US, max(0, ceil(elapsed_ms * 1000)))
+        control.worker.containment.record("calibration-slow-close", {"total_us": total_us, **timings})
+
+    try:
+        return _observed_ms(action, ceiling_ms, on_overrun=record_overrun)
+    finally:
+        _CALIBRATION_CLOSE_TIMES.reset(token)
 
 
 class ConnectedCallbackCalibration:
@@ -346,8 +372,16 @@ class ConnectedCallbackCalibration:
         bucket = self._samples[name].setdefault(child, [])
         _require(len(bucket) < _MAX_SAMPLES, "calibration-sample-bound-exceeded")
         callback = vars(control_type)[name].__get__(control, control_type)
+
+        def action():
+            return callback(**arguments)
+
+        ceiling = CERTIFIED_CALLBACK_MAX_MS[name]
         try:
-            result, elapsed = _observed_ms(lambda: callback(**arguments), CERTIFIED_CALLBACK_MAX_MS[name])
+            if name == "close":
+                result, elapsed = _observe_close(control, action, ceiling)
+            else:
+                result, elapsed = _observed_ms(action, ceiling)
         except BaseException:
             self._failed = True
             raise

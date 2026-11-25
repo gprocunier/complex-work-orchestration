@@ -69,6 +69,7 @@ from registered_n1_factory import _DeadlineInput
 from registered_n1_qualification import EFFORT, FINITE_TOOL_NAMESPACE, LOGIN_MOUNT, MODEL, TIER
 from registered_host_root_boundary import require_private_roots
 from registered_pool_configuration import PoolContainmentError
+from registered_pool_containment import _calibration_close_phase
 from registered_server_requests import RegisteredServerRequests
 
 
@@ -486,12 +487,14 @@ class _WorkerWire(RegisteredAppServer):
             self._retiring.set()
             _QUALIFICATION_RPC.pop(self, None)
             try:
-                self.requests.close()
+                with _calibration_close_phase("protocol_close_us"):
+                    self.requests.close()
             finally:
                 try:
                     receipt = self.factory.containment.close()
                 finally:
-                    closed = self._join_protocol_threads(cutoff)
+                    with _calibration_close_phase("protocol_close_us"):
+                        closed = self._join_protocol_threads(cutoff)
             return {"all_contained": receipt.get("cleanup_confirmed") is True,
                     "resources_closed": closed, "errors": [] if closed else ["protocol-reader-still-running"]}
 
@@ -932,7 +935,8 @@ class _WorkerControl:
         worker = self.worker
         try:
             if worker._result is not None and worker._archived is None:
-                worker.archive()
+                with _calibration_close_phase("archive_us"):
+                    worker.archive()
         finally:
             worker.parent.cancel_unreleased_cohort()
             _require(worker.close(worker.limits.deadline), "control-close-unconfirmed")

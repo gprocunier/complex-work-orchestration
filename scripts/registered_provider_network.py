@@ -231,6 +231,7 @@ class _Connections:
         self._on_revoke = on_revoke
         self.stopped = threading.Event()
         self.active = {}
+        self._upstreams = {}
         self.lock = threading.Lock()
         self.failure = None
 
@@ -257,7 +258,17 @@ class _Connections:
             self.fail(failure)
         finally:
             with self.lock:
+                self._upstreams.pop(client, None)
                 del self.active[client]
+
+    def retain_upstream(self, client, upstream):
+        with self.lock:
+            if self.stopped.is_set():
+                return False
+            if client not in self.active or client in self._upstreams:
+                raise ProviderNetworkError('The upstream socket is not bound to one original connection.')
+            self._upstreams[client] = upstream
+            return True
 
     def fail(self, failure):
         with self.lock:
@@ -270,7 +281,7 @@ class _Connections:
         if self._on_revoke is not None:
             self._on_revoke()
         with self.lock:
-            for stream in self.active:
+            for stream in (*self.active, *self._upstreams.values()):
                 try:
                     stream.shutdown(socket.SHUT_RDWR)
                 except OSError:
@@ -370,7 +381,7 @@ class ProviderBroker:
     def _tunnel(self, client, host, initial):
         stopped = self._connections.stopped
         with _dial_provider(host, time.monotonic() + _TIMEOUT, stopped) as upstream:
-            if not stopped.is_set():
+            if self._connections.retain_upstream(client, upstream):
                 upstream.sendall(initial)
                 _bridge(client, upstream, stopped)
 
