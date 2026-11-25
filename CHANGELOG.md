@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.35.1 - 2026-11-24
+
 - Close active provider streams promptly when a contained worker shuts down and retain phase timings for slow calibration closes.
 
 ## 1.35.0 - 2026-11-24
