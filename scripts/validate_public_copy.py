@@ -238,7 +238,6 @@ def _check_unreadable_characters(text: str) -> str | None:
 
 
 # Character reference pattern: named (&name;), decimal (&#123;), or hex (&#xAB; or &#XAB;)
-_CHAR_REFERENCE = re.compile(r"&(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+|#[xX][0-9a-fA-F]+);")
 # The four allowed named references
 _ALLOWED_REFERENCES = frozenset(("&amp;", "&lt;", "&gt;", "&quot;"))
 
@@ -301,24 +300,6 @@ def _gate(source: str) -> str | None:
     if error:
         return error
     return None
-
-
-def _check_character_references(text: str, protected: _Protected, *, is_html: bool = False) -> list[tuple[str, str]]:
-    """Check for character references that require rewording.
-
-    Refuses all character references except &amp;, &lt;, &gt;, and &quot;.
-    For Markdown, this is called after code spans and backslash escapes are protected.
-    For HTML, all references are checked (no element exemptions).
-    Returns list of (reason, excerpt) tuples for any refused references.
-    """
-    unreadable: list[tuple[str, str]] = []
-    # Check all references; protected regions (code spans, escapes) are already replaced with
-    # private-use characters for Markdown, so they won't match the reference pattern
-    for match in _CHAR_REFERENCE.finditer(text):
-        reference = match.group(0)
-        if reference not in _ALLOWED_REFERENCES:
-            unreadable.append((_UNREADABLE_REFERENCE, reference))
-    return unreadable
 
 
 class _Protected:

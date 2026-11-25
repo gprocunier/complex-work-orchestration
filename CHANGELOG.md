@@ -13,6 +13,7 @@
 ### Tests
 
 - Wait for the registered cancellation reply to settle before the staged archive fixture publishes terminal evidence.
+- Verify historical campaign witnesses from pinned Git sources while testing current refusal behavior separately.
 
 ## 1.38.0 - 2026-11-25
 

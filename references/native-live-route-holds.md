@@ -42,6 +42,22 @@ The historical transport extraction and archived source fixtures remain
 historical records. Raw transport retains its source hold. Additional live
 routes require their own qualification and operator decision.
 
+## Historical campaign verification
+
+The offline suite checks the pre-retirement launcher and its mocked refusals
+with the matching source and tests at
+`d0e2d682659fd724ddb9f50cd50beb6877fb1eda`. It checks the retired validator and
+record witnesses at commit `a559a0bb2b9fc4e83b8acbef7b13b48172a47983`
+(`v1.37.0`). The Generation 11 source digests are read from
+`e7f540654e0ed605e4720bd4d3b670a11cb8f701`.
+
+A full checkout must contain the named public objects. Source archives and
+shallow checkouts run the current refusal and neutral Git-fixture checks. Exact
+witnesses that need missing public objects are skipped in those checkouts. The
+strict private-checkpoint verifier still requires its original objects. Neutral
+fixtures only substantiate the observed structure and dispositions. Historical
+verification grants no launch authority.
+
 ## Explicit launcher binding hold
 
 The activation-preview launcher constructs bare `AppServer()`. The constructor

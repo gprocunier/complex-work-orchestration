@@ -185,3 +185,12 @@ def parse_iso_datetime(value: str, field_name: str) -> dt.datetime:
     if parsed.tzinfo is None:
         raise SystemExit(f"{field_name} must include a timezone")
     return parsed.astimezone(dt.timezone.utc)
+
+
+def load_optional_json(path: str | None) -> dict[str, object] | None:
+    if not path:
+        return None
+    value = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(value, dict):
+        raise SystemExit(f"{path} must contain a JSON object")
+    return value

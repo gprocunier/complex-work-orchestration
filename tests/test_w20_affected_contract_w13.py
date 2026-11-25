@@ -45,7 +45,9 @@ from cwo_core.supervision.transport import app_server as TRANSPORT  # noqa: E402
 from tests import test_codex_tool_surface as SURFACE_TESTS  # noqa: E402
 from tests import test_native_live_campaign_generation12 as G12  # noqa: E402
 from tests import test_native_pool_contracts as POOL_TESTS  # noqa: E402
-from tests.historical_campaign_launcher import launcher_before_retirement, run_historical_launcher  # noqa: E402
+from tests.historical_campaign_launcher import (  # noqa: E402
+    PRE_RETIREMENT, RETIRED_CAMPAIGN, launcher_before_retirement, pinned_blob, pinned_git, run_archived_cases,
+)
 
 
 def setUpModule() -> None:
@@ -209,7 +211,6 @@ def validator_contract_section() -> dict:
                 **result,
             }
     return {
-        "validator_source_sha256": _source_sha256(CONTRACTS._validator_contract_sha256),
         "path_lists": paths,
         "legacy_alias_is_v1": CONTRACTS.VALIDATOR_CONTRACT_PATHS is CONTRACTS.VALIDATOR_CONTRACT_PATHS_V1,
         "verdicts": verdicts,
@@ -306,7 +307,6 @@ def generation11_section() -> dict:
             "errors": errors,
         }
     return {
-        "validator_source_sha256": _source_sha256(contracts._validate_generation11_terminal_facts),
         "recorded_runner_source_sha256": _sha256(historical_runner),
         "production_source_sha256": {"runner": contracts.GENERATION11_RUNNER_SOURCE_SHA256,
                                      "boundary": contracts.GENERATION11_SESSION_BOUNDARY_SOURCE_SHA256},
@@ -345,12 +345,6 @@ def historical_record_section() -> dict:
             "historical-full-auto-authorization-v4.json": _sha256(authorization_raw),
             "historical-live-campaign-manifest-v1.json": _sha256(manifest_raw),
         },
-        "validator_source_sha256": {
-            "LIVE.validate_full_auto_authorization": _source_sha256(LIVE.validate_full_auto_authorization),
-            "CONTRACTS.validate_full_auto_authorization": _source_sha256(CONTRACTS.validate_full_auto_authorization),
-            "CONTRACTS.validate_operative_full_auto_authorization": _source_sha256(CONTRACTS.validate_operative_full_auto_authorization),
-            "CONTRACTS.validate_campaign_manifest": _source_sha256(CONTRACTS.validate_campaign_manifest),
-        },
         "verdicts": {
             "authorization-v4-historical-read": CONTRACTS.validate_full_auto_authorization(
                 authorization, expected_campaign_nonce=nonce),
@@ -362,255 +356,6 @@ def historical_record_section() -> dict:
             "runner-entry-authorization-v4-read": runner_entry(authorization, operative=False),
             "runner-entry-authorization-v4-operative": runner_entry(authorization, operative=True),
         },
-    }
-
-
-# --- Operative authorization consumer: the live launcher's main() ----------------------
-
-# Fixed Git dates and UUIDs make the synthetic historical authorization reproducible.
-_FIXED_GIT_DATE = "2026-07-17T12:00:00+00:00"
-# Contained-session counts of a complete Generation 12 proof path set.
-_LAUNCHER_SESSION_COUNTS = {
-    "failed_predecessor_contained_session": 5,
-    "predecessor_contained_session": 1,
-    "ancestor_contained_session": 1,
-    "grandancestor_contained_session": 1,
-}
-# Optional outputs main() derives from --output when they are not supplied.
-_LAUNCHER_DERIVED_OUTPUTS = {"output", "campaign_nonce", "authorization_state", "steering_registry"}
-_LAUNCHER_OUTPUTS = {
-    "evidence_basename": "evidence.json",
-    "authorization_state_basename": "authorization-state.json",
-    "steering_registry_basename": "steering-registry.json",
-    "allocation_ledger_basename": "allocation-ledger",
-}
-# Every effect main() can cause after authorization: durable writes, the
-# machine-global claim, process launch and the thread/start request.
-_LAUNCHER_WRITE_EFFECTS = (
-    "validate_and_acquire_global_campaign_claim", "write_private_artifact",
-    "transition_global_campaign_state", "consume_steering_receipt",
-)
-
-
-class _GateReached(Exception):
-    """Raised by a control stub; never escapes main()."""
-
-
-def _historical_v5_authorization(directory: Path) -> tuple[dict, dict, dict]:
-    """A synthetic authorization v5 and manifest v2 bound to a throwaway repository.
-
-    Built by the runner tests' own builders. The historical read accepts the
-    authorization against that repository.
-    """
-
-    from tests import test_run_native_pool_live_canaries as RUNNER_TESTS
-
-    builder = RUNNER_TESTS.FullAutoAuthorizationLauncherTests("run")
-    repository = directory / "historical-repository"
-    repository.mkdir()
-    counter = itertools.count(1)
-    environment = {
-        "GIT_AUTHOR_DATE": _FIXED_GIT_DATE, "GIT_COMMITTER_DATE": _FIXED_GIT_DATE,
-        "GIT_AUTHOR_NAME": "CWO Test", "GIT_COMMITTER_NAME": "CWO Test",
-        "GIT_AUTHOR_EMAIL": "test@example.com", "GIT_COMMITTER_EMAIL": "test@example.com",
-    }
-    with mock.patch.dict(os.environ, environment), \
-            mock.patch("uuid.uuid4", side_effect=lambda: uuid.UUID(int=next(counter))):
-        head, _orphan = builder.make_repo(repository)
-        authorization = builder.authorization(repository, head)
-        manifest = builder.manifest(authorization, head, LIVE.run_git(repository, "rev-parse", "HEAD^{tree}"))
-        nonce = authorization["bindings"]["campaign_nonce"]
-        historical_read = _outcome(LIVE.validate_full_auto_authorization, authorization, nonce,
-                                   repo_root=repository)
-        helper_operative = _outcome(LIVE.validate_full_auto_authorization, authorization, nonce,
-                                    operative=True, repo_root=repository)
-    if historical_read["outcome"] == "returned":
-        authorization_id, read_head = historical_read["value"]
-        historical_read["value"] = {
-            "authorization_id_matches": authorization_id == authorization["authorization_id"],
-            "head_is_checkpoint": read_head == head,
-        }
-    reads = {
-        "contract-historical-read": CONTRACTS.validate_full_auto_authorization(
-            authorization, expected_campaign_nonce=nonce, repo_root=repository),
-        "runner-helper-historical-read": historical_read,
-        "runner-helper-operative": helper_operative,
-    }
-    return authorization, manifest, {"reads": reads, "input_sha256": _canonical(_mask_digests(authorization)),
-                                     "head": head}
-
-
-def _mask_digests(value):
-    """Mask sha256 values: the builders derive predecessor digests from wall-clock times."""
-
-    if isinstance(value, dict):
-        return {key: _mask_digests(item) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_mask_digests(item) for item in value]
-    if isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value):
-        return "<sha256>"
-    return value
-
-
-def _tree_state(root: Path) -> dict[str, str]:
-    state = {}
-    for path in sorted(root.rglob("*")):
-        relative = path.relative_to(root).as_posix()
-        state[relative] = _sha256(path.read_bytes()) if path.is_file() else "<dir>"
-    return state
-
-
-def _drive_launcher(directory: Path, authorization: dict, manifest: dict, nonce: str, *,
-                    operative_validator=None) -> dict:
-    """Run the historical launcher offline against private fixture inputs.
-
-    ``operative_validator`` is None for the real validator (wrapped, call-through)
-    or a stub; only the positive control passes a stub.
-    """
-
-    import argparse
-    import contextlib
-    import io
-
-    inputs = directory / "inputs"
-    outputs = directory / "outputs"
-    for path in (directory, inputs, outputs):
-        path.mkdir(mode=0o700, exist_ok=True)
-        path.chmod(0o700)
-    output = outputs / _LAUNCHER_OUTPUTS["evidence_basename"]
-    contents = {"authorization": authorization, "campaign_manifest": manifest}
-    real_parse_args = argparse.ArgumentParser.parse_args
-    before: dict[str, str] = {}
-    # Optional inputs a Generation 12 proof path set must not mix in.
-    forbidden = {label.replace("-", "_") for label in LIVE.GENERATION8_FORBIDDEN_MIXED_PROOF_PATHS}
-
-    def input_file(dest: str, index: int | None = None) -> str:
-        name = dest if index is None else f"{dest}-{index}"
-        path = inputs / f"{name}.json"
-        path.write_text(json.dumps(contents.get(dest, {"w20ac_w13_placeholder": name})), encoding="utf-8")
-        path.chmod(0o600)
-        return str(path)
-
-    def parse_args(self, args=None, namespace=None):
-        argv = ["--output", str(output), "--campaign-nonce", nonce]
-        for action in self._actions:
-            if (not action.option_strings or action.dest == "help" or action.dest in _LAUNCHER_DERIVED_OUTPUTS
-                    or action.dest in forbidden):
-                continue
-            if isinstance(action, argparse._AppendAction):
-                for index in range(_LAUNCHER_SESSION_COUNTS.get(action.dest, 0)):
-                    argv += [action.option_strings[0], input_file(action.dest, index)]
-            else:
-                argv += [action.option_strings[0], input_file(action.dest)]
-        before.update(_tree_state(directory))
-        return real_parse_args(self, argv, namespace)
-
-    real_popen = subprocess.Popen
-    counts = {"process_launch_calls": 0, "git_calls": 0}
-
-    def popen(argv, *args, **kwargs):
-        if isinstance(argv, (list, tuple)) and argv and Path(str(argv[0])).name == "git":
-            counts["git_calls"] += 1
-            return real_popen(argv, *args, **kwargs)
-        counts["process_launch_calls"] += 1
-        raise _EffectReached("process-launch")
-
-    stderr = io.StringIO()
-    refusals: list[dict] = []
-    with ExitStack() as stack:
-        stack.enter_context(mock.patch.object(LIVE, "ROOT", FIXTURE.root))
-        stack.enter_context(mock.patch.object(CONTRACTS, "_V6_PRE_MOVE_IDENTITY_PAIRS", FIXTURE.pairs))
-        stack.enter_context(mock.patch.object(argparse.ArgumentParser, "parse_args", parse_args))
-        stack.enter_context(mock.patch("subprocess.Popen", side_effect=popen))
-        request = stack.enter_context(mock.patch.object(LIVE.AppServer, "request", side_effect=_EffectReached))
-        writes = {name: stack.enter_context(mock.patch.object(LIVE, name, side_effect=_EffectReached))
-                  for name in _LAUNCHER_WRITE_EFFECTS}
-        writes["CanaryAuthorizationStore.initialize"] = stack.enter_context(
-            mock.patch.object(LIVE.CanaryAuthorizationStore, "initialize", side_effect=_EffectReached))
-        if operative_validator is None:
-            real_validator = LIVE.validate_full_auto_authorization
-
-            def recording_validator(*args, **kwargs):
-                try:
-                    return real_validator(*args, **kwargs)
-                except Exception as exc:
-                    prefix, _, errors = str(exc).partition(":")
-                    refusals.append({"error_type": type(exc).__name__, "prefix": prefix,
-                                     "errors": sorted(errors.split(";")) if errors else []})
-                    raise
-
-            validator = stack.enter_context(mock.patch.object(
-                LIVE, "validate_full_auto_authorization", side_effect=recording_validator))
-        else:
-            validator = stack.enter_context(mock.patch.object(
-                LIVE, "validate_full_auto_authorization", side_effect=operative_validator))
-        stack.enter_context(contextlib.redirect_stderr(stderr))
-        stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
-        try:
-            return_code = run_historical_launcher(LIVE)
-        except SystemExit as exc:  # argparse refusal: recorded, not a pass
-            return_code = f"system-exit:{exc.code}"
-    lines = [line for line in stderr.getvalue().splitlines() if line.startswith("{")]
-    report = json.loads(lines[-1]) if lines else {}
-    after = _tree_state(directory)
-    changed = sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
-    return {
-        "return_code": return_code,
-        "failure_code": report.get("failure_code"),
-        "failure_evidence_persisted": report.get("failure_evidence_persisted"),
-        "operative_validator_calls": validator.call_count,
-        "operative_validator_refusals": refusals,
-        "process_launch_calls": counts["process_launch_calls"],
-        "git_calls": counts["git_calls"],
-        "thread_start_requests": request.call_count,
-        "write_effect_calls": {name: spy.call_count for name, spy in sorted(writes.items())},
-        "files_created_or_changed": changed,
-    }
-
-
-def launcher_authorization_section() -> dict:
-    """Check authorization against the verified pre-retirement launcher.
-
-    The cases differ in authorization and validator outcome. All other inputs
-    come from the same placeholder set.
-    """
-
-    with tempfile.TemporaryDirectory() as directory:
-        root = Path(directory)
-        authorization, manifest, built = _historical_v5_authorization(root)
-        nonce = authorization["bindings"]["campaign_nonce"]
-        # The same authorization with only its version relabelled to the operative
-        # one (seal not refreshed), and its manifest relabelled to manifest v8.
-        relabelled = deepcopy(authorization)
-        relabelled["version"] = 12
-        relabelled["bindings"]["checkpoint_tree"] = BASELINE_TREE
-        relabelled_manifest = deepcopy(manifest)
-        relabelled_manifest["version"] = 8
-        relabelled_manifest["outputs"] = dict(_LAUNCHER_OUTPUTS)
-
-        def accept(value, *_args, **_kwargs):  # control stub: the operative validator accepts
-            return str(value["authorization_id"]), "<HEAD>"
-
-        cases = {
-            "historical-v5-valid": _drive_launcher(root / "case-historical", authorization, manifest, nonce),
-            "historical-v5-relabelled-v12": _drive_launcher(
-                root / "case-relabelled", relabelled, relabelled_manifest, nonce),
-            "control-operative-validator-accepts": _drive_launcher(
-                root / "case-control", relabelled, relabelled_manifest, nonce, operative_validator=accept),
-        }
-    return {
-        "caller_source_sha256": {
-            "LIVE.main": _sha256(launcher_before_retirement(LIVE)),
-            "LIVE.require_operative_campaign_contract": _source_sha256(LIVE.require_operative_campaign_contract),
-            "LIVE.validate_full_auto_authorization": _source_sha256(LIVE.validate_full_auto_authorization),
-        },
-        "historical_input": {
-            "version": authorization["version"],
-            "manifest_version": manifest["version"],
-            "authorization_sha256_digests_masked": built["input_sha256"],
-            **built["reads"],
-        },
-        "launcher": cases,
     }
 
 
@@ -1113,7 +858,6 @@ SECTIONS = {
     "validator_contracts": validator_contract_section,
     "generation11_runner_source": generation11_section,
     "historical_records": historical_record_section,
-    "launcher_authorization": launcher_authorization_section,
     "tool_surface": tool_surface_section,
     "capability_receipts": capability_receipt_section,
     "adapter_digest_coverage": adapter_digest_coverage_section,
@@ -1262,18 +1006,6 @@ def load_golden() -> dict:
     current_app_server = _sha256(source)
     document["sections"]["identities"]["source_sha256"]["AppServer"] = current_app_server
     document["sections"]["tool_surface"]["validator_source_sha256"]["AppServer"] = current_app_server
-    source = launcher_before_retirement(LIVE)
-    historical = source
-    for name in ('campaign', 'pool', 'n1'):
-        gate = "        live_availability.require_" + name + "_live()\n"
-        if source.count(gate) != 1:
-            raise AssertionError("f5-held-route-launcher-gate-drift")
-        historical = historical.replace(gate, "")
-    historical = historical.replace("server = _start_campaign_server()", "server = AppServer()")
-    expected = document["sections"]["launcher_authorization"]["caller_source_sha256"]
-    if _sha256(historical) != expected["LIVE.main"]:
-        raise AssertionError("f5-held-route-launcher-lineage-drift")
-    expected["LIVE.main"] = _sha256(source)
     return document
 
 
@@ -1288,7 +1020,10 @@ class GoldenVerdictTests(unittest.TestCase):
 
     def check(self, name: str) -> dict:
         observed = compute([name])[name]
-        self.assertEqual(observed, self.golden[name])
+        expected = self.golden[name]
+        if name in {"validator_contracts", "generation11_runner_source", "historical_records"}:
+            expected = {key: value for key, value in expected.items() if key != "validator_source_sha256"}
+        self.assertEqual(observed, expected)
         return observed
 
     def test_frozen_validator_contract_digests_are_unchanged(self) -> None:
@@ -1340,53 +1075,38 @@ class GoldenVerdictTests(unittest.TestCase):
     def test_template_records_are_recorded_as_observed(self) -> None:
         # The two template fixtures fail their header check under the current read
         # API. They are invalid inputs, recorded as observed; they are not
-        # historical-valid evidence. That case is the launcher test below.
+        # historical-valid evidence.
         observed = self.check("historical_records")
         verdicts = observed["verdicts"]
         self.assertEqual(verdicts["authorization-v4-historical-read"], ["authorization-header-invalid"])
         self.assertEqual(verdicts["manifest-v1-historical-read"], ["campaign-manifest-header-invalid"])
         self.assertEqual(verdicts["authorization-v4-operative"], ["authorization-version-historical-only"])
 
-    def test_launcher_refuses_historical_authorization_with_zero_effects(self) -> None:
-        observed = self.check("launcher_authorization")
-        historical = observed["historical_input"]
-        # Historical-valid: the contract read and the runner helper accept it.
-        self.assertEqual(historical["contract-historical-read"], [])
-        self.assertEqual(historical["runner-helper-historical-read"]["outcome"], "returned")
-        self.assertTrue(all(historical["runner-helper-historical-read"]["value"].values()))
-        self.assertEqual(historical["runner-helper-operative"]["message"],
-                         "full-auto-authorization-invalid:authorization-version-historical-only")
-        launcher = observed["launcher"]
-        no_writes = {name: 0 for name in launcher["historical-v5-valid"]["write_effect_calls"]}
-        for label in ("historical-v5-valid", "historical-v5-relabelled-v12"):
-            with self.subTest(label=label):
-                record = launcher[label]
-                self.assertEqual(record["return_code"], 1)
-                self.assertIs(record["failure_evidence_persisted"], False)
-                self.assertEqual(record["process_launch_calls"], 0)
-                self.assertEqual(record["thread_start_requests"], 0)
-                self.assertEqual(record["write_effect_calls"], no_writes)
-                self.assertEqual(record["files_created_or_changed"], [])
-        # Current-refused at the version gate, before the operative validator or Git runs.
-        valid = launcher["historical-v5-valid"]
-        self.assertEqual(valid["failure_code"], "campaign-authorization-version-historical-only")
-        self.assertEqual(valid["operative_validator_calls"], 0)
-        self.assertEqual(valid["git_calls"], 0)
-        # Relabelled to the operative version: passes the gate, the real operative
-        # validator refuses it.
-        relabelled = launcher["historical-v5-relabelled-v12"]
-        self.assertEqual(relabelled["operative_validator_calls"], 1)
-        self.assertEqual(len(relabelled["operative_validator_refusals"]), 1)
-        refusal = relabelled["operative_validator_refusals"][0]
-        self.assertEqual(refusal["prefix"], "full-auto-authorization-invalid")
-        self.assertIn("authorization-v12-canonical-sha256-mismatch", refusal["errors"])
-        # Control: with the operative validator accepting, main() reaches the first
-        # effect after authorization, the machine-global campaign claim, so the
-        # write spy is wired on this path.
-        control = launcher["control-operative-validator-accepts"]
-        self.assertEqual(control["operative_validator_calls"], 1)
-        self.assertEqual(control["write_effect_calls"]["validate_and_acquire_global_campaign_claim"], 1)
-        self.assertEqual(control["failure_code"], "_EffectReached")
+    def test_archived_launcher_refuses_historical_authorization_with_zero_effects(self) -> None:
+        launcher_before_retirement()
+        run_archived_cases(
+            self, PRE_RETIREMENT,
+            "tests.test_w20_affected_contract_w13.GoldenVerdictTests."
+            "test_launcher_refuses_historical_authorization_with_zero_effects",
+        )
+
+    def test_archived_validator_and_record_source_pins(self) -> None:
+        suite = "tests.test_w20_affected_contract_w13.GoldenVerdictTests."
+        run_archived_cases(
+            self, RETIRED_CAMPAIGN,
+            suite + "test_frozen_validator_contract_digests_are_unchanged",
+            suite + "test_moved_paths_are_in_no_frozen_contract_list",
+            suite + "test_generation11_runner_source_binding_is_unchanged",
+            suite + "test_template_records_are_recorded_as_observed",
+        )
+
+    def test_public_generation11_git_sources_match_recorded_digests(self) -> None:
+        revision = "e7f540654e0ed605e4720bd4d3b670a11cb8f701"
+        self.assertEqual(pinned_git(revision, "rev-parse", revision + "^{tree}"),
+                         b"ccd2663b0ca4127ce562159e53f4de1a43e0cc69\n")
+        observed = {name: _sha256(pinned_blob(revision, path))
+                    for name, path in (("runner", RUNNER_PATH), ("boundary", BOUNDARY_PATH))}
+        self.assertEqual(observed, contract_evidence()["production_generation11_sources"])
 
     def test_tool_surface_historical_proofs_verify_but_grant_no_dispatch(self) -> None:
         observed = self.check("tool_surface")

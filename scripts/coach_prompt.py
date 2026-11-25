@@ -3,24 +3,14 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 
 from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.coach import coach_orchestration_prompt
 from cwo_core.errors import CWOError
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
-from cwo_core.util import read_text_segments
+from cwo_core.util import load_optional_json, read_text_segments
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
-
-
-def _load_optional_json(path: str | None) -> dict[str, object] | None:
-    if not path:
-        return None
-    value = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise SystemExit(f"{path} must contain a JSON object")
-    return value
 
 
 def print_execution_availability(result: dict[str, object], *, prefix: str) -> None:
@@ -230,12 +220,12 @@ def main() -> None:
             model_synthesis=args.model_synthesis,
             scaffold_size=args.scaffold_size,
             beads_context_depth=args.beads_context_depth,
-            operative_capabilities=_load_optional_json(args.operative_capabilities),
-            operative_work_estimate=_load_optional_json(args.operative_work_estimate),
-            operative_fallback_fit=_load_optional_json(args.operative_fallback_fit),
-            fallback_selection=_load_optional_json(args.fallback_selection),
-            operative_context=_load_optional_json(args.operative_context),
-            aggregate_budget=_load_optional_json(args.aggregate_budget),
+            operative_capabilities=load_optional_json(args.operative_capabilities),
+            operative_work_estimate=load_optional_json(args.operative_work_estimate),
+            operative_fallback_fit=load_optional_json(args.operative_fallback_fit),
+            fallback_selection=load_optional_json(args.fallback_selection),
+            operative_context=load_optional_json(args.operative_context),
+            aggregate_budget=load_optional_json(args.aggregate_budget),
             operative_evaluated_at=args.operative_evaluated_at,
             **current_authority_file_arguments(args.current_authority),
         )
