@@ -2644,9 +2644,9 @@
 
 "p71":[118,"ProductionClosureTests.test_candidate_acceptance_without_final_observation_review_cannot_complete",165,"pIJPrM3B4ReOtRLkxjA43xM48SdT-D75F3y_PmYyAU4"],
 
-"p72":[82,"AcceptanceProductFlowTests.closure",153,"vt_4ZRytzwToArtXAmOHraBX35INyex---bmEldrU0E"],
+"p72":[82,"AcceptanceProductFlowTests.closure",154,"vt_4ZRytzwToArtXAmOHraBX35INyex---bmEldrU0E"],
 
-"p73":[82,"AcceptanceProductFlowTests.provision",127,"H2UuPW3uAly8aG6VzGMSD0nfL4bvp7Q9iFoeMOjg6Rk"],
+"p73":[82,"AcceptanceProductFlowTests.provision",128,"H2UuPW3uAly8aG6VzGMSD0nfL4bvp7Q9iFoeMOjg6Rk"],
 
 "p73a":[65,548,"if selection is None:"],
 
@@ -2714,7 +2714,7 @@
 
 "p76U":[155,289,"os.unlink(name, dir_fd=self._directory_fd)",16,289,58],
 
-"p77":[82,"AcceptanceProductFlowTests.test_completed_adjudication_persists_once_then_real_closure_requires_every_phase",225,"O8x13KymCbeptetTTM7kdUX46koAPPhFYNpbsCPImqs"],
+"p77":[82,"AcceptanceProductFlowTests.test_completed_adjudication_persists_once_then_real_closure_requires_every_phase",226,"O8x13KymCbeptetTTM7kdUX46koAPPhFYNpbsCPImqs"],
 
 "p78":[118,"ProductionClosureTests.test_peer_review_policy_drift_after_bind_or_comment_refuses_next_write",367,"ui1lI5Hgg5ermXA74gDsM__AbJ7Zxa_BV5CHuv3tQmQ"],
 
@@ -2724,9 +2724,9 @@
 
 "p7b":[59,"_closed_prerequisites",557,"HJ0yfGdTJYn-YQPoKocypP4nJ-0WRbOefTZXLhFSRXc"],
 
-"p7c":[82,"AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance",172,"GSYHgw-sBxD1d-XTmojjooJdYa9TcoBarif-bochQG8"],
+"p7c":[82,"AcceptanceProductFlowTests.test_unrelated_valid_candidate_cannot_consume_same_task_acceptance",173,"GSYHgw-sBxD1d-XTmojjooJdYa9TcoBarif-bochQG8"],
 
-"p7d":[82,"AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads",197,"7CFHNtuQ1lCUtqcoN6CWAJ21eUu6Yo5pSgoDrl-TON8"],
+"p7d":[82,"AcceptanceProductFlowTests.test_same_baseline_different_delivered_candidate_refuses_before_beads",198,"7CFHNtuQ1lCUtqcoN6CWAJ21eUu6Yo5pSgoDrl-TON8"],
 
 "p7e":[138,"delivery_evidence",21,"wQtZhNfG1UVeVSDetm_6JXcKJjTGTCGAP2fz225ZrNA"],
 
@@ -2972,13 +2972,13 @@
 
 "pc1":[82,"AcceptanceProductFlowTests.test_native_consumer_refuses_changed_original_delivery_review_before_effects",82,"wH8A_1dk_4ZilE33458GJak93CV5lEjC6Rxl2LAPFe4"],
 
-"pc2":[82,"AcceptanceProductFlowTests.test_native_consumer_cannot_drop_the_delivery_handle_and_basis_to_downgrade",116,"_Fe4DECuiEm7Yf9CVaDXf1fCpRIcoWk6icz8ttg2uFM"],
+"pc2":[82,"AcceptanceProductFlowTests.test_native_consumer_cannot_drop_the_delivery_handle_and_basis_to_downgrade",117,"_Fe4DECuiEm7Yf9CVaDXf1fCpRIcoWk6icz8ttg2uFM"],
 
 "pc3":[82,"AcceptanceProductFlowTests.test_native_consumer_refuses_delivery_edit_during_original_evidence_consumption",92,"D_SBwzqBqlp-rNIEv_wXWT8mMWy0pkMOUe6z9x5jGJI"],
 
 "pc4":[82,"AcceptanceProductFlowTests.native_delivery",66,"t8BG7MND3YXYzacAUNlXzaFYQASfe3tBPRHoWJYeOW8"],
 
-"pc5":[82,"AcceptanceProductFlowTests.test_native_consumer_preserves_the_exact_original_delivery_review_positive",110,"QDzUI76bjLN1yPBCKr2BJFAGM5DkHilnfFRT6dav6mQ"],
+"pc5":[82,"AcceptanceProductFlowTests.test_native_consumer_preserves_the_exact_original_delivery_review_positive",110,"keJXFZDNTvGI-tSAu67dIhswLuCQ7jCp9YZXGj5HxA4"],
 
 "pc6":[37,513,"if (\n            pre_hash != expected_pre_show_sha256\n            or pre.get(\"status\") != \"in_progress\"\n            or pre.get(\"assignee\") != self.actor\n        ):"],
 
@@ -7398,7 +7398,7 @@
 
 "@81":["mFfkDfiKtsAVU5xNnTru280VmMJUIN7UxsGa4owZ1vI",420,2408],
 
-"@82":["Baa3vs0mOONUCwBo6zlqJGIGLZ_Rlhp0YnVv6bM65AU",420,28833],
+"@82":["HEIYw0iJGcKob4iNFANzUg-3rxgA6pP9-BCcEHoGn6M",420,28873],
 
 "@83":["fo7lmklozkxV-EXx1Nz1ELP-GaSXE0Dt1iyn8K6mIgs",420,18152],
 

@@ -4,6 +4,10 @@
 
 - Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
 
+### Tests
+
+- Wait for the registered reply to settle in the native delivery review acceptance fixture.
+
 ## 1.36.7 - 2026-11-25
 
 - Document controller-signed approvals and controller-prepared inputs for contained pool qualification.
