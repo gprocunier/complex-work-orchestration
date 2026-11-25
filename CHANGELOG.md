@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Resume interrupted delivery without starting another worker.
+
+## 1.36.2 - 2026-11-24
+
 - Use a direct dedicated-login bind for compatible pool workers to avoid slow overlay teardown while preserving their session archive and login custody.
 
 ## 1.36.1 - 2026-11-24
