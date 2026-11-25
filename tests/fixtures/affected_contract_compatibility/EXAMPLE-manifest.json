@@ -616,7 +616,7 @@
     "scripts/cwo_core/native_pool_deferred_context.py": "f653d3f9a1ce01957fc8b4b3ad3745b4f4a776f54be0eefa2a68e1af52bf42ad",
     "scripts/registered_worker_login_config.py": "f5fe6cd43edd5cac532395e9ac09be8f4b96883c976c9284ba581b8f24c7eb45",
     "scripts/setup_delegation.py": "2a97b28e94ff6c24f3f4e57246ae178a69e80d708cd2568598b7dce4956dcaa5",
-    "scripts/delegate_internal_work.py": "cc68dc7f09c18e27c05a567cc8aa25d682f2d802db5ea1f72c8695336adf8d00"
+    "scripts/delegate_internal_work.py": "20a85eb2da7768b81103867ddc866aad1be6ae743c2da6b6a382480a5d647d95"
   },
   "historical_files": {
     "238ddfb22c52f5e753bc5b24ba1e24b30df7b347": {

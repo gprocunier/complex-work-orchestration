@@ -56,7 +56,7 @@
 
 "N11":{"admission":{"$":4},"authority":"Explicit caller-selected binary/environment programme; no outer hook/expected-binary admission on this direct entry.","effect":"Intentional selected --version child programme","gates":[],"manual_decisions":["M12","M13"],"ordering":"Immediately execute selected --version child; only result interpretation follows.","trace_files":[{"$":64},{"$":104}]},
 
-"N12":{"admission":{"$":4},"authority":"Explicit operator execution of cwo-codex, directly from the skill or from its installed wrapper. The operator selects PATH, cwd, HOME/CODEX_HOME, environment and forwarded arguments.","earlier_effects":"Read the selected skill role policy. An unpinned latest-in-family selection can start the bounded catalog child for handshake and model/list; explicit or pinned Sol selection skips the catalog probe. Prepare one project-bound offer in a private checkout via local-only Git.","effect":"Operator Codex launcher","effect_points":["p179","zF","q74PrepClone"],"gates":[],"limits":"The selected Python and Codex executables resolve through PATH. The role adds model, effort and tier overrides before all forwarded arguments. No intrinsic timeout, output or cost bound covers the interactive command. Downstream option precedence remains outside this check. The clone has a 60-second bound. Unretained offers leave private custody. Standing authority comes from the foreground decision.","manual_decisions":["M13"],"ordering":"The installed wrapper selects the skill shell entrypoint. That entrypoint runs the adjacent Python helper, which checks launch settings and resolves Sol policy before replacing itself with Codex using execvp. For a local terminal session it starts Codex with the embedded app server and configures its foreground approval child.","trace_files":["scripts/cwo-codex",{"$":354},{"$":275},{"$":372},{"$":370},"scripts/cwo_core/model_identities.py","scripts/registered_delegation_foreground.py",{"$":388}],"witnesses":["w5c","wArchitectInstalled","w74Preparation"]},
+"N12":{"admission":{"$":4},"authority":"Explicit operator execution of cwo-codex, directly from the skill or from its installed wrapper. The operator selects PATH, cwd, HOME/CODEX_HOME, environment and forwarded arguments.","earlier_effects":"Read the selected skill role policy. An unpinned latest-in-family selection can start the bounded catalog child for handshake and model/list; explicit or pinned Sol selection skips the catalog probe. Prepare one project-bound offer with private worker and target checkouts via local-only Git.","effect":"Operator Codex launcher","effect_points":["p179","zF","q74PrepClone"],"gates":[],"limits":"The selected Python and Codex executables resolve through PATH. The role adds model, effort and tier overrides before all forwarded arguments. No intrinsic timeout, output or cost bound covers the interactive command. Downstream option precedence remains outside this check. Each private clone has a 60-second bound. Unretained offers leave private custody. Standing authority comes from the foreground decision.","manual_decisions":["M13"],"ordering":"The installed wrapper selects the skill shell entrypoint. That entrypoint runs the adjacent Python helper, which checks launch settings and resolves Sol policy before replacing itself with Codex using execvp. For a local terminal session it starts Codex with the embedded app server and configures its foreground approval child.","trace_files":["scripts/cwo-codex",{"$":354},{"$":275},{"$":372},{"$":370},"scripts/cwo_core/model_identities.py","scripts/registered_delegation_foreground.py",{"$":388}],"witnesses":["w5c","wArchitectInstalled","w74Preparation"]},
 
 "N13":{"admission":{"$":4},"authority":"Explicit operator fixed offline diagnostics only; no native factory, maintenance, model-turn or accepted-artifact authority.","effect":"Disposable repository/listener setup, fixed command/config RPCs, trusted bootstrap/watchdog execution and retained-handle cleanup","gates":[],"limits":"No model/thread/turn, arbitrary command API, stdin delivery or accepted output. Original selected never configuration is unchanged. Diagnostic effects bypass no production hold and establish only enumerated observations; required omissions keep selected-unqualified/confidential unsupported. Private helpers retain trusted internal-caller prerequisites.","manual_decisions":["M25","M33"],"ordering":"Verify the selected executable capabilities in a confined schema process and bind its observed identity. Apply the fixed runtime and configuration, retain the original owner and verified namespace handle, check mounts, then release the bootstrap gate. Bound the fixed RPC and empty-poll observations and clean up independently.","trace_files":[{"$":74},{"$":16},{"$":17},{"$":10},{"$":342}],"witnesses":["w34","w31","w33","pC"]},
 
@@ -220,7 +220,9 @@
 
 "MContainedHost":{"conclusion":"Contained qualification requires original signed campaign authority.","evidence_contracts":["N3","N4"],"external_trust_limit":"Enrolled parent owns approvals and disposable custody. Preview has no authority. Production separate.","reason":"Approval binds campaign/cap 20. Check enrollment/capacity before claims, signed binding before calibration and original approval before starts/effects.","review_evidence":"Enrollment/raw refusals. Review pending.","source":["pCQH","pCQR","pQe1","pQe2","pQe3","pQe7","pQe8","p64R","p66C"]},
 
-"MLeadProject":{"conclusion":"The original signed lead project selects the database; the protected native target remains immutable.","evidence_contracts":["B11","N3"],"external_trust_limit":"The protected controller and project database selection are trusted. The fixture simulates database writes beneath the lead project and qualifies no live provider work.","reason":"Explicit standing approval signs the canonical project path and directory identity. Reopen rechecks standing scope and separate target and project roots. The signed registered dispatch binds the project database and checkout for review. Legacy approvals retain the original target fallback.","review_evidence":"Author-controlled fixture mutates project bytes through retry and independent hand close; independent source review pending.","source":["pLeadStanding","pLeadEntry","pLeadWitness"]}
+"MLeadProject":{"conclusion":"The original signed lead project selects the database; the protected native target remains immutable.","evidence_contracts":["B11","N3"],"external_trust_limit":"The protected controller and project database selection are trusted. The fixture simulates database writes beneath the lead project and qualifies no live provider work.","reason":"Explicit standing approval signs the canonical project path and directory identity. Reopen rechecks standing scope and separate target and project roots. The signed registered dispatch binds the project database and checkout for review. Legacy approvals retain the original target fallback.","review_evidence":"Author-controlled fixture mutates project bytes through retry and independent hand close; independent source review pending.","source":["pLeadStanding","pLeadEntry","pLeadWitness"]},
+
+"MPreparedOffer":{"conclusion":"An original refused unstarted offer may lose its private custody. Retained custody remains available for delivery.","evidence_contracts":["N12"],"external_trust_limit":"The private offer parent and verifier are trusted. Failed or ambiguous cleanup is reported; no same-account hostile writer guarantee is asserted.","reason":"The foreground handles its exact pending offer across elicitation and retention. Cleanup rechecks original directory identity and the retained approval record before removing an unstarted offer.","review_evidence":"Original foreground refusal and acceptance fixtures exercise cleanup and protected reopening; independent source review pending.","source":["q74DiscardEntry","q74DiscardFinally","q74DiscardEffect","q74DiscardTest"]}
 },
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
@@ -602,7 +604,9 @@
 
 "tests/test_registered_lead_project.py",
 
-"scripts/registered_delegation_entry.py"
+"scripts/registered_delegation_entry.py",
+
+"scripts/registered_delegation_foreground.py"
 ],
 
 "points":{
@@ -2502,7 +2506,7 @@
 
 "pLeadEntry":[186,"_configuration",190,"TZwIUzTHEY-CHqG54vFpc_pt5FhzE7FK6m-Ak4inZ4Y"],
 
-"pLeadStanding":[178,"StandingDelegation.approval_scope",54,"30aXq3czylfdMUe6ICjZlVUgwckiveHUZYnRaD57kTs"],
+"pLeadStanding":[178,"StandingDelegation.approval_scope",61,"30aXq3czylfdMUe6ICjZlVUgwckiveHUZYnRaD57kTs"],
 
 "pLeadWitness":[185,"RegisteredLeadProjectTests.test_project_database_changes_do_not_drift_registered_target_or_retry",33,"VEN-CyQcFdT_LUlahTIfNrzf8Lk63OzfG3aerIE-9-U"],
 
@@ -2816,13 +2820,13 @@
 
 "q0B":[177,26,"if type(workflow) is not native.RegisteredN1Workflow:"],
 
-"q0D":[178,178,"workflow._sign(action, 'everyday-delegation-current-route', parent)",16,178,83],
+"q0D":[178,229,"workflow._sign(action, 'everyday-delegation-current-route', parent)",16,229,83],
 
-"q0E":[178,173,"_assignment(workflow, task, operation, publication, database)",20,173,81],
+"q0E":[178,222,"_assignment(workflow, task, operation, publication, database)",20,222,81],
 
-"q0F":[178,"_assignment",99,"RTlHI2DdL5JizMGCtyBRkJOIkIZMvMtTMBt6UJATVYY"],
+"q0F":[178,"_assignment",106,"RTlHI2DdL5JizMGCtyBRkJOIkIZMvMtTMBt6UJATVYY"],
 
-"q0G":[178,105,"_need(estimate['write_paths'] == operation['write_paths'] == publication['write_paths']"],
+"q0G":[178,112,"_need(estimate['write_paths'] == operation['write_paths'] == publication['write_paths']"],
 
 "q0I":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",121,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
 
@@ -2832,9 +2836,19 @@
 
 "q0L":[181,"DelegatedDeliveryTests.test_acceptance_claim_cannot_switch_to_a_later_delivery",26,"NM1twUO66Wgj0EVr59F8IIubS3KkRU7q6TVaUU1BkYQ"],
 
+"q74DiscardEffect":[183,169,"shutil.rmtree(root.name, dir_fd=parent)"],
+
+"q74DiscardEntry":[183,"discard_unretained",152,"yDt5r_eaFJ_-uCwv5NFm8Se2wCv7KITdXOJz_XxMzto"],
+
+"q74DiscardFinally":[187,190,"discard_unretained(pending)"],
+
+"q74DiscardTest":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",357,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
+
 "q74PrepClone":[183,93,"subprocess.run(command, env=environment, stdin=subprocess.DEVNULL,\n                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False)",17,94,110],
 
-"q74PrepTest":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",58,"h5Rd1J5ZDDzaTop3oM0QCLmAqbkeOZqDsXbm73hXJnw"],
+"q74PrepTest":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",85,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
+
+"q74PreparedDeliveryTest":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",218,"5me4iS_8jVKbwZt15cpdaxlzbeH4oHobe_dOw4F8e5k"],
 
 "uA":[8,1045,"page.get_by_text(str(label), exact=False).first.click(timeout=timeout_ms)",20,1045,93],
 
@@ -6274,9 +6288,11 @@
 
 {"authority":"An explicit setup flag or the operator's affirmative installed skill prompt.","contract":"I5","effect":"Invoke the selected installed setup command after installation.","effect_points":["p73x"],"entrypoint":"p73y","gate_chains":[],"gates":["p73w"],"id":"I5.2","limits":"A setup failure leaves the installation and displays a retry command. The installer does not adopt a native operation.","ordering":"Return from uninstall before setup. Keep dry runs and declined or noninteractive default installs free of setup calls.","trace_files":[{"$":69},{"$":391}],"witnesses":["w73d","w73e","w73f"]},
 
-{"authority":"Original registered completion bound to candidate, baseline and Beads database.","contract":"B11","effect":"Retain candidate identity and post reference and delivery.","effect_points":["q08","q06","vn","vs"],"entrypoint":"q05","gate_limits":"Review completion, candidate and Beads callback.","gates":["q09","q07","vr"],"id":"B11.2","limits":"Comment failure may leave a reference or receipt. Resume requires original custody and summary.","manual_decisions":["M02","M04","MLeadProject"],"ordering":"Check native origin and candidate before saving, posting and receipting.","review_gates":["q04","vo","vq"],"trace_files":[{"$":389},"scripts/everyday_delegation_delivery.py",{"$":378},{"$":36},{"$":105},{"$":396},"scripts/registered_delegation_entry.py"],"witnesses":["w74Flow","wLeadProject"]},
+{"authority":"Original registered completion bound to candidate, baseline and Beads database.","contract":"B11","effect":"Retain candidate identity and post reference and delivery.","effect_points":["q08","q06","vn","vs"],"entrypoint":"q05","gate_limits":"Review completion, candidate and Beads callback.","gates":["q09","q07","vr"],"id":"B11.2","limits":"Comment failure may leave a reference or receipt. Resume requires original custody and summary.","manual_decisions":["M02","M04","MLeadProject"],"ordering":"Check native origin and candidate before saving, posting and receipting.","review_gates":["q04","vo","vq"],"trace_files":[{"$":389},"scripts/everyday_delegation_delivery.py",{"$":378},{"$":36},{"$":105},{"$":396},"scripts/registered_delegation_entry.py"],"witnesses":["w74Flow","wLeadProject","w74PreparedDelivery"]},
 
-{"authority":"Project-bound signed standing approval for one admitted assignment.","contract":"N3","effect":"Sign route authority and launch one registered worker.","effect_points":["q0D","ym"],"entry_aliases":["cwo delegate"],"entrypoint":"q0A","gate_chains":[{"calls":[{"call":"za","direction":"return","target":"zd"}],"effect":"ym","gate":"xU"},{"calls":[{"call":"q0E","direction":"return","target":"q0F"}],"effect":"q0D","gate":"q0G"}],"gate_limits":"Scope and launch checks are structural. Protected controller evidence is contextual.","gates":["q0G","xU"],"id":"N3.17","limits":"Requires retained approval. Resume makes no dispatch or charge. Offline witnesses.","manual_decisions":["M32","M44","MLeadProject"],"ordering":"Verify custody, scope, login and admission, then match route and packet before dispatch.","review_gates":["q0B","vu","vt"],"trace_files":["scripts/cwo.py",{"$":389},{"$":396},{"$":36},{"$":10},{"$":270},"scripts/registered_delegation_entry.py"],"witnesses":["w74Shell","w74Route","w74Flow","wLeadProject"]}
+{"authority":"Project-bound signed standing approval for one admitted assignment.","contract":"N3","effect":"Sign route authority and launch one registered worker.","effect_points":["q0D","ym"],"entry_aliases":["cwo delegate"],"entrypoint":"q0A","gate_chains":[{"calls":[{"call":"za","direction":"return","target":"zd"}],"effect":"ym","gate":"xU"},{"calls":[{"call":"q0E","direction":"return","target":"q0F"}],"effect":"q0D","gate":"q0G"}],"gate_limits":"Scope and launch checks are structural. Protected controller evidence is contextual.","gates":["q0G","xU"],"id":"N3.17","limits":"Requires retained approval. Prepared offers bind the original admitted request and exact registered model task to the dispatch packet. Resume makes no dispatch or charge. Offline witnesses.","manual_decisions":["M32","M44","MLeadProject"],"ordering":"Verify custody, scope, login and admission, then match route and packet before dispatch.","review_gates":["q0B","vu","vt"],"trace_files":["scripts/cwo.py",{"$":389},{"$":396},{"$":36},{"$":10},{"$":270},"scripts/registered_delegation_entry.py"],"witnesses":["w74Shell","w74Route","w74Flow","wLeadProject","w74PreparedDelivery"]},
+
+{"authority":"Original protected foreground offer and confirmed unretained custody.","contract":"N12","effect":"Remove one unretained, unstarted registered delegation offer.","effect_points":["q74DiscardEffect"],"entrypoint":"q74DiscardEntry","gates":[],"id":"N12.2","limits":"Only the original offer under the private parent. Retained, started, changed or ambiguous custody is preserved.","manual_decisions":["MPreparedOffer"],"ordering":"Settle original foreground failure or retention, then verify original directory, receipt and unstarted state before disposal.","trace_files":["scripts/registered_delegation_foreground.py",{"$":388},"scripts/registered_delegation_entry.py"],"witnesses":["w74Discard"]}
 ],
 
 "schema":"compact-release-routes-v1",
@@ -7254,7 +7270,7 @@
 
 "@177":["l7e_hU5X3jCUnLgAg2Tc5GRhLGuU1OZnPyOS38hRXdA",420,7524],
 
-"@178":["zGjcfwnBjifAWlZ8yKol1oLy2ALbXqH3LIaVM2rfjQA",420,11846],
+"@178":["IKhestp3aLgRA4Z93IZqrRvmrnQ8Laa2o4JICl1kfZU",420,15396],
 
 "@179":["D0xtkgY7SqtWnq3oCM2JOT8nLUYneAOuslAlu6GPvWE",420,19532],
 
@@ -7266,13 +7282,15 @@
 
 "@182":["jqOLXHY61GJlpzpSHksvEoTW3OyXC3W4vkYA6u1V160",420,49777],
 
-"@183":["snIDQIKPsRrWhpfadGphz_RvixRIBEsvPrTQOsXcpcg",420,18695],
+"@183":["hZ9OCAcxT2lYutk26xHPAORgTC-Z91RYq-RxqVoPlcI",420,20859],
 
-"@184":["JiyLkQkbBaAPx_F5Urg5aGohbbz6E3ZYTu_twgxE3Lg",420,8986],
+"@184":["XVRKesmeIlcfOK_jMALU4HvHup-_MkNDieIw7lFL9eg",420,22305],
 
 "@185":["eqDtyBZIB-px7tRa9ln2n_tpTN1X-Tu_0ZVEbQQ-hCc",420,4641],
 
 "@186":["N8pN2tOY6rHAIMhZo2oV3imdfolj4CORU9WlW_7pab0",420,11760],
+
+"@187":["zrYobRqbZfChT-of4BAyXNnACzkCb6M92oaLWGIbDo8",420,11982],
 
 "@19":["lVXGoZ9EnoiO3zO1gtl0aKqhFcOycVR2gF4Z4ABLFic",420,1174],
 
@@ -7784,9 +7802,7 @@
 
 "scripts/record_native_model_capability.py":["zPi7jGxi4MLTshotBUkybSFVU5QUi5jc14XT14xr7yg",420,4186],
 
-"scripts/registered_delegation_approval.py":["NQJ7MT7fIx2nVMwQcAyvredv8msMx7ycvfUseadAIEs",420,12943],
-
-"scripts/registered_delegation_foreground.py":["paVIw7TYZljYkOXvnuZnJJ_-iFpg6ZDnx0e2sNVGWxo",420,11819],
+"scripts/registered_delegation_approval.py":["gk3LDwEg1UCk-JgCqgAdxZxlSOHYyzvRwORnEYq773g",420,13054],
 
 "scripts/registered_host_root_boundary.py":["YVEJAkpd-rBiWkErHbDfheVtG_bm-K2cfOzcr3RS6DY",420,1303],
 
@@ -7848,7 +7864,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Lg7uu1TRC7q91RtsmcDN4PcTjC3ybzR76JRC3rmivBI",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["UkuKVxorw0wlSMUFW_is_YacWFi-DL4lo0n9su6kNco",420,136048],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -8226,9 +8242,13 @@
 
 "w74Claim":["self.assertRaisesRegex","q0L",{"$":12},{"$":397},["q0I"],"tests.test_everyday_delegation_delivery.DelegatedDeliveryTests.test_acceptance_claim_cannot_switch_to_a_later_delivery"],
 
+"w74Discard":["self.assertEqual(list(custody.iterdir()), [])","q74DiscardTest",{"$":12},"self.assertEqual(list(custody.iterdir()), [original.config.host.state.parent])",[],"tests.test_registered_delegation_preparation.DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer"],
+
 "w74Flow":["self.assertIn('delivering session', error)","q0I",{"$":12},"self.assertEqual([call[0] for call in self.effects], ['comment', 'comment', 'close'])",[],"tests.test_everyday_delegation.EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes"],
 
 "w74Preparation":["self.assertFalse(pending._verifier._current()['operations'])","q74PrepTest",{"$":12},"self.assertIs(type(pending), preparation.approval.PendingDelegationApproval)",[],"tests.test_registered_delegation_preparation.DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops"],
+
+"w74PreparedDelivery":["self.assertRaisesRegex(SystemExit, 'delivery reply lost')","q74PreparedDeliveryTest",{"$":12},"self.assertTrue(closed['closed'])",[],"tests.test_registered_delegation_preparation.DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review"],
 
 "w74Route":["self.assert_unstarted(inputs)","q0K",{"$":0},"self.assertTrue(run_fixture(self, inputs)['validation_complete'])",[],"tests.test_delegate_internal_work.EverydayDelegationTests.test_unsafe_login_refuses_before_signing_and_same_workflow_can_retry"],
 

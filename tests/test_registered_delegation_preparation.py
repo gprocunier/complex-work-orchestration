@@ -218,8 +218,7 @@ class DelegationPreparationTests(unittest.TestCase):
     def test_prepared_registered_packet_dispatches_and_closes_after_independent_review(self):
         fixture, inputs, task = self.fake_execution()
         workflow, case = inputs.workflow, inputs.case
-        baseline = self.root / 'EXAMPLE-baseline.json'
-        baseline.write_text(json.dumps(self.chain['baseline']), encoding='utf-8')
+        baseline = self.project / 'EXAMPLE-baseline.json'
         observed = []
         original = effects.tools.NamespacedFiniteRpcProcess.result
 
@@ -235,13 +234,31 @@ class DelegationPreparationTests(unittest.TestCase):
                 observed.append(dispatch)
             return original(process, method, params)
 
+        def lose_delivery_reply(arguments):
+            result = self.deliver_bead(arguments)
+            if arguments[0] == 'comment' and 'Manual delivery receipt ' in arguments[-1]:
+                raise SystemExit('EXAMPLE delivery reply lost')
+            return result
+
+        summary = 'Exact prepared candidate ready for hand review.'
         with (patch.object(effects.tools.NamespacedFiniteRpcProcess, 'result', record_before_turn),
-              patch.object(manual_delivery, 'project_beads', side_effect=self.writable_project_db),
-              patch.object(manual_delivery, 'delivery_session', return_value='EXAMPLE-delivery')):
-            result = effects.run_fixture(self, inputs, call=lambda: everyday_delegation.delegate(
-                workflow, task, baseline=baseline, summary='Exact prepared candidate ready for hand review.'))
+              patch.object(manual_delivery, 'project_beads', return_value=(self.database, lose_delivery_reply)),
+              patch.object(manual_delivery, 'delivery_session', return_value='EXAMPLE-delivery'),
+              self.assertRaisesRegex(SystemExit, 'delivery reply lost')):
+            effects.run_fixture(self, inputs, call=lambda: everyday_delegation.delegate(
+                workflow, task, baseline=baseline, summary=summary))
+        attempt = fixture.attempt(case)
+        self.assertEqual(attempt['outcome'], 'completed')
+        self.assertEqual(pending_target := case.host._observe()['target'], case.host._initial['target'])
+        effects_at_failure = len(self.bead['comments'])
+        recovered = self.reopen(task, case.ledger)
+        with (patch.object(manual_delivery, 'project_beads', side_effect=self.writable_project_db),
+              patch.object(manual_delivery, 'delivery_session', return_value='EXAMPLE-restart')):
+            result = everyday_delegation.delegate(recovered, task, baseline=baseline, summary=summary, resume=True)
+        self.assertIsNone(recovered.factory)
+        self.assertEqual(len(self.bead['comments']), effects_at_failure)
         self.assertEqual(len(observed), 1)
-        self.assertEqual(fixture.attempt(case)['outcome'], 'completed')
+        self.assertEqual(fixture.attempt(case), attempt)
         self.assertEqual(self.bead['status'], 'in_progress')
         self.assertEqual(result['project'], str(self.project))
         self.assertNotEqual(case.host.target, self.project)
@@ -259,6 +276,7 @@ class DelegationPreparationTests(unittest.TestCase):
             closed = manual_delivery.accept_delivery(args)
         self.assertEqual(closed['dispatch_id'], observed[0]['dispatch_id'])
         self.assertTrue(closed['closed'])
+        self.assertEqual(case.host._observe()['target'], pending_target)
 
     def test_drifted_actual_thread_refuses_before_task_turn_or_output(self):
         fixture, inputs, task = self.fake_execution()
@@ -272,20 +290,15 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertFalse((inputs.case.host.worker / 'result.txt').exists())
 
     def fake_execution(self):
-        pending = self.prepare(output_text=offline.OUTPUT.decode())
-        signed = self.fixture_redeem(pending)
-        task = json.loads(pending._receipt.selected_node_bytes)['prompt']
-        preparation.entry.retain_approved_assignment(signed)
+        task, _baseline, accepted = self.foreground_offer(offline.OUTPUT.decode())
+        self.assertFalse(accepted['isError'], accepted)
         rename = ctypes.CDLL(None, use_errno=True).renameat2
         fixture = effects.F.FactoryTests('runTest')
         fixture.setUp()
         self.addCleanup(effects.F.cleanup_helper, self, fixture)
         case = fixture.case(production=True, no_fake_scheduler=True, archive_schedule='settled')
         ctypes.CDLL.return_value.renameat2 = rename
-        ledger_init = type(case.ledger).__init__
-        defaults = dict(ledger_init.__kwdefaults__, owner_probe=case.ledger.owner_probe)
-        with chdir(self.project), patch.object(ledger_init, '__kwdefaults__', defaults):
-            workflow = preparation.entry.open_assignment(task, self.chain)
+        workflow = self.reopen(task, case.ledger)
         config = workflow.config
         case.host, case.ledger, case.receipt = config.host, config.ledger, config.receipt
         case.spec = config.native_bundle[0]['registered_n1']
@@ -302,6 +315,12 @@ class DelegationPreparationTests(unittest.TestCase):
 
         case.factory = FactoryReference()
         return fixture, SimpleNamespace(workflow=workflow, case=case), task
+
+    def reopen(self, task, ledger):
+        ledger_init = type(ledger).__init__
+        defaults = dict(ledger_init.__kwdefaults__, owner_probe=ledger.owner_probe)
+        with chdir(self.project), patch.object(ledger_init, '__kwdefaults__', defaults):
+            return preparation.entry.open_assignment(task, self.chain)
 
     @staticmethod
     def fixture_redeem(pending):
