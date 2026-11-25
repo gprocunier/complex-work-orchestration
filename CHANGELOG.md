@@ -4,6 +4,8 @@
 
 - Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
 
+## 1.36.5 - 2026-11-25
+
 ### Tests
 
 - Preserve archive failures that occur after the registered exhaustion fixture observes the archive request.
