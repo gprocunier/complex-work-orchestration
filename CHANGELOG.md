@@ -4,6 +4,7 @@
 
 ## 1.37.0 - 2026-11-25
 
+- Document what the supervisor host enforces for registered workers, what the lead must honor, and where pool qualification and critic review stand.
 - Lead project status and handoffs with the outcome, project goal, completed work, named dependencies, and any decision the reader needs to make. Validate this summary in current handoff packets.
 - Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Renew an expired approval before dispatch or resume interrupted delivery without starting another worker.
 - Use `@Chrome` in the ChatGPT desktop app for ChatGPT Pro reviews. The architect thread sends the screened request with the operator present, reads the completed reply from the page, and saves it and the evaluation in the private run directory. CWO links the request, reply, sender-confirmed model picker label and evaluation in the host audit.
