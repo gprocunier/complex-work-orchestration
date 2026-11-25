@@ -259,9 +259,23 @@ class TurnObservationTests(unittest.TestCase):
         source = Path(self.facade.__file__).read_bytes()
         self.assertEqual(
             hashlib.sha256(source).hexdigest(),
+            "9c99a031e5d19651ba9c86f1b231785ac57b317ed3587e8be39fbd7fa810b4fc",
+        )
+        before_critic_binding = source.decode()
+        for current, previous in (
+            ("    historical_campaign_critic_binding,\n", ""),
+            (
+                '        opus_review_evidence.get("exact_model") != historical_campaign_critic_binding()["model"]\n',
+                '        opus_review_evidence.get("exact_model") != "claude-opus-4-6"\n',
+            ),
+        ):
+            self.assertEqual(before_critic_binding.count(current), 1)
+            before_critic_binding = before_critic_binding.replace(current, previous, 1)
+        self.assertEqual(
+            hashlib.sha256(before_critic_binding.encode()).hexdigest(),
             "5d466ed931620e83c1c62be7874ce921cfcbaca9f38cbf95962de9aa5b8ee11a",
         )
-        before_retirement = self._facade_projection_before_pool_retirement(source.decode())
+        before_retirement = self._facade_projection_before_pool_retirement(before_critic_binding)
         historical = self._facade_before_registered_finite_evidence(before_retirement)
         # Reconstruct the original facade from exact campaign-adapter
         # additions and the single docstring-line change, retaining occurrence
