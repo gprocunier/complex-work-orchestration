@@ -274,13 +274,21 @@ artifact instead of JSON first. If both forms exist, the JSON artifact is the
 validator input and the Markdown template is reader-facing support.
 
 For a scoped continuation, the [operator handoff packet](../templates/operator-handoff-packet.md)
-records `Next action` and `Waiting on`. Use `None` when either field has no
+starts with the outcome, project goal, completed and verified work, named
+blockers, next step and what it enables, and any reader action. Its execution
+details record `Next action` and `Waiting on`. Use `None` when either field has no
 value. When validating against observed state, pass
 `--require-scoped-continuation --continuation-state <path>` to
 `scripts/validate_operator_handoff.py`. The state JSON uses `version: 2`,
 `next_action` and `waiting_on`. Both values must match the handoff, with `null`
 for absence. Supply matching state when both values are absent. Record only
 actions and dependencies supported by the project record and current scope.
+
+Run `python3 scripts/cwo.py continue --epic <epic-id>` for project status from
+the work graph. Its JSON output includes `status_summary` alongside the
+existing `operator_handoff_packet`. The work graph provides tracker status.
+Use closeout evidence to establish delivery and verification. The execution
+status report projects audit, evaluator, and readiness telemetry.
 
 ## Authority Model
 

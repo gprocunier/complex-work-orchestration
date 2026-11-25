@@ -26,6 +26,36 @@ FIELD_ALIASES = {
 SCOPED_FIELDS = {"Next action": "next_action", "Waiting on": "waiting_on"}
 CONTINUATION_STATE_FIELDS = {"version", *SCOPED_FIELDS.values()}
 GENERIC_APPROVAL_REQUESTS = {"approval", "approval needed", "permission", "permission needed", "proceed"}
+READABLE_FIELDS = {
+    "Outcome": "an outcome in words",
+    "Goal": "a project goal",
+    "Completed and verified": "a task title",
+    "What stands in the way": "a named blocker",
+    "Next step": "a task title",
+    "What it enables": "a named result",
+    "Reader action": "an explicit reader action or no-decision statement",
+}
+STATUS_LINE = re.compile(r"^#{1,6}[ \t]+Status Summary[ \t]*$", re.IGNORECASE | re.MULTILINE)
+EXECUTION_LINE = re.compile(r"^#{1,6}[ \t]+Execution Details[ \t]*$", re.IGNORECASE | re.MULTILINE)
+TASK_ID = re.compile(r"\b[\w./:-]+[-_.:/]\d[\w./:-]*\b")
+TASK_REFERENCE = re.compile(r"(?:\s+\([\w./:-]+\))+")
+TITLE_PREFIX = re.compile(
+    r"^(?:The work graph lists these closed tasks:\s*|(?:The project team can continue|Continue|"
+    r".*?check what must change before)\s+)", re.IGNORECASE,
+)
+GENERIC_WORDS = frozenset("""
+    a an and as action approval approved be blocker blockers can clear clears closed complete completed continue current
+    decide decision depends do done enable enables finishing for from goal has in is it lets needed next no on only pending
+    permission please proceed project ready recorded removes resolving right now sprint status step task tasks team
+    that the these this to unblock unblocks unlock unlocks validate verified was were what whether which who work you your
+""".split())
+READABLE_ABSENCES = {
+    "Completed and verified": {"no work is recorded as closed verification was not checked"},
+    "What stands in the way": {"no blockers are recorded"},
+    "Next step": {"no next step is needed"},
+    "What it enables": {"no further work depends on a next step in this scope"},
+    "Reader action": {"no decision is needed from you right now", "no decision is recorded for you"},
+}
 
 PLACEHOLDER_VALUES = {
     "",
@@ -77,7 +107,7 @@ def meaningful(value: str | None) -> bool:
 
 def matching_field(label: str) -> str | None:
     normalized = normalize(label)
-    for canonical in SCOPED_FIELDS:
+    for canonical in (*SCOPED_FIELDS, *READABLE_FIELDS):
         if normalized == canonical.lower():
             return canonical
     for canonical, aliases in FIELD_ALIASES.items():
@@ -164,21 +194,83 @@ def validate_scoped_fields(fields: dict[str, str], state: Any) -> list[str]:
     return errors
 
 
+def readable_words(value: str) -> set[str]:
+    # Drop tracker and sprint references before checking for meaningful prose.
+    value = re.sub(r"\([\w./:-]+\)", " ", value)
+    words = set(re.findall(r"[^\W\d_]+", TASK_ID.sub(" ", value).lower()))
+    return words - GENERIC_WORDS
+
+
+def has_titled_reference(value: str) -> bool:
+    references = list(TASK_REFERENCE.finditer(value))
+    if not references:
+        return False
+    start = 0
+    for reference in references:
+        issue_id = reference.group().rsplit("(", 1)[1][:-1]
+        title = TITLE_PREFIX.sub("", value[start:reference.start()].strip())
+        title = re.sub(r"^\[(?:done|closed|completed|resolved)\][, ]*", "", title)
+        title = re.sub(rf"(?<!\w){re.escape(issue_id)}(?!\w)", " ", title)
+        if not re.search(r"[^\W\d_]", TASK_ID.sub(" ", title)):
+            return False
+        start = reference.end()
+    return True
+
+
+def validate_readable_value(field: str, value: str) -> bool:
+    value = unstyle_value(value)
+    normalized = normalize(value)
+    if normalized in READABLE_ABSENCES.get(field, set()):
+        return True
+    if not value or ANGLE_PLACEHOLDER_RE.search(value) or normalized in (PLACEHOLDER_VALUES - {""}) | GENERIC_APPROVAL_REQUESTS:
+        return False
+    if "untitled work item" in normalized or normalized == "project goal is missing from the work graph":
+        return False
+    if field == "Goal" and normalized.startswith("continue sprint "):
+        return False
+    if field in {"Completed and verified", "Next step"}:
+        # Keep each tracker reference beside a title. Strip common evidence
+        # qualifiers so they cannot stand in for a missing title.
+        value = re.split(r"\.\s+Verification\b", value, maxsplit=1)[0]
+        return has_titled_reference(value)
+    if field == "Reader action" and not normalized.startswith(("please ", "you ", "your ")):
+        return False
+    return bool(readable_words(value)) or (field in {"Outcome", "What it enables"} and has_titled_reference(value))
+
+
+def validate_readable_summary(text: str) -> list[str]:
+    start = STATUS_LINE.search(text)
+    end = EXECUTION_LINE.search(text)
+    if not start or not end or start.end() >= end.start():
+        return ["missing readable Status Summary before Execution Details"]
+    fields = parse_fields(text[start.end():end.start()])
+    return [
+        f"readable summary needs {need}: {field}"
+        for field, need in READABLE_FIELDS.items()
+        if not validate_readable_value(field, fields.get(field, ""))
+    ]
+
+
 def validate_text(
     text: str,
     *,
     require_scoped_continuation: bool = False,
+    require_readable_summary: bool = False,
     continuation_state: Any = None,
 ) -> list[str]:
-    fields = parse_fields(text)
+    execution = EXECUTION_LINE.search(text)
+    fields = parse_fields(text[execution.end():] if execution else text)
     errors: list[str] = []
     for field in FIELD_ALIASES:
         if field not in fields:
             errors.append(f"missing field: {field}")
         elif not meaningful(fields[field]):
             errors.append(f"field has no meaningful value: {field}")
-    if require_scoped_continuation or continuation_state is not None:
+    scoped = require_scoped_continuation or continuation_state is not None
+    if scoped:
         errors.extend(validate_scoped_fields(fields, continuation_state))
+    if scoped or require_readable_summary or SCOPED_FIELDS.keys() & fields.keys() or STATUS_LINE.search(text):
+        errors.extend(validate_readable_summary(text))
     return errors
 
 
@@ -236,6 +328,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("paths", nargs="*", type=Path)
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--require-scoped-continuation", action="store_true")
+    parser.add_argument("--require-readable-summary", action="store_true", help="Require the current status-first handoff format.")
     parser.add_argument(
         "--continuation-state",
         type=Path,
@@ -266,6 +359,7 @@ def main(argv: list[str] | None = None) -> int:
         errors = validate_text(
             path.read_text(encoding="utf-8"),
             require_scoped_continuation=args.require_scoped_continuation,
+            require_readable_summary=args.require_readable_summary,
             continuation_state=state,
         )
         if errors:

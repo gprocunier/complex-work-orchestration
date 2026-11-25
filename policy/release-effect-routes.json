@@ -1174,7 +1174,7 @@
 
 "dm":[50,256,"if [[ \"$DRY_RUN\" -eq 0 ]]; then"],
 
-"dn":[18,"main",661,"N5hItm0DLS7_LzjEGtJBG0PdhqMsbUJS1gfYeXd0EOc"],
+"dn":[18,"main",781,"N5hItm0DLS7_LzjEGtJBG0PdhqMsbUJS1gfYeXd0EOc"],
 
 "do":[112,"NativePoolAdmissionTests.test_timeout_reconciliation_uses_exact_show_not_command_output",417,"CoEL4UYfAjX_qXrNR0jpwgyKivBo9uec2p_xA_6wDsw"],
 
@@ -7370,7 +7370,7 @@
 
 "@179":["D0xtkgY7SqtWnq3oCM2JOT8nLUYneAOuslAlu6GPvWE",420,19532],
 
-"@18":["eeWhgdqzZxdBINbx0XseT7DQyIMEE_YvaJiCe2PZPCI",420,27248],
+"@18":["a9GCvd-mqI2U4aslcmijkdW_RaTtsl4gxik7w4-9mv4",420,32332],
 
 "@180":["3D2H8SeWt20e_iXBhxN5yH71LDLdNai5YXnp1MqWxl8",420,15788],
 
@@ -7948,7 +7948,7 @@
 
 "scripts/validate_native_pool_preflight.py":["Wqm44xIhBCKjTxNf2mb5OjpBapLf742WyjTpzkL2Epg",493,3652],
 
-"scripts/validate_operator_handoff.py":["UmvsnTefQjOfEOtFKC0hBQBAKVBxdmxKYCTakOC4iIA",420,10019],
+"scripts/validate_operator_handoff.py":["9ChQl5QieC6PZMzE_EpSnMga6K5OavXLlxhoKItDiTA",420,14854],
 
 "scripts/validate_public_copy.py":["5jvp0QaFAcImQCY6cXJcXSdDZ5rGGQgzSguKe3H8t8o",420,63926],
 

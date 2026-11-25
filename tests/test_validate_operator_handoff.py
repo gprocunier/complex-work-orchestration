@@ -13,7 +13,20 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from validate_operator_handoff import validate_text, validate_continuation_state  # noqa: E402
 
 
-SCOPED_BASE = """# Operator Handoff Packet
+STATUS_SUMMARY = """### Status Summary
+
+- Outcome: The invoice export is built and still needs validation.
+- Goal: Let customers download invoices as CSV
+- Completed and verified: Build the invoice CSV export (demo-16). The export test passed.
+- What stands in the way: Enable invoice downloads (demo-18) depends on Check exported invoice totals (demo-17).
+- Next step: The project team can continue Check exported invoice totals (demo-17).
+- What it enables: Passing that check clears the blocker for Enable invoice downloads (demo-18).
+- Reader action: No decision is needed from you right now.
+
+### Execution Details
+"""
+
+SCOPED_BASE = "# Operator Handoff Packet\n\n" + STATUS_SUMMARY + """
 - Next executable Bead: complex-work-orchestration-bpm4
 - Why it is next: providerless preparation can proceed independently
 - Exact command/resume: python -B .orchestration-audit/v109/verify_v109.py
@@ -34,6 +47,57 @@ SCOPED_STATE = {
 
 
 class ValidateOperatorHandoffTests(unittest.TestCase):
+    def test_scoped_handoff_rejects_an_id_only_summary(self) -> None:
+        id_only_summary = """### Status Summary
+
+- Outcome: demo-18
+- Goal: Continue sprint s-12
+- Completed and verified: demo-16
+- What stands in the way: demo-17
+- Next step: Continue demo-17
+- What it enables: demo-18
+- Reader action: No decision is needed from you right now.
+
+### Execution Details
+"""
+        text = SCOPED_BASE.replace(STATUS_SUMMARY, id_only_summary)
+        errors = validate_text(text, require_scoped_continuation=True)
+        self.assertIn("readable summary needs a project goal: Goal", errors)
+        self.assertIn("readable summary needs a task title: Completed and verified", errors)
+        self.assertIn("readable summary needs a task title: Next step", errors)
+        self.assertIn("readable summary needs a named result: What it enables", errors)
+
+    def test_readable_summary_rejects_generic_verbs_and_bare_tracker_ids(self) -> None:
+        changes = {
+            "Completed and verified": "Verified demo-16. The export test passed.",
+            "Next step": "Continue validate (validate).",
+            "What it enables": "Unlock demo-18.",
+            "Reader action": "Tomorrow",
+        }
+        text = SCOPED_BASE
+        for field, replacement in changes.items():
+            line = next(line for line in STATUS_SUMMARY.splitlines() if line.startswith(f"- {field}:"))
+            text = text.replace(line, f"- {field}: {replacement}")
+        errors = validate_text(text)
+        self.assertEqual(len(errors), 4)
+        for field in changes:
+            self.assertTrue(any(error.endswith(f": {field}") for error in errors), errors)
+
+    def test_readable_summary_accepts_concise_titles(self) -> None:
+        text = SCOPED_BASE.replace("Build the invoice CSV export (demo-16)", "Facturación (export)")
+        text = text.replace("Check exported invoice totals (demo-17)", "End-to-end (check)")
+        text = text.replace("Let customers download invoices as CSV", "請求書のダウンロード")
+        self.assertEqual(validate_text(text, require_scoped_continuation=True), [])
+
+    def test_scoped_or_explicit_validation_requires_a_status_summary(self) -> None:
+        text = SCOPED_BASE.replace(STATUS_SUMMARY, "")
+        error = "missing readable Status Summary before Execution Details"
+        self.assertIn(error, validate_text(text, require_scoped_continuation=True))
+        self.assertIn(error, validate_text(text))
+        historical = text.split("- Next action:")[0]
+        self.assertEqual(validate_text(historical), [])
+        self.assertIn(error, validate_text(historical, require_readable_summary=True))
+
     def test_scoped_dependency_keeps_independent_work(self) -> None:
         self.assertEqual(validate_text(SCOPED_BASE, require_scoped_continuation=True), [])
         self.assertEqual(
