@@ -188,7 +188,11 @@ class FrontDoorTests(unittest.TestCase):
                       "ordinary productive pool plans"):
             with self.subTest(route=route):
                 self.assertIn(route, limits)
-        self.assertIn("**Desktop Chrome review is off by default**", limits)
+        self.assertIn("ChatGPT Pro browser review runs from the ChatGPT desktop app", limits)
+        self.assertIn("`@Chrome` in the paired profile with the operator present", limits)
+        reference = (ROOT / "references/external-contracting.md").read_text(encoding="utf-8")
+        self.assertIn("Legacy CDP dispatch, browser share-link ingestion and local HTTP live dispatch remain held",
+                      " ".join(reference.split()))
         value = section("What CWO does today")
         self.assertIn("references/chatgpt-pro-browser.md", value)
         self.assertIn("`pending-acceptance`", value)
