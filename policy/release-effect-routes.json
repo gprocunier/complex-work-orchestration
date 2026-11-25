@@ -186,7 +186,7 @@
 
 "M25":{"conclusion":"Fixed disposable diagnostics provide scoped OS observations and no factory, maintenance, artifact or model authority.","evidence_contracts":["N13"],"external_trust_limit":"Private helper callers and OS runtime are trusted. This original fixed command/denial family alone supplies no PID-reuse claim; separate private-controller and exact selected-launcher observations are scoped by M28. Native model tools, approvals, retries/escalation, grants/helpers and production recovery remain unperformed; profile stays selected-unqualified and confidential unsupported. Digests identify bytes, not custody.","reason":"Capability and executable identity checks precede the selected fixed commands. Those commands use isolated workspace-write, never approval and network denial. Only issued fixed Python programmes and initialize/config reads are sent; no thread/turn or accepted output. Synthetic listener/credential controls and trusted bootstrap/watchdog strings are explicit effects beyond bounded AST call resolution. The fixed watchdog argv is data selected for the original owned birth, not a separate static proof of runtime exec; its 8s timeout and bootstrap exec remain explicit trusted-programme effects. The only watchdog launch remains the fixed /usr/bin/timeout alias. Its canonical executable path and device/inode object are independently selected and rechecked before launch, then matched to the observed proc executable with original parent/birth/fdinfo/live checks. Basename matches, changed objects and unknown wrapper layouts refuse; this supplies no fallback or qualification authority. Birth comparisons preserve PID, command name, parent and start ticks; only volatile scheduler state is omitted. Exact executable, namespace separation, fdinfo and live-pidfd checks remain; scheduler-state controls supply no new authority.","review_evidence":"Fixed diagnostic programmes, observed executable identity, argv restrictions, gates, retained-handle source/scope and state-only birth correction reviewed; all stable-field substitutions still refuse. No native authority inferred.","selected_resources":[{"$":255},{"$":260}],"source":["p96","pa2","p8b","p8a","p9f","pa8","pa5","pa1","pa9","paa","pA","pF","pC","pB"]},
 
-"M26":{"conclusion":"Trusted post-setup bootstrap and independently verified namespace cleanup preserve original admission and conservative accounting.","evidence_contracts":["N3","N9"],"external_trust_limit":"Setup byte releases trusted bootstrap only. Standalone helpers do not authenticate arbitrary callers or create native admission. Cleanup uses only retained verified pidfds, including monitor-failure/ESRCH branches; namespace exit never upgrades unresolved monitor status, charge or accepted output. No raw PID fallback or retry.","reason":"Sealed FD contains only bwrap options; actual argv carries pinned validator/bootstrap and exact role command. Private overlays precede executable binds. Original monitor parent/birth and pidfd/PID1/namespace checks precede handle retention. After setup, protected mounts and current factory state are checked before the final stdin gate; tool release still uses the original finite-input authority fence. Startup info reaches EOF under one total five-second deadline and a 4096-byte cap before strict plain-object decode; malformed, partial, oversized or late input refuses before namespace retention or final gate.","review_evidence":"Post-setup gates, complete bounded startup framing and independent monitor-failure cleanup source reviewed; no native authority inferred.","source":["p38a","p38b","p37e","p38e","p382","p384","p387","p386"]},
+"M26":{"conclusion":"Trusted post-setup bootstrap and verified namespace cleanup preserve original admission and conservative accounting.","evidence_contracts":["N3","N9"],"external_trust_limit":"Setup byte releases trusted bootstrap only. Private helpers give no native admission or caller authentication. Cleanup uses verified retained pidfds, including monitor failure/ESRCH. Namespace exit cannot upgrade monitor status, charge or acceptance. No raw PID fallback or retry.","reason":"Seal bwrap options only and pin validator/bootstrap/role argv. Place private overlays before executable binds. Match original monitor parent/birth, pidfd/PID1/namespace before retaining handle. After setup check mounts and factory state before final stdin gate. Keep finite-input tool fence. Require startup-info EOF within 5s and 4096 bytes before strict object decode. Malformed, partial, oversized or late input refuses before namespace retention or release.","review_evidence":"Reviewed post-setup gates, bounded startup framing and independent monitor-failure cleanup.","source":["p38a","p38b","p37e","p38e","p382","p384","p387","p386"]},
 
 "M27":{"conclusion":"Final publication rechecks and original host lock identity narrow cooperative races without creating effect authority.","evidence_contracts":["P1","P2"],"external_trust_limit":"Trusted embedding supplies original issued validation/maintenance capability and separate signed consent. Directory exclusion covers cooperating publishers, not arbitrary external writers. Earlier durable intent/staged bytes or confirmed replacements survive later refusal; unresolved effects stay conservative. Host records are owner-writable evidence, not independent authentication.","reason":"Publication retains source/target descriptors and file inode marks before policy/consent/payload callouts, then recaptures revision/dirty state and marks immediately before replace. Host state writes require the original held lock descriptor/path inode at entry and before rename; collection also rechecks it.","review_evidence":"Final publication and retained-lock guards plus late-drift/lock-substitution evidence reviewed with explicit cooperating-writer limits; no additional authority inferred.","source":["p36b","p371","pc0","pbb"]},
 
@@ -1394,15 +1394,15 @@
 
 "p259":[44,"_resolve_local_endpoint_addresses",746,"TFup3js4Ql8Ea7T7OYFTwNw4ynK4puYxKII9uS5NbUU"],
 
-"p25AdoptControl":[146,428,"socket.socket(fileno=descriptor)",9,428,41],
+"p25AdoptControl":[146,439,"socket.socket(fileno=descriptor)",9,439,41],
 
-"p25AdoptStream":[146,304,"socket.socket(fileno=descriptors[0])",15,304,51],
+"p25AdoptStream":[146,315,"socket.socket(fileno=descriptors[0])",15,315,51],
 
-"p25Bootstrap":[146,"_bootstrap",445,"v1F_jC1bVB-U2Iyd5d8UaNmkJ0V4I-AYQYOpSLHu5O8"],
+"p25Bootstrap":[146,"_bootstrap",456,"v1F_jC1bVB-U2Iyd5d8UaNmkJ0V4I-AYQYOpSLHu5O8"],
 
-"p25Broker":[146,"ProviderBroker.__init__",313,"T47gO3pCnoUoDgQc-d4kYqtkJFOcCeVpxdb26XamgSg"],
+"p25Broker":[146,"ProviderBroker.__init__",324,"T47gO3pCnoUoDgQc-d4kYqtkJFOcCeVpxdb26XamgSg"],
 
-"p25BrokerPair":[146,319,"socket.socketpair(type=socket.SOCK_DGRAM)",47,319,88],
+"p25BrokerPair":[146,330,"socket.socketpair(type=socket.SOCK_DGRAM)",47,330,88],
 
 "p25Budget":[148,"CampaignTests.test_one_budget_preserves_version_one_history_and_refuses_start_twenty_one",52,"aJ9DMCdL0sM48ps9xvg2DwmFy6f8kFE6xhPi75qm6SQ"],
 
@@ -1410,7 +1410,7 @@
 
 "p25Dial":[146,"_dial_provider",188,"Uv5qDs5AWqinnUS_4zr47vMekvqg_JFaZaoof9eApwo"],
 
-"p25Egress":[146,"ProviderBroker._handle",352,"Vdyj5_tDCtlAzGZDDZREI1ZviIKwXy_vo_bSQ-UVj-c"],
+"p25Egress":[146,"ProviderBroker._handle",363,"Vdyj5_tDCtlAzGZDDZREI1ZviIKwXy_vo_bSQ-UVj-c"],
 
 "p25Enroll":[149,"initialize_campaign",434,"XiPNcCbIXtlN19kuLBMSIFIis4MG9PwTE08ncbRPb9Y"],
 
@@ -1426,23 +1426,23 @@
 
 "p25FiniteSupport1":[126,"RegisteredFiniteToolWiringTests.test_live_capture_observes_empty_app_server_input_at_owned_pipe",1733,"rHqGz26DcuRCPhaZBmXn3PQLEhzldx_5HiG5QRJ8LGI"],
 
-"p25Handoff":[146,"_handoff",288,"I2ouohuU6UsnLsZy2gM0JAFnzj90s-MY-xIKB5bC3qM"],
+"p25Handoff":[146,"_handoff",299,"I2ouohuU6UsnLsZy2gM0JAFnzj90s-MY-xIKB5bC3qM"],
 
 "p25HostResolve":[146,178,"answers = socket.getaddrinfo(host + '.', 443, type=socket.SOCK_STREAM,"],
 
 "p25LiveInput":[62,"RegisteredFiniteInput.capture_poll_input",870,"dB0O5toH4yL8eC5n_OG1lK9czD_WSOYDogsdkDg1TWc"],
 
-"p25LoopbackBind":[146,431,"listener.bind(('127.0.0.1', PROXY_PORT))"],
+"p25LoopbackBind":[146,442,"listener.bind(('127.0.0.1', PROXY_PORT))"],
 
-"p25LoopbackListen":[146,432,"listener.listen(_MAX_CONNECTIONS)"],
+"p25LoopbackListen":[146,443,"listener.listen(_MAX_CONNECTIONS)"],
 
-"p25LoopbackSocket":[146,428,"socket.socket()",54,428,69],
+"p25LoopbackSocket":[146,439,"socket.socket()",54,439,69],
 
 "p25Models":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",100,"TKDM2EN_5McvMjnNuLeDhdM1TUyN9uxjnhOWJCsKBWM"],
 
 "p25MonitorCall":[64,926,"self.termination = self.controller.terminate(self.receipt, 0.1, allow_kill=True)"],
 
-"p25MonitorProof":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",455,"fykJRXURGFNZjg4R7oUVP2lc_5ai6i0vjA0CEr-14Zw"],
+"p25MonitorProof":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",522,"fykJRXURGFNZjg4R7oUVP2lc_5ai6i0vjA0CEr-14Zw"],
 
 "p25MonitorReason":[64,947,"return report.get('reason') == str(missing)"],
 
@@ -1460,33 +1460,33 @@
 
 "p25PermitVerify":[149,"verify_qualification_permit",406,"ambRElxX6xxNdeIhI3AVt8FST7X77XpWbsDNKxrYhQI"],
 
-"p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",411,"ilwDp9vyCoCUzOpXg4sfjQI9aIhdONh3MItPYOObGdU"],
+"p25Provider":[147,"ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot",478,"ilwDp9vyCoCUzOpXg4sfjQI9aIhdONh3MItPYOObGdU"],
 
 "p25ProviderConnect":[146,196,"upstream.connect(address)",12,196,37],
 
-"p25ProviderExec":[146,456,"os.execv(command[0], command)",4,456,33],
+"p25ProviderExec":[146,467,"os.execv(command[0], command)",4,467,33],
 
-"p25ProviderPrivate":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",140,"eqjCvMW3CCfISe33c0PPQWNj9NI41DSaLJWGVsBwvro"],
+"p25ProviderPrivate":[147,"ProviderNetworkTests.test_a_private_provider_dns_result_is_refused",141,"eqjCvMW3CCfISe33c0PPQWNj9NI41DSaLJWGVsBwvro"],
 
-"p25ProviderSNI":[147,"ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect",130,"EGSob4OxAS5eiFrkQHWXImUiU4gIeN4N1wVLqjpzPvg"],
+"p25ProviderSNI":[147,"ProviderNetworkTests.test_a_different_tls_name_has_no_outbound_effect",131,"EGSob4OxAS5eiFrkQHWXImUiU4gIeN4N1wVLqjpzPvg"],
 
-"p25ProviderSNISupport0":[147,{"$":334},48,{"$":335}],
+"p25ProviderSNISupport0":[147,{"$":334},49,{"$":335}],
 
 "p25ProviderSocket":[146,193,{"$":360},19,193,60],
 
-"p25ProviderSupport0":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",388,"Cay30SPJmnKAChtR0NRIfv2Szpqjqe3rZMak5LZ5ftA"],
+"p25ProviderSupport0":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",455,"Cay30SPJmnKAChtR0NRIfv2Szpqjqe3rZMak5LZ5ftA"],
 
-"p25ProviderTLSSupport":[147,"ProviderNamespaceTests._synthetic_endpoint",340,"38QTXTdLT8n-5hpaQrerPQOcqqrfJxA57nGD-_fm-KY"],
+"p25ProviderTLSSupport":[147,"ProviderNamespaceTests._synthetic_endpoint",407,"38QTXTdLT8n-5hpaQrerPQOcqqrfJxA57nGD-_fm-KY"],
 
-"p25Receive":[146,"_receive_handoff",301,"vXrhJRSpHqI8AEWglWg16aKC7q2sYtqxBqDpBCbxQU0"],
+"p25Receive":[146,"_receive_handoff",312,"vXrhJRSpHqI8AEWglWg16aKC7q2sYtqxBqDpBCbxQU0"],
 
 "p25RecordStart":[64,"RegisteredN1Factory.record_qualification_start",2336,"7-6oJl_rlkQOkQfSrjBL922xWA2hA4MNTp5ktaOUfLs"],
 
-"p25RelayFork":[146,416,"if os.fork() != 0:"],
+"p25RelayFork":[146,427,"if os.fork() != 0:"],
 
-"p25RelayRecvFD":[146,302,"message, descriptors, flags, _address = socket.recv_fds(control, 1, 1, socket.MSG_CMSG_CLOEXEC)"],
+"p25RelayRecvFD":[146,313,"message, descriptors, flags, _address = socket.recv_fds(control, 1, 1, socket.MSG_CMSG_CLOEXEC)"],
 
-"p25RelaySendFD":[146,293,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
+"p25RelaySendFD":[146,304,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
 
 "p25RequireSelected":[64,"RegisteredN1Factory._require_qualification_selection",2315,"Qz5okE9G9JWuMX7YrlQTkQVxdl7FwPbZQGegtKeNZJI"],
 
@@ -1498,7 +1498,7 @@
 
 "p25StartSync":[149,561,"os.fsync(descriptor)"],
 
-"p25StreamPair":[146,290,{"$":366},21,290,40],
+"p25StreamPair":[146,301,{"$":366},21,301,40],
 
 "p25TransportScope":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",635,"C7QM2DeNJ3lAkQK5CiSYGFKAm9c21surO1IIwruZeJI"],
 
@@ -2110,23 +2110,23 @@
 
 "p35AttachmentAdmission":[64,"RegisteredN1Factory._selected_access_token",2601,"y-ubfOinocuB-QU8UC4Q4EE7BojqmKlpF2nOpkGV6Co"],
 
-"p35AttachmentRead":[146,"_read_access_token",438,"v8xez3TX8q50H-Q3vXghvB4DVW_uBxJ5fU2A5r7ceio"],
+"p35AttachmentRead":[146,"_read_access_token",449,"v8xez3TX8q50H-Q3vXghvB4DVW_uBxJ5fU2A5r7ceio"],
 
 "p35AttachmentRelease":[64,"_Containment._release_provider_descriptor",787,"20HHowV7ioo0lEJWj4_2_GdbViAo5tsw4QT_rA5XNZM"],
 
 "p35AttachmentStaging":[64,"_Containment._stage_access_token",620,"rDaCofmDIb2SFdjONqE1Y400wLDYIAJq55BLQ5Y6UHI"],
 
-"p35AuthAbsent":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",86,"KGRAydbhRXrGt08lhihJzS0poZ0JNpL8IvvnYVPQAaA"],
+"p35AuthAbsent":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",87,"KGRAydbhRXrGt08lhihJzS0poZ0JNpL8IvvnYVPQAaA"],
 
 "p35AuthEarlyCleanup":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",553,"JlnpFTAoS4Oeo4R6Q7Le1oo7WvcUhvYyfApROeH4Mjk"],
 
-"p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",269,"nUnL_3zvXnjC8y5M49UPLSSD3GNoJ8Qu2zMiFbxXUlQ"],
+"p35AuthGate":[147,"ProviderAttachmentTests.test_early_gate_refusal_closes_without_reading_attachment",336,"nUnL_3zvXnjC8y5M49UPLSSD3GNoJ8Qu2zMiFbxXUlQ"],
 
-"p35AuthTls":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",435,"cDmZcPXamrdQWVguZOksJvbYb8i-RFcsZVUiP0f9Njc"],
+"p35AuthTls":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",502,"cDmZcPXamrdQWVguZOksJvbYb8i-RFcsZVUiP0f9Njc"],
 
-"p35RelayCustody":[146,"_fork_relay",415,"Ff-BZQJrJkd6jumVue2QNPEMe5Qvbgqo0yzWLLsFhvI"],
+"p35RelayCustody":[146,"_fork_relay",426,"Ff-BZQJrJkd6jumVue2QNPEMe5Qvbgqo0yzWLLsFhvI"],
 
-"p35RelaySetup":[146,"_start_relay",427,"e-a3Ldrss6FKF1bvcnZh0i_1ZlrmCkeUz1G7dagB8O4"],
+"p35RelaySetup":[146,"_start_relay",438,"e-a3Ldrss6FKF1bvcnZh0i_1ZlrmCkeUz1G7dagB8O4"],
 
 "p35a":[112,"NativePoolAdmissionTests.test_close_owned_reconciles_exact_success_timeout_and_error",793,"ECXXl7slTUmpKREbYP-eZjhOO-MFzuZ3ErEohwphE4k"],
 
@@ -2472,7 +2472,7 @@
 
 "p42Projection":[149,"ManagedLoginMount.prepare",184,"xBjS_yw1BFc3tzxG2gBH1dDkp1jnS17lndTbgzqgf4Y"],
 
-"p42Provider":[147,"ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist",111,"y8_I-ZiERsBCrFxT5YaRZ4bs1nLYPp6lQLnorH6HNtI"],
+"p42Provider":[147,"ProviderNetworkTests.test_managed_login_keeps_the_fixed_https_allowlist",112,"y8_I-ZiERsBCrFxT5YaRZ4bs1nLYPp6lQLnorH6HNtI"],
 
 "p42Rollout":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",436,"YcE84J0upisnMb8WT6palpk5FGrPq1sbOl3d0tmqCG0"],
 
@@ -2630,19 +2630,23 @@
 
 "p66C":[174,116,"_await_original_contexts(controls)"],
 
-"p66e":[159,"SignedCalibrationPipeTests.test_waits_for_owned_empty_rollout",97,"PIGjvsi8lCZeihVSelkw1LIzQucRH1DcfWmbkVfUdCU"],
+"p66e":[159,"SignedCalibrationPipeTests.test_waits_for_owned_empty_rollout",136,"PIGjvsi8lCZeihVSelkw1LIzQucRH1DcfWmbkVfUdCU"],
 
-"p66t":[159,"SignedCalibrationPipeTests.test_waits_for_durable_context",68,"Cc1ZjRcQjnWYr15_Qd4l03yI6ROrBCssq0FJ8agXiC0"],
+"p66t":[159,"SignedCalibrationPipeTests.test_waits_for_durable_context",107,"Cc1ZjRcQjnWYr15_Qd4l03yI6ROrBCssq0FJ8agXiC0"],
 
 "p67":[3,"RegisteredBrowserParent.create_share",386,"Mteu2NUvsKvZNqgbhtVz8EdvTdZRDeozAx1YKMe-0sg"],
 
-"p67W":[146,322,{"$":366},42,322,61],
+"p67W":[146,333,{"$":366},42,333,61],
 
-"p67t":[147,"ProviderBrokerCloseTests.test_idle_receive_wakes_on_close",164,"9iErhsoem8RV9Cu6Zsa5Mlj6ruW1QSvb19XpR-EsZoI"],
+"p67t":[147,"ProviderBrokerCloseTests.test_idle_receive_wakes_on_close",231,"9iErhsoem8RV9Cu6Zsa5Mlj6ruW1QSvb19XpR-EsZoI"],
 
 "p68":[118,"ProductionClosureTests.test_reopened_bead_cannot_register_consumed_acceptance_with_zero_calls_or_writes",397,"yBu8ZcC7rNlo4CYJGDdA8dtJF6bsEgV9mzvzd8xcPfQ"],
 
 "p69":[59,743,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,743,67],
+
+"p69c":[159,"SignedCalibrationPipeTests.test_slow_close_receipt",68,"K_giD3RgZ0UoWRcwmhVa9v-mNvf80rOHyC5fGTfn64U"],
+
+"p69u":[147,"ProviderNetworkTests",37,"6mktAC1AEucbAbOAnZgNhPLtQro1zS1Qv0lhztTHghY"],
 
 "p6a":[59,735,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,735,58],
 
@@ -2922,37 +2926,37 @@
 
 "pP":[62,1666,"if time.monotonic() >= deadline:"],
 
-"pPoolAppLaunch":[155,349,"self._appserver.launch(command, self.home)",23,349,65],
+"pPoolAppLaunch":[155,383,"self._appserver.launch(command, self.home)",23,383,65],
 
-"pPoolCalibrationSupport":[159,"SignedCalibrationPipeTests._run_calibration",221,"zOmkXWdr-C6D1sJ8du4Yg-bGAGNafrrzh-deGu0yusw"],
+"pPoolCalibrationSupport":[159,"SignedCalibrationPipeTests._run_calibration",260,"zOmkXWdr-C6D1sJ8du4Yg-bGAGNafrrzh-deGu0yusw"],
 
 "pPoolCalibrationTest":[159,"SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts",63,"-Gdh3c6bBg_EStYzz_KHLrNqBTAdJzKgShhdjmm6_7E"],
 
-"pPoolFixedWriter":[155,"PoolWorkerContainment.run_writer",400,"bbM0jbEJavxix4HVcqWyQFBfjM4KP0OvHkmF2RbRcOc"],
+"pPoolFixedWriter":[155,"PoolWorkerContainment.run_writer",434,"bbM0jbEJavxix4HVcqWyQFBfjM4KP0OvHkmF2RbRcOc"],
 
-"pPoolHostCommandCheck":[155,129,{"$":148}],
+"pPoolHostCommandCheck":[155,163,{"$":148}],
 
-"pPoolHostMountCheck":[155,162,{"$":148}],
+"pPoolHostMountCheck":[155,196,{"$":148}],
 
 "pPoolPhysicalProof":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",268,"JxqY3KRsPFpDptFhspTub3G_vLf6GgRg1pwaOVkitHk"],
 
-"pPoolWireFactory":[157,"build_pool_qualification_runtime",1369,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
+"pPoolWireFactory":[157,"build_pool_qualification_runtime",1373,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
 
-"pPoolWireNotify":[157,227,"super().notify(method, params)",15,227,45],
+"pPoolWireNotify":[157,228,"super().notify(method, params)",15,228,45],
 
 "pPoolWirePositive":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",359,"fo08RmEmN8y7UomgQr-JGUkpBBRWwePP-xy6obruLrI"],
 
 "pPoolWireRefusal":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",382,"RCb6vrsu1R2qcT7c1F6xR-S-PA86n7WQ_OiYlQEDtDY"],
 
-"pPoolWireRequest":[157,219,"super().request(method, params, timeout=min(timeout, self.factory.remaining()))",15,219,94],
+"pPoolWireRequest":[157,220,"super().request(method, params, timeout=min(timeout, self.factory.remaining()))",15,220,94],
 
-"pPoolWireThread":[157,576,"self.wire.request(\"thread/start\", selectors)",22,576,66],
+"pPoolWireThread":[157,579,"self.wire.request(\"thread/start\", selectors)",22,579,66],
 
-"pPoolWireTurn":[157,637,"self.wire.request(\"turn/start\", self.turn_parameters())",20,637,75],
+"pPoolWireTurn":[157,640,"self.wire.request(\"turn/start\", self.turn_parameters())",20,640,75],
 
-"pPoolWorkerStart":[155,"PoolWorkerContainment.launch_appserver",340,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
+"pPoolWorkerStart":[155,"PoolWorkerContainment.launch_appserver",374,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
 
-"pPoolWriterLaunch":[155,420,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,420,98],
+"pPoolWriterLaunch":[155,454,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,454,98],
 
 "pPoolWriterRefusal":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",298,"lzFDdzNrTvpz66VacjEohnYvV5DqdDp-b0ibJdzoQyk"],
 
@@ -3000,7 +3004,7 @@
 
 "pV":[111,"NativeOutboundScreenTests.test_screening_consumes_original_total_writer_deadline",155,"GceXt0vqaHAxLRjRwjfZUW4XgeUaO-fdfr0YX2fHxpQ"],
 
-"pV9":[155,212,"production_live = False",4,212,27],
+"pV9":[155,246,"production_live = False",4,246,27],
 
 "pVa":[156,"PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn",249,"1biCCmpFFglbVdZwIzdKS0Xx9YP10piczub1M_-vuR4"],
 
@@ -5435,43 +5439,43 @@
 
 [74,442,18,442,58,"dynamic","1ff0d1b1226bc7ee773fcf499dfb42bc2d8659efd14b871d981033db66b0c1e3",[{"$":9},"XR376"]],
 
-[92,349,23,349,65,"browser","9c484d6ee1fe225ae44d161fb109192051c81507b7950fc810e588e73824cc4d",["route","N3.15","pPoolAppLaunch"]],
+[92,383,23,383,65,"browser","9c484d6ee1fe225ae44d161fb109192051c81507b7950fc810e588e73824cc4d",["route","N3.15","pPoolAppLaunch"]],
 
-[92,420,18,420,98,"browser","d9cbc7f72cfe0c855721889fbdb9d18cc5a5b0c478e3057615b67236f5123e57",["route","N3.16","pPoolWriterLaunch"]],
+[92,454,18,454,98,"browser","d9cbc7f72cfe0c855721889fbdb9d18cc5a5b0c478e3057615b67236f5123e57",["route","N3.16","pPoolWriterLaunch"]],
 
-[93,219,15,219,94,{"$":3},"93dbfd4c807302f7ec9b883ea74c5c038f615a8c6a83c8cee125d9c09e07d525",["route","N4.3","pPoolWireRequest"]],
+[93,220,15,220,94,{"$":3},"93dbfd4c807302f7ec9b883ea74c5c038f615a8c6a83c8cee125d9c09e07d525",["route","N4.3","pPoolWireRequest"]],
 
-[93,227,15,227,45,{"$":3},"ce7d85f227360815e418e537f88026ebc34f2910dd383f153899e12ee1b52162",["route","N4.3","pPoolWireNotify"]],
+[93,228,15,228,45,{"$":3},"ce7d85f227360815e418e537f88026ebc34f2910dd383f153899e12ee1b52162",["route","N4.3","pPoolWireNotify"]],
 
-[93,441,23,441,60,"dynamic",{"$":193},[{"$":9},"xPoolWireFlag"]],
+[93,442,23,442,60,"dynamic",{"$":193},[{"$":9},"xPoolWireFlag"]],
 
-[93,576,22,576,66,{"$":3},"012ac706f4f15e3a3a11c2fdd56363495eea3f8529f7334442b3970b48d158d5",["route","N4.3","pPoolWireThread"]],
+[93,579,22,579,66,{"$":3},"012ac706f4f15e3a3a11c2fdd56363495eea3f8529f7334442b3970b48d158d5",["route","N4.3","pPoolWireThread"]],
 
-[93,637,20,637,75,{"$":3},"a1eb732d8cc4c3355fb4dd75527454c264e969160ea1d933a7a7924ba1fe3dae",["route","N4.3","pPoolWireTurn"]],
+[93,640,20,640,75,{"$":3},"a1eb732d8cc4c3355fb4dd75527454c264e969160ea1d933a7a7924ba1fe3dae",["route","N4.3","pPoolWireTurn"]],
 
-[93,897,21,897,39,"dynamic","f28d36928e27e6b8db6db6abdaf057139f74ee6f9963587a3c14a11ba7f1724c",[{"$":9},"xPoolControlNames"]],
+[93,900,21,900,39,"dynamic","f28d36928e27e6b8db6db6abdaf057139f74ee6f9963587a3c14a11ba7f1724c",[{"$":9},"xPoolControlNames"]],
 
-[93,1103,20,1103,65,"dynamic","d4a5a38d6d7b1e8e5b0e48f67f5018e3ac94ce6735d32d74c0f400d7b1cbd287",[{"$":9},"xQadm"]],
+[93,1107,20,1107,65,"dynamic","d4a5a38d6d7b1e8e5b0e48f67f5018e3ac94ce6735d32d74c0f400d7b1cbd287",[{"$":9},"xQadm"]],
 
-[93,1111,43,1111,85,"dynamic","5b98fdb4648598e7c6bbd78a23527e147c48c8b2e3940993f94d56190e602dc9",[{"$":9},"xPoolCalibrationMode"]],
+[93,1115,43,1115,85,"dynamic","5b98fdb4648598e7c6bbd78a23527e147c48c8b2e3940993f94d56190e602dc9",[{"$":9},"xPoolCalibrationMode"]],
 
 [90,193,19,193,60,"network",{"$":348},["route","N3.7","p25ProviderSocket"]],
 
 [90,196,12,196,37,"browser","3957bd1da596651000599d34e4261d0723d73a25d13e60c8020136c80d368d74",["route","N3.7","p25ProviderConnect"]],
 
-[90,290,21,290,40,"network",{"$":349},["route","N3.9","p25StreamPair"]],
+[90,301,21,301,40,"network",{"$":349},["route","N3.9","p25StreamPair"]],
 
-[90,304,15,304,51,"network","1517417878c7639c66e291bf0671cdff0e1f7f2434388562b2580cd142583bcb",["route","N3.10","p25AdoptStream"]],
+[90,315,15,315,51,"network","1517417878c7639c66e291bf0671cdff0e1f7f2434388562b2580cd142583bcb",["route","N3.10","p25AdoptStream"]],
 
-[90,319,47,319,88,"network","355e91c70c9dfc2a98ab94029dd3305583791262806de9f1a9cf0eebaf4623e7",["route","N3.8","p25BrokerPair"]],
+[90,330,47,330,88,"network","355e91c70c9dfc2a98ab94029dd3305583791262806de9f1a9cf0eebaf4623e7",["route","N3.8","p25BrokerPair"]],
 
-[90,322,42,322,61,"network",{"$":349},["route","N3.8","p67W"]],
+[90,333,42,333,61,"network",{"$":349},["route","N3.8","p67W"]],
 
-[90,428,9,428,41,"network","a239c3e04154b0cd90f0307e20f274cde0677d2e6ce9659e60daa0c88b599ee4",["route","N3.11","p25AdoptControl"]],
+[90,439,9,439,41,"network","a239c3e04154b0cd90f0307e20f274cde0677d2e6ce9659e60daa0c88b599ee4",["route","N3.11","p25AdoptControl"]],
 
-[90,428,54,428,69,"network",{"$":350},["route","N3.11","p25LoopbackSocket"]],
+[90,439,54,439,69,"network",{"$":350},["route","N3.11","p25LoopbackSocket"]],
 
-[90,456,4,456,33,"process","bab1b779be05bd3bf09d1e3ce67d83ca0a862755c22d04a01ccb240b2557c9a6",["route","N3.11","p25ProviderExec"]],
+[90,467,4,467,33,"process","bab1b779be05bd3bf09d1e3ce67d83ca0a862755c22d04a01ccb240b2557c9a6",["route","N3.11","p25ProviderExec"]],
 
 [75,27,17,27,37,"dynamic","141361aefa2aa9f893afe69f541e620592710701316b4bd612c896639018171c",[{"$":9},"XR426b"]],
 
@@ -5822,7 +5826,7 @@
 
 {"contract":"B6","effect":"Guarded dispatch commit callback after live reservation revalidation","effect_points":["p2ab"],"entrypoint":"pe5","gates":["p17c","pde"],"id":"B6.2","limits":"Claim drift: zero commit and capability available; original concurrent control commits once and retires. Validation/read callbacks may already run; no reserve_pool_cohort call or N4 claim here. Selected callbacks are trusted programmes; commit-start failure is terminal.","ordering":"Validate capability/reservation/context under capability lock; live claim revalidation before precommit/commit/postcommit.","witnesses":["w2"]},
 
-{"authority":"Validated plan and selected runtime. Original recovery authority. Contained qualification needs stage-issued runtime and current original custody.","contract":"B6","effect":"Selected runtime callbacks and admitted-pool commit","effect_points":["p147","p1b8"],"entrypoint":"p1b9","gates":["p19f","pfa","pf8"],"id":"B6.3","limits":"Zero run_pool on final-horizon refusal. Prepare/start/bind/journal may occur. Fake runtime accepts one refresh. Trust callbacks/clock/builder. Signed calibration shares allocation/campaign charge, holds writer and bypasses productive coordination.","ordering":"Check plan/recovery/stage before runtime. Keep ordinary allocation attestation. Check staged readiness before allocation and final horizon before commit.","trace_files":[{"$":45},{"$":108}],"witnesses":["w3","wPoolCalibration"]},
+{"authority":"Validated plan and selected runtime. Original recovery authority. Contained qualification needs stage-issued runtime and current original custody.","contract":"B6","effect":"Selected runtime callbacks and admitted-pool commit","effect_points":["p147","p1b8"],"entrypoint":"p1b9","gates":["p19f","pfa","pf8"],"id":"B6.3","limits":"Zero run_pool on final-horizon refusal. Earlier prepare/start/bind/journal may occur. Fake runtime refreshes once. Trust callbacks/clock/builder. Signed calibration shares allocation/campaign charge, holds writer and bypasses productive coordination. Full close ceiling 250 ms. Slow-close receipt retains bounded numeric phases.","ordering":"Check plan/recovery/stage before runtime. Keep ordinary allocation attestation. Check staged readiness before allocation and final horizon before commit.","trace_files":[{"$":45},{"$":108}],"witnesses":["w3","wPoolCalibration"]},
 
 {"contract":"B7","entrypoint":"p166","gate_chains":[{"calls":[{"call":"p2e5","direction":"into","target":"p2fd"},{"call":"p364","direction":"into","target":"p310"},{"call":"p2da","direction":"into","target":"p341"}],"effect":"p33a","gate":"p2fa"}],"id":"B7.1","trace_files":[{"$":67},{"$":73}]},
 
@@ -5870,7 +5874,7 @@
 
 {"contract":"N4","effect_points":["p187","pa","p37"],"entrypoint":"p1b4","gate_chains":[{"calls":[{"call":"p13e","direction":"into","target":"p30d"}],"effect":"p187","gate":"p34d"},{"calls":[{"call":"p146","direction":"into","target":"p159"}],"effect":"pa","gate":"p34d"},{"calls":[{"call":"p146","direction":"into","target":"p159"}],"effect":"p37","gate":"p34d"}],"id":"N4.2"},
 
-{"admission":{"$":4},"authority":"Signed campaign/runtime for original contained cohort.","contract":"N4","earlier_effects":"Host claims disposable cohorts, stages signed request, verifies runtime.","effect":"Stock thread start/control over owned stdio","effect_points":["pPoolWireRequest","pPoolWireNotify","pPoolWireThread","pPoolWireTurn"],"entrypoint":"pPoolWireFactory","gate_limits":"Review campaign/runtime/callback identity.","gates":[],"id":"N4.3","limits":"Keep partial receipts. Owned connection guards model/profile/input. Pin default in config/start/readback/turn with fast_mode unset. Original authorization alone releases writer. Owned empty rollout or absent context waits to signed deadline. Conflicts or terminal refuse.","manual_decisions":["M26","MContainedHost"],"ordering":"Enroll before claims. Bind signed calibration. Exact durable contexts precede interrupts. Original callbacks before archive/settlement.","review_gates":[],"trace_files":[{"$":374},{"$":373},{"$":371},"scripts/cwo_core/native_pool_deferred_attestation.py",{"$":375},"scripts/registered_pool_qualification_capability.py",{"$":386},{"$":359},{"$":45},{"$":385}],"witnesses":["wPoolWirePositive","wPoolWireRefusal","wCQH","wQe1","wPoolCalibration"]},
+{"admission":{"$":4},"authority":"Signed campaign/runtime for original contained cohort.","contract":"N4","earlier_effects":"Host claims disposable cohorts, stages signed request, verifies runtime.","effect":"Stock thread start/control over owned stdio","effect_points":["pPoolWireRequest","pPoolWireNotify","pPoolWireThread","pPoolWireTurn"],"entrypoint":"pPoolWireFactory","gate_limits":"Review campaign/runtime/callback identity.","gates":[],"id":"N4.3","limits":"Retain partial receipts. Owned connection guards model/profile/input. Pin default in config/start/readback/turn with fast_mode unset. Only original authorization releases writer. Owned empty rollout or absent context waits to signed deadline. Conflicts/terminal refuse.","manual_decisions":["M26","MContainedHost"],"ordering":"Enroll before claims. Bind signed calibration. Exact durable contexts precede interrupts. Original callbacks before archive/settlement.","review_gates":[],"trace_files":[{"$":374},{"$":373},{"$":371},"scripts/cwo_core/native_pool_deferred_attestation.py",{"$":375},"scripts/registered_pool_qualification_capability.py",{"$":386},{"$":359},{"$":45},{"$":385}],"witnesses":["wPoolWirePositive","wPoolWireRefusal","wCQH","wQe1","wPoolCalibration"]},
 
 {"contract":"N5","entrypoint":"p1fd","id":"N5.1","manual_decisions":["M08","M09"],"trace_files":[{"$":19},{"$":31},{"$":46}]},
 
@@ -6080,7 +6084,7 @@
 
 {"admission":{"$":4},"contract":"N3","effect_points":["p38d","p37f","p37e"],"entrypoint":"p38a","gate_chains":[],"gate_limits":"Current factory checks are contextual original-caller prerequisites; direct private helper calls gain no native admission. Tool final release is governed by its existing finite-input fence, not this contextual point.","gates":[],"id":"N3.5","limits":"Exact role command was checked before owned birth. Options-only sealed FD and pinned validator bootstrap precede post-setup protected-root/birth checks; current factory admission before and after custody record precedes final stdin byte. Namespace setup may occur before later refusal; command stays gated. Qualification fsyncs the one-use start charge after the final checks and before the app-server stdin gate.","manual_decisions":["M26","M34","M35"],"review_gates":["p380"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29}],"witnesses":["w3c","w3d","w25Budget",{"$":340}]},
 
-{"admission":{"$":4},"contract":"N3","effect_points":["p385","p38c"],"entrypoint":"p38e","gate_chains":[],"gates":[],"id":"N3.6","limits":"Only original-live-monitor PPid/start_ticks/fdinfo/PID1/namespace checks issue retained handle. Independently stop that namespace on monitor exception/unresolved status, preserve primary and full charge; only exact-handle exit observation resolves ESRCH. Namespace cleanup never upgrades monitor to contained/recorded; no raw PID fallback or native admission.","manual_decisions":["M26","M37"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29}],"witnesses":["w3b","w25MonitorProof","w25OriginalWatchdog"]},
+{"admission":{"$":4},"contract":"N3","effect_points":["p385","p38c"],"entrypoint":"p38e","gate_chains":[],"gates":[],"id":"N3.6","limits":"Original-live-monitor PPid/start_ticks/fdinfo/PID1/namespace checks retain handle. Stop that namespace on monitor exception/unresolved status. Preserve primary/full charge. Only exact-handle exit resolves ESRCH. Namespace cleanup cannot upgrade monitor outcome. No raw PID fallback or native admission.","manual_decisions":["M26","M37"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":329},{"$":328},{"$":29}],"witnesses":["w3b","w25MonitorProof","w25OriginalWatchdog"]},
 
 {"contract":"P1","effect_points":["p36c","p36a"],"entrypoint":"p36b","gate_limits":"Final current-target and retained-entry predicates are checked at the actual replace helper. Original authorization and callout ordering remain the trusted embedding prerequisite; direct helper arguments are not independently authenticated.","id":"P1.1","review_gates":["p36e","p36d"]},
 
@@ -6102,7 +6106,7 @@
 
 {"admission":{"$":4},"contract":"N3","effect":"Relay connection-local stream handoff","effect_points":["p25StreamPair","p25RelaySendFD"],"entrypoint":"p25Handoff","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.9","limits":"Bounded relay makes one Unix stream pair per admitted local connection. It keeps one end and passes the other via SCM_RIGHTS to original parent. No external dial.","review_gates":["p222"],"witnesses":[{"$":340}]},
 
-{"admission":{"$":4},"contract":"N3","effect":"Parent adoption of one relay stream descriptor","effect_points":["p25RelayRecvFD","p25AdoptStream"],"entrypoint":"p25Receive","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.10","limits":"Accept one untruncated CLOEXEC stream on original control. Close invalid descriptors. Bounded handler owns stream. Revoke wakes receive and shuts streams. Close joins and reports failure.","review_gates":["p222"],"witnesses":[{"$":340}]},
+{"admission":{"$":4},"contract":"N3","effect":"Parent adoption of one relay stream descriptor","effect_points":["p25RelayRecvFD","p25AdoptStream"],"entrypoint":"p25Receive","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.10","limits":"Accept one untruncated CLOEXEC stream on original control. Close invalid descriptors. Bounded handler owns stream. Revoke wakes receive and shuts worker/upstream. Close late upstream without sending. Close joins and reports failure.","review_gates":["p222"],"witnesses":[{"$":340}]},
 
 {"admission":{"$":4},"contract":"N3","effect":"Private app-server loopback listener, relay fork and gated execution","effect_points":["p25AdoptControl","p25LoopbackSocket","p25LoopbackBind","p25LoopbackListen","p25RelayFork","p25ProviderExec"],"entrypoint":"p25Bootstrap","gate_chains":[],"gate_limits":{"$":327},"gates":[],"id":"N3.11","limits":"Trusted bootstrap binds private loopback and closes sockets before exec. Relay closes qualification token pipe before service. Bootstrap reads/closes after final gate byte, exports only to app-server. Relay shares PID namespace through natural exit. Parent owns source, mounts and callback.","review_gates":["p222"],"witnesses":[{"$":340},"w35AuthTls","w35AuthGate"]},
 
@@ -7010,9 +7014,9 @@
 
 "@145":["N2XzdWb9Kl-4SLoM-cGPjnjNzy9SQW-340KZDfU4IT4",420,11195],
 
-"@146":["V_FXYd5NGQhlC8TMcPhk5ZX4Okx7SbnabDs4HJnRx3M",420,15976],
+"@146":["AXacXgW8Jt7y9qA-vsvLbrLmApKCQxYVXzeY5x8g-nk",420,16506],
 
-"@147":["vD2yAJbX0f3hTyUQi9fes15P6m81MBRx05Xuadr-LLo",420,23694],
+"@147":["3K0586o-nIrszGq1-AD_LMMiuqi4zJ3E44jXyWX8nHg",420,26627],
 
 "@148":["sTykj15MQFCUoiMVYLm2VeDJ_ecXRBHEC3ToPJi3u9g",420,40680],
 
@@ -7030,15 +7034,15 @@
 
 "@154":["qOB6Jw37i3eJ7nJOEXOKJ1y8LKAd2uaJuywl3j_VmK8",420,60663],
 
-"@155":["SP-I61utrYTpkWLw0DApJztjAwOrQqqDBwbQ--bFW5I",420,23300],
+"@155":["GRgqBpZi7L0wYk_8j3JR6zB6JcdBVFM8EJCj6boYSUU",420,24729],
 
 "@156":["OxNMA9rd2imvJ77krw2sA6CliBqJNAQUOYqkvDwOBIY",420,18897],
 
-"@157":["zO3MXK4_j7nrKNUpk0113El7m8E2bqt0n13UwafhbR0",420,72347],
+"@157":["tHWGkbqQabd3RcboDX_Rd2K18Y_kMx4AfeA_Y1pmYcU",420,72625],
 
 "@158":["AUhJd5guxVQQXqs2DjNFTmrPKSh32Bpno4xvXcXE5kY",420,29514],
 
-"@159":["s3gZvTvl623GthOZXZCv66xpaR1mlmqt8M19oKQFyyM",420,16912],
+"@159":["y9lH1uaOU1J5R2z_Y0_gzsSICR5Q9cvYLjYYoIaZSi4",420,19207],
 
 "@16":["ykgLQjdQGPg9uJTJLQHd2K3k_wBvy1Xnq6RIf3co0xE",420,21505],
 
@@ -7588,7 +7592,7 @@
 
 "scripts/registered_host_root_boundary.py":["YVEJAkpd-rBiWkErHbDfheVtG_bm-K2cfOzcr3RS6DY",420,1303],
 
-"scripts/registered_pool_qualification_capability.py":["z6u05iH7B78c73x0tiKKgElBTIRv6uSZzIJNEflxldQ",420,25314],
+"scripts/registered_pool_qualification_capability.py":["HxNKtYpex2o0_2zEfaE2l07Sq6cRV2GUdwYv-bEXF_0",420,26475],
 
 "scripts/render_access_profile_status.py":["bStab07ntgVh_ECsRnpgqAYV3hkedtbv7QpWYaj1oCE",493,3319],
 
@@ -7644,7 +7648,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["ZCg1jyByFL0S_ulYnCcJjhnnIhAr-aSqwLTvBwNxg1w",420,134636],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["DXjXQwmf8tHb6jnY24TcoNWehC78pe_kPnfzACVnn0k",420,134636],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -7750,7 +7754,7 @@
 
 "w25Permit":[{"$":338},"p25Permit",{"$":0},{"$":332},[{"$":363}],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production"],
 
-"w25Provider":["self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))","p25Provider",{"$":0},"self.assertEqual(self.provider_request.get(timeout=3), b'EXAMPLE provider request')",["p25ProviderSupport0","p25ProviderTLSSupport","p67t"],"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot"],
+"w25Provider":["self.assertEqual(self.records.get_nowait(), ('provider-network-denied', {'reason': 'destination-not-allowed'}))","p25Provider",{"$":0},"self.assertEqual(self.provider_request.get(timeout=3), b'EXAMPLE provider request')",["p25ProviderSupport0","p25ProviderTLSSupport","p67t","p69u"],"tests.test_registered_provider_network.ProviderNamespaceTests.test_appserver_reaches_tls_provider_and_separate_children_cannot"],
 
 "w25ProviderPrivate":["self.assertEqual(self._refused_provider_hello(), 'provider-address-not-public')","p25ProviderPrivate",{"$":0},{"$":337},["p25ProviderSNISupport0"],"tests.test_registered_provider_network.ProviderNetworkTests.test_a_private_provider_dns_result_is_refused"],
 
@@ -8118,7 +8122,7 @@
 
 "wPolicyRefusal":["self.assertRaisesRegex(runtime.native.OfflineHostError, 'never redispatch')","pRefusalTest",{"$":6},"self.assertEqual(report['summary']['terminal_blockers'], {'provider-safety-policy-refusal': 'cyberPolicy'})",["pRefusalFixture"],"tests.test_registered_n1_factory.FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure"],
 
-"wPoolCalibration":["self.assertNotIn(\"qualification-writer-release\", events)","pPoolCalibrationTest",{"$":0},"self.assertEqual(ledger.summary(stage.CAMPAIGN_BUDGET_ID)[\"charged\"], {\"starts\": 1})",["pPoolCalibrationSupport","p66t","p66e"],"tests.test_registered_pool_qualification_calibration_e2e.SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts"],
+"wPoolCalibration":["self.assertNotIn(\"qualification-writer-release\", events)","pPoolCalibrationTest",{"$":0},"self.assertEqual(ledger.summary(stage.CAMPAIGN_BUDGET_ID)[\"charged\"], {\"starts\": 1})",["pPoolCalibrationSupport","p66t","p66e","p69c"],"tests.test_registered_pool_qualification_calibration_e2e.SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts"],
 
 "wPoolNoWrite":["self.assertFalse((paths[0] / 'marker.txt').exists())","pPoolWriterRefusal",{"$":0},"self.assertTrue(worker.receipt()['cleanup_confirmed'])",[],"tests.test_registered_pool_containment.PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned"],
 

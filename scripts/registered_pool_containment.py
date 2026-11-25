@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from base64 import b64encode
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import deepcopy
 from hashlib import sha256
 import os
@@ -10,7 +12,7 @@ from pathlib import Path
 import re
 import stat
 from threading import Lock, RLock, get_ident
-from time import monotonic
+from time import monotonic, monotonic_ns
 from types import MappingProxyType, MethodType, SimpleNamespace
 
 from cwo_core import native_live_availability as availability
@@ -24,6 +26,12 @@ require = config.require
 _ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,95}')
 _FILE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}')
 _MAX_WRITE_BYTES = 2048
+_CALIBRATION_CLOSE_PHASES = (
+    'archive_us', 'monitor_exit_reap_us', 'namespace_exit_us', 'broker_close_us',
+    'termination_receipt_us', 'lease_release_us', 'protocol_close_us',
+)
+_CALIBRATION_CLOSE_MAX_US = 3_600_000_000
+_CALIBRATION_CLOSE_TIMES = ContextVar('calibration_close_times', default=None)
 _WRITTEN = 'fixed qualification file written\n'
 _WRITER = """import base64,os,sys
 root=os.open('.',os.O_DIRECTORY|os.O_RDONLY|os.O_CLOEXEC)
@@ -40,6 +48,20 @@ finally:
  os.close(root)
 print('fixed qualification file written')
 """
+
+
+@contextmanager
+def _calibration_close_phase(phase):
+    timings = _CALIBRATION_CLOSE_TIMES.get()
+    if timings is None or phase is None:
+        yield
+        return
+    started = monotonic_ns()
+    try:
+        yield
+    finally:
+        elapsed_us = max(0, (monotonic_ns() - started + 999) // 1000)
+        timings[phase] = min(_CALIBRATION_CLOSE_MAX_US, (timings[phase] or 0) + elapsed_us)
 
 
 def _route_available():
@@ -118,6 +140,18 @@ class _PoolLifetime(n1._Containment):
         super().__init__(worker, role=role)
         self._selected_command = tuple(command)
         self.gate_released = False
+
+    def _terminate_monitor(self):
+        with _calibration_close_phase('monitor_exit_reap_us'):
+            return super()._terminate_monitor()
+
+    def _stop_namespace(self):
+        with _calibration_close_phase('namespace_exit_us'):
+            super()._stop_namespace()
+
+    def _close_provider_network(self, primary=None):
+        with _calibration_close_phase('broker_close_us'):
+            super()._close_provider_network(primary)
 
     def _managed_mount(self):
         return self.factory._managed_login if self.role == 'appserver' else None
@@ -429,7 +463,8 @@ class PoolWorkerContainment:
         return stdout.encode()
 
     def record(self, stage, observation):
-        with self._record_lock:
+        phase = 'termination_receipt_us' if stage == 'appserver-terminated' else None
+        with self._record_lock, _calibration_close_phase(phase):
             require(_directory_identity(self._receipt_root) == self._receipt_identity,
                     'The original containment receipt directory changed.')
             index = len(self._records)
@@ -454,11 +489,12 @@ class PoolWorkerContainment:
         lifetime = self._managed_lifetime
         require(lifetime is None or not lifetime._managed_mount_started or lifetime.termination_recorded,
                 'The original managed-login namespace cleanup is unresolved.')
-        if self._managed_login is not None:
-            self._managed_login.retire()
-        qualification.release_managed_login(self._managed_lease, self._slot)
-        self._managed_lease = None
-        self.record('login-released', {'slot': self._slot})
+        with _calibration_close_phase('lease_release_us'):
+            if self._managed_login is not None:
+                self._managed_login.retire()
+            qualification.release_managed_login(self._managed_lease, self._slot)
+            self._managed_lease = None
+            self.record('login-released', {'slot': self._slot})
 
     def _close_preserving(self, primary):
         try:
