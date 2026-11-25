@@ -1,6 +1,7 @@
 """Check the contained pool host with synthetic files and inert stdio peers."""
 
 from hashlib import sha256
+import json
 from pathlib import Path
 import select
 import socket
@@ -262,8 +263,117 @@ assert sys.stdin.read() == ''
         self.assertTrue(broker.closed)
         self.assertIsNone(worker._appserver.receipt)
         self.assertIsNone(worker._appserver.process)
-        self.assertEqual(worker.receipt()['observations'], [{'stage': 'login-released', 'observation': {'slot': 1}}])
+        prepared, retired, released = worker.receipt()['observations']
+        self.assertEqual(prepared['stage'], 'login-projections-prepared')
+        self.assertEqual(retired, {**prepared, 'stage': 'login-projections-retired'})
+        self.assertEqual(released, {'stage': 'login-released', 'observation': {'slot': 1}})
         self.assertEqual(sorted(path.name for path in self.state.iterdir()), ['starts.jsonl'])
+
+    @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
+    def test_pool_login_round_trip(self):
+        self._replace_provider()
+        login = self.slots[1]
+        original = {}
+        for name in ('tmp', 'log'):
+            directory = login / name
+            directory.mkdir(mode=0o700)
+            marker = directory / 'original'
+            marker.write_text('retained directory marker')
+            original[name] = directory.stat().st_ino, marker.stat().st_ino
+        auth = login / 'auth.json'
+        auth_inode = auth.stat().st_ino
+        fixture = self.peer.read_text()
+        at = fixture.index("print('read-only inert app server'")
+        self.peer.write_text(fixture[:at] + '''import os
+home = pathlib.Path(os.environ['CODEX_HOME'])
+assert not (home / 'tmp' / 'original').exists()
+assert not (home / 'log' / 'original').exists()
+assert os.statvfs(home / 'config.toml').f_flag & os.ST_RDONLY
+assert os.statvfs(home / 'rules' / 'default.rules').f_flag & os.ST_RDONLY
+auth = home / 'auth.json'
+refresh = home / 'EXAMPLE-refresh'
+with refresh.open('x') as stream:
+    os.fchmod(stream.fileno(), 0o600)
+    stream.write('renewed synthetic marker')
+    stream.flush()
+    os.fsync(stream.fileno())
+refresh.replace(auth)
+directory = os.open(home, os.O_RDONLY | os.O_DIRECTORY)
+try:
+    os.fsync(directory)
+finally:
+    os.close(directory)
+active = home / 'sessions' / 'EXAMPLE-rollout'
+active.write_text('synthetic session marker')
+active.rename(home / 'archived_sessions' / active.name)
+''' + fixture[at:])
+        _, spool = paths = self._paths(1)
+        worker = self._worker(1, paths, protected=(self.slots[2], self.slots[3]))
+        self._start_inert_apps((worker,))
+        self.assertEqual(worker.run_writer('call-1', authorize=lambda release: release(),
+                                           deadline=time.monotonic() + 10), containment._WRITTEN.encode())
+        receipt = worker.close()
+        self.assertTrue(receipt['cleanup_confirmed'])
+        self.assertEqual((spool / 'archived_sessions' / 'EXAMPLE-rollout').read_text(), 'synthetic session marker')
+        self.assertFalse((spool / 'sessions' / 'EXAMPLE-rollout').exists())
+        self.assertEqual(set(path.name for path in login.iterdir()), {'auth.json', 'tmp', 'log'})
+        self.assertNotEqual(auth.stat().st_ino, auth_inode)
+        self.assertEqual(auth.read_text(), 'renewed synthetic marker')
+        for name, (directory_inode, marker_inode) in original.items():
+            directory = login / name
+            self.assertEqual(directory.stat().st_ino, directory_inode)
+            self.assertEqual((directory / 'original').stat().st_ino, marker_inode)
+            self.assertEqual((directory / 'original').read_text(), 'retained directory marker')
+        rows = {row['stage']: row['observation'] for row in receipt['observations']}
+        self.assertEqual(set(rows['login-projections-prepared']['preserved']), {'tmp', 'log'})
+        self.assertEqual(rows['login-projections-prepared'], rows['login-projections-retired'])
+        self.assertFalse(rows['tool-contained']['managed_login_projection'])
+        on_disk = [json.loads(path.read_text()) for path in sorted(worker._receipt_root.glob('*.json'))]
+        self.assertEqual(on_disk, receipt['observations'])
+        self.assertEqual([row['stage'] for row in on_disk[-3:]],
+                         ['appserver-terminated', 'login-projections-retired', 'login-released'])
+
+    def test_login_projection_conflict(self):
+        login = self.slots[1]
+        conflict = login / 'installation_id'
+        conflict.write_text('original marker')
+        identity = conflict.stat().st_ino
+        worker = self._worker(1, self._paths(1))
+        worker._prepare_home()
+        self.assertIs(type(worker._managed_login), qualification.ManagedLoginMount)
+        worker.close()
+        self.assertEqual(conflict.stat().st_ino, identity)
+        self.assertEqual(conflict.read_text(), 'original marker')
+        self.assertEqual(set(path.name for path in login.iterdir()), {'auth.json', 'installation_id'})
+
+    def test_login_projection_failure(self):
+        first = self._worker(1, self._paths(1))
+        create = containment._PoolLoginMount._create_link
+
+        def create_then_refuse(mount, name, target):
+            if mount._owned:
+                raise OSError('synthetic setup failure')
+            create(mount, name, target)
+
+        with (patch.object(containment._PoolLoginMount, '_create_link', create_then_refuse),
+              self.assertRaisesRegex(OSError, 'synthetic setup failure')):
+            first.launch_appserver()
+        self.assertIsNone(first._appserver)
+        self.assertEqual(set(path.name for path in self.slots[1].iterdir()), {'auth.json'})
+        self.assertEqual(first.receipt()['observations'][-1]['stage'], 'login-released')
+
+        second = self._worker(2, self._paths(2))
+        second._prepare_home()
+        displaced = self.slots[2] / 'sessions'
+        displaced.unlink()
+        displaced.write_text('foreign entry')
+        with self.assertRaisesRegex(config.PoolContainmentError, 'projection entry changed'):
+            second.close()
+        self.assertEqual(displaced.read_text(), 'foreign entry')
+        self.assertTrue((self.slots[2] / 'config.toml').is_symlink())
+        self.assertFalse(second.receipt()['cleanup_confirmed'])
+        with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
+            qualification.claim_managed_login(2)
 
     @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
     def test_physical_pool_worker_boundaries_and_exact_writes(self):

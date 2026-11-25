@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from base64 import b64encode
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from copy import deepcopy
 from hashlib import sha256
@@ -16,7 +16,8 @@ from time import monotonic, monotonic_ns
 from types import MappingProxyType, MethodType, SimpleNamespace
 
 from cwo_core import native_live_availability as availability
-from cwo_core.host_records import configured_store
+from cwo_core.host_records import _directory, configured_store
+from cwo_core.maintenance_authority import _state_descriptor
 import registered_n1_factory as n1
 import registered_n1_qualification as qualification
 import registered_pool_configuration as config
@@ -131,6 +132,163 @@ def _close_streams(process):
     if process is not None:
         for stream in (process.stdin, process.stdout, process.stderr):
             stream.close()
+
+
+class _PoolLoginMount(qualification.ManagedLoginMount):
+    """A direct pool-only login bind with leased, operation-local projections."""
+
+    _SPOOL = Path('/cwo/pool-spool')
+    _RUNTIME = Path('/cwo/pool-runtime')
+
+    def __init__(self, home, configuration_files, record):
+        super().__init__(home)
+        self._config_files, self._record = configuration_files, record
+        self._pins = ExitStack()
+        self._directory_fd = self._planned = None
+        self._existing, self._owned = {}, {}
+        self._pending = None
+
+    @staticmethod
+    def _entry_identity(info):
+        return info.st_dev, info.st_ino, info.st_mode, info.st_uid
+
+    def _layout(self, spool, directory):
+        existing = {}
+        for name in self._projections(spool):
+            try:
+                info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            except FileNotFoundError:
+                continue
+            if (name not in qualification._DIRECTORY_PROJECTIONS or not stat.S_ISDIR(info.st_mode)
+                    or info.st_uid != os.getuid()):
+                return None
+            existing[name] = self._entry_identity(info)
+        return existing
+
+    def compatible(self, spool):
+        with _state_descriptor(_directory(self.home, private=True)) as directory:
+            self._planned = self._layout(spool, directory)
+        return self._planned is not None
+
+    def _alias(self, spool, source):
+        if source.is_relative_to(spool):
+            return self._SPOOL / source.relative_to(spool)
+        return self._RUNTIME / source.relative_to(spool.parent / 'managed-runtime')
+
+    def _pin(self, name):
+        return self._pins.enter_context(_state_descriptor(os.open(
+            name, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=self._directory_fd)))
+
+    def _check_home(self):
+        with _state_descriptor(_directory(self.home, private=True)) as directory:
+            info = os.fstat(directory)
+            require((info.st_dev, info.st_ino) == self.identity
+                    and os.path.samestat(info, os.fstat(self._directory_fd)),
+                    'The original pool login directory changed.')
+
+    def _mount_evidence(self):
+        owned = {name: list(self._entry_identity(os.fstat(fd))) for name, (fd, _) in self._owned.items()}
+        preserved = {name: list(self._entry_identity(os.fstat(fd))) for name, fd in self._existing.items()}
+        return {'owned': owned, 'preserved': preserved}
+
+    def prepare(self, spool):
+        self._directory_fd = self._pins.enter_context(_state_descriptor(_directory(self.home, private=True)))
+        self._check_home()
+        require(self._layout(spool, self._directory_fd) == self._planned,
+                'The original pool login projection layout changed.')
+        (spool.parent / 'managed-runtime').mkdir(mode=0o700)
+        for name, source in self._projections(spool).items():
+            if name in (*qualification._SESSION_STORES, *qualification._DIRECTORY_PROJECTIONS):
+                source.mkdir(mode=0o700, exist_ok=True)
+            if name in self._planned:
+                fd = self._pin(name)
+                require(self._entry_identity(os.fstat(fd)) == self._planned[name],
+                        'An original pool login directory projection changed.')
+                self._existing[name] = fd
+            else:
+                self._create_link(name, self._alias(spool, source))
+        os.fsync(self._directory_fd)
+        self._record('login-projections-prepared', self._mount_evidence())
+
+    def _create_link(self, name, target):
+        self._pending = name
+        try:
+            os.symlink(target, name, dir_fd=self._directory_fd)
+        except OSError:
+            self._pending = None
+            raise
+        self._owned[name] = (self._pin(name), target)
+        self._pending = None
+        self._check_link(name)
+
+    def _check_entry(self, name, fd):
+        current = os.stat(name, dir_fd=self._directory_fd, follow_symlinks=False)
+        require(self._entry_identity(current) == self._entry_identity(os.fstat(fd)),
+                'An original pool login projection entry changed.')
+
+    def _check_link(self, name):
+        fd, target = self._owned[name]
+        self._check_entry(name, fd)
+        require(stat.S_ISLNK(os.fstat(fd).st_mode)
+                and os.readlink(name, dir_fd=self._directory_fd) == str(target),
+                'An original pool login projection target changed.')
+
+    def options(self, spool):
+        runtime = spool.parent / 'managed-runtime'
+        login = qualification.LOGIN_MOUNT
+        options = ['--bind', str(self.home), str(login), '--bind', str(spool), str(self._SPOOL),
+                   '--bind', str(runtime), str(runtime), '--bind', str(runtime), str(self._RUNTIME),
+                   '--setenv', 'CODEX_SQLITE_HOME', str(runtime)]
+        for name in self._existing:
+            options += ['--bind', str(runtime / name), str(login / name)]
+        for name in self._config_files:
+            options += ['--ro-bind', str(spool / name), str(self._SPOOL / name)]
+        return options
+
+    def confirm(self, root, spool):
+        self._check_home()
+        _, auth = self._observe_home()
+        view = root / qualification.LOGIN_MOUNT.relative_to('/')
+        require(os.path.samestat(view.stat(), os.fstat(self._directory_fd))
+                and not os.statvfs(view).f_flag & os.ST_RDONLY
+                and qualification._file_identity((view / 'auth.json').lstat()) == auth,
+                'The app server does not have the original private pool login bind.')
+        for name, source in self._projections(spool).items():
+            projected = view / name
+            if name in self._existing:
+                self._check_entry(name, self._existing[name])
+            else:
+                self._check_link(name)
+                target = self._alias(spool, source)
+                require(projected.readlink() == target, 'The original pool login projection was shadowed.')
+                projected = root / target.relative_to('/')
+            if source.exists():
+                require(os.path.samestat(projected.lstat(), source.lstat()),
+                        'The original pool login projection source changed.')
+            else:
+                require(not os.path.lexists(projected), 'The original pool login projection was shadowed.')
+        for name in self._config_files:
+            alias = root / self._SPOOL.relative_to('/') / name
+            require(os.path.samestat(alias.stat(), (spool / name).stat())
+                    and bool(os.statvfs(alias).f_flag & os.ST_RDONLY),
+                    'The original pool login configuration alias is not read-only.')
+
+    def retire(self):
+        with self._pins:
+            require(self._pending is None, 'An original pool login projection was not retained.')
+            if self._directory_fd is None:
+                return
+            self._check_home()
+            for name, fd in self._existing.items():
+                self._check_entry(name, fd)
+            for name in self._owned:
+                self._check_link(name)
+            evidence = self._mount_evidence()
+            for name in self._owned:
+                self._check_link(name)
+                os.unlink(name, dir_fd=self._directory_fd)
+            os.fsync(self._directory_fd)
+            self._record('login-projections-retired', evidence)
 
 
 class _PoolLifetime(n1._Containment):
@@ -364,7 +522,8 @@ class PoolWorkerContainment:
             native._write_new(path, value, 0o400)
             native._sync(path.parent)
         self._managed_lease = qualification.claim_managed_login(self._slot)
-        self._managed_login = qualification.ManagedLoginMount(self._login_home)
+        direct = _PoolLoginMount(self._login_home, self.spec['configuration_files'], self.record)
+        self._managed_login = direct if direct.compatible(self.home) else qualification.ManagedLoginMount(self._login_home)
         self._managed_login.prepare(self.home)
         self._configured = True
 
