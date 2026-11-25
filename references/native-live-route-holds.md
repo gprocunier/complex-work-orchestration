@@ -125,7 +125,9 @@ Supply the exact task, baseline path, applied amendments in order if any,
 and one project-relative output path with its exact UTF-8 text. Codex shows
 the assignment, output, provider and budget in its foreground form. An
 affirmative choice there allows the controller to retain that exact scope.
-A matching retained approval is reused.
+A matching retained approval is reused while its admission is current. If it
+expires before any dispatch activity, use the same tool to approve a fresh
+admission. Original dispatch activity keeps the existing recovery path.
 
 The approval server is a child of the local Codex foreground process and uses
 that process's private stdio pipes. The registered worker runs in separate

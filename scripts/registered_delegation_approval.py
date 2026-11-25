@@ -104,6 +104,7 @@ class PendingDelegationApproval:
     _standing: workflow.D.StandingDelegation
     _plans: bytes
     _preparation_root: tuple[Path, tuple, Path] | None = field(default=None, repr=False, compare=False)
+    _replaces: str | None = field(default=None, repr=False, compare=False)
 
     @property
     def approval_scope(self):

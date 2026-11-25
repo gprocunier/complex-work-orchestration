@@ -6,6 +6,7 @@ from dataclasses import asdict, fields
 import json
 import os
 from pathlib import Path
+import stat
 
 import delegate_internal_work as delegation
 import prepare_local_admission as admission
@@ -19,6 +20,7 @@ _APPROVAL_FIELDS = {'version', 'mission', 'mission_directive', 'actor_id', 'iden
                     'native_bundle', 'publication_bundle', 'policy_specification', 'receipt', 'authority_state',
                     'controller_state', 'publication_state', 'standing_delegation', 'standing_directive'}
 _KEY_DIRECTORY = 'standing-delegation-authority'
+_RETIRED = 'retired-delegation'
 _MAX_KEY_BYTES = 4096
 _VERSION = 1
 
@@ -107,18 +109,21 @@ def _write_once(directory, name, raw, limit, conflict):
         delegation._need(host_records._read_at(directory, name, limit) == raw, conflict)
 
 
-def _write_approval(store, project, database, name, raw, key):
+def _write_approval(store, project, database, name, raw, key, *, replaces=None):
     delegation._need(len(raw) <= _RECONCILIATION.MAX_BYTES, 'Protected standing approval is too large.')
     delegation._need(0 < len(key) <= _MAX_KEY_BYTES, 'Protected controller key is outside its bound.')
     with _key_directory(store, create=True) as directory:
         _write_once(directory, _key_name(project, database), key, _MAX_KEY_BYTES,
                     'The project already has a different protected controller key.')
+    if replaces is not None:
+        _replace_approval(store, project, name, raw, key, replaces)
+        return
     with store._state() as directory:
         _write_once(directory, name, raw, _RECONCILIATION.MAX_BYTES,
                     'Another original approval already matches this assignment.')
 
 
-def retain_approved_assignment(workflow):
+def retain_approved_assignment(workflow, *, replaces=None):
     """Publish the protected controller's already-signed assignment for the normal lead entry."""
     delegation._need(type(workflow) is native.RegisteredN1Workflow
                      and workflow.config._standing_delegation is not None,
@@ -136,7 +141,7 @@ def retain_approved_assignment(workflow):
     name = _name(project, database, scope['bead_id'], node['prompt'], scope['baseline_sha256'])
     store = _protected_store(project, config.host.target, config.host.worker,
                              config.host.state / 'fake-server' / 'codex-home')
-    _write_approval(store, project, database, name, _sealed_approval(config), workflow.verifier._key)
+    _write_approval(store, project, database, name, _sealed_approval(config), workflow.verifier._key, replaces=replaces)
 
 
 def _read_approval(store, name):
@@ -212,18 +217,76 @@ def _configuration(record, project, key):
         standing_directive=record['standing_directive'])
 
 
-def open_project_assignment(project, database, task, chain):
-    """Reopen the original configured workflow in the selected project."""
-    store = _protected_store(project)
-    name = _name(project, database, chain['bead_id'], task, chain['digest'])
-    record = _read_approval(store, name)
-    key = _read_key(store, project, database)
+def _original_workflow(envelope, project, key):
     try:
-        workflow = native.RegisteredN1Workflow(_configuration(_verify_approval(record, key), project, key))
-        delegation.original_assignment(workflow, task, database)
+        return native.RegisteredN1Workflow(_configuration(_verify_approval(envelope, key), project, key))
     except (AttributeError, IndexError, KeyError, TypeError) as exc:
         raise ValueError('Protected standing approval is incomplete.') from exc
+
+
+def _renewable(workflow, directory):
+    config = workflow.config
+    entries = os.listdir(directory)
+    if entries:
+        if entries != [_RETIRED]:
+            return False
+        marker = os.stat(_RETIRED, dir_fd=directory, follow_symlinks=False)
+        if marker.st_mode != (stat.S_IFDIR | 0o700) or marker.st_uid != os.getuid():
+            return False
+    elif config.ledger.current_time() < config.receipt.expires_at:
+        return False
+    try:
+        config.ledger.root.lstat()
+    except FileNotFoundError:
+        return not workflow.verifier._current()['operations']
+    return False
+
+
+def renewable(workflow):
+    """Check whether an expired approval can be replaced without losing activity."""
+    config = workflow.config
+    if config.ledger.current_time() < config.receipt.expires_at and not (config.state / _RETIRED).is_dir():
+        return False
+    with workflow._locked(), workflow._state_directory() as directory:
+        return _renewable(workflow, directory)
+
+
+def _replace_approval(store, project, name, raw, key, replaces):
+    original = _read_approval(store, name)
+    changed = 'The original approval changed before renewal.'
+    delegation._need(delegation.digest(original) == replaces, changed)
+    workflow = _original_workflow(original, project, key)
+    with workflow._locked(), workflow._state_directory() as custody:
+        delegation._need(delegation.digest(_read_approval(store, name)) == replaces, changed)
+        delegation._need(_renewable(workflow, custody), 'The original approval now requires reconciliation.')
+        # Native dispatch requires an empty controller directory under this
+        # same lock. Keep the fence even if publication fails or time rolls back.
+        if _RETIRED not in os.listdir(custody):
+            os.mkdir(_RETIRED, 0o700, dir_fd=custody)
+        os.fsync(custody)
+        with store._state() as directory:
+            host_records._write_at(directory, name, raw, replace=True)
+
+
+def _project_assignment(project, database, task, chain):
+    store = _protected_store(project)
+    name = _name(project, database, chain['bead_id'], task, chain['digest'])
+    envelope = _read_approval(store, name)
+    workflow = _original_workflow(envelope, project, _read_key(store, project, database))
+    delegation.original_assignment(workflow, task, database)
+    return workflow, envelope
+
+
+def open_project_assignment(project, database, task, chain):
+    """Reopen the original configured workflow in the selected project."""
+    workflow, _envelope = _project_assignment(project, database, task, chain)
     return workflow
+
+
+def open_foreground_assignment(project, database, task, chain):
+    """Identify the sealed predecessor when the foreground can renew approval."""
+    workflow, envelope = _project_assignment(project, database, task, chain)
+    return workflow, delegation.digest(envelope) if renewable(workflow) else None
 
 
 def open_assignment(task, chain):

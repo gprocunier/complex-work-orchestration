@@ -112,11 +112,15 @@ def _installed_assignment(args):
         raise ValueError(native.delegation_setup_message())
     _baseline_path, _amendment_paths, chain = _baseline(args.baseline, args.amendment)
     try:
-        return entry.open_assignment(args.task, chain)
+        workflow = entry.open_assignment(args.task, chain)
     except entry.StandingApprovalMissing as exc:
         if args.resume:
             raise
         raise ValueError(f'{exc} Use the cwo-delegation approval tool in the local cwo-codex session.') from None
+    if not args.resume and entry.renewable(workflow):
+        raise ValueError('The unused delegation admission is expired. Use the cwo-delegation approval tool '
+                         'in the local cwo-codex session to approve a fresh admission.')
+    return workflow
 
 
 def main(argv: list[str] | None = None, *, workflow=None) -> int:

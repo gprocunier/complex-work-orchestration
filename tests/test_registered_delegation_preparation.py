@@ -1,6 +1,6 @@
 """Prepare a known output through the ordinary protected controller."""
 from argparse import Namespace
-from contextlib import chdir
+from contextlib import chdir, redirect_stderr
 import ctypes
 from hashlib import sha256
 from io import StringIO
@@ -9,6 +9,7 @@ from pathlib import Path
 import shlex
 import sys
 import tempfile
+import time
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -17,6 +18,7 @@ from tests import test_delegate_internal_work as effects
 from tests.test_candidate_identity import bead
 from tests import test_offline_n1_host as offline
 
+import cwo
 import everyday_delegation
 import registered_delegation_foreground as foreground
 import registered_delegation_preparation as preparation
@@ -203,8 +205,8 @@ class DelegationPreparationTests(unittest.TestCase):
         retained = self.prepare()
         original_write = preparation.entry._write_approval
 
-        def lose_reply(*args):
-            original_write(*args)
+        def lose_reply(*args, **kwargs):
+            original_write(*args, **kwargs)
             raise OSError('EXAMPLE lost retention reply')
 
         with (patch.object(preparation.entry, '_write_approval', side_effect=lose_reply),
@@ -335,7 +337,7 @@ class DelegationPreparationTests(unittest.TestCase):
             parent_receipt_sha256=verifier._directive_hash)
         return pending.create_workflow(directive)
 
-    def foreground_offer(self, output, *, accept=True):
+    def foreground_offer(self, output, *, accept=True, expect_question=True):
         task = 'Update the project documentation for the scoped result file.'
         baseline = self.project / 'EXAMPLE-baseline.json'
         baseline.write_text(json.dumps(self.chain['baseline']), encoding='utf-8')
@@ -352,11 +354,97 @@ class DelegationPreparationTests(unittest.TestCase):
         sink = StringIO()
         with patch.object(foreground, 'uuid4', return_value=SimpleNamespace(hex='EXAMPLE')):
             foreground.serve(source, sink, self.project)
-        _initialized, question, answer = map(json.loads, sink.getvalue().splitlines())
-        self.assertEqual(question['id'], request_id)
-        self.assertEqual(question['method'], 'elicitation/create')
+        _initialized, *questions, answer = map(json.loads, sink.getvalue().splitlines())
+        self.assertEqual([question['method'] for question in questions],
+                         ['elicitation/create'] if expect_question else [])
+        if expect_question:
+            self.assertEqual(questions[0]['id'], request_id)
         self.assertEqual(answer['id'], 2)
         return task, baseline, answer['result']
+
+    def test_foreground_renews_an_expired_unstarted_approval(self):
+        now = int(time.time())
+        output = offline.OUTPUT.decode()
+        ledger = preparation.admission.ledger_api.InvocationLedger
+        with patch.object(ledger, 'current_time', side_effect=lambda: now):
+            task, baseline, accepted = self.foreground_offer(output)
+            self.assertFalse(accepted['isError'], accepted)
+            with chdir(self.project):
+                original = preparation.entry.open_assignment(task, self.chain)
+                now = original.config.receipt.expires_at
+                stderr = StringIO()
+                with redirect_stderr(stderr), self.assertRaises(SystemExit) as failure:
+                    cwo.main(['delegate', '--task', task, '--baseline', str(baseline), '--summary', 'Hand review'])
+                self.assertEqual(failure.exception.code, 1)
+                self.assertIn('admission is expired', stderr.getvalue())
+                self.assertIn('approve a fresh admission', stderr.getvalue())
+
+                _task, _baseline, declined = self.foreground_offer(output, accept=False)
+                self.assertTrue(declined['isError'], declined)
+                self.assertFalse(list(original.config.state.iterdir()))
+
+                _task, _baseline, renewed = self.foreground_offer(output)
+                self.assertFalse(renewed['isError'], renewed)
+                current = preparation.entry.open_assignment(task, self.chain)
+                self.assertGreater(current.config.receipt.expires_at, now)
+                self.assertNotEqual(current.config.host.state, original.config.host.state)
+                now = original.config.receipt.issued_at
+                with self.assertRaisesRegex(ValueError, 'Existing or unknown controller intent'):
+                    original.delegate(task, database=self.database)
+                for attempt in (original, current):
+                    self.assertFalse(attempt.verifier._current()['operations'])
+                    self.assertFalse(attempt.config.ledger.root.exists())
+                    self.assertIsNone(attempt.factory)
+
+    def test_foreground_can_retry_after_interrupted_approval_replacement(self):
+        now = int(time.time())
+        output = offline.OUTPUT.decode()
+        ledger = preparation.admission.ledger_api.InvocationLedger
+        write = host_records._write_at
+
+        def interrupt(directory, name, raw, **options):
+            if options.get('replace') and name.startswith('standing-delegation-'):
+                raise OSError('EXAMPLE lost selector update')
+            return write(directory, name, raw, **options)
+
+        with patch.object(ledger, 'current_time', side_effect=lambda: now), chdir(self.project):
+            task, _baseline, accepted = self.foreground_offer(output)
+            self.assertFalse(accepted['isError'], accepted)
+            original = preparation.entry.open_assignment(task, self.chain)
+            now = original.config.receipt.expires_at
+            with patch.object(host_records, '_write_at', side_effect=interrupt):
+                _task, _baseline, error = self.foreground_offer(output)
+            self.assertTrue(error['isError'])
+            self.assertIn('host state unavailable or unsafe', error['content'][0]['text'])
+            self.assertEqual(preparation.entry.open_assignment(task, self.chain).config.host.state,
+                             original.config.host.state)
+            now = original.config.receipt.issued_at
+            with self.assertRaisesRegex(ValueError, 'Existing or unknown controller intent'):
+                original.delegate(task, database=self.database)
+            _task, _baseline, renewed = self.foreground_offer(output)
+            self.assertFalse(renewed['isError'], renewed)
+            current = preparation.entry.open_assignment(task, self.chain)
+            self.assertNotEqual(current.config.host.state, original.config.host.state)
+            self.assertFalse(original.verifier._current()['operations'])
+            self.assertFalse(original.config.ledger.root.exists())
+
+    def test_foreground_cannot_renew_an_expired_claimed_approval(self):
+        now = int(time.time())
+        output = offline.OUTPUT.decode()
+        ledger = preparation.admission.ledger_api.InvocationLedger
+        with patch.object(ledger, 'current_time', side_effect=lambda: now), chdir(self.project):
+            task, _baseline, accepted = self.foreground_offer(output)
+            self.assertFalse(accepted['isError'], accepted)
+            original = preparation.entry.open_assignment(task, self.chain)
+            _plan, operation, _directive = original.config.native_bundle
+            original.config.store.claim_operation(operation['operation_id'], preparation.workflow.digest(operation),
+                                                  operation['plan_sha256'], operation['revocation_generation'])
+            now = original.config.receipt.expires_at
+            self.foreground_offer(output, expect_question=False)
+            current = preparation.entry.open_assignment(task, self.chain)
+            self.assertEqual(current.config.host.state, original.config.host.state)
+            self.assertEqual(current.verifier._current()['operations'][operation['operation_id']]['state'], 'claimed')
+            self.assertFalse(list(current.config.state.iterdir()))
 
     def test_foreground_discards_refused_offer_and_preserves_retained_offer(self):
         output = offline.OUTPUT.decode()

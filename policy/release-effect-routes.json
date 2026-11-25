@@ -650,19 +650,19 @@
 
 "b":[183,169,"shutil.rmtree(root.name, dir_fd=parent)"],
 
-"c":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",222,"5me4iS_8jVKbwZt15cpdaxlzbeH4oHobe_dOw4F8e5k"],
+"c":[184,"DelegationPreparationTests.test_prepared_registered_packet_dispatches_and_closes_after_independent_review",224,"5me4iS_8jVKbwZt15cpdaxlzbeH4oHobe_dOw4F8e5k"],
 
 "d":[183,"discard_unretained",152,"yDt5r_eaFJ_-uCwv5NFm8Se2wCv7KITdXOJz_XxMzto"],
 
 "e":[99,"F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched",282,"nNjX8BopAR_ijxi5hAjXEWtlFLt-w33Vkft8VGEkaqw"],
 
-"f":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",361,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
+"f":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",449,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
 
 "g":[183,93,"subprocess.run(command, env=environment, stdin=subprocess.DEVNULL,\n                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False)",17,94,110],
 
 "h":[185,"RegisteredLeadProjectTests.test_project_database_changes_do_not_drift_registered_target_or_retry",33,"VEN-CyQcFdT_LUlahTIfNrzf8Lk63OzfG3aerIE-9-U"],
 
-"i":[187,191,"discard_unretained(pending)"],
+"i":[187,195,"discard_unretained(pending)"],
 
 "j":[178,"StandingDelegation.approval_scope",61,"30aXq3czylfdMUe6ICjZlVUgwckiveHUZYnRaD57kTs"],
 
@@ -672,9 +672,9 @@
 
 "m":[176,"_worker_home",20,"qGa20j-EivAoGQioKRaz5CxcJzu1C7sL_b2h_kuXa2M"],
 
-"n":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",89,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
+"n":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",91,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
 
-"o":[186,"_configuration",190,"TZwIUzTHEY-CHqG54vFpc_pt5FhzE7FK6m-Ak4inZ4Y"],
+"o":[186,"_configuration",195,"TZwIUzTHEY-CHqG54vFpc_pt5FhzE7FK6m-Ak4inZ4Y"],
 
 "p":[176,70,"subprocess.run([str(binary), \"-c\", 'cli_auth_credentials_store=\"file\"', \"login\", \"--device-auth\"],\n                       env=env, check=True)",8,71,43],
 
@@ -2840,7 +2840,7 @@
 
 "q09":[177,50,"if len(raw) > manual_delivery.MAX_PROJECTION:"],
 
-"q0A":[177,"main",122,"en7g1LpcO-hl7ebU2CLfUuqOJWpvMxiFRLGQz3bqGe8"],
+"q0A":[177,"main",126,"en7g1LpcO-hl7ebU2CLfUuqOJWpvMxiFRLGQz3bqGe8"],
 
 "q0B":[177,26,"if type(workflow) is not native.RegisteredN1Workflow:"],
 
@@ -7290,7 +7290,7 @@
 
 "@176":["KpeyjpT_bCTz9OVyRq4XimnoDXCM0laFmLfc5JVtyqU",420,5514],
 
-"@177":["l7e_hU5X3jCUnLgAg2Tc5GRhLGuU1OZnPyOS38hRXdA",420,7524],
+"@177":["_QZjmKkYwEdU0wpKs2Y4aKdXWkPdxWFJZTAqvqvOVDM",420,7800],
 
 "@178":["IKhestp3aLgRA4Z93IZqrRvmrnQ8Laa2o4JICl1kfZU",420,15396],
 
@@ -7306,13 +7306,13 @@
 
 "@183":["hZ9OCAcxT2lYutk26xHPAORgTC-Z91RYq-RxqVoPlcI",420,20859],
 
-"@184":["bE032POZ8dxO88YG2O-rzELMwpGWHBMEK7wDh8R-IP8",420,22506],
+"@184":["iN1Ps9ksOUb7VbfmPrvs3Jwb7Q76tiVJLn1RJxdXpy0",420,28074],
 
 "@185":["eqDtyBZIB-px7tRa9ln2n_tpTN1X-Tu_0ZVEbQQ-hCc",420,4641],
 
-"@186":["N8pN2tOY6rHAIMhZo2oV3imdfolj4CORU9WlW_7pab0",420,11760],
+"@186":["5Ci85ZDBL7RBgXcNwi1MNAXQNeJBOJmCD-NAjwM59vk",420,14502],
 
-"@187":["SOLnCI7Vsc7k-_s_qjwJ8rVpkLGQiB94oFDZfg-QGAk",420,12052],
+"@187":["CDyG0pV3M4JVNoB0vKoT5BZ_3Hwt3OC06IWEb9Ltfdw",420,12249],
 
 "@19":["lVXGoZ9EnoiO3zO1gtl0aKqhFcOycVR2gF4Z4ABLFic",420,1174],
 
@@ -7824,7 +7824,7 @@
 
 "scripts/record_native_model_capability.py":["zPi7jGxi4MLTshotBUkybSFVU5QUi5jc14XT14xr7yg",420,4186],
 
-"scripts/registered_delegation_approval.py":["gk3LDwEg1UCk-JgCqgAdxZxlSOHYyzvRwORnEYq773g",420,13054],
+"scripts/registered_delegation_approval.py":["hJEPlLipj-Q35S-jd4tQJwZmXaLD6C3vNwql9G4WMTI",420,13129],
 
 "scripts/registered_host_root_boundary.py":["YVEJAkpd-rBiWkErHbDfheVtG_bm-K2cfOzcr3RS6DY",420,1303],
 

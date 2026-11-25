@@ -1,7 +1,7 @@
 """Carry a Codex foreground decision to an original registered assignment."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from hashlib import sha256
 import json
 import os
@@ -102,13 +102,17 @@ def _pending_assignment(project, proposal):
     database, run_bd = manual_delivery.project_beads(project)
     everyday._open_task(manual_delivery.Delivery(chain['bead_id'], project, chain, {}), run_bd)
     try:
-        existing = entry.open_project_assignment(project, database, proposal.task, chain)
+        existing, replaces = entry.open_foreground_assignment(project, database, proposal.task, chain)
     except entry.StandingApprovalMissing:
-        from registered_delegation_preparation import prepare
-        return prepare(project=project, database=database, task=proposal.task, chain=chain,
-                       output_path=proposal.output_path, output_text=proposal.output_text)
-    _require_output(existing.config.policy.report, proposal)
-    return None
+        existing = replaces = None
+    if existing is not None:
+        _require_output(existing.config.policy.report, proposal)
+        if replaces is None:
+            return None
+    from registered_delegation_preparation import prepare
+    pending = prepare(project=project, database=database, task=proposal.task, chain=chain,
+                      output_path=proposal.output_path, output_text=proposal.output_text)
+    return replace(pending, _replaces=replaces)
 
 
 def _prompt(pending, proposal):
@@ -171,7 +175,7 @@ def _retain(pending, request_id):
         actor_id=verifier._actor, identity_source=verifier._identity,
         action_sha256=approval.workflow.digest(pending.approval_scope), directive_id=request_id,
         parent_receipt_sha256=verifier._directive_hash)
-    entry.retain_approved_assignment(pending.create_workflow(directive))
+    entry.retain_approved_assignment(pending.create_workflow(directive), replaces=pending._replaces)
 
 
 def _authorize(source, sink, project, message, elicitation):
