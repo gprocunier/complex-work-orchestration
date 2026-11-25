@@ -88,7 +88,7 @@ def _clone(project, worker):
     _need(git is not None, workspace_capture.NO_TRUSTED_GIT)
     environment = {**workspace_capture._environment(), 'GIT_ALLOW_PROTOCOL': 'file'}
     command = [git.path, *workspace_capture.INERT_GIT_CONFIG, 'clone', '--quiet', '--no-local',
-               '--no-hardlinks', '--no-tags', '--no-recurse-submodules', '--template=', '--', str(project), str(worker)]
+               '--no-hardlinks', '--single-branch', '--no-recurse-submodules', '--template=', '--', str(project), str(worker)]
     try:
         result = subprocess.run(command, env=environment, stdin=subprocess.DEVNULL,
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False)
