@@ -3264,7 +3264,7 @@
 
 "q1J":[150,"_check_method_envelope",199,"hu6yJz90FBnQf8ynDVYTZoKrixNvW355dFVb14Gn6aw"],
 
-"q1K":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1362,"oJI0tM2ygXBHCkoYrxkZkaIG-rTlLffdcjcf44IEDVk"],
+"q1K":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1376,"oJI0tM2ygXBHCkoYrxkZkaIG-rTlLffdcjcf44IEDVk"],
 
 "q1L":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",359,"fo08RmEmN8y7UomgQr-JGUkpBBRWwePP-xy6obruLrI"],
 
@@ -7190,7 +7190,7 @@
 
 "@151":["wiORGQLdKDfRj5VzoSnBhwaTRaWlq-IvPMJuJCBecMc",420,31557],
 
-"@152":["Z66QdbzfYP_w1BGn0JORodx0l7nF5xy7XSSmDyFzj50",420,87021],
+"@152":["ljtSJA-06YBV67nPy3wJNsW_gS7RXL_JeQynjqU2R20",420,88793],
 
 "@153":["vEl_9pFsc-8-Wfz6CCHQUEZTkBC45jIp0FgOX2XgFgY",420,61371],
 
@@ -7824,7 +7824,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["N1IfvSBCtUcrXt2q_4Hy5ReJ7ja-HAgTsykjGCAyV2E",420,135560],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["lqAlEP2xuqt2Pa8wMnZhk3HTehNo10xCZdATCgoBgUA",420,135560],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 

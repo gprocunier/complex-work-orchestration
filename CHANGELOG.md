@@ -4,6 +4,10 @@
 
 - Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
 
+### Tests
+
+- Preserve archive worker failures in the registered interrupt fixture when they occur before the archive request.
+
 ## 1.36.2 - 2026-11-24
 
 - Use a direct dedicated-login bind for compatible pool workers to avoid slow overlay teardown while preserving their session archive and login custody.
