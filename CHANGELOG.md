@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Resume interrupted delivery without starting another worker.
+
 ### Tests
 
 - Preserve archive failures that occur after the registered exhaustion fixture observes the archive request.
