@@ -2,8 +2,11 @@
 
 ## Unreleased
 
-- Add guided setup for the separate Codex worker sign-in, with an isolated startup check and a standalone command for existing installs.
 - Export screened requests and evaluate copied replies for ChatGPT Pro review in a paired Chrome profile. Link the request, private reply, sender-confirmed model picker label and evaluation in the host audit. The desktop route is off by default pending an authorized live round trip.
+
+## 1.36.0 - 2026-11-24
+
+- Add guided setup for the separate Codex worker sign-in, with an isolated startup check and a standalone command for existing installs.
 
 ## 1.35.2 - 2026-11-24
 
