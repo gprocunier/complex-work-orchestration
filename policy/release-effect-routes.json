@@ -48,7 +48,7 @@
 
 "I4":{"admission":{"$":2},"authority":"Explicit supported mode/acknowledgement/operator --apply; managed command output does not confer Beads database/task/closure authority. Later PATH bd and Codex hook semantics are external program contracts.","effect":"Codex hook config atomic write and delayed Beads commands","effect_points":["vN"],"gates":["p261","p29b"],"limits":"Valid preview zero write; apply exactly atomic persisted hooks. Probe-independent refusal zero version/write via N11. Managed bd codex-hook SessionStart/PreCompact/UserPromptSubmit/Stop are later Codex-consumed external command strings, not executed by writer; no downstream native/closure grant.","manual_decisions":["M02","M13","M20"],"ordering":"Safe hooks path + duplicate/shape/advisory validation before probe; mode-independent refusals before probe; merge preserves unrelated entries; rendered validation before if args.apply/write_hooks; atomic writer then later Codex consumes hooks.","trace_files":[{"$":64}],"witnesses":["w50"]},
 
-"I5":{"admission":{"$":2},"authority":"An operator selects a private worker home separate from the main and qualification homes.","effect":"Create the private home, check offline startup, sign in if needed, verify a login lease, and save the selected path.","effect_points":["p73p","p73q","p73r","p73s","p73t"],"gate_chains":[{"calls":[{"call":"p73n","direction":"return","target":"p73l"}],"effect":"p73p","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"}],"effect":"p73q","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"}],"effect":"p73r","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"}],"effect":"p73s","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"},{"call":"p73o","direction":"into","target":"p73m"}],"effect":"p73t","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"},{"call":"p73o","direction":"into","target":"p73m"}],"effect":"p73t","gate":"p73v"}],"gates":["p73u","p73v"],"limits":"Device sign-in invokes the selected Codex program. The startup probe uses a disposable credential-free home and sends no model turn. Path-only setup is separate from production adoption.","manual_decisions":[],"ordering":"Check path separation before local preparation. Require isolated configuration startup and cleanup before new device sign-in. Verify the held home and lease before saving the setting.","trace_files":["scripts/setup_delegation.py","scripts/registered_worker_login_config.py",{"$":105},{"$":328},{"$":74}],"witnesses":["w73b","w73c"]},
+"I5":{"admission":{"$":2},"authority":"An operator selects a private worker home separate from the main and qualification homes.","effect":"Create the private home, check offline startup, sign in if needed, verify a login lease, and save the selected path.","effect_points":["p73p","p73q","p73r","p73s","p73t"],"gate_chains":[{"calls":[{"call":"p73n","direction":"return","target":"p73l"}],"effect":"p73p","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"}],"effect":"p73q","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"}],"effect":"p73r","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"}],"effect":"p73s","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"},{"call":"p73o","direction":"into","target":"p73m"}],"effect":"p73t","gate":"p73u"},{"calls":[{"call":"p73n","direction":"return","target":"p73l"},{"call":"p73o","direction":"into","target":"p73m"}],"effect":"p73t","gate":"p73v"}],"gates":["p73u","p73v"],"limits":"Device sign-in invokes the selected Codex program. The startup probe uses a disposable credential-free home and sends no model turn. Path-only setup is separate from production adoption.","manual_decisions":[],"ordering":"Check path separation before local preparation. Require isolated configuration startup and cleanup before new device sign-in. Verify the held home and lease before saving the setting.","trace_files":[{"$":391},{"$":394},{"$":105},{"$":328},{"$":74}],"witnesses":["w73b","w73c"]},
 
 "N1":{"admission":{"$":2},"authority":"Explicit absolute executable and Codex home, or verified tool proof/capture binding; no ambient default.","effect":"Raw Codex app-server process launch","gates":["p149"],"limits":"Raw launcher uses the explicit selected executable and home or verified capture binding. A capability gap refuses before the app-server process. The separate schema export uses isolated homes and no model request. Runtime argv and environment, anonymous pipes, original I/O bounds and cleanup remain independently enforced. Fake launch witnesses observe scope and ordering.","manual_decisions":["M08","M33"],"ordering":"Entry native hold; model, effort and metadata validation; proof versus probe exclusivity; selected executable, home and configuration; native hold before bounded schema generation; native hold rechecked immediately before app-server launch.","trace_files":[{"$":29},{"$":342}],"witnesses":["w77","w49"]},
 
@@ -56,7 +56,7 @@
 
 "N11":{"admission":{"$":4},"authority":"Explicit caller-selected binary/environment programme; no outer hook/expected-binary admission on this direct entry.","effect":"Intentional selected --version child programme","gates":[],"manual_decisions":["M12","M13"],"ordering":"Immediately execute selected --version child; only result interpretation follows.","trace_files":[{"$":64},{"$":104}]},
 
-"N12":{"admission":{"$":4},"authority":"Explicit operator execution of cwo-codex, directly from the skill or from its installed wrapper. The operator selects PATH, cwd, HOME/CODEX_HOME, environment and forwarded arguments.","earlier_effects":"Read the selected skill role policy. An unpinned latest-in-family selection can start the bounded catalog child for handshake and model/list; explicit or pinned Sol selection skips the catalog probe.","effect":"Operator Codex launcher","effect_points":["p179","zF"],"gates":[],"limits":"The selected Python and Codex executables resolve through PATH. The role adds model, effort and tier overrides before all forwarded arguments. No intrinsic timeout, output or cost bound covers the interactive command. Downstream option precedence remains outside this check.","manual_decisions":["M13"],"ordering":"The installed wrapper selects the skill shell entrypoint. That entrypoint runs the adjacent Python helper, which checks launch settings and resolves Sol policy before replacing itself with Codex using execvp.","trace_files":["scripts/cwo-codex",{"$":354},{"$":275},{"$":372},{"$":370},"scripts/cwo_core/model_identities.py"],"witnesses":["w5c","wArchitectInstalled"]},
+"N12":{"admission":{"$":4},"authority":"Explicit operator execution of cwo-codex, directly from the skill or from its installed wrapper. The operator selects PATH, cwd, HOME/CODEX_HOME, environment and forwarded arguments.","earlier_effects":"Read the selected skill role policy. An unpinned latest-in-family selection can start the bounded catalog child for handshake and model/list; explicit or pinned Sol selection skips the catalog probe. Prepare one project-bound offer in a private checkout via local-only Git.","effect":"Operator Codex launcher","effect_points":["p179","zF","q74PrepClone"],"gates":[],"limits":"The selected Python and Codex executables resolve through PATH. The role adds model, effort and tier overrides before all forwarded arguments. No intrinsic timeout, output or cost bound covers the interactive command. Downstream option precedence remains outside this check. The clone has a 60-second bound. Unretained offers leave private custody. Standing authority comes from the foreground decision.","manual_decisions":["M13"],"ordering":"The installed wrapper selects the skill shell entrypoint. That entrypoint runs the adjacent Python helper, which checks launch settings and resolves Sol policy before replacing itself with Codex using execvp. For a local terminal session it starts Codex with the embedded app server and configures its foreground approval child.","trace_files":["scripts/cwo-codex",{"$":354},{"$":275},{"$":372},{"$":370},"scripts/cwo_core/model_identities.py","scripts/registered_delegation_foreground.py",{"$":388}],"witnesses":["w5c","wArchitectInstalled","w74Preparation"]},
 
 "N13":{"admission":{"$":4},"authority":"Explicit operator fixed offline diagnostics only; no native factory, maintenance, model-turn or accepted-artifact authority.","effect":"Disposable repository/listener setup, fixed command/config RPCs, trusted bootstrap/watchdog execution and retained-handle cleanup","gates":[],"limits":"No model/thread/turn, arbitrary command API, stdin delivery or accepted output. Original selected never configuration is unchanged. Diagnostic effects bypass no production hold and establish only enumerated observations; required omissions keep selected-unqualified/confidential unsupported. Private helpers retain trusted internal-caller prerequisites.","manual_decisions":["M25","M33"],"ordering":"Verify the selected executable capabilities in a confined schema process and bind its observed identity. Apply the fixed runtime and configuration, retain the original owner and verified namespace handle, check mounts, then release the bootstrap gate. Bound the fixed RPC and empty-poll observations and clean up independently.","trace_files":[{"$":74},{"$":16},{"$":17},{"$":10},{"$":342}],"witnesses":["w34","w31","w33","pC"]},
 
@@ -223,7 +223,9 @@
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
 
-"point_digest_encoding":"sha256-base64url-v1",
+"point_digest_encoding":{
+"$":398
+},
 
 "point_files":[
 {"$":255},
@@ -578,11 +580,11 @@
 
 "tests/test_setup_delegation.py",
 
-"scripts/setup_delegation.py",
+{"$":391},
 
-"scripts/everyday_delegation.py",
+{"$":389},
 
-"scripts/delegate_internal_work.py",
+{"$":396},
 
 "tests/test_everyday_delegation.py",
 
@@ -590,7 +592,11 @@
 
 "tests/test_everyday_delegation_delivery.py",
 
-"tests/test_native_pool_admission_contracts.py"
+"tests/test_native_pool_admission_contracts.py",
+
+{"$":388},
+
+"tests/test_registered_delegation_preparation.py"
 ],
 
 "points":{
@@ -2794,7 +2800,7 @@
 
 "q09":[177,50,"if len(raw) > manual_delivery.MAX_PROJECTION:"],
 
-"q0A":[177,"main",117,"en7g1LpcO-hl7ebU2CLfUuqOJWpvMxiFRLGQz3bqGe8"],
+"q0A":[177,"main",122,"en7g1LpcO-hl7ebU2CLfUuqOJWpvMxiFRLGQz3bqGe8"],
 
 "q0B":[177,26,"if type(workflow) is not native.RegisteredN1Workflow:"],
 
@@ -2806,13 +2812,17 @@
 
 "q0G":[178,76,"_need(estimate['write_paths'] == operation['write_paths'] == publication['write_paths']"],
 
-"q0I":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",98,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
+"q0I":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",120,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
 
-"q0J":[179,"EverydayDelegationFlowTests.test_installed_lead_selects_the_retained_signed_assignment",209,"nKJbM0TIbY9p0Q-rUBtM0l0gZAkW6BMfHU2v1ErpQ8U"],
+"q0J":[179,"EverydayDelegationFlowTests.test_installed_lead_selects_the_retained_signed_assignment",231,"KmEZ_LtueRCJ2drO3Lc0Mbzp52mxFikRFeZ4zoFeXFc"],
 
 "q0K":[180,"EverydayDelegationTests.test_unsafe_login_refuses_before_signing_and_same_workflow_can_retry",219,"x4ghbIRcYYNYWjRvGSmTcvRwPHEYQ7wctBbz7AK-7tU"],
 
 "q0L":[181,"DelegatedDeliveryTests.test_acceptance_claim_cannot_switch_to_a_later_delivery",26,"NM1twUO66Wgj0EVr59F8IIubS3KkRU7q6TVaUU1BkYQ"],
+
+"q74PrepClone":[183,93,"subprocess.run(command, env=environment, stdin=subprocess.DEVNULL,\n                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=60, check=False)",17,94,110],
+
+"q74PrepTest":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",58,"h5Rd1J5ZDDzaTop3oM0QCLmAqbkeOZqDsXbm73hXJnw"],
 
 "uA":[8,1045,"page.get_by_text(str(label), exact=False).first.click(timeout=timeout_ms)",20,1045,93],
 
@@ -3266,7 +3276,7 @@
 
 "zE":[155,383,"self._appserver.launch(command, self.home)",23,383,65],
 
-"zF":[144,29,"os.execvp(\"codex\", command + sys.argv[1:])",8,29,50],
+"zF":[144,67,"os.execvp(\"codex\", command + arguments)",8,67,47],
 
 "zG":[151,"ServerRequestPreparationTests.test_timestamped_notification_preserves_the_actual_frame",344,"AtzQIfiZYU8q4Z74MNPUybtWaQHjkUg_nYzOPejpD-c"],
 
@@ -4584,7 +4594,9 @@
 "xQadm":["Fixed admission lookup on typed limits.","Original claimed admission, retained runtime and campaign intent are required.","N4.3"]
 },
 
-"hit_digest_encoding":"sha256-base64url-v1",
+"hit_digest_encoding":{
+"$":398
+},
 
 "hits":[
 [0,65,8,68,9,"process","PKk1Y4H9lpyMlBLpagLAp_uJnSCbO-Ia44_abIbh4a4",["route","B8.1","p3c"]],
@@ -5347,7 +5359,7 @@
 
 [52,498,0,498,22,"beads",{"$":219},[{"$":9},"installer-upstream-version-advice"]],
 
-[88,29,8,29,50,"process","H57uZ7M89JKgAjzHsgDYg7P9llAdblywzcdHJhPdhxQ",["route","N12.1","zF"]],
+[88,67,8,67,47,"process","NdppeZRW5Cvb36OQbx6XPY4DDdDEcPdaSDo6VVrpQs4",["route","N12.1","zF"]],
 
 [53,84,0,84,69,"process","vf9HPDSlZJ7GWIFEhQqhmcvSnk6nui3cyNxZbpFvgCU",[{"$":9},"chrome-unit-status"]],
 
@@ -5715,7 +5727,9 @@
 
 [83,2574,7,2574,35,"dynamic","ZqM55jIrdP6oEzt1vtV5EwWp002RB0IRK6c5CjHFxPc",[{"$":9},"XR416"]],
 
-[84,389,14,389,47,"dynamic","jq8fhK7bfZhEkYv-3Y2x1pyCoEK_70USv5dO-j-XVNU",[{"$":9},"XR417"]]
+[84,389,14,389,47,"dynamic","jq8fhK7bfZhEkYv-3Y2x1pyCoEK_70USv5dO-j-XVNU",[{"$":9},"XR417"]],
+
+[97,93,17,94,110,"process","CZ5Xiphf3Nnx8t5YKZkz0Rp7x2rrphScK0CSMHjyCIE",["route","N12.1","q74PrepClone"]]
 ],
 
 "paths":[
@@ -5909,9 +5923,11 @@
 
 {"$":378},
 
-"scripts/setup_delegation.py",
+{"$":391},
 
-"scripts/everyday_delegation.py"
+{"$":389},
+
+{"$":388}
 ],
 
 "schema":"bounded-primitives-v2"
@@ -5978,7 +5994,7 @@
 
 {"contract":"N2","effect_points":["p1c3","p20"],"entrypoint":"p276","gates":["vL"],"id":"N2.4","review_gates":["vR","vT"]},
 
-{"contract":"N3","entrypoint":"pca","id":"N3.1","manual_decisions":["M08","M09","M10","M26","M32","M34","M35","M44"],"review_gates":["v0","vH","vu","ux","uw","vt","us","p73a","p73b"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29},"scripts/registered_worker_login_config.py"],"witnesses":["w43","w38","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout",{"$":362},{"$":364},"w52A","w52S","w73a"]},
+{"contract":"N3","entrypoint":"pca","id":"N3.1","manual_decisions":["M08","M09","M10","M26","M32","M34","M35","M44"],"review_gates":["v0","vH","vu","ux","uw","vt","us","p73a","p73b"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29},{"$":394}],"witnesses":["w43","w38","w25Permit","w25Budget","w25Expiry","w25Models","w42Interlock","w42Namespace","w42Precharge","w42Unresolved","w42Rollout",{"$":362},{"$":364},"w52A","w52S","w73a"]},
 
 {"contract":"N3","entrypoint":"p2b1","id":"N3.2","manual_decisions":["M08","M09","M10","M26","M32","M44"],"trace_files":[{"$":15},{"$":10},{"$":36}]},
 
@@ -6244,11 +6260,11 @@
 
 {"contract":"I5","entrypoint":"p73k","id":"I5.1"},
 
-{"authority":"An explicit setup flag or the operator's affirmative installed skill prompt.","contract":"I5","effect":"Invoke the selected installed setup command after installation.","effect_points":["p73x"],"entrypoint":"p73y","gate_chains":[],"gates":["p73w"],"id":"I5.2","limits":"A setup failure leaves the installation and displays a retry command. The installer does not adopt a native operation.","ordering":"Return from uninstall before setup. Keep dry runs and declined or noninteractive default installs free of setup calls.","trace_files":[{"$":69},"scripts/setup_delegation.py"],"witnesses":["w73d","w73e","w73f"]},
+{"authority":"An explicit setup flag or the operator's affirmative installed skill prompt.","contract":"I5","effect":"Invoke the selected installed setup command after installation.","effect_points":["p73x"],"entrypoint":"p73y","gate_chains":[],"gates":["p73w"],"id":"I5.2","limits":"A setup failure leaves the installation and displays a retry command. The installer does not adopt a native operation.","ordering":"Return from uninstall before setup. Keep dry runs and declined or noninteractive default installs free of setup calls.","trace_files":[{"$":69},{"$":391}],"witnesses":["w73d","w73e","w73f"]},
 
-{"authority":"Original registered completion bound to candidate, baseline and Beads database.","contract":"B11","effect":"Retain candidate identity and post reference and delivery.","effect_points":["q08","q06","vn","vs"],"entrypoint":"q05","gate_limits":"Review completion, candidate and Beads callback.","gates":["q09","q07","vr"],"id":"B11.2","limits":"Comment failure may leave a reference or receipt. Resume requires original custody and summary.","ordering":"Check native origin and candidate before saving, posting and receipting.","review_gates":["q04","vo","vq"],"trace_files":["scripts/everyday_delegation.py","scripts/everyday_delegation_delivery.py",{"$":378},{"$":36},{"$":105}],"witnesses":["w74Flow"]},
+{"authority":"Original registered completion bound to candidate, baseline and Beads database.","contract":"B11","effect":"Retain candidate identity and post reference and delivery.","effect_points":["q08","q06","vn","vs"],"entrypoint":"q05","gate_limits":"Review completion, candidate and Beads callback.","gates":["q09","q07","vr"],"id":"B11.2","limits":"Comment failure may leave a reference or receipt. Resume requires original custody and summary.","ordering":"Check native origin and candidate before saving, posting and receipting.","review_gates":["q04","vo","vq"],"trace_files":[{"$":389},"scripts/everyday_delegation_delivery.py",{"$":378},{"$":36},{"$":105}],"witnesses":["w74Flow"]},
 
-{"authority":"Project-bound signed standing approval for one admitted assignment.","contract":"N3","effect":"Sign route authority and launch one registered worker.","effect_points":["q0D","ym"],"entry_aliases":["cwo delegate"],"entrypoint":"q0A","gate_chains":[{"calls":[{"call":"za","direction":"return","target":"zd"}],"effect":"ym","gate":"xU"},{"calls":[{"call":"q0E","direction":"return","target":"q0F"}],"effect":"q0D","gate":"q0G"}],"gate_limits":"Scope and launch checks are structural. Protected controller evidence is contextual.","gates":["q0G","xU"],"id":"N3.17","limits":"Requires retained approval. Resume makes no dispatch or charge. Offline witnesses.","manual_decisions":["M32","M44"],"ordering":"Verify custody, scope, login and admission, then match route and packet before dispatch.","review_gates":["q0B","vu","vt"],"trace_files":["scripts/cwo.py","scripts/everyday_delegation.py","scripts/delegate_internal_work.py",{"$":36},{"$":10},{"$":270},"scripts/registered_delegation_entry.py"],"witnesses":["w74Shell","w74Route","w74Flow"]}
+{"authority":"Project-bound signed standing approval for one admitted assignment.","contract":"N3","effect":"Sign route authority and launch one registered worker.","effect_points":["q0D","ym"],"entry_aliases":["cwo delegate"],"entrypoint":"q0A","gate_chains":[{"calls":[{"call":"za","direction":"return","target":"zd"}],"effect":"ym","gate":"xU"},{"calls":[{"call":"q0E","direction":"return","target":"q0F"}],"effect":"q0D","gate":"q0G"}],"gate_limits":"Scope and launch checks are structural. Protected controller evidence is contextual.","gates":["q0G","xU"],"id":"N3.17","limits":"Requires retained approval. Resume makes no dispatch or charge. Offline witnesses.","manual_decisions":["M32","M44"],"ordering":"Verify custody, scope, login and admission, then match route and packet before dispatch.","review_gates":["q0B","vu","vt"],"trace_files":["scripts/cwo.py",{"$":389},{"$":396},{"$":36},{"$":10},{"$":270},"scripts/registered_delegation_entry.py"],"witnesses":["w74Shell","w74Route","w74Flow"]}
 ],
 
 "schema":"compact-release-routes-v1",
@@ -6880,7 +6896,31 @@
 
 "386":"scripts/registered_pool_qualification_calibration.py",
 
+"387":"self.assertNotIn(\"EXAMPLE setup call\", result.stdout)",
+
+"388":"scripts/registered_delegation_preparation.py",
+
+"389":"scripts/everyday_delegation.py",
+
 "39":"23a9127df77c97fb58c8251023c2f298a4ca6fe9ad53fef07fb2769164fe810e",
+
+"390":"self.assertIn(\"EXAMPLE setup call: -B",
+
+"391":"scripts/setup_delegation.py",
+
+"392":"self.assertEqual(self.configured(), self.worker_home)",
+
+"393":"assert not Path({str(self.auth)!r}).exists()",
+
+"394":"scripts/registered_worker_login_config.py",
+
+"395":"self.assertFalse(self.fixture.spawned)",
+
+"396":"scripts/delegate_internal_work.py",
+
+"397":"self.assertEqual(code, 0, error)",
+
+"398":"sha256-base64url-v1",
 
 "4":"manual-program",
 
@@ -7019,7 +7059,9 @@
 "size"
 ],
 
-"source_binding_digest_encoding":"sha256-base64url-v1",
+"source_binding_digest_encoding":{
+"$":398
+},
 
 "source_binding_path_keys":"point-files-v1",
 
@@ -7126,7 +7168,7 @@
 
 "@143":["HijO0EyKQ5KHF54YpoPkvgdtIuwj7Wylu9Cby8XCBvI",420,1996],
 
-"@144":["IvPSTR4vixz2Y6uQ6Gzoto7jQ_5FLJ5vYXeowFy950g",420,1226],
+"@144":["Iie4oVRalUBp8W4Nq-Wv07Y_2LwsNPl8Y_evQoudVro",420,2839],
 
 "@145":["N2XzdWb9Kl-4SLoM-cGPjnjNzy9SQW-340KZDfU4IT4",420,11195],
 
@@ -7198,11 +7240,11 @@
 
 "@176":["KpeyjpT_bCTz9OVyRq4XimnoDXCM0laFmLfc5JVtyqU",420,5514],
 
-"@177":["xhupFB8C69E_NBkrKWe8QJkOhdlKOdWMsWH5KEn8AW8",420,7286],
+"@177":["Jczkh3bxYWPRcxOjD6Uj-fqGNrwg6qf6Gy_dSuoYbFo",420,7504],
 
 "@178":["69ChH3xEbhgyKkp5z9shc78Rk92BiWjyfP48iu1qP-E",420,10394],
 
-"@179":["GC3BcoKEq6KIduJDK8wtXmqgGWj-n3mzl29pWHutGHs",420,17396],
+"@179":["OPZOlNeI70kRnJUCIz-cD0UvgnDB8Oi4Z5xNEJ_Sw0k",420,19427],
 
 "@18":["eeWhgdqzZxdBINbx0XseT7DQyIMEE_YvaJiCe2PZPCI",420,27248],
 
@@ -7211,6 +7253,10 @@
 "@181":["RwRAijGB-rDmINM8XV1UOWlkIZu054s5IrKz_KbxQOg",420,4365],
 
 "@182":["jqOLXHY61GJlpzpSHksvEoTW3OyXC3W4vkYA6u1V160",420,49777],
+
+"@183":["snIDQIKPsRrWhpfadGphz_RvixRIBEsvPrTQOsXcpcg",420,18695],
+
+"@184":["JiyLkQkbBaAPx_F5Urg5aGohbbz6E3ZYTu_twgxE3Lg",420,8986],
 
 "@19":["lVXGoZ9EnoiO3zO1gtl0aKqhFcOycVR2gF4Z4ABLFic",420,1174],
 
@@ -7724,7 +7770,9 @@
 
 "scripts/registered_delegation_approval.py":["8WKNbTnPTD924rvdwD3n_JmAJzo0LIuh6vnu99S8swA",420,12684],
 
-"scripts/registered_delegation_entry.py":["F_845zzEkZtXNlWijTT70IFzHeohsT-AX2fLImQZmh4",420,11174],
+"scripts/registered_delegation_entry.py":["Xiyflh0UH-1jgtv_mX7CCRr2uB8wYUijjZvXT6CIeQg",420,11509],
+
+"scripts/registered_delegation_foreground.py":["HadOdUpD3Sa8SXtuP-kKt_2M8PbFbXsjgfcbkw3h_cY",420,11797],
 
 "scripts/registered_host_root_boundary.py":["YVEJAkpd-rBiWkErHbDfheVtG_bm-K2cfOzcr3RS6DY",420,1303],
 
@@ -7984,7 +8032,7 @@
 
 "w42Interlock":["with self.assertRaisesRegex(qualification.QualificationError, 'changed'):","yb",{"$":1},"qualification.release_managed_login(second)",[],"tests.test_registered_n1_qualification.CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release"],
 
-"w42Namespace":["assert not Path({str(self.auth)!r}).exists()","ya",{"$":1},{"$":376},["ut"],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"],
+"w42Namespace":[{"$":393},"ya",{"$":1},{"$":376},["ut"],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"],
 
 "w42Precharge":["self.assertEqual(qualification.campaign_usage()['total'], 0)","x9",{"$":1},"self.assertTrue(factory._managed_lifetime.contained)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace"],
 
@@ -8044,7 +8092,7 @@
 
 "w52R":["spawn.assert_not_called()","p52r",{"$":12},"T._require_native_rpc('thread/archive', raw)",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_registered_production_source_decision_leaves_raw_launch_and_rpc_held"],
 
-"w52S":["self.assertFalse(self.fixture.spawned)","p52s",{"$":0},{"$":358},["uu","y7"],"tests.test_registered_n1_workflow.WorkflowTests.test_production_refuses_wrong_signed_selection_before_claim"],
+"w52S":[{"$":395},"p52s",{"$":0},{"$":358},["uu","y7"],"tests.test_registered_n1_workflow.WorkflowTests.test_production_refuses_wrong_signed_selection_before_claim"],
 
 "w52W":["self.assertEqual(os.read(read_fd, 8), b'{\"id\":1')","p52w",{"$":12},"whole_frame.assert_called_once()",[],"tests.test_supervision_transport.FakeAppServerTransportTests.test_registered_production_rechecks_authority_after_partial_turn_write"],
 
@@ -8056,7 +8104,7 @@
 
 "w55Lease":["with self.assertRaisesRegex(ValueError, 'unresolved'):\n            second_controller_mount.claim()","p55l",{"$":1},"self.assertEqual(list(state.iterdir()), [])",["y7"],"tests.test_registered_n1_workflow.WorkflowTests.test_production_retains_worker_login_lease_when_namespace_cleanup_is_unknown"],
 
-"w55R":["assert not Path({str(self.auth)!r}).exists()","p55R",{"$":1},{"$":376},["ut"],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_worker_mount_persists_refresh_without_qualification_campaign"],
+"w55R":[{"$":393},"p55R",{"$":1},{"$":376},["ut"],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_worker_mount_persists_refresh_without_qualification_campaign"],
 
 "w56":[{"$":291},"p201",{"$":1},{"$":291},[],"tests.test_chatgpt_browser_review.ChatGPTBrowserReviewTests.test_model_confirmation_records_attestation"],
 
@@ -8148,27 +8196,29 @@
 
 "w73":["self.assertEqual(calls, [first] if revoke else [first, second],\n                             \"revoked authority reached a later validator process\")","p1e2",{"$":0},"self.assertTrue(result[\"independent_checks\"][0][\"accepted\"])",["p2e7"],"tests.test_maintenance_native_runtime.MaintenanceRuntimeTests.test_independent_product_validation_observes_real_artifact_without_closing_bead"],
 
-"w73a":["self.assertFalse(self.fixture.spawned)","p73c",{"$":0},{"$":358},["uu","y7"],"tests.test_registered_n1_workflow.WorkflowTests.test_malformed_saved_login_refuses_only_after_original_adoption"],
+"w73a":[{"$":395},"p73c",{"$":0},{"$":358},["uu","y7"],"tests.test_registered_n1_workflow.WorkflowTests.test_malformed_saved_login_refuses_only_after_original_adoption"],
 
-"w73b":["self.login.assert_not_called()","p73f",{"$":0},"self.assertEqual(self.configured(), self.worker_home)",["p73d"],"tests.test_setup_delegation.DelegationSetupTests.test_explicit_main_login_is_refused_before_any_effect"],
+"w73b":["self.login.assert_not_called()","p73f",{"$":0},{"$":392},["p73d"],"tests.test_setup_delegation.DelegationSetupTests.test_explicit_main_login_is_refused_before_any_effect"],
 
-"w73c":["self.login.assert_not_called()","p73g",{"$":0},"self.assertEqual(self.configured(), self.worker_home)",["p73d"],"tests.test_setup_delegation.DelegationSetupTests.test_startup_failure_does_not_sign_in_or_publish_setting"],
+"w73c":["self.login.assert_not_called()","p73g",{"$":0},{"$":392},["p73d"],"tests.test_setup_delegation.DelegationSetupTests.test_startup_failure_does_not_sign_in_or_publish_setting"],
 
-"w73d":["self.assertNotIn(\"EXAMPLE setup call\", result.stdout)","p73h",{"$":0},"self.assertIn(\"EXAMPLE setup call: -B",["p73e"],"tests.test_setup_delegation.GuidedInstallerTests.test_dry_run_never_invokes_setup_even_when_requested"],
+"w73d":[{"$":387},"p73h",{"$":0},{"$":390},["p73e"],"tests.test_setup_delegation.GuidedInstallerTests.test_dry_run_never_invokes_setup_even_when_requested"],
 
-"w73e":["self.assertNotIn(\"EXAMPLE setup call\", result.stdout)","p73i",{"$":0},"self.assertIn(\"EXAMPLE setup call: -B",["p73e"],"tests.test_setup_delegation.GuidedInstallerTests.test_decline_and_noninteractive_install_print_command_without_running_it"],
+"w73e":[{"$":387},"p73i",{"$":0},{"$":390},["p73e"],"tests.test_setup_delegation.GuidedInstallerTests.test_decline_and_noninteractive_install_print_command_without_running_it"],
 
-"w73f":["self.assertNotIn(\"EXAMPLE setup call\", result.stdout)","p73j",{"$":0},"self.assertIn(\"EXAMPLE setup call: -B",["p73e"],"tests.test_setup_delegation.GuidedInstallerTests.test_uninstall_never_invokes_setup_even_when_requested"],
+"w73f":[{"$":387},"p73j",{"$":0},{"$":390},["p73e"],"tests.test_setup_delegation.GuidedInstallerTests.test_uninstall_never_invokes_setup_even_when_requested"],
 
 "w74":["self.assertEqual(self.effects, [])","p128",{"$":0},{"$":134},["p112"],"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects"],
 
-"w74Claim":["self.assertRaisesRegex","q0L",{"$":12},"self.assertEqual(code, 0, error)",["q0I"],"tests.test_everyday_delegation_delivery.DelegatedDeliveryTests.test_acceptance_claim_cannot_switch_to_a_later_delivery"],
+"w74Claim":["self.assertRaisesRegex","q0L",{"$":12},{"$":397},["q0I"],"tests.test_everyday_delegation_delivery.DelegatedDeliveryTests.test_acceptance_claim_cannot_switch_to_a_later_delivery"],
 
 "w74Flow":["self.assertIn('delivering session', error)","q0I",{"$":12},"self.assertEqual([call[0] for call in self.effects], ['comment', 'comment', 'close'])",[],"tests.test_everyday_delegation.EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes"],
 
+"w74Preparation":["self.assertFalse(pending._verifier._current()['operations'])","q74PrepTest",{"$":12},"self.assertIs(type(pending), preparation.approval.PendingDelegationApproval)",[],"tests.test_registered_delegation_preparation.DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops"],
+
 "w74Route":["self.assert_unstarted(inputs)","q0K",{"$":0},"self.assertTrue(run_fixture(self, inputs)['validation_complete'])",[],"tests.test_delegate_internal_work.EverydayDelegationTests.test_unsafe_login_refuses_before_signing_and_same_workflow_can_retry"],
 
-"w74Shell":["self.assertEqual(selected, [])","q0J",{"$":0},"self.assertEqual(code, 0, error)",[],"tests.test_everyday_delegation.EverydayDelegationFlowTests.test_installed_lead_selects_the_retained_signed_assignment"],
+"w74Shell":["self.assertEqual(selected, [])","q0J",{"$":0},{"$":397},[],"tests.test_everyday_delegation.EverydayDelegationFlowTests.test_installed_lead_selects_the_retained_signed_assignment"],
 
 "w75":["self.assertEqual(self.fake_process_count(process), 0)","p11b",{"$":0},{"$":138},["p12b"],"tests.test_offline_profile_input.ProfileInputTests.test_finite_nonempty_refuses_before_process_and_empty_poll_uses_same_selection"],
 

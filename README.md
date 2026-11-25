@@ -28,9 +28,9 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   browser dispatch are disabled, so you send the exported request and bring the
   response back.
 - **Connects registered single-worker dispatch to hand review.** The installed
-  command can use an original standing approval retained by the protected
-  controller, deliver the exact validated result and leave it open for an
-  independent reviewer.
+  launcher uses Codex's foreground approval for an exact registered assignment.
+  The controller retains that approval so `cwo delegate` can deliver the
+  validated result and leave it open for an independent reviewer.
   The older lead-run supervision checks are advisory.
 - **Keeps delivered work open until it is accepted.** The lead records a
   `pending-acceptance` delivery. A reviewer working by hand can accept and close

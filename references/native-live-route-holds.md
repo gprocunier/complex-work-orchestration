@@ -119,6 +119,20 @@ Production admission and authentication isolation have offline witnesses.
 
 ### Standing-approved delegation
 
+In the local `cwo-codex` session, use `cwo-delegation`'s
+`authorize_assignment` tool for an open Bead with a requirement baseline.
+Supply the exact task, baseline path, applied amendments in order if any,
+and one project-relative output path with its exact UTF-8 text. Codex shows
+the assignment, output, provider and budget in its foreground form. An
+affirmative choice there allows the controller to retain that exact scope.
+A matching retained approval is reused.
+
+The approval server is a child of the local Codex foreground process and uses
+that process's private stdio pipes. The registered worker runs in separate
+mount and process namespaces with only the registered finite tool surface.
+The worker cannot access controller state or signing keys. Unrestricted
+processes running as the controller account are part of the trusted host.
+
 The protected controller retains an already approved `RegisteredN1Workflow`
 with `registered_delegation_entry.retain_approved_assignment(workflow)`.
 Pass `standing_delegation` as a `delegate_internal_work.StandingDelegation`
@@ -139,10 +153,9 @@ After retention, run `cwo delegate --task <exact task> --baseline <file>
 selects by the checkout, Beads database, Bead, exact task and resolved baseline.
 It verifies the retained custody against a separate project key in the private
 installation host store and checks the original approval again. It refuses a
-missing or changed approval. The dedicated worker login provides authentication
-only. On a fresh installation, a protected controller must still originate and
-retain the approval for the assignment. The registered profile requires a
-preapproved finite command and the expected output sizes and digests.
+missing or changed approval. The dedicated worker login supplies authentication.
+The registered profile uses a finite writer bound to the approved output size
+and digest.
 
 The call checks the baseline reference on the open Bead, runs the registered
 worker's original finite command, and posts its exact validated worktree

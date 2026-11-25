@@ -23,6 +23,10 @@ _MAX_KEY_BYTES = 4096
 _VERSION = 1
 
 
+class StandingApprovalMissing(ValueError):
+    """The protected store has no approval for the exact assignment."""
+
+
 def _name(project, database, bead, task, baseline):
     selection = {'project': str(project), 'database_sha256': database, 'bead': bead,
                  'task': task, 'baseline_sha256': baseline}
@@ -139,7 +143,7 @@ def _read_approval(store, name):
             raw = host_records._read_at(directory, name, _RECONCILIATION.MAX_BYTES)
     except host_records.HostRecordError as exc:
         if isinstance(exc.__cause__, FileNotFoundError):
-            raise ValueError('No protected standing approval matches this project, task and baseline.') from None
+            raise StandingApprovalMissing('No protected standing approval matches this project, task and baseline.') from None
         raise
     return _RECONCILIATION._decode(raw)
 
@@ -203,12 +207,8 @@ def _configuration(record, project, key):
         standing_directive=record['standing_directive'])
 
 
-def open_assignment(task, chain):
-    """Select by normal project identity and reopen the original configured workflow."""
-    project = workspace_capture.worktree_top_level(Path.cwd())
-    delegation._need(project is not None, 'Run delegate from the original project checkout.')
-    project = Path(project)
-    database, _run_bd = manual_delivery.project_beads(project)
+def open_project_assignment(project, database, task, chain):
+    """Reopen the original configured workflow in the selected project."""
     store = _protected_store(project)
     name = _name(project, database, chain['bead_id'], task, chain['digest'])
     record = _read_approval(store, name)
@@ -219,3 +219,12 @@ def open_assignment(task, chain):
     except (AttributeError, IndexError, KeyError, TypeError) as exc:
         raise ValueError('Protected standing approval is incomplete.') from exc
     return workflow
+
+
+def open_assignment(task, chain):
+    """Select by normal project identity and reopen the original configured workflow."""
+    project = workspace_capture.worktree_top_level(Path.cwd())
+    delegation._need(project is not None, 'Run delegate from the original project checkout.')
+    project = Path(project)
+    database, _run_bd = manual_delivery.project_beads(project)
+    return open_project_assignment(project, database, task, chain)

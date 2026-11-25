@@ -7,14 +7,17 @@ import ctypes
 from io import StringIO
 import json
 import sys
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+from uuid import UUID
 
 from tests import test_delegate_internal_work as native
 from tests.test_candidate_identity import bead
 
 import cwo
 import everyday_delegation
+import registered_delegation_foreground as foreground
 from cwo_core import candidate_identity, manual_delivery, requirement_baseline
 
 
@@ -94,6 +97,25 @@ class EverydayDelegationFlowTests(unittest.TestCase):
         host = self.workflow.config.host
         settings = dict(self.inputs.settings, host=native.W.H.OfflineN1Host(host.state, host.target, host.worker))
         return native.W.RegisteredN1Workflow(native.W.ControllerConfiguration(**settings))
+
+    def choose_foreground_approval(self, pending, *, output_text):
+        request_id = UUID(int=524)
+        args = {'task': self.inputs.task, 'baseline': str(self.baseline),
+                'output_path': 'result.txt', 'output_text': output_text}
+        messages = [
+            {'method': 'initialize', 'id': 1, 'params': {'protocolVersion': '2025-11-25',
+                                                        'capabilities': {'elicitation': {}}}},
+            {'method': 'notifications/initialized'},
+            {'method': 'tools/call', 'id': 2, 'params': {'name': 'authorize_assignment', 'arguments': args}},
+            {'id': 'cwo-standing-' + request_id.hex, 'result': {'action': 'accept', 'content': {'approve': True}}},
+        ]
+        source = StringIO(''.join(json.dumps({'jsonrpc': '2.0', **message}) + '\n' for message in messages))
+        response = StringIO()
+        compiler = Mock(return_value=pending)
+        with (patch.object(foreground, 'uuid4', return_value=request_id),
+              patch.dict(sys.modules, {'registered_delegation_preparation': SimpleNamespace(prepare=compiler)})):
+            foreground.serve(source, response, self.workflow.config.host.target)
+        return [json.loads(line) for line in response.getvalue().splitlines()], compiler
 
     def test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes(self):
         summary = 'Ready for independent review of the result file.'
@@ -208,21 +230,29 @@ class EverydayDelegationFlowTests(unittest.TestCase):
 
     def test_installed_lead_selects_the_retained_signed_assignment(self):
         from registered_delegation_approval import prepare_assignment
-        from registered_delegation_entry import retain_approved_assignment
-        from tests.test_registered_delegation_approval import fixture_approval, fixture_preparation
+        from tests.test_registered_delegation_approval import fixture_preparation
 
         preparation = fixture_preparation(self.inputs)
         pending = prepare_assignment(**preparation)
-        directive = fixture_approval(self.inputs, pending)
-        self.workflow = pending.create_workflow(directive)
         self.assertFalse(self.workflow.config.store.read_state()['operations'])
-        retain_approved_assignment(self.workflow)
-        retain_approved_assignment(pending.create_workflow(directive))
+        output_text = native.F.fixtures.host_fixtures.OUTPUT.decode()
+        ledger_class = type(self.inputs.case.ledger)
+        ledger_defaults = dict(ledger_class.__init__.__kwdefaults__, clock=self.inputs.case.ledger.clock,
+                               owner_probe=self.inputs.case.ledger.owner_probe)
+        with patch.object(ledger_class.__init__, '__kwdefaults__', ledger_defaults):
+            responses, compiler = self.choose_foreground_approval(pending, output_text=output_text)
+            self.assertEqual(responses[1]['method'], 'elicitation/create')
+            self.assertFalse(responses[-1]['result']['isError'], responses)
+            compiler.assert_called_once()
+            reused, compiler = self.choose_foreground_approval(pending, output_text=output_text)
+            self.assertEqual(len(reused), 2)
+            self.assertFalse(reused[-1]['result']['isError'], reused)
+            compiler.assert_not_called()
+            changed, compiler = self.choose_foreground_approval(pending, output_text=output_text + 'changed')
+            self.assertTrue(changed[-1]['result']['isError'], changed)
+            compiler.assert_not_called()
         summary = 'Ready for independent review.'
         case = self.inputs.case
-        ledger_class = type(case.ledger)
-        ledger_defaults = dict(ledger_class.__init__.__kwdefaults__, clock=case.ledger.clock,
-                               owner_probe=case.ledger.owner_probe)
         original_init = native.W.RegisteredN1Workflow.__init__
         selected = []
 
