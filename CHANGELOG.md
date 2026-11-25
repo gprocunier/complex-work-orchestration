@@ -6,6 +6,10 @@
 - Request primary synthesis use for an accepted salvage-only critic return through a matching architect adjudication. The request requires the exact host-recorded return and a cleared evaluation.
 - Rename the contained pool qualification tool from `cwo_finite.finite_command` to `cwo_finite.write_selected_fixture`. It takes no arguments.
 
+### Tests
+
+- Give the typed request-ID fixture its own checkout capture scratch directory.
+
 ## 1.39.0 - 2026-11-25
 
 - Delegate from ordinary checkouts with up to 64 MiB of captured worktree data and a 16 MiB limit per file.

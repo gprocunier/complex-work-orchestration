@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import tempfile
 import threading
 import time
 from types import SimpleNamespace
@@ -2244,6 +2245,10 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertEqual(attempt['charge'], attempt['amount'])
 
     def test_typed_integer_and_string_request_ids_remain_distinct(self):
+        # Keep this case's capture scratch separate from the runner's workunit directory.
+        scratch = self.fixture.repositories.root / 'EXAMPLE-capture-scratch'
+        scratch.mkdir(mode=0o700)
+        self.enterContext(patch.object(tempfile, 'tempdir', str(scratch)))
         case = self.fixture.case(archive_schedule='settled', finite_tool_mode='captured-host-tools',
                                  typed_distinct_request_ids=True, command_request_id='7',
                                  no_fake_scheduler=True, materialize_on_turn_start=True)
