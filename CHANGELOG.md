@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.36.5 - 2026-11-25
+
 ### Tests
 
 - Preserve archive failures that occur after the registered exhaustion fixture observes the archive request.
