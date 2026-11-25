@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Document controller-signed approvals and controller-prepared inputs for contained pool qualification.
+
 ## 1.36.6 - 2026-11-25
 
 - Preserve refused pool qualification results with their cleanup, lease, and accounting evidence.
