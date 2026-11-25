@@ -1317,21 +1317,29 @@ class RegisteredRequestsTests(unittest.TestCase):
 
     @contextmanager
     def hold_archive_response(self, *, release_after):
-        requested = threading.Event()
+        progress, worker_entered = threading.Event(), threading.Event()
         held, archives, waits = [], [], []
         original_receive = family.RpcProcess.receive
         archive_module = sys.modules[runtime.RegisteredAdapter.finalize.__module__]
         archive_type = archive_module.StagedThreadArchive
         original_start = archive_type.start
+        original_run = archive_type._run
 
         def start(archive):
             archives.append(archive)
             original_start(archive)
 
+        def run(archive):
+            worker_entered.set()
+            try:
+                original_run(archive)
+            finally:
+                progress.set()
+
         def receive(process, message):
             if message.get('method') == 'thread/archive':
                 held.append((process, message))
-                requested.set()
+                progress.set()
             else:
                 original_receive(process, message)
 
@@ -1340,8 +1348,11 @@ class RegisteredRequestsTests(unittest.TestCase):
                 time.sleep(seconds)
                 return
             archive, = archives
-            self.assertTrue(requested.wait(archive_module.STAGED_ARCHIVE_TERMINAL_TIMEOUT_SECONDS),
-                            'EXAMPLE original archive RPC was not issued')
+            self.assertTrue(progress.wait(archive_module.STAGED_ARCHIVE_TERMINAL_TIMEOUT_SECONDS),
+                            f'EXAMPLE archive RPC or worker settlement not observed '
+                            f'(worker entered={worker_entered.is_set()})')
+            if not held:
+                return  # The next close callback can record the worker's failure.
             if not waits:
                 self.assertFalse(archive.completion_ready())
                 self.assertIsNone(archive.server.archive_acceptance_proof(archive.thread_id))
@@ -1352,11 +1363,14 @@ class RegisteredRequestsTests(unittest.TestCase):
 
         host_time = SimpleNamespace(monotonic=time.monotonic, sleep=sleep)
         with (patch.object(archive_type, 'start', start),
+              patch.object(archive_type, '_run', run),
               patch.object(family.RpcProcess, 'receive', receive),
               patch.object(runtime.native, 'time', host_time)):
             yield waits
             archive, = archives
             self.assertTrue(archive._done.wait(3), 'EXAMPLE archive worker did not settle')
+            if not held:
+                archive.require_complete(timeout_seconds=0.0)
         self.assertEqual(len(held), 1)
 
     def test_original_control_interrupt_waits_for_the_staged_archive(self):
@@ -1372,6 +1386,28 @@ class RegisteredRequestsTests(unittest.TestCase):
         self.assertTrue(factory.adapter.archived)
         self.assertEqual(self.fixture.spawned[0].methods.count('turn/interrupt'), 1)
         self.assertEqual(self.fixture.spawned[0].methods.count('thread/archive'), 1)
+        self.assertIsNone(report['artifact'])
+        self.assertFalse((case.host.state / 'artifact').exists())
+
+    def test_original_control_interrupt_retains_archive_failure_before_rpc(self):
+        original_result = family.RpcProcess.result
+        archive_module = sys.modules[runtime.RegisteredAdapter.finalize.__module__]
+
+        def result(process, method, params):
+            if method == 'thread/read' and 'turn/interrupt' in process.methods:
+                return None
+            return original_result(process, method, params)
+
+        with (patch.object(family.RpcProcess, 'result', result),
+              self.assertRaisesRegex(archive_module.AppServerError, '^app-server-result-invalid:thread/read$')):
+            with self.hold_archive_response(release_after=0.25):
+                factory, case = self.original_driver_interrupt('check')
+
+        report = factory.execution
+        receipt = report['receipt']
+        self.assertEqual(receipt['terminal_state'], 'control-failed')
+        self.assertEqual(receipt['errors'], ['callback-failed:AppServerError:app-server-result-invalid:thread/read'])
+        self.assertNotIn('thread/archive', self.fixture.spawned[0].methods)
         self.assertIsNone(report['artifact'])
         self.assertFalse((case.host.state / 'artifact').exists())
 

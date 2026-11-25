@@ -4,6 +4,10 @@
 
 - Archive the retired three-arm prompt study and its frozen design. No study arm ever ran.
 
+### Tests
+
+- Preserve archive worker failures in the registered interrupt fixture when they occur before the archive request.
+
 ## 1.36.0 - 2026-11-24
 
 - Add guided setup for the separate Codex worker sign-in, with an isolated startup check and a standalone command for existing installs.
