@@ -64,17 +64,27 @@ bytes. Set `allowed_effects` to `native-worker`, `provider-request` and
 `target-publication` in that order. The production selector must agree in the
 signed factory specification and the original whole-route admission.
 
-Sign in once to a new, owner-private worker home using the file credential store.
-The `CODEX_HOME` assignment applies to the sign-in command only.
+Accept the installer's delegation setup prompt or pass `--setup-delegation`.
+For an existing installation, run this command from the installed skill directory.
 
 ```bash
-install -d -m 700 -- "$HOME/.cwo-worker-codex"
-CODEX_HOME="$HOME/.cwo-worker-codex" codex -c 'cli_auth_credentials_store="file"' login
+python3 scripts/setup_delegation.py
 ```
 
-Set `worker_login_home` to the absolute path in the installed embedding
-controller's `registered_n1_workflow.ControllerConfiguration` settings. The
-controller passes its existing protected settings alongside that path.
+Setup uses the account's `.cwo-worker-codex` directory by default. Use
+`--worker-home` to choose another dedicated directory and `--codex-home` to
+identify a custom main Codex home to keep separate. Setup observes app-server
+startup and cleanup in an isolated scratch home before using Codex device
+sign-in with the file credential store. For this check put the standalone Codex
+release's `bin` directory first on `PATH`. The isolated process mounts the
+selected executable and system runtime. A package launcher that needs sibling
+files can fail in that environment. The check sends no model task.
+
+Setup checks the worker login permissions and lease, then saves the path as `worker_login_home` in
+`../.cwo-host-state/<package>/worker-login.json`, relative to the skill root.
+
+A registered single-worker controller can use the saved setting or supply
+`worker_login_home` explicitly alongside its protected settings.
 
 ```python
 controller = ControllerConfiguration(
