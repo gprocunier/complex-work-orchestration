@@ -46,6 +46,7 @@ from cwo_core.native_live_campaign_contracts import (  # noqa: E402
     Version9PreallocationFaultPredecessorProofInputs,
     Version10InterruptedEmptyBoundaryPredecessorProofInputs,
     active_outer_authority_scope_key,
+    historical_campaign_critic_binding,
     validate_campaign_manifest,
     validate_full_auto_authorization as validate_full_auto_authorization_contract,
     validate_operative_full_auto_authorization,
@@ -11140,7 +11141,7 @@ def validate_campaign_launch_bindings(
         raise AppServerError("campaign-manifest-review-binding-mismatch")
     candidate = manifest["candidate"]
     if (
-        opus_review_evidence.get("exact_model") != "claude-opus-4-6"
+        opus_review_evidence.get("exact_model") != historical_campaign_critic_binding()["model"]
         or opus_review_evidence.get("candidate_commit") != candidate["commit"]
         or opus_review_evidence.get("glm_5_2_used") is not False
         or opus_review_evidence.get("model_synthesis_used") is not False

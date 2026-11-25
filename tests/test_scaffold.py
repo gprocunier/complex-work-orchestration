@@ -586,7 +586,7 @@ class ScaffoldTests(unittest.TestCase):
         self.assertEqual(by_lane[gemini_lane]["metadata"]["codex_pickup"], "forbidden")
         self.assertEqual(
             by_lane[claude_lane]["metadata"]["architecture_critic_contract"]["manual_command"],
-            "claude --model claude-opus-4-6 --effort xhigh -p",
+            "claude --model claude-opus-5-5 --effort high -p",
         )
 
     def test_closed_critic_panel_creates_only_authorized_synthesis_inputs(self) -> None:

@@ -148,7 +148,7 @@
       "executor": "gemini_architecture_critic",
       "role": "architecture-critic",
       "provider_camp": "google",
-      "effort": "pro-preview",
+      "effort": "configured",
       "external": true,
       "synthesis_use": "salvage-only"
     },

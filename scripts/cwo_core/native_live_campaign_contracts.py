@@ -80,8 +80,6 @@ EXACT_STEERING_MODEL = "gpt-5.6-sol"
 EXACT_STEERING_EFFORT = "max"
 EXACT_OPERATIVE_MODEL = "gpt-5.3-codex-spark"
 EXACT_OPERATIVE_EFFORT = "low"
-EXACT_CRITIC_MODEL = "claude-opus-4-6"
-EXACT_CRITIC_EFFORT = "max"
 CAMPAIGN_AUTHORITY_IDENTITY_SOURCE = (
     "native-live-campaign-outer-authority-policy:v1"
 )
@@ -117,6 +115,14 @@ CONTAINED_ROLE_TOOL_PREFIXES = {
 }
 HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def historical_campaign_critic_binding() -> dict[str, str]:
+    """Use the frozen executor binding for retired campaign artifacts."""
+    schema_path = Path(__file__).resolve().parents[2] / AUTHORIZATION_SCHEMA
+    schema = json.loads(schema_path.read_bytes())
+    return schema["$defs"]["executors"]["properties"]["outside_critic"]["const"]
+
 
 AUTHORIZATION_FIELDS = {
     "authorization_type",
@@ -2558,12 +2564,7 @@ def _validate_historical_authorization_v4(
             "historical-authorization-critic",
             errors,
         )
-        != {
-            "model": EXACT_CRITIC_MODEL,
-            "effort": EXACT_CRITIC_EFFORT,
-            "surface": "claude-cli-as-greg",
-            "authority": "evidence-only",
-        }
+        != historical_campaign_critic_binding()
     ):
         errors.append("historical-authorization-executors-invalid")
 
@@ -2786,12 +2787,7 @@ def _validate_historical_manifest_v1(
             "session_policy": "fresh-nonresumable-nonsalvageable",
         }
         or _strict(executors.get("outside_critic"), CRITIC_EXECUTOR_FIELDS, "historical-manifest-critic", errors)
-        != {
-            "model": EXACT_CRITIC_MODEL,
-            "effort": EXACT_CRITIC_EFFORT,
-            "surface": "claude-cli-as-greg",
-            "authority": "evidence-only",
-        }
+        != historical_campaign_critic_binding()
     ):
         errors.append("historical-manifest-executors-invalid")
     reviews = _strict(
@@ -3527,12 +3523,7 @@ def _validate_full_auto_authorization_v5(
         "session_policy": "fresh-nonresumable-nonsalvageable",
     }:
         errors.append("authorization-operative-executor-invalid")
-    if critic != {
-        "model": EXACT_CRITIC_MODEL,
-        "effort": EXACT_CRITIC_EFFORT,
-        "surface": "claude-cli-as-greg",
-        "authority": "evidence-only",
-    }:
+    if critic != historical_campaign_critic_binding():
         errors.append("authorization-critic-executor-invalid")
 
     resource_limits = _strict(
@@ -7283,12 +7274,7 @@ def _validate_campaign_manifest_v2(
         "session_policy": "fresh-nonresumable-nonsalvageable",
     }:
         errors.append("campaign-manifest-operative-invalid")
-    if _strict(executors.get("outside_critic"), CRITIC_EXECUTOR_FIELDS, "campaign-manifest-critic", errors) != {
-        "model": EXACT_CRITIC_MODEL,
-        "effort": EXACT_CRITIC_EFFORT,
-        "surface": "claude-cli-as-greg",
-        "authority": "evidence-only",
-    }:
+    if _strict(executors.get("outside_critic"), CRITIC_EXECUTOR_FIELDS, "campaign-manifest-critic", errors) != historical_campaign_critic_binding():
         errors.append("campaign-manifest-critic-invalid")
     if manifest.get("expected_roles") != list(EXPECTED_ROLES) or manifest.get("successful_turn_starts_exact") != len(EXPECTED_ROLES):
         errors.append("campaign-manifest-role-contract-invalid")
