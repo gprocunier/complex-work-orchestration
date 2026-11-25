@@ -5,7 +5,6 @@ import argparse
 import json
 import re
 import sys
-from pathlib import Path
 from typing import Any
 
 from cwo_core.routing import current_authority_file_arguments
@@ -38,7 +37,7 @@ from cwo_core.routing import (
     unmet_required_experts_message,
 )
 from cwo_core.synthesis import synthesis_lane_enabled
-from cwo_core.util import read_text_arg, read_text_segments
+from cwo_core.util import load_optional_json, read_text_arg, read_text_segments
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 from cwo_core.workgraph_markdown import (
     FIELD_DEPENDS_ON_LANES,
@@ -75,15 +74,6 @@ SPARK_DISPATCH_METADATA_FIELDS = (
     "failed_native_capability_check",
     "failed_native_capability_check_justification",
 )
-
-
-def _load_optional_json(path: str | None) -> dict[str, Any] | None:
-    if not path:
-        return None
-    value = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise SystemExit(f"{path} must contain a JSON object")
-    return value
 
 
 def body(purpose: str, expected: str) -> str:
@@ -1623,12 +1613,12 @@ def main() -> None:
             execution_environment=args.execution_environment,
             model_synthesis=args.model_synthesis,
             beads_context_depth=args.beads_context_depth,
-            operative_capabilities=_load_optional_json(args.operative_capabilities),
-            operative_work_estimate=_load_optional_json(args.operative_work_estimate),
-            operative_fallback_fit=_load_optional_json(args.operative_fallback_fit),
-            fallback_selection=_load_optional_json(args.fallback_selection),
-            operative_context=_load_optional_json(args.operative_context),
-            aggregate_budget=_load_optional_json(args.aggregate_budget),
+            operative_capabilities=load_optional_json(args.operative_capabilities),
+            operative_work_estimate=load_optional_json(args.operative_work_estimate),
+            operative_fallback_fit=load_optional_json(args.operative_fallback_fit),
+            fallback_selection=load_optional_json(args.fallback_selection),
+            operative_context=load_optional_json(args.operative_context),
+            aggregate_budget=load_optional_json(args.aggregate_budget),
             operative_evaluated_at=args.operative_evaluated_at,
             **current_authority_file_arguments(args.current_authority),
         )

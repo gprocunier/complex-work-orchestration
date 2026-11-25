@@ -490,17 +490,6 @@ def _finalize_segment(
     return segment
 
 
-def _status_worst(worst: str, candidate: str) -> str:
-    rank = {
-        "within-budget": 0,
-        "soft-limit": 1,
-        "needs-architect-realignment": 2,
-        "budget-exhausted": 3,
-        "model-mismatch": 4,
-    }
-    return candidate if rank[candidate] > rank[worst] else worst
-
-
 def _status_to_return_code(status: str) -> int:
     if status in {"model-mismatch", "budget-exhausted", "needs-architect-realignment"}:
         return 2

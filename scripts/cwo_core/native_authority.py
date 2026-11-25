@@ -763,15 +763,6 @@ def sign_operator_approval_receipt(
     return receipt
 
 
-def _nested_value(value: Mapping[str, Any], *path: str) -> Any:
-    current: Any = value
-    for part in path:
-        if not isinstance(current, Mapping):
-            return None
-        current = current.get(part)
-    return current
-
-
 def protected_change_snapshot(value: Any) -> dict[str, Any]:
     """Project an artifact to the exact fields governed by operator policy."""
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from collections.abc import Mapping
 from copy import deepcopy
 from fnmatch import fnmatch
@@ -2350,70 +2349,6 @@ def _commitment_normalization_failure(errors: list[str]) -> dict[str, Any]:
         "errors": list(errors),
         "model_retry_allowed": False,
     }
-
-
-def _normalize_commitment_decision(value: Any) -> str | None:
-    if not isinstance(value, str) or not value.strip():
-        return None
-    candidate = value.strip().lower()
-    aliases = {
-        "accept": "accept",
-        "approve": "accept",
-        "proceed": "accept",
-        "pm-realignment": "pm-realignment",
-        "refine": "pm-realignment",
-        "refinement": "pm-realignment",
-        "architect-realignment": "architect-realignment",
-        "architect": "architect-realignment",
-    }
-    return aliases.get(candidate)
-
-
-def _plain_text_commitment_source(raw: str) -> tuple[dict[str, Any] | None, list[str]]:
-    decision_hits: set[str] = set()
-    for alias in (
-        "accept",
-        "approve",
-        "proceed",
-        "pm-realignment",
-        "refine",
-        "refinement",
-        "architect-realignment",
-        "architect",
-    ):
-        if re.search(rf"(?<![A-Za-z0-9_-]){re.escape(alias)}(?![A-Za-z0-9_-])", raw, flags=re.IGNORECASE):
-            normalized = _normalize_commitment_decision(alias)
-            if normalized:
-                decision_hits.add(normalized)
-    if len(decision_hits) != 1:
-        return None, ["plain-text commitment decision is missing or ambiguous"]
-
-    field_aliases = {
-        "tool_calls_p50": ("tool_calls_p50", "calls_p50"),
-        "tool_calls_p90": ("tool_calls_p90", "calls_p90"),
-        "runtime_seconds_p50": ("runtime_seconds_p50", "runtime_p50"),
-        "runtime_seconds_p90": ("runtime_seconds_p90", "runtime_p90"),
-    }
-    estimates: dict[str, int] = {}
-    errors: list[str] = []
-    for canonical, aliases in field_aliases.items():
-        pattern = "|".join(re.escape(alias) for alias in aliases)
-        matches = re.findall(rf"(?:{pattern})\s*[:=]\s*([0-9]+)", raw, flags=re.IGNORECASE)
-        if len(matches) != 1:
-            errors.append(f"plain-text commitment requires exactly one {canonical}")
-        else:
-            estimates[canonical] = int(matches[0])
-    confidence_matches = re.findall(r"confidence\s*[:=]\s*(0(?:\.[0-9]+)?|1(?:\.0+)?)", raw, flags=re.IGNORECASE)
-    if len(confidence_matches) != 1:
-        errors.append("plain-text commitment requires exactly one numeric confidence")
-    if errors:
-        return None, errors
-    return {
-        "decision": next(iter(decision_hits)),
-        "confidence": float(confidence_matches[0]),
-        "estimates": estimates,
-        "reason": "normalized from one-pass plain-text commitment",
-    }, []
 
 
 def normalize_worker_commitment_response(

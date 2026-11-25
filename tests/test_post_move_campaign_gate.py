@@ -41,7 +41,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import run_native_pool_live_canaries as LIVE  # noqa: E402
 from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
-from tests.historical_campaign_launcher import run_historical_launcher
+from tests import historical_campaign_launcher
+from tests.historical_campaign_launcher import PRE_RETIREMENT, launcher_before_retirement, pinned_blob, run_archived_cases
 from tests.real_beads_fixture import configure_git_fixture
 
 
@@ -100,6 +101,22 @@ class GitEffectSpyTests(unittest.TestCase):
                      ["-C"], ["-c", "core.fsmonitor=attack", "show", "HEAD"]):
             with self.subTest(args=args):
                 self.assertIsNone(read_only_git_command(["git", *args]))
+
+    def test_exact_witness_refuses_incomplete_or_wrong_objects_in_full_history(self):
+        with tempfile.TemporaryDirectory() as directory, \
+                mock.patch.object(historical_campaign_launcher, "ROOT", Path(directory)):
+            with self.assertRaisesRegex(unittest.SkipTest, "requires a Git checkout"):
+                pinned_blob(PRE_RETIREMENT, RUNNER)
+            git(Path(directory), "init", "-q")
+            with self.assertRaisesRegex(AssertionError, "required campaign witness commit unavailable"):
+                pinned_blob(PRE_RETIREMENT, RUNNER)
+        with mock.patch.object(historical_campaign_launcher, "ROOT", FIXTURE.root):
+            with self.assertRaisesRegex(AssertionError, "campaign witness is not a commit"):
+                pinned_blob(BASE_TREE_B8F6251, RUNNER)
+            with self.assertRaisesRegex(AssertionError, "campaign witness Git read failed"):
+                pinned_blob(BASE_COMMIT_B8F6251, "EXAMPLE-absent.py")
+
+
 # The round-3 source-shape test, kept only to show each bypass tree would pass it.
 SOURCE_SHAPE_MARKER = re.compile(rb"^class AppServer\b", re.MULTILINE)
 IDENTITY_UNKNOWN = "validator-contract-v6-pre-move-identity-unknown"
@@ -322,12 +339,14 @@ class ValidatorContractV6TreeTests(unittest.TestCase):
                 self.assertEqual(self.errors(tree, FIXTURE.root), [IDENTITY_UNKNOWN, *ALL_MISSING])
 
     def test_the_candidate_tree_is_refused(self) -> None:
-        tree = git(ROOT, "rev-parse", "HEAD^{tree}")
-        self.assertEqual(self.errors(tree, ROOT), [IDENTITY_UNKNOWN, POST_MOVE])
-        self.assertEqual(self.errors(self.repository.trees["post-move"]),
-                         [IDENTITY_UNKNOWN, POST_MOVE])
+        tree = self.repository.trees["post-move"]
+        self.assertEqual(self.errors(tree), [IDENTITY_UNKNOWN, POST_MOVE])
         # V6 itself still computes on that tree: the gate, not V6, refuses it.
-        self.assertRegex(CONTRACTS.validator_contract_sha256_v6(ROOT, tree), r"^[0-9a-f]{64}$")
+        self.assertRegex(CONTRACTS.validator_contract_sha256_v6(self.repository.root, tree), r"^[0-9a-f]{64}$")
+        if (ROOT / ".git").exists():
+            tree = git(ROOT, "rev-parse", "HEAD^{tree}")
+            self.assertEqual(self.errors(tree, ROOT), [IDENTITY_UNKNOWN, POST_MOVE])
+            self.assertRegex(CONTRACTS.validator_contract_sha256_v6(ROOT, tree), r"^[0-9a-f]{64}$")
 
     def test_missing_moved_sources_are_refused_and_named(self) -> None:
         trees = self.repository.trees
@@ -434,8 +453,8 @@ def _tree_state(root: Path) -> dict[str, str]:
     }
 
 
-def drive_launcher(directory: Path, repository: Path, tree: str, *, historical: bool) -> dict:
-    """Run the selected launcher offline with the same checkpoint and candidate tree."""
+def drive_current_launcher(directory: Path, repository: Path, tree: str) -> dict:
+    """Run the current launcher offline with the formerly accepted fixture tree."""
 
     inputs = directory / "inputs"
     outputs = directory / "outputs"
@@ -516,7 +535,7 @@ def drive_launcher(directory: Path, repository: Path, tree: str, *, historical: 
         stack.enter_context(redirect_stderr(stderr))
         stack.enter_context(redirect_stdout(io.StringIO()))
         try:
-            return_code = run_historical_launcher(LIVE) if historical else LIVE.main()
+            return_code = LIVE.main()
         except SystemExit as exc:  # argparse refusal: recorded, never a pass
             return_code = f"system-exit:{exc.code}"
     lines = [line for line in stderr.getvalue().splitlines() if line.startswith("{")]
@@ -551,11 +570,6 @@ class PostMoveCampaignGateLauncherTests(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls._temporary.cleanup()
 
-    def drive(self, label: str, *, historical: bool = True) -> dict:
-        with tempfile.TemporaryDirectory() as directory:
-            return drive_launcher(Path(directory) / "case", self.repository.root,
-                                  self.repository.trees[label], historical=historical)
-
     def assert_no_effect(self, record: dict) -> None:
         self.assertEqual(record["return_code"], 1)
         self.assertIs(record["failure_evidence_persisted"], False)
@@ -564,83 +578,21 @@ class PostMoveCampaignGateLauncherTests(unittest.TestCase):
         self.assertEqual(record["files_created_or_changed"], [])
         self.assertLessEqual(set(record["git_commands"]), READ_ONLY_GIT)
 
-    def assert_refused_before_any_effect(self, record: dict, failure_code: str) -> None:
-        self.assertEqual(record["failure_code"], failure_code)
-        self.assert_no_effect(record)
-        self.assertEqual(record["operative_validator_calls"], 1)
-        self.assertEqual(record["write_effect_calls"], {name: 0 for name in record["write_effect_calls"]})
-        # Refused first: no later preclaim check ran.
-        self.assertEqual(record["preclaim_stub_calls"], {name: 0 for name in _PRECLAIM_STUBS})
-
-    def test_control_allowlisted_pre_move_trees_reach_the_global_claim(self) -> None:
-        # The base tree (newest allowlisted pair) and the V6-introducing tree (oldest).
-        for label in ("pre-move", "v6-introduced"):
-            with self.subTest(tree=label):
-                record = self.drive(label)
-                self.assertEqual(record["failure_code"], "_EffectReached")
-                self.assert_no_effect(record)
-                self.assertEqual(record["operative_validator_calls"], 1)
-                self.assertEqual(record["preclaim_stub_calls"],
-                                 {name: 1 for name in _PRECLAIM_STUBS})
-                expected_writes = {name: 0 for name in record["write_effect_calls"]}
-                expected_writes["acquire_global_campaign_claim"] = 1
-                self.assertEqual(record["write_effect_calls"], expected_writes)
+    def test_pre_retirement_launcher_tree_gate_and_refusals(self) -> None:
+        launcher_before_retirement()
+        run_archived_cases(self, PRE_RETIREMENT,
+                           "tests.test_post_move_campaign_gate.PostMoveCampaignGateLauncherTests")
 
     def test_current_launcher_refuses_before_the_historical_gate(self) -> None:
-        record = self.drive("pre-move", historical=False)
+        with tempfile.TemporaryDirectory() as directory:
+            record = drive_current_launcher(Path(directory) / "case", self.repository.root,
+                                            self.repository.trees["pre-move"])
         self.assertEqual(record["failure_code"], "legacy-pool-execution-retired")
         self.assert_no_effect(record)
         self.assertEqual(record["operative_validator_calls"], 0)
         self.assertEqual(record["git_commands"], [])
         self.assertEqual(record["preclaim_stub_calls"], {name: 0 for name in _PRECLAIM_STUBS})
         self.assertEqual(record["write_effect_calls"], {name: 0 for name in record["write_effect_calls"]})
-
-    def test_v6_on_a_post_move_tree_is_refused_before_any_effect(self) -> None:
-        record = self.drive("post-move")
-        self.assert_refused_before_any_effect(
-            record, "campaign-validator-contract-v6-refused:v6-post-move-tree;"
-            "v6-pre-move-identity-unknown")
-
-    def test_missing_moved_sources_are_refused_before_any_effect(self) -> None:
-        for label, codes in (
-            ("post-move-app-server-missing",
-             "v6-moved-source-missing;v6-post-move-tree;v6-pre-move-identity-unknown"),
-            ("post-move-all-moved-sources-missing",
-             "v6-moved-source-missing;v6-pre-move-identity-unknown"),
-        ):
-            with self.subTest(tree=label):
-                record = self.drive(label)
-                self.assert_refused_before_any_effect(
-                    record, f"campaign-validator-contract-v6-refused:{codes}")
-
-    def test_source_shape_bypasses_are_refused_before_any_effect(self) -> None:
-        for label in SOURCE_SHAPE_BYPASSES:
-            with self.subTest(tree=label):
-                record = self.drive(label)
-                self.assert_refused_before_any_effect(
-                    record, "campaign-validator-contract-v6-refused:"
-                    "v6-moved-source-missing;v6-pre-move-identity-unknown")
-
-    def test_mismatched_checkpoint_and_candidate_trees_are_each_checked(self) -> None:
-        trees = self.repository.trees
-        inputs = mock.MagicMock()
-        inputs.authorization.value = {"bindings": {"checkpoint_tree": trees["pre-move"]}}
-        inputs.manifest.value = {"candidate": {"tree": trees["post-move"]}}
-        with mock.patch.object(LIVE, "ROOT", self.repository.root), \
-                mock.patch.object(CONTRACTS, "_V6_PRE_MOVE_IDENTITY_PAIRS", FIXTURE.pairs):
-            with self.assertRaisesRegex(
-                LIVE.AppServerError,
-                "^campaign-validator-contract-v6-refused:v6-post-move-tree;"
-                "v6-pre-move-identity-unknown$",
-            ):
-                LIVE.require_validator_contract_binds_campaign_trees(inputs)
-            inputs.manifest.value = {"candidate": {}}
-            with self.assertRaisesRegex(
-                LIVE.AppServerError, "^campaign-validator-contract-v6-refused:tree-invalid$"
-            ):
-                LIVE.require_validator_contract_binds_campaign_trees(inputs)
-            inputs.manifest.value = {"candidate": {"tree": trees["pre-move"]}}
-            self.assertIsNone(LIVE.require_validator_contract_binds_campaign_trees(inputs))
 
 
 if __name__ == "__main__":

@@ -7,7 +7,6 @@ from collections import UserDict
 from contextlib import ExitStack, contextmanager
 import hashlib
 import importlib
-import inspect
 import os
 from pathlib import Path
 import socket
@@ -18,7 +17,7 @@ from types import MappingProxyType, ModuleType
 import unittest
 from unittest import mock
 
-from tests.historical_campaign_launcher import launcher_before_retirement
+from tests.historical_campaign_launcher import PRE_RETIREMENT, RETIRED_CAMPAIGN, RUNNER_PATH, pinned_blob
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -120,6 +119,80 @@ class _BrokenObservation(UserDict):
         raise ValueError("EXAMPLE observation lookup failed")
 
 
+class ArchivedTurnObservationSourceTests(unittest.TestCase):
+    @staticmethod
+    def definition(source, *names):
+        node = ast.parse(source)
+        for name in names:
+            node = next(entry for entry in node.body if getattr(entry, "name", None) == name)
+        return "".join(source.splitlines(keepends=True)[node.lineno - 1:node.end_lineno])
+
+    @staticmethod
+    def pool_body_projection(source):
+        exercise = next(node for node in ast.parse(source).body
+                        if isinstance(node, ast.FunctionDef) and node.name == "run_pool_canary")
+        lines = source.splitlines(keepends=True)
+        return "".join([*lines[:exercise.body[0].lineno - 1], "    pass\n", *lines[exercise.end_lineno:]])
+
+    def setUp(self):
+        self.enterContext(_import_scope())
+
+    def test_archived_facade_sources_and_helper_syntax_are_pinned(self):
+        for revision, digest in (
+            (RETIRED_CAMPAIGN, "9c99a031e5d19651ba9c86f1b231785ac57b317ed3587e8be39fbd7fa810b4fc"),
+            ("e5a4794ed89fee4774f68cd21f09c0968b1e2f35",
+             "5d466ed931620e83c1c62be7874ce921cfcbaca9f38cbf95962de9aa5b8ee11a"),
+            (PRE_RETIREMENT, PRE_RETIREMENT_FACADE_PIN[0]),
+        ):
+            with self.subTest(revision=revision):
+                self.assertEqual(hashlib.sha256(pinned_blob(revision, RUNNER_PATH)).hexdigest(), digest)
+        before_retirement = pinned_blob(PRE_RETIREMENT, RUNNER_PATH).decode("utf-8")
+        self.assertEqual(hashlib.sha256(self.pool_body_projection(before_retirement).encode()).hexdigest(),
+                         PRE_RETIREMENT_FACADE_PIN[1])
+
+        original = pinned_blob("eab481bd11a7026fb08e7dff035c3293a8f7ba9d", RUNNER_PATH).decode("utf-8")
+        historical = self.pool_body_projection(original)
+        # Reconstruct the original facade from exact campaign-adapter
+        # additions and the single docstring-line change, retaining occurrence
+        # checks before comparing the preserved historical digest.
+        for addition in (
+            "        campaign_live_route: bool = True,\n",
+            "        self.campaign_live_route = campaign_live_route\n",
+            "            self._require_campaign_live_route()\n",
+            "                    self._require_campaign_live_route()\n",
+            self.definition(original, "LiveThreadAdapter", "_require_campaign_live_route") + "\n",
+            "            campaign_live_route=True,\n",
+        ):
+            lines = historical.splitlines(keepends=True)
+            if len(addition.splitlines()) == 1:
+                self.assertEqual(lines.count(addition), 1)
+                historical = "".join(line for line in lines if line != addition)
+            else:
+                self.assertEqual(historical.count(addition), 1)
+                historical = historical.replace(addition, "")
+        current_docstring_line = (
+            "    new manifest generation with filesystem observations that do not run repository code.\n"
+        )
+        original_docstring_line = (
+            "    new manifest generation; see ledger disablement W03-guarded-primary-diff.\n"
+        )
+        self.assertEqual(historical.count(current_docstring_line), 1)
+        historical = historical.replace(current_docstring_line, original_docstring_line, 1)
+        full, projected = ARCHIVED_FACADE_PIN
+        self.assertEqual(hashlib.sha256(historical.encode()).hexdigest(), projected,
+                         f"canary-body projection of historical facade {full} drifted")
+        owner_source = pinned_blob(RETIRED_CAMPAIGN, OWNER_PATH).decode("utf-8")
+        for name, digest in (
+            ("turn_from_thread", "67cbf63780dc9e42275a541295ebfa7a2078e755796d39d9a1b836085f370573"),
+            ("turn_items", "31876101d8d58e12889513eb357e1433b1c8a98ae3a8991198cea07b49a6123b"),
+        ):
+            old_source = self.definition(before_retirement, name)
+            new_source = self.definition(owner_source, name)
+            self.assertEqual(hashlib.sha256(old_source.encode()).hexdigest(), digest)
+            self.assertEqual(new_source, old_source)
+            self.assertEqual(ast.dump(ast.parse(new_source)), ast.dump(ast.parse(old_source)))
+
+
 class TurnObservationTests(unittest.TestCase):
     def setUp(self):
         stack = ExitStack()
@@ -140,180 +213,6 @@ class TurnObservationTests(unittest.TestCase):
                     self.assertIs(actual, expected)
                 if expected_turn is not None:
                     self.assertIsNot(items, expected_turn.get("items"))
-
-    def _facade_before_registered_finite_evidence(self, source):
-        additions = (
-            (inspect.getsource(self.facade._bind_receipt_workdirs) + "\n\n", 1),
-            ("    registered_tool_projector: Callable[..., None] | None = None,\n", 2),
-            ("    tool_records = records[start_index + 1 : end_index]\n", 1),
-            (
-                "    if registered_tool_projector is not None:\n"
-                "        registered_tool_projector(turn_id, tool_records, calls, terminal_event is not None)\n",
-                1,
-            ),
-            (
-                '        and (not receipt.get("_registered_finite")\n'
-                '             or receipt["typed_result"]["kind"] == "paired-success")\n',
-                1,
-            ),
-            ("        registered_tool_projector=registered_tool_projector,\n", 1),
-            (inspect.getsource(self.facade.LiveThreadAdapter._registered_tool_projector) + "\n", 1),
-            ("                registered_tool_projector=self._registered_tool_projector(),\n", 2),
-        )
-        for addition, count in additions:
-            self.assertEqual(source.count(addition), count)
-            source = source.replace(addition, "")
-
-        replacements = (
-            ("        tool_records,\n", "        records[start_index + 1 : end_index],\n", 2),
-            (
-                "    _bind_receipt_workdirs(calls, controller_workdir)\n",
-                "    for receipt in calls:\n"
-                "        binding = _exec_workdir_binding(receipt, controller_workdir)\n"
-                '        receipt["_workdir_binding"] = binding\n'
-                '        typed_result = receipt.get("typed_result")\n'
-                "        if (\n"
-                "            isinstance(typed_result, dict)\n"
-                '            and typed_result.get("kind") == "paired-input-error"\n'
-                "            and isinstance(binding, Mapping)\n"
-                '            and binding.get("disposition") == "recoverable-nonexistent-workdir"\n'
-                "        ):\n"
-                '            typed_result["kind"] = "paired-recoverable-workdir-input-error"\n',
-                1,
-            ),
-            (
-                "        activity = {\n"
-                '            "tool": tool,\n'
-                '            "evidence_sha256": canonical_sha256(activity_payload),\n'
-                '            "pairing_status": receipt.get("pairing_status"),\n'
-                '            "result_kind": result_kind,\n'
-                "        }\n"
-                '        if receipt.get("_registered_finite") is True:\n'
-                '            activity["registered_finite"] = True\n'
-                "        trusted_activity.append(activity)\n",
-                "        trusted_activity.append(\n"
-                "            {\n"
-                '                "tool": tool,\n'
-                '                "evidence_sha256": canonical_sha256(activity_payload),\n'
-                '                "pairing_status": receipt.get("pairing_status"),\n'
-                '                "result_kind": result_kind,\n'
-                "            }\n"
-                "        )\n",
-                1,
-            ),
-        )
-        for current, previous, count in replacements:
-            self.assertEqual(source.count(current), count)
-            source = source.replace(current, previous)
-        return source
-
-    def _assert_facade_projection(self, source: str, pin: tuple[str, str]) -> None:
-        full, projected = pin
-        self.assertEqual(
-            hashlib.sha256(source.encode()).hexdigest(),
-            projected,
-            f"canary-body projection of historical facade {full} drifted",
-        )
-
-    def _facade_projection_before_pool_retirement(self, source: str) -> str:
-        entries = [
-            node for node in ast.parse(source).body
-            if isinstance(node, ast.FunctionDef) and node.name == "run_pool_canary"
-        ]
-        self.assertEqual(len(entries), 1)
-        entry = entries[0]
-        lines = source.splitlines(keepends=True)
-        start, end = entry.body[0].lineno - 1, entry.end_lineno
-        self.assertEqual(
-            "".join(lines[start:end]),
-            '    """Refuse the retired v1 pool canary before preparing a worker."""\n'
-            "    live_availability.require_campaign_live()\n"
-            "    live_availability.require_pool_live()\n"
-            "    live_availability.require_n1_live()\n"
-            "    raise LegacyNativePoolExecutionRetired()\n",
-        )
-        # The signature and all surrounding source stay in the archived hash projection.
-        source = "".join([*lines[:start], "    pass\n", *lines[end:]])
-        replacements = (
-            (
-                "from cwo_core.native_pool import LegacyNativePoolExecutionRetired  # noqa: E402\n",
-                "from cwo_core.native_pool import NativePoolCoordinator  # noqa: E402\n",
-            ),
-            (
-                "    validate_completion_evidence_policy,\n    write_private_artifact,\n",
-                "    validate_completion_evidence_policy,\n    validate_pool_receipt,\n    write_private_artifact,\n",
-            ),
-            (
-                "from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402\n",
-                "from cwo_core.native_pool_leases import PoolLeaseRegistry, capture_owner_identity  # noqa: E402\n",
-            ),
-            (inspect.getsource(self.facade.main), launcher_before_retirement(self.facade)),
-        )
-        for current, previous in replacements:
-            self.assertEqual(source.count(current), 1)
-            source = source.replace(current, previous, 1)
-        self._assert_facade_projection(source, PRE_RETIREMENT_FACADE_PIN)
-        return source
-
-    def test_f5_current_facade_source_and_archived_helper_syntax_are_pinned(self):
-        source = Path(self.facade.__file__).read_bytes()
-        self.assertEqual(
-            hashlib.sha256(source).hexdigest(),
-            "9c99a031e5d19651ba9c86f1b231785ac57b317ed3587e8be39fbd7fa810b4fc",
-        )
-        before_critic_binding = source.decode()
-        for current, previous in (
-            ("    historical_campaign_critic_binding,\n", ""),
-            (
-                '        opus_review_evidence.get("exact_model") != historical_campaign_critic_binding()["model"]\n',
-                '        opus_review_evidence.get("exact_model") != "claude-opus-4-6"\n',
-            ),
-        ):
-            self.assertEqual(before_critic_binding.count(current), 1)
-            before_critic_binding = before_critic_binding.replace(current, previous, 1)
-        self.assertEqual(
-            hashlib.sha256(before_critic_binding.encode()).hexdigest(),
-            "5d466ed931620e83c1c62be7874ce921cfcbaca9f38cbf95962de9aa5b8ee11a",
-        )
-        before_retirement = self._facade_projection_before_pool_retirement(before_critic_binding)
-        historical = self._facade_before_registered_finite_evidence(before_retirement)
-        # Reconstruct the original facade from exact campaign-adapter
-        # additions and the single docstring-line change, retaining occurrence
-        # checks before comparing the preserved historical digest.
-        for addition in (
-            "        campaign_live_route: bool = True,\n",
-            "        self.campaign_live_route = campaign_live_route\n",
-            "            self._require_campaign_live_route()\n",
-            "                    self._require_campaign_live_route()\n",
-            inspect.getsource(self.facade.LiveThreadAdapter._require_campaign_live_route) + "\n",
-            "            campaign_live_route=True,\n",
-        ):
-            lines = historical.splitlines(keepends=True)
-            if len(addition.splitlines()) == 1:
-                self.assertEqual(lines.count(addition), 1)
-                historical = "".join(line for line in lines if line != addition)
-            else:
-                self.assertEqual(historical.count(addition), 1)
-                historical = historical.replace(addition, "")
-        current_docstring_line = (
-            "    new manifest generation with filesystem observations that do not run repository code.\n"
-        )
-        original_docstring_line = (
-            "    new manifest generation; see ledger disablement W03-guarded-primary-diff.\n"
-        )
-        self.assertEqual(historical.count(current_docstring_line), 1)
-        historical = historical.replace(current_docstring_line, original_docstring_line, 1)
-        self._assert_facade_projection(historical, ARCHIVED_FACADE_PIN)
-        for name, digest in (
-            ("turn_from_thread", "67cbf63780dc9e42275a541295ebfa7a2078e755796d39d9a1b836085f370573"),
-            ("turn_items", "31876101d8d58e12889513eb357e1433b1c8a98ae3a8991198cea07b49a6123b"),
-        ):
-            original, moved = getattr(self.facade, name), getattr(self.owner, name)
-            self.assertIsNot(moved, original)
-            old_source, new_source = inspect.getsource(original), inspect.getsource(moved)
-            self.assertEqual(hashlib.sha256(old_source.encode()).hexdigest(), digest)
-            self.assertEqual(new_source, old_source)
-            self.assertEqual(ast.dump(ast.parse(new_source)), ast.dump(ast.parse(old_source)))
 
     def test_first_match_preserves_mapping_items_order_and_identity(self):
         first = {"type": "userMessage", "text": "EXAMPLE first"}

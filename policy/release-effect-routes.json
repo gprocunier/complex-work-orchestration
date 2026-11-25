@@ -806,7 +806,7 @@
 
 "ar":[64,"_RegisteredServer.request",1583,"F7qUf87ct4grQA3qqyu0PPu8grnCDj62kKmQ705-mW4"],
 
-"as":[76,1716,"try_dep(blocked, blocker, dependency_type)",16,1716,58],
+"as":[76,1706,"try_dep(blocked, blocker, dependency_type)",16,1706,58],
 
 "at":[63,953,{"$":148}],
 
@@ -840,7 +840,7 @@
 
 "b7":[50,130,"DRY_RUN=0"],
 
-"b8":[76,1674,"epic = create_bead("],
+"b8":[76,1664,"epic = create_bead("],
 
 "b9":[15,"main",588,"1PO0mATJmFLdBYd-7ok34HnjQifkGRsznraNrjwB4Ic"],
 
@@ -934,7 +934,7 @@
 
 "bs":[84,"AuthorizeSolBreakfixTests.assert_non_dry_refusal",31,"SqIvrxj-V1kV8QMiPpGB97JBAoCtGl-XsPfwYThzRcU"],
 
-"bt":[76,"try_dep",1482,"Ht0_g_gmd-1btvmtNb_hqR4pBPTqMRSRSXY9vbINkRs"],
+"bt":[76,"try_dep",1472,"Ht0_g_gmd-1btvmtNb_hqR4pBPTqMRSRSXY9vbINkRs"],
 
 "bu":[64,749,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
 
@@ -1156,7 +1156,7 @@
 
 "dd":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_zero_launch_and_independent_patched_fake_control",253,"vGB9-bpDWcC2Ues9wILWo_US0Byqdu4tAEL4lFTzgo4"],
 
-"de":[76,1646,"if not closure_pressure[\"allowed\"]:"],
+"de":[76,1636,"if not closure_pressure[\"allowed\"]:"],
 
 "df":[41,1530,"need(review_path is not None and review_sha256 is not None, \"explicit independent review path and digest required\")"],
 
@@ -1306,7 +1306,7 @@
 
 "ep":[15,113,"output = subprocess.check_output("],
 
-"eq":[76,1657,"relationships = validate_workgraph_plan(plan, for_creation=True)"],
+"eq":[76,1647,"relationships = validate_workgraph_plan(plan, for_creation=True)"],
 
 "er":[67,406,"workflow.run(controlled_failure=controlled)"],
 
@@ -1536,7 +1536,7 @@
 
 "ge":[108,"RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent",509,"3Rjzq8CLOPcRTQ-cOZ_5vHHWg9MmjHGKD2webEzXUDc"],
 
-"gf":[76,"main",1520,"aDU8ILLCZ1AdPh-8ph-70IrwsAzGmaIi_thMk9iESZA"],
+"gf":[76,"main",1510,"45j3Fhpf5Oyh4Nwn2nyG9ysoOd95K2EcXLMPKkwtAhw"],
 
 "gg":[43,1545,"self._run(args, work_tree=work_tree)",17,1545,53],
 
@@ -2056,7 +2056,7 @@
 
 "km":[9,230,"subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)",13,230,95],
 
-"kn":[76,1692,"create_bead(\n                item[\"title\"],\n                parent=epic[\"id\"],\n                # One priority rule for direct creation and the Beads graph plan.\n                priority=item_priority(item, index),\n                labels=item[\"labels\"],\n                skills=item[\"skills\"],\n                description=body(f\"Complete the {key} lane.\", f\"Evidence and result for {key}.\"),\n                acceptance=str(item[\"acceptance\"]),\n                design=str(item[\"design\"]),\n                notes=str(item[\"notes\"]),\n                metadata=item.get(\"metadata\"),\n            )",19,1704,13],
+"kn":[76,1682,"create_bead(\n                item[\"title\"],\n                parent=epic[\"id\"],\n                # One priority rule for direct creation and the Beads graph plan.\n                priority=item_priority(item, index),\n                labels=item[\"labels\"],\n                skills=item[\"skills\"],\n                description=body(f\"Complete the {key} lane.\", f\"Evidence and result for {key}.\"),\n                acceptance=str(item[\"acceptance\"]),\n                design=str(item[\"design\"]),\n                notes=str(item[\"notes\"]),\n                metadata=item.get(\"metadata\"),\n            )",19,1694,13],
 
 "ko":[8,692,{"$":253},26,692,98],
 
@@ -2194,7 +2194,7 @@
 
 "ls":[2,65,"subprocess.run(\n            [\"bd\", \"update\", \"--add-label\", \"sol-breakfix-approved\", \"--append-notes\", note, \"--\", args.bead],\n            check=True,\n        )",8,68,9],
 
-"lt":[76,1674,"create_bead(\n            epic_plan[\"title\"],\n            issue_type=\"epic\",\n            priority=1,\n            labels=epic_plan[\"labels\"],\n            skills=epic_plan[\"skills\"],\n            description=args.description or \"Policy-routed complex work epic.\",\n            acceptance=str(epic_plan[\"acceptance\"]),\n            design=str(epic_plan[\"design\"]),\n            notes=str(epic_plan[\"notes\"]),\n            metadata=epic_plan[\"metadata\"],\n        )",15,1685,9],
+"lt":[76,1664,"create_bead(\n            epic_plan[\"title\"],\n            issue_type=\"epic\",\n            priority=1,\n            labels=epic_plan[\"labels\"],\n            skills=epic_plan[\"skills\"],\n            description=args.description or \"Policy-routed complex work epic.\",\n            acceptance=str(epic_plan[\"acceptance\"]),\n            design=str(epic_plan[\"design\"]),\n            notes=str(epic_plan[\"notes\"]),\n            metadata=epic_plan[\"metadata\"],\n        )",15,1675,9],
 
 "lu":[8,630,{"$":253},26,630,98],
 
@@ -3034,7 +3034,7 @@
 
 "vN":[17,309,"atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + \"\\n\")"],
 
-"vO":[76,1660,{"$":95}],
+"vO":[76,1650,{"$":95}],
 
 "vP":[43,463,{"$":256}],
 
@@ -3112,7 +3112,7 @@
 
 "w":[116,{"$":56},260,{"$":49}],
 
-"x":[76,1488,{"$":217},8,1492,9],
+"x":[76,1478,{"$":217},8,1482,9],
 
 "x0":[149,"claim_managed_login",470,"uWJepFXiItQQNClCipDn_Ehq0-Y80G1Hf6OJ8xd_2xM"],
 
@@ -5075,11 +5075,11 @@
 
 [27,581,11,581,42,"dynamic","Fqm_x8Ou_BB2ASh70uBu64qnQWqx2AfWArJrCINaZXc",[{"$":9},"bE"]],
 
-[27,1444,49,1444,77,"dynamic",{"$":5},[{"$":9},"bF"]],
+[27,1435,49,1435,77,"dynamic",{"$":5},[{"$":9},"bF"]],
 
-[27,1542,39,1542,68,"dynamic",{"$":33},[{"$":9},"bG"]],
+[27,1533,39,1533,68,"dynamic",{"$":33},[{"$":9},"bG"]],
 
-[27,1573,37,1573,65,"dynamic",{"$":5},[{"$":9},"bH"]],
+[27,1564,37,1564,65,"dynamic",{"$":5},[{"$":9},"bH"]],
 
 [28,614,45,614,74,"dynamic",{"$":33},[{"$":9},"bI"]],
 
@@ -5781,11 +5781,11 @@
 
 [77,410,18,414,9,"process","oXS_ERA9oU90iYO6ZIAy5BxbDI_UKRezBbSFPe169mo",["route","X6.4","ld"]],
 
-[78,1488,8,1492,9,"beads","kWsGB2edrugNRfu-CSihGM1sK4fqLY_2kHClBhXQidI",["route","B1.1","x"]],
+[78,1478,8,1482,9,"beads","kWsGB2edrugNRfu-CSihGM1sK4fqLY_2kHClBhXQidI",["route","B1.1","x"]],
 
-[78,1674,15,1685,9,"beads","5wSsqzOvrgeC3zcbMtGfMVqSfSpTeQyA-n1ATdJYioE",["route","B1.1","lt"]],
+[78,1664,15,1675,9,"beads","5wSsqzOvrgeC3zcbMtGfMVqSfSpTeQyA-n1ATdJYioE",["route","B1.1","lt"]],
 
-[78,1692,19,1704,13,"beads","ujLHIZUEfPVCXtXP1YlnvQmy5q0T10KHZnPWBrQKl9s",["route","B1.1","kn"]],
+[78,1682,19,1694,13,"beads","ujLHIZUEfPVCXtXP1YlnvQmy5q0T10KHZnPWBrQKl9s",["route","B1.1","kn"]],
 
 [79,152,16,152,37,"dynamic","wi8-DVGrCSCQT8sAVS6rRHwg1dOpCGp2Z87neYRrNsc",[{"$":9},"j"]],
 
@@ -7526,7 +7526,7 @@
 
 "@75":["KqB1bJz1VDu3whWmCFdLM2WyKZHM_p4tkXrAXzF2VXY",493,27154],
 
-"@76":["_m_AwgVmyUJb9eb-4mHQKEENVlloBv2STLIfAdSBFS8",493,77914],
+"@76":["S6CxjL7UtJZvyti9Wv0g7FkbWcTCi87rplqmyEP7EHA",493,77617],
 
 "@77":["09eHBk_xTFv8wyV8WyQ16kq0H05tSjYpkrht_2wpyRY",420,76952],
 
@@ -7596,7 +7596,7 @@
 
 "scripts/check_native_worker_session.py":["oyyKtaGZrBvYPDRhSKzpNFIRZiuw8Hfct_2j8wj7LBU",420,9129],
 
-"scripts/coach_prompt.py":["gFKmnHFV23WDA4zPmuoyti-vD0meG7Erndk9apbxKqs",493,12856],
+"scripts/coach_prompt.py":["Cf2P5wh5ATSxsKY4Q68qDLnst5Szf6nwCzhx9EIUZvc",493,12556],
 
 "scripts/codex_tool_surface.py":["Nu0ql5HOoRnsFt0CLhBT8glgXOogaK4EzxvcEGGf30U",420,469],
 
@@ -7668,7 +7668,7 @@
 
 "scripts/cwo_core/native_activation_ledger.py":["epfE7c3wteMTFYH-U4-uhIiXyCcSgMsWZK2L9g7qerQ",420,31286],
 
-"scripts/cwo_core/native_authority.py":["YZxP3SgZ1G6YSNUmaO-f443tIUvtTf5a5MrBI_q8DFQ",420,83926],
+"scripts/cwo_core/native_authority.py":["8b-H1dpFODWxojvZx7QEIM_EI74oufSAJhy6P53x1Lg",420,83689],
 
 "scripts/cwo_core/native_canary_contracts.py":["73uuN_mFsG5bqgn7Gn69RJ3f4gOtyUL2qM3EmhRJkHA",420,88018],
 
@@ -7734,7 +7734,7 @@
 
 "scripts/cwo_core/native_retry.py":["RYytQc4kHd-NrOQBGq_aWcsSfZbj5DrkRsnIbwYNimg",420,32192],
 
-"scripts/cwo_core/native_session.py":["LV6qPM4qldY3BTtvaS1Z1Fx-z5te5TA53eQR3ErWPco",420,27227],
+"scripts/cwo_core/native_session.py":["ZrPbE3K8xDi6ALoYkqgwEREQ76d_B7uaoA1B6jKssuI",420,26932],
 
 "scripts/cwo_core/native_session_boundary.py":["oreCSPVuaV1d4hrPSvhR3kuz6GD0yTMZNd4sBnZlnNI",420,13643],
 
@@ -7824,11 +7824,11 @@
 
 "scripts/cwo_core/types.py":["49PwpJCAkKp0Bf-6s9wohomsdZJYm-Owlc4zu3PF3tg",420,15330],
 
-"scripts/cwo_core/util.py":["xBcquHVfl9F_TpKHPJCglP1K1SvAT9tq93zv8nTzG3c",420,6461],
+"scripts/cwo_core/util.py":["71ju5SkwRH4vbcdDiA4n3pXGGJCzjn-TKoo4ZnZwMGk",420,6749],
 
 "scripts/cwo_core/waivers.py":["3SfqVUxF03K49ZZ7gzv_Piz3TK2fyXZ90YaDIpxc0QY",420,1570],
 
-"scripts/cwo_core/work_sizing.py":["aHifPyLzo5JAdDKEPq3O1dQYul35xtIrbvmWezBHJEE",420,108246],
+"scripts/cwo_core/work_sizing.py":["pbPfYDRhO3KJAa9l9Lu_yBEaIwwWQdltnFIY8lOWuvU",420,105764],
 
 "scripts/cwo_core/workgraph_markdown.py":["8TX7ZOLmJ0cXijUheS1MuTTStGgKdWC57MICkLZATLM",420,374],
 
@@ -7934,7 +7934,7 @@
 
 "scripts/report_return_tripwire_corpus.py":["T1uIm03mKIsKsHft2xcDSJN10s4_g_vA20Oe5pBVJF4",420,4477],
 
-"scripts/route_work.py":["34dTdeJhHHF3XbymqyD6t9rs5925-PdM_fRacF7HO2Y",493,14381],
+"scripts/route_work.py":["cndkbW-u8Lw9zUFKdKybcyuCuLr5tN1FdeilIhEstLo",493,14081],
 
 "scripts/setup_workspace_database.py":["9a9lSJUdXuFlwEDvg93RdcBIyjAgfCHHp6CEvugvEN0",420,725],
 
@@ -7956,7 +7956,7 @@
 
 "scripts/validate_operator_handoff.py":["9ChQl5QieC6PZMzE_EpSnMga6K5OavXLlxhoKItDiTA",420,14854],
 
-"scripts/validate_public_copy.py":["5jvp0QaFAcImQCY6cXJcXSdDZ5rGGQgzSguKe3H8t8o",420,63926],
+"scripts/validate_public_copy.py":["Nh2VF3xdNxmpccEZqUMcJTUD9LW-oEhvzOCJKawL4hc",420,62905],
 
 "scripts/validate_repository.py":["VtqIlEDwACtAHQ4LIGUtkLAeD5NtX3Nplu0YKmojzIc",420,116382],
 
@@ -7974,7 +7974,7 @@
 
 "tests/browser_provenance_fixture.py":["uAviIxF8BoJsiyiIkskm8t54ohU0Uet-qnfzO7lAU3s",420,4582],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["XTBKySFdu5ba_QEHiCqOrVgZ_xf214IvxMdy8EXopkY",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["DtPy9AYh0CF-4geOnYpVAh9JOzM4oU5l8eRnlW4aMyw",420,136082],
 
 "tests/fixtures/outbound_screening/seed-corpus.json":["dBHsN5_GPo2EoTj1R9RtNf74uP3kavHHx5EMlEQQ-CI",420,11976],
 
@@ -7992,11 +7992,11 @@
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 
-"tests/test_turn_observations.py":["u8NljmhFbJF6Bmc1kYSKUC--O2L38KiHTHeiQB3jjkU",420,27627],
+"tests/test_turn_observations.py":["J-2hqHyx81gKiwWRLCtV20PrrkliHwf40K6qm-hI0x4",420,22507],
 
 "tests/test_validate_repository.py":["hNaVqOftTHeGNCp2Sj9X2e20UDjOhxLl_qXnN5YkZfk",420,38621],
 
-"tests/test_w20_affected_contract_w13.py":["0ZTc-fIzuyFFQaqgdsfGsw7iBPuXpDMJ0O3zY3VW9hc",420,91705]
+"tests/test_w20_affected_contract_w13.py":["jJbwKDWolkgCZLFcaGr97w-Aid3n42ByZkpiAmRY9dg",420,77051]
 },
 
 "witness_columns":[
