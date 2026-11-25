@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.35.2 - 2026-11-24
+
 ### Tests
 
 - Settle accepting replies in the registered pool launcher and validation fixtures.
