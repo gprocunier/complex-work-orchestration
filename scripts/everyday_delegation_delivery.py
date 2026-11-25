@@ -56,7 +56,7 @@ def verify_candidate(workflow, delivery: manual_delivery.Delivery, *, database: 
 
 
 def record_delivery(workflow, args, summary: str) -> str:
-    """Record the exact worker candidate using Sprint 70's original delivery producer."""
+    """Record the exact worker candidate for independent hand acceptance."""
     _need(type(workflow) is native.RegisteredN1Workflow, 'An original registered workflow is required for delivery.')
     delivery = manual_delivery.Delivery.from_args(args)
     with workflow._locked():
