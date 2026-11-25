@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.36.0 - 2026-11-24
+
 - Add guided setup for the separate Codex worker sign-in, with an isolated startup check and a standalone command for existing installs.
 
 ## 1.35.2 - 2026-11-24
