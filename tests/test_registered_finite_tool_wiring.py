@@ -3435,6 +3435,33 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
         self.assertTrue(timeout_committed.is_set())
         self.assertEqual(phases, ['unknown'])
 
+    def test_production_command_window_is_shared_by_intake_and_validation(self):
+        clock = SimpleNamespace(monotonic=lambda: 100.0)
+        cases = ((True, 'finite_command', 130.0), (True, 'finite_poll', 115.0),
+                 (False, 'finite_command', 115.0), (True, 'unregistered', 115.0))
+        with patch.object(family.runtime, 'time', clock), patch.object(finite_tools, 'time', clock):
+            for production, tool, expected in cases:
+                with self.subTest(production=production, tool=tool):
+                    lifecycle = gate_module._FiniteLifecycle(clock=clock.monotonic)
+                    lifecycle.select('EXAMPLE-epoch', ('EXAMPLE-thread', 'EXAMPLE-turn'), 115.0)
+                    factory = SimpleNamespace(production_live=production)
+                    producer = SimpleNamespace(factory=factory)
+                    pending = []
+                    server = SimpleNamespace(factory=factory, _request_ids=set(), finite_tools=producer,
+                                             finite_input=SimpleNamespace(lifecycle=lifecycle),
+                                             _tool_queue=SimpleNamespace(put_nowait=pending.append))
+                    message = {'id': 1, 'method': 'item/tool/call', 'params': {
+                        'threadId': 'EXAMPLE-thread', 'turnId': 'EXAMPLE-turn', 'callId': 'EXAMPLE-tool', 'tool': tool}}
+                    family.runtime._RegisteredServer._reply(server, message)
+                    self.assertEqual(pending, [(message, expected)])
+                    self.assertEqual(lifecycle.pending[(int, 1)][2], expected)
+                    validate = finite_tools.RegisteredFiniteToolCalls._require_deadline
+                    validate(producer, expected, tool=tool)
+                    with self.assertRaises(finite_tools.FiniteToolError):
+                        validate(producer, expected + 1, tool=tool)
+                    with self.assertRaises(finite_tools.FiniteToolError):
+                        validate(producer, clock.monotonic(), tool=tool)
+
     def test_expired_queued_command_refuses_before_owned_tool_effect(self):
         case = self.fixture.case(finite_tool_mode='captured-host-tools', short_command_deadline=True)
         case.command_prepared, case.command_release = threading.Event(), threading.Event()

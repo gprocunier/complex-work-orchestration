@@ -755,8 +755,15 @@ class WorkflowTests(unittest.TestCase):
 
     @read_only_evidence
     def test_r6_validated_checkpoint_restart_requires_distinct_current_publication_adoption(self):
-        """Known native/validation checkpoint is recoverable before publication consent."""
+        """The original inline checkpoint recovers before separate publication consent."""
         self.run_native(archive_schedule='settled')
+        saved = self.workflow._load('custody.json')
+        legacy = {'body': saved, 'directive': self.workflow._sign(
+            saved, 'controller-custody.json', self.workflow.verifier._mission_hash)}
+        custody = self.workflow.config.state / 'custody.json'
+        custody.chmod(0o600)
+        custody.write_text(json.dumps(legacy))
+        custody.chmod(0o400)
         fresh = self.fresh_controller()
         self.assertTrue(fresh.recover()['validation_complete'])
         with self.assertRaisesRegex(ValueError, 'Separate publication'):

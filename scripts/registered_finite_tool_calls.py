@@ -28,6 +28,8 @@ class FiniteToolError(ValueError):
 
 _COMMAND = 'finite_command'
 _POLL = 'finite_poll'
+_REQUEST_SECONDS = 15
+_PRODUCTION_COMMAND_REQUEST_SECONDS = 30
 _COMMAND_SCHEMA = {'type': 'object', 'properties': {'command': {'type': 'string'}},
                    'required': ['command'], 'additionalProperties': False}
 _POLL_SCHEMA = {'type': 'object', 'properties': {'commandCallId': {'type': 'string'},
@@ -52,6 +54,14 @@ _HISTORY_ITEM_FIELDS = {'id', 'id_allocation', _HISTORY_PASSTHROUGH}
 FAKE_CAPTURE_MODE = 'captured-host-tools'
 LIVE_CAPTURE_MODE = 'captured-live-host-tools'
 CAPTURE_MODES = frozenset({FAKE_CAPTURE_MODE, LIVE_CAPTURE_MODE})
+
+
+def request_window_seconds(production_live, tool):
+    """Bound one queued request through its original authority checks and reply."""
+    if production_live and tool == _COMMAND:
+        # The production launch and reply independently recheck both worktrees.
+        return _PRODUCTION_COMMAND_REQUEST_SECONDS
+    return _REQUEST_SECONDS
 
 
 def _canonical(value):
@@ -737,15 +747,15 @@ class RegisteredFiniteToolCalls:
             if self.inflight != params['callId'] or not self._current(params):
                 raise FiniteToolError('The original finite tool call is no longer current.')
 
-    @staticmethod
-    def _require_deadline(deadline):
+    def _require_deadline(self, deadline, *, tool=_COMMAND):
         now = time.monotonic()
-        if type(deadline) not in (int, float) or not now < deadline <= now + 15.1:
+        window = request_window_seconds(self.factory.production_live, tool)
+        if type(deadline) not in (int, float) or not now < deadline <= now + window + 0.1:
             raise FiniteToolError('The queued finite tool call expired before effect.')
 
     @staticmethod
     def _deadline_or_default(deadline):
-        return time.monotonic() + 15 if deadline is None else deadline
+        return time.monotonic() + _REQUEST_SECONDS if deadline is None else deadline
 
     def release_gate(self, descriptor, params, deadline):
         """Open one fresh child gate under the final call/turn/expiry fence."""
@@ -833,14 +843,14 @@ class RegisteredFiniteToolCalls:
                 self.server.qualified_tool_evidence.admit(request, params)
         try:
             self.server.finite_input.lifecycle.require_request(key, call)
-            self._require_deadline(deadline)
+            self._require_deadline(deadline, tool=params['tool'])
             decision = self.factory.decide_finite_tool(params['tool'], params)
             if (type(decision) is not FiniteToolDecision or decision.used
                     or decision.factory is not self.factory or decision.tool != params['tool']
                     or decision.params_sha256 != _digest(params)):
                 raise FiniteToolError('Fresh source-approved tool decision is required.')
             decision.used = True
-            self._require_deadline(deadline)
+            self._require_deadline(deadline, tool=params['tool'])
             self.server.finite_input.lifecycle.move(
                 'decide-command' if params['tool'] == _COMMAND else 'decide-poll',
                 call=call)
@@ -1001,7 +1011,7 @@ class RegisteredFiniteToolCalls:
         return self._poll_input(params, deadline)
 
     def _poll_input(self, params, deadline, *, request=None):
-        self._require_deadline(deadline)
+        self._require_deadline(deadline, tool=_POLL)
         gate = self.server.finite_input
         gate.observe_process()
         args = params['arguments']

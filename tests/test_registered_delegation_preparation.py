@@ -91,13 +91,24 @@ class DelegationPreparationTests(unittest.TestCase):
                    'chain': self.chain, 'output_path': 'result.txt', 'output_text': "Literal 'text' $(ignored)\n"}
         return preparation.prepare(**dict(request, **changes))
 
-    def seed_wide_project(self):
-        directory = self.project / ('example-' + 'a' * 72) / ('example-' + 'b' * 72)
+    def seed_wide_project(self, *, count=48, padding=72):
+        directory = self.project / ('example-' + 'a' * padding) / ('example-' + 'b' * padding)
         directory.mkdir(parents=True)
-        for index in range(48):
-            (directory / (f'example-{index:02d}-' + 'c' * 65 + '.txt')).write_bytes(b'EXAMPLE\n')
+        for index in range(count):
+            (directory / (f'example-{index:03d}-' + 'c' * padding + '.txt')).write_bytes(b'EXAMPLE\n')
         self.git(self.project, 'add', '--', directory.relative_to(self.project))
         self.git(self.project, 'commit', '--quiet', '-m', 'Add the wide manifest fixture')
+
+    def seed_capture_project(self):
+        self.seed_wide_project(count=550, padding=145)
+        # Exercise an ordinary aggregate size while every file fits the single-file limit.
+        paths = [self.project / f'example-payload-{index}.bin' for index in range(4)]
+        for index, path in enumerate(paths):
+            with path.open('wb') as payload:
+                payload.write(bytes([index]))
+                payload.truncate(9 * 1024 * 1024)
+        self.git(self.project, 'add', '--', *(path.name for path in paths))
+        self.git(self.project, 'commit', '--quiet', '-m', 'Add tracked worktree payloads')
 
     def test_wide_manifest_fits_fixed_output_admission(self):
         self.seed_wide_project()
@@ -192,7 +203,8 @@ class DelegationPreparationTests(unittest.TestCase):
             spec['custody'] = preparation.runtime.custody_binding(host, ledger, compact=False)
             return spec
 
-        with patch.object(preparation, '_specification', side_effect=inline):
+        with (patch.object(preparation, '_specification', side_effect=inline),
+              patch.dict(preparation.runtime.native.CAPTURE_LIMITS, max_bytes=16 * 1024 * 1024)):
             pending = self.prepare()
         workflow = self.fixture_redeem(pending)
         preparation.entry.retain_approved_assignment(workflow)
@@ -302,7 +314,7 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertTrue(retained._host.state.parent.exists())
 
     def test_prepared_registered_packet_dispatches_and_closes_after_independent_review(self):
-        self.seed_wide_project()
+        self.seed_capture_project()
         fixture, inputs, task = self.fake_execution()
         workflow, case = inputs.workflow, inputs.case
         baseline = self.project / 'EXAMPLE-baseline.json'
@@ -337,8 +349,21 @@ class DelegationPreparationTests(unittest.TestCase):
         attempt = fixture.attempt(case)
         self.assertEqual(attempt['outcome'], 'completed')
         self.assertEqual(pending_target := case.host._observe()['target'], case.host._initial['target'])
+        raw_custody = (workflow.config.state / 'custody.json').read_bytes()
+        compact = json.loads(raw_custody)['body']
+        self.assertEqual(compact['custody_version'], 2)
+        self.assertNotIn('expected_target', compact['custody'])
+        self.assertNotIn('expected_target', compact['custody']['observation'])
+        self.assertNotIn('host_report', compact['custody']['observation'])
+        record_cap = preparation.runtime.native.MAX_RECORD_BYTES
+        self.assertLess(len(raw_custody), record_cap)
         effects_at_failure = len(self.bead['comments'])
         recovered = self.reopen(task, case.ledger)
+        expanded = recovered._load('custody.json')['custody']
+        self.assertEqual(expanded['expected_target'], pending_target)
+        self.assertEqual(expanded['observation']['expected_target'], pending_target)
+        self.assertEqual(expanded['observation']['host_report'], expanded['report'])
+        self.assertGreater(len(preparation.runtime.native._json_bytes(expanded)), record_cap)
         self.assertEqual(recovered.config.receipt, workflow.config.receipt)
         self.assertEqual(recovered.config.native_bundle, workflow.config.native_bundle)
         self.assertEqual(recovered.config._standing_approval(), workflow.config._standing_approval())

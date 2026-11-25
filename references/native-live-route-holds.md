@@ -58,6 +58,13 @@ provider-only HTTPS relay and the original finite-tool profile. The finite comma
 and validator run in separate network namespaces. The host checks the selected
 model, effort and default tier before submitting work.
 
+The host checks the target and worker checkouts with complete inert captures.
+Each capture allows up to 64 MiB of worktree data in total and up to 16 MiB per
+file. The file count, walked entries, Git metadata, capture time and retained
+records have their own limits. An incomplete capture prevents a new invocation.
+After the finite command arrives, the registered production host allows 30
+seconds for its checkout rechecks, execution and reply.
+
 Call `adopt_execution` with `boundary` set to `provider-only`, `provider` set to
 `openai`, and `request_sha256` set to the digest of the original rendered request
 bytes. Set `allowed_effects` to `native-worker`, `provider-request` and
@@ -169,7 +176,8 @@ resolve the project's Beads database, set the existing absolute `BEADS_DIR`
 selector to the original project database for the host and the reviewer.
 After an interrupted delivery write, the host can use `cwo delegate --resume`
 with the original task, baseline and summary in the same checkout. The command
-reopens the original protected configuration. Resumption requires signed
+reopens the original protected configuration. Use the same CWO build that
+prepared the assignment. Resumption requires signed
 completed custody and unchanged admission accounting. An expired
 dispatch admission permits only this completed-custody replay. An unknown or
 unfinished worker attempt requires reconciliation.

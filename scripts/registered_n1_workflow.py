@@ -33,11 +33,29 @@ _encode = V._snapshot
 _FACTORY = R.RegisteredN1Factory
 _TARGET = G.GuardedArtifactTarget
 _SOURCE = H.Path(__file__).resolve()
+_COMPACT_CUSTODY_VERSION = 2
 
 
 def _need(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def _restore_custody_record(saved):
+    """Expand an authenticated compact record into the original signed custody action."""
+    if 'custody_version' not in saved:
+        return saved
+    version = saved.pop('custody_version')
+    _need(type(version) is int and version == _COMPACT_CUSTODY_VERSION,
+          'Unsupported controller custody version.')
+    custody = saved['custody']
+    observation = custody['observation']
+    _need('expected_target' not in custody and {'host_report', 'expected_target'}.isdisjoint(observation),
+          'Compact controller custody contains duplicated evidence.')
+    report = custody['report']
+    custody['expected_target'] = report['binding']['target']
+    observation.update(host_report=report, expected_target=custody['expected_target'])
+    return saved
 
 
 def _copy(value):
@@ -430,8 +448,9 @@ class RegisteredN1Workflow:
 
     def _load(self, name):
         record = json.loads(H._immutable_read(self.config.state, name, H.MAX_RECORD_BYTES))
-        self._verify(record['body'], record['directive'], self.verifier._mission_hash)
-        return record['body']
+        body = record['body']
+        self._verify(body, record['directive'], self.verifier._mission_hash)
+        return _restore_custody_record(body) if name == 'custody.json' else body
 
     def _sync_record(self, name):
         original = self._load(name)
@@ -757,10 +776,15 @@ class RegisteredN1Workflow:
         host, token, report, expected, policy = self._artifact
         body = V.publication_custody(host, report, expected, policy, token.report,
                                     self.target.operation)
+        V._retained_observation(body)
         directive = self._sign(body, 'original-validated-custody', self.target.operation.operation_sha256)
+        # The full signed action above binds these copies to the original report.
+        del body['expected_target']
+        del body['observation']['host_report']
+        del body['observation']['expected_target']
         origin = {} if self._standing_delegation is None else {'delivery_origin': self._delivery_origin(report)}
-        self._save('custody.json', {'custody': body, 'directive': directive,
-            'ledger': self.factory.result, 'host_initial': self.config.initial, **origin})
+        self._save('custody.json', {'custody_version': _COMPACT_CUSTODY_VERSION, 'custody': body,
+            'directive': directive, 'ledger': self.factory.result, 'host_initial': self.config.initial, **origin})
 
     def _delivery_origin(self, report):
         factory = self.factory
