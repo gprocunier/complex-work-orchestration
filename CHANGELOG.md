@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.36.8 - 2026-11-25
+
 ### Tests
 
 - Wait for the registered reply to settle in the native delivery review acceptance fixture.
