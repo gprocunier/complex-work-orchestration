@@ -1,0 +1,142 @@
+{
+  "acceptance_rule": "Evaluator scoring and architect adjudication are required before implementation.",
+  "bead_id": "cwo-1",
+  "bead_summary": {
+    "id": "cwo-1",
+    "labels": [
+      "contractor-only",
+      "no-codex-exec",
+      "contract-jd-master-plan-review"
+    ],
+    "title": "Plan review"
+  },
+  "boundary_description": "Share only prepared packets, selected snippets, and sanitized evidence. Do not include full Bead JSON, secrets, or private operational context.",
+  "degraded_context_justification": "",
+  "disclosure_escalation_approved": false,
+  "disclosure_stage": "redacted",
+  "dispatch_id": "dispatch-1",
+  "epic_id": null,
+  "excluded_artifacts": [
+    {
+      "reason": "forbidden in boundary-aware packets",
+      "type": "full_bead_json"
+    },
+    {
+      "reason": "never-share category",
+      "type": "secrets"
+    },
+    {
+      "reason": "never-share category",
+      "type": "production_access"
+    }
+  ],
+  "executor": "chatgpt_pro_browser_master_reviewer",
+  "executor_transport": {
+    "config_env": "CWO_CHATGPT_BROWSER_CONFIG",
+    "default_config": "~/.config/cwo/chatgpt-browser.json",
+    "default_model_label": "ChatGPT Pro 5.5",
+    "default_reasoning_label": "Extended Reasoning",
+    "kind": "chatgpt-browser",
+    "response_timeout_seconds": 1800,
+    "share_link_required": true
+  },
+  "expected_return_language": "en",
+  "expert_profile": {
+    "content": "# Master Plan Review Distinguished Engineer\n\nUse for `contract-jd-master-plan-review`.\n\n## Charter\nReview a final execution plan before handoff. Focus on whether the plan is\nready to execute, what dependencies or validation gates are missing, and which\nrisks should change the Beads graph before worker execution begins.\n\n## Mastery calibration\nAct like a Distinguished Engineer who is asked to review the whole work packet\nat the last responsible moment before execution. Favor concrete plan edits,\nbounded follow-up Beads, and evidence requirements over broad commentary.\n\n## Core mental models\n- Execution readiness beats cleverness.\n- Dependency order and authority boundaries decide whether the plan is safe.\n- Validation must match the risk and public surface.\n- Contractor findings are evidence, not implementation authority.\n- A good plan names what it will not do.\n\n## Invocation triggers\n- A final plan needs outside review before execution.\n- The work packet spans architecture, policy, tests, docs, or contractors.\n- The user asks for a second opinion on the revised plan or a total work packet\n  readiness review.\n- The architect wants an independent readiness check before worker handoff.\n\n## Required inputs\n- Final execution plan or proposed work packet.\n- Beads epic/task graph summary.\n- Scope, non-goals, and share boundary.\n- Validation plan and acceptance criteria.\n- Known risks, provider-conflict status, and open questions.\n\n## Review method\n1. State whether the plan is ready, conditionally ready, or not ready.\n2. Identify missing dependencies, sequencing hazards, and unclear ownership.\n3. Check that validation, acceptance, and handoff evidence match the risk.\n4. Separate required plan edits from optional improvements.\n5. Convert accepted concerns into specific Beads or plan changes.\n\n## Domain-specific checklist\n- Does every workstream have a clear owner and exit condition?\n- Are contractor, local-worker, and Codex-executable tasks separated?\n- Are share boundaries, return evaluation, and peer review preserved?\n- Are public docs, security, release, or credential risks gated?\n- Can the architect reject unsupported advice without blocking execution?\n\n## Evidence standard\nEvidence must cite the submitted plan, Beads graph, packet hash, policy route,\nvalidation commands, or explicit assumptions. Mark anything inferred from\nlimited context as inference.\n\n## Red flags\n- The plan lets a contractor become implementation authority.\n- Deep Research is used without a separate explicit opt-in.\n- Secrets, credentials, cookies, or session tokens appear in the packet.\n- Validation is weaker than the blast radius.\n- Recommendations cannot be turned into plan edits or Beads.\n\n## Anti-patterns\n- Re-planning the whole project from scratch.\n- Expanding the share boundary to make the review easier.\n- Generic advice without evidence.\n- Treating model confidence as a validation result.\n\n## Output contract\n- Plan readiness decision.\n- Missing dependencies and sequencing risks.\n- Acceptance and validation gaps.\n- Boundary and credential-handling findings.\n- Recommended plan revisions or follow-up Beads.\n\n## Acceptance criteria\n- Findings are scoped to the submitted final plan.\n- Required plan changes are concrete.\n- Unsupported recommendations are marked as inference.\n- Architect adjudication remains explicitly required.\n\n## Escalation triggers\n- Secret or credential exposure.\n- Boundary expansion request.\n- Attempt to bypass evaluator, peer review, or architect adjudication.\n- Deep Research request without separate opt-in.\n\n## Unacceptable shallow output\n- Generic advice without evidence.\n- Findings not tied to the assigned Bead or work packet.\n- Recommendations that cannot become Beads tasks.\n- Any output that ignores the assigned job-description label.\n",
+    "path": "experts/master-plan-review.md",
+    "sha256": "a6a2adc973b74ced614845f8c8e2e6e370735499c17e36b6c30f008e2fb2de13"
+  },
+  "expert_profile_included": true,
+  "external_opt_in": true,
+  "generated_at": "2026-01-01T00:00:00Z",
+  "included_artifacts": [
+    {
+      "sha256": "be880e6457f90c506873538d2261d6b927833d066cd4d8a0bf04b61219a3eb5f",
+      "type": "assignment_summary"
+    },
+    {
+      "line_count": 1,
+      "path": "inline-1",
+      "sha256": "d6e01009de8e55ed2bbf80e6837e782c78bd0569815f702570de24a2fdb2d99a",
+      "truncated": false,
+      "type": "inline_snippet"
+    },
+    {
+      "path": "experts/master-plan-review.md",
+      "sha256": "a6a2adc973b74ced614845f8c8e2e6e370735499c17e36b6c30f008e2fb2de13",
+      "type": "expert_profile"
+    }
+  ],
+  "job_description_label": "contract-jd-master-plan-review",
+  "manual_command": null,
+  "opt_in_basis": "cli-flag",
+  "packet_sha256": "672a0081cc019ca1a2e290096c380e659d6015e38ba0f4dbe793788cffee79bc",
+  "packet_version": 2,
+  "provider_family": "openai",
+  "provider_key": "openai_manual",
+  "provider_retention_class": "external-manual",
+  "provider_trust_tier": "external-frontier",
+  "quota_checked": false,
+  "quota_remaining": null,
+  "required_return_sections": [
+    "Status",
+    "Contractor job description",
+    "Summary",
+    "Validation result",
+    "Evidence",
+    "Evidence provenance",
+    "Attestation or reproducibility note",
+    "Share-boundary conformance",
+    "Peer-review disposition",
+    "Alternatives considered",
+    "Confidence",
+    "Risks or gaps",
+    "Recommended next bead",
+    "Escalation needed",
+    "Review surface",
+    "Source inspection",
+    "Sources inspected",
+    "Sources not inspected",
+    "Independent verification",
+    "Packet-reported claims"
+  ],
+  "review_surface_contract": {
+    "allowed_actions": [
+      "read this packet",
+      "read included snippets and summaries"
+    ],
+    "forbidden_actions": [
+      "shell execution",
+      "local checkout access",
+      "repo mutation",
+      "merge or release action",
+      "credential or production access"
+    ],
+    "go_rule": "If PR, merge, readiness, source, or diff inspection is required but not included in this packet, do not return an unconditional GO. Return conditional GO based on packet evidence, open-risk, request broader review surface, or NO-GO.",
+    "required_disclosures": [
+      "Review surface",
+      "Source inspection",
+      "Sources inspected",
+      "Sources not inspected",
+      "Independent verification",
+      "Packet-reported claims"
+    ],
+    "review_surface": "packet-only",
+    "source_inspection": "packet-only"
+  },
+  "selected_snippets": [
+    {
+      "content": "pin=4831",
+      "line_count": 1,
+      "path": "inline-1",
+      "sha256": "d6e01009de8e55ed2bbf80e6837e782c78bd0569815f702570de24a2fdb2d99a",
+      "truncated": false,
+      "type": "inline_snippet"
+    }
+  ],
+  "share_boundary": "redacted-packet",
+  "subject": {
+    "kind": "packet-input",
+    "source_sha256": "e2f16c5ca4c8b14602871290a4c85ce4c569493a8c521f5054f40ba7737e97f4"
+  }
+}

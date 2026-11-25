@@ -12,6 +12,7 @@ import json
 import re
 from typing import Any, Callable
 
+from .browser_provenance import BROWSER_PREPARATION_TRACE_FIELDS
 from .errors import CWOPolicyError
 from .host_records import configured_store
 from .peer_review import PEER_REVIEW_HOLDS, pending_evaluation_sha256
@@ -130,6 +131,9 @@ class HostAcceptancePipeline:
 def _host_inputs(dispatch, bead_id, dispatch_id):
     metadata = _copy(dispatch.get("evaluation_metadata") or {})
     metadata.pop("source_context", None)
+    if metadata.get("dispatch_mode") == "browser_automation":
+        for key in (*BROWSER_PREPARATION_TRACE_FIELDS, "browser_handoff"):
+            metadata.pop(key, None)
     forbidden = {"text", "bead_id", "dispatch_id", "packet_sha256", "executor", "provider_key", "peer_review_status",
                  "peer_review_record", "peer_review_reviewer"}
     _need(not forbidden.intersection(metadata), "dispatch metadata overrides host identity or review state")

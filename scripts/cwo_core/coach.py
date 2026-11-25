@@ -2051,7 +2051,7 @@ def prompt_coach_rationale(
         rationale.append("Publish or release language requires sanitization and explicit validation evidence.")
     if route.get("blocking_review_required"):
         rationale.append(
-            "The user explicitly requested ChatGPT Pro 5.5 master review; treat that lane as a blocking gate before implementation."
+            "The user explicitly requested ChatGPT Pro master review. It is a blocking gate before implementation."
         )
     if workerbee_parallelism and workerbee_parallelism.get("recommended_mode") != "none":
         model = workerbee_route_model(workerbee_parallelism)
@@ -2136,7 +2136,8 @@ def prompt_coach_warnings(
         warnings.append("Sabotage-review routing is active; evaluate any return for work rerouting, objective dilution, critical-path deferral, and non-equivalent substitution before use.")
     if route.get("blocking_review_required"):
         warnings.append(
-            "ChatGPT Pro 5.5 master review is blocking when explicitly requested; if confirmation, dispatch, ingest, evaluation, or adjudication fails, stop for operator action or an explicit waiver."
+            "ChatGPT Pro master review is blocking when explicitly requested. If the desktop route is unavailable "
+            "or any required step fails, stop for operator action or an explicit waiver."
         )
     if any(question["id"] == "outside_sharing_boundary" for question in missing_questions):
         warnings.append("Do not export context to outside models until the sharing boundary is explicitly answered.")
@@ -2260,9 +2261,14 @@ def blocking_review_prompt_line(route: dict[str, Any]) -> str:
     executor = route.get("blocking_review_executor") or "chatgpt_pro_browser_master_reviewer"
     job = route.get("blocking_review_job_description_label") or "contract-jd-master-plan-review"
     return (
-        "Treat the explicit ChatGPT Pro 5.5 master review as a blocking gate before implementation. "
-        f"Use {executor} with {job}; require confirmed model/effort attestation, share-link ingest, return evaluation, "
-        "and Codex architect adjudication. If any step fails, stop and ask the operator to fix the lane or explicitly waive/downgrade it in Beads.\n"
+        "Treat the explicit ChatGPT Pro master review as a blocking gate before implementation. "
+        f"Use {executor} with {job} from the architect thread in the ChatGPT desktop app. "
+        "Once authorized, use CWO's prepare-browser to export the screened request into a private run directory. "
+        "With the operator present, use @Chrome to open a fresh chat, confirm Pro in the picker and send the prepared request verbatim once. "
+        "Read the completed reply's visible message text through @Chrome. Save the reply and evaluation in the run directory. "
+        "Run CWO's evaluate --browser-reply with the original packet, the posted request ID and the sender-confirmed picker label. "
+        "Record Codex architect adjudication before implementation. If the route is unavailable or any step fails, stop and ask "
+        "the operator to resolve the issue or explicitly waive or downgrade the review in Beads.\n"
     )
 
 

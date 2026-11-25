@@ -17,6 +17,7 @@ COMMANDS = {
     "dispatch": "dispatch_work.py",
     "manual-prompt": "generate_manual_dispatch_prompt.py",
     "browser-review": "chatgpt_browser_review.py",
+    "prepare-browser": "desktop_browser_review.py",
     "ingest-share": "ingest_chatgpt_share_return.py",
     "evaluate": "evaluate_return.py",
     "harness": "render_harness_dispatch.py",

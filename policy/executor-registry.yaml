@@ -616,7 +616,7 @@
       "codex_pickup": "forbidden"
     },
     "chatgpt_pro_browser_master_reviewer": {
-      "display_name": "ChatGPT Pro 5.5 Extended Reasoning browser reviewer",
+      "display_name": "ChatGPT Pro desktop Chrome reviewer",
       "role": "outside-contractor",
       "provider_key": "openai_manual",
       "venue": "chatgpt-pro-browser",
@@ -641,13 +641,8 @@
       "codex_pickup": "forbidden",
       "critique_mode": "master-plan-review",
       "transport": {
-        "kind": "chatgpt-browser",
-        "config_env": "CWO_CHATGPT_BROWSER_CONFIG",
-        "default_config": "~/.config/cwo/chatgpt-browser.json",
-        "default_model_label": "ChatGPT Pro 5.5",
-        "default_reasoning_label": "Extended Reasoning",
-        "share_link_required": true,
-        "response_timeout_seconds": 1800
+        "kind": "chatgpt-desktop-chrome",
+        "default_model_label": "Pro"
       }
     },
     "claude_code_manual": {

@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Delegate one known text output with standing approval from local `cwo-codex`, a dedicated worker login and independent hand review. Renew an expired approval before dispatch or resume interrupted delivery without starting another worker.
+- Use `@Chrome` in the ChatGPT desktop app for ChatGPT Pro reviews. The architect thread sends the screened request with the operator present, reads the completed reply from the page, and saves it and the evaluation in the private run directory. CWO links the request, reply, sender-confirmed model picker label and evaluation in the host audit.
 
 ## 1.36.8 - 2026-11-25
 

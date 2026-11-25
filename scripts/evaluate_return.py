@@ -9,7 +9,10 @@ from typing import Any
 
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.audit import record_audit_event
+from cwo_core.browser_provenance import BROWSER_PREPARATION_TRACE_FIELDS, candidate_context, select_private_capture
 from cwo_core.errors import CWOPolicyError
+from cwo_core.host_records import configured_store
+from cwo_core.host_return_intake import record_received_return
 from cwo_core.peer_review import peer_review_result_fields, validate_peer_review_request
 from cwo_core.policy import (
     GLM_COMPACT_CRITIC_EXECUTOR,
@@ -25,6 +28,12 @@ from cwo_core.packets import (
 from cwo_core.packet_provenance import require_production_contractor_packet
 from cwo_core.telemetry import telemetry_fields
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
+from desktop_browser_review import desktop_evaluation_input, record_desktop_reply, require_desktop_reply_source
+from ingest_chatgpt_share_return import (
+    add_private_capture_arguments,
+    load_private_response,
+    read_private_capture_packet,
+)
 
 
 def print_human(result: dict[str, object]) -> None:
@@ -165,7 +174,90 @@ def _production_packet_metadata(packet_file: str, audit_file: str | None) -> dic
     """Evaluation metadata of a contractor packet that has production provenance (its packet_built event)."""
     packet = json.loads(Path(packet_file).read_text(encoding="utf-8"))
     require_production_contractor_packet(packet, audit_file=Path(audit_file) if audit_file else None)
+    require_desktop_reply_source(packet)
     return contractor_packet_evaluation_metadata(packet)
+
+
+def _require_confirmed_private_capture(event: dict, provenance: dict) -> None:
+    # These flags report browser confirmation. Canonical identity comes from the observed host dispatch.
+    attestation = _as_dict(provenance.get("model_attestation"))
+    if (
+        event.get("telemetry_status") != "completed"
+        or event.get("telemetry_kind") != "browser_dispatch"
+        or event.get("model_attestation_required") is not True
+        or event.get("model_attestation_status") != "confirmed"
+        or attestation.get("required") is not True
+        or attestation.get("status") != "confirmed"
+    ):
+        raise SystemExit("private evaluation requires a completed browser capture with confirmed model attestation")
+    if event.get("share_url_present") is not False or provenance.get("share") != {"created": False}:
+        raise SystemExit("private evaluation requires a capture without a public share")
+
+
+def _observed_browser_dispatch(packet: dict) -> dict:
+    # The trusted host pins the capture event as its observation, independently of the artifacts.
+    dispatch = configured_store().require_dispatch(packet.get("dispatch_id"))
+    expected = {
+        "stage": "observed",
+        "dispatch_role": "executor",
+        **{key: packet.get(key) for key in ("packet_sha256", "bead_id", "executor", "provider_key")},
+        "provider": packet.get("provider_family"),
+    }
+    if (
+        dispatch["evaluation_metadata"].get("dispatch_mode") != "browser_automation"
+        or any(dispatch.get(key) != value for key, value in expected.items())
+    ):
+        raise SystemExit("private response does not match the observed browser dispatch")
+    return dispatch
+
+
+def _require_browser_preparation_match(dispatch: dict, provenance: dict) -> None:
+    metadata = dispatch["evaluation_metadata"]
+    if (dispatch.get("request_sha256") != provenance["submitted_sha256"]
+            or any(metadata.get(key) != provenance[key] for key in BROWSER_PREPARATION_TRACE_FIELDS)):
+        raise SystemExit("private response does not match the recorded browser preparation")
+
+
+def _apply_browser_review_requirements(args: argparse.Namespace, metadata: dict) -> None:
+    required = metadata.get("peer_review_required", False)
+    domains = metadata.get("provider_conflict_domains", [])
+    if type(required) is not bool or type(domains) is not list or any(type(item) is not str for item in domains):
+        raise SystemExit("observed browser dispatch has invalid review requirements")
+    args.peer_review_required = args.peer_review_required or required
+    args.provider_conflict_domain = list(dict.fromkeys([*domains, *args.provider_conflict_domain]))
+
+
+def _historical_browser_input(args: argparse.Namespace) -> tuple[dict, dict, bytes]:
+    packet = read_private_capture_packet(args.contractor_packet)
+    dispatch = _observed_browser_dispatch(packet)
+    metadata = dispatch["evaluation_metadata"]
+    packet_source = metadata.get("packet_source_sha256")
+    capture_event = dispatch["observation_sha256"]
+    for flag, explicit, pinned in (("--packet-source-sha256", args.packet_source_sha256, packet_source),
+                                    ("--capture-event", args.capture_event, capture_event)):
+        if explicit is not None and explicit != pinned:
+            raise SystemExit(flag + " does not match the observed browser dispatch")
+    expected = select_private_capture(packet, packet_source_sha256=packet_source,
+                                      capture_event_hash=capture_event, **candidate_context(args))
+    text, provenance, _ = load_private_response(Path(args.private_artifact).expanduser(), expected=expected)
+    _require_confirmed_private_capture(json.loads(expected.event_json), provenance)
+    _require_browser_preparation_match(dispatch, provenance)
+    return packet, metadata, text.encode("utf-8")
+
+
+def _contractor_evaluation_input(args: argparse.Namespace) -> tuple[dict, bytes | None]:
+    try:
+        if not _is_private_browser_return(args):
+            return (_production_packet_metadata(args.contractor_packet, args.audit_file)
+                    if args.contractor_packet else {}), None
+        load = desktop_evaluation_input if args.browser_reply else _historical_browser_input
+        packet, metadata, raw = load(args)
+    except CWOPolicyError as failure:
+        raise SystemExit(str(failure)) from failure
+    _apply_browser_review_requirements(args, metadata)
+    evaluation_metadata = contractor_packet_evaluation_metadata(packet)
+    evaluation_metadata["dispatch_mode"] = metadata["dispatch_mode"]
+    return evaluation_metadata, raw
 
 
 def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
@@ -299,7 +391,24 @@ def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
     }
 
 
+def _is_private_browser_return(args: argparse.Namespace) -> bool:
+    return bool(args.private_artifact or args.browser_reply)
+
+
+def _require_browser_return_arguments(args: argparse.Namespace) -> None:
+    private_return = _is_private_browser_return(args)
+    if private_return and (not args.audit or args.audit_file):
+        raise SystemExit("private evaluation requires the configured host audit store")
+    if not args.private_artifact and any((args.packet_source_sha256, args.capture_event)):
+        raise SystemExit("private capture pins require --private-artifact")
+    if not private_return and any((args.candidate, args.candidate_root)):
+        raise SystemExit("private capture arguments require --private-artifact or --browser-reply")
+    if not args.browser_reply and any((args.request_id, args.model_label)):
+        raise SystemExit("--request-id and --model-label require --browser-reply")
+
+
 def _require_evaluation_source(args: argparse.Namespace) -> None:
+    _require_browser_return_arguments(args)
     if args.contractor_packet and args.local_dispatch_result:
         raise SystemExit("--contractor-packet and --local-dispatch-result are mutually exclusive")
     if args.advisory:
@@ -350,17 +459,63 @@ def _mark_advisory(result: dict[str, Any]) -> None:
         result["recommended_synthesis_use"] = "open-risk"
 
 
-def _record_host_evaluation(text: str, result: dict[str, Any]) -> None:
+def _record_private_intake(dispatch_id: str | None, browser_return: bytes | None, args: argparse.Namespace) -> None:
+    if browser_return is not None:
+        try:
+            if args.browser_reply:
+                record_desktop_reply(dispatch_id, browser_return, args)
+            else:
+                record_received_return(configured_store(), dispatch_id, browser_return)
+        except CWOPolicyError as failure:
+            raise SystemExit(str(failure)) from failure
+
+
+def _record_host_evaluation(text: str, result: dict[str, Any]) -> str | None:
     from cwo_core.host_acceptance import record_received_evaluation
     try:
-        record_received_evaluation(text, result)
+        return record_received_evaluation(text, result)
     except CWOPolicyError as failure:
         raise SystemExit(str(failure)) from failure
 
 
+def _print_evaluation(args: argparse.Namespace, result: dict, record: str | None, return_bytes: bytes) -> None:
+    if _is_private_browser_return(args):
+        fields = ("dispatch_id", "bead_id", "verdict", "score", "peer_review_required", "peer_review_status",
+                  "architect_review_required", "implementation_blocked", "execution_permitted")
+        summary = {key: result[key] for key in fields}
+        summary["return_sha256"] = hashlib.sha256(return_bytes).hexdigest()
+        summary["evaluation_record_sha256"] = record
+        if args.json:
+            print(json.dumps(summary, indent=2, sort_keys=True))
+        else:
+            print(f"Verdict: {summary['verdict']}")
+            print(f"Score: {summary['score']}")
+            print(f"Peer review required: {summary['peer_review_required']}")
+            print(f"Architect review required: {summary['architect_review_required']}")
+            print(f"Host evaluation record: {record}")
+    elif args.json:
+        print(json.dumps(result, indent=2, sort_keys=True))
+    else:
+        print_human(result)
+
+
+def _review_surface_telemetry(result: dict, private_browser_return: bool) -> dict:
+    if private_browser_return:
+        return {}
+    fields = ("review_surface", "source_inspection", "sources_inspected", "sources_not_inspected",
+              "independent_verification", "packet_reported_claims")
+    return {key: result.get(key) for key in fields}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score a contractor/local-worker return against acceptance policy.")
-    parser.add_argument("--file", required=True, help="Contractor return text file.")
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument("--file", help="Contractor return text file.")
+    source.add_argument("--private-artifact", help="Provenance JSON of a private browser response to verify and evaluate.")
+    source.add_argument("--browser-reply", help="UTF-8 file containing the visible text of the completed reply in desktop Chrome.")
+    parser.add_argument("--request-id", help="CWO request ID observed in the posted browser user message.")
+    parser.add_argument("--model-label", help="Model picker label confirmed by the person who sent the request.")
+    add_private_capture_arguments(parser)
     parser.add_argument("--advisory", action="store_true",
                         help="Nonproduction inspection only; requires --no-audit and cannot clear holds.")
     parser.add_argument("--bead", help="Assigned Beads ID.")
@@ -465,9 +620,7 @@ def main() -> None:
             value = local_dispatch_metadata.get(field)
             if not isinstance(value, str) or value not in allowed:
                 local_dispatch_metadata[field] = None
-    contractor_packet_metadata: dict[str, Any] = (
-        _production_packet_metadata(args.contractor_packet, args.audit_file) if args.contractor_packet else {}
-    )
+    contractor_packet_metadata, browser_return = _contractor_evaluation_input(args)
     dispatch_metadata = contractor_packet_metadata or local_dispatch_metadata
 
     def _cli_or_metadata(name: str) -> str | None:
@@ -515,7 +668,7 @@ def main() -> None:
     local_reasoning_malformed = bool(local_dispatch_metadata.get("local_reasoning_malformed", False))
     local_completion_status = local_dispatch_metadata.get("local_completion_status")
     local_usable_final_content = local_dispatch_metadata.get("local_usable_final_content")
-    return_bytes = Path(args.file).read_bytes()
+    return_bytes = browser_return if browser_return is not None else Path(args.file).read_bytes()
     try:
         return_text = return_bytes.decode("utf-8")
     except UnicodeDecodeError:
@@ -554,6 +707,7 @@ def main() -> None:
         if eligible is not True:
             return_text = ""
 
+    _record_private_intake(dispatch_id, browser_return, args)
     result = _evaluate_current_return(
         return_text,
         bead_id=bead_id,
@@ -601,8 +755,9 @@ def main() -> None:
     )
     if args.advisory:
         _mark_advisory(result)
+    record = None
     if args.audit:
-        _record_host_evaluation(return_text, result)
+        record = _record_host_evaluation(return_text, result)
         audit_path = Path(args.audit_file) if args.audit_file else None
         record_audit_event(
             {
@@ -642,12 +797,7 @@ def main() -> None:
                     telemetry_kind="evaluation",
                     telemetry_status=result["verdict"],
                     job_description_label=job_description_label,
-                    review_surface=result.get("review_surface"),
-                    source_inspection=result.get("source_inspection"),
-                    sources_inspected=result.get("sources_inspected"),
-                    sources_not_inspected=result.get("sources_not_inspected"),
-                    independent_verification=result.get("independent_verification"),
-                    packet_reported_claims=result.get("packet_reported_claims"),
+                    **_review_surface_telemetry(result, _is_private_browser_return(args)),
                     review_surface_mismatch=result.get("review_surface_mismatch"),
                     review_surface_required_evidence_missing=result.get("review_surface_required_evidence_missing"),
                     review_surface_mismatch_reasons=result.get("review_surface_mismatch_reasons"),
@@ -666,10 +816,7 @@ def main() -> None:
             audit_path,
         )
 
-    if args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
-    else:
-        print_human(result)
+    _print_evaluation(args, result, record, return_bytes)
 
 
 if __name__ == "__main__":

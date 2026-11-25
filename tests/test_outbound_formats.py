@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import browser_request  # noqa: E402
 import chatgpt_browser_review as browser  # noqa: E402
 import dispatch_work  # noqa: E402
 import generate_manual_dispatch_prompt as manual  # noqa: E402
@@ -185,7 +186,7 @@ class RendererScanCoverageTests(_OutboundHelpers, unittest.TestCase):
 
         # The destination fits this limit; the complete request-ID-bound Send does not.
         browser_rules = {**rules, "limits": {**rules["limits"], "max_input_bytes": 32}}
-        real_screen = browser.require_clean
+        real_screen = browser_request.require_clean
 
         @contextlib.contextmanager
         def consumer_policy(policy):
@@ -195,7 +196,7 @@ class RendererScanCoverageTests(_OutboundHelpers, unittest.TestCase):
                 return real_screen(text, **kwargs)
 
             with patch.object(screening, "_rules", return_value=policy), \
-                    patch.object(browser, "require_clean", side_effect=screen):
+                    patch.object(browser_request, "require_clean", side_effect=screen):
                 yield
 
         helper = browser_tests.ChatGPTBrowserReviewTests()

@@ -23,10 +23,9 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   compaction or a restart. It is a saved record, not perfect recall.
 - **Prepares focused review requests and checks the returns.** CWO builds and
   validates request packets for approved cloud or local reviewers, then
-  normalizes and evaluates what comes back. In this version CWO does not send
-  them itself: local HTTP dispatch (`dispatch_work.py --execute-local`) and live
-  browser dispatch are disabled, so you send the exported request and bring the
-  response back.
+  normalizes and evaluates what comes back. Send the exported request within
+  the approved sharing boundary and bring back the reply. See the
+  [desktop workflow for ChatGPT Pro](references/chatgpt-pro-browser.md).
 - **Connects registered single-worker dispatch to hand review.** The installed
   launcher uses Codex's foreground approval for an exact registered assignment.
   The controller retains that approval so `cwo delegate` can deliver the
@@ -249,8 +248,11 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   and approval policy. Codex `--yolo` disables those checks for the lead.
   Registered single-worker execution uses the verified provider-only app-server
   namespace and separate networkless command and validator namespaces.
-- **Disabled in this version:** local HTTP dispatch, live browser dispatch and
-  browser model confirmation; raw native launch, concurrent pools and
+- **ChatGPT Pro browser review runs from the ChatGPT desktop app.** The
+  architect thread uses `@Chrome` in the paired profile with the operator
+  present. [Desktop Chrome workflow](references/chatgpt-pro-browser.md)
+- **Disabled in this version:** local HTTP dispatch
+  (`dispatch_work.py --execute-local`), raw native launch, concurrent pools and
   live campaigns; new worker-surface qualification; live native activation
   (`run_native_pool_activation_preview.py run --enable-tech-preview`);
   risk narrowing (`--risk-scope` and `--risk-evidence-dir`
