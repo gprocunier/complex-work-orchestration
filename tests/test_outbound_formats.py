@@ -12,20 +12,18 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import browser_request  # noqa: E402
-import chatgpt_browser_review as browser  # noqa: E402
 import dispatch_work  # noqa: E402
 import generate_manual_dispatch_prompt as manual  # noqa: E402
 from cwo_core import outbound_screen as screening  # noqa: E402
+from cwo_core.prepared_outbound import PreparedSource  # noqa: E402
 from tests.local_invocation_fixtures import isolate_local_invocation_ledgers  # noqa: E402
-import tests.test_chatgpt_browser_review as browser_tests  # noqa: E402
 from tests.test_outbound_screen import _OutboundHelpers, packet_with  # noqa: E402
 
 
 def setUpModule() -> None:
-    for module, flag in ((dispatch_work, "LOCAL_INVOCATION_AVAILABLE"), (browser, "BROWSER_DISPATCH_AVAILABLE")):
-        enabled = patch.object(module, flag, True)
-        enabled.start()
-        unittest.addModuleCleanup(enabled.stop)
+    enabled = patch.object(dispatch_work, "LOCAL_INVOCATION_AVAILABLE", True)
+    enabled.start()
+    unittest.addModuleCleanup(enabled.stop)
     isolate_local_invocation_ledgers()
 
 
@@ -86,15 +84,6 @@ class OutboundFormatTests(_OutboundHelpers, unittest.TestCase):
                 manual.export_screened(b"plain bytes", as_json=False)
         write.assert_not_called()
 
-    def test_nontext_browser_input_refuses_before_startup(self) -> None:
-        helper = browser_tests.ChatGPTBrowserReviewTests()
-        modules = helper._fake_playwright_modules()
-        start = Mock(side_effect=AssertionError("browser startup must not run"))
-        modules["playwright.sync_api"].sync_playwright = start
-        with patch.dict(sys.modules, modules), self.assertRaises(screening.OutboundRefused):
-            browser.PlaywrightChatGPTRunner({"selectors": {}})._run(b"plain bytes")
-        start.assert_not_called()
-
     def test_attachment_declarations_refuse_before_render_or_http_effects(self) -> None:
         for name in ("attachments", "files", "uploads"):
             with self.subTest(field=name), self.assertRaises(screening.OutboundRefused):
@@ -149,14 +138,15 @@ class RendererScanCoverageTests(_OutboundHelpers, unittest.TestCase):
                 self.assert_both_views(seen, final, ("Title cafe", "Profile etude", "Metadata facade", "Snippet creme", "Body resume"))
             write.assert_called_once()
 
-    def test_browser_disclosed_fields_reach_decoded_and_final_send_scan(self) -> None:
-        helper = browser_tests.ChatGPTBrowserReviewTests()
+    def test_desktop_preparation_screens_disclosed_fields_in_final_request(self) -> None:
         prompt = json.dumps(self.FIELDS)
+        source = {"prompt": prompt}
+        capture = PreparedSource.capture(source)
+        submitted = browser_request.bound_request(prompt, "0" * 32)
         with detector_views() as seen:
-            outcome, effects = helper._drive_fake_browser({"selectors": {}, "chrome_user_data_dir": "/tmp/profile"}, prompt=prompt)
-        self.assertIsInstance(outcome, dict)
-        final = effects["submit"].call_args.args[1]
-        self.assert_both_views(seen, final, self.FIELDS.values())
+            prepared = browser_request.prepare_browser_submission(submitted, capture=capture, source=source)
+        self.assertEqual(prepared.payload.text(), submitted)
+        self.assert_both_views(seen, submitted, self.FIELDS.values())
 
     def test_every_http_body_field_and_descriptor_reaches_the_detector(self) -> None:
         opener = self.Opener()
@@ -184,41 +174,10 @@ class RendererScanCoverageTests(_OutboundHelpers, unittest.TestCase):
             self.assertEqual(len(opener.bodies), 0)
         self.assertEqual(write.call_count, 0)
 
-        # The destination fits this limit; the complete request-ID-bound Send does not.
-        browser_rules = {**rules, "limits": {**rules["limits"], "max_input_bytes": 32}}
-        real_screen = browser_request.require_clean
-
-        @contextlib.contextmanager
-        def consumer_policy(policy):
-            def screen(text, **kwargs):
-                if kwargs.get("surface") == "ChatGPT browser Send":
-                    scans.append((len(text.encode("utf-8")), browser.artifact_hash(text)))
-                return real_screen(text, **kwargs)
-
-            with patch.object(screening, "_rules", return_value=policy), \
-                    patch.object(browser_request, "require_clean", side_effect=screen):
-                yield
-
-        helper = browser_tests.ChatGPTBrowserReviewTests()
-        request_id = "0" * 32
-        final = browser.bound_request("Prompt", request_id)
-        expected_scan = (len(final.encode("utf-8")), browser.artifact_hash(final))
-        for incomplete in (True, False):
-            scans = []
-            policy = browser_rules if incomplete else normal_rules
-            with self.subTest(incomplete=incomplete), patch.object(browser.secrets, "token_hex", return_value=request_id):
-                outcome, effects = helper._drive_fake_browser(
-                    {"selectors": {}, "chrome_user_data_dir": "/tmp/profile"},
-                    consumer_context=lambda: consumer_policy(policy))
-                self.assertEqual(scans, [expected_scan], "the actual renderer must scan the complete Send bytes")
-                self.assertEqual(effects["submit"].call_count, int(not incomplete))
-                self.assertEqual(effects["send_count"], int(not incomplete))
-                self.assertEqual(effects["capture"].call_count, int(not incomplete))
-                self.assertEqual(effects["pin"].call_count, int(not incomplete))
-                if incomplete:
-                    self.assertTrue(isinstance(outcome, browser.ChatGPTBrowserReviewError), "renderer scan must refuse")
-                    self.assertEqual(outcome.stage, "prompt-submit")
-                    self.assertTrue(outcome.reason == "outbound screening refused ChatGPT browser Send: "
-                                    "payload exceeds the 32-byte screening limit", "fixed incomplete-Send refusal required")
-                else:
-                    self.assertTrue(isinstance(outcome, dict), "matched normal scanner control must complete")
+        source = {"prompt": "Review this plan."}
+        capture = PreparedSource.capture(source)
+        request = browser_request.bound_request(source["prompt"], "0" * 32)
+        with patch.object(screening, "_rules", return_value=rules), self.assertRaises(screening.OutboundRefused):
+            browser_request.prepare_browser_submission(request, capture=capture, source=source)
+        prepared = browser_request.prepare_browser_submission(request, capture=capture, source=source)
+        self.assertEqual(prepared.payload.text(), request)

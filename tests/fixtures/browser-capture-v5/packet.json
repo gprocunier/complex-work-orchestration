@@ -1,0 +1,137 @@
+{
+  "acceptance_rule": "Evaluator scoring and architect adjudication are required before implementation.",
+  "bead_id": "cwo-1",
+  "bead_summary": {
+    "id": "cwo-1",
+    "labels": [
+      "contract-jd-master-plan-review",
+      "contractor-only",
+      "no-codex-exec"
+    ],
+    "title": "Retry design"
+  },
+  "boundary_description": "Share only prepared packets, selected snippets, and sanitized evidence. Do not include full Bead JSON, secrets, or private operational context.",
+  "degraded_context_justification": "",
+  "disclosure_escalation_approved": false,
+  "disclosure_stage": "redacted",
+  "dispatch_id": "dispatch-1",
+  "epic_id": null,
+  "excluded_artifacts": [
+    {
+      "reason": "forbidden in boundary-aware packets",
+      "type": "full_bead_json"
+    },
+    {
+      "reason": "never-share category",
+      "type": "secrets"
+    },
+    {
+      "reason": "never-share category",
+      "type": "production_access"
+    }
+  ],
+  "executor": "chatgpt_pro_browser_master_reviewer",
+  "executor_transport": {
+    "default_model_label": "Pro",
+    "kind": "chatgpt-desktop-chrome"
+  },
+  "expected_return_language": "en",
+  "expert_profile": {
+    "content": "Review retry handling and report the findings.",
+    "path": "experts/master-plan-review.md",
+    "sha256": "1520704fd9eed3272f3c82d173839f0b0ec9e0b40b8a9f198f092ff667d0edb6"
+  },
+  "expert_profile_included": true,
+  "external_opt_in": true,
+  "generated_at": "2026-11-14T00:00:00Z",
+  "included_artifacts": [
+    {
+      "sha256": "cd4dccf11b095d922221dd2953d896def6bd70f74040e48dc1b68a745e72d27d",
+      "type": "assignment_summary"
+    },
+    {
+      "line_count": 1,
+      "path": "inline-1",
+      "sha256": "a75c956825ddfe553ed418679358d89815214760d29dbd9d736b4089d3ea204b",
+      "truncated": false,
+      "type": "inline_snippet"
+    },
+    {
+      "path": "experts/master-plan-review.md",
+      "sha256": "1520704fd9eed3272f3c82d173839f0b0ec9e0b40b8a9f198f092ff667d0edb6",
+      "type": "expert_profile"
+    }
+  ],
+  "job_description_label": "contract-jd-master-plan-review",
+  "manual_command": null,
+  "opt_in_basis": "cli-flag",
+  "packet_sha256": "496d04691c5cec9729972bb006aee8855b2123d63efbbded83e64a6bc9c19770",
+  "packet_version": 2,
+  "provider_family": "openai",
+  "provider_key": "openai_manual",
+  "provider_retention_class": "external-manual",
+  "provider_trust_tier": "external-frontier",
+  "quota_checked": true,
+  "quota_remaining": 4,
+  "required_return_sections": [
+    "Status",
+    "Contractor job description",
+    "Summary",
+    "Validation result",
+    "Evidence",
+    "Evidence provenance",
+    "Attestation or reproducibility note",
+    "Share-boundary conformance",
+    "Peer-review disposition",
+    "Alternatives considered",
+    "Confidence",
+    "Risks or gaps",
+    "Recommended next bead",
+    "Escalation needed",
+    "Review surface",
+    "Source inspection",
+    "Sources inspected",
+    "Sources not inspected",
+    "Independent verification",
+    "Packet-reported claims"
+  ],
+  "review_surface_contract": {
+    "allowed_actions": [
+      "read this packet",
+      "read included snippets and summaries"
+    ],
+    "forbidden_actions": [
+      "shell execution",
+      "local checkout access",
+      "repo mutation",
+      "merge or release action",
+      "credential or production access"
+    ],
+    "go_rule": "If PR, merge, readiness, source, or diff inspection is required but not included in this packet, do not return an unconditional GO. Return conditional GO based on packet evidence, open-risk, request broader review surface, or NO-GO.",
+    "required_disclosures": [
+      "Review surface",
+      "Source inspection",
+      "Sources inspected",
+      "Sources not inspected",
+      "Independent verification",
+      "Packet-reported claims"
+    ],
+    "review_surface": "packet-only",
+    "source_inspection": "packet-only"
+  },
+  "selected_snippets": [
+    {
+      "content": "Review the retry design.",
+      "line_count": 1,
+      "path": "inline-1",
+      "sha256": "a75c956825ddfe553ed418679358d89815214760d29dbd9d736b4089d3ea204b",
+      "truncated": false,
+      "type": "inline_snippet"
+    }
+  ],
+  "share_boundary": "redacted-packet",
+  "subject": {
+    "kind": "packet-input",
+    "source_sha256": "e30c7bc081a70f73914b29bc75856f999793b5a4e4ad8a40de1a94e83980c822"
+  }
+}

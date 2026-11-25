@@ -232,13 +232,6 @@
       "reason": "Provider vocabulary for text classification."
     },
     {
-      "path": "scripts/launch_chatgpt_cdp_chrome.sh",
-      "literal": "gpt-5.5",
-      "count": 1,
-      "class": "unadjudicated",
-      "reason": "Browser model-label confirmation text for the ChatGPT page; browser confirmation is disabled."
-    },
-    {
       "path": "scripts/cwo_core/supervision/transport/app_server.py",
       "literal": "gpt-5.3-codex-spark",
       "count": 1,

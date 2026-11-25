@@ -183,8 +183,8 @@ key/route), classified primitive, or the named durable `capability.claim` call
 refuses. Claims and reservation/context/read ordering remain distinct manual
 facts; an earlier durable effect cannot serve as its own admission gate.
 
-Shell guards use a finite exact set of current installer and Chrome refusal/dry
-predicates, anchored to whole source lines. Ordinary/ANSI quoted strings,
+Shell guards use exact refusal and dry-run predicates anchored to whole source
+lines. Ordinary/ANSI quoted strings,
 here-documents and continued commands cannot present their contents as guards;
 unsupported here-document forms refuse. This is bounded lexical context, not a
 general Bash parser, expansion evaluator or control-flow proof. Unknown selected

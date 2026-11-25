@@ -59,34 +59,10 @@ Verification assumes control of both the artifacts and audit store. A process
 with the same user's access can write both. Keep the independently selected
 references outside the returned artifact.
 
-## Historical share consent fixtures
+## Historical implementation
 
-Separate create-share authorization requires fresh consent from the original
-registered parent. Consent binds its frozen source, candidate or packet inputs,
-prepared request, intended purpose, document and conversation identity, complete
-ordered history including the generated response, and exact final disclosure
-bytes. Decoded conversation content and the final representation pass outbound
-screening at consent and again before creation. Unknown coverage refuses.
-
-Consent is an opaque, expiring object that can authorize only one original share
-ticket. Its lifetime cannot exceed the original action timeout; an earlier
-requested expiry still applies. Copies, foreign consent, replay and changed
-source, options, document, conversation or content refuse before the next effect.
-Sharing consumes a separate one-use execution admission within the original
-aggregate budget. Configuration alone cannot grant consent.
-
-Registered offline fixtures can declare complete coverage and exercise the
-separate consumer for explicit plaintext disclosures. Unrepresented media,
-attachments, embedded documents and rich markup refuse complete coverage.
-Plaintext wrappers permit only pre-wrap whitespace formatting; additional inline
-style properties refuse coverage.
-The supported fixture boundary pins the original document
-and its root, checks the current URL and exact disclosure, then clicks once in
-one synchronous browser operation. It validates a result URL against an observed
-document, conversation and action binding. A known stale result refuses before
-creation. A wrong result discovered after creation leaves an unknown outcome
-and conservative reservation accounting; it cannot undo that creation. No
-legacy share, social or clipboard fallback follows a refusal.
-
-The CDP Send and share routes remain held. These fixtures exercise checks on
-saved or simulated browser content.
+Release [v1.37.0](https://github.com/gprocunier/complex-work-orchestration/tree/v1.37.0)
+contains the retired CDP transport, launcher, share consent and share-reader
+code alongside their matching offline tests and fixtures. The current intake
+tests load a [saved v5 capture](../tests/fixtures/browser-capture-v5/) generated
+with the tagged implementation and a simulated document.

@@ -7,8 +7,6 @@ import io
 import json
 import os
 from pathlib import Path
-import shutil
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -20,7 +18,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import dispatch_work
 import generate_manual_dispatch_prompt as manual
-import chatgpt_browser_review as browser
 from cwo_core import local_invocation
 from cwo_core.outbound_screen import OutboundRefused, require_clean, screen_outbound, screen_request
 from cwo_core.prepared_outbound import PreparedSource
@@ -312,144 +309,19 @@ class PreparedManualTests(unittest.TestCase):
                 self.assertEqual(host.call_args.kwargs["request_sha256"], hashlib.sha256(prompt.encode()).hexdigest())
 
 
-from tests.browser_connected_fixture import admitted_runner
-
-
-class PreparedBrowserTests(unittest.TestCase):
-    def test_replaced_config_by_browser_callbacks_refuses_before_fill_or_send(self):
-        for stage in ("origin", "stamp", "fill", "button"):
-            with self.subTest(surface="browser", slot=stage, row="ds16"):
-                runner = browser.PlaywrightChatGPTRunner({"selectors": {}})
-                box, button, page = Mock(), Mock(), Mock()
-                page.query_selector_all.return_value = [box]
-                box.evaluate.return_value = True
-                button.evaluate.return_value = "pressed"
-                box.evaluate_handle.return_value.as_element.return_value = button
-
-                def evaluate(script, value):
-                    if (stage == "stamp" and script == browser._STAMP_SCRIPT) or (stage == "fill" and script == browser._FILL_SCRIPT):
-                        runner.config = {**runner.config, "late": PREPARATION["value"]}
-                    return True
-
-                box.evaluate.side_effect = evaluate
-
-                def origin(handle):
-                    if (stage == "origin" and handle is box) or (stage == "button" and handle is button):
-                        runner.config = {**runner.config, "late": PREPARATION["value"]}
-                    return "https://chatgpt.com"
-
-                with admitted_runner(runner, "Review the public plan.", timeout_ms=1000), patch.object(runner, "_frame_origin", side_effect=origin), self.assertRaises(SystemExit) as caught:
-                    runner._submit_prompt(page, "Review the public plan.", 1000, "0" * 32)
-                self.assertEqual(button.evaluate.call_count, 0, "replacement config reached Send")
-                self.assertEqual(box.evaluate.call_count, {"origin": 0, "stamp": 1, "fill": 2, "button": 2}[stage], "replacement config reached a later fill effect")
-                self.assertFalse(PREPARATION["value"] in str(caught.exception), "private diagnostic content")
-
-    def test_source_changed_by_browser_callbacks_refuses_before_fill_or_send(self):
-        for stage in ("origin", "button"):
-            with self.subTest(stage=stage):
-                runner = browser.PlaywrightChatGPTRunner({"selectors": {}})
-                box, button, page = Mock(), Mock(), Mock()
-                page.query_selector_all.return_value = [box]
-                box.evaluate.return_value = True
-                box.evaluate_handle.return_value.as_element.return_value = button
-
-                def origin(handle):
-                    if (stage == "origin" and handle is box) or (stage == "button" and handle is button):
-                        runner.config["late"] = PREPARATION["value"]
-                    return "https://chatgpt.com"
-
-                with admitted_runner(runner, "Review the plan.", timeout_ms=1000), patch.object(runner, "_frame_origin", side_effect=origin), self.assertRaises(SystemExit) as caught:
-                    runner._submit_prompt(page, "Review the plan.", 1000, "0" * 32)
-                self.assertEqual(button.evaluate.call_count, 0, "refusal reached an effect")
-                if stage == "origin":
-                    self.assertEqual(box.evaluate.call_count, 0, "refusal reached an effect")
-                self.assertFalse(PREPARATION["value"] in str(caught.exception), "private diagnostic content")
-
-    def test_prompt_file_capture_is_private_and_checked_at_send(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "prompt.txt"
-            path.write_text("Review the plan.", encoding="utf-8")
-            args = helpers.Namespace(packet=None, prompt_file=str(path), allow_degraded_packet=True,
-                allow_unlinked_packet=True, rehearsal=True, dispatch_id="dispatch-1", bead="cwo-1", epic=None,
-                packet_sha256="0" * 64, share_boundary="redacted-packet")
-            sources = []
-            with patch.object(browser, "assert_repo_safe_path", side_effect=lambda p: p):
-                prompt, metadata = browser.load_prompt_from_args(args, prepared_sources=sources)
-            self.assertFalse("PreparedSource" in repr(metadata), "private capture metadata")
-            runner = browser.PlaywrightChatGPTRunner({"selectors": {}})
-            runner.prepared_sources = tuple(sources)
-            page, box = Mock(), Mock()
-            page.query_selector_all.return_value = [box]
-            # Change during the frame-origin callback, after the initial screen.
-            def change(handle):
-                path.write_text(PREPARATION["credential"], encoding="utf-8")
-                return "https://chatgpt.com"
-            with admitted_runner(runner, prompt, timeout_ms=1000), patch.object(runner, "_frame_origin", side_effect=change), self.assertRaises(SystemExit) as caught:
-                runner._submit_prompt(page, prompt, 1000, "0" * 32)
-            self.assertEqual(box.evaluate.call_count, 0, "refusal reached an effect")
-            self.assertFalse(PREPARATION["value"] in str(caught.exception), "private diagnostic content")
-
-    @unittest.skipUnless(shutil.which("node"), "Optional Node harness")
-    def test_send_executes_text_check_and_click_in_one_script(self):
-        harness = r"""
-const vm = require('node:vm'), fs = require('node:fs');
-const scripts = JSON.parse(fs.readFileSync(0, 'utf8'));
-const result = [];
-for (const kind of ['textarea', 'input', 'editable']) for (const drift of ['same', 'text', 'detached', 'document', 'stamp', 'composer']) {
-  let clicks = 0;
-  class TextArea {} class Input {}
-  const document = {}, window = {};
-  const box = kind === 'textarea' ? new TextArea() : kind === 'input' ? new Input() : {};
-  Object.assign(box, {ownerDocument: document, isConnected: true, value: 'Review café.', innerText: 'Review café.'});
-  const button = {ownerDocument: document, isConnected: true, disabled: false, getAttribute: () => null, click: () => clicks++};
-  const context = {window, document, HTMLTextAreaElement: TextArea, HTMLInputElement: Input, location: {href: 'https://chatgpt.com/'}};
-  document.querySelectorAll = selector => selector === 'button' ? [button] : [];
-  vm.runInNewContext('(' + scripts.stamp + ')', context)(box, scripts.id);
-  vm.runInNewContext('(' + scripts.button + ')', context)(box, 'button');
-  if (drift === 'text') box.value = box.innerText = scripts.drift;
-  if (drift === 'detached') box.isConnected = false;
-  if (drift === 'document') button.ownerDocument = {};
-  if (drift === 'stamp') window.__cwoSubmission = 'changed';
-  if (drift === 'composer') window.__cwoComposer = {...box};
-  const state = vm.runInNewContext('(' + scripts.send + ')', context)(button, scripts.id + '\nReview café.');
-  const snapshot = vm.runInNewContext('(' + scripts.snapshot + ')', context)(['marker']);
-  const second = vm.runInNewContext('(' + scripts.send + ')', context)(button, scripts.id + '\nReview café.');
-  result.push({kind, drift, state, clicks, stamp: snapshot.stamp, second});
-}
-console.log(JSON.stringify(result));
-"""
-        result = subprocess.run(["node", "-e", harness], input=json.dumps({"stamp": browser._STAMP_SCRIPT,
-            "button": browser._SEND_BUTTON_SCRIPT, "send": browser._SEND_SCRIPT,
-            "snapshot": browser._SNAPSHOT_SCRIPT, "id": "0" * 32, "drift": PREPARATION["credential"]}),
-            capture_output=True, text=True, check=False)
-        self.assertEqual(result.returncode, 0, "Node harness failed; stderr sha256:" + hashlib.sha256(result.stderr.encode()).hexdigest())
-        self.assertFalse(PREPARATION["value"] in result.stdout + result.stderr, "private Node diagnostic content")
-        for row in json.loads(result.stdout):
-            with self.subTest(kind=row["kind"], drift=row["drift"]):
-                self.assertEqual(row["clicks"], int(row["drift"] == "same"))
-                self.assertEqual(row["state"], "pressed" if row["drift"] == "same" else "refused")
-                self.assertEqual(row["second"], "refused")
-                if row["drift"] == "same":
-                    self.assertEqual(row["stamp"], "0" * 32, "capture must still see the submission stamp after Send")
-
-
 class PreparedRouteTraceTests(unittest.TestCase):
     def test_helper_changes_identify_the_actual_consumers_for_review(self):
         from cwo_core import release_effect_routes as routes
         inventory = json.loads((ROOT / routes.INVENTORY).read_bytes())
         helper = "scripts/cwo_core/prepared_outbound.py"
         # Local HTTP and registered review dispatch call the helper through the
-        # same consumer. Browser submission and model-only confirmation bind
-        # destinations; raw network helpers and dormant sharing methods do not.
-        # The registered offline share boundary carries the prepared-disclosure
-        # context; its raw forwarder remains contextual, without standalone admission.
+        # same consumer. Browser dry-run uses it to bind the packet inputs.
         # Native N10.8/N10.9 bind final reply/model bytes. The shared N2/N10
         # source traces also select construction, receiver and containment paths
         # for contextual review; they confer no separate final-screen authority.
         # N10.6 retains its explicit trace scope rather than inheriting that family.
         expected = {
-            "H1.1", "H1.2", "H2.1", "H4.1", "H4.2", "H4.3", "H4.4",
-            "H4.5", "H4.6", "H5.5", "H5.7",
+            "H1.1", "H1.2", "H2.1", "H4.1",
             "N2.1", "N2.2", "N2.3", "N2.4", "N10.1", "N10.2", "N10.3",
             "N10.4", "N10.5", "N10.7", "N10.8", "N10.9", "N10.10",
         }
