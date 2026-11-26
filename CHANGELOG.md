@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Keep contained pool checks responsive while a registered writer is being released.
+
 ## 1.40.0 - 2026-11-25
 
 - Retire the archived study CLI's `digest`, `schedule`, `lock`, `score` and `template` commands. Use `v1.33.0` for those offline commands. The current CLI validates the frozen archive and continues to refuse `run`.

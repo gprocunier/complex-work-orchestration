@@ -569,7 +569,7 @@
     "tests/test_native_canary_contracts.py": "e0a4e3ec89d4af8e2e686da513ab37f6d04ee1755e2be47a22c0ad3782adc067",
     "tests/test_native_live_allocation_ledger.py": "cc8c7c74dd44e63425c31b7f72af6a130a77f5b595aa2b02c9b06b91d350bf60",
     "tests/test_native_live_campaign_generation12.py": "ac3d04fa002e5b0134ebd1179e3507e3bd85244fca2cb127d38ebecd6bd7dddc",
-    "tests/test_native_pool.py": "e0acd6cd422b8f03ca6434b9e566f9583f6f106b03cd78e243b386cb2beeb3ee",
+    "tests/test_native_pool.py": "c2817206e2867ffa80b7a7dd6f36d9ba0811a3e72507022fdd4be6f0c401cccf",
     "tests/test_native_pool_admission.py": "ff2f3205ad88d81bf9003c8209cb6da2d71b59b0ed77399426159bbeb9226701",
     "tests/test_native_pool_admission_contracts.py": "8ea38b5c763ad46265a73a521e4b2f1284d6dcec970b75b8be4600eaed55d7ad",
     "tests/test_native_pool_config.py": "0826b0b65b11b93a1f0cc0edda4cd23169b4dde773507fb2e5ebf5a99a954d7f",

@@ -1471,6 +1471,18 @@ class NativePoolCoordinatorTests(unittest.TestCase):
             self.assertEqual(receipt["pool_disposition"], "quarantined")
             self.assertTrue(all(item["lifecycle_state"] == "released" for item in receipt["lease_evidence"]))
 
+    def test_cap_two_check_overrun_still_interrupts_the_pool(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            harness = PoolHarness(temporary, cap=2, callback_ms_by_name={"check": 201})
+            receipt = harness.coordinator.run()
+            fault = receipt["first_protected_fault"]
+            self.assertFalse(receipt["accepting"])
+            self.assertEqual(receipt["pool_disposition"], "quarantined")
+            self.assertEqual(fault["code"], "callback-overrun:check")
+            self.assertEqual(fault["observed_callback_latency_ms"], 201.0)
+            self.assertEqual(fault["certified_callback_max_ms"], 200.0)
+            self.assertTrue(all(item["lifecycle_state"] == "released" for item in receipt["lease_evidence"]))
+
     def test_child_local_interrupt_does_not_interrupt_accepted_peer(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             harness = PoolHarness(

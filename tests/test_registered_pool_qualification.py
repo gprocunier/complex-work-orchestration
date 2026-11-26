@@ -1,5 +1,6 @@
 """Original registered pipes with inert peers and fixed disposable outputs."""
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
@@ -7,7 +8,7 @@ from pathlib import Path
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
-from threading import Barrier, Lock
+from threading import Barrier, Event, Lock
 from time import monotonic, sleep
 from types import SimpleNamespace
 import unittest
@@ -24,7 +25,7 @@ from registered_pool_qualification_capability import (  # noqa: E402
     CallbackCalibrationError,
     ConnectedPoolCallbackCapability,
 )
-from cwo_core.native_pool_contracts import canonical_sha256  # noqa: E402
+from cwo_core.native_pool_contracts import MAX_CERTIFIED_CHECK_MS, canonical_sha256  # noqa: E402
 from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts  # noqa: E402
 from cwo_core.native_pool_qualification_stage import PoolQualificationRunLimits  # noqa: E402
 from cwo_core.native_pool_transaction import TransactionJournal, TransactionRuntime, seal_transaction_plan  # noqa: E402
@@ -399,6 +400,39 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         self.assertIn("writer-policy", str(worker.wire.transport_failure))
         self.assertEqual(parent.limits.debits, set())
         self.assertFalse((worker.worktree / worker.task["write_path"]).exists())
+
+    def test_check_reports_active_while_original_writer_gate_is_locked(self):
+        parent = self._prepare_workers(2)
+        first, second = parent.workers.values()
+        control = adapter._WorkerControl(first, {})
+        gate_entered, allow_release = Event(), Event()
+        authorize = parent.limits.authorize_writer
+
+        def hold_gate(child, thread, turn, request, request_sha256, release):
+            def held_release():
+                if child == first.child_id:
+                    gate_entered.set()
+                    if not allow_release.wait(parent.limits.remaining()):
+                        raise TimeoutError("writer gate did not resume")
+                release()
+
+            authorize(child, thread, turn, request, request_sha256, held_release)
+
+        with patch.object(parent.limits, "authorize_writer", hold_gate), ThreadPoolExecutor(1) as pool:
+            for worker in (first, second):
+                worker.start_turn()
+            self.assertTrue(gate_entered.wait(parent.limits.remaining()))
+            try:
+                self.assertTrue(first.wire.requests.lock.locked())
+                check = pool.submit(control.check)
+                self.assertEqual(check.result(timeout=MAX_CERTIFIED_CHECK_MS / 1000), {"decision": "continue"})
+                self.assertFalse((first.worktree / first.task["write_path"]).exists())
+                self.assertIsNone(first._result)
+            finally:
+                allow_release.set()
+            self._wait(lambda: all(worker.poll() for worker in parent.workers.values()))
+            self.assertTrue(first._writer_done)
+            self.assertEqual(control.check(), {"decision": "complete"})
 
     def test_legacy_command_refuses_before_pending_or_debit(self):
         parent, worker = self._refused_writer("legacy-command")
