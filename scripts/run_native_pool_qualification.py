@@ -37,7 +37,7 @@ from cwo_core.native_pool_deferred_context import QUALIFICATION_PROFILE
 from cwo_core.native_pool_qualification_budget import campaign_start_snapshot, valid_start_limit
 from cwo_core.native_pool_qualification_fixtures import POOL_QUALIFICATION_COHORT_SIZES, fixed_pool_qualification_cohorts
 from cwo_core.native_pool_qualification_stage import (
-    CAMPAIGN_BUDGET_ID, CAMPAIGN_START_CAP, _CAMPAIGN_APPROVAL_TOKEN, _CampaignApproval,
+    CAMPAIGN_BUDGET_ID, CAMPAIGN_START_CAP, PoolQualificationRun, _CAMPAIGN_APPROVAL_TOKEN, _CampaignApproval,
 )
 from cwo_core.native_pool_transaction import PLAN_VERSION, validate_transaction_plan
 from cwo_core.policy_schema import strict_json_loads
@@ -392,7 +392,26 @@ def _run_approved_stage(manifest, parent, *, approval, include_pass_record):
                                                               accounting=accounting)
         if report_inputs is not None:
             result = {**result, "pass_record": _pass_record(stage, result, rows, accounting, report_inputs)}
-        return result
+    try:
+        _retain_stopped_transport(runs, result)
+    except Exception:
+        # Optional diagnostic custody cannot replace a completed stage result.
+        pass
+    return result
+
+
+def _retain_stopped_transport(runs, result):
+    transactions = result["transactions"]
+    if result["outcome"] != "stopped" or not 0 < len(transactions) <= len(runs):
+        return
+    terminal = transactions[-1]
+    run = runs[len(transactions) - 1]
+    if (type(run) is not PoolQualificationRun or terminal.get("state") != "CONTAINED"
+            or terminal.get("accepted") is not False or terminal.get("transaction_id") != run.plan["transaction_id"]):
+        return
+    from registered_pool_qualification import _retain_transport_failures
+
+    _retain_transport_failures(run.runtime.start_worker_session)
 
 
 def _select_run(stage, row, authority_path, admission, capability, builder):

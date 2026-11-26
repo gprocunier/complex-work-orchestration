@@ -11,8 +11,9 @@ import os
 from pathlib import Path
 import re
 import stat
-from threading import Event, Thread, current_thread
+from threading import Event, Lock, Thread, current_thread
 from time import monotonic, monotonic_ns, sleep
+from types import MethodType
 from typing import Any
 
 from cwo_core import native_live_availability, server_request_preparation as protocol
@@ -33,12 +34,14 @@ from cwo_core.native_pool_contracts import (
     write_private_artifact,
     zero_usage,
 )
+from cwo_core.native_pool_deferred_context import DeferredAttestationError
 from cwo_core.native_pool_leases import PoolLeaseRegistry
 from cwo_core.native_pool_preflight import effective_child_packet_sha256, run_pool_preflight
 from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts
 from cwo_core.native_pool_transaction import (
     PLAN_VERSION,
     AdmittedPoolLaunch,
+    NativePoolTransactionError,
     TransactionJournal,
     TransactionRuntime,
     validate_transaction_plan,
@@ -64,7 +67,7 @@ from cwo_core.supervision.transport.private_io import load_private_bytes
 from cwo_core.policy_schema import strict_json_loads
 from prepare_server_request_frames import _decode as decode_protocol_frame
 from registered_app_server_transport import RegisteredAppServer
-from registered_finite_tool_calls import QualifiedToolEvidence, RegisteredFiniteToolCalls
+from registered_finite_tool_calls import FiniteToolError, QualifiedToolEvidence, RegisteredFiniteToolCalls
 from registered_n1_factory import _DeadlineInput
 from registered_n1_qualification import EFFORT, FINITE_TOOL_NAMESPACE, LOGIN_MOUNT, MODEL, TIER
 from registered_host_root_boundary import require_private_roots
@@ -94,6 +97,16 @@ _HOST_FIELDS = frozenset({"executable", "executable_sha256", "launcher", "launch
 
 class PoolQualificationAdapterError(ValueError):
     """The original qualification authority, observation or settlement differed."""
+
+
+_TRANSPORT_FAILURE_TYPES = {kind: kind.__name__ for kind in (
+    AppServerError, DeferredAttestationError, FiniteToolError, NativePoolTransactionError,
+    NativeSessionBoundaryError, PoolContainmentError, PoolQualificationAdapterError,
+    TimeoutError, protocol.PreparationError,
+)}
+_TRANSPORT_FAILURE_SOURCES = frozenset({
+    "effect-write", "protocol-read", "registered-reply", "request-ingress", "writer-callback",
+})
 
 
 def _require(condition, reason):
@@ -152,6 +165,8 @@ class _WorkerWire(RegisteredAppServer):
                  and type(worker.containment) is PoolWorkerContainment, "original-wire-owner-required")
         self.factory = worker
         self.transport_failure = None
+        self._transport_failure_lock = Lock()
+        self._transport_failure_observation = None
         self.thread_id = self._wire_turn = self._pending = None
         self._items = {}
         self._sent = {}
@@ -248,12 +263,12 @@ class _WorkerWire(RegisteredAppServer):
         try:
             return _checked_native_frame(binding, frame, deadline, method)
         except Exception as failure:
-            self._fail_transport(failure)
+            self._fail_transport(failure, source="effect-write")
             raise
 
     def _write_fault(self, reason):
         failure = AppServerError(reason)
-        self._fail_transport(failure)
+        self._fail_transport(failure, source="effect-write")
         raise failure
 
     def exchange(self, method):
@@ -280,7 +295,7 @@ class _WorkerWire(RegisteredAppServer):
                     return
             _require(self._retiring.is_set(), "process-ended-before-cleanup")
         except Exception as failure:
-            self._fail_transport(failure)
+            self._fail_transport(failure, source="protocol-read")
 
     def _observe_response(self, message, digest):
         request_id = message["id"]
@@ -306,7 +321,7 @@ class _WorkerWire(RegisteredAppServer):
             else:
                 self._observe_notification(message)
         except Exception as failure:
-            self._fail_transport(failure)
+            self._fail_transport(failure, source="request-ingress")
 
     def _receive_request(self, message):
         key = protocol._id_key(message["id"])
@@ -425,7 +440,7 @@ class _WorkerWire(RegisteredAppServer):
                 result = self.factory.write(pending)
             self._commit_callback_reply(pending, result, success=not calibrating and not self.factory.isolation_target)
         except Exception as failure:
-            self._fail_transport(failure)
+            self._fail_transport(failure, source="writer-callback")
 
     def _commit_callback_reply(self, pending, output, *, success):
         response = {"id": pending.request_id, "result": {
@@ -466,15 +481,31 @@ class _WorkerWire(RegisteredAppServer):
             evidence.finish_reply(call, True)
             return True
 
-    def _fail_transport(self, failure):
+    def _fail_transport(self, failure, *, source="registered-reply"):
         with self._condition:
-            self._publish_transport_failure(failure)
+            self._publish_transport_failure(failure, source=source)
             self._condition.notify_all()
 
-    def _publish_transport_failure(self, failure):
-        # The reply registry may publish while it holds its own lock.
-        self.transport_failure = self.transport_failure or failure
+    def _publish_transport_failure(self, failure, *, source="registered-reply"):
+        # The wire condition and reply registry can publish independently.
+        with self._transport_failure_lock:
+            if self.transport_failure is None:
+                self.transport_failure = failure
+                if not self._retiring.is_set():
+                    self._transport_failure_observation = (source, type(failure), datetime.now(timezone.utc))
         self._reader_error = "pool-qualification-original-wire-failed"
+
+    def take_transport_failure_observation(self):
+        """Consume the diagnostic once, after the original containment attempted close."""
+        with self._transport_failure_lock:
+            observation = self._transport_failure_observation
+            self._transport_failure_observation = None
+        if observation is None:
+            return None
+        source, kind, observed_at = observation
+        return {"source": source if source in _TRANSPORT_FAILURE_SOURCES else "unknown",
+                "error_type": _TRANSPORT_FAILURE_TYPES.get(kind, "unknown"),
+                "observed_at": observed_at.isoformat(timespec="milliseconds")}
 
     def close(self, cutoff=None):
         """Close the original containment and check every local reader has stopped."""
@@ -482,7 +513,8 @@ class _WorkerWire(RegisteredAppServer):
             cutoff = monotonic() + 1
         with self._close_lock:
             self._closing = True
-            self._retiring.set()
+            with self._transport_failure_lock:
+                self._retiring.set()
             _QUALIFICATION_RPC.pop(self, None)
             try:
                 with _calibration_close_phase("protocol_close_us"):
@@ -1369,6 +1401,22 @@ class _PoolParent:
     def runtime(self):
         return TransactionRuntime(self.session_count, self.read_bead, self.prepare, self.start_prelude,
             self.release, self.release, self.start_worker, self.bind_admitted_launch, self.contain, self.validate)
+
+
+def _retain_transport_failures(start_worker):
+    """Append private diagnostics after the protected controller settles a stopped run."""
+    if (type(start_worker) is not MethodType or type(start_worker.__self__) is not _PoolParent
+            or start_worker.__func__ is not _PoolParent.start_worker):
+        return
+    for worker in start_worker.__self__.workers.values():
+        try:
+            if worker.wire is not None and worker.containment._closed:
+                observation = worker.wire.take_transport_failure_observation()
+                if observation is not None:
+                    worker.containment.record("transport-failed", observation)
+        except Exception:
+            # An optional receipt cannot replace the already computed settlement.
+            pass
 
 
 def build_pool_qualification_runtime(plan, *, authority_path, admission, capability=None):
