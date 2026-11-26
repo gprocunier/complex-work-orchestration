@@ -16,7 +16,8 @@ LUNA_MODEL = "gpt-5.6-luna"
 MODEL_ROLES = ("sol", "astra", "luna", "terra")
 OPERATIVE_ROLES = ("luna", "terra", "sol")
 CYBER_FALLBACK_ROLE = "cyber_fallback"
-# The optional role's model comes only from the installed policy entry (see references/native-supervision.md).
+# Retain the retired entry for installed v1 configurations.
+_LEGACY_CYBER_MODEL = "gpt-daybreak-blue-latest"
 CYBER_FALLBACK_ACCESS_PROGRAM = "daybreakBlue"
 CYBER_FALLBACK_CODEX_CONFIG = {"daybreak": True}
 _FAMILY_MODEL = re.compile(r"gpt-([1-9][0-9]*(?:\.(?:0|[1-9][0-9]*))*)-(sol|astra|luna|terra)")
@@ -53,8 +54,8 @@ def _validate_role(role: str, entry: Any) -> None:
 
 
 def is_cyber_fallback_model(model: Any) -> bool:
-    """Accept an exact canonical model ID for the optional Daybreak role."""
-    return model_family_role(model) is not None
+    """Recognize IDs used by the retired role for configuration validation."""
+    return model_family_role(model) is not None or model == _LEGACY_CYBER_MODEL
 
 
 def _validate_cyber_fallback(entry: Any, sol: Mapping[str, Any]) -> None:
@@ -159,14 +160,9 @@ def requires_model_catalog(
     roles: Iterable[str] | None = None, *, config: Mapping[str, Any] | None = None,
 ) -> bool:
     entries = _role_config(config)
-    selected = (
-        MODEL_ROLES + ((CYBER_FALLBACK_ROLE,) if CYBER_FALLBACK_ROLE in entries else ())
-        if roles is None else tuple(roles)
-    )
+    selected = MODEL_ROLES if roles is None else tuple(roles)
     if any(role not in (*MODEL_ROLES, CYBER_FALLBACK_ROLE) for role in selected):
         raise ValueError("unknown Codex model role in catalog request")
-    if CYBER_FALLBACK_ROLE in selected and CYBER_FALLBACK_ROLE in entries:
-        return True
     return any(entries[role]["selection"] == "latest-in-family" and "pin" not in entries[role]
                for role in selected if role in MODEL_ROLES)
 
@@ -218,29 +214,13 @@ def operative_models() -> tuple[str, ...]:
 def cyber_fallback_availability(
     *, config: Mapping[str, Any] | None = None, catalog: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Report whether the optional Daybreak role is visible to this Codex user."""
-    entries = _role_config(config)
-    entry = entries.get(CYBER_FALLBACK_ROLE)
-    if entry is None:
-        return {
-            "role": CYBER_FALLBACK_ROLE,
-            "status": "unconfigured",
-            "reason": "role-absent",
-            "model": None,
-            "required_access_program": None,
-            "codex_config": None,
-        }
-    projection = {"role": CYBER_FALLBACK_ROLE, **deepcopy(dict(entry))}
-    models = _startup_catalog if catalog is None else _public_catalog(catalog)
-    if models is None:
-        return {**projection, "status": "unavailable", "reason": "catalog-not-loaded"}
-    row = models.get(entry["model"])
-    if row is None:
-        return {**projection, "status": "unavailable", "reason": "model-not-advertised"}
-    if row["hidden"] or row["model"] != entry["model"]:
-        return {**projection, "status": "unavailable", "reason": "model-not-selectable"}
-    access = row.get("availableAccessPrograms")
-    programs = access.get("cyber", []) if isinstance(access, Mapping) else []
-    if entry["required_access_program"] not in programs:
-        return {**projection, "status": "unavailable", "reason": "access-program-not-advertised"}
-    return {**projection, "status": "available", "reason": "required-access-program-advertised"}
+    """Return the retired role status for existing callers."""
+    configured = CYBER_FALLBACK_ROLE in _role_config(config)
+    return {
+        "role": CYBER_FALLBACK_ROLE,
+        "status": "disabled" if configured else "unconfigured",
+        "reason": "provider-refusal-is-terminal" if configured else "role-absent",
+        "model": None,
+        "required_access_program": None,
+        "codex_config": None,
+    }

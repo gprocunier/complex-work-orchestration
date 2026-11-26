@@ -1,4 +1,4 @@
-"""Fake-only automatic fallback for explicitly marked security work."""
+"""Offline witnesses for terminal cyber-policy refusal handling."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from cwo_core.cyber_fallback import (
     CyberFallbackController,
@@ -15,8 +16,6 @@ from cwo_core.cyber_fallback import (
     SecurityMarkStore,
 )
 from cwo_core.invocation_ledger import EffectResult, InvocationLedger
-from cwo_core.model_identities import cyber_fallback_availability
-from cwo_core.policy import load_policy
 
 
 PACKET = b'{"packet_id":"EXAMPLE-security-work","task":"EXAMPLE authorized review"}'
@@ -87,24 +86,14 @@ class CyberFallbackTests(unittest.TestCase):
             }
         }
         self.ordinary_failure = {"summary": {"terminal_blockers": {}}}
-        self.role_config = load_policy("model-roles")
-        self.role_config["roles"]["cyber_fallback"] = {
+        self.available = {
+            "role": "cyber_fallback",
             "model": CYBER_MODEL,
             "required_access_program": "daybreakBlue",
             "codex_config": {"daybreak": True},
+            "status": "available",
+            "reason": "required-access-program-advertised",
         }
-        self.available = cyber_fallback_availability(
-            config=self.role_config,
-            catalog={
-                "data": [{
-                    "id": CYBER_MODEL,
-                    "model": CYBER_MODEL,
-                    "hidden": False,
-                    "availableAccessPrograms": {"cyber": ["daybreakBlue"]},
-                }],
-                "nextCursor": None,
-            },
-        )
         self.workspace = self.root / "workspace"
         self.workspace.mkdir()
         self.records: list[dict] = []
@@ -160,69 +149,45 @@ class CyberFallbackTests(unittest.TestCase):
             dispatch=dispatch,
         )
 
-    def test_marked_refusal_dispatches_one_linked_unchanged_fallback(self) -> None:
+    def test_structured_cyber_refusal_never_reserves_invokes_or_dispatches(self) -> None:
         store = self.mark_store()
         controller = self.controller(store)
         dispatch = FakeDispatch({"outcome": "completed", "usage": ZERO_USAGE})
+        original_summary = self.ledger.summary(self.budget_id)
 
-        result = self.recover(controller, dispatch)
+        with (
+            patch.object(self.ledger, "reserve", wraps=self.ledger.reserve) as reserve,
+            patch.object(self.ledger, "invoke", wraps=self.ledger.invoke) as invoke,
+        ):
+            result = self.recover(controller, dispatch)
 
-        self.assertEqual(result["status"], "completed")
-        self.assertEqual(len(dispatch.calls), 1)
-        request = dispatch.calls[0]
-        self.assertIs(request["packet"], PACKET)
-        self.assertEqual(request["packet_sha256"], self.original["request_sha256"])
-        self.assertEqual(request["reason"], "cyber_refusal")
-        self.assertEqual(request["classification"], "cyberPolicy")
-        self.assertEqual(request["role"], "cyber_fallback")
-        self.assertEqual(request["model"], CYBER_MODEL)
-        self.assertEqual(request["codex_config"], {"daybreak": True})
-        self.assertEqual((request["effort"], request["service_tier"]), ("xhigh", "default"))
-        self.assertEqual(request["parent_attempt_id"], self.original["attempt_id"])
-        self.assertEqual(request["mark"]["marked_by"], "EXAMPLE operator")
-        self.assertEqual(request["mark"]["marked_at"], "2026-11-23T09:00:00-05:00")
-        fallback = result["fallback_attempt"]
-        self.assertEqual(
-            fallback["lineage"],
-            {"kind": "fallback", "parent_attempt_id": self.original["attempt_id"]},
-        )
-        self.assertEqual(
-            self.ledger.summary(self.budget_id)["charged"],
-            {key: value * 2 for key, value in AMOUNT.items()},
-        )
-        self.assertEqual([row["event"] for row in self.records], ["invocation-intent", "terminal"])
-        self.assertTrue(all(row["reason"] == "cyber_refusal" for row in self.records))
-        self.assertTrue(all(row["mark"]["marked_by"] == "EXAMPLE operator" for row in self.records))
+        self.assertEqual(dispatch.calls, [])
+        reserve.assert_not_called()
+        invoke.assert_not_called()
+        self.assertEqual(self.ledger.summary(self.budget_id), original_summary)
+        self.assertEqual(result["status"], "blocked")
+        self.assertEqual(result["original_attempt"], self.original)
+        self.assertNotIn("fallback_attempt", result)
+        self.assertEqual(result["blocker"], {"classification": "cyberPolicy", "cause": "provider-safety-policy-refusal"})
+        self.assertEqual(len(self.records), 1)
+        self.assertEqual(self.records[0], {
+            "record_type": "cwo-cyber-fallback",
+            "version": 1,
+            "event": "blocker",
+            "reason": "cyber_refusal",
+            "parent_attempt_id": self.original["attempt_id"],
+            "packet_sha256": self.original["request_sha256"],
+            "blocker": result["blocker"],
+        })
 
-    def test_configured_model_drives_the_fallback_request(self) -> None:
-        self.role_config["roles"]["cyber_fallback"]["model"] = "gpt-7-sol"
-        self.role_config["roles"]["cyber_fallback"]["previous"] = CYBER_MODEL
-        role = cyber_fallback_availability(
-            config=self.role_config,
-            catalog={
-                "data": [{
-                    "id": "gpt-7-sol",
-                    "model": "gpt-7-sol",
-                    "hidden": False,
-                    "availableAccessPrograms": {"cyber": ["daybreakBlue"]},
-                }],
-                "nextCursor": None,
-            },
-        )
-        dispatch = FakeDispatch({"outcome": "completed", "usage": ZERO_USAGE})
-
-        result = self.recover(self.controller(self.mark_store()), dispatch, role=role)
-
-        self.assertEqual(result["status"], "completed")
-        self.assertEqual(dispatch.calls[0]["model"], "gpt-7-sol")
-        self.assertEqual(dispatch.calls[0]["codex_config"], {"daybreak": True})
-
-    def test_only_a_cyber_policy_refusal_triggers_recovery(self) -> None:
+    def test_ordinary_failures_are_unchanged_by_refusal_audit(self) -> None:
         dispatch = FakeDispatch()
         controller = self.controller(self.mark_store())
         for refusal in (
             {"summary": {"terminal_blockers": {"provider-safety-policy-refusal": "misalignmentPolicyViolation"}}},
             {"summary": {"terminal_blockers": {"provider-safety-policy-refusal": "otherPolicy"}}},
+            {"summary": {"terminal_blockers": {"provider-safety-policy-refusal": ["cyberPolicy"]}}},
+            {"summary": {"error": "cyberPolicy"}},
             self.ordinary_failure,
         ):
             with self.subTest(refusal=refusal):
@@ -231,36 +196,19 @@ class CyberFallbackTests(unittest.TestCase):
         self.assertEqual(dispatch.calls, [])
         self.assertEqual(self.records, [])
 
-    def test_project_mark_covers_work_once_and_spent_handle_is_rejected(self) -> None:
-        store = self.mark_store(scope="project", mark_id="EXAMPLE-project")
-        mark = store.issue(work_item_id="EXAMPLE-security-work", project_id="EXAMPLE-project")
-        controller = self.controller(store)
-
-        result = self.recover(
-            controller,
-            FakeDispatch({"outcome": "completed", "usage": ZERO_USAGE}),
-            mark=mark,
-        )
-
-        self.assertEqual(result["status"], "completed")
-        with self.assertRaisesRegex(CyberFallbackError, "already consumed"):
-            store.verify(mark, work_item_id="EXAMPLE-security-work", project_id="EXAMPLE-project")
-
-    def test_unmarked_unavailable_and_non_refusal_failures_never_dispatch(self) -> None:
-        cases = (
-            (None, self.refusal, self.available, "work-not-marked"),
-            (..., self.refusal, {**self.available, "status": "unavailable", "reason": "access-program-not-advertised"},
-             "fallback-role-unavailable"),
-            (..., self.ordinary_failure, self.available, None),
-        )
-        for mark, refusal, role, cause in cases:
-            with self.subTest(cause=cause):
-                store = self.mark_store(path=self.root / f"mark-{cause or 'ordinary'}.json")
-                controller = self.controller(store)
-                dispatch = FakeDispatch({"outcome": "completed", "usage": ZERO_USAGE})
-                result = self.recover(controller, dispatch, mark=mark, refusal=refusal, role=role)
-                self.assertEqual(dispatch.calls, [])
-                self.assertEqual(result.get("blocker", {}).get("cause"), cause)
+    def test_missing_or_forged_legacy_inputs_cannot_change_the_terminal_blocker(self) -> None:
+        controller = self.controller(self.mark_store())
+        dispatch = FakeDispatch()
+        for mark, role in (
+            (None, self.available),
+            ({"source": "user"}, self.available),
+            (..., {**self.available, "status": "unavailable"}),
+        ):
+            with self.subTest(mark=mark, role=role):
+                result = self.recover(controller, dispatch, mark=mark, role=role)
+                self.assertEqual(result["status"], "blocked")
+                self.assertEqual(result["blocker"]["cause"], "provider-safety-policy-refusal")
+        self.assertEqual(dispatch.calls, [])
 
     def test_worker_lead_forged_and_overlapping_marks_are_rejected(self) -> None:
         for source in ("worker", "lead"):
@@ -271,38 +219,24 @@ class CyberFallbackTests(unittest.TestCase):
             self.mark_store(path=self.workspace / "mark.json")
 
         store = self.mark_store(path=self.root / "mark-forged.json")
-        controller = self.controller(store)
         with self.assertRaisesRegex(CyberFallbackError, "verified user mark"):
-            self.recover(controller, FakeDispatch(), mark={"source": "user"})
+            store.verify({"source": "user"}, work_item_id="EXAMPLE-security-work", project_id=None)
 
-        mark = store.issue(work_item_id="EXAMPLE-security-work")
-        forged_role = {**self.available, "model": "gpt-6.2-sol"}
-        dispatch = FakeDispatch({"outcome": "completed", "usage": ZERO_USAGE})
-        with self.assertRaisesRegex(CyberFallbackError, "Daybreak Blue"):
-            self.recover(controller, dispatch, mark=mark, role=forged_role)
-        self.assertEqual(dispatch.calls, [])
-
-    def test_fallback_refusal_blocks_and_cannot_launch_a_third_attempt(self) -> None:
-        store = self.mark_store()
-        controller = self.controller(store)
-        dispatch = FakeDispatch({
-            "outcome": "failed",
-            "usage": ZERO_USAGE,
-            "summary": {"terminal_blockers": {"provider-safety-policy-refusal": "cyberPolicy"}},
-        })
-
-        first = self.recover(controller, dispatch)
-        self.assertEqual(first["blocker"]["cause"], "fallback-refused")
-        self.assertEqual(len(dispatch.calls), 1)
-
-        second_dispatch = FakeDispatch({"outcome": "completed", "usage": ZERO_USAGE})
-        second = self.recover(controller, second_dispatch)
-        self.assertEqual(second["blocker"]["cause"], "fallback-already-attempted")
-        self.assertEqual(second_dispatch.calls, [])
-        self.assertEqual(
-            self.ledger.summary(self.budget_id)["charged"],
-            {key: value * 2 for key, value in AMOUNT.items()},
-        )
+    def test_refusal_audit_requires_the_original_charged_packet(self) -> None:
+        controller = self.controller(self.mark_store())
+        with self.assertRaisesRegex(CyberFallbackError, "exact packet"):
+            controller.recover(
+                packet=b"EXAMPLE different packet",
+                work_item_id="EXAMPLE-security-work",
+                project_id=None,
+                original_attempt=self.original,
+                original_result=self.refusal,
+                original_dispatch={},
+                fallback_role={},
+                mark=None,
+                dispatch=FakeDispatch(),
+            )
+        self.assertEqual(self.records, [])
 
 
 if __name__ == "__main__":

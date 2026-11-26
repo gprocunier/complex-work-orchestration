@@ -1,10 +1,4 @@
-"""One parent-owned fallback attempt after a structured provider refusal.
-
-The worker packet never carries the authorization mark. The parent reads an
-owner-private mark file outside every worker and lead write root, then passes
-an opaque handle to this controller. Dispatch remains an injected parent
-operation, which keeps tests offline and provider-free.
-"""
+"""Record a terminal provider cyber-policy refusal for an embedding host."""
 
 from __future__ import annotations
 
@@ -19,29 +13,16 @@ import stat
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
-from .invocation_ledger import EffectResult, InvocationLedger
-from .model_identities import (
-    CYBER_FALLBACK_ACCESS_PROGRAM,
-    CYBER_FALLBACK_CODEX_CONFIG,
-    CYBER_FALLBACK_ROLE,
-    is_cyber_fallback_model,
-)
+from .invocation_ledger import InvocationLedger
 
 
 _BLOCKER_KEY = "provider-safety-policy-refusal"
-# Only a cyber-policy refusal triggers recovery; other refusals and errors stop.
-_REFUSAL_CATEGORIES = {"cyberPolicy"}
 _MARK_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 class CyberFallbackError(ValueError):
-    """A mark or fallback request failed closed before dispatch."""
-
-
-def _canonical_sha256(value: Any) -> str:
-    payload = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True, allow_nan=False)
-    return hashlib.sha256(payload.encode("ascii")).hexdigest()
+    """A legacy mark or a refusal audit input is invalid."""
 
 
 def _pairs(entries: list[tuple[str, Any]]) -> dict[str, Any]:
@@ -146,7 +127,7 @@ class _VerifiedMark:
 
 
 class SecurityMarkStore:
-    """Read exact user marks and issue non-serializable handles to the parent."""
+    """Read legacy user marks for existing embedding callers."""
 
     def __init__(
         self,
@@ -224,7 +205,7 @@ class SecurityMarkStore:
 
 
 class CyberFallbackController:
-    """Consume one terminal refusal and launch at most one fallback attempt."""
+    """Keep the existing host entry point for recording a refusal."""
 
     def __init__(
         self,
@@ -239,14 +220,13 @@ class CyberFallbackController:
         self.ledger = ledger
         self.mark_store = mark_store
         self.recorder = recorder
-        self.clock = clock
 
     @staticmethod
     def _classification(result: Any) -> str | None:
         summary = result.get("summary") if isinstance(result, Mapping) else None
         blockers = summary.get("terminal_blockers") if isinstance(summary, Mapping) else None
         category = blockers.get(_BLOCKER_KEY) if isinstance(blockers, Mapping) else None
-        return category if category in _REFUSAL_CATEGORIES else None
+        return category if type(category) is str and category == "cyberPolicy" else None
 
     def _original(self, attempt: Any, packet: bytes) -> dict[str, Any]:
         if not isinstance(attempt, Mapping) or type(attempt.get("reservation_id")) is not str:
@@ -263,65 +243,6 @@ class CyberFallbackController:
             raise CyberFallbackError("a known fully charged refusal for the exact packet is required")
         return current
 
-    def _existing_fallback(self, parent_attempt_id: str) -> dict[str, Any] | None:
-        with self.ledger._locked() as (_root, document):
-            rows = [
-                copy.deepcopy(attempt)
-                for attempt in document["attempts"].values()
-                if attempt["lineage"] == {"kind": "fallback", "parent_attempt_id": parent_attempt_id}
-            ]
-        if len(rows) > 1:
-            raise CyberFallbackError("more than one fallback attempt is recorded for the original")
-        return rows[0] if rows else None
-
-    def _record_blocker(
-        self, *, original: Mapping[str, Any], classification: str, cause: str,
-        mark: Mapping[str, Any] | None = None, role: Mapping[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        blocker = {"classification": classification, "cause": cause}
-        record = {
-            "record_type": "cwo-cyber-fallback",
-            "version": 1,
-            "event": "blocker",
-            "reason": "cyber_refusal",
-            "parent_attempt_id": original["attempt_id"],
-            "blocker": blocker,
-        }
-        if mark is not None:
-            record["mark"] = copy.deepcopy(dict(mark))
-        if role is not None:
-            record["fallback_role"] = copy.deepcopy(dict(role))
-        self.recorder(record)
-        return {"status": "blocked", "original_attempt": copy.deepcopy(dict(original)), "blocker": blocker}
-
-    @staticmethod
-    def _dispatch_identity(value: Any) -> dict[str, str]:
-        fields = {"model", "effort", "service_tier"}
-        if not isinstance(value, Mapping) or set(value) != fields or any(
-            type(value[field]) is not str or not value[field] for field in fields
-        ):
-            raise CyberFallbackError("trusted original dispatch identity is invalid")
-        return dict(value)
-
-    @staticmethod
-    def _available_role(value: Any) -> dict[str, Any] | None:
-        required = {"role", "status", "reason", "model", "required_access_program", "codex_config"}
-        if not isinstance(value, Mapping) or not required <= set(value) <= required | {"previous", "purpose"}:
-            raise CyberFallbackError("fallback role projection is invalid")
-        role = copy.deepcopy(dict(value))
-        if role["role"] != CYBER_FALLBACK_ROLE:
-            raise CyberFallbackError("fallback role projection names another role")
-        if role["status"] != "available":
-            return None
-        if (
-            not is_cyber_fallback_model(role["model"])
-            or role["required_access_program"] != CYBER_FALLBACK_ACCESS_PROGRAM
-            or role["codex_config"] != CYBER_FALLBACK_CODEX_CONFIG
-            or role["reason"] != "required-access-program-advertised"
-        ):
-            raise CyberFallbackError("available fallback must bind the configured Daybreak Blue role")
-        return role
-
     def recover(
         self,
         *,
@@ -335,118 +256,25 @@ class CyberFallbackController:
         mark: object | None,
         dispatch: Callable[[dict[str, Any]], Mapping[str, Any]],
     ) -> dict[str, Any]:
-        if type(packet) is not bytes or not packet or not callable(dispatch):
-            raise CyberFallbackError("an immutable packet and parent dispatcher are required")
+        """Record a refusal without starting another attempt.
+
+        The former routing inputs are accepted for compatibility with existing
+        embedding callers. They carry no authority.
+        """
+        if type(packet) is not bytes or not packet:
+            raise CyberFallbackError("an immutable packet is required")
         original = self._original(original_attempt, packet)
         classification = self._classification(original_result)
         if classification is None:
-            return {"status": "unchanged", "original_attempt": copy.deepcopy(original)}
-        if original["lineage"]["kind"] == "fallback":
-            return self._record_blocker(
-                original=original, classification=classification, cause="fallback-refused"
-            )
-        if mark is None:
-            return self._record_blocker(
-                original=original, classification=classification, cause="work-not-marked"
-            )
-        mark_record = self.mark_store.verify(
-            mark, work_item_id=work_item_id, project_id=project_id
-        )
-        role = self._available_role(fallback_role)
-        if role is None:
-            return self._record_blocker(
-                original=original, classification=classification, cause="fallback-role-unavailable",
-                mark=mark_record, role=fallback_role,
-            )
-        if self._existing_fallback(original["attempt_id"]) is not None:
-            return self._record_blocker(
-                original=original, classification=classification, cause="fallback-already-attempted",
-                mark=mark_record, role=role,
-            )
-        original_identity = self._dispatch_identity(original_dispatch)
-        if role["model"] == original_identity["model"]:
-            raise CyberFallbackError(
-                "available fallback must bind the configured Daybreak Blue role, not the refused model"
-            )
-        self.mark_store.verify(
-            mark, work_item_id=work_item_id, project_id=project_id, consume=True
-        )
-        packet_sha256 = hashlib.sha256(packet).hexdigest()
-        mark_sha256 = _canonical_sha256(mark_record)
-        binding = {
+            return {"status": "unchanged", "original_attempt": original}
+        blocker = {"classification": classification, "cause": _BLOCKER_KEY}
+        self.recorder({
+            "record_type": "cwo-cyber-fallback",
+            "version": 1,
+            "event": "blocker",
             "reason": "cyber_refusal",
             "parent_attempt_id": original["attempt_id"],
-            "classification": classification,
-            "packet_sha256": packet_sha256,
-            "mark_sha256": mark_sha256,
-            "mark": mark_record,
-            "fallback_role": role,
-            "effort": original_identity["effort"],
-            "service_tier": original_identity["service_tier"],
-        }
-        binding_sha256 = _canonical_sha256(binding)
-        reservation = self.ledger.reserve(
-            budget_id=original["budget_id"],
-            request_id="cyber-fallback:" + binding_sha256[:32],
-            request_sha256=packet_sha256,
-            admission_sha256=binding_sha256,
-            amount=original["amount"],
-            expires_at=self.clock() + 300,
-            lineage={"kind": "fallback", "parent_attempt_id": original["attempt_id"]},
-            refuse_while_unresolved=True,
-        )
-        request = {
-            "packet": packet,
-            "packet_sha256": packet_sha256,
-            "reason": "cyber_refusal",
-            "classification": classification,
-            "parent_attempt_id": original["attempt_id"],
-            "role": role["role"],
-            "model": role["model"],
-            "codex_config": copy.deepcopy(role["codex_config"]),
-            "effort": original_identity["effort"],
-            "service_tier": original_identity["service_tier"],
-            "mark": copy.deepcopy(mark_record),
-        }
-        fallback_result: dict[str, Any] = {}
-
-        def observe(observation: dict[str, Any]) -> None:
-            event = observation["event"]
-            record = {
-                "record_type": "cwo-cyber-fallback",
-                "version": 1,
-                "event": event,
-                **binding,
-                "attempt": copy.deepcopy(observation["attempt"]),
-            }
-            if observation["detail"]:
-                record["detail"] = copy.deepcopy(observation["detail"])
-            if event == "terminal" and fallback_result:
-                record["fallback_outcome"] = fallback_result["outcome"]
-                record["fallback_classification"] = self._classification(fallback_result)
-            self.recorder(record)
-
-        def effect(effect_packet: bytes, _report: Callable[..., None]) -> EffectResult:
-            if effect_packet != packet:
-                raise CyberFallbackError("fallback dispatcher did not receive the unchanged packet bytes")
-            observed = dispatch(request)
-            if not isinstance(observed, Mapping) or observed.get("outcome") not in {"completed", "failed"}:
-                raise CyberFallbackError("fallback dispatcher returned an invalid result")
-            fallback_result.update(copy.deepcopy(dict(observed)))
-            return EffectResult(fallback_result["outcome"], fallback_result.get("usage"))
-
-        settled = self.ledger.invoke(
-            reservation["reservation_id"], packet, effect, observers=(observe,)
-        )
-        result = {
-            "status": "completed" if settled["outcome"] == "completed" else "blocked",
-            "original_attempt": copy.deepcopy(original),
-            "fallback_attempt": settled,
-            "fallback_result": copy.deepcopy(fallback_result),
-        }
-        if settled["outcome"] == "failed":
-            result["blocker"] = {
-                "classification": self._classification(fallback_result),
-                "cause": "fallback-refused" if self._classification(fallback_result) else "fallback-failed",
-            }
-        return result
+            "packet_sha256": original["request_sha256"],
+            "blocker": dict(blocker),
+        })
+        return {"status": "blocked", "original_attempt": original, "blocker": blocker}

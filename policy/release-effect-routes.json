@@ -7114,7 +7114,7 @@
 
 "scripts/cwo_core/codex_protocol_pin.py":["X2Xiv-3DzLsfUkjGP6F8TXtgplhr-TBEdB4VejXJS70",420,29437],
 
-"scripts/cwo_core/cyber_fallback.py":["YfUIJ2BfOxpH8MSkYacJOHSnA-cQfLBxh24DXPWQEC0",420,20431],
+"scripts/cwo_core/cyber_fallback.py":["bjR5WBmXFSOnV1e_ALdOTqZc_hXlo-5LeEVHx3_FvM0",420,12245],
 
 "scripts/cwo_core/epic_convergence.py":["Vkapb1o5JC4mXpy_Hf3CnE1ns4VOuUqg0jcBkcVhk-U",420,11536],
 
@@ -7148,7 +7148,7 @@
 
 "scripts/cwo_core/model_catalog_startup.py":["DqsueOZw1HBhnEcJ0Y_BTMVIoNntliM7kjIpSE4wxvI",420,2045],
 
-"scripts/cwo_core/model_identities.py":["HaucEcjvKsJ-lG3cKtuNHTaFIswhz1U3TBfS1B63zjY",420,11439],
+"scripts/cwo_core/model_identities.py":["ycOuLfWYSTAXj_fVlXfoHysRgd6Ql4CwpA5Ax69oUu8",420,10340],
 
 "scripts/cwo_core/model_identity_scope.py":["6EGFmDTCeucxzeFK4EEdqGqQCbv7yd6pri67W0gqWeE",420,10784],
 
@@ -7234,7 +7234,7 @@
 
 "scripts/cwo_core/native_worker_contracts.py":["MWKqGEa82VGxS2RXVM-eaWt3Tlt5XPN_715NeEC9t6U",420,48251],
 
-"scripts/cwo_core/operative_routing.py":["frkqxb7VLLRyI4mjdqPEfSaGkeNqMBVI-D08C3Bm2RM",420,127229],
+"scripts/cwo_core/operative_routing.py":["0QFjiS_PpQpw25o8QPYGvKcVBoM1vDoMjcmmwZM0b68",420,127206],
 
 "scripts/cwo_core/packet_provenance.py":["KwSG35SL9ilBosxL4vJErV-SUzr3gJUP__n2_3aOfjs",420,3901],
 
@@ -7250,7 +7250,7 @@
 
 "scripts/cwo_core/policy.py":["M6qNTmzPaILFnhZxOOplobBDdfzB3Zh4uq4Kd3rykFE",420,18692],
 
-"scripts/cwo_core/policy_schema.py":["ScOBA-pQoJPhb--cCj1v7tOm33dA9A_1oTtmnKcNtYE",420,26198],
+"scripts/cwo_core/policy_schema.py":["w0RYnMwHUqpJlzRqdRE4BljJjbGqJrm6NYsIIGAj6oY",420,26146],
 
 "scripts/cwo_core/private_authority_input.py":["DwGz8geSoWVnCPX9D7LC4JMaazlvcolnArBBmOSjaCc",420,3824],
 
@@ -7446,7 +7446,7 @@
 
 "scripts/validate_public_copy.py":["Nh2VF3xdNxmpccEZqUMcJTUD9LW-oEhvzOCJKawL4hc",420,62905],
 
-"scripts/validate_repository.py":["DoVLf5aggCEcJFkJS2o1FAXw-BVoWGwM7Z1X0mfWHeM",420,118724],
+"scripts/validate_repository.py":["Cej32C2aca67eQdOpH_kSabm779q5z-l5yISU1Q0lXM",420,118704],
 
 "scripts/validate_run_readiness_plan.py":["Qgbl831AJKP8HfpAZtP_cj91LTnKuHtFDKf02kUmy4Y",493,21103],
 
@@ -7460,7 +7460,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["nsdAr-oKtP91YeOrZZE23ERhG4A-AhY_Uwz4OXE3pg8",420,142692],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["umsPscZldXM0hMTDrqv23p1r-HPM9iC9AOZdzHC8wcg",420,142692],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7486,7 +7486,7 @@
 
 "tests/test_core_resource_tool_profiles.py":["BLcVQF-zTyYeX3fskFBF-ZnSo4wB5Y5p-rLf7G11O9M",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["laot9cDktgrlDKrp8pxyF1x1PAIbDKtS5EXyf2SZqKI",420,26301],
+"tests/test_cwo_core_import_contract.py":["uHRDMeRafYCrOvOviGBeAlPg5RqCp9Emw_jqVw0oDTA",420,26281],
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 

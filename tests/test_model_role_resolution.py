@@ -118,30 +118,28 @@ class ModelRoleResolutionTests(unittest.TestCase):
             },
         )
 
-    def test_configured_cyber_fallback_uses_access_program_metadata(self):
+    def test_configured_legacy_role_has_no_catalog_or_launch_effect(self):
+        import cwo_core.operative_routing as routing
+
         config = self.config()
-        config["roles"]["cyber_fallback"] = dict(CYBER_ROLE)
-        available = catalog(CYBER_MODEL, cyber_access=("standard", "daybreakBlue"))
-
-        self.assertTrue(identities.requires_model_catalog(("cyber_fallback",), config=config))
-        self.assertEqual(
-            identities.cyber_fallback_availability(config=config, catalog=available),
-            {
-                "role": "cyber_fallback",
-                "status": "available",
-                "reason": "required-access-program-advertised",
-                **CYBER_ROLE,
-            },
-        )
-
-        for unavailable, reason in (
-            (catalog(), "model-not-advertised"),
-            (catalog(CYBER_MODEL), "access-program-not-advertised"),
-            (catalog(CYBER_MODEL, cyber_access=("standard",)), "access-program-not-advertised"),
-        ):
-            with self.subTest(reason=reason):
-                status = identities.cyber_fallback_availability(config=config, catalog=unavailable)
-                self.assertEqual((status["status"], status["reason"]), ("unavailable", reason))
+        ordinary_sol = identities.resolve_model("sol", config=config)
+        for model in (CYBER_MODEL, "gpt-daybreak-blue-latest"):
+            with self.subTest(model=model):
+                config["roles"]["cyber_fallback"] = {**CYBER_ROLE, "model": model}
+                advertised = catalog(model, cyber_access=("standard", "daybreakBlue"))
+                self.assertFalse(identities.requires_model_catalog(config=config))
+                self.assertFalse(identities.requires_model_catalog(("cyber_fallback",), config=config))
+                self.assertEqual(identities.resolve_model("sol", config=config), ordinary_sol)
+                with self.assertRaisesRegex(ValueError, "unknown Codex model role"):
+                    identities.resolve_model("cyber_fallback", config=config, catalog=advertised)
+                self.assertEqual(routing.cyber_fallback_status(config=config, catalog=advertised), {
+                    "role": "cyber_fallback",
+                    "status": "disabled",
+                    "reason": "provider-refusal-is-terminal",
+                    "model": None,
+                    "required_access_program": None,
+                    "codex_config": None,
+                })
 
     def test_cyber_fallback_configuration_is_closed_and_exact(self):
         base = self.config()
@@ -151,7 +149,6 @@ class ModelRoleResolutionTests(unittest.TestCase):
             {**CYBER_ROLE, "codex_config": {"daybreak": False}},
             {**CYBER_ROLE, "codex_config": {"daybreak": True, "other": True}},
             {**CYBER_ROLE, "extra": True},
-            {**CYBER_ROLE, "model": "gpt-daybreak-blue-latest"},
             {**CYBER_ROLE, "previous": "not-a-model"},
         )
         for entry in invalid:
@@ -168,23 +165,12 @@ class CyberFallbackConfigurationTests(unittest.TestCase):
         for entry in (
             dict(CYBER_ROLE),
             {**CYBER_ROLE, "model": "gpt-7-sol", "previous": CYBER_MODEL},
-            {**CYBER_ROLE, "previous": None, "purpose": "Daybreak Blue retry after a cyber-policy refusal"},
+            {**CYBER_ROLE, "previous": None, "purpose": "Historical configuration"},
         ):
             with self.subTest(entry=entry):
                 identities.validate_model_role_config(
                     {"version": base["version"], "roles": {**base["roles"], "cyber_fallback": entry}}
                 )
-
-    def test_no_daybreak_model_id_is_hard_coded_in_scripts(self):
-        from pathlib import Path
-
-        scripts = Path(__file__).resolve().parents[1] / "scripts"
-        offenders = [
-            str(path.relative_to(scripts))
-            for path in scripts.rglob("*.py")
-            if "gpt-daybreak-blue-latest" in path.read_text(encoding="utf-8")
-        ]
-        self.assertEqual(offenders, [])
 
 
 if __name__ == "__main__":
