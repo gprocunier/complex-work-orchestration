@@ -36,7 +36,7 @@
     "page": "local-workers.html",
     "section": "invoke-codex",
     "title": "From an approved local question to a checked answer",
-    "description": "Illustrative procedure—not a new endpoint run. Preparation makes no model call. Apply the selected profile’s checks before the one approved execution. Retain actual dispatch JSON, check response usability and compare the same attempt’s workspace. Arrows show procedure, not a replacement of the evaluator’s original inputs. Failed checks, an unusable answer or unexpected file changes require investigation.",
+    "description": "Illustrative procedure (not a new endpoint run). Preparation makes no model call. Apply the selected profile’s checks before the one approved execution. Retain actual dispatch JSON, check response usability and compare the same attempt’s workspace. Arrows show procedure, not a replacement of the evaluator’s original inputs. Failed checks, an unusable answer or unexpected file changes require investigation.",
     "text_equivalent": [
       "Approve the question, allowed material, local inference and configured endpoint/profile. Prepare and inspect the request without calling a model. Apply the selected profile’s safety checks; hardened exact-model checks are conditional on that profile, not universal.",
       "Only after those checks pass, make one approved model call and save its actual dispatch JSON. Preparation output is not that result. Confirm that the response contains a usable answer; a configured model name alone does not attest the server’s weights.",
@@ -52,7 +52,7 @@
     "page": "contractor-demo.html",
     "section": "flow",
     "title": "Historical contractor ownership",
-    "description": "Historical ownership map—not evidence of concurrent execution or a current launch recipe. The lead coordinated documentation and Pages assignments on separate branches, reviewed and corrected the returns, validated the combined candidate, then retained the historical publication decision. Preparing a brief was not an actual CLI call. This record authorizes no new dispatch or publication.",
+    "description": "Historical ownership map (not evidence of concurrent execution or a current launch recipe). The lead coordinated documentation and Pages assignments on separate branches, reviewed and corrected the returns, validated the combined candidate, then retained the historical publication decision. Preparing a brief was not an actual CLI call. This record authorizes no new dispatch or publication.",
     "text_equivalent": [
       "In this historical demo, the lead retained architecture and task coordination and prepared separate limited briefs and patch branches. Preparation alone was not a contractor invocation.",
       "The documentation assignment used the historical agy CLI route; the Pages assignment used the historical claude CLI route. Separate ownership branches do not establish concurrent execution.",
@@ -73,7 +73,7 @@
     "page": "model-synthesis.html",
     "section": "pipeline",
     "title": "Separate reviews, one recorded decision",
-    "description": "Illustrative planning workflow—not a concurrency trace. Assign reviewers separate bounded questions and retain each original return and evaluation. Compare eligible findings while preserving held or excluded inputs separately. The lead records one decision; neither agreement nor a review grants implementation authority. Branches do not prove statistical independence or simultaneous execution.",
+    "description": "Illustrative planning workflow (not a concurrency trace). Assign reviewers separate bounded questions and retain each original return and evaluation. Compare eligible findings while preserving held or excluded inputs separately. The lead records one decision; neither agreement nor a review grants implementation authority. Branches do not prove statistical independence or simultaneous execution.",
     "text_equivalent": [
       "The lead prepares the plan, approved material and separate review questions. Reviewer A and reviewer B receive distinct bounded assignments through their permitted routes; the branches do not imply simultaneous execution or statistical independence.",
       "Retain each original answer and evaluate it separately for evidence, scope and required holds. Keep each evaluation with the matching return; do not combine unchecked text into an accepted answer.",
@@ -131,7 +131,7 @@
     "page": "codex-beads-hooks.html",
     "section": "helper",
     "title": "Verify context delivery before hiding its display",
-    "description": "Illustrative configuration decision—not a new hook installation or delivery test. Inspect the installed client. Unsupported quiet mode is rejected; keep full-context display. Supported quiet configuration retains the Beads command and adds only a presentation hint. Before adopting it, obtain host-observed evidence that the full context still reaches the model. Missing or failed evidence keeps the full-context fallback while you investigate; character count alone is not proof.",
+    "description": "Illustrative configuration decision (not a new hook installation or delivery test). Inspect the installed client. Unsupported quiet mode is rejected; keep full-context display. Supported quiet configuration retains the Beads command and adds only a presentation hint. Before adopting it, obtain host-observed evidence that the full context still reaches the model. Missing or failed evidence keeps the full-context fallback while you investigate; character count alone is not proof.",
     "text_equivalent": [
       "Inspect the installed client and preview changes. If a stable display hint is supported, the quiet option retains the Beads command and adds only a presentation hint. If support is absent, quiet mode is rejected; keep full-context display.",
       "Supported configuration is not delivery proof. Before adopting quiet display, obtain host-observed evidence that the full context still reaches the model. Compare content and relevant lifecycle delivery; a character count does not prove equality or delivery.",
@@ -199,7 +199,7 @@
     "page": "use-cases.html",
     "section": "conflicting-review",
     "title": "When a retry repeats the effect",
-    "description": "Scripted exercise — deliberately authored inputs; no live service or reviewer calls. Each POST attempt adds a write effect before the stop decision. Retrying gives two attempts and two effects. Stopping gives one effect but leaves the caller uncertain. The GET trace has two attempts and no write effects. Here 503 means temporary failure and 200 means success; these are scripted statuses, not network observations.",
+    "description": "Scripted exercise (deliberately authored inputs; no live service or reviewer calls). Each POST attempt adds a write effect before the stop decision. Retrying gives two attempts and two effects. Stopping gives one effect but leaves the caller uncertain. The GET trace has two attempts and no write effects. Here 503 means temporary failure and 200 means success; these are scripted statuses, not network observations.",
     "figure_class": "memory-flow example-flow",
     "narrow_media": "(max-width: 75rem)"
   },
@@ -217,7 +217,7 @@
     "page": "use-cases.html",
     "section": "migration-evaluation",
     "title": "Compare converters without changing the requirements",
-    "description": "Proposed demonstration — not executed. Save cases, compatibility requirements, scoring and the selection rule. Explicitly invoke the check before both converters use the same baseline. A runner repair must preserve that baseline and be rechecked. Changed cases or rules must not continue the old evaluation; intentionally revised requirements start a separate evaluation while preserving the original evidence. The comparison may find that neither converter qualifies. Existing component regressions are not this integrated converter comparison.",
+    "description": "Proposed demonstration (not executed). Save cases, compatibility requirements, scoring and the selection rule. Explicitly invoke the check before both converters use the same baseline. A runner repair must preserve that baseline and be rechecked. Changed cases or rules must not continue the old evaluation; intentionally revised requirements start a separate evaluation while preserving the original evidence. The comparison may find that neither converter qualifies. Existing component regressions are not this integrated converter comparison.",
     "figure_class": "memory-flow example-flow",
     "narrow_media": "(max-width: 75rem)"
   },
@@ -235,7 +235,7 @@
     "page": "use-cases.html",
     "section": "lab-operations",
     "title": "Restore configuration and check the result",
-    "description": "Scripted temporary-local-file exercise — intentionally simulated health failure. Previous values, including port 8080, stay in a Python object in memory, not a durable backup file. The fixture stages port 8081, writes active.json, then forces a false health result. It serializes the saved values back, rereads the file and compares parsed JSON content. This does not establish byte-exact recovery or real service health; temporary files are cleaned up when the exercise ends.",
+    "description": "Scripted temporary-local-file exercise (intentionally simulated health failure). Previous values, including port 8080, stay in a Python object in memory, not a durable backup file. The fixture stages port 8081, writes active.json, then forces a false health result. It serializes the saved values back, rereads the file and compares parsed JSON content. This does not establish byte-exact recovery or real service health; temporary files are cleaned up when the exercise ends.",
     "figure_class": "memory-flow example-flow",
     "narrow_media": "(max-width: 75rem)"
   },
@@ -244,7 +244,7 @@
     "page": "explanation.html",
     "section": "privacy",
     "title": "Where project context can go",
-    "description": "Illustrative sharing map—not a network trace or enforcement guarantee. Local files and Beads can supply context to an agent client. That client may send selected context to its configured provider. An additional reviewer requires separate opt-in and only the approved material; a redacted brief is one explicitly chosen boundary. A local/private endpoint is a separately approved route, not proof that the cloud session is offline.",
+    "description": "Illustrative sharing map (not a network trace or enforcement guarantee). Local files and Beads can supply context to an agent client. That client may send selected context to its configured provider. An additional reviewer requires separate opt-in and only the approved material; a redacted brief is one explicitly chosen boundary. A local/private endpoint is a separately approved route, not proof that the cloud session is offline.",
     "text_equivalent": [
       "Project files and Beads may be stored locally. The agent client and its tools can read only what their actual permissions allow; tool access may expose more than the final answer.",
       "The configured provider may receive selected context as part of the ordinary agent session. Check client permissions and provider handling before including sensitive files.",
@@ -259,7 +259,7 @@
     "page": "native-supervision.html",
     "section": "recovery",
     "title": "Which tasks must wait after an attempt fails",
-    "description": "Illustrative task graph—not an observed incident or concurrent execution trace. The ended attempt on A stays ended. B waits for accepted A. C does not need A’s result but must pass its own permission, prerequisite, safety and shared-capacity checks. A replacement of A requires a distinct newly authorized attempt with a fresh allowance. A CONTAINED label alone does not establish cleanup.",
+    "description": "Illustrative task graph (not an observed incident or concurrent execution trace). The ended attempt on A stays ended. B waits for accepted A. C does not need A’s result but must pass its own permission, prerequisite, safety and shared-capacity checks. A replacement of A requires a distinct newly authorized attempt with a fresh allowance. A CONTAINED label alone does not establish cleanup.",
     "text_equivalent": [
       "The attempt on task A has ended and cannot be resumed. Preserve its failure evidence, including failed and UNKNOWN observations.",
       "Inspect actual process stop, resource ownership, changed files and consumed allowance. A CONTAINED status is not proof that these checks passed. Unresolved shared safety or capacity problems can still prevent other work.",
@@ -274,7 +274,7 @@
     "page": "zero-trust-consensus.html",
     "section": "domains",
     "title": "Count source groups, not model names",
-    "description": "Illustrative source accounting, not measured statistical independence or a provider ranking. Two eligible models from provider A count as one group; eligible local/OpenShift aliases share a default group. Only known, bound, eligible primary inputs count. When required, enough groups allow the explicitly invoked claim comparison—not a truth verdict or permission to act. Exact exclusions remain below.",
+    "description": "Illustrative source accounting, not measured statistical independence or a provider ranking. Two eligible models from provider A count as one group; eligible local/OpenShift aliases share a default group. Only known, bound, eligible primary inputs count. When required, enough groups allow the explicitly invoked claim comparison (not a truth verdict or permission to act). Exact exclusions remain below.",
     "text_equivalent": [
       "Evaluate each record before counting sources. The examples here are hypothetical eligible records, not a claim about any completed review campaign.",
       "Two accepted primary models from the same provider count as one provider group under the default rules. Eligible local/OpenShift endpoint aliases also share one default group, even when the model names differ.",

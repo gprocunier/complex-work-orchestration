@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="Use local workers from inside Codex with prompt-coach opt-in, OpenShift AI vLLM profile selection, dispatch envelopes, and return evaluation."
+      content="Send a screened review request from Codex to a configured local vLLM endpoint: opt-in, endpoint configuration, workload admission, bounded dispatch, reply evaluation and audit."
     >
     <title>Review with a local model | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -56,20 +56,20 @@
 <div class="page-shell reference-slice page--guide"><div class="reading-layout"><header class="page-intro"><nav class="breadcrumb" aria-label="Breadcrumb"><a href="./index.html">Home</a> <span aria-hidden="true">/</span> <a href="./workflows.html">Guides</a></nav>
         <p class="eyebrow">Local review</p>
         <h1 id="page-title">Put your local models to work on the same project</h1>
-        <p class="callout">Use a local or private model endpoint—a server that receives your model requests—for a focused review question. vLLM is one way to serve that model. This optional route does not make your ordinary cloud-agent session offline. Verify the actual endpoint and the material it may receive before sending a request.</p>
-        <p class="lede">A local reviewer can check a command, code change or design alongside your cloud agent. CWO records the request, checks the response and evaluates its evidence. An eligible local finding can support the project decision directly. This is primary evidence—not the primary architect, automatic acceptance or permission to edit.</p><p>Explicitly opt into local inference and select a configured profile. Preparing a request does not call the model; execution requires a separate flag. See <a href="./model-synthesis.html">how local and cloud findings are combined</a>.</p>
+        <p class="callout">Use a local or private model endpoint (a server that receives your model requests) for a focused review question. vLLM is one way to serve that model. This optional route does not make your ordinary cloud-agent session offline. Verify the actual endpoint and the material it may receive before sending a request.</p>
+        <p class="lede">A local reviewer can check a command, code change or design alongside your cloud agent. CWO sends the screened request to the vLLM endpoint you configure, after the original workload has been admitted, and evaluates the captured reply. An eligible local finding can support the project decision directly. It is primary evidence. It is not the primary architect, automatic acceptance or permission to edit.</p><p>Opt into local inference, select a profile and configure the endpoint URL, model and key file. Dispatch stays off until an endpoint is configured: with no endpoint, or without <code>--execute-local</code>, CWO sends nothing. See <a href="./model-synthesis.html">how local and cloud findings are combined</a>. For cloud critics and the <a href="./external-contracting.html#chatgpt-pro">ChatGPT Pro desktop review</a>, see <a href="./external-contracting.html">Outside Review</a>.</p>
       </header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page">
           <a href="#review-sequence">Local-review sequence</a><a href="#invoke-codex">Ask for a specific local review</a>
           <a href="#coach-opt-in">Confirm local dispatch and review requirements</a>
           <a href="#openshift-ai">Choose an endpoint and model profile</a>
           <a href="#endpoint-config">Endpoint Configuration</a>
-          <a href="#dispatch-envelope">Prepare the request without calling the model</a>
+          <a href="#dispatch-envelope">Prepare the request without calling the model (optional)</a>
           <a href="#endpoint-safety">Endpoint Safety</a>
           <a href="#execute-local">Make the approved model call</a>
           <a href="#evaluate">Check the answer and record what may be used</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
         </nav></details><article class="doc-content" aria-labelledby="page-title">
-          <section id="review-sequence"><h2>From an approved question to an accepted finding</h2><ol><li>Choose a focused question, allowed material and approved endpoint.</li><li>Prepare and inspect the request without calling the model.</li><li>Execute the one approved call and retain its actual dispatch result.</li><li>Check response usability, evaluate the answer and record the lead’s decision.</li></ol><p>Generic OpenAI-compatible profiles and hardened exact-model profiles have different checks. Select the required profile deliberately; a configured model name does not prove which model weights the server actually runs. <a href="./use-cases.html#local-review-checks">Inspect the existing component tests</a>.</p></section><section id="invoke-codex">
+          <section id="review-sequence"><h2>From an approved question to an accepted finding</h2><ol><li>Choose a focused question, allowed material and an approved endpoint profile, and opt in with <code>--local-ok</code>.</li><li>Configure the endpoint: base URL, model name and a private key file (or the profile’s API-key environment variable).</li><li>Stage the original workload admission. This writes a host record and makes no model call.</li><li>Send the admitted request with <code>--execute-local</code>. CWO redacts known secret patterns, screens the exact HTTP request, reserves capacity and posts one bounded request.</li><li>CWO evaluates a usable captured reply as advisory evidence and links the request, return digest and evaluation in the host audit.</li><li>Check the saved dispatch result and workspace comparison, then record the lead’s decision.</li></ol><p>Generic OpenAI-compatible profiles and hardened exact-model profiles have different checks. Select the required profile deliberately; a configured model name does not prove which model weights the server actually runs. <a href="./use-cases.html#local-review-checks">Inspect the existing component tests</a>.</p></section><section id="invoke-codex">
             <h2>Ask for a specific local review</h2>
             <p>Ask Codex to size the task and propose the local-model route. If you have not already opted in, the coach asks before preparing a dispatch. The task and its evidence still need a Beads record.</p>
             <!-- diagram:local-workers -->
@@ -78,7 +78,7 @@
                 <source media="(max-width: 75rem)" srcset="./diagrams/local-workers-narrow.svg" width="360" height="2360">
                 <img src="./diagrams/local-workers.svg" width="1020" height="960" alt="From an approved local question to a checked answer flowchart. Text equivalent follows." loading="lazy" decoding="async">
               </picture>
-              <figcaption>Illustrative procedure—not a new endpoint run. Preparation makes no model call. Apply the selected profile’s checks before the one approved execution. Retain actual dispatch JSON, check response usability and compare the same attempt’s workspace. Arrows show procedure, not a replacement of the evaluator’s original inputs. Failed checks, an unusable answer or unexpected file changes require investigation.</figcaption>
+              <figcaption>Illustrative procedure (not a new endpoint run). Preparation makes no model call. Apply the selected profile’s checks before the one approved execution. Retain actual dispatch JSON, check response usability and compare the same attempt’s workspace. Arrows show procedure, not a replacement of the evaluator’s original inputs. Failed checks, an unusable answer or unexpected file changes require investigation.</figcaption>
             </figure>
             <details class="diagram-text"><summary>Read the diagram as text</summary><ul><li>Approve the question, allowed material, local inference and configured endpoint/profile. Prepare and inspect the request without calling a model. Apply the selected profile’s safety checks; hardened exact-model checks are conditional on that profile, not universal.</li><li>Only after those checks pass, make one approved model call and save its actual dispatch JSON. Preparation output is not that result. Confirm that the response contains a usable answer; a configured model name alone does not attest the server’s weights.</li><li>Compare the workspace against the saved baseline for the same attempt. Retain the matching mutation report. Failed checks, an unusable answer or unexpected mutations stop this path for investigation; do not silently proceed to normalization.</li><li>The normalizer receives the raw answer and mutation report. The evaluator instead receives the raw answer, actual dispatch JSON and matching mutation report; the normalized bundle is not a substitute for those inputs.</li><li>The lead checks the evaluation and any required reviews, then records what may be used within the granted scope. Keep the selectable commands below for the complete transaction.</li></ul></details>
             <!-- /diagram:local-workers -->
@@ -200,6 +200,7 @@
 
           <section id="endpoint-config">
             <h2>Endpoint Configuration</h2>
+            <p>A local call needs three values: the endpoint base URL, the model name and an API key. Pass them per call with <code>--local-base-url</code>, <code>--local-model</code> and <code>--local-api-key-file</code>, or set the environment variables the selected profile names. A key-file option takes precedence over the inherited environment value. Use a private regular file (for example mode <code>0600</code>) holding one ASCII token, in a directory owned by your account that no group or other user can write.</p>
             <p>
               Keep endpoint values in an operator-owned shell file outside the
               repository. The access profile registry is policy only; it should
@@ -257,9 +258,9 @@
           </section>
 
           <section id="dispatch-envelope">
-            <h2>Prepare the request without calling the model</h2>
-            <p>By default, dispatch writes a <strong>local envelope</strong>: a request record containing the selected profile, environment-variable names and bounded prompt. It contains neither API-key values nor endpoint URLs. No endpoint call occurs without <code>--execute-local</code>.</p>
-            <p>To send the request, configure your endpoint and stage the original workload. CWO records both reservations before the call and evaluates a usable captured reply as advisory evidence. <a href="#execute-local">Stage and send the approved workload</a>.</p>
+            <h2>Prepare the request without calling the model (optional)</h2>
+            <p>Before the first real call, or when troubleshooting a profile, you can inspect what CWO would send. Without <code>--execute-local</code>, dispatch writes a <strong>local envelope</strong>: a request record containing the selected profile, environment-variable names, readiness flags and the bounded prompt. It contains neither API-key values nor endpoint URLs, and no endpoint call occurs.</p>
+            <p>The envelope is not the working path. To send the request, configure the endpoint, stage the original workload admission and execute. <a href="#execute-local">Admit and send the request</a>.</p>
             <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_BASE_URL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"https://vllm.example.internal"</span></span>
 <span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_MODEL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"vllm-local"</span></span>
 <span class="line"></span>
@@ -280,7 +281,7 @@
           </section>
 
           <section id="endpoint-safety">
-            <h2>Endpoint Safety</h2><p>The local dispatcher rechecks the request against the selected executor, restricts the destination and disables proxy/redirect routing. Hardened profiles also require an exact model preflight and a usable final-response contract, separating reasoning from the returned answer. These checks are profile-specific; a generic OpenAI-compatible profile is not proof of the same hardening or of live endpoint qualification.</p>
+            <h2>Endpoint Safety</h2><p>Before any request leaves the machine, CWO redacts known secret patterns in the request text (replacing them with <code>[REDACTED]</code>) and screens the exact HTTP request: method, URL, non-authentication headers and body. A screening finding refuses the call and nothing is sent. Redaction and screening check for known patterns; they can miss sensitive material, so inspect what the request may contain.</p><p>The local dispatcher rechecks the request against the selected executor, restricts the destination and disables proxy/redirect routing. Hardened profiles also require an exact model preflight and a usable final-response contract, separating reasoning from the returned answer. These checks are profile-specific; a generic OpenAI-compatible profile is not proof of the same hardening or of live endpoint qualification.</p>
             <p>
               Execution is fail-closed: a failed check prevents the call. Before <code>--execute-local</code>
               sends a request, CWO validates the endpoint URL, disables proxy
@@ -295,22 +296,31 @@
               private and public addresses are rejected before any POST occurs.
             </p>
             <p>
-              API keys are read only from an allowlisted environment variable
-              name. The built-in names are
+              API keys come from the private key file or from an allowlisted
+              environment variable name. The built-in names are
               <code>CWO_OPENSHIFT_AI_VLLM_API_KEY</code>,
               <code>CWO_LOCAL_OPENAI_API_KEY</code>,
               <code>LOCAL_OPENAI_API_KEY</code>,
               <code>LOCAL_VLLM_API_KEY</code>, and
-              <code>VLLM_API_KEY</code>. Values are never copied into the
-              dispatch envelope.
+              <code>VLLM_API_KEY</code>. Key values stay out of the dispatch
+              envelope and host records; reservations bind the authorization
+              header by digest.
             </p>
           </section>
 
           <section id="execute-local">
             <h2>Make the approved model call</h2>
-            <p>Build the workload JSON from the original sized route input. Set <code>route_input</code> to that full input, <code>node_id</code> to the approved node, and <code>node_attempts</code> to its required prior attempt IDs. For an initial node, set <code>node_attempts</code> to <code>{}</code>. Set <code>WORKLOAD_FILE</code>, <code>VLLM_BASE_URL</code>, <code>VLLM_MODEL</code>, <code>VLLM_KEY_FILE</code> and <code>VLLM_MAX_TOKENS</code> for the approved workload. Keep the result files private. Use a private key file in a directory only its owner can write.</p>
-            <p>Thinking models can use the whole output cap before writing their answer. Set a larger <code>--local-max-tokens</code> or use <code>--local-thinking off</code> when the profile supports it. The output cap and thinking option must match the admitted workload.</p>
-            <p>This example stages the request, captures workspace state before the call, saves the dispatch JSON, extracts the usable final answer and compares workspace state afterward. Existing output files cause a stop. CWO records the captured return and advisory evaluation in the host chain.</p>
+            <p>The working path has two commands with the same workload and local options. The first stages the original host <strong>workload admission</strong> without a model call. The second, with <code>--execute-local</code>, sends the request only when that original admission record, the same exact request and usable capacity in the original ledger are all present. A missing admission, a changed destination or configuration, or a replay is refused before transport.</p>
+            <p>Build the workload JSON from the original sized route input. Set <code>route_input</code> to that full input, <code>node_id</code> to the approved node, and <code>node_attempts</code> to its required prior attempt IDs. For an initial node, set <code>node_attempts</code> to <code>{}</code>. Set <code>WORKLOAD_FILE</code>, <code>VLLM_BASE_URL</code>, <code>VLLM_MODEL</code>, <code>VLLM_KEY_FILE</code> and <code>VLLM_MAX_TOKENS</code> for the approved workload. Keep the result files private.</p>
+            <ul class="check-list">
+              <li><strong>Screened and redacted:</strong> the exact request is redacted and screened as described under <a href="#endpoint-safety">Endpoint Safety</a> before name resolution or HTTP.</li>
+              <li><strong>Reserved before sending:</strong> CWO records durable workload and HTTP reservations before the POST. A crash, local timeout or unknown remote result keeps the reservation charged; it does not prove the remote work stopped.</li>
+              <li><strong>Bounded request:</strong> the prompt must fit the profile’s input limit, the output is capped by the admitted <code>max_tokens</code>, and the timeout cannot exceed the remaining runtime or admission lifetime.</li>
+              <li><strong>Checked response:</strong> CWO validates the reply payload, rejects unsafe content and extracts the usable final answer. Profiles with a thinking parser strip raw reasoning from it. If the evaluation recommends quarantine, the content is withheld and the result is marked unusable.</li>
+              <li><strong>Evaluated and audited:</strong> a usable result carries the captured return digest and CWO’s advisory evaluation, recorded with a pending peer-review hold. The host records link the admission, the dispatch, the received return and its evaluation. API-key values are not written to the audit or the ledger.</li>
+            </ul>
+            <p>Thinking models can spend the whole output cap on reasoning before writing their answer. The result then reports <code>output-budget-exhausted</code> and has no usable reply. Set a larger <code>--local-max-tokens</code> within the profile limit, or use <code>--local-thinking off</code> on profiles that support it. Set the matching <code>max_tokens</code> and thinking options in the original workload before staging, because the output cap and thinking option must match the admitted workload.</p>
+            <p>This example stages the admission, captures workspace state before the call, saves the dispatch JSON, extracts the usable final answer and compares workspace state afterward. Existing output files cause a stop.</p>
             <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-d6f50f15d04b4a1d">(</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  set</span><span class="shiki-style-ab138001542cb31f"> -e</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  :</span><span class="shiki-style-fccf53bf0d08ec6a"> "${</span><span class="shiki-style-d6f50f15d04b4a1d">WORKLOAD_FILE</span><span class="shiki-style-a694eb0da6a49aaf">:?</span><span class="shiki-style-d6f50f15d04b4a1d">Set</span><span class="shiki-style-d6f50f15d04b4a1d"> WORKLOAD_FILE</span><span class="shiki-style-d6f50f15d04b4a1d"> to</span><span class="shiki-style-d6f50f15d04b4a1d"> the</span><span class="shiki-style-d6f50f15d04b4a1d"> approved</span><span class="shiki-style-d6f50f15d04b4a1d"> workload</span><span class="shiki-style-d6f50f15d04b4a1d"> JSON</span><span class="shiki-style-fccf53bf0d08ec6a">}"</span></span>
@@ -363,6 +373,7 @@
             </p>
             <p>The workspace comparison must describe the same attempt as the saved dispatch result. If files changed unexpectedly, stop before normalization and inspect the mutation report. The guard checks tracked files by default; include <code>--include-untracked</code> in both guard calls when new files matter.</p>
 
+            <p>The saved dispatch result already holds CWO’s advisory evaluation of the captured reply, recorded in the host chain. That evaluation is evidence, not acceptance. The commands below package the answer with the workspace report for the Bead record and repeat the check as a nonproduction diagnostic.</p>
             <p>The commands below continue the generic OpenShift AI example above with the same Bead ID and executor. Set <code>TASK_ID</code> to the Bead ID in the original workload. For a dedicated GLM route, preserve its actual executor and dispatch identity instead; do not relabel it as the generic worker.</p><p>The normalizer packages the answer into a standard saved record; it does not read the dispatch result or decide whether the response is usable. The evaluator reads the raw <code>local-return.md</code> together with the actual dispatch JSON, not the normalized JSON bundle.</p><p>
               Normalize the return using the target Bead ID and the workspace
               mutation report. Preserve the executor identity so adjudication

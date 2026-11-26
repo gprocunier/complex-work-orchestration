@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="360" height="2360" viewBox="0 0 360 2360" role="img" aria-labelledby="title desc" font-family="DejaVu Sans, sans-serif" fill="#151515">
   <title id="title">From an approved local question to a checked answer</title>
-  <desc id="desc">Illustrative procedure—not a new endpoint run. Preparation makes no model call. Apply the selected profile’s checks before the one approved execution. Retain actual dispatch JSON, check response usability and compare the same attempt’s workspace. Arrows show procedure, not a replacement of the evaluator’s original inputs. Failed checks, an unusable answer or unexpected file changes require investigation.</desc>
+  <desc id="desc">Illustrative procedure (not a new endpoint run). Preparation makes no model call. Apply the selected profile’s checks before the one approved execution. Retain actual dispatch JSON, check response usability and compare the same attempt’s workspace. Arrows show procedure, not a replacement of the evaluator’s original inputs. Failed checks, an unusable answer or unexpected file changes require investigation.</desc>
   <style id="diagram-theme">
   /* Inherited color-scheme also follows an explicit page selection. */
   @media (prefers-color-scheme: dark) {

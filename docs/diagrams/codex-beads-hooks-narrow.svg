@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="360" height="1740" viewBox="0 0 360 1740" role="img" aria-labelledby="title desc" font-family="DejaVu Sans, sans-serif" fill="#151515">
   <title id="title">Verify context delivery before hiding its display</title>
-  <desc id="desc">Illustrative configuration decision—not a new hook installation or delivery test. Inspect the installed client. Unsupported quiet mode is rejected; keep full-context display. Supported quiet configuration retains the Beads command and adds only a presentation hint. Before adopting it, obtain host-observed evidence that the full context still reaches the model. Missing or failed evidence keeps the full-context fallback while you investigate; character count alone is not proof.</desc>
+  <desc id="desc">Illustrative configuration decision (not a new hook installation or delivery test). Inspect the installed client. Unsupported quiet mode is rejected; keep full-context display. Supported quiet configuration retains the Beads command and adds only a presentation hint. Before adopting it, obtain host-observed evidence that the full context still reaches the model. Missing or failed evidence keeps the full-context fallback while you investigate; character count alone is not proof.</desc>
   <style id="diagram-theme">
   /* Inherited color-scheme also follows an explicit page selection. */
   @media (prefers-color-scheme: dark) {

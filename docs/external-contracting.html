@@ -64,6 +64,7 @@
           <a href="#packet">Build and check the brief before sending it</a>
           <a href="#multi-expert-review">Give each reviewer the same question independently</a>
           <a href="#master-review">Review the final plan before implementation</a>
+          <a href="#chatgpt-pro">Get a ChatGPT Pro review from the desktop app</a>
           <a href="#return">Check the return before using its findings</a>
           <a href="#demo-lessons">What the historical contractor demo showed</a>
           <a href="./workflows.html#optional-lanes">Guided Workflow</a>
@@ -121,9 +122,17 @@
             </p>
             <p>For an outside assignment, complete the packet-building and dispatch steps below before handing a prompt to a CLI. Use the <a href="./workflows.html#optional-lanes">specialist guide</a> if you have not yet chosen between native, internal and outside review.</p>
             <p>
-              The <code>gemini_architecture_critic</code> executor uses
+              The two named architecture critics, Claude and Gemini, are
+              configured with their model and effort under
+              <code>claude_architecture_critic</code> and
+              <code>gemini_architecture_critic</code> in
+              <code>policy/executor-registry.yaml</code>. Both are dispatched
+              by hand from a rendered prompt. The
+              <code>gemini_architecture_critic</code> executor uses
               Antigravity in plan mode from its configured trusted working
-              directory. For a redacted-packet review, run CLIs from a neutral directory unless
+              directory. The Claude critic can run under an optional
+              host-local account and executable; see the packet reference
+              below. For a redacted-packet review, run CLIs from a neutral directory unless
               the tool is proven unable to inspect the current repository. If a
               return uses unapproved repo context, treat that evidence as
               invalid until the architect adjudicates it.
@@ -172,9 +181,18 @@
                 critic executors. The Claude architecture critic uses the model
                 and effort configured in <code>policy/executor-registry.yaml</code>.
                 Use the <code>Manual dispatch command</code> in the rendered prompt
-                and give the Claude CLI that prompt as input. The Gemini
-                architecture critic's manual command uses its configured
-                model and trusted working directory. When both are requested,
+                and give the Claude CLI that prompt as input. To run the Claude
+                critic under a separate local account, set
+                <code>transport.run_as</code> for
+                <code>claude_architecture_critic</code> in trusted local
+                executor policy: <code>user</code> names an existing non-root
+                account and <code>executable</code> is the absolute path to that
+                account's Claude CLI. The host needs an existing noninteractive
+                sudo grant for that account. Routes and rendered prompts still
+                show the portable Claude command. The Gemini
+                architecture critic's manual command runs Antigravity in plan
+                mode with its configured model and trusted working directory.
+                When both are requested,
                 create one
                 contractor-only Bead per critic from the same Codex architect
                 proposal. Treat returns as critique evidence for Codex
@@ -250,8 +268,21 @@
             <!-- /diagram:external-contracting -->
             <p><strong>Required reviewer gate.</strong> A review required before implementation remains blocking. Confirm the approved route, model, any required settings and return evidence. Record a missing prerequisite and stop dependent implementation until the requirement is met or the operator changes it.</p>
             <p>Capture the answer with its assignment identity, model confirmation and source record. Evaluate the evidence, complete any required peer review and let the lead record what changes. The reviewer cannot operate Beads, approve a release or gain implementation authority.</p>
-            <p>For ChatGPT Pro, the architect thread in the ChatGPT desktop app uses <code>@Chrome</code> with the operator present. CWO records the model picker label confirmed by the sender and evaluates the reply read from the page. See the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/external-contracting.md">contracting reference</a>.</p>
+            <p>For ChatGPT Pro as the reviewer, follow the <a href="#chatgpt-pro">desktop app steps</a> below.</p>
             <p><a href="./model-synthesis.html#planning-example">See how second opinions change a work plan</a>.</p>
+          </section>
+
+          <section id="chatgpt-pro">
+            <h2>Get a ChatGPT Pro review from the ChatGPT desktop app</h2>
+            <p>ChatGPT Pro review runs from the ChatGPT desktop app. Run the architect's Codex thread in the desktop app; the thread uses <code>@Chrome</code> in the Chrome profile paired through the ChatGPT extension. The operator must be present and the review must be authorized. Browser access belongs to the desktop app session, so keep its browser connection inside the app.</p>
+            <ol class="check-list">
+              <li>Build an approved browser reviewer packet within the assignment's sharing boundary. From the CWO directory, create a private run directory (with <code>umask 077</code>) and run <code>python3 scripts/cwo.py prepare-browser --packet "$packet"</code> to write the screened request into it.</li>
+              <li>Use <code>@Chrome</code> to open a fresh ChatGPT chat in the paired profile. Select Pro and record the exact label shown in the model picker. With the operator present, send the screened request once, including its CWO request ID line, and read <code>request_id</code> from the posted message.</li>
+              <li>When the reply is complete, use <code>@Chrome</code> to read its visible text and save it as UTF-8 in the run directory.</li>
+              <li>Evaluate the saved reply with <code>python3 scripts/cwo.py evaluate</code>, passing the original packet, <code>--browser-reply</code>, the posted <code>--request-id</code> and the confirmed <code>--model-label</code>. Save the evaluation in the same run directory. CWO records the model picker label confirmed by the sender.</li>
+              <li>Complete any required peer review and the lead's adjudication before using the findings.</li>
+            </ol>
+            <p>CWO links the dispatch, the private reply and the evaluator record in the host audit; the reply text stays in the private run directory. The legacy CDP browser transport and share URL or HTML intake are retired. If an assignment requires this reviewer and the route or evidence is unavailable, record the missing prerequisite and get the operator's decision before dependent implementation. Exact commands and flags are in the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/chatgpt-pro-browser.md">ChatGPT Pro desktop workflow reference</a>.</p>
           </section>
 
           <section id="return">

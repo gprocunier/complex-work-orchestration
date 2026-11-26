@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="360" height="1230" viewBox="0 0 360 1230" role="img" aria-labelledby="title desc" font-family="DejaVu Sans, sans-serif" fill="#151515">
   <title id="title">Restore configuration and check the result</title>
-  <desc id="desc">Scripted temporary-local-file exercise — intentionally simulated health failure. Previous values, including port 8080, stay in a Python object in memory, not a durable backup file. The fixture stages port 8081, writes active.json, then forces a false health result. It serializes the saved values back, rereads the file and compares parsed JSON content. This does not establish byte-exact recovery or real service health; temporary files are cleaned up when the exercise ends.</desc>
+  <desc id="desc">Scripted temporary-local-file exercise (intentionally simulated health failure). Previous values, including port 8080, stay in a Python object in memory, not a durable backup file. The fixture stages port 8081, writes active.json, then forces a false health result. It serializes the saved values back, rereads the file and compares parsed JSON content. This does not establish byte-exact recovery or real service health; temporary files are cleaned up when the exercise ends.</desc>
   <style id="diagram-theme">
   /* Inherited color-scheme also follows an explicit page selection. */
   @media (prefers-color-scheme: dark) {
