@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Check published site prose for stale availability claims against the claims register.
 - Enforce a ceiling of 180,000 physical lines of tracked Python under `scripts/` in repository validation. Consolidate duplicated routing, reporting, and validation code.
 
 ## 1.48.0 - 2026-11-26
