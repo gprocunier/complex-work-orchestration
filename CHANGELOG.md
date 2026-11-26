@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Wake blocked writer callbacks before validation joins the workers of a refused contained pool.
+
 ## 1.42.0 - 2026-11-26
 
 - Preserve terminal provider token counts in the contained pool rollout while keeping cumulative qualification accounting stable.

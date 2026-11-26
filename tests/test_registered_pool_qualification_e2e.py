@@ -396,6 +396,60 @@ class AdmittedRegisteredPoolTests(unittest.TestCase):
         self.assertEqual(worker.wire.marker, worker.task["completion_marker"])
         self.assertIsNone(worker.wire._pending)
 
+    def test_n3_refusal_closes_writer_gate_before_validation_join(self):
+        original_attest = adapter._PoolWorker._attest_turn
+        original_interrupt = adapter._WorkerControl.interrupt
+        original_join = adapter._WorkerWire._join_protocol_threads
+        first_join = []
+
+        def attest(worker, pending):
+            if len(worker.parent.children) == 3 and worker.task["worker_slot"] == "worker-3":
+                limits = worker.limits
+                with limits._condition:
+                    self.assertTrue(limits._condition.wait_for(lambda: len(limits._provisional_arrivals) == 2, 3))
+                raise NativeSessionBoundaryError("fixture third worker turn context refused")
+            return original_attest(worker, pending)
+
+        def interrupt(control, **binding):
+            original_interrupt(control, **binding)
+            if len(control.worker.parent.children) == 3:
+                raise adapter.PoolQualificationAdapterError("fixture N=3 interrupt acknowledgement refused")
+
+        def join(wire, cutoff):
+            worker = wire.factory
+            if len(worker.parent.children) == 3 and not first_join:
+                limits = worker.limits
+                with limits._condition:
+                    first_join.append((limits._closed, len(limits._provisional_arrivals)))
+                    # Bound the regression test on a build that reaches this join with a parked callback.
+                    if not limits._closed:
+                        limits._close_locked()
+            return original_join(wire, cutoff)
+
+        with _pool_test_directory() as scratch, ExitStack() as stack:
+            preparation, runs, accounting, contained = self._approved_cohorts(Path(scratch), stack)
+            stack.enter_context(patch.object(adapter._PoolWorker, "_attest_turn", attest))
+            stack.enter_context(patch.object(adapter._WorkerControl, "interrupt", interrupt))
+            stack.enter_context(patch.object(adapter._WorkerWire, "_join_protocol_threads", join))
+            observed = self._execute(preparation, runs, accounting)
+
+            self.assertEqual(observed["outcome"], "stopped")
+            accepted, refused = observed["transactions"]
+            self.assertEqual(accepted["state"], "ACCEPTED")
+            self.assertEqual(refused["state"], "CONTAINED")
+            receipt = refused["launch_result"]["pool_receipt"]
+            self.assertEqual(receipt["first_protected_fault"]["code"], "child-check-failed")
+            self.assertEqual([lease["lifecycle_state"] for lease in receipt["lease_evidence"]], ["release-pending"] * 3)
+            effects = [row["event_type"] for row in _qualification_effect_events(runs[-1], accounting)]
+            self.assertEqual(effects.count("qualification-provisional-turn-proof"), 2)
+            self.assertNotIn("qualification-tool-debit", effects)
+            self.assertNotIn("qualification-writer-release", effects)
+            self.assertFalse(tuple(runs[-1].fixture_root.glob("*/result-*.txt")))
+            self.assertEqual(len(contained), 5)
+            self.assertTrue(all(worker.process.poll() == 0 for worker in contained))
+            self.assertTrue(refused["validation"]["qualification_active_limits"]["cleanup_confirmed"])
+            self.assertEqual(first_join, [(True, 2)])
+
     def _assert_pre_writer_refusal(self, behavior):
         with _pool_test_directory() as scratch, ExitStack() as stack:
             preparation, (n2, n3), accounting, contained = self._approved_cohorts(Path(scratch), stack, behavior=behavior)

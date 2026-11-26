@@ -1340,6 +1340,7 @@ class _PoolParent:
 
     def validate(self, launched, _context):
         _require(not self.calibration_only, "calibration-cannot-validate-productive-launch")
+        self.cancel_unreleased_cohort()
         settled = self.cleanup(self.limits.deadline)
         workers = {key: self._settlement(worker) for key, worker in self.workers.items()}
         accepted = settled and launched.get("pool_receipt", {}).get("accepting") is True
