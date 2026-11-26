@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Document the observed single-worker and contained-pool qualifications, the architect prompt check, and the architect real-use trial in [Evaluation evidence](references/evaluation-evidence.md).
 - Default Codex reasoning effort to `high` and record the reason when worker or reviewer routing selects `xhigh`.
 - Limit configured Sol routing effort to `xhigh` or lower.
 
