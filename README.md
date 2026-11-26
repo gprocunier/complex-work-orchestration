@@ -57,7 +57,7 @@ retained approval to dispatch the worker.
 
 Set the architect launcher's model, reasoning effort and service tier under the
 Sol role (`sol`) in [`policy/model-roles.yaml`](policy/model-roles.yaml). Use the
-same settings in plain Codex for a like-for-like comparison.
+same settings in plain Codex for a like-for-like comparison. Cyber fallback is opt-in.
 Candidate E is retired.
 
 ## Setup
@@ -144,8 +144,10 @@ explicitly classified as interface, visual or computer-use work.
 The Codex lead, workers and reviewers start at `high` reasoning effort. CWO can
 select `xhigh` for a worker or reviewer when the task calls for it and records
 the reason with the dispatch. See [reasoning effort routing](references/native-supervision.md#reasoning-effort-routing).
-A structured provider safety refusal stops the assignment and preserves the
-blocker in its failure report.
+Users with Daybreak Blue access may add the optional `cyber_fallback` role and
+mark authorized security work in a private file outside the lead and worker
+write roots. A structured provider refusal can then make one fully charged
+fallback attempt. Unmarked work and every other failure keep their normal path.
 Parallel work requires independent tasks, separate write ownership and an
 approved, qualified environment.
 

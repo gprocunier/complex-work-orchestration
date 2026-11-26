@@ -111,8 +111,7 @@ three units or six reads warn; four or eleven require replanning.
   reason for Sol. Set `work_kind` in the estimate for Terra assignments.
 - Current dispatch needs verified model, tool profile, workspace, ownership,
   qualification, source image and attempt bindings. Caller JSON is evidence,
-  not a grant. Omitted authority must not revive historical Spark dispatch.
-- Stop on a structured provider safety refusal and record the blocker.
+  not a grant. Omitted authority must not revive historical Spark dispatch. The absent-by-default `cyber_fallback` permits one unchanged, same-budget retry only with catalog access and an owner-private mark outside worker roots.
 - Historical version-2 records remain inspectable. They cannot authorize new
   dispatch once the current routing policy is activated.
 - Preserve ordinary finite budgets. Explicit mission-scoped maintenance may

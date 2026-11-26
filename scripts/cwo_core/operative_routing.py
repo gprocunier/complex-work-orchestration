@@ -98,7 +98,7 @@ _HISTORICAL_ESCALATION_KINDS = _TASK_SELECTED_ESCALATION_KINDS | {"qualification
 def cyber_fallback_status(
     *, config: Mapping[str, Any] | None = None, catalog: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Return the retired role status for existing callers."""
+    """Project optional fallback availability without granting dispatch authority."""
     return cyber_fallback_availability(config=config, catalog=catalog)
 
 
