@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta
       name="description"
-      content="How Complex Work Orchestration evaluates independent model reviews, synthesizes evidence, and keeps final adjudication with the architect."
+      content="How Complex Work Orchestration collects second-opinion critics from separate provider camps, evaluates each return, synthesizes the evidence and keeps final adjudication with the lead."
     >
     <title>Compare model reviews and decide what to change | CWO</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%23151515'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23e00'/%3E%3Cpath d='M7 16h18' stroke='white' stroke-width='4'/%3E%3C/svg%3E">
@@ -57,10 +57,11 @@
         <p class="eyebrow">Plan with second opinions</p>
         <h1 id="page-title">Compare model reviews and decide what to change</h1>
         <p class="callout">Use this when independent reviews could expose different failure modes. Several models agreeing does not prove a result correct or authorize a change.</p>
-        <p class="lede">CWO keeps reviews separate, checks their evidence, then summarizes what agrees, what conflicts and what is missing. This is <strong>model synthesis</strong>. The lead—called the architect in the exact controls—decides which findings to accept; that decision is <strong>adjudication</strong>.</p>
+        <p class="lede">CWO keeps reviews separate, checks their evidence, then summarizes what agrees, what conflicts and what is missing. This is <strong>model synthesis</strong>. The lead (called the architect in the exact controls) decides which findings to accept; that decision is <strong>adjudication</strong>. The lead adjudicates; the reviewers do not reach a consensus or vote.</p>
       </header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page">
           <a href="#planning-example">Example: two second opinions change a plan</a>
           <a href="#why">Use local and cloud reviewers</a>
+          <a href="#critics">Second-opinion critics by provider camp</a>
           <a href="#pipeline">From separate reviews to a recorded decision</a>
           <a href="#input-quality">Decide which reviews can support the decision</a>
           <a href="#example">Example: conflicting retry recommendations</a>
@@ -76,9 +77,9 @@
 <p><strong>The request:</strong> make a job-submission client recover from timeouts, while ensuring that one user request cannot create two jobs. The <a href="./prompt-coach.html#run">copy-ready Prompt Coach request</a> sizes the work and asks for two separate second opinions before implementation.</p>
 <div class="callout"><h3>Initial plan from the coordinating model</h3><p>“After a timeout, retry the submission up to twice.”</p><p><strong>The hidden assumption:</strong> no reply means no job was created. If the server committed the job but its reply was lost, that assumption fails.</p></div>
 <h3>Give two reviewers the same starting brief</h3>
-<p>Each receives the requirement, initial plan, known API behavior and open questions—but not the other reviewer’s conclusions. The following findings are authored to explain the workflow; they do not claim that either model was called.</p>
+<p>Each receives the requirement, initial plan, known API behavior and open questions, but not the other reviewer’s conclusions. The following findings are authored to explain the workflow; they do not claim that either model was called.</p>
 <dl class="decision-spec">
-<dt>Cloud second opinion: challenge the design</dt><dd>A Claude Opus reviewer could flag the lost-reply case: the server may already have created the job. Ask for the server guarantee or a test that makes repeated submissions create only one job.</dd>
+<dt>Cloud second opinion: challenge the design</dt><dd>The Claude architecture critic could flag the lost-reply case: the server may already have created the job. Ask for the server guarantee or a test that makes repeated submissions create only one job.</dd>
 <dt>Local vLLM second opinion: challenge recovery</dt><dd>A configured open-weight reviewer could ask whether the client keeps the same request identifier after a restart. A newly generated identifier could defeat duplicate protection. Add that as a requirement to investigate, not a verified service fact.</dd>
 </dl>
 <h3>Synthesize findings into decisions, not a vote</h3>
@@ -103,6 +104,49 @@
             <p>A return is a reviewer’s answer and supporting evidence. Check each return before combining it. A useful observation may still rest on missing context, unsupported evidence or actions the reviewer was not allowed to take.</p>
           </section>
 
+          <section id="critics">
+            <h2>Second-opinion critics from separate provider camps</h2>
+            <p>After the lead drafts a plan, critics give a second line of review: each one reviews the same initial proposal separately, and the lead then synthesizes and adjudicates. The <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/synthesis-policy.yaml">synthesis policy</a> groups reviewers into provider camps (Codex, Anthropic, Google, OpenAI and local) and lists a default panel. The executor IDs below come from the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/policy/executor-registry.yaml">executor registry</a>. Each critic’s model and effort are configuration there, not fixed by CWO.</p>
+            <table class="data-table">
+              <caption>Default critic panel</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Camp</th>
+                  <th scope="col">Reviewer</th>
+                  <th scope="col">How it runs</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row">Codex</th>
+                  <td><code>frontier_architect</code> (synthesis owner) and an internal Codex review worker</td>
+                  <td>The lead owns synthesis. A saved Codex architecture critique can be included in the synthesis report with its exact digest and an advisory hold.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Anthropic</th>
+                  <td><code>claude_architecture_critic</code></td>
+                  <td>A manual Claude CLI command given the screened, redacted packet. Routes, the prompt coach and contractor packets use the model and effort set for this executor in policy. A host can optionally run the critic under a separate local account: set <code>transport.run_as</code> in trusted local executor policy, with <code>user</code> naming an existing non-root account and <code>executable</code> the absolute path to that account’s Claude CLI. The host needs an existing noninteractive sudo grant for the account.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Google</th>
+                  <td><code>gemini_architecture_critic</code></td>
+                  <td>Antigravity (<code>agy</code>) in plan mode, from the trusted working directory configured with its model and effort in the same registry. Use a trusted directory without checkout contents for a redacted packet. Findings are salvage-only by default.</td>
+                </tr>
+                <tr>
+                  <th scope="row">Local</th>
+                  <td><code>rhoai_glm_architecture_critic</code></td>
+                  <td>A thinking-enabled model on an OpenShift AI vLLM endpoint, sent through the <a href="./local-workers.html">local model path</a>.</td>
+                </tr>
+                <tr>
+                  <th scope="row">OpenAI</th>
+                  <td>ChatGPT Pro reviewer</td>
+                  <td>A master-plan review through the <a href="./external-contracting.html#chatgpt-pro">ChatGPT Pro desktop app with <code>@Chrome</code></a>. See the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/chatgpt-pro-browser.md">desktop workflow</a>. Codex and ChatGPT Pro share the OpenAI provider family.</td>
+                </tr>
+              </tbody>
+            </table>
+            <p>Every outside critic needs explicit opt-in, an approved packet within the sharing boundary, a working CLI or app and an authorized login. Preparing a packet does not send it. When both outside critics are requested, create one contractor-only Bead per critic and dispatch both from the same initial proposal. An embedding host can record original Codex and Antigravity critic completions from a read-only process it launched; peer review and adjudication still apply. An end-to-end live critic panel has no passing record. <a href="./external-contracting.html#multi-expert-review">Assign the critic reviews</a>.</p>
+          </section>
+
           <section id="pipeline"><h2>From separate reviews to a recorded decision</h2><p>Local and cloud reviewers contribute to the same project decision process, using route-specific checks.</p>
             <!-- diagram:model-synthesis -->
             <figure id="model-synthesis" class="memory-flow guide-flow">
@@ -110,22 +154,23 @@
                 <source media="(max-width: 75rem)" srcset="./diagrams/model-synthesis-narrow.svg" width="360" height="1640">
                 <img src="./diagrams/model-synthesis.svg" width="1020" height="1160" alt="Separate reviews, one recorded decision flowchart. Text equivalent follows." loading="lazy" decoding="async">
               </picture>
-              <figcaption>Illustrative planning workflow—not a concurrency trace. Assign reviewers separate bounded questions and retain each original return and evaluation. Compare eligible findings while preserving held or excluded inputs separately. The lead records one decision; neither agreement nor a review grants implementation authority. Branches do not prove statistical independence or simultaneous execution.</figcaption>
+              <figcaption>Illustrative planning workflow (not a concurrency trace). Assign reviewers separate bounded questions and retain each original return and evaluation. Compare eligible findings while preserving held or excluded inputs separately. The lead records one decision; neither agreement nor a review grants implementation authority. Branches do not prove statistical independence or simultaneous execution.</figcaption>
             </figure>
             <details class="diagram-text"><summary>Read the diagram as text</summary><ul><li>The lead prepares the plan, approved material and separate review questions. Reviewer A and reviewer B receive distinct bounded assignments through their permitted routes; the branches do not imply simultaneous execution or statistical independence.</li><li>Retain each original answer and evaluate it separately for evidence, scope and required holds. Keep each evaluation with the matching return; do not combine unchecked text into an accepted answer.</li><li>Compare eligible findings, retaining agreement, disagreement and assumptions. Held or excluded returns remain separate and are not silently promoted. The comparison helper must be explicitly invoked when required; dispatch does not automatically perform synthesis.</li><li>One lead resolves material differences using source checks or tests and records what changes and why. A review, agreement or passing comparison does not grant new implementation, spending, sharing or publication permission.</li></ul></details>
             <!-- /diagram:model-synthesis -->
-<ol><li><strong>Assign:</strong> give each reviewer a focused question and approved material; preserve its findings before sharing the other reviews.</li><li><strong>Evaluate each return:</strong> check its evidence, quality, permitted actions and applicable response contract.</li><li><strong>Classify and compare:</strong> identify reviews that may be used, must wait for further review or must be excluded. When structured comparison is needed, explicitly invoke the comparison API with compatible claim fields.</li><li><strong>Investigate and decide:</strong> check material disagreements against implementation or tests, then retain the lead’s decision and resulting work. The architect decides within the granted authority.</li></ol><p>Neither input eligibility nor model agreement establishes correctness or permission to act.</p></section>
+<ol><li><strong>Assign:</strong> give each reviewer a focused question and approved material; preserve its findings before sharing the other reviews.</li><li><strong>Evaluate each return:</strong> check its evidence, quality, permitted actions and applicable response contract.</li><li><strong>Classify and compare:</strong> identify reviews that may be used, must wait for further review or must be excluded. When structured comparison is needed, explicitly run the offline synthesis report with compatible claim fields.</li><li><strong>Investigate and decide:</strong> check material disagreements against implementation or tests, then retain the lead’s decision and resulting work. The architect decides within the granted authority.</li></ol><p>Neither input eligibility nor model agreement establishes correctness or permission to act.</p></section>
 
           <section id="input-quality">
-            <h2>Decide which reviews can support the decision</h2><p>Individual returns go through the return evaluator. Cross-return eligibility and claim comparison are available through <code>evaluate_synthesis_inputs</code>; the operator or integration must invoke this helper explicitly. A route flag requiring comparison is not evidence that it ran.</p>
+            <h2>Decide which reviews can support the decision</h2><p>Individual returns go through the return evaluator. The offline synthesis report, <code>python3 scripts/evaluate_synthesis.py --inputs critic-inputs.json --candidate CANDIDATE --scope SCOPE</code>, combines the exact received returns with their recorded evaluations for one candidate and scope. Add <code>--adjudications</code> for bound adjudication records, <code>--route</code> to carry the route’s consensus and provider-conflict flags, or <code>--zero-trust-required</code> to require claim comparison. Embedding hosts can call <code>evaluate_synthesis_inputs</code> directly. The operator or integration must run it explicitly; it makes no model requests, and a route flag requiring comparison is not evidence that it ran. <code>status: ready</code> means the supplied records meet the synthesis policy, not that implementation is approved. <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/zero-trust-consensus.md">Input list format and options</a>.</p>
             <p>CWO records a status for each review before combining findings: accepted, accepted-with-modification, salvage-only, open-risk, missing, timed-out, process-held, rejected, quarantined or boundary-tainted. These exact labels distinguish usable evidence from missing, limited or unsafe inputs.</p>
+            <p>Synthesis can proceed with some lanes missing, and the report says which. It is blocked when fewer than two accepted or accepted-with-modification inputs remain, or when every external input is quarantined or boundary-tainted.</p>
             <div class="callout">
               <strong>Salvage-only means useful but limited.</strong>
               A return may provide wording ideas, alternate framing, or risk
               prompts without counting toward the minimum usable primary inputs.
-              The configured provider-camp policy treats Google/Gemini architecture critique this way unless an adjudication record bound to that return, its dispatch and the exact candidate upgrades it. The helper applies the rule when the return's <code>provider_camp</code>, <code>provider_family</code> or <code>trust_domain</code>, or the provider family derived from its dispatch record, is Google; a label alone cannot remove it. A return whose dispatch record has unknown or conflicting provenance is never a primary input.
+              The configured provider-camp policy treats Google/Gemini architecture critique this way. To count an accepted, unheld salvage-only return as primary, request <code>"synthesis_use": "primary"</code> for it and supply an accepting adjudication bound to its dispatch, return digest, exact candidate and scope, with evidence for the accepted findings. Finish any required peer review first. The helper applies the rule when the return's <code>provider_camp</code>, <code>provider_family</code> or <code>trust_domain</code>, or the provider family derived from its dispatch record, is Google; a label alone cannot remove it. A return whose dispatch record has unknown or conflicting provenance is never a primary input.
             </div>
-            <p>A <strong>boundary-tainted</strong> review used material or actions outside its approved assignment—for example, claiming to inspect files that were not shared. Do not blend it into accepted evidence. Reject it or isolate it for review before deciding whether any finding is usable.</p>
+            <p>A <strong>boundary-tainted</strong> review used material or actions outside its approved assignment, for example claiming to inspect files that were not shared. Do not blend it into accepted evidence. Reject it or isolate it for review before deciding whether any finding is usable.</p>
             <p>Keep disclosed provider-policy limits with the review. If provider conflict requires peer review, hold implementation until that review and the lead’s decision are recorded. The evaluator marks this <code>implementation_blocked</code>; a pending review is not the same as a substantively unsafe return. See <a href="./malpractice-sabotage.html#provider-policy">provider-policy handling</a>.</p>
             <p>For security-sensitive decisions, CWO can require <a href="./zero-trust-consensus.html">comparison of explicit claims across trust domains</a>. A trust domain groups sources that may share the same provider or operating assumptions; it is not proof of statistical independence. Unresolved material differences must be decided before findings become implementation work.</p>
           </section>
@@ -152,6 +197,7 @@
           <section id="adjudication">
             <h2>Record what was accepted and why</h2>
             <p>Save the agreements, disagreements, unsupported claims and missing reviews. For each material finding, record the supporting evidence, the lead’s decision and any resulting plan change. Keep provider identity and unresolved holds with that record; the summary does not authorize release.</p>
+            <p>An adjudication record is bound to one dispatch, return digest, candidate and scope. It accepts, accepts with changes, rejects or quarantines that evaluated return for synthesis use. It can clear return-tripwire holds and the packet-only GO hold. Peer-review, provider-conflict and risk-review holds clear only through a recorded peer review. Role labels on inputs, such as <code>architect_adjudicated</code>, grant nothing.</p>
             <ul class="check-list">
               <li>The combined review summary reports findings; the lead makes the decision.</li>
               <li>Outside models provide evidence; they do not gain authority.</li>
@@ -174,6 +220,10 @@
               are enough.
             </p>
             <p>
+              Outside review routes include the Claude and Gemini critics through the
+              <a href="./external-contracting.html#multi-expert-review">multi-expert review flow</a>
+              and the <a href="./external-contracting.html#chatgpt-pro">ChatGPT Pro desktop review</a>;
+              local review uses the <a href="./local-workers.html">local model path</a>.
               Continue with the <a href="./external-contracting.html#multi-expert-review">multi-expert review flow</a>,
               use <a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
               when structured cross-domain claim comparison is needed,

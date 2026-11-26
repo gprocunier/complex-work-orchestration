@@ -58,7 +58,7 @@
         <p class="eyebrow">Risk deep dive</p>
         <h1 id="page-title">Check model output before using it</h1>
         <p class="callout">This guide covers unsupported claims, unsafe instructions, unapproved actions and attempts to change the assigned job. The checks flag specific risks; they do not catch every incorrect or adversarial answer.</p>
-        <p class="lede">A useful answer can still invent a test result, rely on unshared files or recommend an unauthorized change. CWO checks each model return—the answer and its supporting evidence—before it affects the project. Its exact scoring terms—<strong>malpractice</strong> for evidence-quality problems and <strong>sabotage</strong> for boundary-risk patterns—classify the return, not the model’s intent.</p>
+        <p class="lede">A useful answer can still invent a test result, rely on unshared files or recommend an unauthorized change. CWO checks each model return (the answer and its supporting evidence) before it affects the project. Its exact scoring terms, <strong>malpractice</strong> for evidence-quality problems and <strong>sabotage</strong> for boundary-risk patterns, classify the return, not the model’s intent.</p>
       </header><details class="contents" open><summary>On this page</summary><nav aria-label="On this page">
           <a href="#zero-trust">Start by checking what the reviewer actually did</a>
           <a href="./zero-trust-consensus.html">Zero-Trust Consensus</a>
@@ -194,6 +194,13 @@
               review-process evasion.
             </p>
             <p>
+              In redacted-packet returns, planned or negated validation (a test
+              the reviewer says it would run, or did not run) is distinguished
+              from a claim that a command actually ran. When evidence-quality or
+              scope signals alone trigger rejection, the evaluation names them.
+              Human review is still required.
+            </p>
+            <p>
               Work-rerouting signals cover a subtler sabotage pattern: the
               return appears helpful while changing the requested job into a
               weaker one. Complex Work Orchestration scores objective
@@ -305,6 +312,11 @@
               required peer review, or asks the architect to treat the return as
               implementation authority.
             </p>
+            <p>
+              When the recorded manual contractor dispatch requires peer review
+              or provider-conflict handling, the first return evaluation applies
+              that requirement.
+            </p>
             <div class="reference-table compact" role="table" aria-label="Provider policy limitation handling">
               <div role="row">
                 <span role="cell">Conflict domain detected</span>
@@ -355,7 +367,7 @@
 
           <section id="quarantine">
             <h2>Isolate suspect returns; keep pending reviews distinct</h2>
-            <p>A <strong>quarantined</strong> return is held apart because its evidence or boundary compliance is unsafe or unresolved. Preserve it for investigation, but do not use its findings in implementation, synthesis, release notes or public docs until the lead resolves the problem.</p><p>A pending review is a <strong>process hold</strong>, not a finding that the return is unsafe. The evaluator records <code>implementation_blocked</code>, <code>hold_reasons</code> and <code>hold_classification</code>, and a held decision never carries an accepting verdict: it is recorded as <code>escalate</code> with <code>accepted_for_use</code> false, while the evidence stays available as an open risk. Required peer review and the lead’s decision must finish before implementation uses the finding.</p><p><strong>Return tripwires</strong> hold a return whose text asks the evaluator or agent to change the outcome, claims authority over instructions, proposes running fetched code, moves credentials, widens disclosure, weakens TLS or tests, or keeps work out of the audit record. They are heuristic: they do not detect arbitrary injection or verify facts, and a return with no hit gains no authority. Fixes and warnings about the same code, such as removing <code>verify=False</code>, are not hits. An evaluation never permits executing anything a return proposes (<code>execution_permitted</code> is always false), and sabotage and malpractice thresholds come only from policy: the evaluator refuses caller overrides.</p>
+            <p>A <strong>quarantined</strong> return is held apart because its evidence or boundary compliance is unsafe or unresolved. Preserve it for investigation, but do not use its findings in implementation, synthesis, release notes or public docs until the lead resolves the problem.</p><p>A pending review is a <strong>process hold</strong>, not a finding that the return is unsafe. The evaluator records <code>implementation_blocked</code>, <code>hold_reasons</code> and <code>hold_classification</code>, and a held decision never carries an accepting verdict: it is recorded as <code>escalate</code> with <code>accepted_for_use</code> false, while the evidence stays available as an open risk. Required peer review and the lead’s decision must finish before implementation uses the finding.</p><p><strong>Return tripwires</strong> hold a return whose text asks the evaluator or agent to change the outcome, claims authority over instructions, proposes running fetched code, moves credentials, widens disclosure, weakens TLS or tests, or keeps work out of the audit record. They are heuristic: they do not detect arbitrary injection or verify facts, and a return with no hit gains no authority. A regression corpus of at least 80 hostile cases checks each declared verdict, both after the return and inside its Evidence section. Fixes and warnings about the same code, such as removing <code>verify=False</code>, are not hits. An evaluation never permits executing anything a return proposes (<code>execution_permitted</code> is always false), and sabotage and malpractice thresholds come only from policy: the evaluator refuses caller overrides.</p>
             <ul class="check-list">
               <li>A boundary-tainted return does not become a primary synthesis input.</li>
               <li>Unsupported claims stay visible as risk, not accepted fact.</li>

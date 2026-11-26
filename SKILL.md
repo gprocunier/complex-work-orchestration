@@ -26,7 +26,8 @@ Beads tracking is mandatory for non-trivial work. In ordinary Codex sessions, ha
 
 Registered single-worker production requires the original signed workflow,
 provider disclosure consent and separately supplied production authentication.
-Raw native launch, pools, campaigns, activation and surface qualification retain source holds.
+Two or three approved workers run through the registered contained pool; raw native launch,
+legacy pool routes, activation and surface qualification stay held, and campaigns are retired.
 Use observed host capability evidence for the executable, configuration and tool
 profile. Check the actual model against the exact selection for each assignment.
 

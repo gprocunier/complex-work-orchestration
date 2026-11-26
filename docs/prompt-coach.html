@@ -69,8 +69,8 @@
           <section id="planning-loop">
 <h2>From your request to a reviewed plan</h2>
 <ol class="action-list">
-<li><strong>Define and size.</strong> State the result, permitted changes and completion checks. Estimate preparation, implementation, reviews, integration, validation and handoff—not just model calls. Planning-only work estimates those later stages without starting them.</li>
-<li><strong>Draft the plan.</strong> The lead identifies options, assumptions, dependencies and tests. A small task may stay in one thread with one Beads record. Larger work can use a work graph—a saved set of tasks and dependencies.</li>
+<li><strong>Define and size.</strong> State the result, permitted changes and completion checks. Estimate preparation, implementation, reviews, integration, validation and handoff, not just model calls. Planning-only work estimates those later stages without starting them.</li>
+<li><strong>Draft the plan.</strong> The lead identifies options, assumptions, dependencies and tests. A small task may stay in one thread with one Beads record. Larger work can use a work graph: a saved set of tasks and dependencies.</li>
 <li><strong>Get second opinions when useful.</strong> Give each approved reviewer the same starting design and a focused question. Save its findings before showing it the other reviews.</li>
 <li><strong>Synthesize and revise.</strong> Check evidence, resolve important disagreements and record which findings change the plan. Save unresolved questions and required tests with the work.</li>
 <li><strong>Execute only when permitted.</strong> A reviewed plan supplies the next tasks; it does not grant new model calls, file changes or publication rights.</li>
@@ -85,7 +85,7 @@
 <span class="line"><span>Plan retry handling for our job-submission client. One user request must not create duplicate jobs.</span></span>
 <span class="line"><span>Planning only: do not modify files or deploy.</span></span>
 <span class="line"><span>Compare no automatic retries with retries backed by server-side duplicate protection.</span></span>
-<span class="line"><span>Size preparation, two second opinions, synthesis and validation—not just the model calls.</span></span>
+<span class="line"><span>Size preparation, two second opinions, synthesis and validation, not just the model calls.</span></span>
 <span class="line"><span>Also estimate implementation and handoff, but do not start them. Agree the review allowance before either reviewer is called.</span></span>
 <span class="line"><span>Have the coordinating Codex model draft the initial plan.</span></span>
 <span class="line"><span>I authorize a Claude Opus reviewer to receive only a redacted design brief.</span></span>
@@ -104,7 +104,7 @@
             <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/coach_prompt.py</span><span class="shiki-style-ab138001542cb31f"> --json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-fccf53bf0d08ec6a">  "Plan retry handling for a job-submission client without duplicate jobs."</span></span></code></pre>
             <p>This is an example request, not evidence of a dispatch. Replace the reviewers and sharing approval with choices you actually intend. If a required route is unavailable, keep that review blocked; do not treat the prompt as proof that the model can be called.</p>
-            <p>Read the recommended coordination level, proposed reviewer or worker route, missing decisions and warnings. The output also includes a launch prompt you can give Codex after resolving those decisions.</p>
+            <p>Read the recommended coordination level, proposed reviewer or worker route, missing decisions and warnings. The output also reports whether model dispatch is available after every gate, and names any stop that blocks it; a stop blocks dispatching workers, not planning. The output also includes a launch prompt you can give Codex after resolving those decisions.</p>
             <p>
               Explicit coach requests also carry
               <code>requires_user_selection_before_plan</code> and
@@ -177,7 +177,9 @@
               automatically when explicit external-model or contractor cues
               exist; otherwise the user can request external review directly.
               The Claude command uses the model and effort configured in the
-              executor registry.
+              executor registry; the manual invocation can run under an
+              optional host-local account set in trusted local policy (see
+              <a href="./external-contracting.html#packet">outside review</a>).
               The Gemini architecture critic's Antigravity command uses its
               configured model, plan mode and trusted working directory.
             </div>
@@ -274,9 +276,14 @@
               <p>
                 The coach always asks whether to parallelize with subagents and
                 records the answer in <code>workerbee_parallelism</code>.
-                In the connected native path, broad review work uses the exact
-                task-selected Luna-first route only after exact model/host qualification. Historical Spark compatibility records do not grant fresh dispatch. Do not silently substitute
-                another model. A separately selected local or contractor route
+                Native worker model selection follows the active routing
+                policy, the task-selected Luna-first route: Luna for focused
+                native work, Sol for recorded
+                escalation, and Terra for work classified as interface, visual
+                or computer-use. The coach is not admission authority;
+                qualification and the approved budget still apply. Historical
+                Spark records remain readable but do not grant new dispatch. Do
+                not silently substitute another model. A separately selected local or contractor route
                 follows its own profile and approval boundary. Implementation
                 subagents still require explicitly disjoint scopes.
               </p>
@@ -310,7 +317,7 @@
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --local-profile</span><span class="shiki-style-fccf53bf0d08ec6a"> openshift-ai-vllm</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --requested-role</span><span class="shiki-style-fccf53bf0d08ec6a"> documentation</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-fccf53bf0d08ec6a">  "OpenShift AI vLLM local review of README command examples."</span></span></code></pre>
-            <p>A local answer still needs a separate, focused assignment and a saved request. Check its evidence and record the lead’s decision before changing the project.</p>
+            <p>A local answer still needs a separate, focused assignment and a saved request. CWO writes the request record by default. To send it, opt in, configure your endpoint and stage workload admission; <code>dispatch_work.py --execute-local</code> then sends the screened request to the configured vLLM endpoint and evaluates the captured reply as advisory evidence. Check its evidence and record the lead’s decision before changing the project. See <a href="./local-workers.html">Local models</a> and the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/local-inference.md">local dispatch reference</a>.</p>
           </section>
 
           <section id="defaults">
