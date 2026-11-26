@@ -45,6 +45,7 @@ from cwo_core.native_pool_transaction import (  # noqa: E402
 from prepare_native_pool_qualification import _materialize_fixtures, _prepare  # noqa: E402
 from tests import test_native_pool_admission_contracts as admitted_fixtures  # noqa: E402
 from tests.test_beads_ready_set import ready_item, released_three_policy  # noqa: E402
+from tests.test_native_pool import FakeClock  # noqa: E402
 from tests.test_native_pool_admission import MemoryBdRunner  # noqa: E402
 from tests.test_native_pool_proportionality import _set_runtime  # noqa: E402
 from tests.test_native_pool_qualification_stage import _fixture, _qualification_effect_events, _run_attempt  # noqa: E402
@@ -60,6 +61,26 @@ def _private_bytes(path, data):
 
 def _clock():
     return datetime.now(timezone.utc)
+
+
+def _pace_isolation_polls(stack):
+    original_launch_options = adapter._PoolParent._launch_options
+
+    def launch_options(parent, contract, capability):
+        options = original_launch_options(parent, contract, capability)
+        callbacks = options["pool_callbacks"]
+        real_sleep = callbacks["sleep"]
+        clock = FakeClock()
+
+        def sleep(*, seconds):
+            # Give the inert pipes their real polling interval and advance the scheduler by that interval.
+            real_sleep(seconds=seconds)
+            clock.sleep(seconds=seconds)
+
+        callbacks.update(monotonic_ns=clock.monotonic_ns, sleep=sleep)
+        return options
+
+    stack.enter_context(patch.object(adapter._PoolParent, "_launch_options", launch_options))
 
 
 class _FixtureBeads:
@@ -268,6 +289,8 @@ class AdmittedRegisteredPoolTests(unittest.TestCase):
         stack.enter_context(patch.object(beads.subprocess, "run", bd.run))
         fixture_capabilities = _FixtureCapabilities()
         stack.enter_context(patch.object(capabilities, "require_connected_callback_capability", fixture_capabilities.verify))
+        if signed_isolation:
+            _pace_isolation_polls(stack)
         if behavior == "wrong-context":
             self._order_mismatch_after_sibling_arrival(stack)
         repeats = 2 if signed_isolation else 1
