@@ -38,6 +38,8 @@ import run_native_pool_live_canaries as LIVE  # noqa: E402
 from cwo_core import maintenance_qualification as MQ  # noqa: E402
 from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
 from cwo_core import native_pool_contracts as POOL  # noqa: E402
+from cwo_core.supervision import callback_timing as TIMING  # noqa: E402
+from cwo_core.supervision import session_evidence as EVIDENCE  # noqa: E402
 from cwo_core.supervision.transport import app_server as TRANSPORT  # noqa: E402
 from tests import test_codex_tool_surface as SURFACE_TESTS  # noqa: E402
 from tests import test_native_pool_contracts as POOL_TESTS  # noqa: E402
@@ -515,7 +517,7 @@ def adapter_digest_coverage_section() -> dict:
         for relative in set(covered.values()) | set(LIVE.ADAPTER_IMPLEMENTATION_PATHS):
             (root / relative).parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / relative, root / relative)
-        with mock.patch.object(LIVE, "ROOT", root), mock.patch.object(LIVE, "__file__", str(root / RUNNER_PATH)):
+        with mock.patch.object(TIMING, "ROOT", root):
             baseline = LIVE.capability_certification()["adapter_implementation_sha256"]
             for label, relative in covered.items():
                 original = (root / relative).read_bytes()
@@ -990,6 +992,7 @@ class GoldenVerdictTests(unittest.TestCase):
         golden = self.golden["code_pins"]
         # The move may add pins; it may not drop one or stop covering moved code.
         self.assertLessEqual(set(golden["pin_paths"]), set(observed["pin_paths"]))
+        self.assertLessEqual(set(LIVE.ADAPTER_IMPLEMENTATION_PATHS), set(observed["pin_paths"]))
         self.assertEqual(observed["covers"], golden["covers"])
         self.assertEqual(observed["interpreter_pinned"], golden["interpreter_pinned"])
         self.assertTrue(all(observed["covers"].values()))
@@ -1075,7 +1078,8 @@ class ConsumerCompatibilityTests(unittest.TestCase):
             with self.subTest(helper=name):
                 old = getattr(LIVE, name)
                 current = getattr(owner, name)
-                self.assertEqual(old.__module__, "run_native_pool_live_canaries")
+                self.assertIs(old, getattr(EVIDENCE, name))
+                self.assertEqual(old.__module__, "cwo_core.supervision.session_evidence")
                 self.assertEqual(current.__module__, "cwo_core.supervision.turn_observations")
                 self.assertEqual(
                     ast.dump(ast.parse(inspect.getsource(old))),

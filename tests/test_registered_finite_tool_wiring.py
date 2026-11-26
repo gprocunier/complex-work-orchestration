@@ -20,6 +20,7 @@ from tests.test_registered_finite_input import ToolLines
 import registered_finite_input as gate_module
 import registered_finite_tool_calls as finite_tools
 import run_native_pool_live_canaries as live
+from cwo_core.supervision import live_thread as LIVE_THREAD
 
 
 class ReplyPublicationRow(NamedTuple):
@@ -1976,7 +1977,7 @@ class RegisteredFiniteToolWiringTests(unittest.TestCase):
 
         with (patch.object(family, 'RpcProcess', NamespacedFiniteRpcProcess),
               patch.object(gate_module.RegisteredFiniteInput, '_write_reply_frame', staticmethod(held_after_real_write)),
-              patch.object(live, 'session_boundary_summary', observe_archive),
+              patch.object(LIVE_THREAD, 'session_boundary_summary', observe_archive),
               self._positive_finite_completion(case)):
             result = factory.run()
         self.assertEqual(observed, [('pending', 1, 'paired-pending')])

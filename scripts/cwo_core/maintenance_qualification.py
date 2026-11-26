@@ -512,8 +512,8 @@ def observe_qualification(*, operation, verifier, plan, workspace: Path, output:
                           session_ledger, tool_surface_proof: Mapping[str, Any], control_image_sha256: str,
                           fit_prompt: str, timeout_seconds: int = 180, ttl_seconds: int = 900):
     """Observe a genuine bounded no-tools provider turn; failures retain evidence."""
-    from run_native_pool_live_canaries import contain_started_threads
     from .codex_tool_surface import require_surface_proof, ALLOWLIST_PARAMETER
+    from .supervision.containment import contain_started_threads
     from .supervision.transport.app_server import AppServer, THREAD_PHASE_PRECOMMIT_FIT
     from .supervision.transport.errors import AppServerRpcError
     from .maintenance_runtime_support import MaintenanceSessionLedger
@@ -693,7 +693,10 @@ def _code_pins() -> dict[str, str]:
                  # Moved from the two scripts above; pinned so the moved code stays covered.
                  "codex_tool_surface.py", "supervision/__init__.py", "supervision/transport/__init__.py",
                  "supervision/transport/app_server.py", "supervision/transport/errors.py",
-                 "supervision/transport/private_io.py"))]
+                 "supervision/transport/private_io.py",
+                 "supervision/calibration.py", "supervision/callback_timing.py",
+                 "supervision/containment.py", "supervision/live_thread.py",
+                 "supervision/session_evidence.py"))]
     pins = {str(path): digest(_owned_read(path)[0]) for path in paths}
     executable = Path(sys.executable).resolve(strict=True)
     need(executable.is_file(), "checker-interpreter-invalid")

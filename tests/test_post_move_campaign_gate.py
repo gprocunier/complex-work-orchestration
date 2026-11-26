@@ -40,6 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import run_native_pool_live_canaries as LIVE  # noqa: E402
+from cwo_core import native_campaign_history as HISTORY  # noqa: E402
 from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
 from tests import historical_campaign_launcher
 from tests.historical_campaign_launcher import PRE_RETIREMENT, launcher_before_retirement, pinned_blob, run_archived_cases
@@ -268,7 +269,7 @@ class ValidatorContractV6TreeTests(unittest.TestCase):
         selected = root or self.repository.root
         if selected == ROOT:
             return CONTRACTS.validator_contract_v6_tree_errors(selected, tree)
-        with mock.patch.object(CONTRACTS, "_V6_PRE_MOVE_IDENTITY_PAIRS", FIXTURE.pairs):
+        with mock.patch.object(HISTORY, "_V6_PRE_MOVE_IDENTITY_PAIRS", FIXTURE.pairs):
             return CONTRACTS.validator_contract_v6_tree_errors(selected, tree)
 
     def test_moved_source_paths_are_the_v7_additions_except_the_shim(self) -> None:

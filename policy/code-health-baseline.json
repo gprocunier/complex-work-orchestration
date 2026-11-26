@@ -49,8 +49,6 @@
   },
   "imports": [
     "cwo_core.maintenance_native_runtime -> prepare_native_worker",
-    "cwo_core.maintenance_native_runtime -> run_native_pool_live_canaries",
-    "cwo_core.maintenance_qualification -> run_native_pool_live_canaries",
     "cwo_core.maintenance_release -> prepare_native_worker"
   ],
   "complexity": {
@@ -402,6 +400,29 @@
     "scripts/cwo_core/routing.py::executor_policy_violations": 30,
     "scripts/cwo_core/routing.py::score_executors": 50,
     "scripts/cwo_core/stage_completion.py::_consume": 71,
+    "scripts/cwo_core/supervision/calibration.py::_run_calibration": 160,
+    "scripts/cwo_core/supervision/calibration.py::_run_calibration.capture_recovery_boundary": 31,
+    "scripts/cwo_core/supervision/calibration.py::_run_calibration.observe": 116,
+    "scripts/cwo_core/supervision/containment.py::contain_started_threads": 82,
+    "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter.__init__": 19,
+    "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._completion_evidence_observation": 18,
+    "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._exact_tool_trace_observation": 29,
+    "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._observe_forbidden_tool_activity": 22,
+    "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._read_only_command_authority_observation": 44,
+    "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._validate_effective_boundary": 96,
+    "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter.bind_workspace_baseline": 27,
+    "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter.check.action": 21,
+    "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter.evidence": 38,
+    "scripts/cwo_core/supervision/session_evidence.py::PreAttestationSessionBoundaryTracker._parse_pinned_boundary": 33,
+    "scripts/cwo_core/supervision/session_evidence.py::PreAttestationSessionBoundaryTracker.capture": 21,
+    "scripts/cwo_core/supervision/session_evidence.py::_normalize_expected_tool_trace": 25,
+    "scripts/cwo_core/supervision/session_evidence.py::_normalize_read_only_command_authority": 42,
+    "scripts/cwo_core/supervision/session_evidence.py::_require_positive_read_only_command": 30,
+    "scripts/cwo_core/supervision/session_evidence.py::_trusted_tool_authority_receipts": 64,
+    "scripts/cwo_core/supervision/session_evidence.py::session_boundary_summary": 18,
+    "scripts/cwo_core/supervision/session_evidence.py::trusted_tool_evidence_summary": 52,
+    "scripts/cwo_core/supervision/session_evidence.py::validate_calibration_read_recovery_telemetry": 116,
+    "scripts/cwo_core/supervision/session_evidence.py::validate_startup_scaffold_records": 32,
     "scripts/cwo_core/supervision/transport/app_server.py::AppServer.__init__": 42,
     "scripts/cwo_core/supervision/transport/app_server.py::AppServer._late_turn_start_response": 23,
     "scripts/cwo_core/supervision/transport/app_server.py::AppServer._load_durable_turn_dispatch_records": 25,
@@ -480,39 +501,16 @@
     "scripts/route_work.py::print_human": 57,
     "scripts/run_native_pool_activation_preview.py::_close_accepted_activation_beads": 46,
     "scripts/run_native_pool_activation_preview.py::run_live_activation": 25,
-    "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter.__init__": 19,
-    "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._completion_evidence_observation": 18,
-    "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._exact_tool_trace_observation": 29,
-    "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._observe_forbidden_tool_activity": 22,
-    "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._read_only_command_authority_observation": 44,
-    "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._validate_effective_boundary": 96,
-    "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter.bind_workspace_baseline": 27,
-    "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter.check.action": 21,
-    "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter.evidence": 38,
-    "scripts/run_native_pool_live_canaries.py::PreAttestationSessionBoundaryTracker._parse_pinned_boundary": 33,
-    "scripts/run_native_pool_live_canaries.py::PreAttestationSessionBoundaryTracker.capture": 21,
     "scripts/run_native_pool_live_canaries.py::_capture_session_snapshot": 21,
     "scripts/run_native_pool_live_canaries.py::_load_scope_campaign_state": 21,
     "scripts/run_native_pool_live_canaries.py::_migrate_authority_history_seed": 21,
-    "scripts/run_native_pool_live_canaries.py::_normalize_expected_tool_trace": 25,
-    "scripts/run_native_pool_live_canaries.py::_normalize_read_only_command_authority": 42,
-    "scripts/run_native_pool_live_canaries.py::_require_positive_read_only_command": 30,
-    "scripts/run_native_pool_live_canaries.py::_run_calibration": 160,
-    "scripts/run_native_pool_live_canaries.py::_run_calibration.capture_recovery_boundary": 31,
-    "scripts/run_native_pool_live_canaries.py::_run_calibration.observe": 116,
-    "scripts/run_native_pool_live_canaries.py::_trusted_tool_authority_receipts": 64,
     "scripts/run_native_pool_live_canaries.py::_validate_active_outer_authority_unlocked": 16,
     "scripts/run_native_pool_live_canaries.py::build_pool_inputs": 54,
-    "scripts/run_native_pool_live_canaries.py::contain_started_threads": 82,
     "scripts/run_native_pool_live_canaries.py::main": 82,
     "scripts/run_native_pool_live_canaries.py::register_active_outer_authority": 31,
-    "scripts/run_native_pool_live_canaries.py::session_boundary_summary": 18,
-    "scripts/run_native_pool_live_canaries.py::trusted_tool_evidence_summary": 53,
-    "scripts/run_native_pool_live_canaries.py::validate_calibration_read_recovery_telemetry": 116,
     "scripts/run_native_pool_live_canaries.py::validate_campaign": 65,
     "scripts/run_native_pool_live_canaries.py::validate_campaign_launch_bindings": 30,
     "scripts/run_native_pool_live_canaries.py::validate_independent_validation_session_snapshot": 67,
-    "scripts/run_native_pool_live_canaries.py::validate_startup_scaffold_records": 32,
     "scripts/scaffold_workgraph.py::_route_planned_workerbee_delegation": 17,
     "scripts/scaffold_workgraph.py::main": 17,
     "scripts/scaffold_workgraph.py::planned_graph": 42,
@@ -697,10 +695,126 @@
       "from": "scripts/chatgpt_browser_review.py::write_private_response",
       "to": "scripts/cwo_core/browser_capture.py::write_private_response",
       "reason": "Share private browser capture publication across transports."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::_run_calibration",
+      "to": "scripts/cwo_core/supervision/calibration.py::_run_calibration",
+      "reason": "Move fixed-profile calibration and its observations to the calibration module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::_run_calibration.capture_recovery_boundary",
+      "to": "scripts/cwo_core/supervision/calibration.py::_run_calibration.capture_recovery_boundary",
+      "reason": "Move fixed-profile calibration and its observations to the calibration module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::_run_calibration.observe",
+      "to": "scripts/cwo_core/supervision/calibration.py::_run_calibration.observe",
+      "reason": "Move fixed-profile calibration and its observations to the calibration module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::contain_started_threads",
+      "to": "scripts/cwo_core/supervision/containment.py::contain_started_threads",
+      "reason": "Move retained thread containment to its owning module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter.__init__",
+      "to": "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter.__init__",
+      "reason": "Move the shared live thread adapter and its observations to the live thread module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._completion_evidence_observation",
+      "to": "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._completion_evidence_observation",
+      "reason": "Move the shared live thread adapter and its observations to the live thread module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._exact_tool_trace_observation",
+      "to": "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._exact_tool_trace_observation",
+      "reason": "Move the shared live thread adapter and its observations to the live thread module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._observe_forbidden_tool_activity",
+      "to": "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._observe_forbidden_tool_activity",
+      "reason": "Move the shared live thread adapter and its observations to the live thread module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._read_only_command_authority_observation",
+      "to": "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._read_only_command_authority_observation",
+      "reason": "Move the shared live thread adapter and its observations to the live thread module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter._validate_effective_boundary",
+      "to": "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter._validate_effective_boundary",
+      "reason": "Move the shared live thread adapter and its observations to the live thread module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter.bind_workspace_baseline",
+      "to": "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter.bind_workspace_baseline",
+      "reason": "Move the shared live thread adapter and its observations to the live thread module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter.check.action",
+      "to": "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter.check.action",
+      "reason": "Move the shared live thread adapter and its observations to the live thread module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::LiveThreadAdapter.evidence",
+      "to": "scripts/cwo_core/supervision/live_thread.py::LiveThreadAdapter.evidence",
+      "reason": "Move the shared live thread adapter and its observations to the live thread module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::PreAttestationSessionBoundaryTracker._parse_pinned_boundary",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::PreAttestationSessionBoundaryTracker._parse_pinned_boundary",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::PreAttestationSessionBoundaryTracker.capture",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::PreAttestationSessionBoundaryTracker.capture",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::_normalize_expected_tool_trace",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::_normalize_expected_tool_trace",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::_normalize_read_only_command_authority",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::_normalize_read_only_command_authority",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::_require_positive_read_only_command",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::_require_positive_read_only_command",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::_trusted_tool_authority_receipts",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::_trusted_tool_authority_receipts",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::session_boundary_summary",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::session_boundary_summary",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::trusted_tool_evidence_summary",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::trusted_tool_evidence_summary",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::validate_calibration_read_recovery_telemetry",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::validate_calibration_read_recovery_telemetry",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
+    },
+    {
+      "from": "scripts/run_native_pool_live_canaries.py::validate_startup_scaffold_records",
+      "to": "scripts/cwo_core/supervision/session_evidence.py::validate_startup_scaffold_records",
+      "reason": "Move retained session evidence parsing and checks to the session evidence module."
     }
   ],
   "consumed_batches": {
     "transport-extraction-2026-10-23-local": "dd1c67b7dbf40f9a5a04878a092f6aa67babadb23586d18b6ebf887762257721",
-    "browser-capture-writer": "6977b09c893e0f3289e380cac35c4de465686be21cc29a242ec0b0c706b4e62d"
+    "browser-capture-writer": "6977b09c893e0f3289e380cac35c4de465686be21cc29a242ec0b0c706b4e62d",
+    "native-supervision-module-extraction": "b49c196547a9d439f7004896c89c0fa27b9340b74a7b353ccf5807a04d7c5857"
   }
 }

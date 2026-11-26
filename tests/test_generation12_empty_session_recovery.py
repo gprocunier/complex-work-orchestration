@@ -17,6 +17,11 @@ from tests.test_run_native_pool_live_canaries import (
     LIVE,
     TRANSPORT,
 )
+from cwo_core.supervision import (
+    calibration as CALIBRATION,
+    callback_timing as TIMING,
+    session_evidence as EVIDENCE,
+)
 
 
 class EmptySessionCalibrationServer(FakeCalibrationServer):
@@ -405,7 +410,7 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
                 "pread",
                 side_effect=append_after_first_read,
             ), mock.patch.object(
-                LIVE,
+                EVIDENCE,
                 "DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS",
                 0.0,
             ):
@@ -454,7 +459,7 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
                 "pread",
                 side_effect=rewrite_and_grow,
             ), mock.patch.object(
-                LIVE,
+                EVIDENCE,
                 "DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS",
                 0.0,
             ), self.assertRaisesRegex(
@@ -507,7 +512,7 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
                 "pread",
                 side_effect=keep_appending,
             ), mock.patch.object(
-                LIVE,
+                EVIDENCE,
                 "DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS",
                 0.0,
             ), self.assertRaisesRegex(
@@ -568,7 +573,7 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
                 "_pin_or_verify",
                 side_effect=rewrite_after_post_read_stat,
             ), mock.patch.object(
-                LIVE,
+                EVIDENCE,
                 "DESCRIPTOR_CAPTURE_RETRY_GAP_SECONDS",
                 0.0,
             ), self.assertRaisesRegex(
@@ -652,13 +657,10 @@ class Generation12EmptySessionBoundaryTests(unittest.TestCase):
 class Generation12CalibrationRecoveryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.enterContext(mock.patch.object(LIVE.live_availability, 'N1_LIVE_AVAILABLE', True))
-        patcher = mock.patch.object(
-            LIVE,
-            "_measure_action_ms",
-            side_effect=deterministic_calibration_measurement,
-        )
-        patcher.start()
-        self.addCleanup(patcher.stop)
+        for module in (CALIBRATION, TIMING):
+            self.enterContext(mock.patch.object(
+                module, "_measure_action_ms", side_effect=deterministic_calibration_measurement,
+            ))
 
     @staticmethod
     def owner() -> dict:
@@ -680,7 +682,8 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
             mock.patch.object(LIVE.time, "monotonic", side_effect=clock.monotonic),
             mock.patch.object(LIVE.time, "monotonic_ns", side_effect=clock.monotonic_ns),
             mock.patch.object(LIVE.time, "sleep", side_effect=clock.sleep),
-            mock.patch.object(LIVE, "utc_now", side_effect=clock.utc_now),
+            mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+            mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
         ):
             return LIVE.calibration(
                 server,
@@ -1031,7 +1034,7 @@ class Generation12CalibrationRecoveryTests(unittest.TestCase):
 
             server.start_turn = start_partial  # type: ignore[method-assign]
             with mock.patch.object(
-                LIVE,
+                CALIBRATION,
                 "PreAttestationSessionBoundaryTracker",
                 RecordingTracker,
             ), self.assertRaisesRegex(

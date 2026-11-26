@@ -53,7 +53,11 @@ record witnesses at commit `a559a0bb2b9fc4e83b8acbef7b13b48172a47983`
 The tagged source also retains the campaign proof validators and
 `build_live_canary_pool_contract` for historical manifests. Current source
 retains the read-only validator-contract digests and private JSON snapshot
-type. The ordinary `build_pool_contract` uses the released capacity policy.
+type. The read-only Git checks live in `cwo_core.native_campaign_history`. The ordinary `build_pool_contract` uses the released capacity policy.
+
+The native runner keeps the compatibility imports for its adapter, timing,
+calibration and containment. Calibration’s source binding covers the
+implementation modules and their session evidence.
 
 A full checkout must contain the named public objects. Source archives and
 shallow checkouts run the current refusal and neutral Git-fixture checks. Exact

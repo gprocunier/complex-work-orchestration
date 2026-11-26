@@ -83,16 +83,13 @@ from cwo_core.native_tool_isolation import (  # noqa: E402
     require_unchanged_tool_surface,
 )
 from cwo_core.policy import load_policy  # noqa: E402
-from cwo_core.supervision.transport.app_server import AppServer  # noqa: E402
+from cwo_core.supervision.calibration import calibration  # noqa: E402
+from cwo_core.supervision.callback_timing import pool_sleep  # noqa: E402
+from cwo_core.supervision.containment import contain_started_threads  # noqa: E402
+from cwo_core.supervision.live_thread import LiveThreadAdapter  # noqa: E402
+from cwo_core.supervision.session_evidence import capture_server_tool_surface  # noqa: E402
+from cwo_core.supervision.transport.app_server import AppServer, CONTROL_TURN_ID  # noqa: E402
 from cwo_core.supervision.transport.errors import AppServerError  # noqa: E402
-from run_native_pool_live_canaries import (  # noqa: E402
-    CONTROL_TURN_ID,
-    LiveThreadAdapter,
-    calibration,
-    capture_server_tool_surface,
-    contain_started_threads,
-    pool_sleep,
-)
 
 
 PREVIEW_CONTROL_ID = "cwo-native-tool-activation-preview"
