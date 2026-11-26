@@ -134,6 +134,10 @@ def _host_inputs(dispatch, bead_id, dispatch_id):
     if metadata.get("dispatch_mode") == "browser_automation":
         for key in (*BROWSER_PREPARATION_TRACE_FIELDS, "browser_handoff"):
             metadata.pop(key, None)
+    if metadata.get("dispatch_mode") == "manual_ui":
+        for key in ("outbound_source_sha256", "outbound_export_sha256", "outbound_prepared_sha256",
+                    "outbound_screen_version"):
+            metadata.pop(key, None)
     forbidden = {"text", "bead_id", "dispatch_id", "packet_sha256", "executor", "provider_key", "peer_review_status",
                  "peer_review_record", "peer_review_reviewer"}
     _need(not forbidden.intersection(metadata), "dispatch metadata overrides host identity or review state")

@@ -12,10 +12,11 @@ MAX_RETURN_BYTES = 4 * 1024 * 1024
 
 
 def record_manual_return(store, dispatch_id: str, raw: bytes) -> str:
-    """Public intake is restricted to recorded manual executor dispatches."""
+    """Public intake is restricted to prepared manual executor dispatches."""
     dispatch = store.require_dispatch(dispatch_id)
     if (dispatch['dispatch_role'] != 'executor'
-            or dispatch.get('evaluation_metadata', {}).get('dispatch_mode') != 'manual_ui'):
+            or dispatch.get('evaluation_metadata', {}).get('dispatch_mode') != 'manual_ui'
+            or dispatch.get('stage') == 'observed'):
         raise CWOPolicyError("manual intake requires a recorded manual executor dispatch")
     return _record_capture(store, dispatch_id, raw, 'manual-intake-v1')
 

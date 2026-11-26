@@ -3,6 +3,8 @@
 ## Unreleased
 
 - Preserve terminal provider token counts in the contained pool rollout while keeping cumulative qualification accounting stable.
+- Apply peer-review and provider-conflict requirements from the recorded manual contractor dispatch at the first return evaluation.
+- Let embedding hosts record original Codex and Gemini critic completions for synthesis. Peer review and architect adjudication still apply.
 
 ## 1.41.0 - 2026-11-26
 

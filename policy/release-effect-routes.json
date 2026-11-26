@@ -1050,7 +1050,7 @@
 
 "dD":[189,117,"with PrivateDirectory.open(store.state_root / \"browser-returns\", create=True) as directory:"],
 
-"dE":[190,738,"if args.audit:"],
+"dE":[190,780,"if args.audit:"],
 
 "dF":[12,868,"if args.write_manifest and target_dir.exists():"],
 
@@ -1082,7 +1082,7 @@
 
 "dU":[191,"DesktopBrowserReviewTests.test_unmatched_request_and_audit_override_create_no_receipt",98,"L8HRcxATvuBjdGpjq2Fq38NNzsrwx0y1u4zLgyponPQ"],
 
-"dV":[190,739,"record = _record_host_evaluation(return_text, result)"],
+"dV":[190,781,"record = _record_host_evaluation(return_text, result, tracked=tracked)"],
 
 "dW":[189,119,"directory.write(name, raw)"],
 
@@ -1848,7 +1848,7 @@
 
 "kc":[59,715,{"$":57}],
 
-"kd":[190,"main",489,"HfDStNx0PsOZXXzGnHL4d-GO_KeSt28-bpjteBn5DlQ"],
+"kd":[190,"main",531,"sL2-xf1bi9t4LEhnqMeg8CXysN8p2dA0gFNuwRXPWCM"],
 
 "ke":[188,106,"submitted = self.require_unchanged().decode(\"utf-8\")"],
 
@@ -1884,7 +1884,7 @@
 
 "l":[176,86,"_worker_home(home, primary)",11,86,38],
 
-"l0":[28,232,"_need(type(source_context) is dict"],
+"l0":[28,236,"_need(type(source_context) is dict"],
 
 "l1":[82,"AcceptanceProductFlowTests.closure",154,"vt_4ZRytzwToArtXAmOHraBX35INyex---bmEldrU0E"],
 
@@ -1894,7 +1894,7 @@
 
 "l4":[138,"delivery_evidence",21,"wQtZhNfG1UVeVSDetm_6JXcKJjTGTCGAP2fz225ZrNA"],
 
-"l5":[28,230,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
+"l5":[28,234,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
 
 "l6":[138,"WorkflowAdjudicationTests.source",111,"ARUJO6dNUmDpramf--GkSDzHE4ErBTyJ69TRu_q6ki8"],
 
@@ -1928,7 +1928,7 @@
 
 "lX":[59,735,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,735,58],
 
-"lY":[28,219,"_need(type(identity) is dict and set(identity) == IDENTITY_FIELDS | {\"session_id\"},"],
+"lY":[28,223,"_need(type(identity) is dict and set(identity) == IDENTITY_FIELDS | {\"session_id\"},"],
 
 "lZ":[58,22,"if type(value) is not dict or set(value) != {\"task\", \"scope\", \"candidate\"}:"],
 
@@ -2014,13 +2014,13 @@
 
 "mC":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",121,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
 
-"mD":[190,447,"record_received_return(configured_store(), dispatch_id, browser_return)"],
+"mD":[190,474,"record_received_return(configured_store(), dispatch_id, browser_return)"],
 
-"mE":[190,442,"if browser_return is not None:"],
+"mE":[190,469,"if browser_return is not None:"],
 
-"mF":[190,217,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
+"mF":[190,218,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
 
-"mG":[190,207,"if ("],
+"mG":[190,208,"if ("],
 
 "mH":[87,"BrowserProvenanceTests.test_private_evaluation_round_trip",221,"AZ6V16vtyNtTPMLVbrc4UPcl5xgbxqPl4HArCgjZ2-M"],
 
@@ -2642,7 +2642,7 @@
 
 "rj":[22,267,"os.execve(request['executable'],request['argv'],{})"],
 
-"rk":[29,"HostRecordStore.audit_events",438,"LHuZA-t6GsT4iCk6IneHIrnDZieBK-VIZogOINpoLXA"],
+"rk":[29,"HostRecordStore.audit_events",444,"LHuZA-t6GsT4iCk6IneHIrnDZieBK-VIZogOINpoLXA"],
 
 "rm":[74,"_start_campaign_server",344,"r124E4ATSD5rYFLVkDSoxosq7WwnTnv6MN64lJYInOk"],
 
@@ -2730,7 +2730,7 @@
 
 "v3":[130,"ReleaseEffectRoutesTests._probe_listener_pair",1350,"pzMdZkc2i0pi9_BYzo1iHR-i7oa2BUYIx0AZXjRBIPk"],
 
-"v5":[29,"HostRecordStore.__init__",375,"rSJ9YvuKtR1_X3rYVk76a160bX1T5VCDmYkrR8TjReg"],
+"v5":[29,"HostRecordStore.__init__",381,"rSJ9YvuKtR1_X3rYVk76a160bX1T5VCDmYkrR8TjReg"],
 
 "v6":[11,171,"runpy.run_path(str(paths[1]), run_name=\"__w21_measurement__\")"],
 
@@ -4441,7 +4441,7 @@
 
 [16,147,16,155,5,"process","LfJliv8KhLVY82J9zB6qhUa7VqUZ_oevIC7Ci7jeGa8",["route","N11.2","kP"]],
 
-[17,239,13,239,74,"dynamic","DOHqDgULOZ6B98WU47Ppj0zk3dGWJQXxA9JfBmAqnPM",[{"$":9},"bb"]],
+[17,245,13,245,74,"dynamic","DOHqDgULOZ6B98WU47Ppj0zk3dGWJQXxA9JfBmAqnPM",[{"$":9},"bb"]],
 
 [18,654,49,654,78,"dynamic",{"$":33},[{"$":9},"bc"]],
 
@@ -4883,7 +4883,7 @@
 
 [43,2257,63,2257,100,"dynamic","ypKY73eMENYLhVb5Co2lv5r86zD3cAb2ti7ZYE29l0w",[{"$":9},"dR"]],
 
-[44,606,19,606,44,"dynamic",{"$":192},[{"$":9},"dS"]],
+[44,648,19,648,44,"dynamic",{"$":192},[{"$":9},"dS"]],
 
 [91,70,4,70,53,"beads","tL-5k4gLzdn43GnJyjbm47nstYqCfzOB5L9s-GCvqN0",["route","B11.2","mz"]],
 
@@ -6704,7 +6704,7 @@
 
 "@19":["lVXGoZ9EnoiO3zO1gtl0aKqhFcOycVR2gF4Z4ABLFic",420,1174],
 
-"@190":["kz4rT0vN2gTO2pLo45gS07N8Y5yVB4V1wer_skduOo4",493,42675],
+"@190":["MhtxqQrKKJmGGmZOJKKMtSCXfEql7bhdOLIjUuRNGvI",493,44688],
 
 "@191":["SXu6Yj22_Ug5o_QrdX8p8qA_vos4YYSJ8eVwvYtRZ6k",420,9375],
 
@@ -6742,9 +6742,9 @@
 
 "@27":["4xWincalZn6rH6iaAPIxu-nKCFt-N0PqJT7etk706xg",420,40785],
 
-"@28":["W2JRFoszyHwkI2XDdcnMkmfhk5EqojPovlZ7V2QBmUM",420,19430],
+"@28":["7nyHELakDOr_cceEPgSEy7eHJDSFY1MkgIOSKMf8Pnc",420,19667],
 
-"@29":["WNqaokMny-wKvGp7Tqb_XHTK8nU4A8Kq7P_g4VaNQ3E",420,43065],
+"@29":["W9QcRFxvBdg5abYnNUxwWuZ41ooCWtxZHYcEeiqmMtc",420,43541],
 
 "@30":["TxLVwapUpYjw8OKK-aqdPrL1oYNGTxi76okNNes_2cM",420,21215],
 
@@ -6910,7 +6910,7 @@
 
 "scripts/comparative_evaluation.py":["BvLNyTirvieN46vVUMLLTZHoEvtyjqkxifJytJnUdKU",420,3825],
 
-"scripts/cwo_core/__init__.py":["mbxVTV6FtiwUDQjSvMmT9aNLI9SzP6QrQb4IhcK4pc8",420,3838],
+"scripts/cwo_core/__init__.py":["RJkTksF2QUeysJyfCVczp7GNuU8T5BplLDI05ypbFaY",420,3894],
 
 "scripts/cwo_core/access_profiles.py":["2lC0xX3ZK3Ut05NAyEuODqb3Q78Tw8DuakVP-4ppiqQ",420,12119],
 
@@ -6929,6 +6929,8 @@
 "scripts/cwo_core/chatgpt_urls.py":["snQgt8w8wj-dmp_XFtYyjtI-Rpf2zQ9PFF9FuHlhMkY",420,734],
 
 "scripts/cwo_core/coach.py":["xoq1ZLHfFJll3MDD2-JIzFsdnVslrtCT_rq402ILwPk",420,117280],
+
+"scripts/cwo_core/codex_critic_capture.py":["WGULGeWDNkXWkBztrABXlj0DMJp3KU1mQG6eTSBwgYU",420,23845],
 
 "scripts/cwo_core/codex_hook_enforcement.py":["uYjwBis1TPGT7DUoRiFoy4KPJyHSnQRlc8ePae4WhaA",420,8633],
 
@@ -6954,7 +6956,7 @@
 
 "scripts/cwo_core/host_record_quarantine.py":["L2jhZiHRCqNMIhgR0pGgV8s51Uf420YohbUpt3hJVac",420,24514],
 
-"scripts/cwo_core/host_return_intake.py":["koijGOnxtdzfmpU1z9hRiXa6-e9CE4WuReA-XD_p-2A",420,3642],
+"scripts/cwo_core/host_return_intake.py":["_3nWhlwTcuGLTA1UxjokYKE2JIRMT4I1QyhQrDkIjvY",420,3693],
 
 "scripts/cwo_core/maintenance_image.py":["oN7I-FrDJn6sB0CbqGDOFNWEmYRi34ORFPfcv1Jnv2Y",420,2922],
 
@@ -6963,6 +6965,8 @@
 "scripts/cwo_core/maintenance_release.py":["eNGx8F859AAOhe5WHIhpbnZlbSv5TbvfjNb5zdHHwDw",420,11210],
 
 "scripts/cwo_core/maintenance_runtime_support.py":["a5fV6uzR9MrE7IWa9rZZCC2asaXGUMgkwVLfeCoB7tg",420,15199],
+
+"scripts/cwo_core/manual_gemini_critic.py":["SrCaLItOv-wfzLdKQPlYYa7OBCZ_YjZldDUYzPZJZO4",420,7449],
 
 "scripts/cwo_core/model_catalog_startup.py":["DqsueOZw1HBhnEcJ0Y_BTMVIoNntliM7kjIpSE4wxvI",420,2045],
 
@@ -7262,7 +7266,7 @@
 
 "scripts/validate_public_copy.py":["Nh2VF3xdNxmpccEZqUMcJTUD9LW-oEhvzOCJKawL4hc",420,62905],
 
-"scripts/validate_repository.py":["Cn4zq2nMGTHD4haycrBtm8zhC8tr1ITjZ_fM7tpigoM",420,118126],
+"scripts/validate_repository.py":["MLeKDfkL2JQwFzdHZZ09FtMRGYK5HSe7G1EXCqDTcWk",420,118518],
 
 "scripts/validate_run_readiness_plan.py":["Qgbl831AJKP8HfpAZtP_cj91LTnKuHtFDKf02kUmy4Y",493,21103],
 
@@ -7276,7 +7280,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["FgrD4SncMN_oQiwnp9sME35aV_zS_n2dL26j96fQbBs",420,141481],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["8i0hNHPmOiDE3MFzPGsIDxCaqnCJRlqLJ56EoPlIcsQ",420,141481],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7302,7 +7306,7 @@
 
 "tests/test_core_resource_tool_profiles.py":["BLcVQF-zTyYeX3fskFBF-ZnSo4wB5Y5p-rLf7G11O9M",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["rn9VY6Q1b4C_Kj2hmpGX1Z5jtIUt2rIR6klobXVZsUU",420,25769],
+"tests/test_cwo_core_import_contract.py":["7W1J4nXy5SE21q7WHBulErEn35RIDA2lT9Bb95Vp5og",420,26161],
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 
