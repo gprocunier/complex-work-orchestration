@@ -396,12 +396,21 @@ class ClaimsRegisterTests(unittest.TestCase):
         row = next(line for line in register.splitlines() if line.startswith("| Architect prompt check |"))
         _, claim, limits, evidence = row.strip("|").split("|")
         self.assertIn("2026-11-22", claim)
-        self.assertIn("passed 11 of 12 cells", claim)
-        self.assertIn("twelfth behaved correctly", claim)
-        self.assertIn("hidden assertion about message wording that the contract did not specify", claim)
+        self.assertIn("small check passed 11 of 12 fixed tasks", claim)
+        self.assertIn("twelfth failed a hidden assertion about wording absent from the task", claim)
+        self.assertIn("passed the hidden tests with that assertion relaxed", claim)
         self.assertIn("comparative rankings", limits)
         self.assertIn("real-use qualification", limits)
-        self.assertIn("../CHANGELOG.md#unreleased", evidence)
+        self.assertIn("(evaluation-evidence.md#architect-prompt-small-check)", evidence)
+
+        page = (ROOT / "references" / "evaluation-evidence.md").read_text(encoding="utf-8")
+        _, heading, remainder = page.partition("\n## Architect prompt small check\n")
+        self.assertTrue(heading)
+        section = remainder.partition("\n## ")[0]
+        self.assertIn(
+            "(https://github.com/gprocunier/complex-work-orchestration/blob/v1.5.0/CHANGELOG.md#150---2026-11-22)",
+            section,
+        )
 
     def test_character_references_are_refused_except_basic_entities(self) -> None:
         # All character references except &amp;, &lt;, &gt;, &quot; are refused.
