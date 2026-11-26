@@ -1,6 +1,7 @@
 """Exercise the original foreground approval over a disposable MCP connection."""
 from __future__ import annotations
 
+from contextlib import chdir
 import json
 import os
 import socket
@@ -182,9 +183,27 @@ class LauncherTests(unittest.TestCase):
         self.assertIn('--no-daemon', command)
         self.assertEqual(command[-2:], ['-C', str(project)])
 
-    def test_remote_and_noninteractive_launches_have_no_foreground_authority_tool(self):
-        self.assertFalse(any('mcp_servers.cwo-delegation' in item for item in self.launch('--remote=unix://')))
-        self.assertFalse(any('mcp_servers.cwo-delegation' in item for item in self.launch(terminal=False)))
+    def test_agents_project_directory_uses_local_foreground_controller(self):
+        with TemporaryDirectory() as directory, chdir(directory):
+            project = Path(directory).resolve() / 'agents'
+            project.mkdir()
+            for arguments in (('-C', 'agents'), ('--cd', 'agents'), ('-Cagents',), ('--cd=agents',)):
+                with self.subTest(arguments=arguments):
+                    command = self.launch(*arguments)
+                    self.assertIn(f'mcp_servers.cwo-delegation.cwd={json.dumps(str(project))}', command)
+                    self.assertIn('--no-daemon', command)
+                    self.assertEqual(command[-len(arguments):], list(arguments))
+
+    def test_excluded_and_noninteractive_launches_have_no_foreground_authority_tool(self):
+        for arguments in (('agents',), ('-C', 'agents', 'agents'), ('--', '-C', 'agents'),
+                          ('-C', 'agents', '--remote', 'unix://'), ('--remote=unix://',),
+                          ('--cd', 'agents', '--remote-auth-token-env=CODEX_TEST_TOKEN'),
+                          ('-C', 'agents', '--remote-auth-token-env', 'CODEX_TEST_TOKEN'),
+                          ('-C', 'agents', '--worktree'), ('-C', '--remote=unix://')):
+            with self.subTest(arguments=arguments):
+                self.assertFalse(any('mcp_servers.cwo-delegation' in item for item in self.launch(*arguments)))
+        command = self.launch('-C', 'agents', terminal=False)
+        self.assertFalse(any('mcp_servers.cwo-delegation' in item for item in command))
 
     def test_direct_script_with_framed_stdin_refuses_before_mcp_negotiation(self):
         direct = subprocess.run([sys.executable, foreground.__file__, str(os.getpid()), sys.executable],
