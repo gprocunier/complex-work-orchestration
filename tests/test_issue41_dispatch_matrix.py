@@ -261,12 +261,11 @@ class Issue41DispatchMatrixTests(unittest.TestCase):
                 self.assertEqual(case.effect.calls, [])
                 self.assertFalse(case.ledger.root.exists())
 
-    def test_direct_custom_local_mode_cannot_bypass_shipped_denials(self):
-        self.assertIs(dispatch.LOCAL_INVOCATION_AVAILABLE, False)
+    def test_direct_custom_local_mode_cannot_bypass_admission(self):
         with patch.object(dispatch.request, "build_opener") as http:
             with self.assertRaises(SystemExit) as raised:
                 dispatch.execute_local_envelope({"ready": True, "timeout_seconds": 600}, {}, None)
-            self.assertEqual(str(raised.exception), dispatch.LOCAL_INVOCATION_UNAVAILABLE)
+            self.assertEqual(str(raised.exception), "local HTTP execution requires an original staged workload admission")
         http.assert_not_called()
 
     def test_tiny_work_keeps_one_role_and_no_extra_model_or_timeout_parameters(self):

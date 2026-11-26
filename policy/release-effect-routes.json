@@ -26,11 +26,11 @@
 
 "B9":{"admission":{"$":4},"authority":"Caller selects complete argv. run_bd accepts arbitrary args; structured variant requires explicit dir/database/actor and argument shape.","effect":"Explicit generic Beads argv programme boundary","gates":[],"limits":"No universal native/closure denial. Structured invalid directory/DB/actor/argv reaches zero fake process; valid show reaches exact process. run_bd is intentionally generic; PATH/env ambient, default timeout300, explicit int timeout not positivity-validated, uncapped output.","manual_decisions":["e"],"ordering":"require_bd lookup then timeout; structured input validation before subprocess; dep normalization and both ID checks before run_bd.","trace_files":[{"$":21}],"witnesses":["ci"]},
 
-"H1":{"admission":{"$":2},"authority":"Only authoritative executor registry/access profile and original ledger reservation supply admission. Envelope or arbitrary injected opener is evidence, not universal authority.","effect":"Controlled local HTTP/DNS dispatch","effect_points":["dK","b6"],"gate_limits":"The reserved-scope generator intent check requires actual context entry and original handle identity. Generator construction alone is not execution; retain this as a manual lifecycle limit.","gates":["q4","cR","f3"],"limits":"Shipped valid envelope: zero intent/DNS/opener. Enabled original reservation: persisted intent/observer before DNS and exact one POST, optional GET then POST. Context construction does not enter generator; ledger/__enter__ is actual gate. Injected opener/observer trusted under bounded synchronous contract; no arbitrary code sandbox.","manual_decisions":["o","u"],"ordering":"LOCAL_INVOCATION_AVAILABLE before policy/audit/request; exact executor/access/options/TLS/body screens before _local_review_scope; reserve+fsync intent+audit observers before DNS; LocalHttpGate claims one slot before callbacks, rechecks bytes/opener/intent and preflight clock immediately before opener.open.","review_gates":["fZ"],"trace_files":[{"$":106},{"$":68},{"$":326}],"witnesses":["ce"]},
+"H1":{"admission":{"$":2},"authority":"Original host admission, executor/access policy and durable workload and request reservations gate ordinary HTTP. The registered review host retains its ticket gate.","effect":"Controlled local HTTP/DNS dispatch","effect_points":["dK","b6"],"gate_limits":"The reserved-scope generator intent check requires actual context entry and original handle identity. Workload admission and endpoint configuration are checked by helpers. Generator construction alone does not enter the reservation.","gates":["cR","f3"],"limits":"No request without original host admission and an explicitly configured endpoint. An admitted dispatch persists both intents before DNS, then sends one POST or the required GET and POST. Injected opener and observer are trusted under a bounded synchronous contract.","manual_decisions":["o","u"],"ordering":"Check original workload, exact local configuration and screened requests. Persist both intents before DNS. Recheck request, opener, admission and deadline after observers before HTTP. Evaluate the exact captured return with advisory holds.","review_gates":["fZ","q4","s-local-target"],"trace_files":[{"$":106},{"$":68},{"$":326},"scripts/local_http_admission.py"],"witnesses":["ce","local-host-admission"]},
 
 "H2":{"admission":{"$":2},"authority":"Frozen original route and host ticket identity, admission ledger and graph state; callback output cannot mint authority.","effect":"Registered review HTTP scope","effect_points":["gN"],"limits":"Original exact host/ticket/source policy/route/graph/ledger/current deadline; callback output cannot mint authority. Zero HTTP/DNS/intent on entry refusal. Useful bound fake review exactly one HTTP request. Deadline opener min(timeout,remaining), literal IP constructor. Low-level injected implementations trusted.","manual_decisions":["o","u"],"ordering":"Shipped hold first; _registered checks ticket/node/current policy and route bytes; _begin_submission consumes ticket; _ReviewScope validates envelope/wire/sizing and graph state before ledger intent/DNS; _DeadlineOpener requires current intent and remaining runtime before actual open.","trace_files":[{"$":279},{"$":326}],"witnesses":["aR","aI"]},
 
-"H3":{"admission":{"$":4},"authority":"Trusted caller chooses host/port/allow_private_dns/pinned address/SSL context; callers do not get release authority by invoking helpers.","effect":"Direct endpoint DNS/pinned socket/TLS helpers","effect_points":["yW","a1","bg"],"gate_chains":[{"calls":[{"call":"he","direction":"into","target":"fR"}],"effect":"yW","gate":"a7"}],"gates":["a7","b1"],"limits":"Raw helper has no global local-invocation hold. Refused hostname/literal IP zero DNS; allowed private hostname exactly one getaddrinfo, then address policy. Pinned connect exact addr/port/timeout; TLS wrap_socket is socket/TLS effect, not write. DNS intrinsic deadline absent.","manual_decisions":["u","M15"],"ordering":"Syntax/credentials/hostname policy before DNS where possible; resolved address policy necessarily after DNS. _preflight_local_model sends through caller-supplied opener; raw low-level helper invocation is not guarded by H1 hold.","trace_files":[{"$":68}],"witnesses":["bG"]},
+"H3":{"admission":{"$":4},"authority":"Trusted caller chooses host/port/allow_private_dns/pinned address/SSL context; callers do not get release authority by invoking helpers.","effect":"Direct endpoint DNS/pinned socket/TLS helpers","effect_points":["yW","a1","bg"],"gate_chains":[{"calls":[{"call":"he","direction":"into","target":"fR"}],"effect":"yW","gate":"a7"}],"gates":["a7","b1"],"limits":"Raw helper has no global local-invocation hold. Refused hostname/literal IP zero DNS; allowed private hostname exactly one getaddrinfo, then address policy. Pinned connect exact addr/port/timeout; TLS wrap_socket is socket/TLS effect, not write. DNS intrinsic deadline absent.","manual_decisions":["u","M15"],"ordering":"Syntax/credentials/hostname policy before DNS where possible; resolved address policy necessarily after DNS. _preflight_local_model sends through caller-supplied opener; Direct helper calls use this contract. Ordinary dispatch applies the H1 workload and reservation checks.","trace_files":[{"$":68}],"witnesses":["bG"]},
 
 "H4":{"admission":{"$":2},"authority":"The caller explicitly selects a local dry-run with a screened packet or permitted rehearsal input.","effect":"Redacted browser rehearsal audit and result output","effect_points":["bq2","bq3","bq4"],"gate_chains":[{"calls":[{"call":"bq0","direction":"into","target":"bq1"}],"effect":"bq2","gate":"r"}],"gates":["r"],"limits":"Default and confirm-only refuse before configuration, policy, packet, waiver, audit, output or browser effects. Dry-run may append one redacted rehearsal audit event and print JSON or write to an explicitly selected safe path. No browser runtime, model, Send, public share or capture authority.","manual_decisions":["M16","x"],"ordering":"Require dry-run before any selected input. Apply waiver, owner-only configuration, packet and confirmation checks before optional rehearsal audit and redacted result publication.","trace_files":[{"$":400},{"$":11},{"$":406},{"$":326},"scripts/cwo_core/chatgpt_urls.py","scripts/cwo_core/audit.py","scripts/cwo_core/util.py"],"witnesses":["aZ","bq0","bq2"]},
 
@@ -646,7 +646,9 @@
 
 "scripts/registered_pool_ordinary_runtime.py",
 
-{"$":394}
+{"$":394},
+
+"tests/test_local_http_admission.py"
 ],
 
 "points":{
@@ -710,7 +712,7 @@
 
 "a0":[16,386,{"$":95}],
 
-"a1":[44,372,"self.sock = self._create_connection("],
+"a1":[44,377,"self.sock = self._create_connection("],
 
 "a2":[23,"run_bd_structured",58,"14FHPD5VYe2Ht4WHFrE1yfOY9q2BQQDVRorMN4oNrWI"],
 
@@ -722,7 +724,7 @@
 
 "a6":[32,"_Runtime.validate",749,"pUyve6hnr0pUy1-2Ago45LWrUGaKNQnNLUFDmyw3gEc"],
 
-"a7":[44,801,"if not literal_host and hostname not in {\"localhost\"} and not allow_private_dns:"],
+"a7":[44,816,"if not literal_host and hostname not in {\"localhost\"} and not allow_private_dns:"],
 
 "a8":[61,"RegisteredAppServer.__init__",34,"rGiH87iAFq2yfURe1aaqvuZrtGNshHWTL_zYidSoLro"],
 
@@ -808,7 +810,7 @@
 
 "b0":[73,"run_live_activation",1062,"1Mq90kk6UWUToa8Ur-sgW1tCh1Dgd6UMIMTtddozRbc"],
 
-"b1":[44,752,"if literal is not None:"],
+"b1":[44,767,"if literal is not None:"],
 
 "b2":[87,"BrowserProvenanceTests.validate",66,"Isma6s-ZfrrC22CU0IR6wFy7P25CJ96ofzK0hy4FocA"],
 
@@ -818,7 +820,7 @@
 
 "b5":[43,"WorktreeCapture._index",1555,"c1tKZtLWzMmdvKuXUhQookkm3LMy0YqiKkWUygncvGE"],
 
-"b6":[30,335,"response = opener.open(frozen, timeout=timeout)"],
+"b6":[30,358,"response = opener.open(frozen, timeout=self.workload_timeout(timeout))"],
 
 "b8":[76,1664,"epic = create_bead("],
 
@@ -864,7 +866,7 @@
 
 "bZ":[197,824,"if self.campaign_live_route:"],
 
-"bc":[44,"PinnedHTTPSConnection.connect",386,"WxSVE5w-JlAg0DdDzimWQO6oG8OX2H20xNfcLsnJ5Sk"],
+"bc":[44,"PinnedHTTPSConnection.connect",394,"sANJ1yTf1_NDMA_YNWdHrlzXEkhvC17mwTU9Hn0XIxE"],
 
 "bd":[53,"OfflineN1Host.run_registered",601,"S7yT5VAHfRV0VrO1U-4jOrIUv8Oqg3j2VoWjS84db2w"],
 
@@ -872,7 +874,7 @@
 
 "bf":[37,427,"if pre_hash != expected_pre_show_sha256:"],
 
-"bg":[44,396,"self.sock = self._context.wrap_socket(sock, server_hostname=self.host)"],
+"bg":[44,406,"self.sock = self._context.wrap_socket(sock, server_hostname=self.host)"],
 
 "bh":[136,"ScaffoldDependencyValidationTests.test_real_full_and_tight_graphs_preserve_valid_consumer_outputs",544,"iK-pNjOBMiqcyyPDjerc4TPzsBMMtKOQqJxa_nmd0FE"],
 
@@ -920,7 +922,7 @@
 
 "bqd":[87,"BrowserProvenanceTests.test_evaluate_saved_capture_uses_observed_release_dispatch",105,"mfFJceDfNvuQmbg5Bjij-lVysbq_h3PXvFm6WEE2pxo"],
 
-"bqe":[105,"ShippedRoutesAreDisabledTests.test_cold_browser_refusals_do_not_read_local_configuration",89,"cIPPEw29uw0tdtTUTb0gxnq3Hy_iUB9c73-DpXUBLgE"],
+"bqe":[105,"ShippedRouteAdmissionTests.test_cold_browser_refusals_do_not_read_local_configuration",89,"cIPPEw29uw0tdtTUTb0gxnq3Hy_iUB9c73-DpXUBLgE"],
 
 "br":[16,335,"checked_narrative(args)"],
 
@@ -982,9 +984,9 @@
 
 "cO":[9,"main",979,"cy-QfmQ9fxyd-FqivXSD_Z8lIIc6FdZ8xJTJ9sPbVto"],
 
-"cP":[60,"_ReviewScope.enter",400,"CGo-gOUMPbBGDaUgpWGetZu60g9cXrI8r3FdVxn-VOQ"],
+"cP":[60,"_ReviewScope.enter",399,"CGo-gOUMPbBGDaUgpWGetZu60g9cXrI8r3FdVxn-VOQ"],
 
-"cR":[44,1701,"require_audited_local_execution(args)"],
+"cR":[44,1900,"require_audited_local_execution(args)"],
 
 "cS":[94,"ReviewRoundTenTests.test_tracked_file_in_gitignore_with_new_debt_fails",909,"_JNehO4qfyuSYqyLI9-RS301HWFJ28B10OQE04m7wtc"],
 
@@ -1016,7 +1018,7 @@
 
 "ck":[136,"ScaffoldDependencyValidationTests.test_missing_references_and_duplicate_effective_keys_are_refused",419,"4n5hAySN2tKbKv9IwBbxKYNMYiZ3zKXPWQvGtfV-la4"],
 
-"cl":[120,"QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects",393,"pj0rsAAQqmk08hQ2bwdX5Jq2jU0aP65Lsq8pi66vk9U"],
+"cl":[120,"QualifiedReviewTest.test_default_flag_refuses_host_and_custom_scope_before_effects",393,"KM8H9vqFLsdVrn17uI5hf4_3yGLryKhiLnnfD48dKxg"],
 
 "cm":[197,"LiveThreadAdapter._require_campaign_live_route",821,"Y9n0ROqGeA5fvKTLXOwbsl3Ui3aODSVdGPXhj-mC180"],
 
@@ -1026,7 +1028,7 @@
 
 "cp":[31,"VerifiedMaintenanceOperation.claim",543,"C-B6eLy22A0Gkf51RJZJXug5D12c8lrvVMY-Pl3yI78"],
 
-"cq":[105,"ShippedRoutesAreDisabledTests.test_live_browser_dispatch_and_confirmation_refuse_before_any_effect",62,"CJylmjDxdwsOH148l8XXJPmRL80gbIDRC12YnH8r4zk"],
+"cq":[105,"ShippedRouteAdmissionTests.test_live_browser_dispatch_and_confirmation_refuse_before_any_effect",62,"CJylmjDxdwsOH148l8XXJPmRL80gbIDRC12YnH8r4zk"],
 
 "cr":[2,"main",39,"RPlwMiU085h9ygKvtYS3xvfoy-hVjhFTjcbMHElxgLk"],
 
@@ -1062,13 +1064,13 @@
 
 "dA":[189,137,"store.write_return_received(dispatch_id, digest, capture_provenance=DESKTOP_BROWSER_CAPTURE,"],
 
-"dB":[30,"_ReservedLocalInvocation.__enter__",413,"g4XBx6OJXmqcDMF_fqslUi6i3so1bKpWkFV5Ibl18To"],
+"dB":[30,"_ReservedLocalInvocation.__enter__",439,"g4XBx6OJXmqcDMF_fqslUi6i3so1bKpWkFV5Ibl18To"],
 
 "dC":[32,780,"if not errors:"],
 
 "dD":[189,117,"with PrivateDirectory.open(store.state_root / \"browser-returns\", create=True) as directory:"],
 
-"dE":[190,780,"if args.audit:"],
+"dE":[190,825,"if args.audit:"],
 
 "dF":[12,868,"if args.write_manifest and target_dir.exists():"],
 
@@ -1080,7 +1082,7 @@
 
 "dJ":[59,714,"if registered is not None and type(registered.bridge) is _ProductionBeadsBridge:"],
 
-"dK":[44,1807,"pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get(\"allow_private_dns\")))"],
+"dK":[44,1925,"pinned_address = _resolve_local_http_target(base_url, transport, deadline)"],
 
 "dM":[189,"main",144,"zfDG0Yd6BePe70U8T7sble3268kK9lyhAAzMaaQsdt4"],
 
@@ -1100,7 +1102,7 @@
 
 "dU":[191,"DesktopBrowserReviewTests.test_unmatched_request_and_audit_override_create_no_receipt",98,"L8HRcxATvuBjdGpjq2Fq38NNzsrwx0y1u4zLgyponPQ"],
 
-"dV":[190,781,"record = _record_host_evaluation(return_text, result, tracked=tracked)"],
+"dV":[190,826,"record = _record_host_evaluation(return_text, result, tracked=tracked)"],
 
 "dW":[189,119,"directory.write(name, raw)"],
 
@@ -1128,7 +1130,7 @@
 
 "dj":[112,"NativePoolAdmissionTests.test_productive_n3_succeeds_and_forged_n4_rejects_before_claim",364,"KntFtmskeIF1SwS92B-saJPXOtXyrcCnGF9PJsyHfYw"],
 
-"dk":[44,"_local_review_scope",1675,"HoFTuqUbC-C-ouXxUltVlA8-maYzXaYIDP8ipoyUPzc"],
+"dk":[44,"_local_review_scope",1695,"Q4AwHhT_cxm__nk6kxAjPzyXYJbgzqKSZWM0m7szKxU"],
 
 "dl":[121,"R1ActivationPreviewHoldTests.test_r1_server_rechecks_dedicated_and_shared_holds_with_all_on_fake_control",62,"O1W1w91cTkzkXN8CGdY44h5ykWhaALYSncZ0xjVebr0"],
 
@@ -1142,7 +1144,7 @@
 
 "dr":[56,46,{"$":312}],
 
-"ds":[44,"_preflight_local_model",1603,"9kP8UugmOp5lgSgegojarqVmhxWPAOcL6or1m_NJejM"],
+"ds":[44,"_preflight_local_model",1623,"pUv2XLvOBhBM-22FO6AXQSD0fkiQ0HIN6J9nfpoR9jA"],
 
 "dt":[11,"observe",187,"VDK1ZrOF1-OYRPdvB2nsItXaWkU_IVgDsCu23vTiCN0"],
 
@@ -1150,9 +1152,9 @@
 
 "dv":[77,{"$":208},1355,{"$":154}],
 
-"dw":[44,1801,"with _local_review_scope(envelope, req, preflight, qualified_review) as gate:"],
+"dw":[44,1916,"with _local_review_scope(envelope, req, preflight, qualified_review, workload, validate_configuration) as gate:"],
 
-"dx":[30,"_reserved_local_scope",371,"gv_Q6Y1ZDSIfdJaRUdyWxEBXZWMCmPphIq0teTjLAFY"],
+"dx":[30,"_reserved_local_scope",395,"xprteGj8LmU7Yck93GzWKpMS4gsoiX2roNJzcoT0CQk"],
 
 "dz":[84,"AuthorizeSolBreakfixTests.test_expiry_cannot_outlive_authorized_bead",103,"MYBnswC-omK0YkpQQyjF8UCypR3wztzAchvTnRi-It0"],
 
@@ -1246,7 +1248,7 @@
 
 "es":[42,978,{"$":333}],
 
-"et":[44,"validate_local_endpoint_base_url",783,"2rgXjx8AK-aTTbPNJffbkG3kID83cYvZqVQYKPPQBvc"],
+"et":[44,"validate_local_endpoint_base_url",798,"2rgXjx8AK-aTTbPNJffbkG3kID83cYvZqVQYKPPQBvc"],
 
 "eu":[135,"ParallelUnittestTests._assert_process_method_units",70,"WjXEoK-mYWT7EnxciIajUJRoS4tU18jFHBz0TXnxqKk"],
 
@@ -1264,7 +1266,7 @@
 
 "f2":[64,"_RegisteredServer.__init__",1220,"G1Mz5E4_1OBWs2WTk9hFz82xmxFhmQsS_RSURzloZDg"],
 
-"f3":[30,329,"self._handle.require_intent()"],
+"f3":[30,351,"self._handle.require_intent()"],
 
 "f4":[32,784,"completed = subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,"],
 
@@ -1308,13 +1310,13 @@
 
 "fQ":[16,"execute_qualified_completed",58,"xncVnpiBF0bOHmpl8ycvk5jaZwU-ICYkli-sWmC_NZA"],
 
-"fR":[44,"_resolve_local_endpoint_addresses",747,"TFup3js4Ql8Ea7T7OYFTwNw4ynK4puYxKII9uS5NbUU"],
+"fR":[44,"_resolve_local_endpoint_addresses",762,"TFup3js4Ql8Ea7T7OYFTwNw4ynK4puYxKII9uS5NbUU"],
 
 "fS":[19,14,"if destination.exists() or destination.is_symlink():"],
 
 "fT":[130,"ReleaseEffectRoutesTests.test_example_positive_and_missing_review_refuse_without_effects",118,"3UQUGuVLc_5v0n5eSzBYxJLgcF5MoW3BtGR3XaPPIYo"],
 
-"fU":[60,229,"if not dispatch.LOCAL_INVOCATION_AVAILABLE:"],
+"fU":[60,228,"if not dispatch.QUALIFIED_REVIEW_INVOCATION_AVAILABLE:"],
 
 "fV":[35,49,"if profile == \"n2-read-only\":"],
 
@@ -1324,7 +1326,7 @@
 
 "fY":[194,246,{"$":13}],
 
-"fZ":[30,379,"handle.require_intent()"],
+"fZ":[30,404,"handle.require_intent()"],
 
 "fb":[37,1575,"transition = claim_adapter.claim("],
 
@@ -1384,13 +1386,13 @@
 
 "g8":[135,"ParallelUnittestTests._process_fixture",46,"76WhduRgRbif_KYggqyd5pYfkomI0JbiKw_0Ss-izJU"],
 
-"g9":[44,"main",2330,"zC0YMLaL7RoaYhN2Qxz7k0lsr4tQQcESnfEUmkO1W6g"],
+"g9":[44,"main",2509,"DDno88EJ3SbFD9rM6p4ANBcx518pQSACgJqIVUwDyO4"],
 
 "gA":[73,704,"return AppServer()"],
 
 "gC":[37,2082,"commit(deepcopy(dispatch))"],
 
-"gD":[44,"execute_local_envelope",1696,"pzB0nQbFwmHKEhDkn7g_Pbj9B7iBhMSQ0KmFbs71Edw"],
+"gD":[44,"execute_local_envelope",1896,"bGJf53jvhfaKtX8IQT9GmEMfDJvHUq-CHb9b67ctJ00"],
 
 "gE":[112,"NativePoolAdmissionTests.test_close_owned_rejects_preclosed_or_ownership_drift_before_command",878,"3PckhC7afbz79ytMSl_MBhbyq8_EpJ4BWBsYBGbyCtg"],
 
@@ -1410,11 +1412,11 @@
 
 "gM":[62,1669,"count = os.write(descriptor, payload)"],
 
-"gN":[60,358,"return self.opener.open(req, timeout=min(timeout, remaining))"],
+"gN":[60,357,"return self.opener.open(req, timeout=min(timeout, remaining))"],
 
 "gO":[75,"main",549,"z1w2A6R7g7xvMQSzNFvcCnTfJulrQxsznbA4FckQHbI"],
 
-"gQ":[44,"pinned_local_endpoint_address",817,"mKrBIE2LTVglE6i6bo1WRD0xXAc0fXVv1TWp6oVGYaA"],
+"gQ":[44,"pinned_local_endpoint_address",832,"GiAVdU00SEa3x16aM25LXAy6PC8uEmEKIWOHmSZAgL8"],
 
 "gR":[87,"BrowserProvenanceTests.expected",61,"U2EUO4VRnr0u-Nqax479hTTxoR9bx9xchZhFSEE2vaY"],
 
@@ -1434,7 +1436,7 @@
 
 "gd":[74,"main",349,"YCucD28AE1HLmfAStrAroFSiEOnebZapLXZ64hvdZYE"],
 
-"ge":[108,"RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent",509,"3Rjzq8CLOPcRTQ-cOZ_5vHHWg9MmjHGKD2webEzXUDc"],
+"ge":[108,"RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent",511,"3Rjzq8CLOPcRTQ-cOZ_5vHHWg9MmjHGKD2webEzXUDc"],
 
 "gf":[76,"main",1510,"45j3Fhpf5Oyh4Nwn2nyG9ysoOd95K2EcXLMPKkwtAhw"],
 
@@ -1480,7 +1482,7 @@
 
 "h4":[121,"R1ActivationPreviewHoldTests.test_minor2_admitted_thread_turn_rechecks_hold_flips_before_intent_or_rpc",132,"GU3_nacTPEhnSUFG9eiuSTsoAzYSNTsuVpsSuJPoGlo"],
 
-"h7":[60,414,"checked.require_intent()"],
+"h7":[60,413,"checked.require_intent()"],
 
 "h8":[11,"measure",146,"OGhwtb9heIp96gxgIeKyjlHuWHkjLU3d3OvhEZBy2PQ"],
 
@@ -1512,7 +1514,7 @@
 
 "hP":[118,"ProductionClosureTests.test_gate_first_registration_and_consumption_before_validation_or_io",563,"ug2xa73xV5_Uk9Se95BK231VkjHDbYHr9-OhjHYGhJE"],
 
-"hQ":[30,"LocalHttpGate.open",302,"gWvQlpUUdTHRBo-VSL4hkBICwjdW-XnDvqRVtmKKhOU"],
+"hQ":[30,"LocalHttpGate.open",324,"P0683c6UrP46pFDBePTwZJdRXZEpMdcXcdLDp1OweiE"],
 
 "hR":[70,84,"capability = require_maintenance_operation("],
 
@@ -1534,7 +1536,7 @@
 
 "hd":[42,"AppServer.start_thread",1283,"1w4KVO_DxBTZZC5O5jYW29FppiT-PaIs0NegY1CrsME"],
 
-"he":[44,805,"_resolve_local_endpoint_addresses(parsed.hostname, port)",16,805,72],
+"he":[44,820,"_resolve_local_endpoint_addresses(parsed.hostname, port)",16,820,72],
 
 "hf":[43,1540,"run_git(self.git, tree, args, budget=self.git_budget, git_dir=self.snapshot.git_dir, work_tree=tree)",17,1540,117],
 
@@ -1560,7 +1562,7 @@
 
 "hs":[37,"BeadsClaimAdapter.__init__",323,"gEe-56s4jkJCIESglNrEzVkMQwL9nLOlVC6Qu5I2GP8"],
 
-"ht":[60,352,"self.handle.require_intent()"],
+"ht":[60,351,"self.handle.require_intent()"],
 
 "hu":[22,"AtomicChild",43,"35UYEtop-eG3HqVAfE4HDDCvc7e7uB5rLtcf5Qb7o84"],
 
@@ -1568,7 +1570,7 @@
 
 "hw":[48,69,"verify_provenance_pin(raw, expected)",8,69,44],
 
-"hy":[60,"RegisteredReviewHost.dispatch",227,"9Stgj7-_X6K43NlX7DSUCTFF2gXb-TC4aYH1UqONv5s"],
+"hy":[60,"RegisteredReviewHost.dispatch",227,"tmvnxFJqo4sjDhhaKqyxHtSgW68A3QFmagwVhBT5ICM"],
 
 "i":[187,201,"discard_unretained(pending)"],
 
@@ -1818,7 +1820,7 @@
 
 "kA":[23,317,"run_bd(\n        show_bead_args(bead_id, include_comments=include_comments, include_dependents=include_dependents)\n    )",13,319,5],
 
-"kB":[44,1560,"request.build_opener(*opener_handlers)",11,1560,49],
+"kB":[44,1577,"request.build_opener(*opener_handlers)",11,1577,49],
 
 "kD":[63,981,"lifetime.launch(['/usr/bin/sh', '-c', self.factory.spec['command']],\n                                      self.factory.home, tool_call=params, deadline=deadline,\n                                      tool_decision=decision)",22,983,61],
 
@@ -1866,7 +1868,7 @@
 
 "kc":[59,715,{"$":57}],
 
-"kd":[190,"main",531,"sL2-xf1bi9t4LEhnqMeg8CXysN8p2dA0gFNuwRXPWCM"],
+"kd":[190,"main",576,"sL2-xf1bi9t4LEhnqMeg8CXysN8p2dA0gFNuwRXPWCM"],
 
 "ke":[188,106,"submitted = self.require_unchanged().decode(\"utf-8\")"],
 
@@ -2032,9 +2034,9 @@
 
 "mC":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",121,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
 
-"mD":[190,474,"record_received_return(configured_store(), dispatch_id, browser_return)"],
+"mD":[190,478,"record_received_return(configured_store(), dispatch_id, browser_return)"],
 
-"mE":[190,469,"if browser_return is not None:"],
+"mE":[190,473,"if browser_return is not None:"],
 
 "mF":[190,218,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
 
@@ -2602,9 +2604,9 @@
 
 "q3":[49,369,"copy_projection \"$INSTALL_STAGE_DIR\" \"$directories\" \"$files\""],
 
-"q4":[44,1698,"if not LOCAL_INVOCATION_AVAILABLE:"],
+"q4":[44,1691,"if qualified_review is None and type(workload) is not local_http_admission.LocalWorkload:"],
 
-"q5":[44,"PinnedHTTPConnection.connect",371,"hKepsEDgGi9K9b41WsaIzy-FrFQtXoOAK7gAanrN1QY"],
+"q5":[44,"PinnedHTTPConnection.connect",376,"QxK2SZVVirqj_LdcJNp5XezgvrWGnGJvDVU8MYIVAqs"],
 
 "q6":[61,217,"raise AppServerError("],
 
@@ -2762,7 +2764,7 @@
 
 "rf":[136,"ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency",320,"WSSL_rBnUi1Xu5Y69zdJb8u_RDTOg6w4VVNvQf_9gs4"],
 
-"rg":[60,"_ReviewContext.__enter__",440,"mgnMHV9oAGFfIEhqwTw9RO886uY7FC5aXFxcbXQYfbY"],
+"rg":[60,"_ReviewContext.__enter__",439,"mgnMHV9oAGFfIEhqwTw9RO886uY7FC5aXFxcbXQYfbY"],
 
 "rh":[73,716,{"$":210}],
 
@@ -2799,6 +2801,12 @@
 "rz":[177,64,"if any(comment.get('text') == line for comment in task['comments'] if type(comment) is dict):"],
 
 "s":[64,737,{"$":148}],
+
+"s-local-call":[207,"LocalHttpCliTests.test_original_admission_reaches_fake_vllm_once_and_evaluates_exact_capture",147,"1v9_NTsyVF9JFs25VlnDKoNMqs7aEBzKkFE0lNn5pJ0"],
+
+"s-local-refusal":[207,"LocalHttpCliTests.test_cli_refuses_missing_original_record_and_endpoint_or_model_drift_before_effects",236,"bq2QlTAk3fIIzBP7qeRNdkWiQ9MfFejV6qZMiu-8S1Y"],
+
+"s-local-target":[44,1858,"if not configured or configured != current['base_url']:"],
 
 "t":[175,"GuidedInstallerTests.test_confirmed_prompt_runs_the_same_standalone_setup",197,"tsFmk96o7sS2hpMTCRBqYQ5du_Y1oeKSuMrP0KP1DCY"],
 
@@ -3126,7 +3134,7 @@
 
 "yV":[146,"_validate_tls_name",143,"Jyp8ER_y7C0u8KIKKsa9ilzhSEKsFGJzBnvcJvc5UW0"],
 
-"yW":[44,755,"records = socket.getaddrinfo(host, port or 0, type=socket.SOCK_STREAM)"],
+"yW":[44,770,"records = socket.getaddrinfo(host, port or 0, type=socket.SOCK_STREAM)"],
 
 "ya":[148,"ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes",209,"irrar8PAdgARaO0gkkNNLeFd6X2-YLSY40YgDCNcyFk"],
 
@@ -4577,37 +4585,37 @@
 
 [17,249,13,249,74,"dynamic","DOHqDgULOZ6B98WU47Ppj0zk3dGWJQXxA9JfBmAqnPM",[{"$":9},"bb"]],
 
-[18,654,49,654,78,"dynamic",{"$":33},[{"$":9},"bc"]],
+[18,652,49,652,78,"dynamic",{"$":33},[{"$":9},"bc"]],
 
-[18,685,47,685,75,"dynamic",{"$":5},[{"$":9},"bd"]],
+[18,683,47,683,75,"dynamic",{"$":5},[{"$":9},"bd"]],
 
-[18,729,79,729,107,"dynamic",{"$":5},[{"$":9},"be"]],
+[18,727,79,727,107,"dynamic",{"$":5},[{"$":9},"be"]],
 
-[18,766,25,766,55,"dynamic","CuwQxz99xhmxoOw5YfHdIiSdKHIcJtzBIUdbUmb19s4",[{"$":9},"bf"]],
+[18,764,25,764,55,"dynamic","CuwQxz99xhmxoOw5YfHdIiSdKHIcJtzBIUdbUmb19s4",[{"$":9},"bf"]],
 
-[18,792,17,792,48,"dynamic","0IhFaq7meF-tC5sXmY1WgSVAOItkPb-shdsCX-OMISk",[{"$":9},"bg"]],
+[18,790,17,790,48,"dynamic","0IhFaq7meF-tC5sXmY1WgSVAOItkPb-shdsCX-OMISk",[{"$":9},"bg"]],
 
-[18,1157,17,1157,75,"dynamic",{"$":84},[{"$":9},"bh"]],
+[18,1155,17,1155,75,"dynamic",{"$":84},[{"$":9},"bh"]],
 
-[18,1204,12,1204,46,{"$":3},"oWArsu9Kp3vbA5J8CD3NPB_VFheOQxyEcT9DhGbtB2o",[{"$":9},"bi"]],
+[18,1202,12,1202,46,{"$":3},"oWArsu9Kp3vbA5J8CD3NPB_VFheOQxyEcT9DhGbtB2o",[{"$":9},"bi"]],
 
-[18,1215,12,1215,37,{"$":3},{"$":50},[{"$":9},"bj"]],
+[18,1213,12,1213,37,{"$":3},{"$":50},[{"$":9},"bj"]],
 
-[18,1232,12,1232,47,{"$":3},"MyaLKlRffbKgdQ6lhzoWWFOmw-8n4gkBMju6eVm4aqU",[{"$":9},"bk"]],
+[18,1230,12,1230,47,{"$":3},"MyaLKlRffbKgdQ6lhzoWWFOmw-8n4gkBMju6eVm4aqU",[{"$":9},"bk"]],
 
-[18,1252,16,1252,41,{"$":3},{"$":50},[{"$":9},"bl"]],
+[18,1250,16,1250,41,{"$":3},{"$":50},[{"$":9},"bl"]],
 
-[18,1277,12,1277,37,{"$":3},{"$":50},[{"$":9},"bm"]],
+[18,1275,12,1275,37,{"$":3},{"$":50},[{"$":9},"bm"]],
 
-[18,1279,8,1279,33,{"$":3},{"$":50},[{"$":9},"bn"]],
+[18,1277,8,1277,33,{"$":3},{"$":50},[{"$":9},"bn"]],
 
-[18,1307,17,1307,75,"dynamic",{"$":84},[{"$":9},"bo"]],
+[18,1305,17,1305,75,"dynamic",{"$":84},[{"$":9},"bo"]],
 
 [19,190,31,190,59,"dynamic","nTh-3r6FHnZZOnfvekU16y57zeLHSvvOoQGvMw7Um5A",[{"$":9},"bp"]],
 
-[19,367,27,367,85,"dynamic","kDFuGUJzY-YYTYEqwQ5mEbQjNhRKJmx7IzdnvyuxJ8g",[{"$":9},"bq"]],
+[19,391,27,391,85,"dynamic","kDFuGUJzY-YYTYEqwQ5mEbQjNhRKJmx7IzdnvyuxJ8g",[{"$":9},"bq"]],
 
-[19,387,16,387,49,"dynamic","7tpjtY_EyabJzjK98O83EXoddQEAiC6vbbQXyWTOAIs",[{"$":9},"br"]],
+[19,412,16,412,49,"dynamic","7tpjtY_EyabJzjK98O83EXoddQEAiC6vbbQXyWTOAIs",[{"$":9},"br"]],
 
 [20,31,10,31,27,"dynamic","Gq3Sk4mzMNr_kjoHAPX49FWoIIkfIF10X7-3_R7olAA",[{"$":9},"bs"]],
 
@@ -4761,9 +4769,9 @@
 
 [33,68,14,68,40,"browser","_nPDJ-V3PBwX_agFh5sA1eGJq_26w7PeCCzF9RvrLfI",[{"$":9},"ce"]],
 
-[34,312,23,312,52,"dynamic",{"$":34},[{"$":9},"cf"]],
+[34,314,23,314,52,"dynamic",{"$":34},[{"$":9},"cf"]],
 
-[34,340,57,340,86,"dynamic",{"$":34},[{"$":9},"cg"]],
+[34,342,57,342,86,"dynamic",{"$":34},[{"$":9},"cg"]],
 
 [35,229,11,229,39,"dynamic","cf2YKXfTJGA8MC3timI7a-SkT_VxucdcF7RcRvv_vNE",[{"$":9},"ch"]],
 
@@ -4975,49 +4983,49 @@
 
 [42,2732,16,2732,47,"dynamic","ikUO3PVCbArmPMfnpbcL17sQUwIVxQHxAgqixCBREII",[{"$":9},"dx"]],
 
-[43,833,16,833,54,"dynamic","lxuFsD_MgiUQt55tUvoXSGCzNP0i3nci0V2pJwPY60k",[{"$":9},"dy"]],
+[43,849,16,849,54,"dynamic","lxuFsD_MgiUQt55tUvoXSGCzNP0i3nci0V2pJwPY60k",[{"$":9},"dy"]],
 
-[43,849,7,849,49,"dynamic","tNAQF1iSIVmx68DhpONJ3Kf9tyolFJr23E2r4w7SfBw",[{"$":9},"dz"]],
+[43,865,7,865,49,"dynamic","tNAQF1iSIVmx68DhpONJ3Kf9tyolFJr23E2r4w7SfBw",[{"$":9},"dz"]],
 
-[43,903,7,903,47,"dynamic","sDrG_v87cBrTpjlvZOOV0KwThOD7muMeUHTS4hwu6fo",[{"$":9},"dA"]],
+[43,919,7,919,47,"dynamic","sDrG_v87cBrTpjlvZOOV0KwThOD7muMeUHTS4hwu6fo",[{"$":9},"dA"]],
 
-[43,907,7,907,43,"dynamic","r-GjQ3VpPAPwLdmAYvWhh94-zOIhHnQ5zWDygRaltAA",[{"$":9},"dB"]],
+[43,923,7,923,43,"dynamic","r-GjQ3VpPAPwLdmAYvWhh94-zOIhHnQ5zWDygRaltAA",[{"$":9},"dB"]],
 
-[43,912,7,912,54,"dynamic","E39XTUUAfoy_fqoJJOVNTgFAVpe8mL1ZEWApWmyUuBA",[{"$":9},"dC"]],
+[43,928,7,928,54,"dynamic","E39XTUUAfoy_fqoJJOVNTgFAVpe8mL1ZEWApWmyUuBA",[{"$":9},"dC"]],
 
-[43,915,8,915,45,"dynamic","_jLuOp79YXGB8o8DHvcdQEKt4qi5tR4Kfry2RSQs_7Y",[{"$":9},"dD"]],
+[43,931,8,931,45,"dynamic","_jLuOp79YXGB8o8DHvcdQEKt4qi5tR4Kfry2RSQs_7Y",[{"$":9},"dD"]],
 
-[43,919,12,919,46,"dynamic","zrMukn2O40TdmJiBsCRbza59bhceF2adpzQpYF-a3xA",[{"$":9},"dE"]],
+[43,935,12,935,46,"dynamic","zrMukn2O40TdmJiBsCRbza59bhceF2adpzQpYF-a3xA",[{"$":9},"dE"]],
 
-[43,938,23,938,62,"dynamic","uzAHxISsaI6ObLQXhAm4qvvSxtPZJf9lUVyjAI2ABnQ",[{"$":9},"dF"]],
+[43,954,23,954,62,"dynamic","uzAHxISsaI6ObLQXhAm4qvvSxtPZJf9lUVyjAI2ABnQ",[{"$":9},"dF"]],
 
-[43,946,25,946,67,"dynamic","cscw_NPiP-mVeKlEovOchUuF1hZA3zqJERZf66vlYgc",[{"$":9},"dG"]],
+[43,962,25,962,67,"dynamic","cscw_NPiP-mVeKlEovOchUuF1hZA3zqJERZf66vlYgc",[{"$":9},"dG"]],
 
-[43,1537,7,1537,59,"dynamic","22vn8TxgJHAfXIXNDI8gE-YPIHuW8fVKrFcL5DBpY8g",[{"$":9},"dH"]],
+[43,1553,7,1553,59,"dynamic","22vn8TxgJHAfXIXNDI8gE-YPIHuW8fVKrFcL5DBpY8g",[{"$":9},"dH"]],
 
-[43,1560,11,1560,49,"network","1dfG07pg_RkKV5W6ggLYWn1GJYlnc0iU-RpEz-e01yc",["route","H3.5","kB"]],
+[43,1577,11,1577,49,"network","1dfG07pg_RkKV5W6ggLYWn1GJYlnc0iU-RpEz-e01yc",["route","H3.5","kB"]],
 
-[43,1564,16,1564,52,"dynamic","gY4gnl1malVPIJtxMb0RNyBwnRYFc5LUl5h4V817aKk",[{"$":9},"dI"]],
+[43,1581,16,1581,52,"dynamic","gY4gnl1malVPIJtxMb0RNyBwnRYFc5LUl5h4V817aKk",[{"$":9},"dI"]],
 
-[43,1567,18,1567,52,"dynamic","07zUlkN6UT8zNPevVMrJYBVYs9CuhVHvL7SX6TCnZKo",[{"$":9},"dJ"]],
+[43,1584,18,1584,52,"dynamic","07zUlkN6UT8zNPevVMrJYBVYs9CuhVHvL7SX6TCnZKo",[{"$":9},"dJ"]],
 
-[43,1568,17,1568,46,"dynamic","bls1-Ha23n9Qrjrl1er_84aC9YfdROTyw93Iclj_eW0",[{"$":9},"dK"]],
+[43,1585,17,1585,46,"dynamic","bls1-Ha23n9Qrjrl1er_84aC9YfdROTyw93Iclj_eW0",[{"$":9},"dK"]],
 
-[43,1640,11,1640,44,"dynamic",{"$":160},[{"$":9},"dL"]],
+[43,1662,11,1662,44,"dynamic",{"$":160},[{"$":9},"dL"]],
 
-[43,1643,26,1643,59,"dynamic",{"$":222},[{"$":9},"dM"]],
+[43,1665,26,1665,59,"dynamic",{"$":222},[{"$":9},"dM"]],
 
-[43,1841,19,1841,52,"dynamic",{"$":160},[{"$":9},"dN"]],
+[43,1961,19,1961,52,"dynamic",{"$":160},[{"$":9},"dN"]],
 
-[43,1844,35,1844,68,"dynamic",{"$":222},[{"$":9},"dO"]],
+[43,1964,35,1964,68,"dynamic",{"$":222},[{"$":9},"dO"]],
 
-[43,2210,7,2210,35,"dynamic","xSJNQIkOpFVJ3mt_MoZ4WUX-G5XDqb_0ILldS7mIojM",[{"$":9},"dP"]],
+[43,2335,7,2335,35,"dynamic","xSJNQIkOpFVJ3mt_MoZ4WUX-G5XDqb_0ILldS7mIojM",[{"$":9},"dP"]],
 
-[43,2308,26,2308,59,"dynamic","cpSJBwVAVFnH1YDZHCxzUhlRx3vibCttH9wtSz9Fl54",[{"$":9},"dQ"]],
+[43,2443,26,2443,59,"dynamic","cpSJBwVAVFnH1YDZHCxzUhlRx3vibCttH9wtSz9Fl54",[{"$":9},"dQ"]],
 
-[43,2308,63,2308,100,"dynamic","ypKY73eMENYLhVb5Co2lv5r86zD3cAb2ti7ZYE29l0w",[{"$":9},"dR"]],
+[43,2443,63,2443,100,"dynamic","ypKY73eMENYLhVb5Co2lv5r86zD3cAb2ti7ZYE29l0w",[{"$":9},"dR"]],
 
-[44,648,19,648,44,"dynamic",{"$":192},[{"$":9},"dS"]],
+[44,693,19,693,44,"dynamic",{"$":192},[{"$":9},"dS"]],
 
 [91,70,4,70,53,"beads","tL-5k4gLzdn43GnJyjbm47nstYqCfzOB5L9s-GCvqN0",["route","B11.2","mz"]],
 
@@ -6670,13 +6678,13 @@
 
 "@104":["XuZz79hXd0CVgfE0OAj7kfl3-62JCtSrbicLTJ16E18",420,9428],
 
-"@105":["8DKV7x5dv5DcrM9KVvXWvFAy1ax7Dg2Fd30-4eClFYY",420,8434],
+"@105":["j__iCUlZXjTQuMSoPKidwwLUNOiq4szXP0RExYRqaAc",420,8487],
 
-"@106":["EN0-vhDi25Qzl6uKmsNtcBrTyCVv0XQPAtLCIIQ1EP4",420,14887],
+"@106":["747E4XVC1mIiwJ9nD6BGZZqEg2tCYaX0X9lDRjCnlQ0",420,14847],
 
 "@107":["lcUJmPt-XLyWHKbHu8U69rcD1d_Dn_-d-RBnItsrnpI",420,73949],
 
-"@108":["JJiXKTEYLL_6bTgbHEJpYOsOUXxzG--BaUl2O1efGlU",420,40611],
+"@108":["a1zD-Ordvt8F74rLGJbh0DnFJo0E-vglJL2AAA0kGOY",420,40712],
 
 "@109":["Mmde4erNcu3wLV49icpoBm_daE5mlpEkd-t-_f8GJlc",420,57385],
 
@@ -6704,7 +6712,7 @@
 
 "@12":["qeVNwydoowTcQenQ4sO1B55jpRFKxc7vD_OlyrAtsT4",493,40224],
 
-"@120":["UXKMqVNVPXGQzdvxHpuqtin2zPvfEKCVCoTWzKs5_Bw",420,24949],
+"@120":["ZSxoGWdMyl4HTeNnVqGmvGlSt79e8IKT3djK-1HC7Dc",420,24977],
 
 "@121":["jkIWc6qxxy0hLtubiSgxaVUM-jxmbPn8I6g6AjW-cOA",420,14938],
 
@@ -6798,11 +6806,11 @@
 
 "@162":["aYVkqXT12FuAPLCGoZnwQfPMrN0afnpNZaHDg6x_wP8",420,45976],
 
-"@163":["jnVLFLxuKu7YF_wRfqh3RM9qdbQLnNUQdAd2IyaamRQ",420,70017],
+"@163":["W2-KWwKrjdbK28dwiFGTxtsSgiBHuNp_HeRJ2YTkWNE",420,69819],
 
 "@164":["m5jF5A_AM8s4jZ7qRL5tP6z3E_87GRg7zlQrjF7epGQ",420,127705],
 
-"@165":["xVRh48M8zlcEYzaSBRLyxe0O2Onrz_X23z10-eZT8p8",420,17127],
+"@165":["TYqkvPgx0blpBSfpIOYyfqIob8chY3XnTfSeLuQ40KU",420,17856],
 
 "@166":["sAZT9JkORrXLNCC2NtUYeUXTZp6ENRXscjxpvi7VDXg",420,28764],
 
@@ -6858,7 +6866,7 @@
 
 "@19":["lVXGoZ9EnoiO3zO1gtl0aKqhFcOycVR2gF4Z4ABLFic",420,1174],
 
-"@190":["MhtxqQrKKJmGGmZOJKKMtSCXfEql7bhdOLIjUuRNGvI",493,44688],
+"@190":["x4H6Aj85Hvs9_VPCi_jMZwfGs-8L2nkfsGwPZKlwM0Y",493,47389],
 
 "@191":["SXu6Yj22_Ug5o_QrdX8p8qA_vos4YYSJ8eVwvYtRZ6k",420,9375],
 
@@ -6896,6 +6904,8 @@
 
 "@206":["3Piev9Mjtoljn27BZ0f1dPK0ZGYOnr9LI0AncDHSaBA",420,4493],
 
+"@207":["_qmVTcP1l2gfBluV1NjMEbOQ02SZi4SyLYy9haluE6w",420,15903],
+
 "@21":["7BnBPBe6fA9E1JBsRq_WU3VWMlVLyHZ_pS3hqjH7J2U",493,2227],
 
 "@22":["ewJSKxVn2jq2eKqe7FYAXnzBaj27aPuInnaDtkbwHQU",420,15853],
@@ -6914,7 +6924,7 @@
 
 "@29":["91A1wiC3zHAHpxmf3tt3pm_OwVi3obmspcRYxvVipGM",420,43706],
 
-"@30":["TxLVwapUpYjw8OKK-aqdPrL1oYNGTxi76okNNes_2cM",420,21215],
+"@30":["z9hncnbLxVYEqPiTa8jRqTi4Ym5OVqML8q9OlkurSXo",420,22381],
 
 "@31":["YUnzyuP8JooeFtrUZmQyOok7dlhvXtdNLU5OMPyud-Q",420,32295],
 
@@ -6942,7 +6952,7 @@
 
 "@43":["9w8bQOlNREtec7b59oXyZm9Bzz5F7O2JgRcx3rdLfA0",420,137371],
 
-"@44":["zwRhGEsHiZsEZUCb_-inwfkFNvTrxT3A0VAcRg84UuA",493,127035],
+"@44":["sxQWFxaxtqybaXTbLeBEcQoAAZ5vquIheYA7XGLE1bM",493,137019],
 
 "@45":["V0VoLos6CQ05w6ITK4xYVjfMqnjIwNcDo9Pe6fqrDMk",420,17243],
 
@@ -6976,7 +6986,7 @@
 
 "@6":["W8C2BNYyRVILDGhfp6U1LGXOUyOpLJ01FQ-Y40BBgrs",493,28417],
 
-"@60":["g_r5qaLFNDh_SFh0aLIlDT-NaQ4eP1Aq4Ppg7Jv3BLE",420,23594],
+"@60":["yEPxt-r385HJ-rR1u4feDlBQ8VpocckFbLthupIvNsg",420,23536],
 
 "@61":["kfsBhKXkWtZAR_acQ8ObZIlcBNvO2qbi6kRpa_3BKN0",420,19058],
 
@@ -7056,7 +7066,7 @@
 
 "policy/model-roles.yaml":["gnnS0Pw2tLCzppZfzYr289jJhAIF2U9-RD5ii4nrTg8",420,765],
 
-"references/claims-register.md":["DPfgKj2vXNiEtJTn6A7oWSDXQ296jD-5zbEwsSoK-qg",420,17001],
+"references/claims-register.md":["Zv6xEdQ3mZg1v1dy7d36kZozzqa1qmcAyjb9QGpXdfs",420,17578],
 
 "references/cwo-system-prompt.md":["NaUTR-c8I0JleXR4pZHdEBuAPkuhI9NrDO6qVWw7kr8",420,2833],
 
@@ -7296,7 +7306,7 @@
 
 "scripts/cwo_core/synthesis_inputs.py":["GrXGx1VAwNAi3zFRdQ1_rYtNUj0PqMoXdvH1h2eeuus",420,57469],
 
-"scripts/cwo_core/telemetry.py":["qYJq011ticvVtibP4Epn6v_WJeVKt2oiSRJ_QhemmSE",420,26117],
+"scripts/cwo_core/telemetry.py":["8hsT0Bs7qdush-dHSr2RSXRcUrTI8UOpQVGhJC3n2fQ",420,26222],
 
 "scripts/cwo_core/typed_artifact_requirement.py":["sZPbgWNySCIGqrbzTgbPAjlDd2FoOID0kgS4fAjKDio",420,2296],
 
@@ -7335,6 +7345,8 @@
 "scripts/host_spool_snapshot.py":["XafSqwhm80ILliznTWC3sJl77wFA9-m1qleKm_FSZ8g",420,6053],
 
 "scripts/import_execution_telemetry.py":["vFUx9gFKev3jd7cfdS3GaGV1YbpsWaLJ7S09x79mP3U",493,22674],
+
+"scripts/local_http_admission.py":["87xk6di0GtCWKhnR4P3mndsx-4TDc1yyloiJAySkpFs",420,14495],
 
 "scripts/manage_native_release.py":["wWQiqtb5iWQZABIaI391o8t4E_AUZ6HOcNZTfsbs5Cg",420,5614],
 
@@ -7448,7 +7460,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Bf3d-L4m8JFoft-TcB6WRhhlxkFfQRXY6ciHT3UQd7U",420,142074],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Ek4WDVSGzOJezShRlFB5P5PT9GL0tvgYeMYHPKt-AF8",420,142692],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7620,7 +7632,7 @@
 
 "aY":["self.assertEqual((len(writes), len(links)), (0, 0))","rf",{"$":0},"self.assertEqual((len(writes), len(links)), (3, 1))",["ei","cN","fl","fW"],"tests.test_scaffold_dependency_validation.ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency"],
 
-"aZ":[{"$":239},"cq",{"$":0},"self.assertEqual(events[0][\"event_type\"], \"chatgpt_browser_dispatch\")",["bq5"],"tests.test_invocation_containment.ShippedRoutesAreDisabledTests.test_live_browser_dispatch_and_confirmation_refuse_before_any_effect"],
+"aZ":[{"$":239},"cq",{"$":0},"self.assertEqual(events[0][\"event_type\"], \"chatgpt_browser_dispatch\")",["bq5"],"tests.test_invocation_containment.ShippedRouteAdmissionTests.test_live_browser_dispatch_and_confirmation_refuse_before_any_effect"],
 
 "aa":[{"$":303},"vv",{"$":1},{"$":303},[],{"$":321}],
 
@@ -7782,9 +7794,9 @@
 
 "bq1":["self.assertFalse(result[\"execution_permitted\"])","bqd",{"$":6},"self.assertEqual(receipt[\"dispatch_record_sha256\"], dispatch[\"_record_sha256\"])",["bqa"],"tests.test_browser_provenance.BrowserProvenanceTests.test_evaluate_saved_capture_uses_observed_release_dispatch"],
 
-"bq2":["self.assertEqual(completed.stderr, refusal + \"\\n\")","bqe",{"$":0},"self.assertEqual(events[0][\"event_type\"], \"chatgpt_browser_dispatch\")",["bq5"],"tests.test_invocation_containment.ShippedRoutesAreDisabledTests.test_cold_browser_refusals_do_not_read_local_configuration"],
+"bq2":["self.assertEqual(completed.stderr, refusal + \"\\n\")","bqe",{"$":0},"self.assertEqual(events[0][\"event_type\"], \"chatgpt_browser_dispatch\")",["bq5"],"tests.test_invocation_containment.ShippedRouteAdmissionTests.test_cold_browser_refusals_do_not_read_local_configuration"],
 
-"bq3":["self.assertEqual(completed.stderr, refusal + \"\\n\")","bqe",{"$":0},"self.assertIn(response, target.read_bytes())",["aM","bqa"],"tests.test_invocation_containment.ShippedRoutesAreDisabledTests.test_cold_browser_refusals_do_not_read_local_configuration"],
+"bq3":["self.assertEqual(completed.stderr, refusal + \"\\n\")","bqe",{"$":0},"self.assertIn(response, target.read_bytes())",["aM","bqa"],"tests.test_invocation_containment.ShippedRouteAdmissionTests.test_cold_browser_refusals_do_not_read_local_configuration"],
 
 "br":[{"$":302},"o6",{"$":12},"self.assertEqual(report['observed']['command'], 'command-ok')",[],"tests.test_selected_native_containment.SelectedNativeOSProbeTests.test_useful_command_and_patch_use_selected_appserver_command_exec"],
 
@@ -7889,6 +7901,8 @@
 "l":[{"$":338},"yH",{"$":0},{"$":332},["zc"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production"],
 
 "legacyCampaignClaim":["lock.assert_not_called()","legacyCampaignClaimTest",{"$":1},"self.assertRaisesRegex(C.LegacyNativePoolExecutionRetired, \"^legacy-pool-execution-retired$\")",[],"tests.test_r4_gate_precedence.R4GatePrecedenceTests.test_r4_C18_campaign_claim_refuses_before_input_reads_and_setup"],
+
+"local-host-admission":["dns.assert_not_called()","s-local-refusal",{"$":0},"self.assertEqual(len(self.calls), 1)",["s-local-call"],"tests.test_local_http_admission.LocalHttpCliTests.test_cli_refuses_missing_original_record_and_endpoint_or_model_drift_before_effects"],
 
 "m":["self.assertNotIn(\"qualification-writer-release\", events)","zD",{"$":0},"self.assertEqual(stage.campaign_start_status(ledger)[\"charged\"], prior_starts + 1)",["zq","jq","jp","js"],"tests.test_registered_pool_qualification_calibration_e2e.SignedCalibrationPipeTests.test_both_cohort_sizes_charge_once_and_archive_original_interrupts"],
 

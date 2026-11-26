@@ -1,6 +1,6 @@
 """Reservations, aggregate accounting and crash ambiguity at the controlled local HTTP route.
 
-The route stays disabled in shipped code (``dispatch_work.LOCAL_INVOCATION_AVAILABLE`` is False). Each test here
+Each test here
 enables it with a patch scoped to that test, points the invocation ledger at the test's own temporary directory, and
 puts a fake or a spy on every effect boundary: endpoint resolution, DNS, socket connection, the urllib opener,
 ``urlopen``, subprocess (which is also how Beads would be reached), the audit log and any file write outside the
@@ -38,6 +38,7 @@ import dispatch_work  # noqa: E402
 
 import cwo_core.audit as audit_lib  # noqa: E402
 from cwo_core import local_invocation  # noqa: E402
+from tests.local_invocation_fixtures import legacy_http_fixture  # noqa: E402
 from cwo_core.invocation_ledger import InvocationLedger  # noqa: E402
 from cwo_core.policy import load_contracting_controls  # noqa: E402
 from cwo_core.host_records import HostRecordStore, using_test_store  # noqa: E402
@@ -170,6 +171,7 @@ class RouteTestCase(unittest.TestCase):
         self.tmp = Path(directory.name).resolve()
         self.root = self.tmp / "ledger"
         self.enterContext(using_test_store(HostRecordStore.for_tests(self.tmp / 'host')))
+        self.enterContext(legacy_http_fixture())
         self.ledger_options: dict[str, Any] = {}
         for patcher in (
             patch.object(dispatch_work, "LOCAL_INVOCATION_AVAILABLE", True),
@@ -609,17 +611,17 @@ class RouteAccountingTests(RouteTestCase):
 
 
 class ShippedGuardTests(unittest.TestCase):
-    """The shipped state in fresh interpreters: every flag is off, and the route refuses before the ledger."""
+    """The shipped state in fresh interpreters: the ordinary route requires admission."""
 
-    def test_f5_held_route_four_shipped_flags_are_off(self) -> None:
+    def test_only_ordinary_local_http_is_available_among_these_routes(self) -> None:
         completed = subprocess.run(
             [sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(ROOT / 'scripts')!r}); "
              "import dispatch_work, run_native_pool_activation_preview as preview; "
-             "print(dispatch_work.LOCAL_INVOCATION_AVAILABLE, "
+             "print(dispatch_work.LOCAL_INVOCATION_AVAILABLE, dispatch_work.QUALIFIED_REVIEW_INVOCATION_AVAILABLE, "
              "preview.live_availability.N1_LIVE_AVAILABLE, preview.live_availability.POOL_LIVE_AVAILABLE, "
              "preview.live_availability.CAMPAIGN_LIVE_AVAILABLE)"],
             capture_output=True, text=True, timeout=120, cwd=ROOT)
-        self.assertEqual((completed.returncode, completed.stdout), (0, "False False False False\n"), completed.stderr[-400:])
+        self.assertEqual((completed.returncode, completed.stdout), (0, "True False False False False\n"), completed.stderr[-400:])
 
     def test_the_shipped_route_refuses_before_reserving_or_touching_the_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -635,7 +637,7 @@ class ShippedGuardTests(unittest.TestCase):
                         capture_output=True, text=True, timeout=180, cwd=tmp, env=env)
                     self.assertEqual(completed.returncode, 1, completed.stderr[-800:])
                     self.assertEqual(completed.stdout, "")
-                    self.assertIn(dispatch_work.LOCAL_INVOCATION_UNAVAILABLE, completed.stderr)
+                    self.assertIn("original staged workload admission", completed.stderr)
                     self.assertFalse((tmp / "ledger").exists())
                     self.assertFalse((tmp / "audit.jsonl").exists())
 
@@ -651,17 +653,15 @@ class ShippedGuardTests(unittest.TestCase):
                         and ast.unparse(node.items[0].context_expr).startswith("_local_review_scope(")]
         self.assertEqual(len(reservations), 1)
         inside = {ast.unparse(node.func) for node in ast.walk(reservations[0]) if isinstance(node, ast.Call)}
-        self.assertTrue({"pinned_local_endpoint_address", "_build_local_opener", "_preflight_local_model",
+        self.assertTrue({"_resolve_local_http_target", "_build_admitted_local_opener", "_preflight_local_model",
                          "opener.open"} <= inside)
         outside = [node for statement in function.body if statement is not reservations[0]
                    for node in ast.walk(statement) if isinstance(node, ast.Call)
-                   and ast.unparse(node.func) in {"pinned_local_endpoint_address", "_build_local_opener",
+                   and ast.unparse(node.func) in {"_resolve_local_http_target", "_build_admitted_local_opener",
                                                   "_preflight_local_model", "opener.open"}]
         self.assertEqual(outside, [])
-        callers = {node.name for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)
-                   for call in ast.walk(node) if isinstance(call, ast.Call)
-                   and ast.unparse(call.func) == "reserved_local_invocation"}
-        self.assertEqual(callers, {"_local_review_scope"})
+        self.assertIn('require_local_http_workload(workload, qualified_review)', ast.unparse(function))
+        self.assertIn('local_http_admission.invocation_scope', ast.unparse(tree))
 
 
 CRASH_DRIVER = """\
@@ -671,8 +671,10 @@ from argparse import Namespace
 from unittest.mock import patch
 SCRIPTS, LEDGER, MARKER, EPIC, TASK = sys.argv[1:6]
 sys.path.insert(0, SCRIPTS)
+sys.path.insert(0, str(Path(SCRIPTS).parent))
 import dispatch_work
 from cwo_core import local_invocation
+from tests.local_invocation_fixtures import legacy_http_fixture
 from cwo_core.invocation_ledger import InvocationLedger
 from cwo_core.routing import classify_work
 from cwo_core.host_records import HostRecordStore, using_test_store
@@ -692,7 +694,7 @@ route = classify_work(TASK, local_ok=True, prefer_local=True, local_profile="ope
 args = Namespace(local_api_key_env=None, local_timeout=None, local_base_url=None, local_model=None, execute_local=True)
 envelope = dispatch_work.build_local_envelope(task=TASK, route=route, dispatch_id="dispatch-real-crash",
                                               bead_id="cwo-41", epic_id=EPIC, args=args)
-with patch.object(dispatch_work, "LOCAL_INVOCATION_AVAILABLE", True), \\
+with patch.object(dispatch_work, "LOCAL_INVOCATION_AVAILABLE", True), legacy_http_fixture(), \\
         patch.object(local_invocation, "open_ledger", lambda: InvocationLedger(LEDGER)), \\
         patch.object(dispatch_work.request, "build_opener", return_value=CrashingOpener()):
     dispatch_work.execute_local_envelope(envelope, route["selected_executor"], args)

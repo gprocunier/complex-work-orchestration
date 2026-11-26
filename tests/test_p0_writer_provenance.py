@@ -106,14 +106,14 @@ class WriterChecks(unittest.TestCase):
             write.assert_called_once()
 
     def test_local_cli_records_before_invocation_and_gate_remains_first(self):
-        """Checks: no effect without host provenance; shipped local gate remains off."""
+        """Checks that host provenance precedes invocation and a source refusal has no effects."""
         argv = ['dispatch_work.py', 'Summarize this short public note for a local review.',
                 '--local-ok', '--prefer-local', '--local-model', 'EXAMPLE-model',
                 '--local-base-url', 'http://127.0.0.1:8000', '--local-max-tokens', '7',
                 '--dispatch-id', 'local', '--execute-local', '--json']
         requests = []
         bindings = []
-        def scope(envelope, post, _preflight, _qualified):
+        def scope(envelope, post, _preflight, _qualified, _workload, _validate_configuration):
             requests.append(post.data)
             def bind_source(capture, source):
                 self.assertIsInstance(capture, PreparedSource)
@@ -121,7 +121,7 @@ class WriterChecks(unittest.TestCase):
                 self.assertTrue(source['envelope'] is envelope, 'bound source must retain the routed envelope')
                 self.assertEqual(sha(json.dumps(source['payload']).encode('utf-8')), sha(post.data))
                 bindings.append((capture, source))
-            return nullcontext(SimpleNamespace(bind_source=bind_source))
+            return nullcontext(SimpleNamespace(bind_source=bind_source, require_workload=lambda: None))
         def effect(*_args, **_kwargs):
             self.assertEqual(len(bindings), 1)
             capture, source = bindings[0]
@@ -132,6 +132,7 @@ class WriterChecks(unittest.TestCase):
             raise SystemExit('EXAMPLE provenance recorded before resolution')
         with patch.object(sys, 'argv', argv), redirect_stdout(StringIO()), \
                 patch.object(dispatch, 'LOCAL_INVOCATION_AVAILABLE', True), \
+                patch.object(dispatch, 'require_local_http_workload'), \
                 patch.object(dispatch, '_local_review_scope', side_effect=scope), \
                 patch.object(dispatch, 'pinned_local_endpoint_address', side_effect=effect) as invoke:
             with self.assertRaisesRegex(SystemExit, 'provenance recorded before resolution'):
@@ -209,6 +210,7 @@ class WriterChecks(unittest.TestCase):
                 argv[1] += ' password_source=hunter2'
             with self.subTest(check=label), patch.object(sys, 'argv', argv), \
                     patch.object(dispatch, 'LOCAL_INVOCATION_AVAILABLE', True), \
+                    patch.object(dispatch, 'require_local_http_workload'), \
                     patch.object(dispatch, '_local_review_scope', side_effect=SystemExit('EXAMPLE reservation refused')), \
                     patch.object(dispatch, 'configured_store') as configured, \
                     patch.object(dispatch, 'pinned_local_endpoint_address') as resolve:

@@ -108,7 +108,7 @@ class PrivateDirectory:
         self.published_paths: list[str] = []
 
     @classmethod
-    def open(cls, path: Path, *, create: bool = False) -> PrivateDirectory:
+    def open(cls, path: Path, *, create: bool = False, allow_directory_readers: bool = False) -> PrivateDirectory:
         try:
             descriptor = _open_directory(path, create=create)
         except PrivateArtifactError:
@@ -119,7 +119,7 @@ class PrivateDirectory:
             info = os.fstat(descriptor)
             if info.st_uid != os.getuid():
                 raise PrivateArtifactError(f"directory is owned by another user: {path}")
-            if stat.S_IMODE(info.st_mode) != 0o700:
+            if not _directory_mode_allowed(info.st_mode, allow_directory_readers):
                 if not create:
                     raise PrivateArtifactError(f"directory is not owner-only: {path}")
                 os.fchmod(descriptor, 0o700)
@@ -277,6 +277,8 @@ class PrivateDirectory:
                     break
                 chunks.append(chunk)
                 remaining -= len(chunk)
+            if _read_identity(info) != _read_identity(os.fstat(descriptor)):
+                raise PrivateArtifactError(f"artifact changed while reading: {self.path / name}")
         except PrivateArtifactError:
             raise
         except OSError as exc:
@@ -368,10 +370,20 @@ def write_private_artifact(directory: Path, name: str, data: bytes) -> Path:
         raise
 
 
-def read_private_artifact(path: Path, *, max_bytes: int = DEFAULT_MAX_BYTES) -> bytes:
-    """Read an owner-only regular file, refusing substitutions anywhere in its path."""
+def _directory_mode_allowed(mode: int, allow_directory_readers: bool) -> bool:
+    permissions = stat.S_IMODE(mode)
+    return not permissions & 0o022 if allow_directory_readers else permissions == 0o700
+
+
+def _read_identity(info: os.stat_result) -> tuple[int, ...]:
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def read_private_artifact(path: Path, *, max_bytes: int = DEFAULT_MAX_BYTES,
+                          allow_directory_readers: bool = False) -> bytes:
+    """Read a stable owner-only file without following symlinks. The parent is owner-writable only."""
     absolute = artifact_path(path)
-    with PrivateDirectory.open(absolute.parent) as directory:
+    with PrivateDirectory.open(absolute.parent, allow_directory_readers=allow_directory_readers) as directory:
         return directory.read(absolute.name, max_bytes=max_bytes)
 
 

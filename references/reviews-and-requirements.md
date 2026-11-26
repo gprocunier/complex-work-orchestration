@@ -8,9 +8,9 @@ examples are observed, tested or only proposed.
 
 - **Use local models as project reviewers.** CWO prepares a focused request for
   an approved private endpoint, including OpenShift AI vLLM, records it as a
-  local envelope and applies the selected route's response checks before
-  evaluation. Sending it from CWO (`dispatch_work.py --execute-local`) is
-  disabled in this version; writing the envelope and manual export still work.
+  local envelope, and sends it with `dispatch_work.py --execute-local` when you
+  opt in, configure the endpoint and stage workload admission. CWO evaluates
+  the captured reply as advisory evidence for the lead's review.
   [Use a local reviewer](https://gprocunier.github.io/complex-work-orchestration/local-workers.html).
 - **Investigate disagreement rather than averaging it away.** Preserve separate
   findings and their evidence. When structured comparison is needed, invoke CWO's

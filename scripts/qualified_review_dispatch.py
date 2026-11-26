@@ -225,9 +225,8 @@ class RegisteredReviewHost:
         return ticket.prepared
 
     def dispatch(self, ticket, *, node_attempts=None, observer=None):
-        # Preserve the original shipped refusal before even consulting tickets.
-        if not dispatch.LOCAL_INVOCATION_AVAILABLE:
-            raise SystemExit(dispatch.LOCAL_INVOCATION_UNAVAILABLE)
+        if not dispatch.QUALIFIED_REVIEW_INVOCATION_AVAILABLE:
+            raise SystemExit(dispatch.QUALIFIED_REVIEW_INVOCATION_UNAVAILABLE)
         self._registered(ticket)
         self._begin_submission(ticket)
         binding = json.loads(self._bindings[ticket.node_id])

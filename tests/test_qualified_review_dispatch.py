@@ -102,7 +102,7 @@ class QualifiedReviewTest(unittest.TestCase):
         self.http = ExampleHTTP()
         self.effects = []
         self.addCleanup(patch.stopall)
-        patch.object(review.dispatch, "LOCAL_INVOCATION_AVAILABLE", True).start()
+        patch.object(review.dispatch, "QUALIFIED_REVIEW_INVOCATION_AVAILABLE", True).start()
         patch.object(review.dispatch, "pinned_local_endpoint_address", side_effect=self.resolve).start()
         patch.object(review.dispatch, "_build_local_opener", side_effect=self.opener).start()
 
@@ -391,10 +391,10 @@ class QualifiedReviewTest(unittest.TestCase):
         self.assertEqual(len(self.http.calls), 1)
 
     def test_default_flag_refuses_host_and_custom_scope_before_effects(self):
-        with patch.object(review.dispatch, "LOCAL_INVOCATION_AVAILABLE", False):
-            with self.assertRaisesRegex(SystemExit, "controlled local invocation is unavailable"):
+        with patch.object(review.dispatch, "QUALIFIED_REVIEW_INVOCATION_AVAILABLE", False):
+            with self.assertRaisesRegex(SystemExit, "Registered review host invocation is disabled"):
                 self.host.dispatch({"ready": True})
-            with self.assertRaisesRegex(SystemExit, "controlled local invocation is unavailable"):
+            with self.assertRaisesRegex(SystemExit, "Registered review host invocation is disabled"):
                 review.dispatch.execute_local_envelope({}, {}, object(), qualified_review={"ready": True})
         self.assertEqual(self.effects, [])
         self.assertEqual(self.document()["attempts"], {})

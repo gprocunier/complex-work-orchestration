@@ -130,8 +130,9 @@ These renderers do not upload attachments. Packet or local-envelope declarations
 named `attachments`, `files` or `uploads` refuse, including empty declarations;
 structured file/image message content is unsupported. Included-artifact paths
 and digests, selected text snippets and expert-profile text are disclosed text,
-and pass through the same scans. Legacy CDP dispatch, browser share-link
-ingestion and local HTTP live dispatch remain held.
+and pass through the same scans. Legacy CDP dispatch and browser share-link
+ingestion remain held. Local HTTP requires a configured endpoint and original
+workload admission. [Local model dispatch](local-inference.md#dispatch).
 
 Generated contractor packets include the matched Distinguished Engineer profile
 by default. That profile is part of the contract artifact and gives the outside

@@ -152,7 +152,7 @@ evaluations from the recorded return, dispatch metadata and current policy befor
 checking every required hold clearance. Generic record persistence cannot replace
 that acceptance receipt. Evidence or task holds without qualified clearance remain
 held. `PRODUCTION_CLOSURE_AVAILABLE` ships `True` for the verified library;
-the original review-host producer stays held by `LOCAL_INVOCATION_AVAILABLE`.
+the original review-host producer stays held by `QUALIFIED_REVIEW_INVOCATION_AVAILABLE`.
 Closing acceptance also records the host-selected adjudicator identity and
 rechecks separation from the executor using these same provider/family/model,
 dispatch and session rules, even when peer review is not otherwise required.

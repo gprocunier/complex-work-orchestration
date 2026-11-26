@@ -10,8 +10,29 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest.mock import patch
+
+
+
+@contextmanager
+def legacy_http_fixture():
+    """Exercise the lower HTTP layer in isolation from whole-workload admission."""
+    import dispatch_work
+    from cwo_core import local_invocation
+
+    original = dispatch_work._local_review_scope
+
+    def lower_layer(envelope, post, preflight, qualified_review, workload, validate_configuration):
+        if qualified_review is not None or workload is not None:
+            return original(envelope, post, preflight, qualified_review, workload, validate_configuration)
+        return local_invocation.reserved_local_invocation(envelope, post, preflight)
+
+    with ExitStack() as stack:
+        stack.enter_context(patch.object(dispatch_work, 'require_local_http_workload'))
+        stack.enter_context(patch.object(dispatch_work, '_local_review_scope', side_effect=lower_layer))
+        yield
 
 
 def isolate_local_invocation_ledgers() -> None:
@@ -21,6 +42,7 @@ def isolate_local_invocation_ledgers() -> None:
     from cwo_core import host_records
     import dispatch_work
 
+    unittest.enterModuleContext(legacy_http_fixture())
     directory = tempfile.TemporaryDirectory(prefix="cwo-test-ledgers-")
     unittest.addModuleCleanup(directory.cleanup)
     fresh = patch.object(local_invocation, "open_ledger",

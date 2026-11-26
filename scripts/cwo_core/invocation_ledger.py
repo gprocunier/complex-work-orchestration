@@ -1,9 +1,7 @@
 """Aggregate invocation ledger: one-use reservations, durable intent and conservative accounting.
 
-This is the reservation and accounting layer of controlled local invocation (issue #41). ``cwo_core.local_invocation`` wires it in
-front of the local HTTP effect, but controlled local invocation stays unavailable
-(``dispatch_work.LOCAL_INVOCATION_AVAILABLE`` is False) until an admission record binds workload-derived sizing to
-the exact request and a separately reviewed patch restores the route.
+``cwo_core.local_invocation`` uses this ledger before the local HTTP effect. Ordinary local HTTP also requires a
+host admission record binding the whole workload's size to the exact screened request.
 
 States follow 04 section 6::
 
