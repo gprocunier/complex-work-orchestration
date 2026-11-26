@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.44.0 - 2026-11-26
+
 - Recheck a partial rollout append once before proving a pending contained-pool writer call.
 
 ## 1.43.0 - 2026-11-26
